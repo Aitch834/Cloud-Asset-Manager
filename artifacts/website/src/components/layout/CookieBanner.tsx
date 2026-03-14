@@ -25,6 +25,15 @@ export function CookieBanner() {
     return undefined;
   }, []);
 
+  useEffect(() => {
+    const handler = () => {
+      setIsVisible(true);
+      setShowPreferences(true);
+    };
+    window.addEventListener("bde:open-cookie-settings", handler);
+    return () => { window.removeEventListener("bde:open-cookie-settings", handler); };
+  }, []);
+
   const handleAccept = () => {
     localStorage.setItem("bde_cookie_consent", "accepted");
     localStorage.setItem("bde_cookie_preferences", JSON.stringify({ analytics: true, marketing: true }));
