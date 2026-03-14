@@ -38,15 +38,22 @@ router.post("/support/chat", async (req, res): Promise<void> => {
   ];
 
   if (conversationHistory && conversationHistory.length > 0) {
+    const lastHistoryMsg = conversationHistory[conversationHistory.length - 1];
+    const historyAlreadyContainsMessage = lastHistoryMsg?.role === "user" && lastHistoryMsg?.content === message;
+
     for (const msg of conversationHistory) {
       chatMessages.push({
         role: msg.role as "user" | "assistant",
         content: msg.content,
       });
     }
-  }
 
-  chatMessages.push({ role: "user", content: message });
+    if (!historyAlreadyContainsMessage) {
+      chatMessages.push({ role: "user", content: message });
+    }
+  } else {
+    chatMessages.push({ role: "user", content: message });
+  }
 
   try {
     const completion = await openai.chat.completions.create({
