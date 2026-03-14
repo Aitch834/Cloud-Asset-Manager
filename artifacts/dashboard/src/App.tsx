@@ -317,7 +317,7 @@ function WeatherPage() {
 }
 
 function HelpPage() {
-  return <ModulePage title="Help Centre" apiPath="help/articles" scope="global" responseKey="articles" columns={[
+  return <ModulePage title="Help Centre" apiPath="help/articles" scope="global" columns={[
     { key: "title", label: "Article" },
     { key: "category", label: "Category" },
   ]} />;

@@ -8,9 +8,27 @@ import {
 } from "@/components/ui/dialog";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useEquipment, useAddEquipment } from "@/hooks/use-equipment";
-import { Plus, Search, Tractor, Settings2, Calendar } from "lucide-react";
+import { Plus, Search, Tractor, Calendar } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
+
+interface EquipmentRecord {
+  id: number;
+  name?: string;
+  equipmentType?: string;
+  make?: string;
+  model?: string;
+  serialNumber?: string;
+  registrationNumber?: string;
+  nextCalibrationDue?: string;
+  isActive?: boolean;
+}
+
+interface EquipmentFormData {
+  name: string;
+  serialNumber: string;
+  equipmentType: string;
+}
 
 export default function EquipmentPage() {
   const { farmId } = useAppStore();
@@ -20,16 +38,15 @@ export default function EquipmentPage() {
 
   const { data, isLoading } = useEquipment(farmId);
   const { mutate: createEquip, isPending } = useAddEquipment(farmId);
-  const { register, handleSubmit, reset } = useForm();
+  const { register, handleSubmit, reset } = useForm<EquipmentFormData>();
 
-  const onSubmit = (data: any) => {
-    createEquip({ farmId, data }, {
+  const onSubmit = (formValues: EquipmentFormData) => {
+    createEquip({ farmId, data: formValues }, {
       onSuccess: () => { setIsAddOpen(false); reset(); }
     });
   };
 
-  const records = data?.records || [];
-  const equipment = records as Array<any>;
+  const equipment = (data?.records ?? []) as EquipmentRecord[];
 
   return (
     <AppLayout title="Machinery & Equipment">
@@ -55,8 +72,8 @@ export default function EquipmentPage() {
                 <Input {...register("serialNumber")} />
               </div>
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Next Calibration Due</label>
-                <Input type="date" {...register("nextCalibration")} />
+                <label className="text-sm font-medium mb-1.5 block">Equipment Type</label>
+                <Input {...register("equipmentType")} placeholder="e.g. Tractor, Sprayer" />
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
@@ -91,14 +108,16 @@ export default function EquipmentPage() {
                   </div>
                   {item.name || `Asset #${item.id}`}
                 </td>
-                <td className="px-6 py-4 text-foreground/70">{item.serialNumber || '-'}</td>
+                <td className="px-6 py-4 text-foreground/70">{item.serialNumber || item.registrationNumber || '-'}</td>
                 <td className="px-6 py-4">
-                  <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">Active</span>
+                  <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${item.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {item.isActive !== false ? 'Active' : 'Inactive'}
+                  </span>
                 </td>
                 <td className="px-6 py-4 text-foreground/70">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 opacity-50" />
-                    {item.nextCalibration || '-'}
+                    {item.nextCalibrationDue ? new Date(item.nextCalibrationDue).toLocaleDateString('en-GB') : '-'}
                   </div>
                 </td>
                 <td className="px-6 py-4 text-right">

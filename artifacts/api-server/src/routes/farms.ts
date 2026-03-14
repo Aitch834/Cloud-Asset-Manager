@@ -46,7 +46,7 @@ import {
   modulesTable,
 } from "@workspace/db";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { requireAuth, requireTenant } from "../middlewares/roleMiddleware";
+import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 
 const router: IRouter = Router();
 
@@ -141,21 +141,21 @@ router.get("/farms/:farmId/activity", requireAuth, requireTenant, async (req: Re
 });
 
 // ─── Fields ─────────────────────────────────────────
-router.get("/farms/:farmId/fields", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/fields", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(fieldsTable).where(eq(fieldsTable.farmId, farmId)).orderBy(desc(fieldsTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/fields", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/fields", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(fieldsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.get("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -165,7 +165,7 @@ router.get("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, async 
   res.json({ record });
 });
 
-router.put("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -175,7 +175,7 @@ router.put("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, async 
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -185,21 +185,21 @@ router.delete("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, asy
 });
 
 // ─── Crops ──────────────────────────────────────────
-router.get("/farms/:farmId/crops", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/crops", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(cropsTable).where(eq(cropsTable.farmId, farmId)).orderBy(desc(cropsTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/crops", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/crops", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(cropsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/crops/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/crops/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -208,7 +208,7 @@ router.put("/farms/:farmId/crops/:recordId", requireAuth, requireTenant, async (
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/crops/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/crops/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -218,7 +218,7 @@ router.delete("/farms/:farmId/crops/:recordId", requireAuth, requireTenant, asyn
 });
 
 // ─── Field-Crop Assignments ─────────────────────────
-router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db
@@ -243,7 +243,7 @@ router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, async (req:
   res.json({ records });
 });
 
-router.post("/farms/:farmId/field-crops", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(fieldCropAssignmentsTable).values(req.body).returning();
@@ -251,7 +251,7 @@ router.post("/farms/:farmId/field-crops", requireAuth, requireTenant, async (req
 });
 
 // ─── Harvests ───────────────────────────────────────
-router.get("/farms/:farmId/harvests", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db
@@ -264,7 +264,7 @@ router.get("/farms/:farmId/harvests", requireAuth, requireTenant, async (req: Re
   res.json({ records: records.map((r) => ({ ...r.harvest_records, fieldCropAssignment: r.field_crop_assignments, field: r.fields })) });
 });
 
-router.post("/farms/:farmId/harvests", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(harvestRecordsTable).values(req.body).returning();
@@ -272,21 +272,21 @@ router.post("/farms/:farmId/harvests", requireAuth, requireTenant, async (req: R
 });
 
 // ─── Spray Products ────────────────────────────────
-router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(sprayProductsTable).where(eq(sprayProductsTable.farmId, farmId)).orderBy(desc(sprayProductsTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/spray-products", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/spray-products", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(sprayProductsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/spray-products/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/spray-products/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -295,7 +295,7 @@ router.put("/farms/:farmId/spray-products/:recordId", requireAuth, requireTenant
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/spray-products/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/spray-products/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -305,7 +305,7 @@ router.delete("/farms/:farmId/spray-products/:recordId", requireAuth, requireTen
 });
 
 // ─── Spray Applications ────────────────────────────
-router.get("/farms/:farmId/spray-applications", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/spray-applications", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db
@@ -336,14 +336,14 @@ router.get("/farms/:farmId/spray-applications", requireAuth, requireTenant, asyn
   res.json({ records });
 });
 
-router.post("/farms/:farmId/spray-applications", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/spray-applications", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(sprayApplicationsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/spray-applications/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/spray-applications/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -352,7 +352,7 @@ router.put("/farms/:farmId/spray-applications/:recordId", requireAuth, requireTe
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/spray-applications/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/spray-applications/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -362,21 +362,21 @@ router.delete("/farms/:farmId/spray-applications/:recordId", requireAuth, requir
 });
 
 // ─── NMP Plans ──────────────────────────────────────
-router.get("/farms/:farmId/nmp-plans", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/nmp-plans", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(nutrientManagementPlansTable).where(eq(nutrientManagementPlansTable.farmId, farmId)).orderBy(desc(nutrientManagementPlansTable.planYear));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/nmp-plans", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/nmp-plans", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(nutrientManagementPlansTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.get("/farms/:farmId/nmp-plans/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/nmp-plans/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -387,7 +387,7 @@ router.get("/farms/:farmId/nmp-plans/:recordId", requireAuth, requireTenant, asy
   res.json({ record: { ...plan, fieldEntries: entries } });
 });
 
-router.put("/farms/:farmId/nmp-plans/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/nmp-plans/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -396,7 +396,7 @@ router.put("/farms/:farmId/nmp-plans/:recordId", requireAuth, requireTenant, asy
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/nmp-plans/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/nmp-plans/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -407,14 +407,14 @@ router.delete("/farms/:farmId/nmp-plans/:recordId", requireAuth, requireTenant, 
 });
 
 // ─── Soil Tests ─────────────────────────────────────
-router.get("/farms/:farmId/soil-tests", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/soil-tests", requireAuth, requireTenant, requireModuleByKey("soil-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(soilTestRecordsTable).where(eq(soilTestRecordsTable.farmId, farmId)).orderBy(desc(soilTestRecordsTable.sampleDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/soil-tests", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/soil-tests", requireAuth, requireTenant, requireModuleByKey("soil-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const { results, ...testData } = req.body;
@@ -427,7 +427,7 @@ router.post("/farms/:farmId/soil-tests", requireAuth, requireTenant, async (req:
   res.status(201).json({ record });
 });
 
-router.get("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, requireModuleByKey("soil-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -438,7 +438,7 @@ router.get("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, as
   res.json({ record: { ...test, results } });
 });
 
-router.put("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, requireModuleByKey("soil-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -447,7 +447,7 @@ router.put("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, as
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, requireModuleByKey("soil-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -458,21 +458,21 @@ router.delete("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant,
 });
 
 // ─── Equipment ──────────────────────────────────────
-router.get("/farms/:farmId/equipment", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/equipment", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(equipmentTable).where(eq(equipmentTable.farmId, farmId)).orderBy(desc(equipmentTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/equipment", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/equipment", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(equipmentTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.get("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -484,7 +484,7 @@ router.get("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, asy
   res.json({ record: { ...equip, maintenance, calibrations } });
 });
 
-router.put("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -493,7 +493,7 @@ router.put("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, asy
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, requireModuleByKey("equipment-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -502,7 +502,7 @@ router.delete("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, 
   res.json({ success: true });
 });
 
-router.get("/farms/:farmId/equipment/:recordId/maintenance", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/equipment/:recordId/maintenance", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -511,7 +511,7 @@ router.get("/farms/:farmId/equipment/:recordId/maintenance", requireAuth, requir
   res.json({ records });
 });
 
-router.post("/farms/:farmId/equipment/:recordId/maintenance", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/equipment/:recordId/maintenance", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -520,7 +520,7 @@ router.post("/farms/:farmId/equipment/:recordId/maintenance", requireAuth, requi
   res.status(201).json({ record });
 });
 
-router.get("/farms/:farmId/equipment/:recordId/calibrations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/equipment/:recordId/calibrations", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -529,7 +529,7 @@ router.get("/farms/:farmId/equipment/:recordId/calibrations", requireAuth, requi
   res.json({ records });
 });
 
-router.post("/farms/:farmId/equipment/:recordId/calibrations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/equipment/:recordId/calibrations", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -539,21 +539,21 @@ router.post("/farms/:farmId/equipment/:recordId/calibrations", requireAuth, requ
 });
 
 // ─── Livestock Herds ───────────────────────────────
-router.get("/farms/:farmId/herds", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/herds", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(herdFlockRegisterTable).where(eq(herdFlockRegisterTable.farmId, farmId)).orderBy(desc(herdFlockRegisterTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/herds", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/herds", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(herdFlockRegisterTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/herds/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/herds/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -562,7 +562,7 @@ router.put("/farms/:farmId/herds/:recordId", requireAuth, requireTenant, async (
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/herds/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/herds/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -572,21 +572,21 @@ router.delete("/farms/:farmId/herds/:recordId", requireAuth, requireTenant, asyn
 });
 
 // ─── Livestock Animals ─────────────────────────────
-router.get("/farms/:farmId/animals", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/animals", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(livestockAnimalsTable).where(eq(livestockAnimalsTable.farmId, farmId)).orderBy(desc(livestockAnimalsTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/animals", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/animals", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(livestockAnimalsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/animals/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/animals/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -595,7 +595,7 @@ router.put("/farms/:farmId/animals/:recordId", requireAuth, requireTenant, async
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/animals/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/animals/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -605,14 +605,14 @@ router.delete("/farms/:farmId/animals/:recordId", requireAuth, requireTenant, as
 });
 
 // ─── Livestock Movements ───────────────────────────
-router.get("/farms/:farmId/movements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/movements", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(livestockMovementsTable).where(eq(livestockMovementsTable.farmId, farmId)).orderBy(desc(livestockMovementsTable.movementDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/movements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/movements", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(livestockMovementsTable).values({ ...req.body, farmId }).returning();
@@ -620,14 +620,14 @@ router.post("/farms/:farmId/movements", requireAuth, requireTenant, async (req: 
 });
 
 // ─── Livestock Medicine ────────────────────────────
-router.get("/farms/:farmId/medicine-records", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/medicine-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(livestockMedicineRecordsTable).where(eq(livestockMedicineRecordsTable.farmId, farmId)).orderBy(desc(livestockMedicineRecordsTable.administeredDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/medicine-records", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/medicine-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(livestockMedicineRecordsTable).values({ ...req.body, farmId }).returning();
@@ -635,14 +635,14 @@ router.post("/farms/:farmId/medicine-records", requireAuth, requireTenant, async
 });
 
 // ─── Livestock Feed ────────────────────────────────
-router.get("/farms/:farmId/feed-records", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/feed-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(livestockFeedRecordsTable).where(eq(livestockFeedRecordsTable.farmId, farmId)).orderBy(desc(livestockFeedRecordsTable.feedDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/feed-records", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/feed-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(livestockFeedRecordsTable).values({ ...req.body, farmId }).returning();
@@ -650,14 +650,14 @@ router.post("/farms/:farmId/feed-records", requireAuth, requireTenant, async (re
 });
 
 // ─── Livestock Water ───────────────────────────────
-router.get("/farms/:farmId/water-records", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/water-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(livestockWaterRecordsTable).where(eq(livestockWaterRecordsTable.farmId, farmId)).orderBy(desc(livestockWaterRecordsTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/water-records", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/water-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(livestockWaterRecordsTable).values({ ...req.body, farmId }).returning();
@@ -665,21 +665,21 @@ router.post("/farms/:farmId/water-records", requireAuth, requireTenant, async (r
 });
 
 // ─── Visitor Log ───────────────────────────────────
-router.get("/farms/:farmId/visitors", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/visitors", requireAuth, requireTenant, requireModuleByKey("biosecurity", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(visitorContractorLogTable).where(eq(visitorContractorLogTable.farmId, farmId)).orderBy(desc(visitorContractorLogTable.arrivalTime));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/visitors", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/visitors", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(visitorContractorLogTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/visitors/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/visitors/:recordId", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -689,14 +689,14 @@ router.put("/farms/:farmId/visitors/:recordId", requireAuth, requireTenant, asyn
 });
 
 // ─── Pest Control ─────────────────────────────────
-router.get("/farms/:farmId/pest-control", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/pest-control", requireAuth, requireTenant, requireModuleByKey("biosecurity", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(pestControlRecordsTable).where(eq(pestControlRecordsTable.farmId, farmId)).orderBy(desc(pestControlRecordsTable.treatmentDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/pest-control", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/pest-control", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(pestControlRecordsTable).values({ ...req.body, farmId }).returning();
@@ -704,14 +704,14 @@ router.post("/farms/:farmId/pest-control", requireAuth, requireTenant, async (re
 });
 
 // ─── Cleaning & Disinfection ───────────────────────
-router.get("/farms/:farmId/cleaning", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/cleaning", requireAuth, requireTenant, requireModuleByKey("biosecurity", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(cleaningDisinfectionRecordsTable).where(eq(cleaningDisinfectionRecordsTable.farmId, farmId)).orderBy(desc(cleaningDisinfectionRecordsTable.cleanedDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/cleaning", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/cleaning", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(cleaningDisinfectionRecordsTable).values({ ...req.body, farmId }).returning();
@@ -719,14 +719,14 @@ router.post("/farms/:farmId/cleaning", requireAuth, requireTenant, async (req: R
 });
 
 // ─── Staff Training ───────────────────────────────
-router.get("/farms/:farmId/training", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/training", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(staffTrainingRecordsTable).where(eq(staffTrainingRecordsTable.farmId, farmId)).orderBy(desc(staffTrainingRecordsTable.trainingDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/training", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/training", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(staffTrainingRecordsTable).values({ ...req.body, farmId }).returning();
@@ -734,21 +734,21 @@ router.post("/farms/:farmId/training", requireAuth, requireTenant, async (req: R
 });
 
 // ─── Staff Certificates ───────────────────────────
-router.get("/farms/:farmId/certificates", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/certificates", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(staffCertificatesTable).where(eq(staffCertificatesTable.farmId, farmId)).orderBy(desc(staffCertificatesTable.issueDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/certificates", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/certificates", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(staffCertificatesTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/certificates/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/certificates/:recordId", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -757,7 +757,7 @@ router.put("/farms/:farmId/certificates/:recordId", requireAuth, requireTenant, 
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/certificates/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/certificates/:recordId", requireAuth, requireTenant, requireModuleByKey("staff-training", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -767,21 +767,21 @@ router.delete("/farms/:farmId/certificates/:recordId", requireAuth, requireTenan
 });
 
 // ─── Risk Assessments ──────────────────────────────
-router.get("/farms/:farmId/risk-assessments", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/risk-assessments", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(riskAssessmentsTable).where(eq(riskAssessmentsTable.farmId, farmId)).orderBy(desc(riskAssessmentsTable.assessmentDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/risk-assessments", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/risk-assessments", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(riskAssessmentsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/risk-assessments/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/risk-assessments/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -790,7 +790,7 @@ router.put("/farms/:farmId/risk-assessments/:recordId", requireAuth, requireTena
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/risk-assessments/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/risk-assessments/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -800,21 +800,21 @@ router.delete("/farms/:farmId/risk-assessments/:recordId", requireAuth, requireT
 });
 
 // ─── COSHH ─────────────────────────────────────────
-router.get("/farms/:farmId/coshh", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/coshh", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(coshhRecordsTable).where(eq(coshhRecordsTable.farmId, farmId)).orderBy(desc(coshhRecordsTable.assessmentDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/coshh", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/coshh", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(coshhRecordsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/coshh/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/coshh/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -824,14 +824,14 @@ router.put("/farms/:farmId/coshh/:recordId", requireAuth, requireTenant, async (
 });
 
 // ─── Waste Disposal ────────────────────────────────
-router.get("/farms/:farmId/waste", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/waste", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(wasteDisposalRecordsTable).where(eq(wasteDisposalRecordsTable.farmId, farmId)).orderBy(desc(wasteDisposalRecordsTable.disposalDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/waste", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/waste", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(wasteDisposalRecordsTable).values({ ...req.body, farmId }).returning();
@@ -839,21 +839,21 @@ router.post("/farms/:farmId/waste", requireAuth, requireTenant, async (req: Requ
 });
 
 // ─── Inspections ───────────────────────────────────
-router.get("/farms/:farmId/inspections", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/inspections", requireAuth, requireTenant, requireModuleByKey("inspections", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(inspectionRecordsTable).where(eq(inspectionRecordsTable.farmId, farmId)).orderBy(desc(inspectionRecordsTable.inspectionDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/inspections", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/inspections", requireAuth, requireTenant, requireModuleByKey("inspections", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(inspectionRecordsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.get("/farms/:farmId/inspections/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/inspections/:recordId", requireAuth, requireTenant, requireModuleByKey("inspections", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -870,7 +870,7 @@ router.get("/farms/:farmId/inspections/:recordId", requireAuth, requireTenant, a
   res.json({ record: { ...inspection, nonconformances: ncs, correctiveActions: actions } });
 });
 
-router.put("/farms/:farmId/inspections/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/inspections/:recordId", requireAuth, requireTenant, requireModuleByKey("inspections", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -880,21 +880,21 @@ router.put("/farms/:farmId/inspections/:recordId", requireAuth, requireTenant, a
 });
 
 // ─── Non-conformances ──────────────────────────────
-router.get("/farms/:farmId/nonconformances", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/nonconformances", requireAuth, requireTenant, requireModuleByKey("inspections", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(nonconformanceRecordsTable).where(eq(nonconformanceRecordsTable.farmId, farmId)).orderBy(desc(nonconformanceRecordsTable.identifiedDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/nonconformances", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/nonconformances", requireAuth, requireTenant, requireModuleByKey("inspections", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(nonconformanceRecordsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/nonconformances/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/nonconformances/:recordId", requireAuth, requireTenant, requireModuleByKey("inspections", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -904,14 +904,14 @@ router.put("/farms/:farmId/nonconformances/:recordId", requireAuth, requireTenan
 });
 
 // ─── Corrective Actions ────────────────────────────
-router.post("/farms/:farmId/corrective-actions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/corrective-actions", requireAuth, requireTenant, requireModuleByKey("inspections", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(correctiveActionsTable).values(req.body).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/corrective-actions/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/corrective-actions/:recordId", requireAuth, requireTenant, requireModuleByKey("inspections", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -921,21 +921,21 @@ router.put("/farms/:farmId/corrective-actions/:recordId", requireAuth, requireTe
 });
 
 // ─── Environmental Features ────────────────────────
-router.get("/farms/:farmId/environmental-features", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/environmental-features", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(environmentalFeaturesTable).where(eq(environmentalFeaturesTable.farmId, farmId)).orderBy(desc(environmentalFeaturesTable.dateRecorded));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/environmental-features", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/environmental-features", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(environmentalFeaturesTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/environmental-features/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/environmental-features/:recordId", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -944,7 +944,7 @@ router.put("/farms/:farmId/environmental-features/:recordId", requireAuth, requi
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/environmental-features/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/environmental-features/:recordId", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -954,14 +954,14 @@ router.delete("/farms/:farmId/environmental-features/:recordId", requireAuth, re
 });
 
 // ─── Agri-Environment Schemes ──────────────────────
-router.get("/farms/:farmId/agri-schemes", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/agri-schemes", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(agriEnvironmentSchemeRecordsTable).where(eq(agriEnvironmentSchemeRecordsTable.farmId, farmId)).orderBy(desc(agriEnvironmentSchemeRecordsTable.startDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/agri-schemes", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/agri-schemes", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(agriEnvironmentSchemeRecordsTable).values({ ...req.body, farmId }).returning();
@@ -969,21 +969,21 @@ router.post("/farms/:farmId/agri-schemes", requireAuth, requireTenant, async (re
 });
 
 // ─── Haulage ───────────────────────────────────────
-router.get("/farms/:farmId/haulage", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/haulage", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(haulageRecordsTable).where(eq(haulageRecordsTable.farmId, farmId)).orderBy(desc(haulageRecordsTable.departureDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/haulage", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/haulage", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(haulageRecordsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/haulage/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/haulage/:recordId", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -993,21 +993,21 @@ router.put("/farms/:farmId/haulage/:recordId", requireAuth, requireTenant, async
 });
 
 // ─── Suppliers ─────────────────────────────────────
-router.get("/farms/:farmId/suppliers", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/suppliers", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(suppliersTable).where(eq(suppliersTable.farmId, farmId)).orderBy(desc(suppliersTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/suppliers", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/suppliers", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(suppliersTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/suppliers/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/suppliers/:recordId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -1016,7 +1016,7 @@ router.put("/farms/:farmId/suppliers/:recordId", requireAuth, requireTenant, asy
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/suppliers/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/suppliers/:recordId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -1026,14 +1026,14 @@ router.delete("/farms/:farmId/suppliers/:recordId", requireAuth, requireTenant, 
 });
 
 // ─── Stock Items ────────────────────────────────────
-router.get("/farms/:farmId/stock-items", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/stock-items", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(stockItemsTable).where(eq(stockItemsTable.farmId, farmId)).orderBy(desc(stockItemsTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/stock-items", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/stock-items", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(stockItemsTable).values({ ...req.body, farmId }).returning();
@@ -1041,14 +1041,14 @@ router.post("/farms/:farmId/stock-items", requireAuth, requireTenant, async (req
 });
 
 // ─── Stock Deliveries ──────────────────────────────
-router.get("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(stockDeliveriesTable).where(eq(stockDeliveriesTable.farmId, farmId)).orderBy(desc(stockDeliveriesTable.deliveryDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(stockDeliveriesTable).values({ ...req.body, farmId }).returning();
@@ -1056,21 +1056,21 @@ router.post("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, async
 });
 
 // ─── Financial Transactions ────────────────────────
-router.get("/farms/:farmId/financial-transactions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/financial-transactions", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(financialTransactionsTable).where(eq(financialTransactionsTable.farmId, farmId)).orderBy(desc(financialTransactionsTable.transactionDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/financial-transactions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/financial-transactions", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(financialTransactionsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/financial-transactions/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/financial-transactions/:recordId", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -1079,7 +1079,7 @@ router.put("/farms/:farmId/financial-transactions/:recordId", requireAuth, requi
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/financial-transactions/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/financial-transactions/:recordId", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -1088,7 +1088,7 @@ router.delete("/farms/:farmId/financial-transactions/:recordId", requireAuth, re
   res.json({ success: true });
 });
 
-router.post("/farms/:farmId/financial-exports", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/financial-exports", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const { dateRangeStart, dateRangeEnd, format } = req.body;
@@ -1101,21 +1101,21 @@ router.post("/farms/:farmId/financial-exports", requireAuth, requireTenant, asyn
 });
 
 // ─── Documents ─────────────────────────────────────
-router.get("/farms/:farmId/documents", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/documents", requireAuth, requireTenant, requireModuleByKey("document-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(documentRecordsTable).where(eq(documentRecordsTable.farmId, farmId)).orderBy(desc(documentRecordsTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/documents", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/documents", requireAuth, requireTenant, requireModuleByKey("document-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(documentRecordsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.delete("/farms/:farmId/documents/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/documents/:recordId", requireAuth, requireTenant, requireModuleByKey("document-management", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -1125,21 +1125,21 @@ router.delete("/farms/:farmId/documents/:recordId", requireAuth, requireTenant, 
 });
 
 // ─── Weather Stations ──────────────────────────────
-router.get("/farms/:farmId/weather-stations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/weather-stations", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(weatherStationsTable).where(eq(weatherStationsTable.farmId, farmId)).orderBy(desc(weatherStationsTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/weather-stations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/weather-stations", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(weatherStationsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/weather-stations/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/weather-stations/:recordId", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -1148,7 +1148,7 @@ router.put("/farms/:farmId/weather-stations/:recordId", requireAuth, requireTena
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/weather-stations/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/weather-stations/:recordId", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
@@ -1158,14 +1158,14 @@ router.delete("/farms/:farmId/weather-stations/:recordId", requireAuth, requireT
 });
 
 // ─── Weather Readings ──────────────────────────────
-router.get("/farms/:farmId/weather-readings", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/weather-readings", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(weatherReadingsTable).where(eq(weatherReadingsTable.farmId, farmId)).orderBy(desc(weatherReadingsTable.readingTimestamp));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/weather-readings", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/weather-readings", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(weatherReadingsTable).values({ ...req.body, farmId }).returning();

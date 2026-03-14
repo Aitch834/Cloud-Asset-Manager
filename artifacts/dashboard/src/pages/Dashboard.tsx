@@ -104,7 +104,7 @@ export default function Dashboard() {
   );
 }
 
-function ShieldIcon(props: any) {
+function ShieldIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinelinejoin="round" {...props}>
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -112,7 +112,15 @@ function ShieldIcon(props: any) {
   );
 }
 
-function QuickLinkCard({ href, title, icon: Icon, count, color }: any) {
+interface QuickLinkCardProps {
+  href: string;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  count: number;
+  color: string;
+}
+
+function QuickLinkCard({ href, title, icon: Icon, count, color }: QuickLinkCardProps) {
   return (
     <Link href={href} className="block group">
       <div className="p-5 rounded-2xl border border-border/50 bg-white shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-300 flex items-center justify-between">

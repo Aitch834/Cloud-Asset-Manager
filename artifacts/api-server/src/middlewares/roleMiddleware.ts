@@ -1,5 +1,5 @@
 import { type Request, type Response, type NextFunction } from "express";
-import { db, permissionsTable, rolesTable } from "@workspace/db";
+import { db, permissionsTable, rolesTable, modulesTable } from "@workspace/db";
 import { eq, and, or, isNull } from "drizzle-orm";
 
 type PermissionLevel = "read" | "write" | "delete" | "approve";
@@ -83,7 +83,7 @@ export function requireModulePermission(moduleId: number, level: PermissionLevel
       return;
     }
 
-    const farmId = req.body?.farmId ?? req.query?.farmId;
+    const farmId = req.body?.farmId ?? req.query?.farmId ?? req.params?.farmId;
     const farmIdNum = farmId ? parseInt(String(farmId), 10) : null;
 
     const permissions = await db
@@ -102,6 +102,78 @@ export function requireModulePermission(moduleId: number, level: PermissionLevel
 
     const permission = permissions[0];
 
+    if (!permission) {
+      res.status(403).json({ error: "No permission for this module" });
+      return;
+    }
+
+    const hasPermission =
+      (level === "read" && permission.canRead) ||
+      (level === "write" && permission.canWrite) ||
+      (level === "delete" && permission.canDelete) ||
+      (level === "approve" && permission.canApprove);
+
+    if (!hasPermission) {
+      res.status(403).json({ error: `Insufficient permission: ${level} access required` });
+      return;
+    }
+
+    next();
+  };
+}
+
+const moduleIdCache = new Map<string, number>();
+
+async function resolveModuleId(key: string): Promise<number | null> {
+  if (moduleIdCache.has(key)) return moduleIdCache.get(key)!;
+  const [mod] = await db
+    .select({ id: modulesTable.id })
+    .from(modulesTable)
+    .where(eq(modulesTable.key, key))
+    .limit(1);
+  if (mod) {
+    moduleIdCache.set(key, mod.id);
+    return mod.id;
+  }
+  return null;
+}
+
+export function requireModuleByKey(moduleKey: string, level: PermissionLevel) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (req.isSuperAdmin) {
+      next();
+      return;
+    }
+
+    if (!req.roleId) {
+      res.status(403).json({ error: "No role assigned" });
+      return;
+    }
+
+    const moduleId = await resolveModuleId(moduleKey);
+    if (!moduleId) {
+      res.status(500).json({ error: "Module not configured" });
+      return;
+    }
+
+    const farmId = req.params?.farmId;
+    const farmIdNum = farmId ? parseInt(String(farmId), 10) : null;
+
+    const permissions = await db
+      .select()
+      .from(permissionsTable)
+      .where(
+        and(
+          eq(permissionsTable.roleId, req.roleId),
+          eq(permissionsTable.moduleId, moduleId),
+          farmIdNum
+            ? or(eq(permissionsTable.farmId, farmIdNum), isNull(permissionsTable.farmId))
+            : isNull(permissionsTable.farmId),
+        ),
+      )
+      .limit(1);
+
+    const permission = permissions[0];
     if (!permission) {
       res.status(403).json({ error: "No permission for this module" });
       return;

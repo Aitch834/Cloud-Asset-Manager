@@ -13,11 +13,21 @@ import { Plus, Search, Map, MoreVertical } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 
-type FieldFormData = {
+interface FieldRecord {
+  id: number;
+  name?: string;
+  fieldReference?: string;
+  areaSqMetres?: number;
+  soilType?: string;
+  currentUse?: string;
+  isActive?: boolean;
+}
+
+interface FieldFormData {
   name: string;
-  area: number;
-  crop: string;
-};
+  areaSqMetres: number;
+  soilType: string;
+}
 
 export default function FieldsPage() {
   const { farmId } = useAppStore();
@@ -31,8 +41,8 @@ export default function FieldsPage() {
   
   const { register, handleSubmit, reset } = useForm<FieldFormData>();
 
-  const onSubmit = (data: FieldFormData) => {
-    createField({ farmId, data }, {
+  const onSubmit = (formValues: FieldFormData) => {
+    createField({ farmId, data: formValues }, {
       onSuccess: () => {
         setIsAddOpen(false);
         reset();
@@ -40,11 +50,10 @@ export default function FieldsPage() {
     });
   };
 
-  const records = data?.records || [];
-  // Type assertion since backend returns generic records
-  const fields = records as unknown as Array<{id: number, name?: string, area?: number, crop?: string}>;
-  
-  const filtered = fields.filter(f => f.name?.toLowerCase().includes(search.toLowerCase()));
+  const records = (data?.records ?? []) as FieldRecord[];
+  const filtered = records.filter(f => 
+    !search || (f.name ?? "").toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <AppLayout title="Fields & Crops">
@@ -76,12 +85,12 @@ export default function FieldsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium mb-1.5 block">Area (Hectares)</label>
-                  <Input type="number" step="0.01" {...register("area", { valueAsNumber: true })} placeholder="0.00" />
+                  <label className="text-sm font-medium mb-1.5 block">Area (sq metres)</label>
+                  <Input type="number" step="0.01" {...register("areaSqMetres", { valueAsNumber: true })} placeholder="0.00" />
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1.5 block">Current Crop</label>
-                  <Input {...register("crop")} placeholder="e.g. Winter Wheat" />
+                  <label className="text-sm font-medium mb-1.5 block">Soil Type</label>
+                  <Input {...register("soilType")} placeholder="e.g. Clay loam" />
                 </div>
               </div>
               <DialogFooter>
@@ -119,13 +128,13 @@ export default function FieldsPage() {
               <h3 className="text-xl font-bold text-foreground mb-1">{field.name || `Field #${field.id}`}</h3>
               <div className="flex items-center gap-4 mt-4">
                 <div className="flex-1">
-                  <p className="text-xs text-foreground/50 uppercase font-semibold mb-1">Crop</p>
-                  <p className="font-medium text-foreground">{field.crop || 'Fallow'}</p>
+                  <p className="text-xs text-foreground/50 uppercase font-semibold mb-1">Soil</p>
+                  <p className="font-medium text-foreground">{field.soilType || 'Unknown'}</p>
                 </div>
                 <div className="w-px h-8 bg-border"></div>
                 <div className="flex-1">
                   <p className="text-xs text-foreground/50 uppercase font-semibold mb-1">Area</p>
-                  <p className="font-medium text-foreground">{field.area ? `${field.area} ha` : '-'}</p>
+                  <p className="font-medium text-foreground">{field.areaSqMetres ? `${(field.areaSqMetres / 10000).toFixed(2)} ha` : '-'}</p>
                 </div>
               </div>
             </div>

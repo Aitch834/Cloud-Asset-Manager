@@ -5,24 +5,42 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Redirect } from "wouter";
-import { Plus, Search, RefreshCw, FileDown, Loader2 } from "lucide-react";
+import { Plus, Search, RefreshCw, FileDown, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogFooter
+} from "@/components/ui/dialog";
+
+interface ColumnDef {
+  key: string;
+  label: string;
+  render?: (val: string | number | boolean | null | undefined, row: Record<string, unknown>) => string;
+}
+
+interface FormFieldDef {
+  key: string;
+  label: string;
+  type?: string;
+  required?: boolean;
+  options?: string[];
+}
 
 interface ModulePageProps {
   title: string;
   apiPath: string;
-  columns: { key: string; label: string; render?: (val: any, row: any) => string }[];
-  formFields?: { key: string; label: string; type?: string; required?: boolean; options?: string[] }[];
+  columns: ColumnDef[];
+  formFields?: FormFieldDef[];
   responseKey?: string;
   scope?: "farm" | "global";
 }
 
-function formatDate(val: any): string {
+function formatDate(val: unknown): string {
   if (!val) return "-";
-  try { return new Date(val).toLocaleDateString("en-GB"); } catch { return String(val); }
+  try { return new Date(String(val)).toLocaleDateString("en-GB"); } catch { return String(val); }
 }
 
-function formatValue(val: any): string {
+function formatValue(val: unknown): string {
   if (val === null || val === undefined) return "-";
   if (typeof val === "boolean") return val ? "Yes" : "No";
   if (typeof val === "string" && val.match(/^\d{4}-\d{2}-\d{2}/)) return formatDate(val);
@@ -33,7 +51,9 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
   const { farmId } = useAppStore();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [editingRecord, setEditingRecord] = useState<Record<string, unknown> | null>(null);
+  const [formData, setFormData] = useState<Record<string, string | number>>({});
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
   if (scope === "farm" && !farmId) return <Redirect href="/select" />;
@@ -45,19 +65,19 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
     queryFn: async () => {
       const res = await fetch(fetchUrl);
       if (!res.ok) throw new Error("Failed to fetch");
-      return res.json();
+      return res.json() as Promise<Record<string, unknown>>;
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: async (body: Record<string, any>) => {
+    mutationFn: async (body: Record<string, string | number>) => {
       const res = await fetch(fetchUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Failed to create");
-      return res.json();
+      return res.json() as Promise<Record<string, unknown>>;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["farm-module", farmId, apiPath] });
@@ -66,21 +86,69 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, body }: { id: number; body: Record<string, string | number> }) => {
+      const res = await fetch(`${fetchUrl}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      return res.json() as Promise<Record<string, unknown>>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["farm-module", farmId, apiPath] });
+      setEditingRecord(null);
+      setFormData({});
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`${fetchUrl}/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
+      return res.json() as Promise<Record<string, unknown>>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["farm-module", farmId, apiPath] });
+      setDeleteConfirmId(null);
+    },
+  });
+
   const rKey = responseKey || "records";
-  const records: any[] = data?.[rKey] || data?.records || [];
-  const filtered = records.filter((r: any) => {
+  const rawRecords = data?.[rKey] ?? data?.records;
+  const records: Record<string, unknown>[] = Array.isArray(rawRecords) ? rawRecords : [];
+  const filtered = records.filter((r) => {
     if (!search) return true;
     const s = search.toLowerCase();
     return columns.some((c) => {
       const val = r[c.key];
-      return val && String(val).toLowerCase().includes(s);
+      return val != null && String(val).toLowerCase().includes(s);
     });
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate(formData);
+    if (editingRecord) {
+      updateMutation.mutate({ id: editingRecord.id as number, body: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
   };
+
+  const openEditForm = (record: Record<string, unknown>) => {
+    setEditingRecord(record);
+    const prefilled: Record<string, string | number> = {};
+    if (formFields) {
+      for (const field of formFields) {
+        const val = record[field.key];
+        if (val != null) prefilled[field.key] = val as string | number;
+      }
+    }
+    setFormData(prefilled);
+  };
+
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
   return (
     <AppLayout title={title}>
@@ -99,17 +167,24 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
             <RefreshCw className="w-4 h-4 mr-1" /> Refresh
           </Button>
           {formFields && (
-            <Button size="sm" onClick={() => setShowForm(!showForm)}>
+            <Button size="sm" onClick={() => { setShowForm(!showForm); setEditingRecord(null); setFormData({}); }}>
               <Plus className="w-4 h-4 mr-1" /> Add New
             </Button>
           )}
         </div>
       </div>
 
-      {showForm && formFields && (
+      {(showForm || editingRecord) && formFields && (
         <Card>
           <CardContent className="p-6">
-            <h3 className="font-display font-bold text-lg mb-4">Add New Record</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display font-bold text-lg">
+                {editingRecord ? "Edit Record" : "Add New Record"}
+              </h3>
+              <button onClick={() => { setShowForm(false); setEditingRecord(null); setFormData({}); }} className="p-1 rounded hover:bg-black/5">
+                <X className="w-5 h-5 text-foreground/50" />
+              </button>
+            </div>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {formFields.map((field) => (
                 <div key={field.key}>
@@ -117,7 +192,7 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
                   {field.type === "select" && field.options ? (
                     <select
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                      value={formData[field.key] || ""}
+                      value={String(formData[field.key] ?? "")}
                       onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
                       required={field.required}
                     >
@@ -129,14 +204,14 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
                   ) : field.type === "textarea" ? (
                     <textarea
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm min-h-[80px]"
-                      value={formData[field.key] || ""}
+                      value={String(formData[field.key] ?? "")}
                       onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
                       required={field.required}
                     />
                   ) : (
                     <Input
                       type={field.type || "text"}
-                      value={formData[field.key] || ""}
+                      value={String(formData[field.key] ?? "")}
                       onChange={(e) => setFormData({ ...formData, [field.key]: field.type === "number" ? Number(e.target.value) : e.target.value })}
                       required={field.required}
                     />
@@ -144,16 +219,32 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
                 </div>
               ))}
               <div className="md:col-span-2 flex gap-2 justify-end pt-2">
-                <Button variant="outline" type="button" onClick={() => { setShowForm(false); setFormData({}); }}>Cancel</Button>
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                  Save
+                <Button variant="outline" type="button" onClick={() => { setShowForm(false); setEditingRecord(null); setFormData({}); }}>Cancel</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                  {editingRecord ? "Update" : "Save"}
                 </Button>
               </div>
             </form>
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={deleteConfirmId !== null} onOpenChange={() => setDeleteConfirmId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Record</DialogTitle>
+          </DialogHeader>
+          <p className="text-foreground/70 text-sm">Are you sure you want to delete this record? This action cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteConfirmId && deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <div className="overflow-x-auto">
@@ -180,16 +271,39 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
                       {col.label}
                     </th>
                   ))}
+                  {formFields && <th className="text-right p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {filtered.map((record: any, i: number) => (
-                  <tr key={record.id || i} className="hover:bg-black/[0.02] transition-colors">
+                {filtered.map((record, i: number) => (
+                  <tr key={(record.id as number) || i} className="hover:bg-black/[0.02] transition-colors">
                     {columns.map((col) => (
                       <td key={col.key} className="p-4 text-sm text-foreground/80">
-                        {col.render ? col.render(record[col.key], record) : formatValue(record[col.key])}
+                        {col.render
+                          ? col.render(record[col.key] as string | number | boolean | null | undefined, record)
+                          : formatValue(record[col.key])}
                       </td>
                     ))}
+                    {formFields && (
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEditForm(record)}
+                            className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-primary transition-colors"
+                            title="Edit"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(record.id as number)}
+                            className="p-1.5 rounded-md hover:bg-red-50 text-foreground/50 hover:text-red-500 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
