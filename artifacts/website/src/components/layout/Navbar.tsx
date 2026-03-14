@@ -42,7 +42,7 @@ export function Navbar() {
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
             <img 
-              src="/bde-farm-trac-logo.png" 
+              src={`${import.meta.env.BASE_URL}bde-farm-trac-logo.png`} 
               alt="BDE Farm Trac" 
               className="h-10 w-auto object-contain transition-transform group-hover:scale-105"
             />
