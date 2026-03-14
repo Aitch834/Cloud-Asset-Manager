@@ -153,3 +153,488 @@ export const LogoutMobileSessionHeader = zod.object({
 export const LogoutMobileSessionResponse = zod.object({
   success: zod.boolean(),
 });
+
+/**
+ * @summary List tenants the current user belongs to
+ */
+export const GetMyTenantsResponse = zod.object({
+  tenants: zod.array(
+    zod.object({
+      tenantId: zod.number(),
+      roleId: zod.number(),
+      isSuperAdmin: zod.boolean(),
+      tenantName: zod.string(),
+      tenantSlug: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create a new tenant
+ */
+export const CreateTenantBody = zod.object({
+  name: zod.string(),
+  slug: zod.string(),
+  contactEmail: zod.string().email(),
+  contactPhone: zod.string().optional(),
+  address: zod.string().optional(),
+});
+
+/**
+ * @summary Get the current tenant
+ */
+export const GetCurrentTenantHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const GetCurrentTenantResponse = zod.object({
+  tenant: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    slug: zod.string(),
+    contactEmail: zod.string(),
+    contactPhone: zod.string().nullish(),
+    address: zod.string().nullish(),
+    isActive: zod.boolean(),
+    stripeCustomerId: zod.string().nullish(),
+    createdAt: zod.date(),
+  }),
+});
+
+/**
+ * @summary Update the current tenant
+ */
+export const UpdateCurrentTenantHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateCurrentTenantBody = zod.object({
+  name: zod.string().optional(),
+  contactEmail: zod.string().optional(),
+  contactPhone: zod.string().optional(),
+  address: zod.string().optional(),
+});
+
+export const UpdateCurrentTenantResponse = zod.object({
+  tenant: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    slug: zod.string(),
+    contactEmail: zod.string(),
+    contactPhone: zod.string().nullish(),
+    address: zod.string().nullish(),
+    isActive: zod.boolean(),
+    stripeCustomerId: zod.string().nullish(),
+    createdAt: zod.date(),
+  }),
+});
+
+/**
+ * @summary List farms for the current tenant
+ */
+export const ListFarmsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListFarmsResponse = zod.object({
+  farms: zod.array(
+    zod.object({
+      id: zod.number(),
+      tenantId: zod.number(),
+      name: zod.string(),
+      address: zod.string().nullish(),
+      postcode: zod.string().nullish(),
+      cphNumber: zod.string().nullish(),
+      gridReference: zod.string().nullish(),
+      totalAcreage: zod.number().nullish(),
+      sectorArable: zod.boolean().optional(),
+      sectorBeef: zod.boolean().optional(),
+      sectorDairy: zod.boolean().optional(),
+      sectorPigs: zod.boolean().optional(),
+      sectorPoultry: zod.boolean().optional(),
+      sectorHorticulture: zod.boolean().optional(),
+      isActive: zod.boolean(),
+      createdAt: zod.date().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create a farm
+ */
+export const CreateFarmHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateFarmBody = zod.object({
+  name: zod.string(),
+  address: zod.string().optional(),
+  postcode: zod.string().optional(),
+  cphNumber: zod.string().optional(),
+  gridReference: zod.string().optional(),
+  totalAcreage: zod.number().optional(),
+  sectorArable: zod.boolean().optional(),
+  sectorBeef: zod.boolean().optional(),
+  sectorDairy: zod.boolean().optional(),
+  sectorPigs: zod.boolean().optional(),
+  sectorPoultry: zod.boolean().optional(),
+  sectorHorticulture: zod.boolean().optional(),
+});
+
+/**
+ * @summary Update a farm
+ */
+export const UpdateFarmParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const UpdateFarmHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateFarmBody = zod.object({
+  name: zod.string(),
+  address: zod.string().optional(),
+  postcode: zod.string().optional(),
+  cphNumber: zod.string().optional(),
+  gridReference: zod.string().optional(),
+  totalAcreage: zod.number().optional(),
+  sectorArable: zod.boolean().optional(),
+  sectorBeef: zod.boolean().optional(),
+  sectorDairy: zod.boolean().optional(),
+  sectorPigs: zod.boolean().optional(),
+  sectorPoultry: zod.boolean().optional(),
+  sectorHorticulture: zod.boolean().optional(),
+});
+
+export const UpdateFarmResponse = zod.object({
+  farm: zod.object({
+    id: zod.number(),
+    tenantId: zod.number(),
+    name: zod.string(),
+    address: zod.string().nullish(),
+    postcode: zod.string().nullish(),
+    cphNumber: zod.string().nullish(),
+    gridReference: zod.string().nullish(),
+    totalAcreage: zod.number().nullish(),
+    sectorArable: zod.boolean().optional(),
+    sectorBeef: zod.boolean().optional(),
+    sectorDairy: zod.boolean().optional(),
+    sectorPigs: zod.boolean().optional(),
+    sectorPoultry: zod.boolean().optional(),
+    sectorHorticulture: zod.boolean().optional(),
+    isActive: zod.boolean(),
+    createdAt: zod.date().optional(),
+  }),
+});
+
+/**
+ * @summary List invitations for the current tenant
+ */
+export const ListInvitationsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListInvitationsResponse = zod.object({
+  invitations: zod.array(zod.object({}).passthrough()),
+});
+
+/**
+ * @summary Invite a user to the tenant
+ */
+export const CreateInvitationHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateInvitationBody = zod.object({
+  email: zod.string().email(),
+  roleId: zod.number(),
+});
+
+/**
+ * @summary List staff farm assignments
+ */
+export const ListStaffAssignmentsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListStaffAssignmentsResponse = zod.object({
+  assignments: zod.array(zod.object({}).passthrough()),
+});
+
+/**
+ * @summary Assign staff to a farm
+ */
+export const CreateStaffAssignmentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateStaffAssignmentBody = zod.object({
+  userId: zod.string(),
+  farmId: zod.number(),
+  roleId: zod.number().optional(),
+});
+
+/**
+ * @summary List roles (system + tenant-scoped)
+ */
+export const ListRolesHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListRolesResponse = zod.object({
+  roles: zod.array(
+    zod.object({
+      id: zod.number(),
+      tenantId: zod.number().nullish(),
+      name: zod.string(),
+      description: zod.string().nullish(),
+      isSystemRole: zod.boolean(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create a custom role for the tenant
+ */
+export const CreateRoleHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateRoleBody = zod.object({
+  name: zod.string(),
+  description: zod.string().optional(),
+});
+
+/**
+ * @summary List available compliance modules
+ */
+export const ListModulesResponse = zod.object({
+  modules: zod.array(
+    zod.object({
+      id: zod.number(),
+      key: zod.string(),
+      name: zod.string(),
+      description: zod.string().nullish(),
+      monthlyPricePence: zod.number(),
+      isActive: zod.boolean(),
+      requiresSector: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get permissions for a role
+ */
+export const GetRolePermissionsParams = zod.object({
+  roleId: zod.coerce.number(),
+});
+
+export const GetRolePermissionsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const GetRolePermissionsResponse = zod.object({
+  permissions: zod.array(
+    zod.object({
+      id: zod.number(),
+      roleId: zod.number(),
+      moduleId: zod.number(),
+      farmId: zod.number().nullish(),
+      moduleName: zod.string().optional(),
+      canRead: zod.boolean(),
+      canWrite: zod.boolean(),
+      canDelete: zod.boolean(),
+      canApprove: zod.boolean(),
+    }),
+  ),
+});
+
+/**
+ * @summary Update permission for a role on a module
+ */
+export const UpdateRolePermissionParams = zod.object({
+  roleId: zod.coerce.number(),
+  moduleId: zod.coerce.number(),
+});
+
+export const UpdateRolePermissionHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateRolePermissionBody = zod.object({
+  canRead: zod.boolean().optional(),
+  canWrite: zod.boolean().optional(),
+  canDelete: zod.boolean().optional(),
+  canApprove: zod.boolean().optional(),
+});
+
+export const UpdateRolePermissionResponse = zod.object({
+  permission: zod.object({
+    id: zod.number(),
+    roleId: zod.number(),
+    moduleId: zod.number(),
+    farmId: zod.number().nullish(),
+    moduleName: zod.string().optional(),
+    canRead: zod.boolean(),
+    canWrite: zod.boolean(),
+    canDelete: zod.boolean(),
+    canApprove: zod.boolean(),
+  }),
+});
+
+/**
+ * @summary Create a Stripe checkout session for module subscriptions
+ */
+export const CreateCheckoutSessionHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateCheckoutSessionBody = zod.object({
+  farmId: zod.number(),
+  moduleIds: zod.array(zod.number()),
+});
+
+export const CreateCheckoutSessionResponse = zod.object({
+  checkoutUrl: zod.string(),
+});
+
+/**
+ * @summary List subscriptions for the current tenant
+ */
+export const ListSubscriptionsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListSubscriptionsResponse = zod.object({
+  subscriptions: zod.array(
+    zod.object({
+      id: zod.number(),
+      farmId: zod.number(),
+      moduleId: zod.number(),
+      moduleName: zod.string(),
+      status: zod.string(),
+      currentPeriodEnd: zod.date().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Stripe webhook endpoint
+ */
+export const StripeWebhookBody = zod.object({}).passthrough();
+
+export const StripeWebhookResponse = zod.object({
+  received: zod.boolean(),
+});
+
+/**
+ * @summary List all tenants (Super Admin only)
+ */
+export const AdminListTenantsResponse = zod.object({
+  tenants: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      slug: zod.string(),
+      contactEmail: zod.string(),
+      contactPhone: zod.string().nullish(),
+      address: zod.string().nullish(),
+      isActive: zod.boolean(),
+      stripeCustomerId: zod.string().nullish(),
+      createdAt: zod.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get tenant detail with farms, subscriptions, users
+ */
+export const AdminGetTenantDetailParams = zod.object({
+  tenantId: zod.coerce.number(),
+});
+
+export const AdminGetTenantDetailResponse = zod.object({
+  tenant: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    slug: zod.string(),
+    contactEmail: zod.string(),
+    contactPhone: zod.string().nullish(),
+    address: zod.string().nullish(),
+    isActive: zod.boolean(),
+    stripeCustomerId: zod.string().nullish(),
+    createdAt: zod.date(),
+  }),
+  farms: zod.array(
+    zod.object({
+      id: zod.number(),
+      tenantId: zod.number(),
+      name: zod.string(),
+      address: zod.string().nullish(),
+      postcode: zod.string().nullish(),
+      cphNumber: zod.string().nullish(),
+      gridReference: zod.string().nullish(),
+      totalAcreage: zod.number().nullish(),
+      sectorArable: zod.boolean().optional(),
+      sectorBeef: zod.boolean().optional(),
+      sectorDairy: zod.boolean().optional(),
+      sectorPigs: zod.boolean().optional(),
+      sectorPoultry: zod.boolean().optional(),
+      sectorHorticulture: zod.boolean().optional(),
+      isActive: zod.boolean(),
+      createdAt: zod.date().optional(),
+    }),
+  ),
+  subscriptions: zod.array(
+    zod.object({
+      id: zod.number(),
+      farmId: zod.number(),
+      moduleId: zod.number(),
+      moduleName: zod.string(),
+      status: zod.string(),
+      currentPeriodEnd: zod.date().nullish(),
+    }),
+  ),
+  users: zod.array(
+    zod.object({
+      userId: zod.string(),
+      roleId: zod.number(),
+      isActive: zod.boolean(),
+      email: zod.string().nullish(),
+      firstName: zod.string().nullish(),
+      lastName: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get platform-wide statistics
+ */
+export const AdminGetStatsResponse = zod.object({
+  stats: zod.object({
+    totalTenants: zod.number(),
+    totalFarms: zod.number(),
+    activeSubscriptions: zod.number(),
+    totalUsers: zod.number(),
+  }),
+});
+
+/**
+ * @summary Begin impersonating a user
+ */
+export const AdminImpersonateBody = zod.object({
+  userId: zod.string(),
+  tenantId: zod.number(),
+});
+
+export const AdminImpersonateResponse = zod.object({
+  impersonation: zod.object({
+    userId: zod.string(),
+    email: zod.string().nullish(),
+    firstName: zod.string().nullish(),
+    lastName: zod.string().nullish(),
+    tenantId: zod.number(),
+    note: zod.string(),
+  }),
+});

@@ -121,10 +121,288 @@ export interface ErrorEnvelope {
   error: string;
 }
 
+export interface Tenant {
+  id: number;
+  name: string;
+  slug: string;
+  contactEmail: string;
+  /** @nullable */
+  contactPhone?: string | null;
+  /** @nullable */
+  address?: string | null;
+  isActive: boolean;
+  /** @nullable */
+  stripeCustomerId?: string | null;
+  createdAt: string;
+}
+
+export interface TenantEnvelope {
+  tenant: Tenant;
+}
+
+export interface CreateTenantBody {
+  name: string;
+  slug: string;
+  contactEmail: string;
+  contactPhone?: string;
+  address?: string;
+}
+
+export interface UpdateTenantBody {
+  name?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  address?: string;
+}
+
+export type UserTenantsResponseTenantsItem = {
+  tenantId: number;
+  roleId: number;
+  isSuperAdmin: boolean;
+  tenantName: string;
+  tenantSlug: string;
+};
+
+export interface UserTenantsResponse {
+  tenants: UserTenantsResponseTenantsItem[];
+}
+
+export interface Farm {
+  id: number;
+  tenantId: number;
+  name: string;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  postcode?: string | null;
+  /** @nullable */
+  cphNumber?: string | null;
+  /** @nullable */
+  gridReference?: string | null;
+  /** @nullable */
+  totalAcreage?: number | null;
+  sectorArable?: boolean;
+  sectorBeef?: boolean;
+  sectorDairy?: boolean;
+  sectorPigs?: boolean;
+  sectorPoultry?: boolean;
+  sectorHorticulture?: boolean;
+  isActive: boolean;
+  createdAt?: string;
+}
+
+export interface FarmEnvelope {
+  farm: Farm;
+}
+
+export interface FarmListResponse {
+  farms: Farm[];
+}
+
+export interface CreateFarmBody {
+  name: string;
+  address?: string;
+  postcode?: string;
+  cphNumber?: string;
+  gridReference?: string;
+  totalAcreage?: number;
+  sectorArable?: boolean;
+  sectorBeef?: boolean;
+  sectorDairy?: boolean;
+  sectorPigs?: boolean;
+  sectorPoultry?: boolean;
+  sectorHorticulture?: boolean;
+}
+
+export type InvitationListResponseInvitationsItem = { [key: string]: unknown };
+
+export interface InvitationListResponse {
+  invitations: InvitationListResponseInvitationsItem[];
+}
+
+export interface CreateInvitationBody {
+  email: string;
+  roleId: number;
+}
+
+export type InvitationEnvelopeInvitation = { [key: string]: unknown };
+
+export interface InvitationEnvelope {
+  invitation: InvitationEnvelopeInvitation;
+}
+
+export type AssignmentListResponseAssignmentsItem = { [key: string]: unknown };
+
+export interface AssignmentListResponse {
+  assignments: AssignmentListResponseAssignmentsItem[];
+}
+
+export interface CreateStaffAssignmentBody {
+  userId: string;
+  farmId: number;
+  roleId?: number;
+}
+
+export type AssignmentEnvelopeAssignment = { [key: string]: unknown };
+
+export interface AssignmentEnvelope {
+  assignment: AssignmentEnvelopeAssignment;
+}
+
+export interface Role {
+  id: number;
+  /** @nullable */
+  tenantId?: number | null;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  isSystemRole: boolean;
+}
+
+export interface RoleListResponse {
+  roles: Role[];
+}
+
+export interface RoleEnvelope {
+  role: Role;
+}
+
+export interface CreateRoleBody {
+  name: string;
+  description?: string;
+}
+
+export interface Module {
+  id: number;
+  key: string;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  monthlyPricePence: number;
+  isActive: boolean;
+  /** @nullable */
+  requiresSector?: string | null;
+}
+
+export interface ModuleListResponse {
+  modules: Module[];
+}
+
+export interface Permission {
+  id: number;
+  roleId: number;
+  moduleId: number;
+  /** @nullable */
+  farmId?: number | null;
+  moduleName?: string;
+  canRead: boolean;
+  canWrite: boolean;
+  canDelete: boolean;
+  canApprove: boolean;
+}
+
+export interface PermissionListResponse {
+  permissions: Permission[];
+}
+
+export interface PermissionEnvelope {
+  permission: Permission;
+}
+
+export interface UpdatePermissionBody {
+  canRead?: boolean;
+  canWrite?: boolean;
+  canDelete?: boolean;
+  canApprove?: boolean;
+}
+
+export interface CheckoutBody {
+  farmId: number;
+  moduleIds: number[];
+}
+
+export interface CheckoutResponse {
+  checkoutUrl: string;
+}
+
+export interface Subscription {
+  id: number;
+  farmId: number;
+  moduleId: number;
+  moduleName: string;
+  status: string;
+  /** @nullable */
+  currentPeriodEnd?: string | null;
+}
+
+export interface SubscriptionListResponse {
+  subscriptions: Subscription[];
+}
+
+export interface AdminTenantListResponse {
+  tenants: Tenant[];
+}
+
+export type AdminTenantDetailResponseUsersItem = {
+  userId: string;
+  roleId: number;
+  isActive: boolean;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  firstName?: string | null;
+  /** @nullable */
+  lastName?: string | null;
+};
+
+export interface AdminTenantDetailResponse {
+  tenant: Tenant;
+  farms: Farm[];
+  subscriptions: Subscription[];
+  users: AdminTenantDetailResponseUsersItem[];
+}
+
+export type AdminStatsResponseStats = {
+  totalTenants: number;
+  totalFarms: number;
+  activeSubscriptions: number;
+  totalUsers: number;
+};
+
+export interface AdminStatsResponse {
+  stats: AdminStatsResponseStats;
+}
+
+export interface ImpersonateBody {
+  userId: string;
+  tenantId: number;
+}
+
+export type ImpersonateResponseImpersonation = {
+  userId: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  firstName?: string | null;
+  /** @nullable */
+  lastName?: string | null;
+  tenantId: number;
+  note: string;
+};
+
+export interface ImpersonateResponse {
+  impersonation: ImpersonateResponseImpersonation;
+}
+
 /**
  * Opaque session token — Bearer <sid>.
  */
 export type AuthorizationSessionHeaderParameter = string;
+
+/**
+ * Tenant slug to scope the request
+ */
+export type TenantSlugHeaderParameter = string;
 
 export type BeginBrowserLoginParams = {
   /**
@@ -137,4 +415,10 @@ export type HandleBrowserLoginCallbackParams = {
   code?: string;
   state?: string;
   iss?: string;
+};
+
+export type StripeWebhookBody = { [key: string]: unknown };
+
+export type StripeWebhook200 = {
+  received: boolean;
 };

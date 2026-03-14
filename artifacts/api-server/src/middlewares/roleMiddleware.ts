@@ -1,6 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { db, permissionsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, isNull } from "drizzle-orm";
 
 type PermissionLevel = "read" | "write" | "delete" | "approve";
 
@@ -52,16 +52,24 @@ export function requireModulePermission(moduleId: number, level: PermissionLevel
       return;
     }
 
-    const [permission] = await db
+    const farmId = req.body?.farmId ?? req.query?.farmId;
+    const farmIdNum = farmId ? parseInt(String(farmId), 10) : null;
+
+    const permissions = await db
       .select()
       .from(permissionsTable)
       .where(
         and(
           eq(permissionsTable.roleId, req.roleId),
           eq(permissionsTable.moduleId, moduleId),
+          farmIdNum
+            ? or(eq(permissionsTable.farmId, farmIdNum), isNull(permissionsTable.farmId))
+            : isNull(permissionsTable.farmId),
         ),
       )
       .limit(1);
+
+    const permission = permissions[0];
 
     if (!permission) {
       res.status(403).json({ error: "No permission for this module" });

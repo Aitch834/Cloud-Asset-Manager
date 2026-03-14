@@ -16,6 +16,14 @@ tags:
     description: Support chat and tickets
   - name: Auth
     description: Browser and mobile authentication endpoints.
+  - name: tenants
+    description: Tenant and farm management
+  - name: roles
+    description: Roles, modules, and permissions
+  - name: billing
+    description: Stripe billing and subscriptions
+  - name: admin
+    description: BDE Super Admin operations
 paths:
   /healthz:
     get:
@@ -221,6 +229,428 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LogoutSuccess'
+  /tenants/mine:
+    get:
+      operationId: getMyTenants
+      tags: [tenants]
+      summary: List tenants the current user belongs to
+      responses:
+        "200":
+          description: List of user tenants
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserTenantsResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tenants:
+    post:
+      operationId: createTenant
+      tags: [tenants]
+      summary: Create a new tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTenantBody"
+      responses:
+        "201":
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantEnvelope"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Slug already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tenants/current:
+    get:
+      operationId: getCurrentTenant
+      tags: [tenants]
+      summary: Get the current tenant
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      responses:
+        "200":
+          description: Current tenant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantEnvelope"
+    put:
+      operationId: updateCurrentTenant
+      tags: [tenants]
+      summary: Update the current tenant
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTenantBody"
+      responses:
+        "200":
+          description: Updated tenant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantEnvelope"
+  /tenants/current/farms:
+    get:
+      operationId: listFarms
+      tags: [tenants]
+      summary: List farms for the current tenant
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      responses:
+        "200":
+          description: Farm list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmListResponse"
+    post:
+      operationId: createFarm
+      tags: [tenants]
+      summary: Create a farm
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFarmBody"
+      responses:
+        "201":
+          description: Farm created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmEnvelope"
+  /tenants/current/farms/{farmId}:
+    put:
+      operationId: updateFarm
+      tags: [tenants]
+      summary: Update a farm
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - name: farmId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFarmBody"
+      responses:
+        "200":
+          description: Updated farm
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmEnvelope"
+  /tenants/current/invitations:
+    get:
+      operationId: listInvitations
+      tags: [tenants]
+      summary: List invitations for the current tenant
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      responses:
+        "200":
+          description: Invitation list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationListResponse"
+    post:
+      operationId: createInvitation
+      tags: [tenants]
+      summary: Invite a user to the tenant
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvitationBody"
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationEnvelope"
+  /tenants/current/staff-assignments:
+    get:
+      operationId: listStaffAssignments
+      tags: [tenants]
+      summary: List staff farm assignments
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      responses:
+        "200":
+          description: Assignment list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentListResponse"
+    post:
+      operationId: createStaffAssignment
+      tags: [tenants]
+      summary: Assign staff to a farm
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStaffAssignmentBody"
+      responses:
+        "201":
+          description: Assignment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentEnvelope"
+  /roles:
+    get:
+      operationId: listRoles
+      tags: [roles]
+      summary: List roles (system + tenant-scoped)
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      responses:
+        "200":
+          description: Role list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleListResponse"
+    post:
+      operationId: createRole
+      tags: [roles]
+      summary: Create a custom role for the tenant
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleBody"
+      responses:
+        "201":
+          description: Role created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleEnvelope"
+  /modules:
+    get:
+      operationId: listModules
+      tags: [roles]
+      summary: List available compliance modules
+      responses:
+        "200":
+          description: Module list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModuleListResponse"
+  /roles/{roleId}/permissions:
+    get:
+      operationId: getRolePermissions
+      tags: [roles]
+      summary: Get permissions for a role
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Permission list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionListResponse"
+  /roles/{roleId}/permissions/{moduleId}:
+    put:
+      operationId: updateRolePermission
+      tags: [roles]
+      summary: Update permission for a role on a module
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: moduleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePermissionBody"
+      responses:
+        "200":
+          description: Permission updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionEnvelope"
+        "201":
+          description: Permission created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionEnvelope"
+  /billing/checkout:
+    post:
+      operationId: createCheckoutSession
+      tags: [billing]
+      summary: Create a Stripe checkout session for module subscriptions
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutBody"
+      responses:
+        "200":
+          description: Checkout URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+  /billing/subscriptions:
+    get:
+      operationId: listSubscriptions
+      tags: [billing]
+      summary: List subscriptions for the current tenant
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      responses:
+        "200":
+          description: Subscription list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionListResponse"
+  /billing/webhook:
+    post:
+      operationId: stripeWebhook
+      tags: [billing]
+      summary: Stripe webhook endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Webhook received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+                required:
+                  - received
+  /admin/tenants:
+    get:
+      operationId: adminListTenants
+      tags: [admin]
+      summary: List all tenants (Super Admin only)
+      responses:
+        "200":
+          description: All tenants
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminTenantListResponse"
+  /admin/tenants/{tenantId}:
+    get:
+      operationId: adminGetTenantDetail
+      tags: [admin]
+      summary: Get tenant detail with farms, subscriptions, users
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tenant detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminTenantDetailResponse"
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin]
+      summary: Get platform-wide statistics
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStatsResponse"
+  /admin/impersonate:
+    post:
+      operationId: adminImpersonate
+      tags: [admin]
+      summary: Begin impersonating a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImpersonateBody"
+      responses:
+        "200":
+          description: Impersonation context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImpersonateResponse"
 components:
   parameters:
     AuthorizationSessionHeader:
@@ -235,6 +665,13 @@ components:
       in: cookie
       required: false
       description: Browser session cookie.
+      schema:
+        type: string
+    TenantSlugHeader:
+      name: x-tenant-slug
+      in: header
+      required: true
+      description: Tenant slug to scope the request
       schema:
         type: string
   schemas:
@@ -452,3 +889,438 @@ components:
       properties:
         error:
           type: string
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        contactEmail:
+          type: string
+        contactPhone:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        stripeCustomerId:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, slug, contactEmail, isActive, createdAt]
+    TenantEnvelope:
+      type: object
+      properties:
+        tenant:
+          $ref: "#/components/schemas/Tenant"
+      required: [tenant]
+    CreateTenantBody:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        contactEmail:
+          type: string
+          format: email
+        contactPhone:
+          type: string
+        address:
+          type: string
+      required: [name, slug, contactEmail]
+    UpdateTenantBody:
+      type: object
+      properties:
+        name:
+          type: string
+        contactEmail:
+          type: string
+        contactPhone:
+          type: string
+        address:
+          type: string
+    UserTenantsResponse:
+      type: object
+      properties:
+        tenants:
+          type: array
+          items:
+            type: object
+            properties:
+              tenantId:
+                type: integer
+              roleId:
+                type: integer
+              isSuperAdmin:
+                type: boolean
+              tenantName:
+                type: string
+              tenantSlug:
+                type: string
+            required: [tenantId, roleId, isSuperAdmin, tenantName, tenantSlug]
+      required: [tenants]
+    Farm:
+      type: object
+      properties:
+        id:
+          type: integer
+        tenantId:
+          type: integer
+        name:
+          type: string
+        address:
+          type: ["string", "null"]
+        postcode:
+          type: ["string", "null"]
+        cphNumber:
+          type: ["string", "null"]
+        gridReference:
+          type: ["string", "null"]
+        totalAcreage:
+          type: ["integer", "null"]
+        sectorArable:
+          type: boolean
+        sectorBeef:
+          type: boolean
+        sectorDairy:
+          type: boolean
+        sectorPigs:
+          type: boolean
+        sectorPoultry:
+          type: boolean
+        sectorHorticulture:
+          type: boolean
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, tenantId, name, isActive]
+    FarmEnvelope:
+      type: object
+      properties:
+        farm:
+          $ref: "#/components/schemas/Farm"
+      required: [farm]
+    FarmListResponse:
+      type: object
+      properties:
+        farms:
+          type: array
+          items:
+            $ref: "#/components/schemas/Farm"
+      required: [farms]
+    CreateFarmBody:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        postcode:
+          type: string
+        cphNumber:
+          type: string
+        gridReference:
+          type: string
+        totalAcreage:
+          type: integer
+        sectorArable:
+          type: boolean
+        sectorBeef:
+          type: boolean
+        sectorDairy:
+          type: boolean
+        sectorPigs:
+          type: boolean
+        sectorPoultry:
+          type: boolean
+        sectorHorticulture:
+          type: boolean
+      required: [name]
+    InvitationListResponse:
+      type: object
+      properties:
+        invitations:
+          type: array
+          items:
+            type: object
+      required: [invitations]
+    CreateInvitationBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        roleId:
+          type: integer
+      required: [email, roleId]
+    InvitationEnvelope:
+      type: object
+      properties:
+        invitation:
+          type: object
+      required: [invitation]
+    AssignmentListResponse:
+      type: object
+      properties:
+        assignments:
+          type: array
+          items:
+            type: object
+      required: [assignments]
+    CreateStaffAssignmentBody:
+      type: object
+      properties:
+        userId:
+          type: string
+        farmId:
+          type: integer
+        roleId:
+          type: integer
+      required: [userId, farmId]
+    AssignmentEnvelope:
+      type: object
+      properties:
+        assignment:
+          type: object
+      required: [assignment]
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+        tenantId:
+          type: ["integer", "null"]
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        isSystemRole:
+          type: boolean
+      required: [id, name, isSystemRole]
+    RoleListResponse:
+      type: object
+      properties:
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+      required: [roles]
+    RoleEnvelope:
+      type: object
+      properties:
+        role:
+          $ref: "#/components/schemas/Role"
+      required: [role]
+    CreateRoleBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+      required: [name]
+    Module:
+      type: object
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        monthlyPricePence:
+          type: integer
+        isActive:
+          type: boolean
+        requiresSector:
+          type: ["string", "null"]
+      required: [id, key, name, monthlyPricePence, isActive]
+    ModuleListResponse:
+      type: object
+      properties:
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/Module"
+      required: [modules]
+    Permission:
+      type: object
+      properties:
+        id:
+          type: integer
+        roleId:
+          type: integer
+        moduleId:
+          type: integer
+        farmId:
+          type: ["integer", "null"]
+        moduleName:
+          type: string
+        canRead:
+          type: boolean
+        canWrite:
+          type: boolean
+        canDelete:
+          type: boolean
+        canApprove:
+          type: boolean
+      required: [id, roleId, moduleId, canRead, canWrite, canDelete, canApprove]
+    PermissionListResponse:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Permission"
+      required: [permissions]
+    PermissionEnvelope:
+      type: object
+      properties:
+        permission:
+          $ref: "#/components/schemas/Permission"
+      required: [permission]
+    UpdatePermissionBody:
+      type: object
+      properties:
+        canRead:
+          type: boolean
+        canWrite:
+          type: boolean
+        canDelete:
+          type: boolean
+        canApprove:
+          type: boolean
+    CheckoutBody:
+      type: object
+      properties:
+        farmId:
+          type: integer
+        moduleIds:
+          type: array
+          items:
+            type: integer
+      required: [farmId, moduleIds]
+    CheckoutResponse:
+      type: object
+      properties:
+        checkoutUrl:
+          type: string
+      required: [checkoutUrl]
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: integer
+        farmId:
+          type: integer
+        moduleId:
+          type: integer
+        moduleName:
+          type: string
+        status:
+          type: string
+        currentPeriodEnd:
+          type: ["string", "null"]
+          format: date-time
+      required: [id, farmId, moduleId, moduleName, status]
+    SubscriptionListResponse:
+      type: object
+      properties:
+        subscriptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Subscription"
+      required: [subscriptions]
+    AdminTenantListResponse:
+      type: object
+      properties:
+        tenants:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tenant"
+      required: [tenants]
+    AdminTenantDetailResponse:
+      type: object
+      properties:
+        tenant:
+          $ref: "#/components/schemas/Tenant"
+        farms:
+          type: array
+          items:
+            $ref: "#/components/schemas/Farm"
+        subscriptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Subscription"
+        users:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+              roleId:
+                type: integer
+              isActive:
+                type: boolean
+              email:
+                type: ["string", "null"]
+              firstName:
+                type: ["string", "null"]
+              lastName:
+                type: ["string", "null"]
+            required: [userId, roleId, isActive]
+      required: [tenant, farms, subscriptions, users]
+    AdminStatsResponse:
+      type: object
+      properties:
+        stats:
+          type: object
+          properties:
+            totalTenants:
+              type: integer
+            totalFarms:
+              type: integer
+            activeSubscriptions:
+              type: integer
+            totalUsers:
+              type: integer
+          required: [totalTenants, totalFarms, activeSubscriptions, totalUsers]
+      required: [stats]
+    ImpersonateBody:
+      type: object
+      properties:
+        userId:
+          type: string
+        tenantId:
+          type: integer
+      required: [userId, tenantId]
+    ImpersonateResponse:
+      type: object
+      properties:
+        impersonation:
+          type: object
+          properties:
+            userId:
+              type: string
+            email:
+              type: ["string", "null"]
+            firstName:
+              type: ["string", "null"]
+            lastName:
+              type: ["string", "null"]
+            tenantId:
+              type: integer
+            note:
+              type: string
+          required: [userId, tenantId, note]
+      required: [impersonation]

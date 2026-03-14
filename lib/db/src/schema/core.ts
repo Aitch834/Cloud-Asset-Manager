@@ -58,6 +58,7 @@ export const permissionsTable = pgTable("permissions", {
   id: serial("id").primaryKey(),
   roleId: integer("role_id").notNull().references(() => rolesTable.id),
   moduleId: integer("module_id").notNull().references(() => modulesTable.id),
+  farmId: integer("farm_id").references(() => farmsTable.id),
   canRead: boolean("can_read").notNull().default(true),
   canWrite: boolean("can_write").notNull().default(false),
   canDelete: boolean("can_delete").notNull().default(false),

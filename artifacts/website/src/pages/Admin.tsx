@@ -3,7 +3,7 @@ import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useLocation } from "wouter";
-import { Loader2, Building2, MapPin, Users, CreditCard, Shield } from "lucide-react";
+import { Loader2, Building2, MapPin, Users, CreditCard, Shield, ChevronDown, ChevronUp, Tractor, Package } from "lucide-react";
 
 type TenantSummary = {
   id: number;
@@ -13,6 +13,40 @@ type TenantSummary = {
   isActive: boolean;
   stripeCustomerId: string | null;
   createdAt: string;
+};
+
+type TenantDetail = {
+  tenant: TenantSummary;
+  farms: Array<{
+    id: number;
+    name: string;
+    postcode: string | null;
+    cphNumber: string | null;
+    totalAcreage: number | null;
+    sectorArable: boolean;
+    sectorBeef: boolean;
+    sectorDairy: boolean;
+    sectorPigs: boolean;
+    sectorPoultry: boolean;
+    sectorHorticulture: boolean;
+    isActive: boolean;
+  }>;
+  subscriptions: Array<{
+    id: number;
+    farmId: number;
+    moduleId: number;
+    moduleName: string;
+    status: string;
+    currentPeriodEnd: string | null;
+  }>;
+  users: Array<{
+    userId: string;
+    roleId: number;
+    isActive: boolean;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+  }>;
 };
 
 type AdminStats = {
@@ -29,6 +63,9 @@ export default function Admin() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedTenantId, setExpandedTenantId] = useState<number | null>(null);
+  const [tenantDetails, setTenantDetails] = useState<Record<number, TenantDetail>>({});
+  const [loadingDetail, setLoadingDetail] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -59,6 +96,28 @@ export default function Admin() {
         setLoadingData(false);
       });
   }, [isAuthenticated]);
+
+  const toggleTenantDetail = async (tenantId: number) => {
+    if (expandedTenantId === tenantId) {
+      setExpandedTenantId(null);
+      return;
+    }
+
+    setExpandedTenantId(tenantId);
+
+    if (tenantDetails[tenantId]) return;
+
+    setLoadingDetail(tenantId);
+    try {
+      const r = await fetch(`/api/admin/tenants/${tenantId}`, { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json() as TenantDetail;
+      setTenantDetails((prev) => ({ ...prev, [tenantId]: data }));
+    } catch {
+      setTenantDetails((prev) => ({ ...prev, [tenantId]: { tenant: tenants.find((t) => t.id === tenantId)!, farms: [], subscriptions: [], users: [] } }));
+    }
+    setLoadingDetail(null);
+  };
 
   if (isLoading) {
     return (
@@ -122,43 +181,44 @@ export default function Admin() {
                     No tenants registered yet.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="text-left text-sm text-muted-foreground border-b border-border">
-                          <th className="p-4">Name</th>
-                          <th className="p-4">Slug</th>
-                          <th className="p-4">Email</th>
-                          <th className="p-4">Status</th>
-                          <th className="p-4">Billing</th>
-                          <th className="p-4">Created</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tenants.map((t) => (
-                          <tr key={t.id} className="border-b border-border last:border-0 hover:bg-secondary/50">
-                            <td className="p-4 font-medium">{t.name}</td>
-                            <td className="p-4 text-sm text-muted-foreground">{t.slug}</td>
-                            <td className="p-4 text-sm">{t.contactEmail}</td>
-                            <td className="p-4">
-                              <span className={`text-xs font-medium px-2 py-1 rounded-full ${t.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                                {t.isActive ? "Active" : "Inactive"}
-                              </span>
-                            </td>
-                            <td className="p-4 text-sm">
-                              {t.stripeCustomerId ? (
-                                <span className="text-green-600">Connected</span>
-                              ) : (
-                                <span className="text-muted-foreground">Not connected</span>
-                              )}
-                            </td>
-                            <td className="p-4 text-sm text-muted-foreground">
+                  <div className="divide-y divide-border">
+                    {tenants.map((t) => (
+                      <div key={t.id}>
+                        <button
+                          onClick={() => toggleTenantDetail(t.id)}
+                          className="w-full text-left p-4 hover:bg-secondary/50 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium truncate">{t.name}</div>
+                              <div className="text-sm text-muted-foreground">{t.slug} &middot; {t.contactEmail}</div>
+                            </div>
+                            <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${t.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                              {t.isActive ? "Active" : "Inactive"}
+                            </span>
+                            <span className="text-sm text-muted-foreground whitespace-nowrap">
+                              {t.stripeCustomerId ? "Billing connected" : "No billing"}
+                            </span>
+                            <span className="text-sm text-muted-foreground whitespace-nowrap">
                               {new Date(t.createdAt).toLocaleDateString("en-GB")}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </span>
+                          </div>
+                          {expandedTenantId === t.id ? <ChevronUp className="w-4 h-4 text-muted-foreground ml-2" /> : <ChevronDown className="w-4 h-4 text-muted-foreground ml-2" />}
+                        </button>
+
+                        {expandedTenantId === t.id && (
+                          <div className="px-4 pb-4 bg-secondary/20">
+                            {loadingDetail === t.id ? (
+                              <div className="flex justify-center py-6">
+                                <Loader2 className="w-6 h-6 animate-spin text-brand-forest" />
+                              </div>
+                            ) : tenantDetails[t.id] ? (
+                              <TenantDetailView detail={tenantDetails[t.id]} />
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -167,6 +227,88 @@ export default function Admin() {
         </div>
       </div>
     </Layout>
+  );
+}
+
+function TenantDetailView({ detail }: { detail: TenantDetail }) {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-4">
+      <div className="bg-white rounded-lg border border-border p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Tractor className="w-4 h-4 text-brand-forest" />
+          <h3 className="font-semibold text-sm">Farms ({detail.farms.length})</h3>
+        </div>
+        {detail.farms.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No farms registered</p>
+        ) : (
+          <div className="space-y-2">
+            {detail.farms.map((f) => (
+              <div key={f.id} className="text-sm border-b border-border/50 pb-2 last:border-0">
+                <div className="font-medium">{f.name}</div>
+                <div className="text-muted-foreground text-xs">
+                  {f.postcode && <span>{f.postcode} &middot; </span>}
+                  {f.cphNumber && <span>CPH: {f.cphNumber} &middot; </span>}
+                  {f.totalAcreage && <span>{f.totalAcreage} acres</span>}
+                </div>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {f.sectorArable && <SectorBadge label="Arable" />}
+                  {f.sectorBeef && <SectorBadge label="Beef" />}
+                  {f.sectorDairy && <SectorBadge label="Dairy" />}
+                  {f.sectorPigs && <SectorBadge label="Pigs" />}
+                  {f.sectorPoultry && <SectorBadge label="Poultry" />}
+                  {f.sectorHorticulture && <SectorBadge label="Horticulture" />}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-lg border border-border p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Package className="w-4 h-4 text-brand-forest" />
+          <h3 className="font-semibold text-sm">Subscriptions ({detail.subscriptions.length})</h3>
+        </div>
+        {detail.subscriptions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No active subscriptions</p>
+        ) : (
+          <div className="space-y-2">
+            {detail.subscriptions.map((s) => (
+              <div key={s.id} className="text-sm border-b border-border/50 pb-2 last:border-0">
+                <div className="font-medium">{s.moduleName}</div>
+                <div className="text-muted-foreground text-xs">
+                  Farm ID: {s.farmId} &middot;
+                  <span className={`ml-1 ${s.status === "active" ? "text-green-600" : "text-red-500"}`}>{s.status}</span>
+                  {s.currentPeriodEnd && <span> &middot; Renews {new Date(s.currentPeriodEnd).toLocaleDateString("en-GB")}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-lg border border-border p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Users className="w-4 h-4 text-brand-forest" />
+          <h3 className="font-semibold text-sm">Users ({detail.users.length})</h3>
+        </div>
+        {detail.users.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No users assigned</p>
+        ) : (
+          <div className="space-y-2">
+            {detail.users.map((u) => (
+              <div key={u.userId} className="text-sm border-b border-border/50 pb-2 last:border-0">
+                <div className="font-medium">{u.firstName} {u.lastName}</div>
+                <div className="text-muted-foreground text-xs">
+                  {u.email} &middot;
+                  <span className={`ml-1 ${u.isActive ? "text-green-600" : "text-red-500"}`}>{u.isActive ? "Active" : "Inactive"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -179,5 +321,13 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
       </div>
       <p className="text-3xl font-bold text-foreground">{value}</p>
     </div>
+  );
+}
+
+function SectorBadge({ label }: { label: string }) {
+  return (
+    <span className="text-xs bg-brand-forest/10 text-brand-forest px-1.5 py-0.5 rounded">
+      {label}
+    </span>
   );
 }
