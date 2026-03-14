@@ -1,0 +1,10 @@
+{
+  "name": "@workspace/shared-assets",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tokens": "./src/tokens.ts",
+    "./logo/*": "./logo/*"
+  }
+}

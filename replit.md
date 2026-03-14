@@ -26,7 +26,8 @@ artifacts-monorepo/
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema + DB connection
+│   ├── db/                 # Drizzle ORM schema + DB connection
+│   └── shared-assets/      # BDE Farm Trac brand: logos, design tokens, Tailwind preset
 ├── scripts/                # Utility scripts (single workspace package)
 │   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
 ├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
@@ -91,6 +92,34 @@ Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used b
 
 Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
 
+### `lib/shared-assets` (`@workspace/shared-assets`)
+
+BDE Farm Trac brand identity and design token system. Contains:
+
+- `logo/` — Logo files (PNG, SVG) and favicon
+  - `bde-farm-trac-logo.png` — Full horizontal logo (tractor + text)
+  - `bde-farm-trac-logo.svg` — Full horizontal logo (vector)
+  - `bde-farm-trac-icon.png` — Square icon (tractor only)
+  - `favicon.svg` — Favicon (tractor on green background)
+- `src/tokens.ts` — Brand colours, typography, spacing, border-radius, shadows as TypeScript constants
+- `src/css-variables.css` — All brand tokens as CSS custom properties
+- `src/tailwind-preset.ts` — Tailwind CSS preset extending the theme with BDE brand colours and fonts
+- `BRAND.md` — Full brand guide with colour palette, typography, and usage guidance
+
+Exports:
+- `@workspace/shared-assets/tokens` — TypeScript token constants
+- `@workspace/shared-assets/logo/*` — Logo files
+
+Brand palette: agricultural greens (forest #2D6A2E, sage #5A8F5A) + earthy tones (brown #8B5E3C, cream #F5F0E8). Font: Inter.
+
 ### `scripts` (`@workspace/scripts`)
 
 Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+
+## Project: BDE Farm Trac
+
+**Product**: Cloud-based SaaS for UK farmers to achieve and maintain Red Tractor scheme compliance.
+**Domain**: bdefarmtrac.co.uk
+**Pricing**: Monthly per farm, module-based (clients choose which compliance modules each farm needs)
+**Multi-tenancy**: Each paying client gets isolated data within the master PostgreSQL database
+**Brand**: Agricultural greens + earthy tones, Inter font family, tractor logo
