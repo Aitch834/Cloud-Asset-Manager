@@ -249,6 +249,22 @@ export interface AssignmentEnvelope {
   assignment: AssignmentEnvelopeAssignment;
 }
 
+export type TenantUserListResponseUsersItem = {
+  userId: string;
+  roleId: number;
+  isActive: boolean;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  firstName?: string | null;
+  /** @nullable */
+  lastName?: string | null;
+};
+
+export interface TenantUserListResponse {
+  users: TenantUserListResponseUsersItem[];
+}
+
 export interface Role {
   id: number;
   /** @nullable */
@@ -310,10 +326,7 @@ export interface PermissionEnvelope {
 }
 
 export interface UpdatePermissionBody {
-  /**
-   * Optional farm ID for farm-scoped permissions. Null for tenant-wide.
-   * @nullable
-   */
+  /** @nullable */
   farmId?: number | null;
   canRead?: boolean;
   canWrite?: boolean;
@@ -399,6 +412,53 @@ export interface ImpersonateResponse {
   impersonation: ImpersonateResponseImpersonation;
 }
 
+export type RecordEnvelopeRecord = { [key: string]: unknown };
+
+export interface RecordEnvelope {
+  record: RecordEnvelopeRecord;
+}
+
+export type RecordListResponseRecordsItem = { [key: string]: unknown };
+
+export interface RecordListResponse {
+  records: RecordListResponseRecordsItem[];
+}
+
+export interface DeleteResponse {
+  success: boolean;
+}
+
+export type FarmDashboardResponseModuleStatsItem = {
+  moduleKey: string;
+  moduleName: string;
+  recordCount: number;
+  /** @nullable */
+  lastActivity?: string | null;
+  hasOverdue: boolean;
+};
+
+export interface FarmDashboardResponse {
+  farm: Farm;
+  complianceScore: number;
+  overdueActions: number;
+  /** @nullable */
+  upcomingInspection?: string | null;
+  moduleStats: FarmDashboardResponseModuleStatsItem[];
+  activeSubscriptions: Subscription[];
+}
+
+export type ActivityFeedResponseActivitiesItem = {
+  id: number;
+  type: string;
+  description: string;
+  module: string;
+  createdAt: string;
+};
+
+export interface ActivityFeedResponse {
+  activities: ActivityFeedResponseActivitiesItem[];
+}
+
 /**
  * Opaque session token — Bearer <sid>.
  */
@@ -410,9 +470,6 @@ export type AuthorizationSessionHeaderParameter = string;
 export type TenantSlugHeaderParameter = string;
 
 export type BeginBrowserLoginParams = {
-  /**
-   * Relative path to redirect to after login (must start with `/`). Defaults to `/`.
-   */
   returnTo?: string;
 };
 
@@ -430,4 +487,141 @@ export type StripeWebhook200 = {
 
 export type AdminListSupportTickets200 = {
   tickets: SupportTicket[];
+};
+
+export type CreateFieldBody = { [key: string]: unknown };
+
+export type UpdateFieldBody = { [key: string]: unknown };
+
+export type CreateCropBody = { [key: string]: unknown };
+
+export type UpdateCropBody = { [key: string]: unknown };
+
+export type CreateFieldCropAssignmentBody = { [key: string]: unknown };
+
+export type CreateHarvestBody = { [key: string]: unknown };
+
+export type CreateSprayProductBody = { [key: string]: unknown };
+
+export type UpdateSprayProductBody = { [key: string]: unknown };
+
+export type CreateSprayApplicationBody = { [key: string]: unknown };
+
+export type UpdateSprayApplicationBody = { [key: string]: unknown };
+
+export type CreateNmpPlanBody = { [key: string]: unknown };
+
+export type UpdateNmpPlanBody = { [key: string]: unknown };
+
+export type CreateSoilTestBody = { [key: string]: unknown };
+
+export type UpdateSoilTestBody = { [key: string]: unknown };
+
+export type CreateEquipmentBody = { [key: string]: unknown };
+
+export type UpdateEquipmentBody = { [key: string]: unknown };
+
+export type CreateMaintenanceLogBody = { [key: string]: unknown };
+
+export type CreateCalibrationBody = { [key: string]: unknown };
+
+export type CreateHerdBody = { [key: string]: unknown };
+
+export type UpdateHerdBody = { [key: string]: unknown };
+
+export type CreateAnimalBody = { [key: string]: unknown };
+
+export type UpdateAnimalBody = { [key: string]: unknown };
+
+export type CreateMovementBody = { [key: string]: unknown };
+
+export type CreateMedicineRecordBody = { [key: string]: unknown };
+
+export type CreateFeedRecordBody = { [key: string]: unknown };
+
+export type CreateWaterRecordBody = { [key: string]: unknown };
+
+export type CreateVisitorBody = { [key: string]: unknown };
+
+export type UpdateVisitorBody = { [key: string]: unknown };
+
+export type CreatePestControlBody = { [key: string]: unknown };
+
+export type CreateCleaningBody = { [key: string]: unknown };
+
+export type CreateTrainingBody = { [key: string]: unknown };
+
+export type CreateCertificateBody = { [key: string]: unknown };
+
+export type UpdateCertificateBody = { [key: string]: unknown };
+
+export type CreateRiskAssessmentBody = { [key: string]: unknown };
+
+export type UpdateRiskAssessmentBody = { [key: string]: unknown };
+
+export type CreateCoshhBody = { [key: string]: unknown };
+
+export type UpdateCoshhBody = { [key: string]: unknown };
+
+export type CreateWasteBody = { [key: string]: unknown };
+
+export type CreateInspectionBody = { [key: string]: unknown };
+
+export type UpdateInspectionBody = { [key: string]: unknown };
+
+export type CreateNonconformanceBody = { [key: string]: unknown };
+
+export type UpdateNonconformanceBody = { [key: string]: unknown };
+
+export type CreateCorrectiveActionBody = { [key: string]: unknown };
+
+export type UpdateCorrectiveActionBody = { [key: string]: unknown };
+
+export type CreateEnvironmentalFeatureBody = { [key: string]: unknown };
+
+export type UpdateEnvironmentalFeatureBody = { [key: string]: unknown };
+
+export type CreateAgriSchemeBody = { [key: string]: unknown };
+
+export type CreateHaulageBody = { [key: string]: unknown };
+
+export type UpdateHaulageBody = { [key: string]: unknown };
+
+export type CreateSupplierBody = { [key: string]: unknown };
+
+export type UpdateSupplierBody = { [key: string]: unknown };
+
+export type CreateStockItemBody = { [key: string]: unknown };
+
+export type CreateStockDeliveryBody = { [key: string]: unknown };
+
+export type CreateFinancialTransactionBody = { [key: string]: unknown };
+
+export type UpdateFinancialTransactionBody = { [key: string]: unknown };
+
+export type CreateFinancialExportBodyFormat =
+  (typeof CreateFinancialExportBodyFormat)[keyof typeof CreateFinancialExportBodyFormat];
+
+export const CreateFinancialExportBodyFormat = {
+  csv: "csv",
+  xero: "xero",
+} as const;
+
+export type CreateFinancialExportBody = {
+  dateRangeStart: string;
+  dateRangeEnd: string;
+  format: CreateFinancialExportBodyFormat;
+};
+
+export type CreateDocumentBody = { [key: string]: unknown };
+
+export type CreateWeatherStationBody = { [key: string]: unknown };
+
+export type UpdateWeatherStationBody = { [key: string]: unknown };
+
+export type CreateWeatherReadingBody = { [key: string]: unknown };
+
+export type ListHelpArticlesParams = {
+  search?: string;
+  category?: string;
 };

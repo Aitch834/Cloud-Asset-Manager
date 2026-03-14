@@ -8,7 +8,6 @@
 import * as zod from "zod";
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -16,7 +15,6 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Submit a registration of interest form
  * @summary Register interest
  */
 
@@ -31,7 +29,6 @@ export const CreateLeadBody = zod.object({
 });
 
 /**
- * Send a message to the AI support assistant
  * @summary AI support chat
  */
 export const SupportChatBody = zod.object({
@@ -52,7 +49,6 @@ export const SupportChatResponse = zod.object({
 });
 
 /**
- * Escalate a chat to a human support ticket
  * @summary Create support ticket
  */
 export const CreateSupportTicketBody = zod.object({
@@ -97,12 +93,7 @@ export const GetCurrentAuthUserResponse = zod.object({
  * @summary Start the browser OIDC login flow
  */
 export const BeginBrowserLoginQueryParams = zod.object({
-  returnTo: zod.coerce
-    .string()
-    .optional()
-    .describe(
-      "Relative path to redirect to after login (must start with `\/`). Defaults to `\/`.",
-    ),
+  returnTo: zod.coerce.string().optional(),
 });
 
 /**
@@ -376,7 +367,27 @@ export const CreateStaffAssignmentBody = zod.object({
 });
 
 /**
- * @summary List roles (system + tenant-scoped)
+ * @summary List users in the current tenant
+ */
+export const ListTenantUsersHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListTenantUsersResponse = zod.object({
+  users: zod.array(
+    zod.object({
+      userId: zod.string(),
+      roleId: zod.number(),
+      isActive: zod.boolean(),
+      email: zod.string().nullish(),
+      firstName: zod.string().nullish(),
+      lastName: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary List roles
  */
 export const ListRolesHeader = zod.object({
   "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
@@ -463,12 +474,7 @@ export const UpdateRolePermissionHeader = zod.object({
 });
 
 export const UpdateRolePermissionBody = zod.object({
-  farmId: zod
-    .number()
-    .nullish()
-    .describe(
-      "Optional farm ID for farm-scoped permissions. Null for tenant-wide.",
-    ),
+  farmId: zod.number().nullish(),
   canRead: zod.boolean().optional(),
   canWrite: zod.boolean().optional(),
   canDelete: zod.boolean().optional(),
@@ -490,7 +496,7 @@ export const UpdateRolePermissionResponse = zod.object({
 });
 
 /**
- * @summary Create a Stripe checkout session for module subscriptions
+ * @summary Create a Stripe checkout session
  */
 export const CreateCheckoutSessionHeader = zod.object({
   "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
@@ -535,7 +541,7 @@ export const StripeWebhookResponse = zod.object({
 });
 
 /**
- * @summary List all tenants (Super Admin only)
+ * @summary List all tenants
  */
 export const AdminListTenantsResponse = zod.object({
   tenants: zod.array(
@@ -554,7 +560,7 @@ export const AdminListTenantsResponse = zod.object({
 });
 
 /**
- * @summary Get tenant detail with farms, subscriptions, users
+ * @summary Get tenant detail
  */
 export const AdminGetTenantDetailParams = zod.object({
   tenantId: zod.coerce.number(),
@@ -627,7 +633,7 @@ export const AdminGetStatsResponse = zod.object({
 });
 
 /**
- * @summary List all support tickets (Super Admin only)
+ * @summary List all support tickets
  */
 export const AdminListSupportTicketsResponse = zod.object({
   tickets: zod.array(
@@ -660,4 +666,1881 @@ export const AdminImpersonateResponse = zod.object({
     tenantId: zod.number(),
     note: zod.string(),
   }),
+});
+
+/**
+ * @summary Get farm compliance dashboard overview
+ */
+export const GetFarmDashboardParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const GetFarmDashboardHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const GetFarmDashboardResponse = zod.object({
+  farm: zod.object({
+    id: zod.number(),
+    tenantId: zod.number(),
+    name: zod.string(),
+    address: zod.string().nullish(),
+    postcode: zod.string().nullish(),
+    cphNumber: zod.string().nullish(),
+    gridReference: zod.string().nullish(),
+    totalAcreage: zod.number().nullish(),
+    sectorArable: zod.boolean().optional(),
+    sectorBeef: zod.boolean().optional(),
+    sectorDairy: zod.boolean().optional(),
+    sectorPigs: zod.boolean().optional(),
+    sectorPoultry: zod.boolean().optional(),
+    sectorHorticulture: zod.boolean().optional(),
+    isActive: zod.boolean(),
+    createdAt: zod.date().optional(),
+  }),
+  complianceScore: zod.number(),
+  overdueActions: zod.number(),
+  upcomingInspection: zod.date().nullish(),
+  moduleStats: zod.array(
+    zod.object({
+      moduleKey: zod.string(),
+      moduleName: zod.string(),
+      recordCount: zod.number(),
+      lastActivity: zod.date().nullish(),
+      hasOverdue: zod.boolean(),
+    }),
+  ),
+  activeSubscriptions: zod.array(
+    zod.object({
+      id: zod.number(),
+      farmId: zod.number(),
+      moduleId: zod.number(),
+      moduleName: zod.string(),
+      status: zod.string(),
+      currentPeriodEnd: zod.date().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get recent activity feed for a farm
+ */
+export const GetFarmActivityParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const GetFarmActivityHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const GetFarmActivityResponse = zod.object({
+  activities: zod.array(
+    zod.object({
+      id: zod.number(),
+      type: zod.string(),
+      description: zod.string(),
+      module: zod.string(),
+      createdAt: zod.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary List fields for a farm
+ */
+export const ListFieldsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListFieldsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListFieldsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Create a field
+ */
+export const CreateFieldParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateFieldHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateFieldBody = zod.object({}).passthrough();
+
+/**
+ * @summary Get a field by ID
+ */
+export const GetFieldParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const GetFieldHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const GetFieldResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Update a field
+ */
+export const UpdateFieldParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateFieldHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateFieldBody = zod.object({}).passthrough();
+
+export const UpdateFieldResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a field
+ */
+export const DeleteFieldParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteFieldHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteFieldResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List crops for a farm
+ */
+export const ListCropsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListCropsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListCropsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Create a crop record
+ */
+export const CreateCropParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateCropHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateCropBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a crop
+ */
+export const UpdateCropParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateCropHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateCropBody = zod.object({}).passthrough();
+
+export const UpdateCropResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a crop
+ */
+export const DeleteCropParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteCropHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteCropResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List field-crop assignments
+ */
+export const ListFieldCropAssignmentsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListFieldCropAssignmentsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListFieldCropAssignmentsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Assign a crop to a field
+ */
+export const CreateFieldCropAssignmentParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateFieldCropAssignmentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateFieldCropAssignmentBody = zod.object({}).passthrough();
+
+/**
+ * @summary List harvest records
+ */
+export const ListHarvestsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListHarvestsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListHarvestsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Record a harvest
+ */
+export const CreateHarvestParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateHarvestHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateHarvestBody = zod.object({}).passthrough();
+
+/**
+ * @summary List spray products
+ */
+export const ListSprayProductsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListSprayProductsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListSprayProductsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Create a spray product
+ */
+export const CreateSprayProductParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateSprayProductHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateSprayProductBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a spray product
+ */
+export const UpdateSprayProductParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateSprayProductHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateSprayProductBody = zod.object({}).passthrough();
+
+export const UpdateSprayProductResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a spray product
+ */
+export const DeleteSprayProductParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteSprayProductHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteSprayProductResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List spray application records
+ */
+export const ListSprayApplicationsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListSprayApplicationsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListSprayApplicationsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a spray application
+ */
+export const CreateSprayApplicationParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateSprayApplicationHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateSprayApplicationBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a spray application
+ */
+export const UpdateSprayApplicationParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateSprayApplicationHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateSprayApplicationBody = zod.object({}).passthrough();
+
+export const UpdateSprayApplicationResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a spray application
+ */
+export const DeleteSprayApplicationParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteSprayApplicationHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteSprayApplicationResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List nutrient management plans
+ */
+export const ListNmpPlansParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListNmpPlansHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListNmpPlansResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Create a nutrient management plan
+ */
+export const CreateNmpPlanParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateNmpPlanHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateNmpPlanBody = zod.object({}).passthrough();
+
+/**
+ * @summary Get NMP plan with field entries
+ */
+export const GetNmpPlanParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const GetNmpPlanHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const GetNmpPlanResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Update an NMP plan
+ */
+export const UpdateNmpPlanParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateNmpPlanHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateNmpPlanBody = zod.object({}).passthrough();
+
+export const UpdateNmpPlanResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete an NMP plan
+ */
+export const DeleteNmpPlanParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteNmpPlanHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteNmpPlanResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List soil test records
+ */
+export const ListSoilTestsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListSoilTestsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListSoilTestsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a soil test
+ */
+export const CreateSoilTestParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateSoilTestHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateSoilTestBody = zod.object({}).passthrough();
+
+/**
+ * @summary Get soil test with results
+ */
+export const GetSoilTestParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const GetSoilTestHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const GetSoilTestResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Update a soil test
+ */
+export const UpdateSoilTestParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateSoilTestHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateSoilTestBody = zod.object({}).passthrough();
+
+export const UpdateSoilTestResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a soil test
+ */
+export const DeleteSoilTestParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteSoilTestHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteSoilTestResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List equipment
+ */
+export const ListEquipmentParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListEquipmentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListEquipmentResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Register equipment
+ */
+export const CreateEquipmentParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateEquipmentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateEquipmentBody = zod.object({}).passthrough();
+
+/**
+ * @summary Get equipment detail with maintenance and calibration history
+ */
+export const GetEquipmentParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const GetEquipmentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const GetEquipmentResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Update equipment
+ */
+export const UpdateEquipmentParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateEquipmentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateEquipmentBody = zod.object({}).passthrough();
+
+export const UpdateEquipmentResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete equipment
+ */
+export const DeleteEquipmentParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteEquipmentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteEquipmentResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List maintenance logs for equipment
+ */
+export const ListMaintenanceLogsParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const ListMaintenanceLogsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListMaintenanceLogsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a maintenance event
+ */
+export const CreateMaintenanceLogParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const CreateMaintenanceLogHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateMaintenanceLogBody = zod.object({}).passthrough();
+
+/**
+ * @summary List calibration records for equipment
+ */
+export const ListCalibrationsParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const ListCalibrationsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListCalibrationsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a calibration event
+ */
+export const CreateCalibrationParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const CreateCalibrationHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateCalibrationBody = zod.object({}).passthrough();
+
+/**
+ * @summary List herds/flocks
+ */
+export const ListHerdsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListHerdsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListHerdsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Create a herd/flock
+ */
+export const CreateHerdParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateHerdHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateHerdBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a herd
+ */
+export const UpdateHerdParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateHerdHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateHerdBody = zod.object({}).passthrough();
+
+export const UpdateHerdResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a herd
+ */
+export const DeleteHerdParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteHerdHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteHerdResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List animals
+ */
+export const ListAnimalsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListAnimalsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListAnimalsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Register an animal
+ */
+export const CreateAnimalParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateAnimalHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateAnimalBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update an animal record
+ */
+export const UpdateAnimalParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateAnimalHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateAnimalBody = zod.object({}).passthrough();
+
+export const UpdateAnimalResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete an animal record
+ */
+export const DeleteAnimalParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteAnimalHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteAnimalResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List livestock movements
+ */
+export const ListMovementsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListMovementsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListMovementsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Record a livestock movement
+ */
+export const CreateMovementParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateMovementHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateMovementBody = zod.object({}).passthrough();
+
+/**
+ * @summary List medicine records
+ */
+export const ListMedicineRecordsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListMedicineRecordsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListMedicineRecordsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a medicine administration
+ */
+export const CreateMedicineRecordParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateMedicineRecordHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateMedicineRecordBody = zod.object({}).passthrough();
+
+/**
+ * @summary List feed records
+ */
+export const ListFeedRecordsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListFeedRecordsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListFeedRecordsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a feed event
+ */
+export const CreateFeedRecordParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateFeedRecordHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateFeedRecordBody = zod.object({}).passthrough();
+
+/**
+ * @summary List water source records
+ */
+export const ListWaterRecordsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListWaterRecordsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListWaterRecordsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a water source record
+ */
+export const CreateWaterRecordParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateWaterRecordHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateWaterRecordBody = zod.object({}).passthrough();
+
+/**
+ * @summary List visitor/contractor log entries
+ */
+export const ListVisitorsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListVisitorsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListVisitorsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a visitor
+ */
+export const CreateVisitorParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateVisitorHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateVisitorBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update visitor record (e.g. departure time)
+ */
+export const UpdateVisitorParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateVisitorHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateVisitorBody = zod.object({}).passthrough();
+
+export const UpdateVisitorResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary List pest control records
+ */
+export const ListPestControlParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListPestControlHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListPestControlResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a pest control measure
+ */
+export const CreatePestControlParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreatePestControlHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreatePestControlBody = zod.object({}).passthrough();
+
+/**
+ * @summary List cleaning and disinfection records
+ */
+export const ListCleaningParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListCleaningHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListCleaningResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a cleaning event
+ */
+export const CreateCleaningParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateCleaningHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateCleaningBody = zod.object({}).passthrough();
+
+/**
+ * @summary List staff training records
+ */
+export const ListTrainingParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListTrainingHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListTrainingResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a training event
+ */
+export const CreateTrainingParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateTrainingHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateTrainingBody = zod.object({}).passthrough();
+
+/**
+ * @summary List staff certificates
+ */
+export const ListCertificatesParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListCertificatesHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListCertificatesResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Register a certificate
+ */
+export const CreateCertificateParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateCertificateHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateCertificateBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a certificate
+ */
+export const UpdateCertificateParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateCertificateHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateCertificateBody = zod.object({}).passthrough();
+
+export const UpdateCertificateResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a certificate
+ */
+export const DeleteCertificateParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteCertificateHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteCertificateResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List risk assessments
+ */
+export const ListRiskAssessmentsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListRiskAssessmentsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListRiskAssessmentsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Create a risk assessment
+ */
+export const CreateRiskAssessmentParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateRiskAssessmentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateRiskAssessmentBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a risk assessment
+ */
+export const UpdateRiskAssessmentParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateRiskAssessmentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateRiskAssessmentBody = zod.object({}).passthrough();
+
+export const UpdateRiskAssessmentResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a risk assessment
+ */
+export const DeleteRiskAssessmentParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteRiskAssessmentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteRiskAssessmentResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List COSHH records
+ */
+export const ListCoshhParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListCoshhHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListCoshhResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Create a COSHH record
+ */
+export const CreateCoshhParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateCoshhHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateCoshhBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a COSHH record
+ */
+export const UpdateCoshhParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateCoshhHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateCoshhBody = zod.object({}).passthrough();
+
+export const UpdateCoshhResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary List waste disposal records
+ */
+export const ListWasteParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListWasteHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListWasteResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log waste disposal
+ */
+export const CreateWasteParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateWasteHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateWasteBody = zod.object({}).passthrough();
+
+/**
+ * @summary List inspection records
+ */
+export const ListInspectionsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListInspectionsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListInspectionsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log an inspection
+ */
+export const CreateInspectionParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateInspectionHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateInspectionBody = zod.object({}).passthrough();
+
+/**
+ * @summary Get inspection with non-conformances and corrective actions
+ */
+export const GetInspectionParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const GetInspectionHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const GetInspectionResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Update an inspection
+ */
+export const UpdateInspectionParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateInspectionHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateInspectionBody = zod.object({}).passthrough();
+
+export const UpdateInspectionResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary List non-conformance records
+ */
+export const ListNonconformancesParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListNonconformancesHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListNonconformancesResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a non-conformance
+ */
+export const CreateNonconformanceParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateNonconformanceHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateNonconformanceBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a non-conformance
+ */
+export const UpdateNonconformanceParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateNonconformanceHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateNonconformanceBody = zod.object({}).passthrough();
+
+export const UpdateNonconformanceResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Create a corrective action
+ */
+export const CreateCorrectiveActionParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateCorrectiveActionHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateCorrectiveActionBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a corrective action
+ */
+export const UpdateCorrectiveActionParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateCorrectiveActionHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateCorrectiveActionBody = zod.object({}).passthrough();
+
+export const UpdateCorrectiveActionResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary List environmental features
+ */
+export const ListEnvironmentalFeaturesParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListEnvironmentalFeaturesHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListEnvironmentalFeaturesResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Record an environmental feature
+ */
+export const CreateEnvironmentalFeatureParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateEnvironmentalFeatureHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateEnvironmentalFeatureBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update an environmental feature
+ */
+export const UpdateEnvironmentalFeatureParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateEnvironmentalFeatureHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateEnvironmentalFeatureBody = zod.object({}).passthrough();
+
+export const UpdateEnvironmentalFeatureResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete an environmental feature
+ */
+export const DeleteEnvironmentalFeatureParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteEnvironmentalFeatureHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteEnvironmentalFeatureResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List agri-environment scheme records
+ */
+export const ListAgriSchemesParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListAgriSchemesHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListAgriSchemesResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Record an agri-environment scheme
+ */
+export const CreateAgriSchemeParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateAgriSchemeHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateAgriSchemeBody = zod.object({}).passthrough();
+
+/**
+ * @summary List haulage records
+ */
+export const ListHaulageParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListHaulageHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListHaulageResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a haulage record
+ */
+export const CreateHaulageParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateHaulageHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateHaulageBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a haulage record
+ */
+export const UpdateHaulageParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateHaulageHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateHaulageBody = zod.object({}).passthrough();
+
+export const UpdateHaulageResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary List suppliers
+ */
+export const ListSuppliersParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListSuppliersHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListSuppliersResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Add a supplier
+ */
+export const CreateSupplierParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateSupplierHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateSupplierBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a supplier
+ */
+export const UpdateSupplierParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateSupplierHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateSupplierBody = zod.object({}).passthrough();
+
+export const UpdateSupplierResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a supplier
+ */
+export const DeleteSupplierParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteSupplierHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteSupplierResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List stock items
+ */
+export const ListStockItemsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListStockItemsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListStockItemsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Add a stock item
+ */
+export const CreateStockItemParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateStockItemHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateStockItemBody = zod.object({}).passthrough();
+
+/**
+ * @summary List stock deliveries
+ */
+export const ListStockDeliveriesParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListStockDeliveriesHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListStockDeliveriesResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a delivery
+ */
+export const CreateStockDeliveryParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateStockDeliveryHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateStockDeliveryBody = zod.object({}).passthrough();
+
+/**
+ * @summary List financial transactions
+ */
+export const ListFinancialTransactionsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListFinancialTransactionsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListFinancialTransactionsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Record a financial transaction
+ */
+export const CreateFinancialTransactionParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateFinancialTransactionHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateFinancialTransactionBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a transaction
+ */
+export const UpdateFinancialTransactionParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateFinancialTransactionHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateFinancialTransactionBody = zod.object({}).passthrough();
+
+export const UpdateFinancialTransactionResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a transaction
+ */
+export const DeleteFinancialTransactionParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteFinancialTransactionHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteFinancialTransactionResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Export financial data to CSV or Xero format
+ */
+export const CreateFinancialExportParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateFinancialExportHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateFinancialExportBody = zod.object({
+  dateRangeStart: zod.date(),
+  dateRangeEnd: zod.date(),
+  format: zod.enum(["csv", "xero"]),
+});
+
+export const CreateFinancialExportResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary List document records
+ */
+export const ListDocumentsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListDocumentsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListDocumentsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Upload/register a document
+ */
+export const CreateDocumentParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateDocumentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateDocumentBody = zod.object({}).passthrough();
+
+/**
+ * @summary Delete a document
+ */
+export const DeleteDocumentParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteDocumentHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteDocumentResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List weather stations
+ */
+export const ListWeatherStationsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListWeatherStationsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListWeatherStationsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Set up a weather station
+ */
+export const CreateWeatherStationParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateWeatherStationHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateWeatherStationBody = zod.object({}).passthrough();
+
+/**
+ * @summary Update a weather station
+ */
+export const UpdateWeatherStationParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const UpdateWeatherStationHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const UpdateWeatherStationBody = zod.object({}).passthrough();
+
+export const UpdateWeatherStationResponse = zod.object({
+  record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * @summary Delete a weather station
+ */
+export const DeleteWeatherStationParams = zod.object({
+  farmId: zod.coerce.number(),
+  recordId: zod.coerce.number(),
+});
+
+export const DeleteWeatherStationHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const DeleteWeatherStationResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List weather readings
+ */
+export const ListWeatherReadingsParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const ListWeatherReadingsHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const ListWeatherReadingsResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Log a weather reading
+ */
+export const CreateWeatherReadingParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const CreateWeatherReadingHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const CreateWeatherReadingBody = zod.object({}).passthrough();
+
+/**
+ * @summary List help articles
+ */
+export const ListHelpArticlesQueryParams = zod.object({
+  search: zod.coerce.string().optional(),
+  category: zod.coerce.string().optional(),
+});
+
+export const ListHelpArticlesResponse = zod.object({
+  records: zod.array(zod.record(zod.string(), zod.unknown())),
 });

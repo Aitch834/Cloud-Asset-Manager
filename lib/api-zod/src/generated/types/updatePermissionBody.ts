@@ -7,10 +7,7 @@
  */
 
 export interface UpdatePermissionBody {
-  /**
-   * Optional farm ID for farm-scoped permissions. Null for tenant-wide.
-   * @nullable
-   */
+  /** @nullable */
   farmId?: number | null;
   canRead?: boolean;
   canWrite?: boolean;

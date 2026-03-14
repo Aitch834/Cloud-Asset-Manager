@@ -113,6 +113,20 @@ DB commands:
 - `pnpm --filter @workspace/db run push` — Push schema to DB
 - `pnpm --filter @workspace/db run push-force` — Force push
 
+### `artifacts/dashboard` (`@workspace/dashboard`)
+
+Farm management dashboard. React + Vite + wouter + TanStack React Query. Preview path: `/dashboard`.
+
+Pages: Login, SelectContext (tenant/farm picker), Dashboard (overview), Fields, Equipment, Sprays, Soil, Inspections, Risks, Waste, Visitors, Pest Control, Cleaning, Livestock, Movements, Medicine, Training, Stock, Financial, Environmental, Haulage, Documents, Weather, Help, Settings.
+
+Key features:
+- ModulePage generic component for all CRUD module pages (search, create, table view)
+- Sidebar with full navigation across all 17+ compliance modules
+- Fetch-patch interceptor auto-attaches x-tenant-slug header from localStorage
+- Zustand store for tenant/farm selection (persisted to localStorage)
+- Login redirects to `/api/login` (Replit Auth OIDC flow)
+- AppLayout wrapper with sidebar + top header
+
 ### `artifacts/website` (`@workspace/website`)
 
 Marketing website for BDE Farm Trac. React + Vite + wouter. Preview path: `/`.
@@ -175,6 +189,11 @@ Red Tractor Compliance, Field & Crop Management, Sprays & Inputs, Soil Managemen
 - `POST /api/billing/checkout` — Create Stripe checkout session
 - `GET /api/billing/subscriptions` — List subscriptions
 - `POST /api/billing/webhook` — Stripe webhook handler
+
+### Farm Modules (requires auth + x-tenant-slug, under `/api/farms/:farmId/...`)
+All farm module endpoints follow a consistent CRUD pattern with `RecordEnvelope` (single) and `RecordListResponse` (list) response shapes.
+
+Modules: fields, crops, harvest-records, crop-transport, crop-storage, crop-destinations, crop-financial, spray-products, spray-applications, nmp, nmp-entries, soil-tests, soil-results, equipment, maintenance, calibration, offboarding, herds, animals, movements, medicine-records, feed-records, water-records, visitors, pest-control, cleaning, training, certificates, risk-assessments, coshh, waste, inspections, nonconformances, corrective-actions, environmental-features, agri-schemes, haulage, suppliers, stock-items, stock-deliveries, financial-transactions, financial-exports, documents, weather-stations, weather-readings
 
 ### Admin (requires BDE Super Admin)
 - `GET /api/admin/tenants` — List all tenants

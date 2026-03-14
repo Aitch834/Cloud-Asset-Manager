@@ -24,13 +24,44 @@ tags:
     description: Stripe billing and subscriptions
   - name: admin
     description: BDE Super Admin operations
+  - name: dashboard
+    description: Farm dashboard overview and compliance
+  - name: fields
+    description: Field register and crop records
+  - name: sprays
+    description: Spray applications and products
+  - name: soil
+    description: Soil testing records
+  - name: equipment
+    description: Equipment, maintenance, and calibration
+  - name: livestock
+    description: Herd/flock register, animals, movements, medicine, feed, water
+  - name: biosecurity
+    description: Visitor log, pest control, cleaning and disinfection
+  - name: training
+    description: Staff training and competency records
+  - name: risk-waste
+    description: Risk assessments, COSHH, and waste management
+  - name: inspections
+    description: Inspection and audit history
+  - name: environmental
+    description: Environmental features and agri-environment schemes
+  - name: haulage
+    description: Transport and haulage records
+  - name: stock
+    description: Suppliers, stock items, and deliveries
+  - name: financial
+    description: Financial records and exports
+  - name: documents
+    description: Document management
+  - name: weather
+    description: Weather stations and readings
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -43,7 +74,6 @@ paths:
       operationId: createLead
       tags: [leads]
       summary: Register interest
-      description: Submit a registration of interest form
       requestBody:
         required: true
         content:
@@ -68,7 +98,6 @@ paths:
       operationId: supportChat
       tags: [support]
       summary: AI support chat
-      description: Send a message to the AI support assistant
       requestBody:
         required: true
         content:
@@ -82,18 +111,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChatResponse"
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
   /support/tickets:
     post:
       operationId: createSupportTicket
       tags: [support]
       summary: Create support ticket
-      description: Escalate a chat to a human support ticket
       requestBody:
         required: true
         content:
@@ -107,12 +129,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SupportTicket"
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
   /auth/user:
     get:
       tags: [Auth]
@@ -137,7 +153,6 @@ paths:
         - name: returnTo
           in: query
           required: false
-          description: Relative path to redirect to after login (must start with `/`). Defaults to `/`.
           schema:
             type: string
       responses:
@@ -203,18 +218,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
-          description: Token did not contain usable claims.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '500':
-          description: Token exchange failed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
   /mobile-auth/logout:
     post:
       tags: [Auth]
@@ -241,12 +244,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserTenantsResponse"
-        "401":
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
   /tenants:
     post:
       operationId: createTenant
@@ -265,12 +262,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TenantEnvelope"
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: Slug already exists
           content:
@@ -350,11 +341,7 @@ paths:
       summary: Update a farm
       parameters:
         - $ref: "#/components/parameters/TenantSlugHeader"
-        - name: farmId
-          in: path
-          required: true
-          schema:
-            type: integer
+        - $ref: "#/components/parameters/FarmIdPath"
       requestBody:
         required: true
         content:
@@ -434,11 +421,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AssignmentEnvelope"
+  /tenants/current/users:
+    get:
+      operationId: listTenantUsers
+      tags: [tenants]
+      summary: List users in the current tenant
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantUserListResponse"
   /roles:
     get:
       operationId: listRoles
       tags: [roles]
-      summary: List roles (system + tenant-scoped)
+      summary: List roles
       parameters:
         - $ref: "#/components/parameters/TenantSlugHeader"
       responses:
@@ -528,17 +529,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PermissionEnvelope"
-        "201":
-          description: Permission created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PermissionEnvelope"
   /billing/checkout:
     post:
       operationId: createCheckoutSession
       tags: [billing]
-      summary: Create a Stripe checkout session for module subscriptions
+      summary: Create a Stripe checkout session
       parameters:
         - $ref: "#/components/parameters/TenantSlugHeader"
       requestBody:
@@ -589,13 +584,12 @@ paths:
                 properties:
                   received:
                     type: boolean
-                required:
-                  - received
+                required: [received]
   /admin/tenants:
     get:
       operationId: adminListTenants
       tags: [admin]
-      summary: List all tenants (Super Admin only)
+      summary: List all tenants
       responses:
         "200":
           description: All tenants
@@ -607,7 +601,7 @@ paths:
     get:
       operationId: adminGetTenantDetail
       tags: [admin]
-      summary: Get tenant detail with farms, subscriptions, users
+      summary: Get tenant detail
       parameters:
         - name: tenantId
           in: path
@@ -637,7 +631,7 @@ paths:
     get:
       operationId: adminListSupportTickets
       tags: [admin]
-      summary: List all support tickets (Super Admin only)
+      summary: List all support tickets
       responses:
         "200":
           description: All support tickets
@@ -669,6 +663,2261 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ImpersonateResponse"
+
+  # ─── Dashboard Overview ─────────────────────────────
+  /farms/{farmId}/dashboard:
+    get:
+      operationId: getFarmDashboard
+      tags: [dashboard]
+      summary: Get farm compliance dashboard overview
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmDashboardResponse"
+  /farms/{farmId}/activity:
+    get:
+      operationId: getFarmActivity
+      tags: [dashboard]
+      summary: Get recent activity feed for a farm
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Activity feed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityFeedResponse"
+
+  # ─── Fields ─────────────────────────────────────────
+  /farms/{farmId}/fields:
+    get:
+      operationId: listFields
+      tags: [fields]
+      summary: List fields for a farm
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Field list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createField
+      tags: [fields]
+      summary: Create a field
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Field created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/fields/{recordId}:
+    get:
+      operationId: getField
+      tags: [fields]
+      summary: Get a field by ID
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Field record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    put:
+      operationId: updateField
+      tags: [fields]
+      summary: Update a field
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated field
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteField
+      tags: [fields]
+      summary: Delete a field
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  # ─── Crops ──────────────────────────────────────────
+  /farms/{farmId}/crops:
+    get:
+      operationId: listCrops
+      tags: [fields]
+      summary: List crops for a farm
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Crop list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createCrop
+      tags: [fields]
+      summary: Create a crop record
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Crop created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/crops/{recordId}:
+    put:
+      operationId: updateCrop
+      tags: [fields]
+      summary: Update a crop
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteCrop
+      tags: [fields]
+      summary: Delete a crop
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  # ─── Field-Crop Assignments & Harvests ──────────────
+  /farms/{farmId}/field-crops:
+    get:
+      operationId: listFieldCropAssignments
+      tags: [fields]
+      summary: List field-crop assignments
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Assignment list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createFieldCropAssignment
+      tags: [fields]
+      summary: Assign a crop to a field
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/harvests:
+    get:
+      operationId: listHarvests
+      tags: [fields]
+      summary: List harvest records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Harvest list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createHarvest
+      tags: [fields]
+      summary: Record a harvest
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Spray Products ────────────────────────────────
+  /farms/{farmId}/spray-products:
+    get:
+      operationId: listSprayProducts
+      tags: [sprays]
+      summary: List spray products
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Product list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createSprayProduct
+      tags: [sprays]
+      summary: Create a spray product
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/spray-products/{recordId}:
+    put:
+      operationId: updateSprayProduct
+      tags: [sprays]
+      summary: Update a spray product
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteSprayProduct
+      tags: [sprays]
+      summary: Delete a spray product
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  # ─── Spray Applications ────────────────────────────
+  /farms/{farmId}/spray-applications:
+    get:
+      operationId: listSprayApplications
+      tags: [sprays]
+      summary: List spray application records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Application list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createSprayApplication
+      tags: [sprays]
+      summary: Log a spray application
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/spray-applications/{recordId}:
+    put:
+      operationId: updateSprayApplication
+      tags: [sprays]
+      summary: Update a spray application
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteSprayApplication
+      tags: [sprays]
+      summary: Delete a spray application
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  # ─── NMP ────────────────────────────────────────────
+  /farms/{farmId}/nmp-plans:
+    get:
+      operationId: listNmpPlans
+      tags: [sprays]
+      summary: List nutrient management plans
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Plan list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createNmpPlan
+      tags: [sprays]
+      summary: Create a nutrient management plan
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/nmp-plans/{recordId}:
+    get:
+      operationId: getNmpPlan
+      tags: [sprays]
+      summary: Get NMP plan with field entries
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: NMP plan detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    put:
+      operationId: updateNmpPlan
+      tags: [sprays]
+      summary: Update an NMP plan
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteNmpPlan
+      tags: [sprays]
+      summary: Delete an NMP plan
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  # ─── Soil Tests ─────────────────────────────────────
+  /farms/{farmId}/soil-tests:
+    get:
+      operationId: listSoilTests
+      tags: [soil]
+      summary: List soil test records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Soil test list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createSoilTest
+      tags: [soil]
+      summary: Log a soil test
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/soil-tests/{recordId}:
+    get:
+      operationId: getSoilTest
+      tags: [soil]
+      summary: Get soil test with results
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Soil test detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    put:
+      operationId: updateSoilTest
+      tags: [soil]
+      summary: Update a soil test
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteSoilTest
+      tags: [soil]
+      summary: Delete a soil test
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  # ─── Equipment ──────────────────────────────────────
+  /farms/{farmId}/equipment:
+    get:
+      operationId: listEquipment
+      tags: [equipment]
+      summary: List equipment
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Equipment list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createEquipment
+      tags: [equipment]
+      summary: Register equipment
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/equipment/{recordId}:
+    get:
+      operationId: getEquipment
+      tags: [equipment]
+      summary: Get equipment detail with maintenance and calibration history
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Equipment detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    put:
+      operationId: updateEquipment
+      tags: [equipment]
+      summary: Update equipment
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteEquipment
+      tags: [equipment]
+      summary: Delete equipment
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  /farms/{farmId}/equipment/{recordId}/maintenance:
+    get:
+      operationId: listMaintenanceLogs
+      tags: [equipment]
+      summary: List maintenance logs for equipment
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Maintenance log list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createMaintenanceLog
+      tags: [equipment]
+      summary: Log a maintenance event
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  /farms/{farmId}/equipment/{recordId}/calibrations:
+    get:
+      operationId: listCalibrations
+      tags: [equipment]
+      summary: List calibration records for equipment
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Calibration list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createCalibration
+      tags: [equipment]
+      summary: Log a calibration event
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Livestock Herds ───────────────────────────────
+  /farms/{farmId}/herds:
+    get:
+      operationId: listHerds
+      tags: [livestock]
+      summary: List herds/flocks
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Herd list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createHerd
+      tags: [livestock]
+      summary: Create a herd/flock
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/herds/{recordId}:
+    put:
+      operationId: updateHerd
+      tags: [livestock]
+      summary: Update a herd
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteHerd
+      tags: [livestock]
+      summary: Delete a herd
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  # ─── Livestock Animals ─────────────────────────────
+  /farms/{farmId}/animals:
+    get:
+      operationId: listAnimals
+      tags: [livestock]
+      summary: List animals
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Animal list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createAnimal
+      tags: [livestock]
+      summary: Register an animal
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/animals/{recordId}:
+    put:
+      operationId: updateAnimal
+      tags: [livestock]
+      summary: Update an animal record
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteAnimal
+      tags: [livestock]
+      summary: Delete an animal record
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  # ─── Livestock Movements ───────────────────────────
+  /farms/{farmId}/movements:
+    get:
+      operationId: listMovements
+      tags: [livestock]
+      summary: List livestock movements
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Movement list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createMovement
+      tags: [livestock]
+      summary: Record a livestock movement
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Livestock Medicine ────────────────────────────
+  /farms/{farmId}/medicine-records:
+    get:
+      operationId: listMedicineRecords
+      tags: [livestock]
+      summary: List medicine records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Medicine record list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createMedicineRecord
+      tags: [livestock]
+      summary: Log a medicine administration
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Livestock Feed ────────────────────────────────
+  /farms/{farmId}/feed-records:
+    get:
+      operationId: listFeedRecords
+      tags: [livestock]
+      summary: List feed records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Feed record list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createFeedRecord
+      tags: [livestock]
+      summary: Log a feed event
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Livestock Water ───────────────────────────────
+  /farms/{farmId}/water-records:
+    get:
+      operationId: listWaterRecords
+      tags: [livestock]
+      summary: List water source records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Water record list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createWaterRecord
+      tags: [livestock]
+      summary: Log a water source record
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Visitor Log ───────────────────────────────────
+  /farms/{farmId}/visitors:
+    get:
+      operationId: listVisitors
+      tags: [biosecurity]
+      summary: List visitor/contractor log entries
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Visitor list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createVisitor
+      tags: [biosecurity]
+      summary: Log a visitor
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/visitors/{recordId}:
+    put:
+      operationId: updateVisitor
+      tags: [biosecurity]
+      summary: Update visitor record (e.g. departure time)
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Pest Control ─────────────────────────────────
+  /farms/{farmId}/pest-control:
+    get:
+      operationId: listPestControl
+      tags: [biosecurity]
+      summary: List pest control records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Pest control list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createPestControl
+      tags: [biosecurity]
+      summary: Log a pest control measure
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Cleaning & Disinfection ───────────────────────
+  /farms/{farmId}/cleaning:
+    get:
+      operationId: listCleaning
+      tags: [biosecurity]
+      summary: List cleaning and disinfection records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Cleaning record list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createCleaning
+      tags: [biosecurity]
+      summary: Log a cleaning event
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Staff Training ───────────────────────────────
+  /farms/{farmId}/training:
+    get:
+      operationId: listTraining
+      tags: [training]
+      summary: List staff training records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Training record list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createTraining
+      tags: [training]
+      summary: Log a training event
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  /farms/{farmId}/certificates:
+    get:
+      operationId: listCertificates
+      tags: [training]
+      summary: List staff certificates
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Certificate list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createCertificate
+      tags: [training]
+      summary: Register a certificate
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/certificates/{recordId}:
+    put:
+      operationId: updateCertificate
+      tags: [training]
+      summary: Update a certificate
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteCertificate
+      tags: [training]
+      summary: Delete a certificate
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  # ─── Risk Assessments ──────────────────────────────
+  /farms/{farmId}/risk-assessments:
+    get:
+      operationId: listRiskAssessments
+      tags: [risk-waste]
+      summary: List risk assessments
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Risk assessment list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createRiskAssessment
+      tags: [risk-waste]
+      summary: Create a risk assessment
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/risk-assessments/{recordId}:
+    put:
+      operationId: updateRiskAssessment
+      tags: [risk-waste]
+      summary: Update a risk assessment
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteRiskAssessment
+      tags: [risk-waste]
+      summary: Delete a risk assessment
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  # ─── COSHH ─────────────────────────────────────────
+  /farms/{farmId}/coshh:
+    get:
+      operationId: listCoshh
+      tags: [risk-waste]
+      summary: List COSHH records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: COSHH list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createCoshh
+      tags: [risk-waste]
+      summary: Create a COSHH record
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/coshh/{recordId}:
+    put:
+      operationId: updateCoshh
+      tags: [risk-waste]
+      summary: Update a COSHH record
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Waste Disposal ────────────────────────────────
+  /farms/{farmId}/waste:
+    get:
+      operationId: listWaste
+      tags: [risk-waste]
+      summary: List waste disposal records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Waste list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createWaste
+      tags: [risk-waste]
+      summary: Log waste disposal
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Inspections ───────────────────────────────────
+  /farms/{farmId}/inspections:
+    get:
+      operationId: listInspections
+      tags: [inspections]
+      summary: List inspection records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Inspection list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createInspection
+      tags: [inspections]
+      summary: Log an inspection
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/inspections/{recordId}:
+    get:
+      operationId: getInspection
+      tags: [inspections]
+      summary: Get inspection with non-conformances and corrective actions
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Inspection detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    put:
+      operationId: updateInspection
+      tags: [inspections]
+      summary: Update an inspection
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  /farms/{farmId}/nonconformances:
+    get:
+      operationId: listNonconformances
+      tags: [inspections]
+      summary: List non-conformance records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Non-conformance list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createNonconformance
+      tags: [inspections]
+      summary: Log a non-conformance
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/nonconformances/{recordId}:
+    put:
+      operationId: updateNonconformance
+      tags: [inspections]
+      summary: Update a non-conformance
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  /farms/{farmId}/corrective-actions:
+    post:
+      operationId: createCorrectiveAction
+      tags: [inspections]
+      summary: Create a corrective action
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/corrective-actions/{recordId}:
+    put:
+      operationId: updateCorrectiveAction
+      tags: [inspections]
+      summary: Update a corrective action
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Environmental Features ────────────────────────
+  /farms/{farmId}/environmental-features:
+    get:
+      operationId: listEnvironmentalFeatures
+      tags: [environmental]
+      summary: List environmental features
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Feature list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createEnvironmentalFeature
+      tags: [environmental]
+      summary: Record an environmental feature
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/environmental-features/{recordId}:
+    put:
+      operationId: updateEnvironmentalFeature
+      tags: [environmental]
+      summary: Update an environmental feature
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteEnvironmentalFeature
+      tags: [environmental]
+      summary: Delete an environmental feature
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  /farms/{farmId}/agri-schemes:
+    get:
+      operationId: listAgriSchemes
+      tags: [environmental]
+      summary: List agri-environment scheme records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Scheme list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createAgriScheme
+      tags: [environmental]
+      summary: Record an agri-environment scheme
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Haulage ───────────────────────────────────────
+  /farms/{farmId}/haulage:
+    get:
+      operationId: listHaulage
+      tags: [haulage]
+      summary: List haulage records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Haulage list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createHaulage
+      tags: [haulage]
+      summary: Log a haulage record
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/haulage/{recordId}:
+    put:
+      operationId: updateHaulage
+      tags: [haulage]
+      summary: Update a haulage record
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Suppliers ─────────────────────────────────────
+  /farms/{farmId}/suppliers:
+    get:
+      operationId: listSuppliers
+      tags: [stock]
+      summary: List suppliers
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Supplier list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createSupplier
+      tags: [stock]
+      summary: Add a supplier
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/suppliers/{recordId}:
+    put:
+      operationId: updateSupplier
+      tags: [stock]
+      summary: Update a supplier
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteSupplier
+      tags: [stock]
+      summary: Delete a supplier
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  # ─── Stock Items & Deliveries ──────────────────────
+  /farms/{farmId}/stock-items:
+    get:
+      operationId: listStockItems
+      tags: [stock]
+      summary: List stock items
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Stock item list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createStockItem
+      tags: [stock]
+      summary: Add a stock item
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  /farms/{farmId}/stock-deliveries:
+    get:
+      operationId: listStockDeliveries
+      tags: [stock]
+      summary: List stock deliveries
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Delivery list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createStockDelivery
+      tags: [stock]
+      summary: Log a delivery
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Financial ─────────────────────────────────────
+  /farms/{farmId}/financial-transactions:
+    get:
+      operationId: listFinancialTransactions
+      tags: [financial]
+      summary: List financial transactions
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createFinancialTransaction
+      tags: [financial]
+      summary: Record a financial transaction
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/financial-transactions/{recordId}:
+    put:
+      operationId: updateFinancialTransaction
+      tags: [financial]
+      summary: Update a transaction
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteFinancialTransaction
+      tags: [financial]
+      summary: Delete a transaction
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  /farms/{farmId}/financial-exports:
+    post:
+      operationId: createFinancialExport
+      tags: [financial]
+      summary: Export financial data to CSV or Xero format
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dateRangeStart:
+                  type: string
+                  format: date-time
+                dateRangeEnd:
+                  type: string
+                  format: date-time
+                format:
+                  type: string
+                  enum: [csv, xero]
+              required: [dateRangeStart, dateRangeEnd, format]
+      responses:
+        "200":
+          description: Export data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Documents ─────────────────────────────────────
+  /farms/{farmId}/documents:
+    get:
+      operationId: listDocuments
+      tags: [documents]
+      summary: List document records
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Document list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createDocument
+      tags: [documents]
+      summary: Upload/register a document
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/documents/{recordId}:
+    delete:
+      operationId: deleteDocument
+      tags: [documents]
+      summary: Delete a document
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  # ─── Weather ───────────────────────────────────────
+  /farms/{farmId}/weather-stations:
+    get:
+      operationId: listWeatherStations
+      tags: [weather]
+      summary: List weather stations
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Station list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createWeatherStation
+      tags: [weather]
+      summary: Set up a weather station
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+  /farms/{farmId}/weather-stations/{recordId}:
+    put:
+      operationId: updateWeatherStation
+      tags: [weather]
+      summary: Update a weather station
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+    delete:
+      operationId: deleteWeatherStation
+      tags: [weather]
+      summary: Delete a weather station
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - $ref: "#/components/parameters/RecordIdPath"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResponse"
+
+  /farms/{farmId}/weather-readings:
+    get:
+      operationId: listWeatherReadings
+      tags: [weather]
+      summary: List weather readings
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      responses:
+        "200":
+          description: Reading list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+    post:
+      operationId: createWeatherReading
+      tags: [weather]
+      summary: Log a weather reading
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordEnvelope"
+
+  # ─── Help/Knowledge Base ───────────────────────────
+  /help/articles:
+    get:
+      operationId: listHelpArticles
+      tags: [dashboard]
+      summary: List help articles
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Article list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordListResponse"
+
 components:
   parameters:
     AuthorizationSessionHeader:
@@ -692,6 +2941,18 @@ components:
       description: Tenant slug to scope the request
       schema:
         type: string
+    FarmIdPath:
+      name: farmId
+      in: path
+      required: true
+      schema:
+        type: integer
+    RecordIdPath:
+      name: recordId
+      in: path
+      required: true
+      schema:
+        type: integer
   schemas:
     HealthStatus:
       type: object
@@ -1108,6 +3369,28 @@ components:
         assignment:
           type: object
       required: [assignment]
+    TenantUserListResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+              roleId:
+                type: integer
+              isActive:
+                type: boolean
+              email:
+                type: ["string", "null"]
+              firstName:
+                type: ["string", "null"]
+              lastName:
+                type: ["string", "null"]
+            required: [userId, roleId, isActive]
+      required: [users]
     Role:
       type: object
       properties:
@@ -1211,7 +3494,6 @@ components:
       properties:
         farmId:
           type: ["integer", "null"]
-          description: Optional farm ID for farm-scoped permissions. Null for tenant-wide.
         canRead:
           type: boolean
         canWrite:
@@ -1345,3 +3627,80 @@ components:
               type: string
           required: [userId, tenantId, note]
       required: [impersonation]
+    RecordEnvelope:
+      type: object
+      properties:
+        record:
+          type: object
+          additionalProperties: true
+      required: [record]
+    RecordListResponse:
+      type: object
+      properties:
+        records:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required: [records]
+    DeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required: [success]
+    FarmDashboardResponse:
+      type: object
+      properties:
+        farm:
+          $ref: "#/components/schemas/Farm"
+        complianceScore:
+          type: integer
+        overdueActions:
+          type: integer
+        upcomingInspection:
+          type: ["string", "null"]
+          format: date-time
+        moduleStats:
+          type: array
+          items:
+            type: object
+            properties:
+              moduleKey:
+                type: string
+              moduleName:
+                type: string
+              recordCount:
+                type: integer
+              lastActivity:
+                type: ["string", "null"]
+                format: date-time
+              hasOverdue:
+                type: boolean
+            required: [moduleKey, moduleName, recordCount, hasOverdue]
+        activeSubscriptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Subscription"
+      required: [farm, complianceScore, overdueActions, moduleStats, activeSubscriptions]
+    ActivityFeedResponse:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              type:
+                type: string
+              description:
+                type: string
+              module:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+            required: [id, type, description, module, createdAt]
+      required: [activities]

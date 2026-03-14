@@ -1,0 +1,21 @@
+packages:
+  "framer-motion": "Smooth page transitions and micro-interactions"
+  "recharts": "Beautiful charts for the compliance dashboard"
+  "date-fns": "Date formatting and manipulation for farm records"
+  "react-hook-form": "Form state management"
+  "@hookform/resolvers": "Zod integration for form validation"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to merge tailwind classes without style conflicts"
+  "zustand": "Lightweight global state management"
+
+images:
+  - path: "artifacts/dashboard/public/images/auth-bg.png"
+    description: "A breathtaking, professional aerial view of lush, vibrant green farmlands with a modern tractor in the distance, bathed in golden hour sunlight. Earthy tones, high contrast, cinematic."
+    aspect_ratio: "16:9"
+  - path: "artifacts/dashboard/public/images/logo-icon.png"
+    description: "A sleek, minimal geometric logo mark featuring a stylized leaf intersecting with a graph trend line. Deep forest green on a transparent background."
+    aspect_ratio: "1:1"
+
+notes:
+  - Added a global fetch interceptor to append the required x-tenant-slug header automatically to all requests based on localStorage.
+  - Implemented a setup flow that forces the user to select a Tenant and then a Farm before accessing the dashboard.
