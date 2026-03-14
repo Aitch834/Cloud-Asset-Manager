@@ -73,7 +73,7 @@ export function Navbar() {
 
           <div className="hidden md:flex items-center gap-4">
             <Button variant="ghost" className="text-earth-brown hover:text-brand-forest hover:bg-brand-pale" asChild>
-              <a href="/dashboard/">Client Login</a>
+              <Link href="/login">Client Login</Link>
             </Button>
             <Button className="bg-brand-forest hover:bg-brand-sage text-white rounded-full px-6 shadow-md shadow-brand-forest/20" asChild>
               <Link href="/contact">
@@ -117,7 +117,7 @@ export function Navbar() {
               ))}
               <div className="pt-4 mt-2 border-t border-border flex flex-col gap-3">
                 <Button variant="outline" className="w-full justify-center h-12" asChild>
-                  <a href="/dashboard/">Client Login</a>
+                  <Link href="/login">Client Login</Link>
                 </Button>
                 <Button className="w-full justify-center h-12 bg-brand-forest hover:bg-brand-sage" asChild>
                   <Link href="/contact">Register Interest</Link>

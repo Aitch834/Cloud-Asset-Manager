@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Sprout, Mail, Phone, MapPin } from "lucide-react";
+import { Mail, Phone, MapPin } from "lucide-react";
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -11,12 +11,11 @@ export function Footer() {
           
           <div className="space-y-4">
             <Link href="/" className="flex items-center gap-2 group inline-block">
-              <div className="bg-white p-2 rounded-xl">
-                <Sprout className="w-6 h-6 text-brand-forest" />
-              </div>
-              <span className="font-heading font-bold text-xl tracking-tight text-white">
-                BDE Farm Trac
-              </span>
+              <img
+                src={`${import.meta.env.BASE_URL}bde-farm-trac-logo.png`}
+                alt="BDE Farm Trac"
+                className="h-10 w-auto brightness-0 invert"
+              />
             </Link>
             <p className="text-brand-pale/80 text-sm leading-relaxed mt-4 max-w-xs">
               Reducing the administrative burden for UK farmers. Simplifying Red Tractor compliance, field management, and farm operations in one cloud-based platform.
@@ -39,7 +38,7 @@ export function Footer() {
               <li><Link href="/privacy" className="text-brand-pale/80 hover:text-white transition-colors">Privacy Policy</Link></li>
               <li><Link href="/cookies" className="text-brand-pale/80 hover:text-white transition-colors">Cookie Policy</Link></li>
               <li><Link href="/contact" className="text-brand-pale/80 hover:text-white transition-colors">Contact Us</Link></li>
-              <li><a href="/dashboard/" className="text-brand-pale/80 hover:text-white transition-colors">Client Login</a></li>
+              <li><Link href="/login" className="text-brand-pale/80 hover:text-white transition-colors">Client Login</Link></li>
             </ul>
           </div>
 

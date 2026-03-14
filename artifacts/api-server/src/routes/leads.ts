@@ -22,6 +22,8 @@ router.post("/leads", async (req, res): Promise<void> => {
       message: parsed.data.message ?? null,
     }).returning();
 
+    console.log(`[LEAD] New registration lead #${lead.id} from ${lead.email} - sendConfirmationEmail queued for ${lead.email}`);
+
     res.status(201).json({
       id: lead.id,
       businessName: lead.businessName,
