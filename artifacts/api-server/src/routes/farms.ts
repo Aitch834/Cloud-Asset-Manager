@@ -247,6 +247,10 @@ router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModu
 router.post("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
+  if (req.body.fieldId) {
+    const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, req.body.fieldId), eq(fieldsTable.farmId, farmId))).limit(1);
+    if (!field) { res.status(400).json({ error: "Field not found on this farm" }); return; }
+  }
   const [record] = await db.insert(fieldCropAssignmentsTable).values(req.body).returning();
   res.status(201).json({ record });
 });
@@ -268,6 +272,15 @@ router.get("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleB
 router.post("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
+  if (req.body.fieldCropAssignmentId) {
+    const [fca] = await db
+      .select({ id: fieldCropAssignmentsTable.id })
+      .from(fieldCropAssignmentsTable)
+      .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+      .where(and(eq(fieldCropAssignmentsTable.id, req.body.fieldCropAssignmentId), eq(fieldsTable.farmId, farmId)))
+      .limit(1);
+    if (!fca) { res.status(400).json({ error: "Field crop assignment not found on this farm" }); return; }
+  }
   const [record] = await db.insert(harvestRecordsTable).values(req.body).returning();
   res.status(201).json({ record });
 });
