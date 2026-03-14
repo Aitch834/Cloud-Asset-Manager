@@ -1,2 +1,2 @@
 export * from "./generated/api";
-export * from "./generated/types";
+export type { ChatHistoryItem, ChatHistoryItemRole, ChatMessageBody, ChatResponse, CreateLeadBody as CreateLeadBodyType, CreateSupportTicketBody as CreateSupportTicketBodyType, ErrorResponse, HealthStatus, Lead, SupportTicket } from "./generated/types";

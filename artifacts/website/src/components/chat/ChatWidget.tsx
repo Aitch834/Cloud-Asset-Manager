@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSupportChat, useCreateSupportTicket } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import type { ChatHistoryItem } from "@workspace/api-client-react/src/generated/api.schemas";
+import type { ChatHistoryItem } from "@workspace/api-client-react";
 
 export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
