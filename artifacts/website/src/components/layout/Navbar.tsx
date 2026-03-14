@@ -45,15 +45,7 @@ export function Navbar() {
               src="/bde-farm-trac-logo.png" 
               alt="BDE Farm Trac" 
               className="h-10 w-auto object-contain transition-transform group-hover:scale-105"
-              onError={(e) => {
-                // Fallback if logo isn't in public yet
-                (e.target as HTMLImageElement).style.display = 'none';
-                (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-              }}
             />
-            <span className="hidden font-heading font-bold text-2xl tracking-tight text-brand-forest">
-              BDE Farm Trac
-            </span>
           </Link>
 
           {/* Desktop Nav */}

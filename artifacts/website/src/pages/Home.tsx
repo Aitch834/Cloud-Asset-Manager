@@ -87,7 +87,6 @@ export default function Home() {
               transition={{ duration: 0.8, delay: 0.2 }}
               className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white"
             >
-              {/* hero scenic modern tractor in a lush green UK field */}
               <img 
                 src="https://pixabay.com/get/gc895a46dd405265d094442b3ae4bce6b540103669ab171f628caf5a75abe8223c20903f0280e3bd438954e3f6f034006f56b9bdfa984c545d94c4d259ccaf5e7_1280.jpg" 
                 alt="Modern tractor in a green field" 

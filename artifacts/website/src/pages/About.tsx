@@ -47,7 +47,6 @@ export default function About() {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="relative"
             >
-              {/* scenic view of a UK farm estate with rolling hills */}
               <img 
                 src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1000&h=1200&fit=crop" 
                 alt="UK Farm Estate" 
