@@ -12,19 +12,19 @@ Red Tractor Compliance Made Simple
 ## Logo Files
 
 ### Full horizontal logo (tractor + text)
-- `logo/bde-farm-trac-logo.png` — Default size
-- `logo/bde-farm-trac-logo-512.png` — 512px wide
-- `logo/bde-farm-trac-logo-256.png` — 256px wide
-- `logo/bde-farm-trac-logo.svg` — Vector (scalable)
+- `logo/bde-farm-trac-logo.png` — Full resolution (1408x768px)
+- `logo/bde-farm-trac-logo-512.png` — 512x279px (web headers, marketing)
+- `logo/bde-farm-trac-logo-256.png` — 256x140px (nav bars, emails)
+- `logo/bde-farm-trac-logo.svg` — Vector (scalable to any size)
 
 ### Square icon (tractor only)
-- `logo/bde-farm-trac-icon.png` — Default size
+- `logo/bde-farm-trac-icon.png` — Full resolution (1024x1024px)
 - `logo/bde-farm-trac-icon-512.png` — 512x512px (app store icon)
-- `logo/bde-farm-trac-icon-128.png` — 128x128px
+- `logo/bde-farm-trac-icon-128.png` — 128x128px (thumbnails, small displays)
 
 ### Favicon
-- `logo/favicon.svg` — Vector favicon (tractor on green background)
-- `logo/favicon-64.png` — 64x64px raster favicon
+- `logo/favicon.svg` — Vector favicon (tractor on green background, scalable)
+- `logo/favicon-64.png` — 64x64px raster favicon (browser tab icon)
 
 ## Colour Palette
 
