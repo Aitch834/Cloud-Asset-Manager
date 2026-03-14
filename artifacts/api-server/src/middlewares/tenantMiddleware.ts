@@ -56,8 +56,26 @@ export async function tenantMiddleware(
     )
     .limit(1);
 
+  const isSuperAdmin = callerMembership?.isSuperAdmin || false;
+  let hasPlatformSuperAdmin = isSuperAdmin;
+
+  if (!hasPlatformSuperAdmin) {
+    const superAdminAny = await db
+      .select()
+      .from(userTenantsTable)
+      .where(
+        and(
+          eq(userTenantsTable.userId, req.user.id),
+          eq(userTenantsTable.isSuperAdmin, true),
+          eq(userTenantsTable.isActive, true),
+        ),
+      )
+      .limit(1);
+    hasPlatformSuperAdmin = superAdminAny.length > 0;
+  }
+
   const impersonateUserId = req.headers["x-impersonate-user"] as string | undefined;
-  if (impersonateUserId && callerMembership?.isSuperAdmin) {
+  if (impersonateUserId && hasPlatformSuperAdmin) {
     const [targetMembership] = await db
       .select()
       .from(userTenantsTable)
@@ -83,19 +101,7 @@ export async function tenantMiddleware(
   }
 
   if (!callerMembership) {
-    const superAdminAny = await db
-      .select()
-      .from(userTenantsTable)
-      .where(
-        and(
-          eq(userTenantsTable.userId, req.user.id),
-          eq(userTenantsTable.isSuperAdmin, true),
-          eq(userTenantsTable.isActive, true),
-        ),
-      )
-      .limit(1);
-
-    if (superAdminAny.length > 0) {
+    if (hasPlatformSuperAdmin) {
       req.tenantId = tenant.id;
       req.tenantSlug = tenant.slug;
       req.isSuperAdmin = true;
