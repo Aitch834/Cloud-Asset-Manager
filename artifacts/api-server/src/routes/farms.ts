@@ -503,11 +503,18 @@ router.delete("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, 
   res.json({ success: true });
 });
 
+async function validateEquipmentOwnership(equipmentId: number, farmId: number): Promise<boolean> {
+  const [eq_record] = await db.select({ id: equipmentTable.id }).from(equipmentTable).where(and(eq(equipmentTable.id, equipmentId), eq(equipmentTable.farmId, farmId))).limit(1);
+  return !!eq_record;
+}
+
 router.get("/farms/:farmId/equipment/:recordId/maintenance", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const valid = await validateEquipmentOwnership(recordId, farmId);
+  if (!valid) { res.status(404).json({ error: "Equipment not found" }); return; }
   const records = await db.select().from(equipmentMaintenanceLogsTable).where(eq(equipmentMaintenanceLogsTable.equipmentId, recordId)).orderBy(desc(equipmentMaintenanceLogsTable.performedDate));
   res.json({ records });
 });
@@ -517,6 +524,8 @@ router.post("/farms/:farmId/equipment/:recordId/maintenance", requireAuth, requi
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const valid = await validateEquipmentOwnership(recordId, farmId);
+  if (!valid) { res.status(404).json({ error: "Equipment not found" }); return; }
   const [record] = await db.insert(equipmentMaintenanceLogsTable).values({ ...req.body, equipmentId: recordId }).returning();
   res.status(201).json({ record });
 });
@@ -526,6 +535,8 @@ router.get("/farms/:farmId/equipment/:recordId/calibrations", requireAuth, requi
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const valid = await validateEquipmentOwnership(recordId, farmId);
+  if (!valid) { res.status(404).json({ error: "Equipment not found" }); return; }
   const records = await db.select().from(equipmentCalibrationRecordsTable).where(eq(equipmentCalibrationRecordsTable.equipmentId, recordId)).orderBy(desc(equipmentCalibrationRecordsTable.calibrationDate));
   res.json({ records });
 });
@@ -535,6 +546,8 @@ router.post("/farms/:farmId/equipment/:recordId/calibrations", requireAuth, requ
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const valid = await validateEquipmentOwnership(recordId, farmId);
+  if (!valid) { res.status(404).json({ error: "Equipment not found" }); return; }
   const [record] = await db.insert(equipmentCalibrationRecordsTable).values({ ...req.body, equipmentId: recordId }).returning();
   res.status(201).json({ record });
 });
@@ -1513,13 +1526,26 @@ router.delete("/farms/:farmId/weather-readings/:recordId", requireAuth, requireT
   res.json({ success: true });
 });
 
+async function validateHarvestOwnership(harvestId: number, farmId: number): Promise<boolean> {
+  const result = await db
+    .select({ id: harvestRecordsTable.id })
+    .from(harvestRecordsTable)
+    .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
+    .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+    .where(and(eq(harvestRecordsTable.id, harvestId), eq(fieldsTable.farmId, farmId)))
+    .limit(1);
+  return result.length > 0;
+}
+
 router.put("/farms/:farmId/harvests/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(harvestRecordsTable).set(req.body).where(and(eq(harvestRecordsTable.id, recordId), eq(harvestRecordsTable.farmId, farmId))).returning();
-  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  const valid = await validateHarvestOwnership(recordId, farmId);
+  if (!valid) { res.status(404).json({ error: "Not found" }); return; }
+  const { id, createdAt, ...updateData } = req.body;
+  const [record] = await db.update(harvestRecordsTable).set(updateData).where(eq(harvestRecordsTable.id, recordId)).returning();
   res.json({ record });
 });
 
@@ -1528,7 +1554,9 @@ router.delete("/farms/:farmId/harvests/:recordId", requireAuth, requireTenant, r
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  await db.delete(harvestRecordsTable).where(and(eq(harvestRecordsTable.id, recordId), eq(harvestRecordsTable.farmId, farmId)));
+  const valid = await validateHarvestOwnership(recordId, farmId);
+  if (!valid) { res.status(404).json({ error: "Not found" }); return; }
+  await db.delete(harvestRecordsTable).where(eq(harvestRecordsTable.id, recordId));
   res.json({ success: true });
 });
 
