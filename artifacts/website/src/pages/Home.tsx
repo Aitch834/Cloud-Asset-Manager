@@ -51,8 +51,6 @@ export default function Home() {
     <Layout>
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-earth-cream py-20 lg:py-32">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: `url(${import.meta.env.BASE_URL}images/hero-pattern.png)`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
         
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
