@@ -9,6 +9,12 @@ export default function Login() {
   const { user, isLoading, isAuthenticated, login, logout } = useAuth();
   const [, setLocation] = useLocation();
 
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      window.location.href = "/dashboard/";
+    }
+  }, [isAuthenticated, user]);
+
   if (isLoading) {
     return (
       <Layout>
@@ -21,12 +27,6 @@ export default function Login() {
       </Layout>
     );
   }
-
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      window.location.href = "/dashboard/";
-    }
-  }, [isAuthenticated, user]);
 
   if (isAuthenticated && user) {
     return (
