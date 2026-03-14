@@ -16,11 +16,26 @@ const bdePreset: Partial<Config> = {
           cream: "#F5F0E8",
           sand: "#E8DCC8",
         },
+        neutral: {
+          white: "#FFFFFF",
+          "off-white": "#FAFAF8",
+          "light-grey": "#F0EDE8",
+          grey: "#6B7280",
+          "dark-grey": "#374151",
+          charcoal: "#1F2937",
+          black: "#111827",
+        },
         accent: {
           red: "#DC2626",
           amber: "#F59E0B",
           blue: "#2563EB",
           teal: "#0D9488",
+        },
+        status: {
+          success: "#16A34A",
+          warning: "#EAB308",
+          error: "#DC2626",
+          info: "#2563EB",
         },
       },
       fontFamily: {
@@ -37,6 +52,12 @@ const bdePreset: Partial<Config> = {
           "system-ui",
           "-apple-system",
           "sans-serif",
+        ],
+        mono: [
+          "JetBrains Mono",
+          "Fira Code",
+          "Consolas",
+          "monospace",
         ],
       },
       borderRadius: {
