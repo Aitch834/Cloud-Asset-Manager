@@ -34,6 +34,7 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   moduleKeys?: string[];
+  requiresLivestock?: boolean;
 }
 
 const coreNav: NavItem[] = [
@@ -57,9 +58,9 @@ const biosecurityNav: NavItem[] = [
 ];
 
 const livestockNav: NavItem[] = [
-  { name: "Herds & Animals", href: "/livestock", icon: HeartPulse, moduleKeys: ["livestock-management"] },
-  { name: "Movements", href: "/movements", icon: Truck, moduleKeys: ["livestock-management"] },
-  { name: "Medicine", href: "/medicine", icon: HeartPulse, moduleKeys: ["livestock-management"] },
+  { name: "Herds & Animals", href: "/livestock", icon: HeartPulse, moduleKeys: ["livestock-management"], requiresLivestock: true },
+  { name: "Movements", href: "/movements", icon: Truck, moduleKeys: ["livestock-management"], requiresLivestock: true },
+  { name: "Medicine", href: "/medicine", icon: HeartPulse, moduleKeys: ["livestock-management"], requiresLivestock: true },
 ];
 
 const otherNav: NavItem[] = [
@@ -77,8 +78,13 @@ const bottomNav: NavItem[] = [
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
-function filterByActiveModules(items: NavItem[], activeModuleKeys: Set<string>): NavItem[] {
+interface FarmSectors {
+  hasLivestock: boolean;
+}
+
+function filterNavItems(items: NavItem[], activeModuleKeys: Set<string>, sectors: FarmSectors): NavItem[] {
   return items.filter((item) => {
+    if (item.requiresLivestock && !sectors.hasLivestock) return false;
     if (!item.moduleKeys || item.moduleKeys.length === 0) return true;
     return item.moduleKeys.some((key) => activeModuleKeys.has(key));
   });
@@ -130,13 +136,18 @@ export function Sidebar() {
     return keys;
   }, [dashboardData?.activeSubscriptions]);
 
-  const shouldFilter = subscriptionsLoaded;
+  const farmSectors = useMemo((): FarmSectors => {
+    const farm = dashboardData?.farm as Record<string, unknown> | undefined;
+    if (!farm) return { hasLivestock: true };
+    const hasLivestock = !!(farm.sectorBeef || farm.sectorDairy || farm.sectorPigs || farm.sectorPoultry);
+    return { hasLivestock };
+  }, [dashboardData?.farm]);
 
-  const filteredCoreNav = shouldFilter ? filterByActiveModules(coreNav, activeModuleKeys) : coreNav;
-  const filteredComplianceNav = shouldFilter ? filterByActiveModules(complianceNav, activeModuleKeys) : complianceNav;
-  const filteredBiosecurityNav = shouldFilter ? filterByActiveModules(biosecurityNav, activeModuleKeys) : biosecurityNav;
-  const filteredLivestockNav = shouldFilter ? filterByActiveModules(livestockNav, activeModuleKeys) : livestockNav;
-  const filteredOtherNav = shouldFilter ? filterByActiveModules(otherNav, activeModuleKeys) : otherNav;
+  const filteredCoreNav = subscriptionsLoaded ? filterNavItems(coreNav, activeModuleKeys, farmSectors) : coreNav;
+  const filteredComplianceNav = subscriptionsLoaded ? filterNavItems(complianceNav, activeModuleKeys, farmSectors) : complianceNav;
+  const filteredBiosecurityNav = subscriptionsLoaded ? filterNavItems(biosecurityNav, activeModuleKeys, farmSectors) : biosecurityNav;
+  const filteredLivestockNav = subscriptionsLoaded ? filterNavItems(livestockNav, activeModuleKeys, farmSectors) : livestockNav;
+  const filteredOtherNav = subscriptionsLoaded ? filterNavItems(otherNav, activeModuleKeys, farmSectors) : otherNav;
 
   const handleLogout = () => {
     clearState();
