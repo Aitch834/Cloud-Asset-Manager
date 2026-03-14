@@ -123,3 +123,35 @@ Utility scripts package. Each script is a `.ts` file in `src/` with a correspond
 **Pricing**: Monthly per farm, module-based (clients choose which compliance modules each farm needs)
 **Multi-tenancy**: Each paying client gets isolated data within the master PostgreSQL database
 **Brand**: Agricultural greens + earthy tones, Inter font family, tractor logo
+
+### `artifacts/website` (`@workspace/website`)
+
+Marketing website for BDE Farm Trac. Built with React + Vite, uses wouter for routing. Artifact preview path: `/`.
+
+Pages:
+- **Home** (`/`) — Hero with "Red Tractor Compliance Made Simple", feature overview grid, testimonials, CTA
+- **Features** (`/features`) — Detailed module cards (Red Tractor, Field & Crop, Stock & Suppliers, Equipment, Documents, Financials, Weather, Livestock, Nutrients, Biosecurity, Staff Training, Mobile)
+- **Pricing** (`/pricing`) — Module-based pricing calculator with farm count selector, module checkboxes, live cost estimate
+- **About** (`/about`) — Company information and mission
+- **Register Interest** (`/contact`) — Lead capture form (POST /api/leads)
+- **Privacy** (`/privacy`) — UK GDPR compliant privacy policy
+- **Cookies** (`/cookies`) — UK ICO compliant cookie policy
+
+Components:
+- `ChatWidget` — Floating AI support chat (POST /api/support/chat), escalation to human (POST /api/support/tickets)
+- `CookieBanner` — Cookie consent with localStorage persistence
+- `Navbar` — Navigation with logo, links, Client Login, Get Started CTA
+- `Footer` — Company info, quick links, legal links
+- `Layout` — Wraps all pages with Navbar + Footer
+
+## Database Tables
+
+- `registration_leads` — Lead capture from Register Interest form (business_name, contact_name, email, phone, farm_count, modules_interested, message)
+- `support_tickets` — Escalated chat support tickets (name, email, subject, description, conversation_history, status)
+
+## API Endpoints
+
+- `GET /api/healthz` — Health check
+- `POST /api/leads` — Create registration interest lead
+- `POST /api/support/chat` — AI chatbot (rule-based keyword matching)
+- `POST /api/support/tickets` — Create human support ticket

@@ -1,0 +1,13 @@
+packages:
+  "framer-motion": "Animations and page transitions"
+  "react-hook-form": "Form state management"
+  "@hookform/resolvers": "Zod resolver for forms"
+
+images:
+  - path: "artifacts/website/public/images/hero-pattern.png"
+    description: "Subtle topographic contour map pattern in very light pale green, abstract, seamless, clean"
+    aspect_ratio: "16:9"
+
+notes:
+  - Using generated API hooks from @workspace/api-client-react
+  - Assuming /bde-farm-trac-logo.png is copied to public/
