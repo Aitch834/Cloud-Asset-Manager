@@ -15,143 +15,169 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **Payments**: Stripe (subscription billing, module-based per farm)
+- **Auth**: Replit Auth (OpenID Connect with PKCE)
 
 ## Structure
 
 ```text
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
+│   ├── api-server/         # Express API server
+│   └── website/            # Marketing website (React + Vite)
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   ├── db/                 # Drizzle ORM schema + DB connection
+│   ├── replit-auth-web/    # React auth hook (useAuth)
+│   ├── integrations-openai-ai-server/ # OpenAI integration
 │   └── shared-assets/      # BDE Farm Trac brand: logos, design tokens, Tailwind preset
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+├── scripts/                # Utility scripts
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── tsconfig.json
+└── package.json
 ```
 
 ## TypeScript & Composite Projects
 
 Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+- **Always typecheck from the root** — run `pnpm run typecheck`
+- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck
+- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array
 
 ## Root Scripts
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+- `pnpm run build` — runs `typecheck` first, then recursively runs `build`
+- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly`
+
+## Express 5 Rules
+
+- Route handlers: `async (req, res): Promise<void>`
+- Wildcard routes: `/*splat` (not `/*`)
+- No `return res.json()` — use `res.json(); return;`
+- Route params: `req.params.x as string` (Express 5 params are `string | string[]`)
 
 ## Packages
 
 ### `artifacts/api-server` (`@workspace/api-server`)
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+Express 5 API server with multi-tenant architecture.
 
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
+- Entry: `src/index.ts` — reads `PORT`, starts Express, seeds default roles/modules
+- App: `src/app.ts` — CORS, cookieParser, JSON, authMiddleware, tenantMiddleware, routes at `/api`
+- Middlewares:
+  - `authMiddleware.ts` — Replit Auth session resolution, OIDC token refresh
+  - `tenantMiddleware.ts` — Resolves tenant from `x-tenant-slug` header, validates user membership
+  - `roleMiddleware.ts` — `requireAuth`, `requireTenant`, `requireSuperAdmin`, `requireModulePermission`
+- Routes:
+  - `health.ts` — `GET /api/healthz`
+  - `auth.ts` — `/api/login`, `/api/callback`, `/api/logout`, `/api/auth/user`, mobile auth
+  - `leads.ts` — `POST /api/leads`
+  - `support.ts` — `POST /api/support/chat`, `POST /api/support/tickets`
+  - `tenants.ts` — Tenant CRUD, farm CRUD, invitations, staff assignments
+  - `roles.ts` — Role CRUD, module listing, permission management
+  - `billing.ts` — Stripe checkout, subscriptions, webhook handler
+  - `admin.ts` — BDE Super Admin: tenant listing, stats, impersonation
+- Seed: `src/lib/seedDefaults.ts` — Seeds 4 system roles and 16 modules on startup
 
 ### `lib/db` (`@workspace/db`)
 
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
+Database layer using Drizzle ORM with PostgreSQL. 60+ tables across schema files:
 
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
+Schema files:
+- `auth.ts` — sessions, users (Replit Auth mandatory)
+- `core.ts` — tenants, farms, roles, modules, permissions, user_tenants, staff_farm_assignments, subscriptions, user_invitations
+- `leads.ts` — registration_leads
+- `support-tickets.ts` — support_tickets
+- `support-enhanced.ts` — support_ticket_messages
+- `fields-crops.ts` — fields, field_boundaries, crops, field_crop_assignments, harvest_records, crop_transport_records, crop_storage_records, crop_destinations, crop_financial_transactions
+- `sprays-inputs.ts` — spray_products, spray_applications, nutrient_management_plans, nmp_field_entries
+- `soil.ts` — soil_test_records, soil_test_results
+- `equipment.ts` — equipment, equipment_maintenance_logs, equipment_calibration_records, equipment_offboarding_records
+- `livestock.ts` — herd_flock_register, livestock_animals, livestock_movements, livestock_medicine_records, livestock_feed_records, livestock_water_records
+- `biosecurity.ts` — visitor_contractor_log, pest_control_records, cleaning_disinfection_records
+- `staff-training.ts` — staff_training_records, staff_certificates
+- `risk-waste.ts` — risk_assessments, coshh_records, waste_disposal_records
+- `inspections.ts` — inspection_records, nonconformance_records, corrective_actions
+- `environmental.ts` — environmental_features, agri_environment_scheme_records
+- `haulage.ts` — haulage_records
+- `stock-suppliers.ts` — suppliers, stock_items, stock_deliveries, stock_levels
+- `financial.ts` — financial_transactions, financial_exports
+- `documents.ts` — document_records, object_storage_refs
+- `weather.ts` — weather_stations, weather_readings
 
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `lib/shared-assets` (`@workspace/shared-assets`)
-
-BDE Farm Trac brand identity and design token system. Contains:
-
-- `logo/` — Logo files (PNG, SVG) and favicon
-  - `bde-farm-trac-logo.png` — Full horizontal logo (tractor + text)
-  - `bde-farm-trac-logo.svg` — Full horizontal logo (vector)
-  - `bde-farm-trac-icon.png` — Square icon (tractor only)
-  - `favicon.svg` — Favicon (tractor on green background)
-- `src/tokens.ts` — Brand colours, typography, spacing, border-radius, shadows as TypeScript constants
-- `src/css-variables.css` — All brand tokens as CSS custom properties
-- `src/tailwind-preset.ts` — Tailwind CSS preset extending the theme with BDE brand colours and fonts
-- `BRAND.md` — Full brand guide with colour palette, typography, and usage guidance
-
-Exports:
-- `@workspace/shared-assets/tokens` — TypeScript token constants
-- `@workspace/shared-assets/logo/*` — Logo files
-
-Brand palette: agricultural greens (forest #2D6A2E, sage #5A8F5A) + earthy tones (brown #8B5E3C, cream #F5F0E8). Font: Inter.
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
-
-## Project: BDE Farm Trac
-
-**Product**: Cloud-based SaaS for UK farmers to achieve and maintain Red Tractor scheme compliance.
-**Domain**: bdefarmtrac.co.uk
-**Pricing**: Monthly per farm, module-based (clients choose which compliance modules each farm needs)
-**Multi-tenancy**: Each paying client gets isolated data within the master PostgreSQL database
-**Brand**: Agricultural greens + earthy tones, Inter font family, tractor logo
+DB commands:
+- `pnpm --filter @workspace/db run push` — Push schema to DB
+- `pnpm --filter @workspace/db run push-force` — Force push
 
 ### `artifacts/website` (`@workspace/website`)
 
-Marketing website for BDE Farm Trac. Built with React + Vite, uses wouter for routing. Artifact preview path: `/`.
+Marketing website for BDE Farm Trac. React + Vite + wouter. Preview path: `/`.
 
-Pages:
-- **Home** (`/`) — Hero with "Red Tractor Compliance Made Simple", feature overview grid, testimonials, CTA
-- **Features** (`/features`) — Detailed module cards (Red Tractor, Field & Crop, Stock & Suppliers, Equipment, Documents, Financials, Weather, Livestock, Nutrients, Biosecurity, Staff Training, Mobile)
-- **Pricing** (`/pricing`) — Module-based pricing calculator with farm count selector, module checkboxes, live cost estimate
-- **About** (`/about`) — Company information and mission
-- **Register Interest** (`/contact`) — Lead capture form (POST /api/leads)
-- **Privacy** (`/privacy`) — UK GDPR compliant privacy policy
-- **Cookies** (`/cookies`) — UK ICO compliant cookie policy
+Pages: Home, Features, Pricing, About, Contact, Privacy, Cookies, Login, Admin
 
-Components:
-- `ChatWidget` — Floating AI support chat (POST /api/support/chat), escalation to human (POST /api/support/tickets)
-- `CookieBanner` — Cookie consent with localStorage persistence
-- `Navbar` — Navigation with logo, links, Client Login, Get Started CTA
-- `Footer` — Company info, quick links, legal links
-- `Layout` — Wraps all pages with Navbar + Footer
+### Multi-Tenant Architecture
 
-## Database Tables
+- **Tenants**: Each client organization (e.g. a farm business) is a tenant
+- **Farms**: Each tenant can have multiple farms with sector flags (arable, beef, dairy, pigs, poultry, horticulture)
+- **Users**: Authenticated via Replit Auth, linked to tenants via `user_tenants` table
+- **Roles**: BDE Super Admin, Client Admin, Farm Manager, Farm Staff (system roles seeded on startup)
+- **Permissions**: Per-role, per-module (read/write/delete/approve)
+- **Staff assignments**: Users can be assigned to multiple farms within a tenant
+- **Modules**: 16 compliance modules, each with monthly pricing in pence
+- **Subscriptions**: Per-farm, per-module, linked to Stripe
+- **Tenant context**: API requests include `x-tenant-slug` header to scope to a tenant
 
-- `registration_leads` — Lead capture from Register Interest form (business_name, contact_name, email, phone, farm_count, modules_interested, message)
-- `support_tickets` — Escalated chat support tickets (name, email, subject, description, conversation_history, status)
+### System Roles
+
+1. BDE Super Admin — Full platform access (BDE staff only)
+2. Client Admin — Full access to tenant management
+3. Farm Manager — Full access to assigned farms
+4. Farm Staff — Limited access based on module permissions
+
+### Modules (16)
+
+Red Tractor Compliance, Field & Crop Management, Sprays & Inputs, Soil Management, Equipment & Vehicle Management, Livestock Management, Biosecurity & Visitors, Staff & Training, Risk & Waste Management, Inspections & Audits, Environmental Features, Transport & Haulage, Stock & Supplier Tracking, Financial Records, Document Management, Weather Tracking
 
 ## API Endpoints
 
+### Public
 - `GET /api/healthz` — Health check
-- `POST /api/leads` — Create registration interest lead
-- `POST /api/support/chat` — AI chatbot (rule-based keyword matching)
-- `POST /api/support/tickets` — Create human support ticket
+- `POST /api/leads` — Create registration lead
+- `POST /api/support/chat` — AI chat (OpenAI gpt-5-mini)
+- `POST /api/support/tickets` — Create support ticket
+
+### Auth
+- `GET /api/login` — Initiate Replit Auth OIDC flow
+- `GET /api/callback` — OIDC callback
+- `GET /api/logout` — End session
+- `GET /api/auth/user` — Get current user
+
+### Tenant Management (requires auth + x-tenant-slug)
+- `GET /api/tenants/mine` — List user's tenants
+- `POST /api/tenants` — Create new tenant
+- `GET|PUT /api/tenants/current` — Get/update current tenant
+- `GET|POST /api/tenants/current/farms` — List/create farms
+- `PUT /api/tenants/current/farms/:farmId` — Update farm
+- `GET|POST /api/tenants/current/invitations` — List/create invitations
+- `GET|POST /api/tenants/current/staff-assignments` — List/create assignments
+
+### Roles & Permissions (requires auth)
+- `GET|POST /api/roles` — List/create roles
+- `GET /api/modules` — List modules
+- `GET /api/roles/:roleId/permissions` — Get role permissions
+- `PUT /api/roles/:roleId/permissions/:moduleId` — Update permission
+
+### Billing (requires auth + x-tenant-slug)
+- `POST /api/billing/checkout` — Create Stripe checkout session
+- `GET /api/billing/subscriptions` — List subscriptions
+- `POST /api/billing/webhook` — Stripe webhook handler
+
+### Admin (requires BDE Super Admin)
+- `GET /api/admin/tenants` — List all tenants
+- `GET /api/admin/tenants/:tenantId` — Tenant detail with farms/subs/users
+- `GET /api/admin/stats` — Platform statistics
+- `POST /api/admin/impersonate` — Impersonate user

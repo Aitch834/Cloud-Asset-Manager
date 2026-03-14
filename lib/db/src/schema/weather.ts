@@ -1,0 +1,37 @@
+import { pgTable, text, serial, integer, timestamp, numeric, boolean } from "drizzle-orm/pg-core";
+import { farmsTable } from "./core";
+import { fieldsTable } from "./fields-crops";
+
+export const weatherStationsTable = pgTable("weather_stations", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  stationType: text("station_type").notNull(),
+  locationType: text("location_type"),
+  latitude: numeric("latitude", { precision: 10, scale: 7 }),
+  longitude: numeric("longitude", { precision: 10, scale: 7 }),
+  linkedFieldId: integer("linked_field_id").references(() => fieldsTable.id),
+  manufacturer: text("manufacturer"),
+  model: text("model"),
+  serialNumber: text("serial_number"),
+  installDate: timestamp("install_date", { withTimezone: true }),
+  isActive: boolean("is_active").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const weatherReadingsTable = pgTable("weather_readings", {
+  id: serial("id").primaryKey(),
+  stationId: integer("station_id").notNull().references(() => weatherStationsTable.id),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  fieldId: integer("field_id").references(() => fieldsTable.id),
+  readingTimestamp: timestamp("reading_timestamp", { withTimezone: true }).notNull(),
+  temperatureC: numeric("temperature_c", { precision: 5, scale: 1 }),
+  humidityPercent: numeric("humidity_percent", { precision: 5, scale: 1 }),
+  windSpeedKmh: numeric("wind_speed_kmh", { precision: 5, scale: 1 }),
+  windDirection: text("wind_direction"),
+  rainfallMm: numeric("rainfall_mm", { precision: 7, scale: 2 }),
+  pressureHpa: numeric("pressure_hpa", { precision: 7, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
