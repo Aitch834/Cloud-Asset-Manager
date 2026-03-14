@@ -1,0 +1,58 @@
+I want to create a cloud based software product and service business that will be marketed to the UK Farming Industry.  The software product will aid farmers in obtaining, and then maintaining, compliance with the UK's 'Red Tractor Scheme'.  Details of the 'Red Tractor Scheme' can be found at the following URL:
+
+https://redtractor.org.uk/
+
+Please familiarise yourself fully with this scheme and its' requirements.
+
+The following URL gives templates of what the scheme requires with regards to traceability and record keeping that farmers must comply with:
+
+https://redtractor.org.uk/assurance/templates/
+
+Please familiarise yourself fully with these templates.
+
+My Customers will login via my own website, that I would like you to create the landing page for.  The website should be created as a way of advertising the applications' capabilities,  a way of customers registering their interest and also a way of customers buying the software application and services as well.  The website should utilise royalty free images. It should also be the place where customers who have purchased the product will login and navigate to their own application 'Instance'.  The website needs a back end that will provide all the usual CRM related components that a service business would normally use, including payment options and a Customer Support area for logging problems and queries. Use a Postgres database for this if that is the best solution. The website should offer customers all the different farm types as 'modules', with each client then deciding what particular modules a farm would need.  For example, a Farm that only grows grain and sugar beet, would only need the 'Grain and Beet' module.  If that farm also raised Chickens, then that farm would also need the 'Poultry' module.  Customers should be given the option to purchase any number of the specific modules for each farm.
+
+The website needs to comply with all UK legal requirements with regards to cookies, GDPR etc. 
+
+All fee paying clients will each have their own hosted instance.  Each instance should contain all database components, all software applications, APIs etc. that are  necessary for that clients requirements.
+
+All Instances should be persistent.  All Instances should be hosted within the one master Instance belonging to 'BDE Farm Trac' website environment you created above.
+
+The application needs to include a 'Document Management' feature, as on occasion the 'Red Tractor Scheme' needs photographic evidence and other documents saved.  The storage of these types of data needs to be made in the most efficient manner possible but should always maintain the link back to the Postgres database and specific record involved.
+
+I envisage the applications' front end to be a Dashboard type appearance.  The Dashboard should offer all the necessary options for a farm business to manage their 'Red Tractor' compliance and their stock etc..
+
+Wherever possible, I would like you to create mobile based applications that can be run from an Apple or Android tablet or smart phone for all field based data collection and entry requirements.  These applications should update the Dashboard applications' backend in real time.  If no connection is available to update in real time, the mobile applications should save that data and upload it when a connection is next available.  These mobile applications should be available to be downloaded from the Apple Store or from Google for Android versions.
+
+Where possible, the field based apps should utilise the appropriate geo location standard that the 'Red Tractor Scheme' stipulates.
+
+Where farms need to define the fields on their farm, create a mobile application to define a fields' boundary manually by means of geo location capture.  When something is sprayed or applied on that field, the application should know this be means of geo location and by means of manual data entry also.  A fields boundary could also be defined by use of suitable mapping software, Ordnance Survey or MapBox for example but you should choose the most cost effective mapping software avalable, free or opensource ideally.
+
+The Back end should utilise all available Red Tractor APIs and all means of digital uploading and updating, thus reducing the admin burden on the farmers.
+
+I would like each client instance to utilise a Postgres database.   You would need to create all the appropriate tables and fields, along with relational links and keys etc..
+
+Each Client could have one or more farms, so the application instance needs to accommodate this.
+
+Each farm will have a number of staff employed, so the application would need to accommodate admin type users and normal users, maintaining database records for this accordingly.  The Admin staff member should be able to control what user has access to what parts of the application.  
+
+Staff could be employed on multiple farms, so the application needs to accommodate this also.
+
+The application will be called 'BDE Farm Trac'.  I would like a logo developed that will feature the application name, with appropriate artwork used, inclusion of a tractor in the logo would be good.  
+
+As the application provider, I would need admin access to all instances and all data etc..  This would enable easy support when needed.
+
+It would be helpful if you could create a help system that will aid users in learning and using the application and mobile apps.
+
+The 'BDE Farm Trac'  application should include a full stock tracking module, to keep track of Suppliers and all the goods and services received from them. 
+
+The 'BDE Farm Trac'  application should include a way of maintaining records of vehicles and equipment that are used on that farm, including options for onboarding existing and new equipment and offboarding equipment when the time comes.  When a piece of equipment is offboarded, a record of where it goes should be made.  For example, it could be scrapped or it could be sold on to another entity. 
+
+Each client Instance of the 'BDE Farm Trac' application needs to maintain records of what crop has been harvested from what field.  This data should be held and be made available for historic queries, as a field will produce many different crops over time.
+
+The crops and yield information, along with all transport and storage information along with its' final destination needs to be recorded.  The application also 
+needs to hold all financial information and transactions involving the crops produced.  An interface to financial software would be useful, allowing export and import of financial data.
+
+It would be helpful to utilise an AI based Customer Support feature on the main website, that will answer questions from users but include an option to escalate to the Support Team when needed.
+
+
