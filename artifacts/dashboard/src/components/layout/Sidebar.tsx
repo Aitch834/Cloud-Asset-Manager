@@ -26,51 +26,67 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
-import { useListFarms } from "@workspace/api-client-react/src/generated/api";
+import { useListFarms, useGetFarmDashboard } from "@workspace/api-client-react/src/generated/api";
+import { useMemo } from "react";
 
-const coreNav = [
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  moduleKeys?: string[];
+}
+
+const coreNav: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Fields & Crops", href: "/fields", icon: Sprout },
-  { name: "Spray Records", href: "/sprays", icon: Droplets },
-  { name: "Soil Tests", href: "/soil", icon: TestTube },
-  { name: "Equipment", href: "/equipment", icon: Tractor },
+  { name: "Fields & Crops", href: "/fields", icon: Sprout, moduleKeys: ["field-crop-management"] },
+  { name: "Spray Records", href: "/sprays", icon: Droplets, moduleKeys: ["sprays-inputs"] },
+  { name: "Soil Tests", href: "/soil", icon: TestTube, moduleKeys: ["soil-management"] },
+  { name: "Equipment", href: "/equipment", icon: Tractor, moduleKeys: ["equipment-management"] },
 ];
 
-const complianceNav = [
-  { name: "Inspections", href: "/inspections", icon: ClipboardCheck },
-  { name: "Risk & COSHH", href: "/risks", icon: ShieldAlert },
-  { name: "Waste", href: "/waste", icon: Trash2 },
+const complianceNav: NavItem[] = [
+  { name: "Inspections", href: "/inspections", icon: ClipboardCheck, moduleKeys: ["inspections"] },
+  { name: "Risk & COSHH", href: "/risks", icon: ShieldAlert, moduleKeys: ["risk-waste"] },
+  { name: "Waste", href: "/waste", icon: Trash2, moduleKeys: ["risk-waste"] },
 ];
 
-const biosecurityNav = [
-  { name: "Visitor Log", href: "/visitors", icon: Users },
-  { name: "Pest Control", href: "/pest-control", icon: Bug },
-  { name: "Cleaning", href: "/cleaning", icon: ShieldCheck },
+const biosecurityNav: NavItem[] = [
+  { name: "Visitor Log", href: "/visitors", icon: Users, moduleKeys: ["biosecurity"] },
+  { name: "Pest Control", href: "/pest-control", icon: Bug, moduleKeys: ["biosecurity"] },
+  { name: "Cleaning", href: "/cleaning", icon: ShieldCheck, moduleKeys: ["biosecurity"] },
 ];
 
-const livestockNav = [
-  { name: "Herds & Animals", href: "/livestock", icon: HeartPulse },
-  { name: "Movements", href: "/movements", icon: Truck },
-  { name: "Medicine", href: "/medicine", icon: HeartPulse },
+const livestockNav: NavItem[] = [
+  { name: "Herds & Animals", href: "/livestock", icon: HeartPulse, moduleKeys: ["livestock-management"] },
+  { name: "Movements", href: "/movements", icon: Truck, moduleKeys: ["livestock-management"] },
+  { name: "Medicine", href: "/medicine", icon: HeartPulse, moduleKeys: ["livestock-management"] },
 ];
 
-const otherNav = [
-  { name: "Training", href: "/training", icon: GraduationCap },
-  { name: "Suppliers & Stock", href: "/stock", icon: Package },
-  { name: "Financial", href: "/financial", icon: PoundSterling },
-  { name: "Environmental", href: "/environmental", icon: Leaf },
-  { name: "Haulage", href: "/haulage", icon: Truck },
-  { name: "Documents", href: "/documents", icon: FileText },
-  { name: "Weather", href: "/weather", icon: CloudSun },
+const otherNav: NavItem[] = [
+  { name: "Training", href: "/training", icon: GraduationCap, moduleKeys: ["staff-training"] },
+  { name: "Suppliers & Stock", href: "/stock", icon: Package, moduleKeys: ["stock-suppliers"] },
+  { name: "Financial", href: "/financial", icon: PoundSterling, moduleKeys: ["financial-records"] },
+  { name: "Environmental", href: "/environmental", icon: Leaf, moduleKeys: ["environmental"] },
+  { name: "Haulage", href: "/haulage", icon: Truck, moduleKeys: ["haulage-transport"] },
+  { name: "Documents", href: "/documents", icon: FileText, moduleKeys: ["document-management"] },
+  { name: "Weather", href: "/weather", icon: CloudSun, moduleKeys: ["weather-tracking"] },
 ];
 
-const bottomNav = [
+const bottomNav: NavItem[] = [
   { name: "Help Centre", href: "/help", icon: HelpCircle },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
-function NavSection({ title, items }: { title?: string; items: typeof coreNav }) {
+function filterByActiveModules(items: NavItem[], activeModuleKeys: Set<string>): NavItem[] {
+  return items.filter((item) => {
+    if (!item.moduleKeys || item.moduleKeys.length === 0) return true;
+    return item.moduleKeys.some((key) => activeModuleKeys.has(key));
+  });
+}
+
+function NavSection({ title, items }: { title?: string; items: NavItem[] }) {
   const [location] = useLocation();
+  if (items.length === 0) return null;
   return (
     <div className="mb-2">
       {title && <p className="px-4 mb-1 text-[10px] uppercase tracking-widest font-bold text-white/30">{title}</p>}
@@ -97,7 +113,30 @@ function NavSection({ title, items }: { title?: string; items: typeof coreNav })
 export function Sidebar() {
   const { farmId, clearState } = useAppStore();
   const { data: farmsData } = useListFarms({ query: { enabled: true } });
+  const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } });
   const currentFarm = farmsData?.farms?.find(f => f.id === farmId);
+
+  const subscriptionsLoaded = !!dashboardData;
+
+  const activeModuleKeys = useMemo(() => {
+    const keys = new Set<string>();
+    const subs = dashboardData?.activeSubscriptions;
+    if (Array.isArray(subs)) {
+      for (const sub of subs) {
+        const s = sub as { moduleName?: string; moduleKey?: string; status?: string };
+        if (s.moduleKey) keys.add(s.moduleKey);
+      }
+    }
+    return keys;
+  }, [dashboardData?.activeSubscriptions]);
+
+  const shouldFilter = subscriptionsLoaded;
+
+  const filteredCoreNav = shouldFilter ? filterByActiveModules(coreNav, activeModuleKeys) : coreNav;
+  const filteredComplianceNav = shouldFilter ? filterByActiveModules(complianceNav, activeModuleKeys) : complianceNav;
+  const filteredBiosecurityNav = shouldFilter ? filterByActiveModules(biosecurityNav, activeModuleKeys) : biosecurityNav;
+  const filteredLivestockNav = shouldFilter ? filterByActiveModules(livestockNav, activeModuleKeys) : livestockNav;
+  const filteredOtherNav = shouldFilter ? filterByActiveModules(otherNav, activeModuleKeys) : otherNav;
 
   const handleLogout = () => {
     clearState();
@@ -129,11 +168,11 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-3 space-y-0 overflow-y-auto">
-        <NavSection items={coreNav} />
-        <NavSection title="Compliance" items={complianceNav} />
-        <NavSection title="Biosecurity" items={biosecurityNav} />
-        <NavSection title="Livestock" items={livestockNav} />
-        <NavSection title="Management" items={otherNav} />
+        <NavSection items={filteredCoreNav} />
+        <NavSection title="Compliance" items={filteredComplianceNav} />
+        <NavSection title="Biosecurity" items={filteredBiosecurityNav} />
+        <NavSection title="Livestock" items={filteredLivestockNav} />
+        <NavSection title="Management" items={filteredOtherNav} />
       </nav>
 
       <div className="p-3 border-t border-sidebar-border space-y-0">
