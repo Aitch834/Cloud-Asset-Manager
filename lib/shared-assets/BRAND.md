@@ -57,8 +57,27 @@ Red Tractor Compliance Made Simple
 - **Body**: Inter (weight 400-500)
 - **Monospace**: JetBrains Mono
 
-## Design Tokens
-Import from `@workspace/shared-assets/tokens` for TypeScript or use `src/css-variables.css` for CSS.
+## Usage
 
-## Tailwind Integration
-Use the preset from `@workspace/shared-assets/tokens` — `src/tailwind-preset.ts`.
+### TypeScript tokens
+```typescript
+import { colors, typography, spacing, shadows } from "@workspace/shared-assets/tokens";
+```
+
+### CSS variables
+```css
+@import "@workspace/shared-assets/css-variables";
+```
+Then use variables like `var(--brand-primary-forest)`, `var(--font-heading)`, `var(--shadow-md)`, etc.
+
+### Tailwind CSS preset
+```typescript
+// tailwind.config.ts or vite.config.ts
+import bdePreset from "@workspace/shared-assets/tailwind-preset";
+
+export default {
+  presets: [bdePreset],
+  // ...
+};
+```
+This extends the Tailwind theme with brand colours (`brand-forest`, `earth-brown`, etc.), fonts (`font-heading`, `font-body`), spacing, shadows, and border radius.
