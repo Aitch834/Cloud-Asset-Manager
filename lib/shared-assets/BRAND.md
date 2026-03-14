@@ -10,10 +10,21 @@ bdefarmtrac.co.uk
 Red Tractor Compliance Made Simple
 
 ## Logo Files
-- `logo/bde-farm-trac-logo.png` — Full horizontal logo (tractor + text)
-- `logo/bde-farm-trac-logo.svg` — Full horizontal logo (vector)
-- `logo/bde-farm-trac-icon.png` — Square icon (tractor only, for app icons)
-- `logo/favicon.svg` — Favicon (tractor on green background)
+
+### Full horizontal logo (tractor + text)
+- `logo/bde-farm-trac-logo.png` — Default size
+- `logo/bde-farm-trac-logo-512.png` — 512px wide
+- `logo/bde-farm-trac-logo-256.png` — 256px wide
+- `logo/bde-farm-trac-logo.svg` — Vector (scalable)
+
+### Square icon (tractor only)
+- `logo/bde-farm-trac-icon.png` — Default size
+- `logo/bde-farm-trac-icon-512.png` — 512x512px (app store icon)
+- `logo/bde-farm-trac-icon-128.png` — 128x128px
+
+### Favicon
+- `logo/favicon.svg` — Vector favicon (tractor on green background)
+- `logo/favicon-64.png` — 64x64px raster favicon
 
 ## Colour Palette
 
@@ -68,11 +79,10 @@ import { colors, typography, spacing, shadows } from "@workspace/shared-assets/t
 ```css
 @import "@workspace/shared-assets/css-variables";
 ```
-Then use variables like `var(--brand-primary-forest)`, `var(--font-heading)`, `var(--shadow-md)`, etc.
+Then use variables like `var(--brand-primary-forest)`, `var(--font-heading)`, `var(--shadow-md)`, `var(--space-4)`, etc.
 
 ### Tailwind CSS preset
 ```typescript
-// tailwind.config.ts or vite.config.ts
 import bdePreset from "@workspace/shared-assets/tailwind-preset";
 
 export default {
