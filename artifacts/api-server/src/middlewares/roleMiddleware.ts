@@ -1,8 +1,10 @@
 import { type Request, type Response, type NextFunction } from "express";
-import { db, permissionsTable } from "@workspace/db";
+import { db, permissionsTable, rolesTable } from "@workspace/db";
 import { eq, and, or, isNull } from "drizzle-orm";
 
 type PermissionLevel = "read" | "write" | "delete" | "approve";
+
+const CLIENT_ADMIN_ROLE_NAMES = ["BDE Super Admin", "Client Admin"];
 
 export function requireAuth(
   req: Request,
@@ -37,6 +39,35 @@ export function requireSuperAdmin(
     res.status(403).json({ error: "Super admin access required" });
     return;
   }
+  next();
+}
+
+export async function requireClientAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  if (req.isSuperAdmin) {
+    next();
+    return;
+  }
+
+  if (!req.roleId) {
+    res.status(403).json({ error: "Client Admin access required" });
+    return;
+  }
+
+  const [role] = await db
+    .select()
+    .from(rolesTable)
+    .where(eq(rolesTable.id, req.roleId))
+    .limit(1);
+
+  if (!role || !CLIENT_ADMIN_ROLE_NAMES.includes(role.name)) {
+    res.status(403).json({ error: "Client Admin access required" });
+    return;
+  }
+
   next();
 }
 

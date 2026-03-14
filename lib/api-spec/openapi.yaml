@@ -633,6 +633,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminStatsResponse"
+  /admin/support-tickets:
+    get:
+      operationId: adminListSupportTickets
+      tags: [admin]
+      summary: List all support tickets (Super Admin only)
+      responses:
+        "200":
+          description: All support tickets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tickets:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SupportTicket"
+                required: [tickets]
   /admin/impersonate:
     post:
       operationId: adminImpersonate
@@ -1191,6 +1209,9 @@ components:
     UpdatePermissionBody:
       type: object
       properties:
+        farmId:
+          type: ["integer", "null"]
+          description: Optional farm ID for farm-scoped permissions. Null for tenant-wide.
         canRead:
           type: boolean
         canWrite:

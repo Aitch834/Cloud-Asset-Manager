@@ -463,6 +463,12 @@ export const UpdateRolePermissionHeader = zod.object({
 });
 
 export const UpdateRolePermissionBody = zod.object({
+  farmId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Optional farm ID for farm-scoped permissions. Null for tenant-wide.",
+    ),
   canRead: zod.boolean().optional(),
   canWrite: zod.boolean().optional(),
   canDelete: zod.boolean().optional(),
@@ -618,6 +624,23 @@ export const AdminGetStatsResponse = zod.object({
     activeSubscriptions: zod.number(),
     totalUsers: zod.number(),
   }),
+});
+
+/**
+ * @summary List all support tickets (Super Admin only)
+ */
+export const AdminListSupportTicketsResponse = zod.object({
+  tickets: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      email: zod.string(),
+      subject: zod.string(),
+      description: zod.string(),
+      status: zod.string(),
+      createdAt: zod.date(),
+    }),
+  ),
 });
 
 /**

@@ -310,6 +310,11 @@ export interface PermissionEnvelope {
 }
 
 export interface UpdatePermissionBody {
+  /**
+   * Optional farm ID for farm-scoped permissions. Null for tenant-wide.
+   * @nullable
+   */
+  farmId?: number | null;
   canRead?: boolean;
   canWrite?: boolean;
   canDelete?: boolean;
@@ -421,4 +426,8 @@ export type StripeWebhookBody = { [key: string]: unknown };
 
 export type StripeWebhook200 = {
   received: boolean;
+};
+
+export type AdminListSupportTickets200 = {
+  tickets: SupportTicket[];
 };

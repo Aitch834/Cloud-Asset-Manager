@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./adminListSupportTickets200";
 export * from "./adminStatsResponse";
 export * from "./adminStatsResponseStats";
 export * from "./adminTenantDetailResponse";

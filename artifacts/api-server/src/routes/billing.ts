@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, tenantsTable, subscriptionsTable, modulesTable, farmsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
-import { requireAuth, requireTenant } from "../middlewares/roleMiddleware";
+import { requireAuth, requireTenant, requireClientAdmin } from "../middlewares/roleMiddleware";
 import Stripe from "stripe";
 import express from "express";
 
@@ -15,7 +15,7 @@ function getStripe(): Stripe {
 
 const router: IRouter = Router();
 
-router.post("/billing/checkout", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/billing/checkout", requireAuth, requireTenant, requireClientAdmin, async (req: Request, res: Response): Promise<void> => {
   const { farmId, moduleIds } = req.body as { farmId: number; moduleIds: number[] };
 
   if (!farmId || !moduleIds?.length) {

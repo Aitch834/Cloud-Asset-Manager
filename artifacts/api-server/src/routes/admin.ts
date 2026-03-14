@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable } from "@workspace/db";
+import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable } from "@workspace/db";
 import { eq, and, count } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 
@@ -98,6 +98,13 @@ router.get("/admin/stats", requireAuth, async (req: Request, res: Response): Pro
       totalUsers: userCount.count,
     },
   });
+});
+
+router.get("/admin/support-tickets", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const tickets = await db.select().from(supportTicketsTable);
+  res.json({ tickets });
 });
 
 router.post("/admin/impersonate", requireAuth, async (req: Request, res: Response): Promise<void> => {

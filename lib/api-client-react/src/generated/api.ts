@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AdminListSupportTickets200,
   AdminStatsResponse,
   AdminTenantDetailResponse,
   AdminTenantListResponse,
@@ -2710,6 +2711,85 @@ export function useAdminGetStats<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getAdminGetStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List all support tickets (Super Admin only)
+ */
+export const getAdminListSupportTicketsUrl = () => {
+  return `/api/admin/support-tickets`;
+};
+
+export const adminListSupportTickets = async (
+  options?: RequestInit,
+): Promise<AdminListSupportTickets200> => {
+  return customFetch<AdminListSupportTickets200>(
+    getAdminListSupportTicketsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getAdminListSupportTicketsQueryKey = () => {
+  return [`/api/admin/support-tickets`] as const;
+};
+
+export const getAdminListSupportTicketsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListSupportTickets>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListSupportTickets>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminListSupportTicketsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminListSupportTickets>>
+  > = ({ signal }) => adminListSupportTickets({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListSupportTickets>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListSupportTicketsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListSupportTickets>>
+>;
+export type AdminListSupportTicketsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all support tickets (Super Admin only)
+ */
+
+export function useAdminListSupportTickets<
+  TData = Awaited<ReturnType<typeof adminListSupportTickets>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListSupportTickets>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListSupportTicketsQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

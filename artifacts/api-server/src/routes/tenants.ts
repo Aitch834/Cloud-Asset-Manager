@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, tenantsTable, farmsTable, userTenantsTable, userInvitationsTable, rolesTable, staffFarmAssignmentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
-import { requireAuth, requireTenant } from "../middlewares/roleMiddleware";
+import { requireAuth, requireTenant, requireClientAdmin } from "../middlewares/roleMiddleware";
 import crypto from "crypto";
 
 const router: IRouter = Router();
@@ -36,7 +36,11 @@ router.post("/tenants", requireAuth, async (req: Request, res: Response): Promis
     return;
   }
 
-  const clientAdminRole = await db.select().from(rolesTable).where(eq(rolesTable.name, "Client Admin")).limit(1);
+  const clientAdminRole = await db
+    .select()
+    .from(rolesTable)
+    .where(and(eq(rolesTable.name, "Client Admin"), eq(rolesTable.isSystemRole, true)))
+    .limit(1);
   let roleId: number;
   if (clientAdminRole.length === 0) {
     const [newRole] = await db.insert(rolesTable).values({ name: "Client Admin", description: "Full access to tenant management", isSystemRole: true }).returning();
@@ -62,7 +66,7 @@ router.get("/tenants/current", requireAuth, requireTenant, async (req: Request, 
   res.json({ tenant });
 });
 
-router.put("/tenants/current", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/tenants/current", requireAuth, requireTenant, requireClientAdmin, async (req: Request, res: Response): Promise<void> => {
   const { name, contactEmail, contactPhone, address } = req.body;
 
   const [updated] = await db
@@ -74,7 +78,7 @@ router.put("/tenants/current", requireAuth, requireTenant, async (req: Request, 
   res.json({ tenant: updated });
 });
 
-router.post("/tenants/current/farms", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/tenants/current/farms", requireAuth, requireTenant, requireClientAdmin, async (req: Request, res: Response): Promise<void> => {
   const { name, address, postcode, cphNumber, gridReference, totalAcreage, sectorArable, sectorBeef, sectorDairy, sectorPigs, sectorPoultry, sectorHorticulture } = req.body;
 
   if (!name) {
@@ -106,7 +110,7 @@ router.get("/tenants/current/farms", requireAuth, requireTenant, async (req: Req
   res.json({ farms });
 });
 
-router.put("/tenants/current/farms/:farmId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/tenants/current/farms/:farmId", requireAuth, requireTenant, requireClientAdmin, async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId as string, 10);
   const { name, address, postcode, cphNumber, gridReference, totalAcreage, sectorArable, sectorBeef, sectorDairy, sectorPigs, sectorPoultry, sectorHorticulture } = req.body;
 
@@ -124,7 +128,7 @@ router.put("/tenants/current/farms/:farmId", requireAuth, requireTenant, async (
   res.json({ farm: updated });
 });
 
-router.post("/tenants/current/invitations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/tenants/current/invitations", requireAuth, requireTenant, requireClientAdmin, async (req: Request, res: Response): Promise<void> => {
   const { email, roleId } = req.body;
 
   if (!email || !roleId) {
@@ -157,12 +161,12 @@ router.post("/tenants/current/invitations", requireAuth, requireTenant, async (r
   res.status(201).json({ invitation });
 });
 
-router.get("/tenants/current/invitations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/tenants/current/invitations", requireAuth, requireTenant, requireClientAdmin, async (req: Request, res: Response): Promise<void> => {
   const invitations = await db.select().from(userInvitationsTable).where(eq(userInvitationsTable.tenantId, req.tenantId!));
   res.json({ invitations });
 });
 
-router.post("/tenants/current/staff-assignments", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/tenants/current/staff-assignments", requireAuth, requireTenant, requireClientAdmin, async (req: Request, res: Response): Promise<void> => {
   const { userId, farmId, roleId } = req.body;
 
   if (!userId || !farmId) {
