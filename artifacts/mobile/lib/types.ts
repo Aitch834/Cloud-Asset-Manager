@@ -48,6 +48,7 @@ export interface WeatherEntry {
   date: string;
   temperatureHigh: string;
   temperatureLow: string;
+  humidity: string;
   rainfall: string;
   windSpeed: string;
   windDirection: string;

@@ -147,12 +147,13 @@ Features:
 - Farm switching (multi-farm support)
 - Demo data seeded on first launch (Manor Farm, Hill Top Farm)
 - Sync engine with NetInfo connectivity detection, exponential backoff retries, auto-sync on reconnect
-- Auth: real API login + explicit Demo Access mode (separate button)
+- Auth: Replit OIDC via expo-auth-session (PKCE flow) + SecureStore token storage (native) / localStorage (web); Demo Access mode in dev builds only
 
 Architecture:
 - Platform-split files: `FieldMap.tsx` (native with react-native-maps) / `FieldMap.web.tsx` (web fallback)
 - `lib/database.ts`: Platform-aware — uses expo-sqlite on native, AsyncStorage on web
-- `lib/sync-engine.ts`: Dynamic requires for NetInfo (native only), auth token + tenant slug included in sync requests
+- `lib/auth.tsx`: AuthProvider with expo-auth-session OIDC, platform-aware token storage (SecureStore native / localStorage web)
+- `lib/sync-engine.ts`: Dynamic requires for NetInfo (native only), reads auth token from SecureStore/localStorage, tenant slug included in sync requests
 - `lib/storage.ts`: Unified API over database.ts (getItem, setItem, getList, appendToList, etc.)
 - Context providers: FarmContext (farm/user state), SyncContext (offline sync queue)
 - Storage keys prefixed with `bde_` in AsyncStorage/SQLite

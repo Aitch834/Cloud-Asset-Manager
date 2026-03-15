@@ -6,9 +6,9 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Slot, Stack, router, usePathname } from "expo-router";
+import { Stack, router, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -16,6 +16,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SyncStatusBar } from "@/components/SyncStatusBar";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { FarmProvider } from "@/lib/context/FarmContext";
 import { SyncProvider } from "@/lib/context/SyncContext";
 import { getItem, STORAGE_KEYS } from "@/lib/storage";
@@ -27,32 +28,42 @@ const queryClient = new QueryClient();
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { isAuthenticated, isLoading } = useAuth();
+  const [demoAuth, setDemoAuth] = useState(false);
   const [checked, setChecked] = useState(false);
-  const [authenticated, setAuthenticated] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const authState = await getItem<AuthState>(STORAGE_KEYS.AUTH_STATE);
-        setAuthenticated(!!authState?.isAuthenticated);
-      } catch {
-        setAuthenticated(false);
-      } finally {
-        setChecked(true);
-        SplashScreen.hideAsync();
-      }
-    })();
+  const checkDemoAuth = useCallback(async () => {
+    try {
+      const authState = await getItem<AuthState>(STORAGE_KEYS.AUTH_STATE);
+      setDemoAuth(!!authState?.isAuthenticated);
+    } catch {
+      setDemoAuth(false);
+    } finally {
+      setChecked(true);
+      SplashScreen.hideAsync();
+    }
   }, []);
 
   useEffect(() => {
-    if (!checked) return;
-    if (!authenticated && pathname !== "/login") {
+    checkDemoAuth();
+  }, [checkDemoAuth]);
+
+  useEffect(() => {
+    checkDemoAuth();
+  }, [pathname, checkDemoAuth]);
+
+  const loggedIn = isAuthenticated || demoAuth;
+  const ready = checked && !isLoading;
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!loggedIn && pathname !== "/login") {
       router.replace("/login");
     }
-  }, [checked, authenticated, pathname]);
+  }, [ready, loggedIn, pathname]);
 
-  if (!checked) return null;
-  if (!authenticated && pathname !== "/login") return null;
+  if (!ready) return null;
+  if (!loggedIn && pathname !== "/login") return null;
 
   return <>{children}</>;
 }
@@ -98,13 +109,15 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView>
             <KeyboardProvider>
-              <FarmProvider>
-                <SyncProvider>
-                  <AuthGate>
-                    <RootLayoutNav />
-                  </AuthGate>
-                </SyncProvider>
-              </FarmProvider>
+              <AuthProvider>
+                <FarmProvider>
+                  <SyncProvider>
+                    <AuthGate>
+                      <RootLayoutNav />
+                    </AuthGate>
+                  </SyncProvider>
+                </FarmProvider>
+              </AuthProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>

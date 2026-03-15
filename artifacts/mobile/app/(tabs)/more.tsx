@@ -15,6 +15,7 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
+import { useAuth } from "@/lib/auth";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { removeItem, STORAGE_KEYS } from "@/lib/storage";
@@ -22,6 +23,7 @@ import { removeItem, STORAGE_KEYS } from "@/lib/storage";
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, farms, setCurrentFarm, user } = useFarm();
+  const { logout } = useAuth();
   const { pendingCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
 
   return (
@@ -165,6 +167,7 @@ export default function MoreScreen() {
                     text: "Sign Out",
                     style: "destructive",
                     onPress: async () => {
+                      await logout();
                       await removeItem(STORAGE_KEYS.AUTH_STATE);
                       await removeItem(STORAGE_KEYS.AUTH_TOKEN);
                       router.replace("/login");

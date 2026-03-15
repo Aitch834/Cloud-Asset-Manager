@@ -41,6 +41,7 @@ export default function WeatherEntryScreen() {
   const [entryMode, setEntryMode] = useState<"manual" | "station">("manual");
   const [temperatureHigh, setTemperatureHigh] = useState("");
   const [temperatureLow, setTemperatureLow] = useState("");
+  const [humidity, setHumidity] = useState("");
   const [rainfall, setRainfall] = useState("");
   const [windSpeed, setWindSpeed] = useState("");
   const [windDirection, setWindDirection] = useState("");
@@ -79,6 +80,7 @@ export default function WeatherEntryScreen() {
       date: now.split("T")[0],
       temperatureHigh: temperatureHigh.trim(),
       temperatureLow: temperatureLow.trim(),
+      humidity: humidity.trim(),
       rainfall: rainfall.trim(),
       windSpeed: windSpeed.trim(),
       windDirection: windDirection.trim(),
@@ -210,11 +212,29 @@ export default function WeatherEntryScreen() {
             <Feather name="droplet" size={14} color={colors.info} />
             <Text style={styles.sectionTitle}>Precipitation & Atmosphere</Text>
           </View>
+          <View style={styles.row}>
+            <Input
+              label="Rainfall (mm)"
+              placeholder="e.g. 2.5"
+              value={rainfall}
+              onChangeText={setRainfall}
+              keyboardType="decimal-pad"
+              containerStyle={styles.flex}
+            />
+            <Input
+              label="Humidity (%)"
+              placeholder="e.g. 65"
+              value={humidity}
+              onChangeText={setHumidity}
+              keyboardType="decimal-pad"
+              containerStyle={styles.flex}
+            />
+          </View>
           <Input
-            label="Rainfall (mm)"
-            placeholder="e.g. 2.5"
-            value={rainfall}
-            onChangeText={setRainfall}
+            label="Pressure (hPa)"
+            placeholder="e.g. 1013"
+            value={pressure}
+            onChangeText={setPressure}
             keyboardType="decimal-pad"
           />
           <View style={styles.row}>
@@ -234,13 +254,6 @@ export default function WeatherEntryScreen() {
               containerStyle={styles.flex}
             />
           </View>
-          <Input
-            label="Pressure (hPa)"
-            placeholder="e.g. 1013"
-            value={pressure}
-            onChangeText={setPressure}
-            keyboardType="decimal-pad"
-          />
 
           <Input
             label="Notes"

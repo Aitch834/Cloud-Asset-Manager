@@ -178,9 +178,20 @@ async function processQueue(): Promise<void> {
 
 async function getAuthToken(): Promise<string | null> {
   try {
+    if (Platform.OS !== "web") {
+      const SecureStore = await import("expo-secure-store");
+      const token = await SecureStore.getItemAsync("auth_session_token");
+      if (token) return token;
+    } else {
+      try {
+        const token = localStorage.getItem("auth_session_token");
+        if (token) return token;
+      } catch { /* localStorage unavailable */ }
+    }
     const raw = await kvGet("bde_auth_token");
     return raw ? JSON.parse(raw) : null;
-  } catch {
+  } catch (err: unknown) {
+    console.warn("Failed to read auth token:", err instanceof Error ? err.message : "unknown");
     return null;
   }
 }
