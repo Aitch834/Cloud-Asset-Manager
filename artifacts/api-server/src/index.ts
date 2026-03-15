@@ -1,14 +1,33 @@
 import app from "./app";
 import { seedDefaults } from "./lib/seedDefaults";
 
-const rawPort = process.env["PORT"];
+function auditEnvVars() {
+  const required = ["PORT", "DATABASE_URL", "REPL_ID"];
+  const optional = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "ISSUER_URL"];
+  const missing: string[] = [];
 
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
+  for (const key of required) {
+    if (!process.env[key]) {
+      missing.push(key);
+    }
+  }
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+  }
+
+  for (const key of optional) {
+    if (!process.env[key]) {
+      console.warn(`[ENV AUDIT] Optional env var ${key} is not set — related features will be disabled.`);
+    }
+  }
+
+  console.log("[ENV AUDIT] All required environment variables are present.");
 }
 
+auditEnvVars();
+
+const rawPort = process.env["PORT"];
 const port = Number(rawPort);
 
 if (Number.isNaN(port) || port <= 0) {

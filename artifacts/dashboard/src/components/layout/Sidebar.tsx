@@ -8,6 +8,7 @@ import {
   ShieldAlert,
   ClipboardCheck,
   Settings,
+  MapPin,
   LogOut,
   ChevronDown,
   Bug,
@@ -75,6 +76,7 @@ const otherNav: NavItem[] = [
 
 const bottomNav: NavItem[] = [
   { name: "Help Centre", href: "/help", icon: HelpCircle },
+  { name: "Farm Settings", href: "/settings/farm", icon: MapPin },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 

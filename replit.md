@@ -39,6 +39,17 @@ The monorepo is structured with `pnpm workspaces`, using Node.js 24 and TypeScri
 **Marketing Website (`artifacts/website`):**
 - React + Vite application with `wouter` for routing.
 - Includes standard marketing pages, pricing, and contact information.
+- Cookie consent banner with granular preferences (essential/analytics/marketing).
+- Privacy policy and cookies policy pages for GDPR compliance.
+- User-friendly 404 page with navigation back to home and support.
+
+**Production Readiness:**
+- API server performs env var audit at startup (required: PORT, DATABASE_URL, REPL_ID; optional: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, ISSUER_URL).
+- Error boundaries wrap both React apps at the top level.
+- ModulePage has loading skeletons and error states with retry functionality.
+- Xero-compatible CSV export for financial data with proper account code and VAT mapping.
+- Red Tractor compliance export in JSON/CSV formats for manual portal submission.
+- Admin panel supports ticket reply, status management, and email notification placeholder.
 
 ### Multi-Tenant Architecture
 - Each client organization is a tenant, potentially managing multiple farms.

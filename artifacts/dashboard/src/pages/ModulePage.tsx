@@ -60,7 +60,29 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
 
   const fetchUrl = scope === "farm" ? `/api/farms/${farmId}/${apiPath}` : `/api/${apiPath}`;
 
-  const { data, isLoading, refetch } = useQuery({
+  const LoadingSkeleton = () => (
+    <AppLayout title={title}>
+      <div className="animate-pulse space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="h-10 w-64 bg-black/5 rounded-lg" />
+          <div className="flex gap-2">
+            <div className="h-9 w-24 bg-black/5 rounded-lg" />
+            <div className="h-9 w-24 bg-black/5 rounded-lg" />
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-black/5 p-6">
+          <div className="space-y-4">
+            <div className="h-8 bg-black/5 rounded w-full" />
+            <div className="h-8 bg-black/5 rounded w-full" />
+            <div className="h-8 bg-black/5 rounded w-full" />
+            <div className="h-8 bg-black/5 rounded w-3/4" />
+          </div>
+        </div>
+      </div>
+    </AppLayout>
+  );
+
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["farm-module", farmId, apiPath],
     queryFn: async () => {
       const res = await fetch(fetchUrl);
@@ -149,6 +171,29 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
   };
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
+
+  if (isLoading) return <LoadingSkeleton />;
+
+  if (isError) {
+    return (
+      <AppLayout title={title}>
+        <Card>
+          <CardContent className="p-12 text-center">
+            <div className="w-12 h-12 mx-auto bg-red-50 rounded-full flex items-center justify-center mb-4">
+              <RefreshCw className="w-6 h-6 text-red-500" />
+            </div>
+            <h3 className="font-semibold text-lg mb-2">Failed to load data</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              There was a problem loading your {title.toLowerCase()} records. Please try again.
+            </p>
+            <Button onClick={() => refetch()} variant="outline">
+              <RefreshCw className="w-4 h-4 mr-2" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout title={title}>

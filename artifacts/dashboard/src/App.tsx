@@ -11,6 +11,7 @@ import Dashboard from "@/pages/Dashboard";
 import FieldsPage from "@/pages/Fields";
 import EquipmentPage from "@/pages/Equipment";
 import ModulePage from "@/pages/ModulePage";
+import FarmSettingsPage from "@/pages/FarmSettings";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -361,6 +362,7 @@ function Router() {
       <Route path="/weather" component={WeatherPage} />
       <Route path="/help" component={HelpPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/settings/farm" component={FarmSettingsPage} />
       <Route component={NotFound} />
     </Switch>
   );
