@@ -1701,6 +1701,8 @@ router.get("/tenants/current/users", requireAuth, requireTenant, async (req: Req
 });
 
 // ─── Red Tractor Compliance Export ──────────────────
+// Red Tractor digital submission: No public API exists for automated submission.
+// This endpoint generates compliance reports in JSON/CSV for manual upload to the Red Tractor portal.
 router.get("/farms/:farmId/compliance-export", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;

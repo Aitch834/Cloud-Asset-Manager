@@ -24,6 +24,8 @@ tags:
     description: Stripe billing and subscriptions
   - name: admin
     description: BDE Super Admin operations
+  - name: compliance
+    description: Red Tractor compliance exports
   - name: dashboard
     description: Farm dashboard overview and compliance
   - name: fields
@@ -645,6 +647,103 @@ paths:
                     items:
                       $ref: "#/components/schemas/SupportTicket"
                 required: [tickets]
+  /admin/support-tickets/{ticketId}:
+    get:
+      operationId: adminGetSupportTicket
+      tags: [admin]
+      summary: Get support ticket detail with messages
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ticket with messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket:
+                    $ref: "#/components/schemas/SupportTicket"
+                  messages:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SupportTicketMessage"
+                required: [ticket, messages]
+        "404":
+          description: Ticket not found
+  /admin/support-tickets/{ticketId}/reply:
+    post:
+      operationId: adminReplyToTicket
+      tags: [admin]
+      summary: Reply to a support ticket
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+              required: [message]
+      responses:
+        "201":
+          description: Reply created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    $ref: "#/components/schemas/SupportTicketMessage"
+                required: [message]
+        "404":
+          description: Ticket not found
+  /admin/support-tickets/{ticketId}/status:
+    patch:
+      operationId: adminUpdateTicketStatus
+      tags: [admin]
+      summary: Update ticket status
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [open, in_progress, resolved, closed]
+              required: [status]
+      responses:
+        "200":
+          description: Updated ticket
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket:
+                    $ref: "#/components/schemas/SupportTicket"
+                required: [ticket]
+        "404":
+          description: Ticket not found
   /admin/impersonate:
     post:
       operationId: adminImpersonate
@@ -2730,6 +2829,49 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecordEnvelope"
 
+  # ─── Compliance ────────────────────────────────────
+  /farms/{farmId}/compliance-export:
+    get:
+      operationId: getComplianceExport
+      tags: [compliance]
+      summary: Export Red Tractor compliance data (JSON or CSV)
+      description: |
+        Generates a comprehensive compliance report aggregating inspections,
+        non-conformances, corrective actions, risk assessments, COSHH, waste,
+        training, visitors, pest control, and cleaning records. No public Red
+        Tractor digital submission API exists; this export provides data in
+        formats suitable for manual submission to the Red Tractor portal.
+      parameters:
+        - $ref: "#/components/parameters/TenantSlugHeader"
+        - $ref: "#/components/parameters/FarmIdPath"
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [json, csv]
+            default: json
+      responses:
+        "200":
+          description: Compliance export data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exportDate:
+                    type: string
+                    format: date-time
+                  exportFormat:
+                    type: string
+                  farm:
+                    type: object
+                  summary:
+                    type: object
+            text/csv:
+              schema:
+                type: string
+
   # ─── Documents ─────────────────────────────────────
   /farms/{farmId}/documents:
     get:
@@ -3106,6 +3248,25 @@ components:
         - description
         - status
         - createdAt
+    SupportTicketMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        ticketId:
+          type: integer
+        senderType:
+          type: string
+          enum: [admin, customer]
+        senderId:
+          type: string
+          nullable: true
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, ticketId, senderType, message, createdAt]
     AuthUser:
       type: object
       required: [id, email, firstName, lastName, profileImageUrl]
