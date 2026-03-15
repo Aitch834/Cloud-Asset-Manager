@@ -1320,7 +1320,48 @@ router.get("/farms/:farmId/weather-readings", requireAuth, requireTenant, requir
 router.post("/farms/:farmId/weather-readings", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(weatherReadingsTable).values({ ...req.body, farmId }).returning();
+
+  const body = req.body;
+
+  function toNum(val: unknown): string | null {
+    if (val === undefined || val === null || val === "") return null;
+    const n = parseFloat(String(val));
+    return isNaN(n) ? null : String(n);
+  }
+
+  function mphToKmh(mph: unknown): string | null {
+    if (mph === undefined || mph === null || mph === "") return null;
+    const n = parseFloat(String(mph));
+    return isNaN(n) ? null : String(Math.round(n * 1.60934 * 10) / 10);
+  }
+
+  const isMobilePayload =
+    "temperatureHigh" in body ||
+    "temperatureLow" in body ||
+    "entryMode" in body ||
+    "recordedAt" in body;
+
+  const values = isMobilePayload
+    ? {
+        farmId,
+        readingTimestamp: body.recordedAt ?? body.date ?? new Date().toISOString(),
+        entryMode: body.entryMode ?? null,
+        dataSource: body.entryMode === "station" ? "open-meteo" : "manual",
+        temperatureHighC: toNum(body.temperatureHigh),
+        temperatureLowC: toNum(body.temperatureLow),
+        humidityPercent: toNum(body.humidity),
+        windSpeedKmh: mphToKmh(body.windSpeed),
+        windDirection: body.windDirection ?? null,
+        rainfallMm: toNum(body.rainfall),
+        pressureHpa: toNum(body.pressure),
+        conditions: body.conditions ?? null,
+        latitude: toNum(body.latitude),
+        longitude: toNum(body.longitude),
+        notes: body.notes ?? null,
+      }
+    : { ...body, farmId };
+
+  const [record] = await db.insert(weatherReadingsTable).values(values).returning();
   res.status(201).json({ record });
 });
 
