@@ -17,11 +17,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { FieldPicker } from "@/components/ui/FieldPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { CropEvent } from "@/lib/types";
 
@@ -39,6 +41,7 @@ export default function CropEventScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [fieldName, setFieldName] = useState("");
@@ -50,7 +53,7 @@ export default function CropEventScreen() {
 
   const handleSave = async () => {
     if (!fieldName.trim() || !eventType) {
-      Alert.alert("Required", "Please enter the field name and select an event type.");
+      Alert.alert("Required", "Please select a field and event type.");
       return;
     }
 
@@ -114,13 +117,13 @@ export default function CropEventScreen() {
           contentContainerStyle={styles.form}
           keyboardShouldPersistTaps="handled"
         >
-          <Input
-            label="Field Name"
-            placeholder="e.g. Top Field, 20 Acre"
+          <FieldPicker
+            label="Field"
             value={fieldName}
-            onChangeText={setFieldName}
-            icon="map"
-            required
+            onChange={setFieldName}
+            fields={fields}
+            loading={fieldsLoading}
+            error={fieldsError}
           />
 
           <View style={styles.sectionLabel}>

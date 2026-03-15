@@ -16,11 +16,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { FieldPicker } from "@/components/ui/FieldPicker";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { SoilSample } from "@/lib/types";
 
@@ -28,6 +30,7 @@ export default function SoilSampleScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [fieldName, setFieldName] = useState("");
@@ -44,7 +47,7 @@ export default function SoilSampleScreen() {
 
   const handleSave = async () => {
     if (!fieldName.trim() || !sampleReference.trim()) {
-      Alert.alert("Required", "Please enter the field name and sample reference.");
+      Alert.alert("Required", "Please select a field and enter the sample reference.");
       return;
     }
 
@@ -116,13 +119,13 @@ export default function SoilSampleScreen() {
             <Feather name="map-pin" size={14} color={colors.primary} />
             <Text style={styles.sectionTitle}>Sample Location</Text>
           </View>
-          <Input
-            label="Field Name"
-            placeholder="e.g. Top Field"
+          <FieldPicker
+            label="Field"
             value={fieldName}
-            onChangeText={setFieldName}
-            icon="map"
-            required
+            onChange={setFieldName}
+            fields={fields}
+            loading={fieldsLoading}
+            error={fieldsError}
           />
           <View style={styles.row}>
             <Input

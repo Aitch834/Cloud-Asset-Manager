@@ -18,11 +18,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { FieldPicker } from "@/components/ui/FieldPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, getList, STORAGE_KEYS } from "@/lib/storage";
 import type { FieldBoundary, SprayRecord, WeatherEntry } from "@/lib/types";
 
@@ -47,6 +49,7 @@ export default function SprayRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { fields: apiFields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [fieldName, setFieldName] = useState("");
@@ -109,7 +112,7 @@ export default function SprayRecordScreen() {
 
   const handleSave = async () => {
     if (!fieldName.trim() || !productName.trim()) {
-      Alert.alert("Required Fields", "Please enter the field name and product name.");
+      Alert.alert("Required Fields", "Please select a field and enter the product name.");
       return;
     }
 
@@ -204,34 +207,14 @@ export default function SprayRecordScreen() {
             <Feather name="map-pin" size={14} color={colors.primary} />
             <Text style={styles.sectionTitle}>Location</Text>
           </View>
-          <Input
-            label="Field Name"
-            placeholder="e.g. Top Field, 20 Acre"
+          <FieldPicker
+            label="Field"
             value={fieldName}
-            onChangeText={setFieldName}
-            icon="map"
-            required
+            onChange={setFieldName}
+            fields={apiFields}
+            loading={fieldsLoading}
+            error={fieldsError}
           />
-          {!detectedField && fields.length > 0 && (
-            <View style={styles.fieldSuggestions}>
-              <Text style={styles.suggestionLabel}>Saved fields:</Text>
-              <View style={styles.chipRow}>
-                {fields.slice(0, 5).map((f) => (
-                  <Pressable
-                    key={f.id}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setFieldName(f.fieldName);
-                      setDetectedField(f);
-                    }}
-                    style={styles.fieldChip}
-                  >
-                    <Text style={styles.fieldChipText}>{f.fieldName}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          )}
 
           <View style={styles.sectionLabel}>
             <Feather name="droplet" size={14} color={colors.info} />
