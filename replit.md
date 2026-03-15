@@ -1,258 +1,77 @@
 # Workspace
 
 ## Overview
+This project is a pnpm workspace monorepo using TypeScript, designed for BDE Farm Trac, a comprehensive farm management and compliance platform. Its primary purpose is to provide a multi-tenant solution for farmers to manage various aspects of their operations, from field and crop management to livestock, financial records, and regulatory compliance (e.g., Red Tractor). The platform includes a React-based web dashboard, an Expo React Native mobile application for field use, a marketing website, and an Express API server. The business vision is to streamline farm operations, ensure compliance, and provide valuable insights to farmers, aiming to capture a significant share of the agricultural technology market.
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+## User Preferences
+I prefer clear and direct communication. When making changes, prioritize iterative development and explain the high-level approach before diving into code. Ask for confirmation before implementing significant architectural changes or adding new external dependencies. For code, I appreciate well-structured, maintainable TypeScript.
 
-## Stack
+## System Architecture
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
-- **Payments**: Stripe (subscription billing, module-based per farm)
-- **Auth**: Replit Auth (OpenID Connect with PKCE)
+### UI/UX Decisions
+The platform utilizes React with Vite for both the dashboard and marketing website. The dashboard features a comprehensive sidebar navigation for 17+ compliance modules and a generic `ModulePage` component for consistent CRUD interfaces. The mobile app, built with Expo React Native, focuses on an offline-first experience with a native-like UI, including GPS-enabled features and Red Tractor compliance forms. Design tokens and a Tailwind preset are shared across applications via `lib/shared-assets`. Error boundaries are implemented in React apps for graceful error handling.
 
-## Structure
+### Technical Implementations
+The monorepo is structured with `pnpm workspaces`, using Node.js 24 and TypeScript 5.9.
+**API Server (`artifacts/api-server`):**
+- Built with Express 5, implementing a multi-tenant architecture.
+- Handles user authentication via Replit Auth (OpenID Connect with PKCE).
+- Resolves tenant context from `x-tenant-slug` header and manages roles and module-based permissions.
+- Features dedicated routes for health checks, authentication, leads, support, tenant management, roles, billing, and farm-specific modules.
+- Seeds default roles and modules on startup.
 
-```text
-artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   ├── api-server/         # Express API server
-│   ├── dashboard/          # Farm management dashboard (React + Vite)
-│   ├── mobile/             # Expo React Native mobile app (iOS/Android)
-│   └── website/            # Marketing website (React + Vite)
-├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   ├── db/                 # Drizzle ORM schema + DB connection
-│   ├── replit-auth-web/    # React auth hook (useAuth)
-│   ├── integrations-openai-ai-server/ # OpenAI integration
-│   └── shared-assets/      # BDE Farm Trac brand: logos, design tokens, Tailwind preset
-├── scripts/                # Utility scripts
-├── pnpm-workspace.yaml
-├── tsconfig.base.json
-├── tsconfig.json
-└── package.json
-```
+**Database Layer (`lib/db`):**
+- Utilizes PostgreSQL with Drizzle ORM.
+- Comprises over 60 tables across multiple schema files covering authentication, core tenant data, leads, support, and all farm-specific modules (e.g., fields, crops, livestock, equipment, financial).
 
-## TypeScript & Composite Projects
+**Dashboard (`artifacts/dashboard`):**
+- React + Vite application with `wouter` for routing and TanStack React Query for data fetching.
+- Uses Zustand for managing and persisting tenant/farm selection.
+- Implements a fetch-patch interceptor to automatically attach the `x-tenant-slug` header.
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+**Mobile App (`artifacts/mobile`):**
+- Expo React Native app (SDK 54) with `expo-router` for file-based routing.
+- **Offline-first architecture:** Uses SQLite (native) or AsyncStorage (web) with a sync queue that includes ordered processing, connectivity detection, and exponential backoff retries.
+- Features GPS-tagged records, visitor logging, Red Tractor compliance forms, and field boundary mapping.
+- Platform-aware code splits for native and web functionalities (e.g., `FieldMap.tsx` and `FieldMap.web.tsx`).
+- Auth tokens are stored securely using SecureStore (native) or localStorage (web).
 
-- **Always typecheck from the root** — run `pnpm run typecheck`
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array
-
-## Root Scripts
-
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build`
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly`
-
-## Express 5 Rules
-
-- Route handlers: `async (req, res): Promise<void>`
-- Wildcard routes: `/*splat` (not `/*`)
-- No `return res.json()` — use `res.json(); return;`
-- Route params: `req.params.x as string` (Express 5 params are `string | string[]`)
-
-## Packages
-
-### `artifacts/api-server` (`@workspace/api-server`)
-
-Express 5 API server with multi-tenant architecture.
-
-- Entry: `src/index.ts` — reads `PORT`, starts Express, seeds default roles/modules
-- App: `src/app.ts` — CORS, cookieParser, JSON, authMiddleware, tenantMiddleware, routes at `/api`
-- Middlewares:
-  - `authMiddleware.ts` — Replit Auth session resolution, OIDC token refresh
-  - `tenantMiddleware.ts` — Resolves tenant from `x-tenant-slug` header, validates user membership
-  - `roleMiddleware.ts` — `requireAuth`, `requireTenant`, `requireSuperAdmin`, `requireModulePermission`
-- Routes:
-  - `health.ts` — `GET /api/healthz`
-  - `auth.ts` — `/api/login`, `/api/callback`, `/api/logout`, `/api/auth/user`, mobile auth
-  - `leads.ts` — `POST /api/leads`
-  - `support.ts` — `POST /api/support/chat`, `POST /api/support/tickets`
-  - `tenants.ts` — Tenant CRUD, farm CRUD, invitations, staff assignments
-  - `roles.ts` — Role CRUD, module listing, permission management
-  - `billing.ts` — Stripe checkout, subscriptions, webhook handler
-  - `admin.ts` — BDE Super Admin: tenant listing, stats, impersonation
-- Seed: `src/lib/seedDefaults.ts` — Seeds 4 system roles and 16 modules on startup
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. 60+ tables across schema files:
-
-Schema files:
-- `auth.ts` — sessions, users (Replit Auth mandatory)
-- `core.ts` — tenants, farms, roles, modules, permissions, user_tenants, staff_farm_assignments, subscriptions, user_invitations
-- `leads.ts` — registration_leads
-- `support-tickets.ts` — support_tickets
-- `support-enhanced.ts` — support_ticket_messages
-- `fields-crops.ts` — fields, field_boundaries, crops, field_crop_assignments, harvest_records, crop_transport_records, crop_storage_records, crop_destinations, crop_financial_transactions
-- `sprays-inputs.ts` — spray_products, spray_applications, nutrient_management_plans, nmp_field_entries
-- `soil.ts` — soil_test_records, soil_test_results
-- `equipment.ts` — equipment, equipment_maintenance_logs, equipment_calibration_records, equipment_offboarding_records
-- `livestock.ts` — herd_flock_register, livestock_animals, livestock_movements, livestock_medicine_records, livestock_feed_records, livestock_water_records
-- `biosecurity.ts` — visitor_contractor_log, pest_control_records, cleaning_disinfection_records
-- `staff-training.ts` — staff_training_records, staff_certificates
-- `risk-waste.ts` — risk_assessments, coshh_records, waste_disposal_records
-- `inspections.ts` — inspection_records, nonconformance_records, corrective_actions
-- `environmental.ts` — environmental_features, agri_environment_scheme_records
-- `haulage.ts` — haulage_records
-- `stock-suppliers.ts` — suppliers, stock_items, stock_deliveries, stock_levels
-- `financial.ts` — financial_transactions, financial_exports
-- `documents.ts` — document_records, object_storage_refs
-- `weather.ts` — weather_stations, weather_readings
-
-DB commands:
-- `pnpm --filter @workspace/db run push` — Push schema to DB
-- `pnpm --filter @workspace/db run push-force` — Force push
-
-### `artifacts/dashboard` (`@workspace/dashboard`)
-
-Farm management dashboard. React + Vite + wouter + TanStack React Query. Preview path: `/dashboard`.
-
-Pages: Login, SelectContext (tenant/farm picker), Dashboard (overview), Fields, Equipment, Sprays, Soil, Inspections, Risks, Waste, Visitors, Pest Control, Cleaning, Livestock, Movements, Medicine, Training, Stock, Financial, Environmental, Haulage, Documents, Weather, Help, Settings.
-
-Key features:
-- ModulePage generic component for all CRUD module pages (search, create, table view)
-- Sidebar with full navigation across all 17+ compliance modules
-- Fetch-patch interceptor auto-attaches x-tenant-slug header from localStorage
-- Zustand store for tenant/farm selection (persisted to localStorage)
-- Login redirects to `/api/login` (Replit Auth OIDC flow)
-- AppLayout wrapper with sidebar + top header
-
-### `artifacts/mobile` (`@workspace/mobile`)
-
-Expo React Native mobile app for iOS & Android field use. Preview path: `/mobile/`.
-
-Tech: Expo SDK 54, expo-router (file-based routing), NativeTabs (liquid glass iOS 26+), AsyncStorage, expo-location, expo-image-picker, expo-haptics, expo-crypto.
-
-Tabs: Home (dashboard/compliance/weather/quick actions), Record (spray/weather/visitor/crop/soil/photo entry), Fields (GPS boundary mapping), Forms (Red Tractor compliance forms with templates), More (settings/sync/profile).
-
-Features:
-- Offline-first data storage: SQLite (native) with AsyncStorage fallback (web), sync queue with ordered processing
-- GPS-tagged spray records, crop events, soil samples
-- Visitor quick-log with biosecurity compliance toggle
-- Red Tractor compliance form templates (17 types including medicine-administered, livestock-movement, water-test, cleaning-disinfection, pest-control)
-- Field boundary recording via GPS waypoints with react-native-maps (native) / text fallback (web)
-- Photo capture with geotagging via expo-image-picker
-- Farm switching (multi-farm support)
-- Demo data seeded on first launch (Manor Farm, Hill Top Farm)
-- Sync engine with NetInfo connectivity detection, exponential backoff retries, auto-sync on reconnect
-- Auth: Replit OIDC via expo-auth-session (PKCE flow) + SecureStore token storage (native) / localStorage (web); Demo Access mode in dev builds only
-
-Architecture:
-- Platform-split files: `FieldMap.tsx` (native with react-native-maps) / `FieldMap.web.tsx` (web fallback)
-- `lib/database.ts`: Platform-aware — uses expo-sqlite on native, AsyncStorage on web
-- `lib/auth.tsx`: AuthProvider with expo-auth-session OIDC, platform-aware token storage (SecureStore native / localStorage web)
-- `lib/sync-engine.ts`: Dynamic requires for NetInfo (native only), reads auth token from SecureStore/localStorage, tenant slug included in sync requests
-- `lib/storage.ts`: Unified API over database.ts (getItem, setItem, getList, appendToList, etc.)
-- Context providers: FarmContext (farm/user state), SyncContext (offline sync queue)
-- Storage keys prefixed with `bde_` in AsyncStorage/SQLite
-
-### `artifacts/website` (`@workspace/website`)
-
-Marketing website for BDE Farm Trac. React + Vite + wouter. Preview path: `/`.
-
-Pages: Home, Features, Pricing, About, Contact, Privacy, Cookies, Login, Admin
+**Marketing Website (`artifacts/website`):**
+- React + Vite application with `wouter` for routing.
+- Includes standard marketing pages, pricing, and contact information.
 
 ### Multi-Tenant Architecture
-
-- **Tenants**: Each client organization (e.g. a farm business) is a tenant
-- **Farms**: Each tenant can have multiple farms with sector flags (arable, beef, dairy, pigs, poultry, horticulture)
-- **Users**: Authenticated via Replit Auth, linked to tenants via `user_tenants` table
-- **Roles**: BDE Super Admin, Client Admin, Farm Manager, Farm Staff (system roles seeded on startup)
-- **Permissions**: Per-role, per-module (read/write/delete/approve)
-- **Staff assignments**: Users can be assigned to multiple farms within a tenant
-- **Modules**: 16 compliance modules, each with monthly pricing in pence
-- **Subscriptions**: Per-farm, per-module, linked to Stripe
-- **Tenant context**: API requests include `x-tenant-slug` header to scope to a tenant
+- Each client organization is a tenant, potentially managing multiple farms.
+- Users are authenticated via Replit Auth and linked to tenants.
+- System roles (BDE Super Admin, Client Admin, Farm Manager, Farm Staff) are seeded, with permissions defined per role and module.
+- Subscriptions are managed per-farm and per-module, integrated with Stripe.
+- API requests are scoped to a tenant using the `x-tenant-slug` header.
 
 ### System Roles
+1. BDE Super Admin: Full platform access (internal).
+2. Client Admin: Full tenant management access.
+3. Farm Manager: Full access to assigned farms.
+4. Farm Staff: Limited module-based access.
 
-1. BDE Super Admin — Full platform access (BDE staff only)
-2. Client Admin — Full access to tenant management
-3. Farm Manager — Full access to assigned farms
-4. Farm Staff — Limited access based on module permissions
+### Modules
+The platform supports 16 core compliance modules, each with monthly pricing, covering: Field & Crop Management, Sprays & Inputs, Soil Management, Equipment & Vehicle Management, Livestock Management, Biosecurity & Visitors, Staff & Training, Risk & Waste Management, Inspections & Audits, Environmental Features, Transport & Haulage, Stock & Supplier Tracking, Financial Records, Document Management, and Weather Tracking.
 
-### Modules (16)
+## External Dependencies
 
-Red Tractor Compliance, Field & Crop Management, Sprays & Inputs, Soil Management, Equipment & Vehicle Management, Livestock Management, Biosecurity & Visitors, Staff & Training, Risk & Waste Management, Inspections & Audits, Environmental Features, Transport & Haulage, Stock & Supplier Tracking, Financial Records, Document Management, Weather Tracking
-
-## API Endpoints
-
-### Public
-- `GET /api/healthz` — Health check
-- `POST /api/leads` — Create registration lead
-- `POST /api/support/chat` — AI chat (OpenAI gpt-5-mini)
-- `POST /api/support/tickets` — Create support ticket
-
-### Auth
-- `GET /api/login` — Initiate Replit Auth OIDC flow
-- `GET /api/callback` — OIDC callback
-- `GET /api/logout` — End session
-- `GET /api/auth/user` — Get current user
-
-### Tenant Management (requires auth + x-tenant-slug)
-- `GET /api/tenants/mine` — List user's tenants
-- `POST /api/tenants` — Create new tenant
-- `GET|PUT /api/tenants/current` — Get/update current tenant
-- `GET|POST /api/tenants/current/farms` — List/create farms
-- `PUT /api/tenants/current/farms/:farmId` — Update farm
-- `GET|POST /api/tenants/current/invitations` — List/create invitations
-- `GET|POST /api/tenants/current/staff-assignments` — List/create assignments
-
-### Roles & Permissions (requires auth)
-- `GET|POST /api/roles` — List/create roles
-- `GET /api/modules` — List modules
-- `GET /api/roles/:roleId/permissions` — Get role permissions
-- `PUT /api/roles/:roleId/permissions/:moduleId` — Update permission
-
-### Billing (requires auth + x-tenant-slug)
-- `POST /api/billing/checkout` — Create Stripe checkout session
-- `GET /api/billing/subscriptions` — List subscriptions
-- `POST /api/billing/webhook` — Stripe webhook handler
-
-### Farm Modules (requires auth + x-tenant-slug, under `/api/farms/:farmId/...`)
-All farm module endpoints follow a consistent CRUD pattern with `RecordEnvelope` (single) and `RecordListResponse` (list) response shapes.
-
-Modules: fields, crops, harvest-records, crop-transport, crop-storage, crop-destinations, crop-financial, spray-products, spray-applications, nmp, nmp-entries, soil-tests, soil-results, equipment, maintenance, calibration, offboarding, herds, animals, movements, medicine-records, feed-records, water-records, visitors, pest-control, cleaning, training, certificates, risk-assessments, coshh, waste, inspections, nonconformances, corrective-actions, environmental-features, agri-schemes, haulage, suppliers, stock-items, stock-deliveries, financial-transactions, financial-exports, documents, weather-stations, weather-readings
-
-### Admin (requires BDE Super Admin)
-- `GET /api/admin/tenants` — List all tenants
-- `GET /api/admin/tenants/:tenantId` — Tenant detail with farms/subs/users
-- `GET /api/admin/stats` — Platform statistics
-- `POST /api/admin/impersonate` — Impersonate user
-- `GET /api/admin/support-tickets` — List all support tickets
-- `GET /api/admin/support-tickets/:ticketId` — Ticket detail with messages
-- `POST /api/admin/support-tickets/:ticketId/reply` — Admin reply to ticket
-- `PATCH /api/admin/support-tickets/:ticketId/status` — Update ticket status
-
-### Exports & Compliance
-- `POST /api/farms/:farmId/financial-exports` — Xero-compatible CSV export (Date, Amount, AccountCode, Description, Reference, TaxType, TaxAmount)
-- `GET /api/farms/:farmId/compliance-export` — Red Tractor compliance data export (JSON or CSV via `?format=csv`)
-
-### Platform Polish
-- React ErrorBoundary wraps both dashboard and website apps (catches render crashes, shows "Something went wrong" with refresh button)
-- Privacy and Cookie policy pages exist at `/privacy` and `/cookies`
-- 404 pages exist for both dashboard and website
-
-## Environment Variables
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `DATABASE_URL` | Yes | (Replit auto) | PostgreSQL connection string |
-| `REPL_ID` | Yes | (Replit auto) | Replit environment identifier |
-| `ISSUER_URL` | Yes | (Replit auto) | OIDC issuer URL for Replit Auth |
-| `PORT` | No | Per-artifact | Port assigned by Replit to each artifact |
-| `STRIPE_SECRET_KEY` | Yes | — | Stripe API secret key for billing |
-| `STRIPE_WEBHOOK_SECRET` | Yes | — | Stripe webhook signing secret |
-| `NODE_ENV` | No | `development` | Set to `production` for deployed builds |
+- **Monorepo Tool:** pnpm workspaces
+- **Package Manager:** pnpm
+- **API Framework:** Express 5
+- **Database:** PostgreSQL
+- **ORM:** Drizzle ORM
+- **Validation:** Zod (`zod/v4`), `drizzle-zod`
+- **API Codegen:** Orval (from OpenAPI spec)
+- **Build Tool:** esbuild
+- **Payments:** Stripe (for subscription billing and webhooks)
+- **Authentication:** Replit Auth (OpenID Connect with PKCE)
+- **AI Integration:** OpenAI (for support chat - gpt-5-mini)
+- **Mobile Development:** Expo SDK 54, expo-router, expo-auth-session, expo-location, expo-image-picker, expo-haptics, expo-crypto
+- **Mobile Storage:** SQLite (native), AsyncStorage (web), SecureStore (native)
+- **Mapping:** react-native-maps (native)
+- **State Management:** Zustand (for dashboard)
+- **Data Fetching:** TanStack React Query (for dashboard)
+- **Routing:** wouter (for web apps), expo-router (for mobile)

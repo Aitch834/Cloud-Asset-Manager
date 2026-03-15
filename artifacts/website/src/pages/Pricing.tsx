@@ -1,9 +1,8 @@
 import { Layout } from "@/components/layout/Layout";
-import { useState } from "react";
-import { Check, Info } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Check, Info, Plus, X, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
 
 const BASE_FEE = 15;
 
@@ -18,19 +17,72 @@ const MODULES = [
   { id: "documents", name: "Advanced Document Storage", price: 10 },
 ];
 
-export default function Pricing() {
-  const [selectedModules, setSelectedModules] = useState<string[]>(["core", "field", "equipment"]);
-  const [farmCount, setFarmCount] = useState(1);
+interface Farm {
+  id: number;
+  name: string;
+  selectedModules: string[];
+}
 
-  const toggleModule = (id: string, required?: boolean) => {
+let nextFarmId = 2;
+
+function createFarm(id: number): Farm {
+  return {
+    id,
+    name: `Farm ${id}`,
+    selectedModules: ["core"],
+  };
+}
+
+function getFarmCost(farm: Farm): number {
+  return BASE_FEE + MODULES.filter(m => farm.selectedModules.includes(m.id)).reduce((acc, m) => acc + m.price, 0);
+}
+
+export default function Pricing() {
+  const [farms, setFarms] = useState<Farm[]>([
+    { id: 1, name: "Farm 1", selectedModules: ["core", "field", "equipment"] },
+  ]);
+  const [activeFarmId, setActiveFarmId] = useState(1);
+  const [editingNameId, setEditingNameId] = useState<number | null>(null);
+
+  const activeFarm = farms.find(f => f.id === activeFarmId) || farms[0];
+
+  const toggleModule = (moduleId: string, required?: boolean) => {
     if (required) return;
-    setSelectedModules(prev => 
-      prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
-    );
+    setFarms(prev => prev.map(f => {
+      if (f.id !== activeFarmId) return f;
+      const has = f.selectedModules.includes(moduleId);
+      return {
+        ...f,
+        selectedModules: has
+          ? f.selectedModules.filter(m => m !== moduleId)
+          : [...f.selectedModules, moduleId],
+      };
+    }));
   };
 
-  const perFarmMonthly = BASE_FEE + MODULES.filter(m => selectedModules.includes(m.id)).reduce((acc, m) => acc + m.price, 0);
-  const totalMonthly = perFarmMonthly * farmCount;
+  const addFarm = () => {
+    const id = nextFarmId++;
+    const newFarm = createFarm(id);
+    setFarms(prev => [...prev, newFarm]);
+    setActiveFarmId(id);
+  };
+
+  const removeFarm = (farmId: number) => {
+    if (farms.length <= 1) return;
+    setFarms(prev => {
+      const updated = prev.filter(f => f.id !== farmId);
+      if (activeFarmId === farmId) {
+        setActiveFarmId(updated[0].id);
+      }
+      return updated;
+    });
+  };
+
+  const renameFarm = (farmId: number, name: string) => {
+    setFarms(prev => prev.map(f => f.id === farmId ? { ...f, name } : f));
+  };
+
+  const totalMonthly = useMemo(() => farms.reduce((acc, f) => acc + getFarmCost(f), 0), [farms]);
 
   return (
     <Layout>
@@ -46,28 +98,73 @@ export default function Pricing() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 mb-24">
         <div className="bg-white rounded-3xl shadow-2xl border border-border p-6 md:p-10 flex flex-col lg:flex-row gap-12">
           
-          {/* Builder Side */}
           <div className="flex-1 space-y-8">
             <div>
-              <h3 className="text-xl font-bold mb-4">1. Number of Farms</h3>
-              <div className="flex items-center gap-4">
-                <button 
-                  className="w-10 h-10 rounded-full border border-border flex items-center justify-center hover:bg-secondary"
-                  onClick={() => setFarmCount(Math.max(1, farmCount - 1))}
-                >-</button>
-                <span className="text-2xl font-semibold w-8 text-center">{farmCount}</span>
-                <button 
-                  className="w-10 h-10 rounded-full border border-border flex items-center justify-center hover:bg-secondary"
-                  onClick={() => setFarmCount(farmCount + 1)}
-                >+</button>
+              <h3 className="text-xl font-bold mb-4">1. Your Farms</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                {farms.map(farm => (
+                  <div
+                    key={farm.id}
+                    className={`group relative flex items-center gap-1.5 px-4 py-2 rounded-full border-2 cursor-pointer transition-all text-sm font-medium ${
+                      activeFarmId === farm.id
+                        ? "border-brand-forest bg-brand-forest text-white"
+                        : "border-border bg-white text-foreground hover:border-brand-light"
+                    }`}
+                    onClick={() => setActiveFarmId(farm.id)}
+                  >
+                    {editingNameId === farm.id ? (
+                      <input
+                        autoFocus
+                        className="bg-transparent border-none outline-none w-24 text-sm font-medium"
+                        value={farm.name}
+                        onChange={e => renameFarm(farm.id, e.target.value)}
+                        onBlur={() => setEditingNameId(null)}
+                        onKeyDown={e => { if (e.key === "Enter") setEditingNameId(null); }}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      <>
+                        <span>{farm.name}</span>
+                        <button
+                          className={`opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/20 ${
+                            activeFarmId === farm.id ? "text-white/80" : "text-muted-foreground"
+                          }`}
+                          onClick={e => { e.stopPropagation(); setEditingNameId(farm.id); }}
+                          title="Rename farm"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </>
+                    )}
+                    {farms.length > 1 && (
+                      <button
+                        className={`opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/20 ${
+                          activeFarmId === farm.id ? "text-white/80" : "text-muted-foreground"
+                        }`}
+                        onClick={e => { e.stopPropagation(); removeFarm(farm.id); }}
+                        title="Remove farm"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  onClick={addFarm}
+                  className="flex items-center gap-1 px-4 py-2 rounded-full border-2 border-dashed border-brand-light text-brand-forest text-sm font-medium hover:bg-brand-pale/30 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Farm
+                </button>
               </div>
             </div>
 
             <div>
-              <h3 className="text-xl font-bold mb-4">2. Select Modules (per farm)</h3>
+              <h3 className="text-xl font-bold mb-1">2. Select Modules</h3>
+              <p className="text-sm text-muted-foreground mb-4">Configuring modules for <span className="font-semibold text-brand-forest">{activeFarm.name}</span></p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {MODULES.map(mod => {
-                  const isSelected = selectedModules.includes(mod.id);
+                  const isSelected = activeFarm.selectedModules.includes(mod.id);
                   return (
                     <div 
                       key={mod.id}
@@ -78,14 +175,16 @@ export default function Pricing() {
                           : "border-border hover:border-brand-light"
                       } ${mod.required ? "opacity-80 cursor-not-allowed" : ""}`}
                     >
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="font-semibold text-foreground pr-6">{mod.name}</span>
-                        <span className="text-muted-foreground font-mono">£{mod.price}/mo</span>
-                      </div>
-                      <div className={`absolute top-4 right-4 w-5 h-5 rounded-full border flex items-center justify-center ${
-                        isSelected ? "bg-brand-forest border-brand-forest" : "border-muted-foreground"
-                      }`}>
-                        {isSelected && <Check className="w-3 h-3 text-white" />}
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-2">
+                          {isSelected && (
+                            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand-forest flex items-center justify-center">
+                              <Check className="w-3 h-3 text-white" />
+                            </span>
+                          )}
+                          <span className="font-semibold text-foreground">{mod.name}</span>
+                        </div>
+                        <span className="text-muted-foreground font-mono ml-2 flex-shrink-0">£{mod.price}/mo</span>
                       </div>
                     </div>
                   );
@@ -94,30 +193,38 @@ export default function Pricing() {
             </div>
           </div>
 
-          {/* Pricing Summary Side */}
           <div className="w-full lg:w-96 bg-earth-cream rounded-2xl p-8 sticky top-24 h-fit border border-earth-tan/20">
             <h3 className="text-lg font-bold text-earth-brown mb-6">Estimated Cost</h3>
             
-            <div className="space-y-3 mb-6 pb-6 border-b border-earth-tan/30">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Platform Base Fee</span>
-                <span className="font-medium">£{BASE_FEE}</span>
-              </div>
-              {MODULES.filter(m => selectedModules.includes(m.id)).map(mod => (
-                <div key={mod.id} className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{mod.name}</span>
-                  <span className="font-medium">£{mod.price}</span>
-                </div>
-              ))}
+            <div className="space-y-5 mb-6 pb-6 border-b border-earth-tan/30">
+              {farms.map(farm => {
+                const farmCost = getFarmCost(farm);
+                const farmModules = MODULES.filter(m => farm.selectedModules.includes(m.id));
+                return (
+                  <div key={farm.id}>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-semibold text-sm text-earth-brown">{farm.name}</span>
+                      <span className="font-bold text-base">£{farmCost}<span className="text-xs font-normal text-muted-foreground">/mo</span></span>
+                    </div>
+                    <div className="space-y-1 pl-3 border-l-2 border-earth-tan/20">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Platform Base Fee</span>
+                        <span>£{BASE_FEE}</span>
+                      </div>
+                      {farmModules.map(mod => (
+                        <div key={mod.id} className="flex justify-between text-xs text-muted-foreground">
+                          <span>{mod.name}</span>
+                          <span>£{mod.price}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="flex justify-between items-end mb-2">
-              <span className="font-semibold">Cost per Farm</span>
-              <span className="text-2xl font-bold">£{perFarmMonthly}<span className="text-sm font-normal text-muted-foreground">/mo</span></span>
-            </div>
-            
             <div className="flex justify-between items-end mb-8 text-brand-forest">
-              <span className="font-bold text-lg">Total ({farmCount} farms)</span>
+              <span className="font-bold text-lg">Total ({farms.length} {farms.length === 1 ? "farm" : "farms"})</span>
               <span className="text-4xl font-extrabold tracking-tight">£{totalMonthly}<span className="text-base font-normal opacity-80">/mo</span></span>
             </div>
 
