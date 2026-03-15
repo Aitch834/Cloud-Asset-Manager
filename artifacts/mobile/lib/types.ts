@@ -55,6 +55,9 @@ export interface WeatherEntry {
   conditions: string;
   entryMode: "manual" | "station";
   notes: string;
+  latitude?: number;
+  longitude?: number;
+  recordedAt: string;
   createdAt: string;
   synced: boolean;
 }
@@ -84,6 +87,8 @@ export interface CropEvent {
   date: string;
   description: string;
   operatorName: string;
+  yieldAmount: string;
+  yieldUnit: string;
   notes: string;
   photoIds: string[];
   latitude?: number;
@@ -98,6 +103,8 @@ export interface SoilSample {
   fieldName: string;
   sampleReference: string;
   dateTaken: string;
+  sampledBy: string;
+  labName: string;
   depth: string;
   ph: string;
   phosphorus: string;

@@ -140,20 +140,24 @@ export default function LoginScreen() {
             icon="log-in"
           />
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
+          {__DEV__ && (
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+          )}
 
-          <Button
-            title="Demo Access"
-            onPress={handleDemoAccess}
-            variant="outline"
-            fullWidth
-            icon="play"
-            disabled={loading}
-          />
+          {__DEV__ && (
+            <Button
+              title="Demo Access"
+              onPress={handleDemoAccess}
+              variant="outline"
+              fullWidth
+              icon="play"
+              disabled={loading}
+            />
+          )}
 
           <Text style={styles.footer}>
             bdefarmtrac.co.uk

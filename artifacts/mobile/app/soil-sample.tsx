@@ -32,6 +32,8 @@ export default function SoilSampleScreen() {
 
   const [fieldName, setFieldName] = useState("");
   const [sampleReference, setSampleReference] = useState("");
+  const [sampledBy, setSampledBy] = useState("");
+  const [labName, setLabName] = useState("");
   const [depth, setDepth] = useState("");
   const [ph, setPh] = useState("");
   const [phosphorus, setPhosphorus] = useState("");
@@ -59,7 +61,9 @@ export default function SoilSampleScreen() {
         latitude = loc.coords.latitude;
         longitude = loc.coords.longitude;
       }
-    } catch {}
+    } catch (locErr: unknown) {
+      console.warn("Soil sample location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
+    }
 
     const sample: SoilSample = {
       id: generateId(),
@@ -67,6 +71,8 @@ export default function SoilSampleScreen() {
       fieldName: fieldName.trim(),
       sampleReference: sampleReference.trim(),
       dateTaken: new Date().toISOString(),
+      sampledBy: sampledBy.trim(),
+      labName: labName.trim(),
       depth: depth.trim(),
       ph: ph.trim(),
       phosphorus: phosphorus.trim(),
@@ -133,6 +139,22 @@ export default function SoilSampleScreen() {
               value={depth}
               onChangeText={setDepth}
               keyboardType="decimal-pad"
+              containerStyle={styles.flex}
+            />
+          </View>
+          <View style={styles.row}>
+            <Input
+              label="Sampled By"
+              placeholder="Name of sampler"
+              value={sampledBy}
+              onChangeText={setSampledBy}
+              containerStyle={styles.flex}
+            />
+            <Input
+              label="Lab Submitted To"
+              placeholder="e.g. NRM Laboratories"
+              value={labName}
+              onChangeText={setLabName}
               containerStyle={styles.flex}
             />
           </View>

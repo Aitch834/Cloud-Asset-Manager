@@ -44,6 +44,8 @@ export default function CropEventScreen() {
   const [fieldName, setFieldName] = useState("");
   const [eventType, setEventType] = useState<CropEvent["eventType"] | "">("");
   const [description, setDescription] = useState("");
+  const [yieldAmount, setYieldAmount] = useState("");
+  const [yieldUnit, setYieldUnit] = useState("t/ha");
   const [notes, setNotes] = useState("");
 
   const handleSave = async () => {
@@ -65,7 +67,9 @@ export default function CropEventScreen() {
         latitude = loc.coords.latitude;
         longitude = loc.coords.longitude;
       }
-    } catch {}
+    } catch (locErr: unknown) {
+      console.warn("Crop event location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
+    }
 
     const event: CropEvent = {
       id: generateId(),
@@ -75,6 +79,8 @@ export default function CropEventScreen() {
       date: new Date().toISOString(),
       description: description.trim(),
       operatorName: user?.name || "",
+      yieldAmount: eventType === "harvesting" ? yieldAmount.trim() : "",
+      yieldUnit: eventType === "harvesting" ? yieldUnit : "",
       notes: notes.trim(),
       photoIds: [],
       latitude,
@@ -155,6 +161,26 @@ export default function CropEventScreen() {
             multiline
             numberOfLines={3}
           />
+
+          {eventType === "harvesting" && (
+            <View style={styles.row}>
+              <Input
+                label="Yield Amount"
+                placeholder="e.g. 8.5"
+                value={yieldAmount}
+                onChangeText={setYieldAmount}
+                keyboardType="decimal-pad"
+                containerStyle={styles.flex}
+              />
+              <Input
+                label="Yield Unit"
+                placeholder="e.g. t/ha"
+                value={yieldUnit}
+                onChangeText={setYieldUnit}
+                containerStyle={styles.flex}
+              />
+            </View>
+          )}
 
           <Input
             label="Notes"
@@ -238,5 +264,9 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
     color: colors.text,
+  },
+  row: {
+    flexDirection: "row",
+    gap: spacing.md,
   },
 });

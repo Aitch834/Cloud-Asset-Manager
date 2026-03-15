@@ -2,15 +2,34 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 
-let sqliteDb: any = null;
+interface SQLiteDB {
+  execAsync(sql: string): Promise<void>;
+  runAsync(sql: string, params?: unknown[]): Promise<{ changes: number; lastInsertRowId: number }>;
+  getFirstAsync<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T | null>;
+  getAllAsync<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
+}
+
+interface SyncQueueRow {
+  id: string;
+  record_type: string;
+  record_id: string;
+  data_json: string;
+  status: string;
+  retry_count: number;
+  last_error?: string;
+  created_at: string;
+}
+
+let sqliteDb: SQLiteDB | null = null;
 let usingSQLite = false;
 
 async function initSQLite(): Promise<boolean> {
   if (Platform.OS === "web") return false;
   try {
     const SQLite = require("expo-sqlite");
-    sqliteDb = await SQLite.openDatabaseAsync("bdefarmtrac.db");
-    await sqliteDb.execAsync(`
+    sqliteDb = (await SQLite.openDatabaseAsync("bdefarmtrac.db")) as SQLiteDB;
+    const localDb = sqliteDb;
+    await localDb.execAsync(`
       PRAGMA journal_mode = WAL;
       PRAGMA foreign_keys = ON;
 
@@ -48,7 +67,8 @@ async function initSQLite(): Promise<boolean> {
     `);
     usingSQLite = true;
     return true;
-  } catch {
+  } catch (initErr: unknown) {
+    console.warn("SQLite init failed, using AsyncStorage fallback:", initErr instanceof Error ? initErr.message : "unknown");
     return false;
   }
 }
@@ -60,6 +80,11 @@ async function ensureInit(): Promise<void> {
     dbInitPromise = initSQLite();
   }
   await dbInitPromise;
+}
+
+function db(): SQLiteDB {
+  if (!sqliteDb) throw new Error("SQLite not initialized");
+  return sqliteDb;
 }
 
 const TABLE_MAP: Record<string, string> = {
@@ -80,7 +105,7 @@ export function getTableForKey(key: string): string | null {
 export async function kvGet(key: string): Promise<string | null> {
   await ensureInit();
   if (usingSQLite) {
-    const row = await sqliteDb.getFirstAsync(
+    const row = await db().getFirstAsync<{ value: string }>(
       "SELECT value FROM kv_store WHERE key = ?",
       [key],
     );
@@ -92,7 +117,7 @@ export async function kvGet(key: string): Promise<string | null> {
 export async function kvSet(key: string, value: string): Promise<void> {
   await ensureInit();
   if (usingSQLite) {
-    await sqliteDb.runAsync(
+    await db().runAsync(
       "INSERT OR REPLACE INTO kv_store (key, value, updated_at) VALUES (?, ?, datetime('now'))",
       [key, value],
     );
@@ -104,7 +129,7 @@ export async function kvSet(key: string, value: string): Promise<void> {
 export async function kvDelete(key: string): Promise<void> {
   await ensureInit();
   if (usingSQLite) {
-    await sqliteDb.runAsync("DELETE FROM kv_store WHERE key = ?", [key]);
+    await db().runAsync("DELETE FROM kv_store WHERE key = ?", [key]);
     return;
   }
   await AsyncStorage.removeItem(key);
@@ -120,7 +145,7 @@ export async function insertRecord(
   await ensureInit();
   const json = JSON.stringify(data);
   if (usingSQLite) {
-    await sqliteDb.runAsync(
+    await db().runAsync(
       "INSERT OR REPLACE INTO records (id, record_type, farm_id, data_json, synced, created_at) VALUES (?, ?, ?, ?, 0, ?)",
       [id, table, farmId, json, createdAt],
     );
@@ -145,7 +170,7 @@ export async function updateRecord(
   await ensureInit();
   const json = JSON.stringify(data);
   if (usingSQLite) {
-    await sqliteDb.runAsync(
+    await db().runAsync(
       "UPDATE records SET data_json = ?, synced = 0 WHERE id = ? AND record_type = ?",
       [json, id, table],
     );
@@ -158,7 +183,7 @@ export async function updateRecord(
 export async function deleteRecord(table: string, id: string): Promise<void> {
   await ensureInit();
   if (usingSQLite) {
-    await sqliteDb.runAsync("DELETE FROM records WHERE id = ? AND record_type = ?", [id, table]);
+    await db().runAsync("DELETE FROM records WHERE id = ? AND record_type = ?", [id, table]);
     return;
   }
   const storeKey = `bde_record_${table}_${id}`;
@@ -176,12 +201,12 @@ export async function getRecords<T>(table: string, farmId?: string): Promise<T[]
   if (usingSQLite) {
     let rows: { data_json: string }[];
     if (farmId) {
-      rows = await sqliteDb.getAllAsync(
+      rows = await db().getAllAsync<{ data_json: string }>(
         "SELECT data_json FROM records WHERE record_type = ? AND farm_id = ? ORDER BY created_at DESC",
         [table, farmId],
       );
     } else {
-      rows = await sqliteDb.getAllAsync(
+      rows = await db().getAllAsync<{ data_json: string }>(
         "SELECT data_json FROM records WHERE record_type = ? ORDER BY created_at DESC",
         [table],
       );
@@ -209,7 +234,7 @@ export async function getRecords<T>(table: string, farmId?: string): Promise<T[]
 export async function getRecordById<T>(table: string, id: string): Promise<T | null> {
   await ensureInit();
   if (usingSQLite) {
-    const row = await sqliteDb.getFirstAsync(
+    const row = await db().getFirstAsync<{ data_json: string }>(
       "SELECT data_json FROM records WHERE id = ? AND record_type = ?",
       [id, table],
     );
@@ -227,14 +252,14 @@ export async function enqueueSyncItem(
   await ensureInit();
   const id = Crypto.randomUUID();
   if (usingSQLite) {
-    await sqliteDb.runAsync(
+    await db().runAsync(
       "INSERT INTO sync_queue (id, record_type, record_id, data_json, status, created_at) VALUES (?, ?, ?, ?, 'pending', datetime('now'))",
       [id, recordType, recordId, JSON.stringify(data)],
     );
     return;
   }
   const raw = await AsyncStorage.getItem("bde_sync_queue");
-  const queue: any[] = raw ? JSON.parse(raw) : [];
+  const queue: SyncQueueRow[] = raw ? JSON.parse(raw) : [];
   queue.push({
     id,
     record_type: recordType,
@@ -252,34 +277,34 @@ export async function getPendingSyncItems(): Promise<
 > {
   await ensureInit();
   if (usingSQLite) {
-    return sqliteDb.getAllAsync(
+    return db().getAllAsync<{ id: string; record_type: string; record_id: string; data_json: string; retry_count: number }>(
       "SELECT id, record_type, record_id, data_json, retry_count FROM sync_queue WHERE status = 'pending' ORDER BY created_at ASC",
     );
   }
   const raw = await AsyncStorage.getItem("bde_sync_queue");
   if (!raw) return [];
-  const queue: any[] = JSON.parse(raw);
+  const queue: SyncQueueRow[] = JSON.parse(raw);
   return queue.filter((i) => i.status === "pending");
 }
 
 export async function getPendingSyncCount(): Promise<number> {
   await ensureInit();
   if (usingSQLite) {
-    const row = await sqliteDb.getFirstAsync(
+    const row = await db().getFirstAsync<{ count: number }>(
       "SELECT COUNT(*) as count FROM sync_queue WHERE status = 'pending'",
     );
     return row?.count ?? 0;
   }
   const raw = await AsyncStorage.getItem("bde_sync_queue");
   if (!raw) return 0;
-  const queue: any[] = JSON.parse(raw);
+  const queue: SyncQueueRow[] = JSON.parse(raw);
   return queue.filter((i) => i.status === "pending").length;
 }
 
 export async function markSyncItemCompleted(id: string): Promise<void> {
   await ensureInit();
   if (usingSQLite) {
-    await sqliteDb.runAsync(
+    await db().runAsync(
       "UPDATE sync_queue SET status = 'completed', updated_at = datetime('now') WHERE id = ?",
       [id],
     );
@@ -287,7 +312,7 @@ export async function markSyncItemCompleted(id: string): Promise<void> {
   }
   const raw = await AsyncStorage.getItem("bde_sync_queue");
   if (!raw) return;
-  const queue: any[] = JSON.parse(raw);
+  const queue: SyncQueueRow[] = JSON.parse(raw);
   const idx = queue.findIndex((i) => i.id === id);
   if (idx !== -1) {
     queue[idx].status = "completed";
@@ -298,7 +323,7 @@ export async function markSyncItemCompleted(id: string): Promise<void> {
 export async function markSyncItemFailed(id: string, error: string): Promise<void> {
   await ensureInit();
   if (usingSQLite) {
-    await sqliteDb.runAsync(
+    await db().runAsync(
       "UPDATE sync_queue SET status = CASE WHEN retry_count >= 4 THEN 'failed' ELSE 'pending' END, retry_count = retry_count + 1, last_error = ?, updated_at = datetime('now') WHERE id = ?",
       [error, id],
     );
@@ -306,7 +331,7 @@ export async function markSyncItemFailed(id: string, error: string): Promise<voi
   }
   const raw = await AsyncStorage.getItem("bde_sync_queue");
   if (!raw) return;
-  const queue: any[] = JSON.parse(raw);
+  const queue: SyncQueueRow[] = JSON.parse(raw);
   const idx = queue.findIndex((i) => i.id === id);
   if (idx !== -1) {
     queue[idx].retry_count = (queue[idx].retry_count || 0) + 1;
@@ -319,7 +344,7 @@ export async function markSyncItemFailed(id: string, error: string): Promise<voi
 export async function markRecordSynced(table: string, id: string): Promise<void> {
   await ensureInit();
   if (usingSQLite) {
-    await sqliteDb.runAsync("UPDATE records SET synced = 1 WHERE id = ? AND record_type = ?", [id, table]);
+    await db().runAsync("UPDATE records SET synced = 1 WHERE id = ? AND record_type = ?", [id, table]);
     return;
   }
   const storeKey = `bde_record_${table}_${id}`;
@@ -334,11 +359,11 @@ export async function markRecordSynced(table: string, id: string): Promise<void>
 export async function clearCompletedSyncItems(): Promise<void> {
   await ensureInit();
   if (usingSQLite) {
-    await sqliteDb.runAsync("DELETE FROM sync_queue WHERE status = 'completed'");
+    await db().runAsync("DELETE FROM sync_queue WHERE status = 'completed'");
     return;
   }
   const raw = await AsyncStorage.getItem("bde_sync_queue");
   if (!raw) return;
-  const queue: any[] = JSON.parse(raw);
+  const queue: SyncQueueRow[] = JSON.parse(raw);
   await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue.filter((i) => i.status !== "completed")));
 }

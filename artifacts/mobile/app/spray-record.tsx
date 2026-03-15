@@ -84,7 +84,9 @@ export default function SprayRecordScreen() {
           return;
         }
       }
-    } catch {}
+    } catch (locErr: unknown) {
+      console.warn("GPS field detection unavailable:", locErr instanceof Error ? locErr.message : "unknown");
+    }
   }, [currentFarm?.id]);
 
   const linkTodayWeather = useCallback(async () => {
@@ -124,7 +126,9 @@ export default function SprayRecordScreen() {
         latitude = loc.coords.latitude;
         longitude = loc.coords.longitude;
       }
-    } catch {}
+    } catch (locErr: unknown) {
+      console.warn("Spray record location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
+    }
 
     const record: SprayRecord = {
       id: generateId(),

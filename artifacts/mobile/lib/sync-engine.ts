@@ -83,7 +83,9 @@ export async function initialize(): Promise<void> {
         }
       });
     }
-  } catch {}
+  } catch (netErr: unknown) {
+    console.warn("NetInfo unavailable:", netErr instanceof Error ? netErr.message : "unknown");
+  }
 
   if (state.pendingCount > 0) {
     scheduleSyncAttempt(2000);
@@ -190,7 +192,9 @@ async function getTenantSlug(): Promise<string> {
       const farm = JSON.parse(raw);
       return farm.tenantSlug || farm.slug || "";
     }
-  } catch {}
+  } catch (err: unknown) {
+    console.warn("Failed to read tenant slug:", err instanceof Error ? err.message : "unknown");
+  }
   return "";
 }
 
@@ -239,14 +243,14 @@ async function uploadSyncItem(item: {
 
 function getSyncEndpoint(recordType: string, farmId: string): string | null {
   const typeMap: Record<string, string> = {
-    bde_spray_records: `/farms/${farmId}/spray-records`,
-    bde_weather_entries: `/farms/${farmId}/weather-entries`,
-    bde_visitor_log: `/farms/${farmId}/visitor-log`,
-    bde_crop_events: `/farms/${farmId}/crop-events`,
-    bde_soil_samples: `/farms/${farmId}/soil-samples`,
-    bde_field_boundaries: `/farms/${farmId}/field-boundaries`,
-    bde_compliance_forms: `/farms/${farmId}/compliance-forms`,
-    bde_photos: `/farms/${farmId}/photos`,
+    bde_spray_records: `/farms/${farmId}/spray-applications`,
+    bde_weather_entries: `/farms/${farmId}/weather-readings`,
+    bde_visitor_log: `/farms/${farmId}/visitors`,
+    bde_crop_events: `/farms/${farmId}/crops`,
+    bde_soil_samples: `/farms/${farmId}/soil-tests`,
+    bde_field_boundaries: `/farms/${farmId}/fields`,
+    bde_compliance_forms: `/farms/${farmId}/documents`,
+    bde_photos: `/farms/${farmId}/documents`,
   };
   return typeMap[recordType] || null;
 }

@@ -85,7 +85,9 @@ export default function PhotoCaptureScreen() {
         latitude = loc.coords.latitude;
         longitude = loc.coords.longitude;
       }
-    } catch {}
+    } catch (locErr: unknown) {
+      console.warn("Photo location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
+    }
 
     const photo: PhotoRecord = {
       id: generateId(),

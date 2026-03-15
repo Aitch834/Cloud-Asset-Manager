@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -56,10 +57,26 @@ export default function WeatherEntryScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    let latitude: number | undefined;
+    let longitude: number | undefined;
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        latitude = loc.coords.latitude;
+        longitude = loc.coords.longitude;
+      }
+    } catch (locErr: unknown) {
+      console.warn("Weather entry location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
+    }
+
+    const now = new Date().toISOString();
+
     const entry: WeatherEntry = {
       id: generateId(),
       farmId: currentFarm?.id || "",
-      date: new Date().toISOString().split("T")[0],
+      date: now.split("T")[0],
       temperatureHigh: temperatureHigh.trim(),
       temperatureLow: temperatureLow.trim(),
       rainfall: rainfall.trim(),
@@ -69,7 +86,10 @@ export default function WeatherEntryScreen() {
       conditions,
       entryMode,
       notes: notes.trim(),
-      createdAt: new Date().toISOString(),
+      latitude,
+      longitude,
+      recordedAt: now,
+      createdAt: now,
       synced: false,
     };
 
