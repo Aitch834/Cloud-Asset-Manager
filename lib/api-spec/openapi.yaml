@@ -2823,8 +2823,12 @@ paths:
               required: [dateRangeStart, dateRangeEnd, format]
       responses:
         "200":
-          description: Export data
+          description: Export data (CSV download for csv/xero formats, JSON for record keeping)
           content:
+            text/csv:
+              schema:
+                type: string
+                description: Xero-compatible CSV with columns Date, Amount, AccountCode, Description, Reference, TaxType, TaxAmount
             application/json:
               schema:
                 $ref: "#/components/schemas/RecordEnvelope"
