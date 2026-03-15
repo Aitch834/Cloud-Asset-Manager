@@ -14,6 +14,7 @@ import {
   getListFarmsQueryKey,
   getGetFarmDashboardQueryKey,
 } from "@workspace/api-client-react/src/generated/api";
+import type { Farm } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Redirect } from "wouter";
 import { Loader2, Save } from "lucide-react";
 
@@ -38,6 +39,25 @@ interface FarmFormData {
   sectors: Record<SectorKey, boolean>;
 }
 
+function farmToFormData(farm: Farm): FarmFormData {
+  return {
+    name: farm.name || "",
+    cphNumber: farm.cphNumber || "",
+    address: farm.address || "",
+    postcode: farm.postcode || "",
+    gridReference: farm.gridReference || "",
+    totalAcreage: farm.totalAcreage?.toString() || "",
+    sectors: {
+      sectorArable: !!farm.sectorArable,
+      sectorBeef: !!farm.sectorBeef,
+      sectorDairy: !!farm.sectorDairy,
+      sectorPigs: !!farm.sectorPigs,
+      sectorPoultry: !!farm.sectorPoultry,
+      sectorHorticulture: !!farm.sectorHorticulture,
+    },
+  };
+}
+
 export default function FarmSettings() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
@@ -46,33 +66,17 @@ export default function FarmSettings() {
   const { data: farmsData, isLoading } = useListFarms();
   const { mutate: updateFarm, isPending: isSaving } = useUpdateFarm();
 
-  const currentFarm = farmsData?.farms?.find((f: any) => f.id === farmId);
+  const currentFarm: Farm | undefined = farmsData?.farms?.find((f) => f.id === farmId);
 
   const [formData, setFormData] = useState<FarmFormData | null>(null);
-  const [initialized, setInitialized] = useState(false);
+  const [loadedFarmId, setLoadedFarmId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (currentFarm && !initialized) {
-      const farm = currentFarm as any;
-      setFormData({
-        name: farm.name || "",
-        cphNumber: farm.cphNumber || "",
-        address: farm.address || "",
-        postcode: farm.postcode || "",
-        gridReference: farm.gridReference || "",
-        totalAcreage: farm.totalAcreage?.toString() || "",
-        sectors: {
-          sectorArable: !!farm.sectorArable,
-          sectorBeef: !!farm.sectorBeef,
-          sectorDairy: !!farm.sectorDairy,
-          sectorPigs: !!farm.sectorPigs,
-          sectorPoultry: !!farm.sectorPoultry,
-          sectorHorticulture: !!farm.sectorHorticulture,
-        },
-      });
-      setInitialized(true);
+    if (currentFarm && currentFarm.id !== loadedFarmId) {
+      setFormData(farmToFormData(currentFarm));
+      setLoadedFarmId(currentFarm.id);
     }
-  }, [currentFarm, initialized]);
+  }, [currentFarm, loadedFarmId]);
 
   if (!farmId) return <Redirect href="/select" />;
 
