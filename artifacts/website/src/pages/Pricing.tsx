@@ -72,13 +72,11 @@ export default function Pricing() {
 
   const removeFarm = (farmId: number) => {
     if (farms.length <= 1) return;
-    setFarms(prev => {
-      const updated = prev.filter(f => f.id !== farmId);
-      if (activeFarmId === farmId) {
-        setActiveFarmId(updated[0].id);
-      }
-      return updated;
-    });
+    const updated = farms.filter(f => f.id !== farmId);
+    if (activeFarmId === farmId) {
+      setActiveFarmId(updated[0].id);
+    }
+    setFarms(updated);
   };
 
   const renameFarm = (farmId: number, name: string) => {
@@ -129,7 +127,7 @@ export default function Pricing() {
                       <>
                         <span>{getFarmDisplayName(farm)}</span>
                         <button
-                          className={`opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/20 ${
+                          className={`sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/20 ${
                             activeFarmId === farm.id ? "text-white/80" : "text-muted-foreground"
                           }`}
                           onClick={e => { e.stopPropagation(); setEditingNameId(farm.id); }}
@@ -140,9 +138,9 @@ export default function Pricing() {
                       </>
                     )}
                     <button
-                      className={`opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded ${
+                      className={`sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-0.5 rounded ${
                         farms.length <= 1
-                          ? "cursor-not-allowed opacity-0 group-hover:opacity-30"
+                          ? "!opacity-30 cursor-not-allowed"
                           : `hover:bg-white/20 ${activeFarmId === farm.id ? "text-white/80" : "text-muted-foreground"}`
                       }`}
                       disabled={farms.length <= 1}
