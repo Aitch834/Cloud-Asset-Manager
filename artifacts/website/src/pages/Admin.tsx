@@ -55,7 +55,17 @@ type SupportTicketItem = {
   email: string;
   subject: string;
   description: string;
+  conversationHistory: string | null;
   status: string;
+  createdAt: string;
+};
+
+type TicketMessage = {
+  id: number;
+  ticketId: number;
+  senderType: string;
+  senderId: string | null;
+  message: string;
   createdAt: string;
 };
 
@@ -81,6 +91,11 @@ export default function Admin() {
   const [loadingDetail, setLoadingDetail] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>("tenants");
   const [impersonating, setImpersonating] = useState<{ userId: string; email: string | null; tenantId: number } | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicketItem | null>(null);
+  const [ticketMessages, setTicketMessages] = useState<TicketMessage[]>([]);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const [loadingTicketDetail, setLoadingTicketDetail] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -152,6 +167,62 @@ export default function Admin() {
       setImpersonating(data.impersonation);
     } catch {
       alert("Failed to start impersonation");
+    }
+  };
+
+  const openTicketDetail = async (ticket: SupportTicketItem) => {
+    setSelectedTicket(ticket);
+    setReplyText("");
+    setLoadingTicketDetail(true);
+    try {
+      const r = await fetch(`/api/admin/support-tickets/${ticket.id}`, { credentials: "include" });
+      if (r.ok) {
+        const data = await r.json() as { ticket: SupportTicketItem; messages: TicketMessage[] };
+        setTicketMessages(data.messages);
+      }
+    } catch (err) {
+      console.warn("Failed to load ticket detail:", err);
+    }
+    setLoadingTicketDetail(false);
+  };
+
+  const handleReply = async () => {
+    if (!selectedTicket || !replyText.trim()) return;
+    setSendingReply(true);
+    try {
+      const r = await fetch(`/api/admin/support-tickets/${selectedTicket.id}/reply`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: replyText.trim() }),
+      });
+      if (r.ok) {
+        const data = await r.json() as { message: TicketMessage };
+        setTicketMessages((prev) => [...prev, data.message]);
+        setReplyText("");
+      }
+    } catch (err) {
+      console.warn("Failed to send reply:", err);
+    }
+    setSendingReply(false);
+  };
+
+  const handleUpdateTicketStatus = async (ticketId: number, newStatus: string) => {
+    try {
+      const r = await fetch(`/api/admin/support-tickets/${ticketId}/status`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (r.ok) {
+        setTickets((prev) => prev.map((t) => t.id === ticketId ? { ...t, status: newStatus } : t));
+        if (selectedTicket?.id === ticketId) {
+          setSelectedTicket((prev) => prev ? { ...prev, status: newStatus } : null);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to update ticket status:", err);
     }
   };
 
@@ -295,52 +366,149 @@ export default function Admin() {
               )}
 
               {activeTab === "tickets" && (
-                <div className="bg-white rounded-xl border border-border shadow-sm">
-                  <div className="p-6 border-b border-border">
-                    <h2 className="text-lg font-semibold">Support Tickets</h2>
-                  </div>
-                  {tickets.length === 0 ? (
-                    <div className="p-12 text-center text-muted-foreground">
-                      No support tickets yet.
+                <div className="space-y-4">
+                  <div className="bg-white rounded-xl border border-border shadow-sm">
+                    <div className="p-6 border-b border-border flex items-center justify-between">
+                      <h2 className="text-lg font-semibold">Support Tickets</h2>
+                      {selectedTicket && (
+                        <Button variant="outline" size="sm" onClick={() => setSelectedTicket(null)}>
+                          Back to List
+                        </Button>
+                      )}
                     </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="text-left text-sm text-muted-foreground border-b border-border">
-                            <th className="p-4">ID</th>
-                            <th className="p-4">Subject</th>
-                            <th className="p-4">From</th>
-                            <th className="p-4">Status</th>
-                            <th className="p-4">Created</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tickets.map((ticket) => (
-                            <tr key={ticket.id} className="border-b border-border last:border-0 hover:bg-secondary/50">
-                              <td className="p-4 text-sm font-mono">#{ticket.id}</td>
-                              <td className="p-4">
-                                <div className="font-medium text-sm">{ticket.subject}</div>
-                                <div className="text-xs text-muted-foreground truncate max-w-xs">{ticket.description}</div>
-                              </td>
-                              <td className="p-4 text-sm">
-                                <div>{ticket.name}</div>
-                                <div className="text-xs text-muted-foreground">{ticket.email}</div>
-                              </td>
-                              <td className="p-4">
-                                <span className={`text-xs font-medium px-2 py-1 rounded-full ${ticket.status === "open" ? "bg-yellow-100 text-yellow-700" : ticket.status === "resolved" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
-                                  {ticket.status}
-                                </span>
-                              </td>
-                              <td className="p-4 text-sm text-muted-foreground">
-                                {new Date(ticket.createdAt).toLocaleDateString("en-GB")}
-                              </td>
+
+                    {selectedTicket ? (
+                      <div className="p-6 space-y-6">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="text-xl font-semibold">{selectedTicket.subject}</h3>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              From: {selectedTicket.name} ({selectedTicket.email}) &middot; {new Date(selectedTicket.createdAt).toLocaleDateString("en-GB")}
+                            </p>
+                          </div>
+                          <select
+                            value={selectedTicket.status}
+                            onChange={(e) => handleUpdateTicketStatus(selectedTicket.id, e.target.value)}
+                            className="text-sm border border-border rounded-lg px-3 py-1.5 bg-white"
+                          >
+                            <option value="open">Open</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="closed">Closed</option>
+                          </select>
+                        </div>
+
+                        <div className="bg-secondary/30 rounded-lg p-4">
+                          <p className="text-sm font-medium text-muted-foreground mb-1">Original Message</p>
+                          <p className="text-sm whitespace-pre-wrap">{selectedTicket.description}</p>
+                        </div>
+
+                        {selectedTicket.conversationHistory && (
+                          <div className="bg-blue-50 rounded-lg p-4">
+                            <p className="text-sm font-medium text-blue-700 mb-2">AI Chat History</p>
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                              {(() => {
+                                try {
+                                  const history = JSON.parse(selectedTicket.conversationHistory) as Array<{ role: string; content: string }>;
+                                  return history.map((msg, i) => (
+                                    <div key={i} className={`text-sm p-2 rounded ${msg.role === "user" ? "bg-white" : "bg-blue-100"}`}>
+                                      <span className="font-medium text-xs uppercase text-muted-foreground">{msg.role}: </span>
+                                      {msg.content}
+                                    </div>
+                                  ));
+                                } catch {
+                                  return <p className="text-sm text-muted-foreground">Unable to parse chat history</p>;
+                                }
+                              })()}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="border-t border-border pt-4">
+                          <p className="text-sm font-semibold mb-3">Replies</p>
+                          {loadingTicketDetail ? (
+                            <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-brand-forest" /></div>
+                          ) : ticketMessages.length === 0 ? (
+                            <p className="text-sm text-muted-foreground py-2">No replies yet.</p>
+                          ) : (
+                            <div className="space-y-3 mb-4">
+                              {ticketMessages.map((msg) => (
+                                <div key={msg.id} className={`p-3 rounded-lg text-sm ${msg.senderType === "admin" ? "bg-green-50 border border-green-200" : "bg-gray-50 border border-gray-200"}`}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="font-medium text-xs uppercase">{msg.senderType === "admin" ? "BDE Admin" : "Customer"}</span>
+                                    <span className="text-xs text-muted-foreground">{new Date(msg.createdAt).toLocaleString("en-GB")}</span>
+                                  </div>
+                                  <p className="whitespace-pre-wrap">{msg.message}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex gap-2">
+                            <textarea
+                              value={replyText}
+                              onChange={(e) => setReplyText(e.target.value)}
+                              placeholder="Type your reply..."
+                              rows={3}
+                              className="flex-1 border border-border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-forest/20 focus:border-brand-forest"
+                            />
+                            <Button
+                              onClick={handleReply}
+                              disabled={!replyText.trim() || sendingReply}
+                              className="self-end"
+                            >
+                              {sendingReply ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Reply"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : tickets.length === 0 ? (
+                      <div className="p-12 text-center text-muted-foreground">
+                        No support tickets yet.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="text-left text-sm text-muted-foreground border-b border-border">
+                              <th className="p-4">ID</th>
+                              <th className="p-4">Subject</th>
+                              <th className="p-4">From</th>
+                              <th className="p-4">Status</th>
+                              <th className="p-4">Created</th>
+                              <th className="p-4"></th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                          </thead>
+                          <tbody>
+                            {tickets.map((ticket) => (
+                              <tr key={ticket.id} className="border-b border-border last:border-0 hover:bg-secondary/50 cursor-pointer" onClick={() => openTicketDetail(ticket)}>
+                                <td className="p-4 text-sm font-mono">#{ticket.id}</td>
+                                <td className="p-4">
+                                  <div className="font-medium text-sm">{ticket.subject}</div>
+                                  <div className="text-xs text-muted-foreground truncate max-w-xs">{ticket.description}</div>
+                                </td>
+                                <td className="p-4 text-sm">
+                                  <div>{ticket.name}</div>
+                                  <div className="text-xs text-muted-foreground">{ticket.email}</div>
+                                </td>
+                                <td className="p-4">
+                                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${ticket.status === "open" ? "bg-yellow-100 text-yellow-700" : ticket.status === "resolved" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
+                                    {ticket.status}
+                                  </span>
+                                </td>
+                                <td className="p-4 text-sm text-muted-foreground">
+                                  {new Date(ticket.createdAt).toLocaleDateString("en-GB")}
+                                </td>
+                                <td className="p-4">
+                                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </>

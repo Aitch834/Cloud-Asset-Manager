@@ -50,6 +50,42 @@ import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/r
 
 const router: IRouter = Router();
 
+const XERO_ACCOUNT_MAP: Record<string, string> = {
+  "seeds": "310",
+  "fertiliser": "311",
+  "spray": "312",
+  "chemicals": "312",
+  "feed": "320",
+  "veterinary": "330",
+  "fuel": "340",
+  "machinery": "350",
+  "repairs": "351",
+  "rent": "360",
+  "insurance": "370",
+  "wages": "380",
+  "utilities": "390",
+  "professional-fees": "400",
+  "livestock-purchase": "410",
+  "livestock-sale": "200",
+  "crop-sale": "210",
+  "subsidy": "220",
+  "general": "499",
+};
+
+function mapCategoryToXeroAccount(category: string): string {
+  return XERO_ACCOUNT_MAP[category.toLowerCase()] || XERO_ACCOUNT_MAP["general"];
+}
+
+function mapVatRateToXeroTax(vatRate: string | null): string {
+  if (!vatRate) return "No VAT";
+  const rate = vatRate.toLowerCase();
+  if (rate === "standard" || rate === "20" || rate === "20%") return "20% (VAT on Income)";
+  if (rate === "reduced" || rate === "5" || rate === "5%") return "5% (VAT on Income)";
+  if (rate === "zero" || rate === "0" || rate === "0%") return "Zero Rated Income";
+  if (rate === "exempt") return "Exempt Income";
+  return "No VAT";
+}
+
 async function validateFarmAccess(req: Request, res: Response): Promise<number | null> {
   const farmId = parseInt(req.params.farmId as string, 10);
   if (isNaN(farmId)) {
@@ -1183,6 +1219,36 @@ router.post("/farms/:farmId/financial-exports", requireAuth, requireTenant, requ
     const d = new Date(t.transactionDate);
     return d >= new Date(dateRangeStart) && d <= new Date(dateRangeEnd);
   });
+
+  if (format === "xero" || format === "csv") {
+    const csvEscape = (val: string | null | undefined): string => {
+      if (val == null) return "";
+      const s = String(val);
+      if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+
+    const xeroHeaders = ["*Date", "*Amount", "*AccountCode", "Description", "Reference", "TaxType", "TaxAmount"];
+    const rows = filtered.map((t) => {
+      const date = new Date(t.transactionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
+      const amount = (t.amountPence / 100).toFixed(2);
+      const accountCode = mapCategoryToXeroAccount(t.category || "general");
+      const description = t.description || t.vendorCustomer || "";
+      const reference = t.reference || "";
+      const taxType = mapVatRateToXeroTax(t.vatRate);
+      const taxAmount = t.vatAmountPence ? (t.vatAmountPence / 100).toFixed(2) : "";
+      return [date, amount, accountCode, description, reference, taxType, taxAmount].map(csvEscape).join(",");
+    });
+
+    const csvContent = [xeroHeaders.join(","), ...rows].join("\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="farm-transactions-${dateRangeStart}-to-${dateRangeEnd}.csv"`);
+    res.send(csvContent);
+    return;
+  }
+
   res.json({ record: { format, transactionCount: filtered.length, transactions: filtered } });
 });
 
@@ -1632,6 +1698,120 @@ router.get("/tenants/current/users", requireAuth, requireTenant, async (req: Req
     .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
     .where(eq(userTenantsTable.tenantId, req.tenantId!));
   res.json({ users: records });
+});
+
+// ─── Red Tractor Compliance Export ──────────────────
+router.get("/farms/:farmId/compliance-export", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+
+  const [inspections, nonconformances, correctiveActionsRaw, riskAssessments, coshhRecords, wasteRecords, trainingRecords, certificates, visitors, pestControl, cleaningRecords] = await Promise.all([
+    db.select().from(inspectionRecordsTable).where(eq(inspectionRecordsTable.farmId, farmId)).orderBy(desc(inspectionRecordsTable.inspectionDate)),
+    db.select().from(nonconformanceRecordsTable).where(eq(nonconformanceRecordsTable.farmId, farmId)).orderBy(desc(nonconformanceRecordsTable.identifiedDate)),
+    db.select({ correctiveAction: correctiveActionsTable }).from(correctiveActionsTable).innerJoin(nonconformanceRecordsTable, eq(correctiveActionsTable.nonconformanceId, nonconformanceRecordsTable.id)).where(eq(nonconformanceRecordsTable.farmId, farmId)).orderBy(desc(correctiveActionsTable.createdAt)),
+    db.select().from(riskAssessmentsTable).where(eq(riskAssessmentsTable.farmId, farmId)).orderBy(desc(riskAssessmentsTable.assessmentDate)),
+    db.select().from(coshhRecordsTable).where(eq(coshhRecordsTable.farmId, farmId)).orderBy(desc(coshhRecordsTable.createdAt)),
+    db.select().from(wasteDisposalRecordsTable).where(eq(wasteDisposalRecordsTable.farmId, farmId)).orderBy(desc(wasteDisposalRecordsTable.disposalDate)),
+    db.select().from(staffTrainingRecordsTable).where(eq(staffTrainingRecordsTable.farmId, farmId)).orderBy(desc(staffTrainingRecordsTable.trainingDate)),
+    db.select().from(staffCertificatesTable).where(eq(staffCertificatesTable.farmId, farmId)),
+    db.select().from(visitorContractorLogTable).where(eq(visitorContractorLogTable.farmId, farmId)).orderBy(desc(visitorContractorLogTable.arrivalTime)),
+    db.select().from(pestControlRecordsTable).where(eq(pestControlRecordsTable.farmId, farmId)).orderBy(desc(pestControlRecordsTable.treatmentDate)),
+    db.select().from(cleaningDisinfectionRecordsTable).where(eq(cleaningDisinfectionRecordsTable.farmId, farmId)).orderBy(desc(cleaningDisinfectionRecordsTable.cleanedDate)),
+  ]);
+
+  const correctiveActions = correctiveActionsRaw.map((r) => r.correctiveAction);
+
+  const openNCs = nonconformances.filter((nc) => nc.status === "open" || nc.status === "in_progress");
+  const closedNCs = nonconformances.filter((nc) => nc.status === "closed" || nc.status === "resolved");
+
+  const complianceScore = nonconformances.length === 0 ? 100 : Math.round(((closedNCs.length) / nonconformances.length) * 100);
+
+  const exportData = {
+    exportDate: new Date().toISOString(),
+    exportFormat: "red-tractor-compliance-report",
+    farm: {
+      name: farm?.name,
+      cphNumber: farm?.cphNumber,
+      postcode: farm?.postcode,
+      totalAcreage: farm?.totalAcreage,
+    },
+    summary: {
+      complianceScore,
+      totalInspections: inspections.length,
+      openNonconformances: openNCs.length,
+      closedNonconformances: closedNCs.length,
+      totalCorrectiveActions: correctiveActions.length,
+      totalRiskAssessments: riskAssessments.length,
+      totalCoshhRecords: coshhRecords.length,
+      totalTrainingRecords: trainingRecords.length,
+      totalVisitorLogs: visitors.length,
+      totalPestControlRecords: pestControl.length,
+      totalCleaningRecords: cleaningRecords.length,
+      totalWasteRecords: wasteRecords.length,
+    },
+    inspections,
+    nonconformances,
+    correctiveActions,
+    riskAssessments,
+    coshhRecords,
+    wasteDisposalRecords: wasteRecords,
+    staffTraining: trainingRecords,
+    staffCertificates: certificates,
+    visitorLogs: visitors,
+    pestControl,
+    cleaningRecords,
+  };
+
+  if (req.query.format === "csv") {
+    const sections: string[] = [];
+    sections.push("Red Tractor Compliance Export");
+    sections.push(`Farm: ${farm?.name || "Unknown"}`);
+    sections.push(`CPH Number: ${farm?.cphNumber || "N/A"}`);
+    sections.push(`Export Date: ${new Date().toLocaleDateString("en-GB")}`);
+    sections.push(`Compliance Score: ${complianceScore}%`);
+    sections.push("");
+
+    if (inspections.length > 0) {
+      sections.push("INSPECTIONS");
+      sections.push("Date,Type,Inspector,Body,Result,Notes");
+      for (const i of inspections) {
+        sections.push([
+          new Date(i.inspectionDate).toLocaleDateString("en-GB"),
+          i.inspectionType || "",
+          i.inspectorName || "",
+          i.inspectionBody || "",
+          i.overallResult || "",
+          (i.notes || "").replace(/,/g, ";"),
+        ].join(","));
+      }
+      sections.push("");
+    }
+
+    if (nonconformances.length > 0) {
+      sections.push("NON-CONFORMANCES");
+      sections.push("Raised Date,Category,Severity,Status,Description");
+      for (const nc of nonconformances) {
+        sections.push([
+          new Date(nc.identifiedDate).toLocaleDateString("en-GB"),
+          nc.category || "",
+          nc.severity || "",
+          nc.status || "",
+          (nc.description || "").replace(/,/g, ";"),
+        ].join(","));
+      }
+      sections.push("");
+    }
+
+    const csvContent = sections.join("\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="red-tractor-compliance-${farm?.name || "farm"}.csv"`);
+    res.send(csvContent);
+    return;
+  }
+
+  res.json(exportData);
 });
 
 export default router;

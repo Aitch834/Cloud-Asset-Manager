@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable } from "@workspace/db";
-import { eq, and, count } from "drizzle-orm";
+import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable } from "@workspace/db";
+import { eq, and, count, desc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 
 const router: IRouter = Router();
@@ -105,6 +105,66 @@ router.get("/admin/support-tickets", requireAuth, async (req: Request, res: Resp
 
   const tickets = await db.select().from(supportTicketsTable);
   res.json({ tickets });
+});
+
+router.get("/admin/support-tickets/:ticketId", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const ticketId = parseInt(req.params.ticketId as string, 10);
+  if (isNaN(ticketId)) { res.status(400).json({ error: "Invalid ticket ID" }); return; }
+
+  const [ticket] = await db.select().from(supportTicketsTable).where(eq(supportTicketsTable.id, ticketId)).limit(1);
+  if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
+
+  const messages = await db.select().from(supportTicketMessagesTable).where(eq(supportTicketMessagesTable.ticketId, ticketId)).orderBy(supportTicketMessagesTable.createdAt);
+
+  res.json({ ticket, messages });
+});
+
+router.post("/admin/support-tickets/:ticketId/reply", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const ticketId = parseInt(req.params.ticketId as string, 10);
+  if (isNaN(ticketId)) { res.status(400).json({ error: "Invalid ticket ID" }); return; }
+
+  const { message } = req.body;
+  if (!message || typeof message !== "string" || message.trim().length === 0) {
+    res.status(400).json({ error: "Message is required" });
+    return;
+  }
+
+  const [ticket] = await db.select().from(supportTicketsTable).where(eq(supportTicketsTable.id, ticketId)).limit(1);
+  if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
+
+  const [reply] = await db.insert(supportTicketMessagesTable).values({
+    ticketId,
+    senderType: "admin",
+    senderId: req.user?.id || "system",
+    message: message.trim(),
+  }).returning();
+
+  // TODO: Send email notification to ticket.email with reply content
+  console.log(`[EMAIL PLACEHOLDER] Reply notification would be sent to ${ticket.email} for ticket #${ticketId}`);
+
+  res.status(201).json({ message: reply });
+});
+
+router.patch("/admin/support-tickets/:ticketId/status", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const ticketId = parseInt(req.params.ticketId as string, 10);
+  if (isNaN(ticketId)) { res.status(400).json({ error: "Invalid ticket ID" }); return; }
+
+  const { status } = req.body;
+  if (!status || !["open", "in_progress", "resolved", "closed"].includes(status)) {
+    res.status(400).json({ error: "Invalid status. Must be one of: open, in_progress, resolved, closed" });
+    return;
+  }
+
+  const [updated] = await db.update(supportTicketsTable).set({ status }).where(eq(supportTicketsTable.id, ticketId)).returning();
+  if (!updated) { res.status(404).json({ error: "Ticket not found" }); return; }
+
+  res.json({ ticket: updated });
 });
 
 router.post("/admin/impersonate", requireAuth, async (req: Request, res: Response): Promise<void> => {

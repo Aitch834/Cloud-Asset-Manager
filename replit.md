@@ -231,3 +231,16 @@ Modules: fields, crops, harvest-records, crop-transport, crop-storage, crop-dest
 - `GET /api/admin/tenants/:tenantId` — Tenant detail with farms/subs/users
 - `GET /api/admin/stats` — Platform statistics
 - `POST /api/admin/impersonate` — Impersonate user
+- `GET /api/admin/support-tickets` — List all support tickets
+- `GET /api/admin/support-tickets/:ticketId` — Ticket detail with messages
+- `POST /api/admin/support-tickets/:ticketId/reply` — Admin reply to ticket
+- `PATCH /api/admin/support-tickets/:ticketId/status` — Update ticket status
+
+### Exports & Compliance
+- `POST /api/farms/:farmId/financial-exports` — Xero-compatible CSV export (Date, Amount, AccountCode, Description, Reference, TaxType, TaxAmount)
+- `GET /api/farms/:farmId/compliance-export` — Red Tractor compliance data export (JSON or CSV via `?format=csv`)
+
+### Platform Polish
+- React ErrorBoundary wraps both dashboard and website apps (catches render crashes, shows "Something went wrong" with refresh button)
+- Privacy and Cookie policy pages exist at `/privacy` and `/cookies`
+- 404 pages exist for both dashboard and website
