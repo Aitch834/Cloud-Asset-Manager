@@ -1,5 +1,5 @@
 import { Layout } from "@/components/layout/Layout";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Info, Plus, X, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -23,14 +23,16 @@ interface Farm {
   selectedModules: string[];
 }
 
-let nextFarmId = 2;
-
 function createFarm(id: number): Farm {
   return {
     id,
     name: `Farm ${id}`,
     selectedModules: ["core"],
   };
+}
+
+function getFarmDisplayName(farm: Farm): string {
+  return farm.name.trim() || `Farm ${farm.id}`;
 }
 
 function getFarmCost(farm: Farm): number {
@@ -43,6 +45,7 @@ export default function Pricing() {
   ]);
   const [activeFarmId, setActiveFarmId] = useState(1);
   const [editingNameId, setEditingNameId] = useState<number | null>(null);
+  const nextFarmIdRef = useRef(2);
 
   const activeFarm = farms.find(f => f.id === activeFarmId) || farms[0];
 
@@ -61,7 +64,7 @@ export default function Pricing() {
   };
 
   const addFarm = () => {
-    const id = nextFarmId++;
+    const id = nextFarmIdRef.current++;
     const newFarm = createFarm(id);
     setFarms(prev => [...prev, newFarm]);
     setActiveFarmId(id);
@@ -124,7 +127,7 @@ export default function Pricing() {
                       />
                     ) : (
                       <>
-                        <span>{farm.name}</span>
+                        <span>{getFarmDisplayName(farm)}</span>
                         <button
                           className={`opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/20 ${
                             activeFarmId === farm.id ? "text-white/80" : "text-muted-foreground"
@@ -162,7 +165,7 @@ export default function Pricing() {
 
             <div>
               <h3 className="text-xl font-bold mb-1">2. Select Modules</h3>
-              <p className="text-sm text-muted-foreground mb-4">Configuring modules for <span className="font-semibold text-brand-forest">{activeFarm.name}</span></p>
+              <p className="text-sm text-muted-foreground mb-4">Configuring modules for <span className="font-semibold text-brand-forest">{getFarmDisplayName(activeFarm)}</span></p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {MODULES.map(mod => {
                   const isSelected = activeFarm.selectedModules.includes(mod.id);
@@ -197,7 +200,7 @@ export default function Pricing() {
                 return (
                   <div key={farm.id}>
                     <div className="flex justify-between items-center mb-2">
-                      <span className="font-semibold text-sm text-earth-brown">{farm.name}</span>
+                      <span className="font-semibold text-sm text-earth-brown">{getFarmDisplayName(farm)}</span>
                       <span className="font-bold text-base">£{farmCost}<span className="text-xs font-normal text-muted-foreground">/mo</span></span>
                     </div>
                     <div className="space-y-1 pl-3 border-l-2 border-earth-tan/20">
