@@ -244,3 +244,15 @@ Modules: fields, crops, harvest-records, crop-transport, crop-storage, crop-dest
 - React ErrorBoundary wraps both dashboard and website apps (catches render crashes, shows "Something went wrong" with refresh button)
 - Privacy and Cookie policy pages exist at `/privacy` and `/cookies`
 - 404 pages exist for both dashboard and website
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `DATABASE_URL` | Yes | (Replit auto) | PostgreSQL connection string |
+| `REPL_ID` | Yes | (Replit auto) | Replit environment identifier |
+| `ISSUER_URL` | Yes | (Replit auto) | OIDC issuer URL for Replit Auth |
+| `PORT` | No | Per-artifact | Port assigned by Replit to each artifact |
+| `STRIPE_SECRET_KEY` | Yes | — | Stripe API secret key for billing |
+| `STRIPE_WEBHOOK_SECRET` | Yes | — | Stripe webhook signing secret |
+| `NODE_ENV` | No | `development` | Set to `production` for deployed builds |
