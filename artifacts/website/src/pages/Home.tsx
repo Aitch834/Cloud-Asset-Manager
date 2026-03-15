@@ -86,7 +86,7 @@ export default function Home() {
               className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white"
             >
               <img 
-                src="https://pixabay.com/get/gc895a46dd405265d094442b3ae4bce6b540103669ab171f628caf5a75abe8223c20903f0280e3bd438954e3f6f034006f56b9bdfa984c545d94c4d259ccaf5e7_1280.jpg" 
+                src="/hero-tractor.png" 
                 alt="Modern tractor in a green field" 
                 className="w-full h-auto object-cover aspect-[4/3]"
               />
@@ -143,7 +143,7 @@ export default function Home() {
             <div className="order-2 lg:order-1">
                {/* mobile app user in field inspecting crops */}
                <img 
-                src="https://pixabay.com/get/g669dd526529ceb07ddaef97896bd5991b283ea2e7f7a3320df805153e9f6c860fc33e922cfb555cf8df5808305fdcd7bfa648754095b5edd0634df853937aa6c_1280.jpg" 
+                src="/farmer-field.png" 
                 alt="Farmer using mobile app" 
                 className="rounded-2xl shadow-2xl rotate-2 hover:rotate-0 transition-transform duration-500 max-h-[600px] object-cover w-full"
               />
