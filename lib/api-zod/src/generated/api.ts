@@ -650,6 +650,69 @@ export const AdminListSupportTicketsResponse = zod.object({
 });
 
 /**
+ * @summary Get support ticket detail with messages
+ */
+export const AdminGetSupportTicketParams = zod.object({
+  ticketId: zod.coerce.number(),
+});
+
+export const AdminGetSupportTicketResponse = zod.object({
+  ticket: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    email: zod.string(),
+    subject: zod.string(),
+    description: zod.string(),
+    status: zod.string(),
+    createdAt: zod.date(),
+  }),
+  messages: zod.array(
+    zod.object({
+      id: zod.number(),
+      ticketId: zod.number(),
+      senderType: zod.enum(["admin", "customer"]),
+      senderId: zod.string().nullish(),
+      message: zod.string(),
+      createdAt: zod.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Reply to a support ticket
+ */
+export const AdminReplyToTicketParams = zod.object({
+  ticketId: zod.coerce.number(),
+});
+
+export const AdminReplyToTicketBody = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary Update ticket status
+ */
+export const AdminUpdateTicketStatusParams = zod.object({
+  ticketId: zod.coerce.number(),
+});
+
+export const AdminUpdateTicketStatusBody = zod.object({
+  status: zod.enum(["open", "in_progress", "resolved", "closed"]),
+});
+
+export const AdminUpdateTicketStatusResponse = zod.object({
+  ticket: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    email: zod.string(),
+    subject: zod.string(),
+    description: zod.string(),
+    status: zod.string(),
+    createdAt: zod.date(),
+  }),
+});
+
+/**
  * @summary Begin impersonating a user
  */
 export const AdminImpersonateBody = zod.object({
@@ -2397,6 +2460,38 @@ export const CreateFinancialExportBody = zod.object({
 
 export const CreateFinancialExportResponse = zod.object({
   record: zod.record(zod.string(), zod.unknown()),
+});
+
+/**
+ * Generates a comprehensive compliance report aggregating inspections,
+non-conformances, corrective actions, risk assessments, COSHH, waste,
+training, visitors, pest control, and cleaning records. No public Red
+Tractor digital submission API exists; this export provides data in
+formats suitable for manual submission to the Red Tractor portal.
+
+ * @summary Export Red Tractor compliance data (JSON or CSV)
+ */
+export const GetComplianceExportParams = zod.object({
+  farmId: zod.coerce.number(),
+});
+
+export const getComplianceExportQueryFormatDefault = `json`;
+
+export const GetComplianceExportQueryParams = zod.object({
+  format: zod
+    .enum(["json", "csv"])
+    .default(getComplianceExportQueryFormatDefault),
+});
+
+export const GetComplianceExportHeader = zod.object({
+  "x-tenant-slug": zod.string().describe("Tenant slug to scope the request"),
+});
+
+export const GetComplianceExportResponse = zod.object({
+  exportDate: zod.date().optional(),
+  exportFormat: zod.string().optional(),
+  farm: zod.object({}).passthrough().optional(),
+  summary: zod.object({}).passthrough().optional(),
 });
 
 /**

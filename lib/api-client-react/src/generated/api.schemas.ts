@@ -79,6 +79,23 @@ export interface SupportTicket {
   createdAt: string;
 }
 
+export type SupportTicketMessageSenderType =
+  (typeof SupportTicketMessageSenderType)[keyof typeof SupportTicketMessageSenderType];
+
+export const SupportTicketMessageSenderType = {
+  admin: "admin",
+  customer: "customer",
+} as const;
+
+export interface SupportTicketMessage {
+  id: number;
+  ticketId: number;
+  senderType: SupportTicketMessageSenderType;
+  senderId?: string | null;
+  message: string;
+  createdAt: string;
+}
+
 export interface AuthUser {
   id: string;
   /** @nullable */
@@ -489,6 +506,37 @@ export type AdminListSupportTickets200 = {
   tickets: SupportTicket[];
 };
 
+export type AdminGetSupportTicket200 = {
+  ticket: SupportTicket;
+  messages: SupportTicketMessage[];
+};
+
+export type AdminReplyToTicketBody = {
+  message: string;
+};
+
+export type AdminReplyToTicket201 = {
+  message: SupportTicketMessage;
+};
+
+export type AdminUpdateTicketStatusBodyStatus =
+  (typeof AdminUpdateTicketStatusBodyStatus)[keyof typeof AdminUpdateTicketStatusBodyStatus];
+
+export const AdminUpdateTicketStatusBodyStatus = {
+  open: "open",
+  in_progress: "in_progress",
+  resolved: "resolved",
+  closed: "closed",
+} as const;
+
+export type AdminUpdateTicketStatusBody = {
+  status: AdminUpdateTicketStatusBodyStatus;
+};
+
+export type AdminUpdateTicketStatus200 = {
+  ticket: SupportTicket;
+};
+
 export type CreateFieldBody = { [key: string]: unknown };
 
 export type UpdateFieldBody = { [key: string]: unknown };
@@ -611,6 +659,29 @@ export type CreateFinancialExportBody = {
   dateRangeStart: string;
   dateRangeEnd: string;
   format: CreateFinancialExportBodyFormat;
+};
+
+export type GetComplianceExportParams = {
+  format?: GetComplianceExportFormat;
+};
+
+export type GetComplianceExportFormat =
+  (typeof GetComplianceExportFormat)[keyof typeof GetComplianceExportFormat];
+
+export const GetComplianceExportFormat = {
+  json: "json",
+  csv: "csv",
+} as const;
+
+export type GetComplianceExport200OneFarm = { [key: string]: unknown };
+
+export type GetComplianceExport200OneSummary = { [key: string]: unknown };
+
+export type GetComplianceExport200One = {
+  exportDate?: string;
+  exportFormat?: string;
+  farm?: GetComplianceExport200OneFarm;
+  summary?: GetComplianceExport200OneSummary;
 };
 
 export type CreateDocumentBody = { [key: string]: unknown };

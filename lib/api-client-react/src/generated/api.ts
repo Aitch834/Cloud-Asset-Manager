@@ -18,10 +18,15 @@ import type {
 
 import type {
   ActivityFeedResponse,
+  AdminGetSupportTicket200,
   AdminListSupportTickets200,
+  AdminReplyToTicket201,
+  AdminReplyToTicketBody,
   AdminStatsResponse,
   AdminTenantDetailResponse,
   AdminTenantListResponse,
+  AdminUpdateTicketStatus200,
+  AdminUpdateTicketStatusBody,
   AssignmentEnvelope,
   AssignmentListResponse,
   AuthUserEnvelope,
@@ -82,6 +87,8 @@ import type {
   FarmDashboardResponse,
   FarmEnvelope,
   FarmListResponse,
+  GetComplianceExport200One,
+  GetComplianceExportParams,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
   ImpersonateBody,
@@ -2935,6 +2942,279 @@ export function useAdminListSupportTickets<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get support ticket detail with messages
+ */
+export const getAdminGetSupportTicketUrl = (ticketId: number) => {
+  return `/api/admin/support-tickets/${ticketId}`;
+};
+
+export const adminGetSupportTicket = async (
+  ticketId: number,
+  options?: RequestInit,
+): Promise<AdminGetSupportTicket200> => {
+  return customFetch<AdminGetSupportTicket200>(
+    getAdminGetSupportTicketUrl(ticketId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getAdminGetSupportTicketQueryKey = (ticketId: number) => {
+  return [`/api/admin/support-tickets/${ticketId}`] as const;
+};
+
+export const getAdminGetSupportTicketQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetSupportTicket>>,
+  TError = ErrorType<void>,
+>(
+  ticketId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetSupportTicket>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminGetSupportTicketQueryKey(ticketId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetSupportTicket>>
+  > = ({ signal }) =>
+    adminGetSupportTicket(ticketId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!ticketId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetSupportTicket>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetSupportTicketQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetSupportTicket>>
+>;
+export type AdminGetSupportTicketQueryError = ErrorType<void>;
+
+/**
+ * @summary Get support ticket detail with messages
+ */
+
+export function useAdminGetSupportTicket<
+  TData = Awaited<ReturnType<typeof adminGetSupportTicket>>,
+  TError = ErrorType<void>,
+>(
+  ticketId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetSupportTicket>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetSupportTicketQueryOptions(ticketId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Reply to a support ticket
+ */
+export const getAdminReplyToTicketUrl = (ticketId: number) => {
+  return `/api/admin/support-tickets/${ticketId}/reply`;
+};
+
+export const adminReplyToTicket = async (
+  ticketId: number,
+  adminReplyToTicketBody: AdminReplyToTicketBody,
+  options?: RequestInit,
+): Promise<AdminReplyToTicket201> => {
+  return customFetch<AdminReplyToTicket201>(
+    getAdminReplyToTicketUrl(ticketId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(adminReplyToTicketBody),
+    },
+  );
+};
+
+export const getAdminReplyToTicketMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminReplyToTicket>>,
+    TError,
+    { ticketId: number; data: BodyType<AdminReplyToTicketBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminReplyToTicket>>,
+  TError,
+  { ticketId: number; data: BodyType<AdminReplyToTicketBody> },
+  TContext
+> => {
+  const mutationKey = ["adminReplyToTicket"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminReplyToTicket>>,
+    { ticketId: number; data: BodyType<AdminReplyToTicketBody> }
+  > = (props) => {
+    const { ticketId, data } = props ?? {};
+
+    return adminReplyToTicket(ticketId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminReplyToTicketMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminReplyToTicket>>
+>;
+export type AdminReplyToTicketMutationBody = BodyType<AdminReplyToTicketBody>;
+export type AdminReplyToTicketMutationError = ErrorType<void>;
+
+/**
+ * @summary Reply to a support ticket
+ */
+export const useAdminReplyToTicket = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminReplyToTicket>>,
+    TError,
+    { ticketId: number; data: BodyType<AdminReplyToTicketBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminReplyToTicket>>,
+  TError,
+  { ticketId: number; data: BodyType<AdminReplyToTicketBody> },
+  TContext
+> => {
+  return useMutation(getAdminReplyToTicketMutationOptions(options));
+};
+
+/**
+ * @summary Update ticket status
+ */
+export const getAdminUpdateTicketStatusUrl = (ticketId: number) => {
+  return `/api/admin/support-tickets/${ticketId}/status`;
+};
+
+export const adminUpdateTicketStatus = async (
+  ticketId: number,
+  adminUpdateTicketStatusBody: AdminUpdateTicketStatusBody,
+  options?: RequestInit,
+): Promise<AdminUpdateTicketStatus200> => {
+  return customFetch<AdminUpdateTicketStatus200>(
+    getAdminUpdateTicketStatusUrl(ticketId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(adminUpdateTicketStatusBody),
+    },
+  );
+};
+
+export const getAdminUpdateTicketStatusMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpdateTicketStatus>>,
+    TError,
+    { ticketId: number; data: BodyType<AdminUpdateTicketStatusBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminUpdateTicketStatus>>,
+  TError,
+  { ticketId: number; data: BodyType<AdminUpdateTicketStatusBody> },
+  TContext
+> => {
+  const mutationKey = ["adminUpdateTicketStatus"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminUpdateTicketStatus>>,
+    { ticketId: number; data: BodyType<AdminUpdateTicketStatusBody> }
+  > = (props) => {
+    const { ticketId, data } = props ?? {};
+
+    return adminUpdateTicketStatus(ticketId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminUpdateTicketStatusMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminUpdateTicketStatus>>
+>;
+export type AdminUpdateTicketStatusMutationBody =
+  BodyType<AdminUpdateTicketStatusBody>;
+export type AdminUpdateTicketStatusMutationError = ErrorType<void>;
+
+/**
+ * @summary Update ticket status
+ */
+export const useAdminUpdateTicketStatus = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpdateTicketStatus>>,
+    TError,
+    { ticketId: number; data: BodyType<AdminUpdateTicketStatusBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminUpdateTicketStatus>>,
+  TError,
+  { ticketId: number; data: BodyType<AdminUpdateTicketStatusBody> },
+  TContext
+> => {
+  return useMutation(getAdminUpdateTicketStatusMutationOptions(options));
+};
 
 /**
  * @summary Begin impersonating a user
@@ -12916,13 +13196,16 @@ export const createFinancialExport = async (
   farmId: number,
   createFinancialExportBody: CreateFinancialExportBody,
   options?: RequestInit,
-): Promise<RecordEnvelope> => {
-  return customFetch<RecordEnvelope>(getCreateFinancialExportUrl(farmId), {
-    ...options,
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(createFinancialExportBody),
-  });
+): Promise<string | RecordEnvelope> => {
+  return customFetch<string | RecordEnvelope>(
+    getCreateFinancialExportUrl(farmId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createFinancialExportBody),
+    },
+  );
 };
 
 export const getCreateFinancialExportMutationOptions = <
@@ -12992,6 +13275,132 @@ export const useCreateFinancialExport = <
 > => {
   return useMutation(getCreateFinancialExportMutationOptions(options));
 };
+
+/**
+ * Generates a comprehensive compliance report aggregating inspections,
+non-conformances, corrective actions, risk assessments, COSHH, waste,
+training, visitors, pest control, and cleaning records. No public Red
+Tractor digital submission API exists; this export provides data in
+formats suitable for manual submission to the Red Tractor portal.
+
+ * @summary Export Red Tractor compliance data (JSON or CSV)
+ */
+export const getGetComplianceExportUrl = (
+  farmId: number,
+  params?: GetComplianceExportParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/farms/${farmId}/compliance-export?${stringifiedParams}`
+    : `/api/farms/${farmId}/compliance-export`;
+};
+
+export const getComplianceExport = async (
+  farmId: number,
+  params?: GetComplianceExportParams,
+  options?: RequestInit,
+): Promise<GetComplianceExport200One | string> => {
+  return customFetch<GetComplianceExport200One | string>(
+    getGetComplianceExportUrl(farmId, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetComplianceExportQueryKey = (
+  farmId: number,
+  params?: GetComplianceExportParams,
+) => {
+  return [
+    `/api/farms/${farmId}/compliance-export`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetComplianceExportQueryOptions = <
+  TData = Awaited<ReturnType<typeof getComplianceExport>>,
+  TError = ErrorType<unknown>,
+>(
+  farmId: number,
+  params?: GetComplianceExportParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getComplianceExport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetComplianceExportQueryKey(farmId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getComplianceExport>>
+  > = ({ signal }) =>
+    getComplianceExport(farmId, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!farmId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getComplianceExport>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetComplianceExportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getComplianceExport>>
+>;
+export type GetComplianceExportQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Export Red Tractor compliance data (JSON or CSV)
+ */
+
+export function useGetComplianceExport<
+  TData = Awaited<ReturnType<typeof getComplianceExport>>,
+  TError = ErrorType<unknown>,
+>(
+  farmId: number,
+  params?: GetComplianceExportParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getComplianceExport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetComplianceExportQueryOptions(
+    farmId,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List document records

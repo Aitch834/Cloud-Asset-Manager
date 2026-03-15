@@ -143,8 +143,8 @@ router.post("/admin/support-tickets/:ticketId/reply", requireAuth, async (req: R
     message: message.trim(),
   }).returning();
 
-  // TODO: Send email notification to ticket.email with reply content
-  console.log(`[EMAIL PLACEHOLDER] Reply notification would be sent to ${ticket.email} for ticket #${ticketId}`);
+  // TODO: Send email notification to ticket submitter with reply content
+  console.log(`[EMAIL PLACEHOLDER] Reply notification queued for ticket #${ticketId}`);
 
   res.status(201).json({ message: reply });
 });

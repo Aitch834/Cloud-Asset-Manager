@@ -105,6 +105,9 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
       conversationHistory: conversationJson,
     }).returning();
 
+    // TODO: Send email notification to support team about new ticket
+    console.log(`[EMAIL PLACEHOLDER] New support ticket #${ticket.id} created`);
+
     res.status(201).json({
       id: ticket.id,
       name: ticket.name,
