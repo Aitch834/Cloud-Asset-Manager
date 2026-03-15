@@ -27,6 +27,7 @@ export interface SprayRecord {
   windDirection: string;
   temperature: string;
   humidity: string;
+  pressure: string;
   operatorName: string;
   equipmentUsed: string;
   startTime: string;
@@ -34,6 +35,8 @@ export interface SprayRecord {
   notes: string;
   latitude?: number;
   longitude?: number;
+  linkedWeatherDate: string;
+  detectedFieldId: string;
   photoIds: string[];
   createdAt: string;
   synced: boolean;
@@ -48,7 +51,9 @@ export interface WeatherEntry {
   rainfall: string;
   windSpeed: string;
   windDirection: string;
+  pressure: string;
   conditions: string;
+  entryMode: "manual" | "station";
   notes: string;
   createdAt: string;
   synced: boolean;
@@ -151,4 +156,10 @@ export interface SyncQueueItem {
   recordId: string;
   data: unknown;
   createdAt: string;
+}
+
+export interface AuthState {
+  isAuthenticated: boolean;
+  token: string | null;
+  userId: string | null;
 }

@@ -2,11 +2,12 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,15 +15,33 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
-import { spacing } from "@/constants/spacing";
+import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
-import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
-import type { SprayRecord } from "@/lib/types";
+import { appendToList, generateId, getList, STORAGE_KEYS } from "@/lib/storage";
+import type { FieldBoundary, SprayRecord, WeatherEntry } from "@/lib/types";
+
+function isPointInPolygon(
+  point: { latitude: number; longitude: number },
+  polygon: { latitude: number; longitude: number }[],
+): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].latitude;
+    const yi = polygon[i].longitude;
+    const xj = polygon[j].latitude;
+    const yj = polygon[j].longitude;
+    const intersect = yi > point.longitude !== yj > point.longitude &&
+      point.latitude < ((xj - xi) * (point.longitude - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
 
 export default function SprayRecordScreen() {
   const insets = useSafeAreaInsets();
@@ -38,8 +57,53 @@ export default function SprayRecordScreen() {
   const [windDirection, setWindDirection] = useState("");
   const [temperature, setTemperature] = useState("");
   const [humidity, setHumidity] = useState("");
+  const [pressure, setPressure] = useState("");
   const [equipmentUsed, setEquipmentUsed] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [detectedField, setDetectedField] = useState<FieldBoundary | null>(null);
+  const [linkedWeather, setLinkedWeather] = useState<WeatherEntry | null>(null);
+  const [fields, setFields] = useState<FieldBoundary[]>([]);
+
+  const detectFieldFromGPS = useCallback(async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") return;
+
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const point = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+
+      const allFields = await getList<FieldBoundary>(STORAGE_KEYS.FIELD_BOUNDARIES, currentFarm?.id);
+      setFields(allFields);
+
+      for (const field of allFields) {
+        if (field.coordinates.length >= 3 && isPointInPolygon(point, field.coordinates)) {
+          setDetectedField(field);
+          setFieldName(field.fieldName);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          return;
+        }
+      }
+    } catch {}
+  }, [currentFarm?.id]);
+
+  const linkTodayWeather = useCallback(async () => {
+    const today = new Date().toISOString().split("T")[0];
+    const entries = await getList<WeatherEntry>(STORAGE_KEYS.WEATHER_ENTRIES, currentFarm?.id);
+    const todayEntry = entries.find((e) => e.date === today);
+    if (todayEntry) {
+      setLinkedWeather(todayEntry);
+      if (!windSpeed) setWindSpeed(todayEntry.windSpeed);
+      if (!windDirection) setWindDirection(todayEntry.windDirection);
+      if (!temperature) setTemperature(todayEntry.temperatureHigh);
+      if (!pressure) setPressure(todayEntry.pressure);
+    }
+  }, [currentFarm?.id]);
+
+  useEffect(() => {
+    detectFieldFromGPS();
+    linkTodayWeather();
+  }, [detectFieldFromGPS, linkTodayWeather]);
 
   const handleSave = async () => {
     if (!fieldName.trim() || !productName.trim()) {
@@ -73,6 +137,7 @@ export default function SprayRecordScreen() {
       windDirection: windDirection.trim(),
       temperature: temperature.trim(),
       humidity: humidity.trim(),
+      pressure: pressure.trim(),
       operatorName: user?.name || "",
       equipmentUsed: equipmentUsed.trim(),
       startTime: new Date().toISOString(),
@@ -80,6 +145,8 @@ export default function SprayRecordScreen() {
       notes: notes.trim(),
       latitude,
       longitude,
+      linkedWeatherDate: linkedWeather?.date || "",
+      detectedFieldId: detectedField?.id || "",
       photoIds: [],
       createdAt: new Date().toISOString(),
       synced: false,
@@ -110,6 +177,25 @@ export default function SprayRecordScreen() {
           contentContainerStyle={styles.form}
           keyboardShouldPersistTaps="handled"
         >
+          {detectedField && (
+            <View style={styles.detectedBanner}>
+              <Feather name="navigation" size={14} color={colors.success} />
+              <Text style={styles.detectedText}>
+                GPS detected: {detectedField.fieldName}
+              </Text>
+              <Badge text="Auto" variant="success" />
+            </View>
+          )}
+
+          {linkedWeather && (
+            <View style={styles.linkedBanner}>
+              <Feather name="cloud" size={14} color={colors.info} />
+              <Text style={styles.linkedText}>
+                Weather linked from today's entry ({linkedWeather.conditions})
+              </Text>
+            </View>
+          )}
+
           <View style={styles.sectionLabel}>
             <Feather name="map-pin" size={14} color={colors.primary} />
             <Text style={styles.sectionTitle}>Location</Text>
@@ -122,6 +208,26 @@ export default function SprayRecordScreen() {
             icon="map"
             required
           />
+          {!detectedField && fields.length > 0 && (
+            <View style={styles.fieldSuggestions}>
+              <Text style={styles.suggestionLabel}>Saved fields:</Text>
+              <View style={styles.chipRow}>
+                {fields.slice(0, 5).map((f) => (
+                  <Pressable
+                    key={f.id}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setFieldName(f.fieldName);
+                      setDetectedField(f);
+                    }}
+                    style={styles.fieldChip}
+                  >
+                    <Text style={styles.fieldChipText}>{f.fieldName}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
 
           <View style={styles.sectionLabel}>
             <Feather name="droplet" size={14} color={colors.info} />
@@ -175,7 +281,7 @@ export default function SprayRecordScreen() {
           </View>
           <View style={styles.row}>
             <Input
-              label="Temperature (°C)"
+              label="Temperature (\u00B0C)"
               placeholder="e.g. 14"
               value={temperature}
               onChangeText={setTemperature}
@@ -191,6 +297,13 @@ export default function SprayRecordScreen() {
               containerStyle={styles.flex}
             />
           </View>
+          <Input
+            label="Pressure (hPa)"
+            placeholder="e.g. 1013"
+            value={pressure}
+            onChangeText={setPressure}
+            keyboardType="decimal-pad"
+          />
 
           <View style={styles.sectionLabel}>
             <Feather name="tool" size={14} color={colors.textSecondary} />
@@ -250,6 +363,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
   },
+  detectedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.successBg,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
+  },
+  detectedText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.success,
+    flex: 1,
+  },
+  linkedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.infoBg,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
+  },
+  linkedText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.info,
+    flex: 1,
+  },
   sectionLabel: {
     flexDirection: "row",
     alignItems: "center",
@@ -267,5 +410,32 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     gap: spacing.md,
+  },
+  fieldSuggestions: {
+    marginBottom: spacing.md,
+  },
+  suggestionLabel: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textTertiary,
+    marginBottom: spacing.xs,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+  },
+  fieldChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  fieldChipText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.primary,
   },
 });

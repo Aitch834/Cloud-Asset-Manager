@@ -1,0 +1,260 @@
+import { Platform } from "react-native";
+
+import {
+  clearCompletedSyncItems,
+  getPendingSyncCount,
+  getPendingSyncItems,
+  kvGet,
+  markRecordSynced,
+  markSyncItemCompleted,
+  markSyncItemFailed,
+  getTableForKey,
+} from "./database";
+
+type SyncListener = (state: SyncState) => void;
+
+export interface SyncState {
+  pendingCount: number;
+  isSyncing: boolean;
+  isConnected: boolean;
+  lastSyncTime: string | null;
+  lastError: string | null;
+}
+
+const INITIAL_STATE: SyncState = {
+  pendingCount: 0,
+  isSyncing: false,
+  isConnected: true,
+  lastSyncTime: null,
+  lastError: null,
+};
+
+const RETRY_DELAYS = [1000, 5000, 15000, 30000, 60000];
+
+let state: SyncState = { ...INITIAL_STATE };
+let listeners: SyncListener[] = [];
+let unsubscribeNetInfo: (() => void) | null = null;
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+let isInitialized = false;
+
+function notify() {
+  listeners.forEach((l) => l({ ...state }));
+}
+
+function setState(updates: Partial<SyncState>) {
+  state = { ...state, ...updates };
+  notify();
+}
+
+export function subscribe(listener: SyncListener): () => void {
+  listeners.push(listener);
+  listener({ ...state });
+  return () => {
+    listeners = listeners.filter((l) => l !== listener);
+  };
+}
+
+export function getState(): SyncState {
+  return { ...state };
+}
+
+export async function refreshPendingCount(): Promise<number> {
+  const count = await getPendingSyncCount();
+  setState({ pendingCount: count });
+  return count;
+}
+
+export async function initialize(): Promise<void> {
+  if (isInitialized) return;
+  isInitialized = true;
+
+  await refreshPendingCount();
+
+  try {
+    if (Platform.OS !== "web") {
+      const NetInfo = require("@react-native-community/netinfo").default;
+      unsubscribeNetInfo = NetInfo.addEventListener((netState: { isConnected: boolean | null }) => {
+        const wasConnected = state.isConnected;
+        const nowConnected = netState.isConnected ?? false;
+        setState({ isConnected: nowConnected });
+
+        if (!wasConnected && nowConnected && state.pendingCount > 0) {
+          scheduleSyncAttempt(500);
+        }
+      });
+    }
+  } catch {}
+
+  if (state.pendingCount > 0) {
+    scheduleSyncAttempt(2000);
+  }
+}
+
+export function cleanup(): void {
+  if (unsubscribeNetInfo) {
+    unsubscribeNetInfo();
+    unsubscribeNetInfo = null;
+  }
+  if (syncTimer) {
+    clearTimeout(syncTimer);
+    syncTimer = null;
+  }
+  isInitialized = false;
+}
+
+function scheduleSyncAttempt(delayMs: number) {
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    processQueue();
+  }, delayMs);
+}
+
+async function processQueue(): Promise<void> {
+  if (state.isSyncing) return;
+  if (!state.isConnected) return;
+
+  setState({ isSyncing: true, lastError: null });
+
+  try {
+    const items = await getPendingSyncItems();
+
+    if (items.length === 0) {
+      setState({ isSyncing: false, lastSyncTime: new Date().toISOString() });
+      await refreshPendingCount();
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const item of items) {
+      if (!state.isConnected) {
+        setState({ isSyncing: false, lastError: "Connection lost during sync" });
+        break;
+      }
+
+      try {
+        await uploadSyncItem(item);
+        await markSyncItemCompleted(item.id);
+
+        const table = getTableForKey(item.record_type);
+        if (table) {
+          await markRecordSynced(table, item.record_id);
+        }
+        successCount++;
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : "Unknown error";
+        await markSyncItemFailed(item.id, errorMsg);
+        failCount++;
+
+        const retryDelay = RETRY_DELAYS[Math.min(item.retry_count, RETRY_DELAYS.length - 1)];
+        scheduleSyncAttempt(retryDelay);
+      }
+    }
+
+    await clearCompletedSyncItems();
+    await refreshPendingCount();
+
+    if (failCount === 0) {
+      setState({
+        isSyncing: false,
+        lastSyncTime: new Date().toISOString(),
+        lastError: null,
+      });
+    } else {
+      setState({
+        isSyncing: false,
+        lastError: `${failCount} item${failCount > 1 ? "s" : ""} failed to sync`,
+      });
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "Sync failed";
+    setState({ isSyncing: false, lastError: errorMsg });
+    scheduleSyncAttempt(15000);
+  }
+}
+
+async function getAuthToken(): Promise<string | null> {
+  try {
+    const raw = await kvGet("bde_auth_token");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getTenantSlug(): Promise<string> {
+  try {
+    const raw = await kvGet("bde_current_farm");
+    if (raw) {
+      const farm = JSON.parse(raw);
+      return farm.tenantSlug || farm.slug || "";
+    }
+  } catch {}
+  return "";
+}
+
+async function uploadSyncItem(item: {
+  id: string;
+  record_type: string;
+  record_id: string;
+  data_json: string;
+  retry_count: number;
+}): Promise<void> {
+  const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (!apiDomain) {
+    await simulateUpload();
+    return;
+  }
+
+  const data = JSON.parse(item.data_json);
+  const endpoint = getSyncEndpoint(item.record_type, data.farmId);
+  if (!endpoint) {
+    await simulateUpload();
+    return;
+  }
+
+  const token = await getAuthToken();
+  const tenantSlug = await getTenantSlug();
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-tenant-slug": tenantSlug,
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const baseUrl = `https://${apiDomain}/api`;
+  const response = await fetch(`${baseUrl}${endpoint}`, {
+    method: "POST",
+    headers,
+    body: item.data_json,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Server responded with ${response.status}`);
+  }
+}
+
+function getSyncEndpoint(recordType: string, farmId: string): string | null {
+  const typeMap: Record<string, string> = {
+    bde_spray_records: `/farms/${farmId}/spray-records`,
+    bde_weather_entries: `/farms/${farmId}/weather-entries`,
+    bde_visitor_log: `/farms/${farmId}/visitor-log`,
+    bde_crop_events: `/farms/${farmId}/crop-events`,
+    bde_soil_samples: `/farms/${farmId}/soil-samples`,
+    bde_field_boundaries: `/farms/${farmId}/field-boundaries`,
+    bde_compliance_forms: `/farms/${farmId}/compliance-forms`,
+    bde_photos: `/farms/${farmId}/photos`,
+  };
+  return typeMap[recordType] || null;
+}
+
+async function simulateUpload(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 300 + Math.random() * 700));
+}
+
+export async function triggerManualSync(): Promise<void> {
+  await processQueue();
+}

@@ -4,14 +4,18 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { FieldMap } from "@/components/FieldMap";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { colors } from "@/constants/colors";
@@ -30,10 +34,12 @@ export default function MapScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedPoints, setRecordedPoints] = useState<{ latitude: number; longitude: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nameModalVisible, setNameModalVisible] = useState(false);
+  const [fieldNameInput, setFieldNameInput] = useState("");
 
   const loadFields = useCallback(async () => {
-    const allFields = await getList<FieldBoundary>(STORAGE_KEYS.FIELD_BOUNDARIES);
-    setFields(allFields.filter((f) => f.farmId === currentFarm?.id));
+    const allFields = await getList<FieldBoundary>(STORAGE_KEYS.FIELD_BOUNDARIES, currentFarm?.id);
+    setFields(allFields);
     setLoading(false);
   }, [currentFarm?.id]);
 
@@ -78,22 +84,8 @@ export default function MapScreen() {
       Alert.alert("Not Enough Points", "You need at least 3 GPS points to define a field boundary.");
       return;
     }
-
-    Alert.prompt
-      ? Alert.prompt("Field Name", "Enter a name for this field:", async (name) => {
-          if (name) {
-            await saveField(name);
-          }
-        })
-      : Alert.alert("Save Field", "Field boundary recorded with " + recordedPoints.length + " points.", [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Save",
-            onPress: async () => {
-              await saveField("Field " + (fields.length + 1));
-            },
-          },
-        ]);
+    setFieldNameInput("");
+    setNameModalVisible(true);
   };
 
   const saveField = async (name: string) => {
@@ -113,6 +105,7 @@ export default function MapScreen() {
     setFields((prev) => [newField, ...prev]);
     setIsRecording(false);
     setRecordedPoints([]);
+    setNameModalVisible(false);
   };
 
   if (!permission) {
@@ -141,14 +134,7 @@ export default function MapScreen() {
             }
             onAction={
               permission.status === "denied" && !permission.canAskAgain
-                ? async () => {
-                    if (Platform.OS !== "web") {
-                      try {
-                        const { Linking } = await import("react-native");
-                        Linking.openSettings();
-                      } catch {}
-                    }
-                  }
+                ? () => { Linking.openSettings(); }
                 : requestPermission
             }
           />
@@ -157,6 +143,20 @@ export default function MapScreen() {
     );
   }
 
+  const initialRegion = location
+    ? {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }
+    : {
+        latitude: 52.2,
+        longitude: -1.0,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -164,27 +164,28 @@ export default function MapScreen() {
         <Text style={styles.subtitle}>{currentFarm?.name}</Text>
       </View>
 
-      {isRecording ? (
-        <View style={styles.recordingContainer}>
-          <View style={styles.recordingHeader}>
-            <View style={styles.recordingDot} />
-            <Text style={styles.recordingText}>Recording Boundary</Text>
-          </View>
+      <View style={styles.mapContainer}>
+        <FieldMap
+          fields={fields}
+          recordedPoints={recordedPoints}
+          isRecording={isRecording}
+          initialRegion={initialRegion}
+        />
 
-          <View style={styles.mapPlaceholder}>
-            <Feather name="map" size={48} color={colors.primaryMuted} />
-            <Text style={styles.mapPlaceholderText}>GPS Boundary Recording</Text>
-            {location && (
-              <Text style={styles.coordsText}>
-                {location.coords.latitude.toFixed(6)}, {location.coords.longitude.toFixed(6)}
+        {isRecording && (
+          <View style={styles.recordingOverlay}>
+            <View style={styles.recordingHeader}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingText}>
+                Recording \u00B7 {recordedPoints.length} point{recordedPoints.length === 1 ? "" : "s"}
               </Text>
-            )}
+            </View>
           </View>
+        )}
+      </View>
 
-          <Text style={styles.pointsCount}>
-            {recordedPoints.length} point{recordedPoints.length === 1 ? "" : "s"} recorded
-          </Text>
-
+      <View style={styles.actionBar}>
+        {isRecording ? (
           <View style={styles.recordingActions}>
             <Button
               title="Add Point"
@@ -204,27 +205,8 @@ export default function MapScreen() {
               style={{ flex: 1 }}
             />
           </View>
-        </View>
-      ) : (
-        <>
-          <View style={styles.mapPlaceholder}>
-            <Feather name="map" size={48} color={colors.primaryMuted} />
-            {location ? (
-              <>
-                <Text style={styles.mapPlaceholderText}>GPS Position Active</Text>
-                <Text style={styles.coordsText}>
-                  {location.coords.latitude.toFixed(6)}, {location.coords.longitude.toFixed(6)}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.mapPlaceholderText}>Acquiring GPS...</Text>
-                <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.sm }} />
-              </>
-            )}
-          </View>
-
-          <View style={styles.actionBar}>
+        ) : (
+          <>
             <Button
               title="Record Field Boundary"
               icon="plus-circle"
@@ -232,39 +214,52 @@ export default function MapScreen() {
               fullWidth
               disabled={!location}
             />
-          </View>
-
-          {fields.length > 0 ? (
-            <View style={styles.fieldsList}>
-              <Text style={styles.fieldsListTitle}>
-                Recorded Fields ({fields.length})
+            {fields.length > 0 && (
+              <Text style={styles.fieldCount}>
+                {fields.length} field{fields.length === 1 ? "" : "s"} mapped
               </Text>
-              {fields.map((field) => (
-                <Pressable key={field.id} style={styles.fieldItem}>
-                  <View style={styles.fieldIcon}>
-                    <Feather name="hexagon" size={18} color={colors.fieldGreen} />
-                  </View>
-                  <View style={styles.fieldContent}>
-                    <Text style={styles.fieldName}>{field.fieldName}</Text>
-                    <Text style={styles.fieldMeta}>
-                      {field.coordinates.length} points {field.areaHectares ? `\u00B7 ${field.areaHectares} ha` : ""}
-                    </Text>
-                  </View>
-                  {!field.synced && (
-                    <View style={styles.unsyncedDot} />
-                  )}
-                </Pressable>
-              ))}
-            </View>
-          ) : (
-            <EmptyState
-              icon="hexagon"
-              title="No Fields Mapped"
-              message="Walk your field boundaries with GPS to record them for compliance records."
+            )}
+          </>
+        )}
+      </View>
+
+      <Modal
+        visible={nameModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setNameModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { paddingBottom: insets.bottom + spacing.lg }]}>
+            <Text style={styles.modalTitle}>Name This Field</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={fieldNameInput}
+              onChangeText={setFieldNameInput}
+              placeholder="e.g. Top Field, 20 Acre"
+              placeholderTextColor={colors.textTertiary}
+              autoFocus
             />
-          )}
-        </>
-      )}
+            <View style={styles.modalActions}>
+              <Button
+                title="Cancel"
+                variant="outline"
+                onPress={() => setNameModalVisible(false)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Save Field"
+                icon="check"
+                onPress={() => {
+                  const name = fieldNameInput.trim() || `Field ${fields.length + 1}`;
+                  saveField(name);
+                }}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <View style={{ height: 100 }} />
     </View>
@@ -296,42 +291,28 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
-  mapPlaceholder: {
+  mapContainer: {
+    flex: 1,
     marginHorizontal: spacing.lg,
-    height: 200,
-    backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
+    overflow: "hidden",
     borderWidth: 1,
     borderColor: colors.border,
-    borderStyle: "dashed",
   },
-  mapPlaceholderText: {
-    fontFamily: fonts.medium,
-    fontSize: fontSize.md,
-    color: colors.textSecondary,
-    marginTop: spacing.sm,
-  },
-  coordsText: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize.sm,
-    color: colors.primary,
-    marginTop: spacing.xs,
-  },
-  actionBar: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
-  },
-  recordingContainer: {
-    flex: 1,
-    paddingHorizontal: spacing.lg,
+  recordingOverlay: {
+    position: "absolute",
+    top: spacing.md,
+    left: spacing.md,
+    right: spacing.md,
   },
   recordingHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    marginBottom: spacing.lg,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
   },
   recordingDot: {
     width: 10,
@@ -341,66 +322,54 @@ const styles = StyleSheet.create({
   },
   recordingText: {
     fontFamily: fonts.semiBold,
-    fontSize: fontSize.md,
-    color: colors.error,
+    fontSize: fontSize.sm,
+    color: "#fff",
   },
-  pointsCount: {
-    fontFamily: fonts.medium,
-    fontSize: fontSize.md,
-    color: colors.text,
-    textAlign: "center",
-    marginVertical: spacing.lg,
+  actionBar: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   recordingActions: {
     flexDirection: "row",
     gap: spacing.md,
   },
-  fieldsList: {
-    paddingHorizontal: spacing.lg,
-  },
-  fieldsListTitle: {
-    fontFamily: fonts.semiBold,
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: spacing.md,
-  },
-  fieldItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  fieldIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.sm,
-    backgroundColor: colors.successBg,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.md,
-  },
-  fieldContent: {
-    flex: 1,
-  },
-  fieldName: {
-    fontFamily: fonts.medium,
-    fontSize: fontSize.md,
-    color: colors.text,
-  },
-  fieldMeta: {
+  fieldCount: {
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
-    marginTop: 2,
+    textAlign: "center",
+    marginTop: spacing.sm,
   },
-  unsyncedDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.accent,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.lg,
+  },
+  modalTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.lg,
+    color: colors.text,
+    marginBottom: spacing.lg,
+  },
+  modalInput: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.md,
+    color: colors.text,
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: spacing.md,
   },
 });

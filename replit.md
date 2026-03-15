@@ -138,17 +138,24 @@ Tech: Expo SDK 54, expo-router (file-based routing), NativeTabs (liquid glass iO
 Tabs: Home (dashboard/compliance/weather/quick actions), Record (spray/weather/visitor/crop/soil/photo entry), Fields (GPS boundary mapping), Forms (Red Tractor compliance forms with templates), More (settings/sync/profile).
 
 Features:
-- Offline-first data storage with AsyncStorage and sync queue
+- Offline-first data storage: SQLite (native) with AsyncStorage fallback (web), sync queue with ordered processing
 - GPS-tagged spray records, crop events, soil samples
 - Visitor quick-log with biosecurity compliance toggle
-- Red Tractor compliance form templates (Crop Protection, Biosecurity, Health & Safety)
-- Field boundary recording via GPS waypoints
+- Red Tractor compliance form templates (17 types including medicine-administered, livestock-movement, water-test, cleaning-disinfection, pest-control)
+- Field boundary recording via GPS waypoints with react-native-maps (native) / text fallback (web)
 - Photo capture with geotagging via expo-image-picker
 - Farm switching (multi-farm support)
 - Demo data seeded on first launch (Manor Farm, Hill Top Farm)
+- Sync engine with NetInfo connectivity detection, exponential backoff retries, auto-sync on reconnect
+- Auth: real API login + explicit Demo Access mode (separate button)
 
-Context providers: FarmContext (farm/user state), SyncContext (offline sync queue)
-Storage keys prefixed with `bde_` in AsyncStorage
+Architecture:
+- Platform-split files: `FieldMap.tsx` (native with react-native-maps) / `FieldMap.web.tsx` (web fallback)
+- `lib/database.ts`: Platform-aware — uses expo-sqlite on native, AsyncStorage on web
+- `lib/sync-engine.ts`: Dynamic requires for NetInfo (native only), auth token + tenant slug included in sync requests
+- `lib/storage.ts`: Unified API over database.ts (getItem, setItem, getList, appendToList, etc.)
+- Context providers: FarmContext (farm/user state), SyncContext (offline sync queue)
+- Storage keys prefixed with `bde_` in AsyncStorage/SQLite
 
 ### `artifacts/website` (`@workspace/website`)
 

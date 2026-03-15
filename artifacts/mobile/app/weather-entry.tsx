@@ -26,17 +26,24 @@ import type { WeatherEntry } from "@/lib/types";
 
 const CONDITIONS = ["Sunny", "Partly Cloudy", "Cloudy", "Overcast", "Light Rain", "Heavy Rain", "Drizzle", "Fog", "Windy", "Stormy", "Snow", "Frost"];
 
+const ENTRY_MODES: { key: "manual" | "station"; label: string; icon: "edit-3" | "radio" }[] = [
+  { key: "manual", label: "Manual Entry", icon: "edit-3" },
+  { key: "station", label: "Weather Station", icon: "radio" },
+];
+
 export default function WeatherEntryScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
 
+  const [entryMode, setEntryMode] = useState<"manual" | "station">("manual");
   const [temperatureHigh, setTemperatureHigh] = useState("");
   const [temperatureLow, setTemperatureLow] = useState("");
   const [rainfall, setRainfall] = useState("");
   const [windSpeed, setWindSpeed] = useState("");
   const [windDirection, setWindDirection] = useState("");
+  const [pressure, setPressure] = useState("");
   const [conditions, setConditions] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -58,7 +65,9 @@ export default function WeatherEntryScreen() {
       rainfall: rainfall.trim(),
       windSpeed: windSpeed.trim(),
       windDirection: windDirection.trim(),
+      pressure: pressure.trim(),
       conditions,
+      entryMode,
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
       synced: false,
@@ -92,6 +101,38 @@ export default function WeatherEntryScreen() {
           <Text style={styles.dateLabel}>
             {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
           </Text>
+
+          <View style={styles.sectionLabel}>
+            <Feather name="settings" size={14} color={colors.textSecondary} />
+            <Text style={styles.sectionTitle}>Entry Mode</Text>
+          </View>
+          <View style={styles.modeRow}>
+            {ENTRY_MODES.map((m) => (
+              <Pressable
+                key={m.key}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setEntryMode(m.key);
+                }}
+                style={[
+                  styles.modeButton,
+                  entryMode === m.key && styles.modeButtonActive,
+                ]}
+              >
+                <Feather
+                  name={m.icon}
+                  size={16}
+                  color={entryMode === m.key ? colors.textInverse : colors.textSecondary}
+                />
+                <Text style={[
+                  styles.modeText,
+                  entryMode === m.key && styles.modeTextActive,
+                ]}>
+                  {m.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
 
           <View style={styles.sectionLabel}>
             <Feather name="cloud" size={14} color={colors.accent} />
@@ -128,7 +169,7 @@ export default function WeatherEntryScreen() {
           </View>
           <View style={styles.row}>
             <Input
-              label="High (°C)"
+              label="High (\u00B0C)"
               placeholder="e.g. 18"
               value={temperatureHigh}
               onChangeText={setTemperatureHigh}
@@ -136,7 +177,7 @@ export default function WeatherEntryScreen() {
               containerStyle={styles.flex}
             />
             <Input
-              label="Low (°C)"
+              label="Low (\u00B0C)"
               placeholder="e.g. 8"
               value={temperatureLow}
               onChangeText={setTemperatureLow}
@@ -147,7 +188,7 @@ export default function WeatherEntryScreen() {
 
           <View style={styles.sectionLabel}>
             <Feather name="droplet" size={14} color={colors.info} />
-            <Text style={styles.sectionTitle}>Precipitation & Wind</Text>
+            <Text style={styles.sectionTitle}>Precipitation & Atmosphere</Text>
           </View>
           <Input
             label="Rainfall (mm)"
@@ -173,6 +214,13 @@ export default function WeatherEntryScreen() {
               containerStyle={styles.flex}
             />
           </View>
+          <Input
+            label="Pressure (hPa)"
+            placeholder="e.g. 1013"
+            value={pressure}
+            onChangeText={setPressure}
+            keyboardType="decimal-pad"
+          />
 
           <Input
             label="Notes"
@@ -241,6 +289,35 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  modeRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  modeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modeButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  modeText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  modeTextActive: {
+    color: colors.textInverse,
   },
   conditionsGrid: {
     flexDirection: "row",

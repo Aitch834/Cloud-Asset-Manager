@@ -30,10 +30,15 @@ const FORM_TEMPLATES = [
   { id: "rt-waste", title: "Waste Management", icon: "trash-2" as const, category: "General" },
   { id: "rt-water", title: "Water Usage & Protection", icon: "droplet" as const, category: "General" },
   { id: "rt-health-safety", title: "Health & Safety Review", icon: "heart" as const, category: "General" },
+  { id: "rt-cleaning-disinfection", title: "Cleaning & Disinfection", icon: "wind" as const, category: "General" },
+  { id: "rt-pest-control", title: "Pest Control Check", icon: "target" as const, category: "General" },
   { id: "rt-animal-welfare", title: "Animal Welfare Assessment", icon: "activity" as const, category: "Livestock" },
   { id: "rt-feed-storage", title: "Feed Storage Inspection", icon: "package" as const, category: "Livestock" },
   { id: "rt-medicine", title: "Medicine Record Review", icon: "thermometer" as const, category: "Livestock" },
+  { id: "rt-medicine-administered", title: "Medicine Administered", icon: "plus-circle" as const, category: "Livestock" },
+  { id: "rt-livestock-movement", title: "Livestock Movement Record", icon: "arrow-right" as const, category: "Livestock" },
   { id: "rt-transport", title: "Livestock Transport Check", icon: "truck" as const, category: "Livestock" },
+  { id: "rt-water-test", title: "Water Test Result", icon: "droplet" as const, category: "General" },
 ];
 
 type FilterTab = "all" | "draft" | "completed" | "templates";
@@ -46,8 +51,8 @@ export default function FormsScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const loadForms = useCallback(async () => {
-    const allForms = await getList<ComplianceForm>(STORAGE_KEYS.COMPLIANCE_FORMS);
-    setForms(allForms.filter((f) => f.farmId === currentFarm?.id));
+    const farmForms = await getList<ComplianceForm>(STORAGE_KEYS.COMPLIANCE_FORMS, currentFarm?.id);
+    setForms(farmForms);
   }, [currentFarm?.id]);
 
   useEffect(() => {

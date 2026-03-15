@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
 import {
   Alert,
@@ -16,11 +17,12 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { removeItem, STORAGE_KEYS } from "@/lib/storage";
 
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, farms, setCurrentFarm, user } = useFarm();
-  const { pendingCount, isSyncing, lastSyncTime, triggerSync } = useSync();
+  const { pendingCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -123,8 +125,17 @@ export default function MoreScreen() {
         <View style={styles.section}>
           <ListItem
             title="Offline Mode"
-            subtitle="Records are stored locally until synced"
+            subtitle="Records stored locally in SQLite until synced"
             icon="wifi-off"
+            showChevron={false}
+          />
+          <View style={styles.divider} />
+          <ListItem
+            title="Connection Status"
+            subtitle={isConnected ? "Online" : "Offline"}
+            icon={isConnected ? "wifi" : "wifi-off"}
+            iconColor={isConnected ? colors.success : colors.textTertiary}
+            iconBgColor={isConnected ? colors.successBg : colors.borderLight}
             showChevron={false}
           />
           <View style={styles.divider} />
@@ -133,6 +144,35 @@ export default function MoreScreen() {
             subtitle="Version 1.0.0"
             icon="info"
             showChevron={false}
+          />
+        </View>
+
+        <SectionHeader title="Account" />
+        <View style={styles.section}>
+          <ListItem
+            title="Sign Out"
+            subtitle="Log out of your account"
+            icon="log-out"
+            iconColor={colors.error}
+            iconBgColor={colors.errorBg}
+            onPress={() => {
+              Alert.alert(
+                "Sign Out",
+                "Are you sure you want to sign out? Unsynced records will be kept on this device.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Sign Out",
+                    style: "destructive",
+                    onPress: async () => {
+                      await removeItem(STORAGE_KEYS.AUTH_STATE);
+                      await removeItem(STORAGE_KEYS.AUTH_TOKEN);
+                      router.replace("/login");
+                    },
+                  },
+                ],
+              );
+            }}
           />
         </View>
 

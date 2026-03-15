@@ -49,19 +49,13 @@ export default function HomeScreen() {
 
   const loadData = useCallback(async () => {
     const farmId = currentFarm?.id;
-    const [allSprays, allWeather, allVisitors, allCrops, allSoil] = await Promise.all([
-      getList<{ farmId: string }>(STORAGE_KEYS.SPRAY_RECORDS),
-      getList<{ farmId: string }>(STORAGE_KEYS.WEATHER_ENTRIES),
-      getList<{ farmId: string }>(STORAGE_KEYS.VISITOR_LOG),
-      getList<{ farmId: string }>(STORAGE_KEYS.CROP_EVENTS),
-      getList<{ farmId: string }>(STORAGE_KEYS.SOIL_SAMPLES),
+    const [sprays, weather, visitors, crops, soil] = await Promise.all([
+      getList<{ farmId: string }>(STORAGE_KEYS.SPRAY_RECORDS, farmId),
+      getList<{ farmId: string }>(STORAGE_KEYS.WEATHER_ENTRIES, farmId),
+      getList<{ farmId: string }>(STORAGE_KEYS.VISITOR_LOG, farmId),
+      getList<{ farmId: string }>(STORAGE_KEYS.CROP_EVENTS, farmId),
+      getList<{ farmId: string }>(STORAGE_KEYS.SOIL_SAMPLES, farmId),
     ]);
-
-    const sprays = farmId ? allSprays.filter((r) => r.farmId === farmId) : allSprays;
-    const weather = farmId ? allWeather.filter((r) => r.farmId === farmId) : allWeather;
-    const visitors = farmId ? allVisitors.filter((r) => r.farmId === farmId) : allVisitors;
-    const crops = farmId ? allCrops.filter((r) => r.farmId === farmId) : allCrops;
-    const soil = farmId ? allSoil.filter((r) => r.farmId === farmId) : allSoil;
 
     setRecordCounts({
       sprays: sprays.length,

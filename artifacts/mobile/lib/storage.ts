@@ -1,48 +1,66 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
+
+import {
+  deleteRecord,
+  enqueueSyncItem,
+  getRecordById,
+  getRecords,
+  getTableForKey,
+  insertRecord,
+  kvDelete,
+  kvGet,
+  kvSet,
+  updateRecord,
+} from "./database";
 
 export function generateId(): string {
   return Crypto.randomUUID();
 }
 
 export async function getItem<T>(key: string): Promise<T | null> {
-  const raw = await AsyncStorage.getItem(key);
+  const raw = await kvGet(key);
   if (!raw) return null;
   return JSON.parse(raw) as T;
 }
 
 export async function setItem<T>(key: string, value: T): Promise<void> {
-  await AsyncStorage.setItem(key, JSON.stringify(value));
+  await kvSet(key, JSON.stringify(value));
 }
 
 export async function removeItem(key: string): Promise<void> {
-  await AsyncStorage.removeItem(key);
+  await kvDelete(key);
 }
 
-export async function getList<T>(key: string): Promise<T[]> {
-  const raw = await AsyncStorage.getItem(key);
+export async function getList<T>(key: string, farmId?: string): Promise<T[]> {
+  const table = getTableForKey(key);
+  if (table) {
+    return getRecords<T>(table, farmId);
+  }
+  const raw = await kvGet(key);
   if (!raw) return [];
   return JSON.parse(raw) as T[];
 }
 
-export async function appendToList<T>(key: string, item: T): Promise<void> {
-  const list = await getList<T>(key);
-  list.unshift(item);
-  await AsyncStorage.setItem(key, JSON.stringify(list));
-  if (key !== STORAGE_KEYS.PENDING_SYNC) {
-    await addToSyncQueue(key, item);
+export async function appendToList<T extends { id: string; farmId?: string; createdAt?: string }>(
+  key: string,
+  item: T,
+): Promise<void> {
+  const table = getTableForKey(key);
+  if (table) {
+    await insertRecord(
+      table,
+      item.id,
+      (item as Record<string, unknown>).farmId as string || "",
+      item,
+      (item as Record<string, unknown>).createdAt as string || new Date().toISOString(),
+    );
+    await enqueueSyncItem(key, item.id, item);
+    return;
   }
-}
-
-async function addToSyncQueue<T>(type: string, data: T): Promise<void> {
-  const queue = await getList<{ id: string; type: string; data: unknown; createdAt: string }>(STORAGE_KEYS.PENDING_SYNC);
-  queue.push({
-    id: generateId(),
-    type,
-    data,
-    createdAt: new Date().toISOString(),
-  });
-  await AsyncStorage.setItem(STORAGE_KEYS.PENDING_SYNC, JSON.stringify(queue));
+  const raw = await kvGet(key);
+  const list: T[] = raw ? JSON.parse(raw) : [];
+  list.unshift(item);
+  await kvSet(key, JSON.stringify(list));
 }
 
 export async function updateInList<T extends { id: string }>(
@@ -50,11 +68,23 @@ export async function updateInList<T extends { id: string }>(
   id: string,
   updates: Partial<T>,
 ): Promise<void> {
-  const list = await getList<T>(key);
+  const table = getTableForKey(key);
+  if (table) {
+    const existing = await getRecordById<T>(table, id);
+    if (existing) {
+      const updated = { ...existing, ...updates };
+      await updateRecord(table, id, updated);
+      await enqueueSyncItem(key, id, updated);
+    }
+    return;
+  }
+  const raw = await kvGet(key);
+  if (!raw) return;
+  const list: T[] = JSON.parse(raw);
   const idx = list.findIndex((item) => item.id === id);
   if (idx !== -1) {
     list[idx] = { ...list[idx], ...updates };
-    await AsyncStorage.setItem(key, JSON.stringify(list));
+    await kvSet(key, JSON.stringify(list));
   }
 }
 
@@ -62,13 +92,21 @@ export async function removeFromList<T extends { id: string }>(
   key: string,
   id: string,
 ): Promise<void> {
-  const list = await getList<T>(key);
+  const table = getTableForKey(key);
+  if (table) {
+    await deleteRecord(table, id);
+    return;
+  }
+  const raw = await kvGet(key);
+  if (!raw) return;
+  const list: T[] = JSON.parse(raw);
   const filtered = list.filter((item) => item.id !== id);
-  await AsyncStorage.setItem(key, JSON.stringify(filtered));
+  await kvSet(key, JSON.stringify(filtered));
 }
 
 export const STORAGE_KEYS = {
   AUTH_TOKEN: "bde_auth_token",
+  AUTH_STATE: "bde_auth_state",
   CURRENT_FARM: "bde_current_farm",
   SPRAY_RECORDS: "bde_spray_records",
   WEATHER_ENTRIES: "bde_weather_entries",
