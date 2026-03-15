@@ -150,6 +150,7 @@ export interface ComplianceForm {
 
 export interface PhotoRecord {
   id: string;
+  farmId: string;
   uri: string;
   caption: string;
   latitude?: number;

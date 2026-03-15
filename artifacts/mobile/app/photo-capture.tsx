@@ -19,12 +19,14 @@ import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
+import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PhotoRecord } from "@/lib/types";
 
 export default function PhotoCaptureScreen() {
   const insets = useSafeAreaInsets();
+  const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -91,6 +93,7 @@ export default function PhotoCaptureScreen() {
 
     const photo: PhotoRecord = {
       id: generateId(),
+      farmId: currentFarm?.id || "",
       uri: photoUri,
       caption: caption.trim(),
       latitude,
