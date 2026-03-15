@@ -24,6 +24,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
 │   ├── api-server/         # Express API server
+│   ├── dashboard/          # Farm management dashboard (React + Vite)
+│   ├── mobile/             # Expo React Native mobile app (iOS/Android)
 │   └── website/            # Marketing website (React + Vite)
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
@@ -126,6 +128,27 @@ Key features:
 - Zustand store for tenant/farm selection (persisted to localStorage)
 - Login redirects to `/api/login` (Replit Auth OIDC flow)
 - AppLayout wrapper with sidebar + top header
+
+### `artifacts/mobile` (`@workspace/mobile`)
+
+Expo React Native mobile app for iOS & Android field use. Preview path: `/mobile/`.
+
+Tech: Expo SDK 54, expo-router (file-based routing), NativeTabs (liquid glass iOS 26+), AsyncStorage, expo-location, expo-image-picker, expo-haptics, expo-crypto.
+
+Tabs: Home (dashboard/compliance/weather/quick actions), Record (spray/weather/visitor/crop/soil/photo entry), Fields (GPS boundary mapping), Forms (Red Tractor compliance forms with templates), More (settings/sync/profile).
+
+Features:
+- Offline-first data storage with AsyncStorage and sync queue
+- GPS-tagged spray records, crop events, soil samples
+- Visitor quick-log with biosecurity compliance toggle
+- Red Tractor compliance form templates (Crop Protection, Biosecurity, Health & Safety)
+- Field boundary recording via GPS waypoints
+- Photo capture with geotagging via expo-image-picker
+- Farm switching (multi-farm support)
+- Demo data seeded on first launch (Manor Farm, Hill Top Farm)
+
+Context providers: FarmContext (farm/user state), SyncContext (offline sync queue)
+Storage keys prefixed with `bde_` in AsyncStorage
 
 ### `artifacts/website` (`@workspace/website`)
 

@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "BDE Farm Trac",
+    "slug": "mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "bdefarmtrac",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1B5E20"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "BDE Farm Trac needs camera access to capture field photos, evidence of compliance activities, and soil samples.",
+        "NSLocationWhenInUseUsageDescription": "BDE Farm Trac needs your location to record GPS coordinates for field boundaries, spray records, and soil samples.",
+        "NSPhotoLibraryUsageDescription": "BDE Farm Trac needs photo library access to attach existing photos to compliance records."
+      }
+    },
+    "android": {
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://replit.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "BDE Farm Trac needs your location to record GPS coordinates for field boundaries and spray records."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BDE Farm Trac needs photo library access to attach existing photos to compliance records."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
