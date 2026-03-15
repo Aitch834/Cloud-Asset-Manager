@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout/Layout";
 import { useState, useMemo } from "react";
-import { Check, Info, Plus, X, Pencil } from "lucide-react";
+import { Info, Plus, X, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 
@@ -136,17 +136,18 @@ export default function Pricing() {
                         </button>
                       </>
                     )}
-                    {farms.length > 1 && (
-                      <button
-                        className={`opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/20 ${
-                          activeFarmId === farm.id ? "text-white/80" : "text-muted-foreground"
-                        }`}
-                        onClick={e => { e.stopPropagation(); removeFarm(farm.id); }}
-                        title="Remove farm"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
+                    <button
+                      className={`opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded ${
+                        farms.length <= 1
+                          ? "cursor-not-allowed opacity-0 group-hover:opacity-30"
+                          : `hover:bg-white/20 ${activeFarmId === farm.id ? "text-white/80" : "text-muted-foreground"}`
+                      }`}
+                      disabled={farms.length <= 1}
+                      onClick={e => { e.stopPropagation(); removeFarm(farm.id); }}
+                      title="Remove farm"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
                   </div>
                 ))}
                 <button
@@ -176,14 +177,7 @@ export default function Pricing() {
                       } ${mod.required ? "opacity-80 cursor-not-allowed" : ""}`}
                     >
                       <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-2">
-                          {isSelected && (
-                            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand-forest flex items-center justify-center">
-                              <Check className="w-3 h-3 text-white" />
-                            </span>
-                          )}
-                          <span className="font-semibold text-foreground">{mod.name}</span>
-                        </div>
+                        <span className="font-semibold text-foreground">{mod.name}</span>
                         <span className="text-muted-foreground font-mono ml-2 flex-shrink-0">£{mod.price}/mo</span>
                       </div>
                     </div>
