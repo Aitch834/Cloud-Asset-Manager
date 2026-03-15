@@ -80,7 +80,7 @@ export default function FarmSettings() {
 
   if (!farmId) return <Redirect href="/select" />;
 
-  if (isLoading || !formData) {
+  if (isLoading) {
     return (
       <AppLayout title="Farm Settings">
         <div className="animate-pulse space-y-6">
@@ -88,6 +88,10 @@ export default function FarmSettings() {
         </div>
       </AppLayout>
     );
+  }
+
+  if (!currentFarm || !formData) {
+    return <Redirect href="/select" />;
   }
 
   const updateField = (field: keyof Omit<FarmFormData, "sectors">, value: string) => {
