@@ -5,11 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Redirect } from "wouter";
-import { Plus, Search, RefreshCw, FileDown, Loader2, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Search, RefreshCw, FileDown, Loader2, Pencil, Trash2, X, Printer } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
-  DialogFooter
+  DialogDescription, DialogFooter
 } from "@/components/ui/dialog";
 
 interface ColumnDef {
@@ -35,6 +35,8 @@ interface ModulePageProps {
   scope?: "farm" | "global";
 }
 
+interface FarmRecord { name?: string; address?: string; postcode?: string; cphNumber?: string; }
+
 function formatDate(val: unknown): string {
   if (!val) return "-";
   try { return new Date(String(val)).toLocaleDateString("en-GB"); } catch { return String(val); }
@@ -54,7 +56,18 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
   const [editingRecord, setEditingRecord] = useState<Record<string, unknown> | null>(null);
   const [formData, setFormData] = useState<Record<string, string | number>>({});
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [printOpen, setPrintOpen] = useState(false);
   const queryClient = useQueryClient();
+
+  const { data: farmData } = useQuery<{ record: FarmRecord }>({
+    queryKey: ["farm-for-print", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}`);
+      return r.json();
+    },
+    enabled: !!farmId && scope === "farm",
+  });
+  const farm = farmData?.record;
 
   if (scope === "farm" && !farmId) return <Redirect href="/select" />;
 
@@ -171,6 +184,7 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
   };
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -197,6 +211,13 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
 
   return (
     <AppLayout title={title}>
+      <style>{`
+        @media print {
+          body > * { display: none !important; }
+          [role="dialog"] #module-print-area { display: block !important; position: fixed; top:0; left:0; width:100%; padding:24px; font-size:11px; color:#000; background:#fff; }
+        }
+      `}</style>
+
       <div className="flex items-center justify-between gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
@@ -210,6 +231,9 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-1" /> Refresh
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setPrintOpen(true)} disabled={records.length === 0}>
+            <Printer className="w-4 h-4 mr-1" /> Print
           </Button>
           {formFields && (
             <Button size="sm" onClick={() => { setShowForm(!showForm); setEditingRecord(null); setFormData({}); }}>
@@ -275,6 +299,7 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
         </Card>
       )}
 
+      {/* ── DELETE CONFIRM ── */}
       <Dialog open={deleteConfirmId !== null} onOpenChange={() => setDeleteConfirmId(null)}>
         <DialogContent>
           <DialogHeader>
@@ -290,6 +315,81 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── PRINT DIALOG ── */}
+      {printOpen && (
+        <Dialog open onOpenChange={(o) => { if (!o) setPrintOpen(false); }}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Printer className="w-5 h-5 text-green-600" />
+                Print — {title}
+              </DialogTitle>
+              <DialogDescription>
+                Review the records below, then click Print to produce a compliance document for Red Tractor audit.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div id="module-print-area" className="border border-border rounded-lg p-6 space-y-4 text-sm mt-2">
+              {/* Document header */}
+              <div className="flex justify-between items-start border-b pb-4">
+                <div>
+                  <p className="text-base font-bold text-foreground">{farm?.name ?? "Farm"}</p>
+                  {farm?.address && <p className="text-xs text-foreground/60">{farm.address}{farm.postcode ? `, ${farm.postcode}` : ""}</p>}
+                  {farm?.cphNumber && <p className="text-xs text-foreground/60 mt-0.5">CPH: <span className="font-mono font-semibold">{farm.cphNumber}</span></p>}
+                </div>
+                <div className="text-right text-xs text-foreground/50">
+                  <p className="font-semibold text-foreground text-sm">{title}</p>
+                  <p>Printed: {printedDate}</p>
+                  <p>{records.length} record{records.length !== 1 ? "s" : ""}</p>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-green-50 text-foreground/70">
+                      {columns.map((col) => (
+                        <th key={col.key} className="border border-border/60 px-3 py-2 text-left font-semibold whitespace-nowrap">
+                          {col.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.map((record, i) => (
+                      <tr key={(record.id as number) || i} className={i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}>
+                        {columns.map((col) => (
+                          <td key={col.key} className="border border-border/60 px-3 py-2 align-top">
+                            {col.render
+                              ? col.render(record[col.key] as string | number | boolean | null | undefined, record)
+                              : formatValue(record[col.key])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer */}
+              <div className="text-xs text-foreground/40 border-t pt-3 italic">
+                This is an on-farm record for Red Tractor compliance purposes.
+                Retain for a minimum of 3 years and make available for inspection at audit.
+                BDE Farm Trac · Printed {printedDate}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setPrintOpen(false)}>Close</Button>
+              <Button onClick={() => window.print()} className="gap-2">
+                <Printer className="w-4 h-4" /> Print Records
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Card>
         <div className="overflow-x-auto">

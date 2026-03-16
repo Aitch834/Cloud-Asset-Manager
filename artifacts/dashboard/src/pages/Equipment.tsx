@@ -4,15 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
   DialogFooter, DialogTrigger
 } from "@/components/ui/dialog";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useEquipment, useAddEquipment } from "@/hooks/use-equipment";
-import { Plus, Search, Tractor, Calendar, Camera, X, Pencil, Loader2 } from "lucide-react";
+import { Plus, Search, Tractor, Calendar, Camera, X, Pencil, Loader2, Printer } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getListEquipmentQueryKey } from "@workspace/api-client-react/src/generated/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -118,15 +118,28 @@ function PhotoUploader({
   );
 }
 
+interface FarmRecord { name?: string; address?: string; postcode?: string; cphNumber?: string; }
+
 export default function EquipmentPage() {
   const { farmId } = useAppStore();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [managingItem, setManagingItem] = useState<EquipmentRecord | null>(null);
   const [addPhotos, setAddPhotos] = useState<string[]>([]);
   const [editPhotos, setEditPhotos] = useState<string[]>([]);
+  const [printOpen, setPrintOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data, isLoading } = useEquipment(farmId ?? 0);
+
+  const { data: farmData } = useQuery<{ record: FarmRecord }>({
+    queryKey: ["farm-for-print", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}`);
+      return r.json();
+    },
+    enabled: !!farmId,
+  });
+  const farm = farmData?.record;
   const { mutate: createEquip, isPending } = useAddEquipment(farmId ?? 0);
   const { register, handleSubmit, reset } = useForm<EquipmentFormData>();
   const { register: regEdit, handleSubmit: handleEditSubmit, reset: resetEdit } = useForm<EquipmentFormData>();
@@ -206,14 +219,26 @@ export default function EquipmentPage() {
   };
 
   const equipment = (data?.records ?? []) as EquipmentRecord[];
+  const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   return (
     <AppLayout title="Machinery & Equipment">
+      <style>{`
+        @media print {
+          body > * { display: none !important; }
+          [role="dialog"] #equipment-print-area { display: block !important; position: fixed; top:0; left:0; width:100%; padding:24px; font-size:11px; color:#000; background:#fff; }
+        }
+      `}</style>
       <div className="flex flex-col sm:flex-row justify-between mb-6 gap-4">
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
           <Input placeholder="Search equipment..." className="pl-10 bg-white" />
         </div>
+
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setPrintOpen(true)} disabled={equipment.length === 0}>
+            <Printer className="w-4 h-4 mr-2" /> Print Register
+          </Button>
 
         <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) { reset(); setAddPhotos([]); } }}>
           <DialogTrigger asChild>
@@ -279,6 +304,7 @@ export default function EquipmentPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-border/50 overflow-hidden shadow-sm">
@@ -401,6 +427,82 @@ export default function EquipmentPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── PRINT DIALOG ── */}
+      {printOpen && (
+        <Dialog open onOpenChange={(o) => { if (!o) setPrintOpen(false); }}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Printer className="w-5 h-5 text-green-600" />
+                Print — Machinery &amp; Equipment Register
+              </DialogTitle>
+              <DialogDescription>
+                Review the asset list below, then click Print to produce a compliance document for Red Tractor audit.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div id="equipment-print-area" className="border border-border rounded-lg p-6 space-y-4 text-sm mt-2">
+              <div className="flex justify-between items-start border-b pb-4">
+                <div>
+                  <p className="text-base font-bold text-foreground">{farm?.name ?? "Farm"}</p>
+                  {farm?.address && <p className="text-xs text-foreground/60">{farm.address}{farm.postcode ? `, ${farm.postcode}` : ""}</p>}
+                  {farm?.cphNumber && <p className="text-xs text-foreground/60 mt-0.5">CPH: <span className="font-mono font-semibold">{farm.cphNumber}</span></p>}
+                </div>
+                <div className="text-right text-xs text-foreground/50">
+                  <p className="font-semibold text-foreground text-sm">Machinery &amp; Equipment Register</p>
+                  <p>Printed: {printedDate}</p>
+                  <p>{equipment.length} item{equipment.length !== 1 ? "s" : ""}</p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-green-50 text-foreground/70">
+                      <th className="border border-border/60 px-3 py-2 text-left font-semibold">Name</th>
+                      <th className="border border-border/60 px-3 py-2 text-left font-semibold">Type</th>
+                      <th className="border border-border/60 px-3 py-2 text-left font-semibold">Make / Model</th>
+                      <th className="border border-border/60 px-3 py-2 text-left font-semibold">Serial / Reg</th>
+                      <th className="border border-border/60 px-3 py-2 text-left font-semibold">Year</th>
+                      <th className="border border-border/60 px-3 py-2 text-left font-semibold">Status</th>
+                      <th className="border border-border/60 px-3 py-2 text-left font-semibold">Next Calibration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {equipment.map((item, i) => (
+                      <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}>
+                        <td className="border border-border/60 px-3 py-2">{item.name || `Asset #${item.id}`}</td>
+                        <td className="border border-border/60 px-3 py-2">{item.type || "-"}</td>
+                        <td className="border border-border/60 px-3 py-2">{[item.make, item.model].filter(Boolean).join(" ") || "-"}</td>
+                        <td className="border border-border/60 px-3 py-2 font-mono">{item.serialNumber || item.registrationNumber || "-"}</td>
+                        <td className="border border-border/60 px-3 py-2">{item.yearOfManufacture || "-"}</td>
+                        <td className="border border-border/60 px-3 py-2">{item.isActive !== false ? "Active" : "Inactive"}</td>
+                        <td className="border border-border/60 px-3 py-2">
+                          {item.nextCalibrationDue ? new Date(item.nextCalibrationDue).toLocaleDateString("en-GB") : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="text-xs text-foreground/40 border-t pt-3 italic">
+                This is an on-farm record for Red Tractor compliance purposes.
+                Retain for a minimum of 3 years and make available for inspection at audit.
+                BDE Farm Trac · Printed {printedDate}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setPrintOpen(false)}>Close</Button>
+              <Button onClick={() => window.print()} className="gap-2">
+                <Printer className="w-4 h-4" /> Print Register
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </AppLayout>
   );
 }
