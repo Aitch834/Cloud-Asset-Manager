@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const rawPort = process.env.PORT;
 
@@ -17,18 +18,44 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = process.env.BASE_PATH ?? "/test-dashboard/";
+const basePath = process.env.BASE_PATH;
+
+if (!basePath) {
+  throw new Error(
+    "BASE_PATH environment variable is required but was not provided.",
+  );
+}
 
 export default defineConfig({
   base: basePath,
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    runtimeErrorOverlay(),
+    ...(process.env.NODE_ENV !== "production" &&
+    process.env.REPL_ID !== undefined
+      ? [
+          await import("@replit/vite-plugin-cartographer").then((m) =>
+            m.cartographer({
+              root: path.resolve(import.meta.dirname, ".."),
+            }),
+          ),
+          await import("@replit/vite-plugin-dev-banner").then((m) =>
+            m.devBanner(),
+          ),
+        ]
+      : []),
+  ],
   resolve: {
     alias: {
+      // Point @ to the main dashboard's src so all its imports resolve correctly
       "@": path.resolve(import.meta.dirname, "../dashboard/src"),
+      "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
     },
     dedupe: ["react", "react-dom"],
   },
   root: path.resolve(import.meta.dirname),
+  // Serve static assets (images, favicon) from the main dashboard's public directory
   publicDir: path.resolve(import.meta.dirname, "../dashboard/public"),
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
@@ -39,17 +66,20 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
     fs: {
+      // Allow serving files from the monorepo root so dashboard src files are accessible
       allow: [path.resolve(import.meta.dirname, "../..")],
       strict: true,
+      deny: ["**/.*"],
     },
+  },
+  // Bake bypass vars in at build time — always active in the test dashboard
+  define: {
+    "import.meta.env.VITE_DEV_BYPASS_AUTH": JSON.stringify("true"),
+    "import.meta.env.VITE_DEV_BYPASS_TOKEN": JSON.stringify("bde-dev-bypass-local"),
   },
   preview: {
     port,
     host: "0.0.0.0",
     allowedHosts: true,
-  },
-  define: {
-    "import.meta.env.VITE_DEV_BYPASS_AUTH": JSON.stringify("true"),
-    "import.meta.env.VITE_DEV_BYPASS_TOKEN": JSON.stringify("bde-dev-bypass-local"),
   },
 });

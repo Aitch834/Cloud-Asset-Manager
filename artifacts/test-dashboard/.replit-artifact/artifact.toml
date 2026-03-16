@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/test-dashboard/"
+title = "BDE Farm Trac — Test Dashboard"
+version = "1.0.0"
+id = "artifacts/test-dashboard"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 18652
+name = "web"
+paths = ["/test-dashboard/"]
+
+[services.development]
+run = "pnpm --filter @workspace/test-dashboard run dev"
+
+[services.env]
+PORT = "18652"
+BASE_PATH = "/test-dashboard/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/test-dashboard", "run", "build"]
+publicDir = "artifacts/test-dashboard/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
