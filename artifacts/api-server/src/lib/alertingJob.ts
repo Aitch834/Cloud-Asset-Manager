@@ -1,4 +1,5 @@
 import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable } from "@workspace/db";
+import { livestockMovementsTable } from "@workspace/db/schema";
 import { eq, and, lt, isNull, sql } from "drizzle-orm";
 
 const ESCALATION_DAYS = 7;
@@ -126,10 +127,63 @@ async function checkOverdueInspections() {
   }
 }
 
+async function checkUnnotifiedMovements() {
+  const NOTIFY_DAYS = 3;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - NOTIFY_DAYS);
+
+  const unnotified = await db
+    .select({
+      id: livestockMovementsTable.id,
+      farmId: livestockMovementsTable.farmId,
+      movementType: livestockMovementsTable.movementType,
+      movementDate: livestockMovementsTable.movementDate,
+      numberOfAnimals: livestockMovementsTable.numberOfAnimals,
+    })
+    .from(livestockMovementsTable)
+    .where(
+      and(
+        eq(livestockMovementsTable.legalNotificationSubmitted, false),
+        lt(livestockMovementsTable.movementDate, cutoff),
+      ),
+    );
+
+  for (const movement of unnotified) {
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, movement.farmId))
+      .limit(1);
+
+    if (!farm) continue;
+
+    const typeLabel = movement.movementType === "on" ? "On (animals arriving)"
+      : movement.movementType === "off" ? "Off (animals leaving)"
+      : movement.movementType === "between" ? "Between holdings"
+      : movement.movementType;
+
+    const dateStr = new Date(movement.movementDate!).toLocaleDateString("en-GB");
+    const daysSince = Math.floor((Date.now() - new Date(movement.movementDate!).getTime()) / 86400000);
+
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: movement.farmId,
+      type: "movement_unnotified",
+      severity: "critical",
+      title: "BCMS/APHA Notification Outstanding",
+      message: `A livestock movement recorded on ${dateStr} (${typeLabel}, ${movement.numberOfAnimals ?? 1} animal(s)) has not been marked as notified to BCMS/APHA. This is a legal requirement — movements must be reported within 3 days. ${daysSince} days have passed.`,
+      relatedModule: "livestock-management",
+      relatedId: movement.id,
+      dedupeKey: `movement-unnotified-${movement.id}-day${daysSince}`,
+    });
+  }
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
     await checkOverdueInspections();
+    await checkUnnotifiedMovements();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {
     console.error("[ALERTS] Alerting job error:", err);

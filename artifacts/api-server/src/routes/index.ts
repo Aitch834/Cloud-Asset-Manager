@@ -9,6 +9,7 @@ import billingRouter from "./billing";
 import adminRouter from "./admin";
 import farmsRouter from "./farms";
 import { notificationsRouter } from "./notifications";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(billingRouter);
 router.use(adminRouter);
 router.use(farmsRouter);
 router.use(notificationsRouter);
+router.use(storageRouter);
 
 export default router;
