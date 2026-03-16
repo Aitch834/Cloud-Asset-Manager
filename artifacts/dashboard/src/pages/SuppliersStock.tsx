@@ -25,6 +25,7 @@ import {
   ArrowDown,
   ArrowUp,
   RefreshCw,
+  Info,
 } from "lucide-react";
 
 const PRODUCT_CATEGORIES = [
@@ -89,9 +90,10 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
         padding: "0.5rem 1rem",
         fontWeight: active ? 600 : 400,
         color: active ? "#166534" : "#6b7280",
-        borderBottom: active ? "2px solid #166534" : "2px solid transparent",
         background: "none",
-        border: "none",
+        borderTop: "none",
+        borderLeft: "none",
+        borderRight: "none",
         borderBottomWidth: "2px",
         borderBottomStyle: "solid",
         borderBottomColor: active ? "#166534" : "transparent",
@@ -181,6 +183,7 @@ export default function SuppliersStockPage() {
           onRefresh={invalidate}
           toast={toast}
           qc={qc}
+          onGoToProducts={() => setTab("products")}
         />
       )}
       {tab === "received" && (
@@ -192,6 +195,7 @@ export default function SuppliersStockPage() {
           farmId={farmId}
           onRefresh={invalidate}
           toast={toast}
+          onGoToProducts={() => setTab("products")}
         />
       )}
       {tab === "movements" && (
@@ -228,7 +232,7 @@ export default function SuppliersStockPage() {
   );
 }
 
-function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, qc }: any) {
+function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, qc, onGoToProducts }: any) {
   const [adjOpen, setAdjOpen] = useState(false);
   const [adjForm, setAdjForm] = useState({ stockItemId: "", quantityChange: "", movementType: "adjustment", notes: "" });
   const [search, setSearch] = useState("");
@@ -241,6 +245,7 @@ function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, q
 
   const filtered = (levels ?? []).filter((l: any) => !search || l.stockItemName?.toLowerCase().includes(search.toLowerCase()));
   const low = (levels ?? []).filter((l: any) => l.stockItemReorderLevel && parseFloat(l.currentQuantity) <= parseFloat(l.stockItemReorderLevel));
+  const hasProducts = products.length > 0;
 
   return (
     <div>
@@ -250,12 +255,23 @@ function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, q
           <span style={{ fontSize: "0.875rem", color: "#92400e", fontWeight: 500 }}>{low.length} product{low.length > 1 ? "s" : ""} at or below reorder level</span>
         </div>
       )}
+      {!hasProducts && !loading && (
+        <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "0.875rem 1rem", marginBottom: "1rem", display: "flex", alignItems: "center", gap: 10 }}>
+          <Info size={16} color="#1d4ed8" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: "0.875rem", color: "#1e40af" }}>
+            To track stock levels, first add products to your{" "}
+            <button onClick={onGoToProducts} style={{ fontWeight: 600, textDecoration: "underline", background: "none", border: "none", color: "#1e40af", cursor: "pointer", padding: 0 }}>Product Catalogue</button>.
+          </span>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
           <Input placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
         </div>
-        <Button variant="outline" size="sm" onClick={() => setAdjOpen(true)}><Plus size={14} className="mr-1" />Manual Adjustment</Button>
+        <Button variant="outline" size="sm" onClick={() => { if (!hasProducts) { onGoToProducts(); } else { setAdjOpen(true); } }}>
+          <Plus size={14} className="mr-1" />Manual Adjustment
+        </Button>
       </div>
       {loading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : filtered.length === 0 ? (
         <EmptyState icon={Package} title="No stock recorded yet" subtitle="Add products to your catalogue and log Goods Received to see levels here" />
@@ -326,7 +342,7 @@ function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, q
   );
 }
 
-function GoodsReceivedTab({ deliveries, products, suppliers, loading, farmId, onRefresh, toast }: any) {
+function GoodsReceivedTab({ deliveries, products, suppliers, loading, farmId, onRefresh, toast, onGoToProducts }: any) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<any>({ stockItemId: "", supplierId: "", deliveryDate: "", quantity: "", batchNumber: "", invoiceReference: "", receivedBy: "", costPence: "", notes: "" });
@@ -338,15 +354,28 @@ function GoodsReceivedTab({ deliveries, products, suppliers, loading, farmId, on
   });
 
   const filtered = (deliveries ?? []).filter((d: any) => !search || d.stockItemName?.toLowerCase().includes(search.toLowerCase()) || d.supplierName?.toLowerCase().includes(search.toLowerCase()));
+  const hasProducts = products.length > 0;
 
   return (
     <div>
+      {!hasProducts && !loading && (
+        <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "0.875rem 1rem", marginBottom: "1rem", display: "flex", alignItems: "center", gap: 10 }}>
+          <Info size={16} color="#1d4ed8" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: "0.875rem", color: "#1e40af" }}>
+            Before logging a delivery, add your products in the{" "}
+            <button onClick={onGoToProducts} style={{ fontWeight: 600, textDecoration: "underline", background: "none", border: "none", color: "#1e40af", cursor: "pointer", padding: 0 }}>Product Catalogue</button>{" "}
+            tab first.
+          </span>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
           <Input placeholder="Search deliveries..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
         </div>
-        <Button size="sm" onClick={() => setOpen(true)}><Plus size={14} className="mr-1" />Log Goods Received</Button>
+        <Button size="sm" onClick={() => { if (!hasProducts) { onGoToProducts(); } else { setOpen(true); } }}>
+          <Plus size={14} className="mr-1" />Log Goods Received
+        </Button>
       </div>
       {loading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : filtered.length === 0 ? (
         <EmptyState icon={Truck} title="No deliveries recorded" subtitle="Log goods received to track stock coming onto the farm" />
