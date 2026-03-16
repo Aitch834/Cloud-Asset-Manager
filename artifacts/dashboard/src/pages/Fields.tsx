@@ -12,7 +12,7 @@ import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
 import {
   Plus, Search, Map, MoreVertical, Pencil, Trash2, AlertTriangle,
-  Sprout, Leaf, CalendarDays, Wheat, ChevronRight,
+  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
@@ -189,6 +189,9 @@ export default function FieldsPage() {
   const [isAddFieldOpen, setIsAddFieldOpen] = useState(false);
   const [isAddCropOpen, setIsAddCropOpen] = useState(false);
   const [assignForField, setAssignForField] = useState<FieldRecord | null>(null);
+  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
+  const [selectedFieldForHistory, setSelectedFieldForHistory] = useState<FieldRecord | null>(null);
+  const [drawerTab, setDrawerTab] = useState<"overview" | "history">("overview");
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -208,7 +211,13 @@ export default function FieldsPage() {
   const crops = (cropsData?.records ?? []) as CropRecord[];
   const assignments = (assignmentsData?.records ?? []) as FieldCropAssignment[];
 
-  const currentAssignments = assignments.filter(a => a.year === CURRENT_YEAR || !a.year);
+  const availableYears = Array.from(
+    new Set([CURRENT_YEAR, ...assignments.map(a => a.year).filter((y): y is number => !!y)])
+  ).sort((a, b) => b - a);
+
+  const currentAssignments = assignments.filter(a =>
+    selectedYear === CURRENT_YEAR ? (a.year === CURRENT_YEAR || !a.year) : a.year === selectedYear
+  );
 
   const currentCropByField = Object.fromEntries(
     currentAssignments.map(a => [a.fieldId, a])
@@ -258,14 +267,28 @@ export default function FieldsPage() {
       {tab === "fields" && (
         <>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <div className="relative w-full sm:w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-              <Input
-                placeholder="Search fields..."
-                className="pl-10 bg-white"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
+                <Input
+                  placeholder="Search fields..."
+                  className="pl-10 bg-white"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+              </div>
+              <div className="relative flex-shrink-0">
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 pointer-events-none" />
+                <select
+                  value={selectedYear}
+                  onChange={e => setSelectedYear(Number(e.target.value))}
+                  className="appearance-none border border-input rounded-lg pl-3 pr-8 py-2 text-sm bg-white font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+                >
+                  {availableYears.map(y => (
+                    <option key={y} value={y}>{y} Season{y === CURRENT_YEAR ? " (Current)" : ""}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <Dialog open={isAddFieldOpen} onOpenChange={setIsAddFieldOpen}>
               <DialogTrigger asChild>
@@ -322,9 +345,15 @@ export default function FieldsPage() {
                     />
                   </div>
 
-                  {/* Green header — field name */}
-                  <div className="bg-gradient-to-br from-green-100 to-emerald-50 rounded-t-2xl border-b border-border/50 px-4 pt-4 pb-3">
-                    <h3 className="text-lg font-bold text-foreground pr-8 leading-snug">{field.name || `Field #${field.id}`}</h3>
+                  {/* Green header — field name (clickable for history) */}
+                  <div
+                    className="bg-gradient-to-br from-green-100 to-emerald-50 rounded-t-2xl border-b border-border/50 px-4 pt-4 pb-3 cursor-pointer hover:from-green-200 hover:to-emerald-100 transition-colors group/header"
+                    onClick={() => { setSelectedFieldForHistory(field); setDrawerTab("overview"); }}
+                  >
+                    <div className="flex items-center justify-between pr-8">
+                      <h3 className="text-lg font-bold text-foreground leading-snug">{field.name || `Field #${field.id}`}</h3>
+                      <History className="w-4 h-4 text-green-600/50 group-hover/header:text-green-700 transition-colors flex-shrink-0" />
+                    </div>
                   </div>
 
                   <div className="p-5">
@@ -476,6 +505,190 @@ export default function FieldsPage() {
           )}
         </>
       )}
+
+      {/* ── FIELD HISTORY DRAWER ── */}
+      {selectedFieldForHistory && (() => {
+        const f = selectedFieldForHistory;
+        const fieldAssignments = assignments
+          .filter(a => a.fieldId === f.id)
+          .sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+        const currentCropForDrawer = currentCropByField[f.id];
+
+        return (
+          <div className="fixed inset-0 z-50 flex justify-end">
+            {/* backdrop */}
+            <div
+              className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+              onClick={() => setSelectedFieldForHistory(null)}
+            />
+            {/* panel */}
+            <div className="relative bg-white w-full max-w-md flex flex-col shadow-2xl">
+              {/* header */}
+              <div className="bg-gradient-to-br from-green-100 to-emerald-50 border-b border-border/50 px-6 pt-5 pb-4 flex-shrink-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Field Details</p>
+                    <h2 className="text-xl font-bold text-foreground leading-tight">{f.name || `Field #${f.id}`}</h2>
+                    {f.fieldReference && (
+                      <p className="text-xs text-foreground/50 mt-0.5">Ref: {f.fieldReference}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setSelectedFieldForHistory(null)}
+                    className="mt-0.5 p-1.5 rounded-lg hover:bg-black/10 transition-colors flex-shrink-0 cursor-pointer"
+                  >
+                    <X className="w-4 h-4 text-foreground/60" />
+                  </button>
+                </div>
+                {/* drawer tabs */}
+                <div className="flex gap-1 mt-4">
+                  {(["overview", "history"] as const).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setDrawerTab(t)}
+                      className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer capitalize ${drawerTab === t ? "bg-white shadow text-foreground" : "text-foreground/50 hover:text-foreground"}`}
+                    >
+                      {t === "history" ? "Crop History" : "Overview"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* body */}
+              <div className="flex-1 overflow-y-auto p-6">
+
+                {drawerTab === "overview" && (
+                  <div className="space-y-5">
+                    {/* field stats */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-black/[0.03] rounded-xl p-4">
+                        <p className="text-xs text-foreground/50 uppercase font-semibold mb-1">Area</p>
+                        <p className="text-base font-bold text-foreground">
+                          {f.areaSqMetres ? `${(f.areaSqMetres / 10000).toFixed(2)} ha` : "—"}
+                        </p>
+                      </div>
+                      <div className="bg-black/[0.03] rounded-xl p-4">
+                        <p className="text-xs text-foreground/50 uppercase font-semibold mb-1">Soil Type</p>
+                        <p className="text-base font-bold text-foreground">{f.soilType || "—"}</p>
+                      </div>
+                    </div>
+
+                    {/* current season crop */}
+                    <div>
+                      <p className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-3">
+                        {selectedYear} Season
+                      </p>
+                      {currentCropForDrawer ? (
+                        <div className="bg-green-50 border border-green-100 rounded-xl p-4 space-y-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className="inline-flex items-center gap-1.5 bg-green-700 text-white text-xs font-semibold px-2.5 py-1 rounded-full">
+                              <Wheat className="w-3 h-3" />
+                              {currentCropForDrawer.cropName}
+                            </span>
+                            {currentCropForDrawer.season && (
+                              <span className="text-xs text-foreground/50">{currentCropForDrawer.season}</span>
+                            )}
+                          </div>
+                          {currentCropForDrawer.plantingDate && (
+                            <div className="flex items-center gap-2 text-sm text-foreground/70">
+                              <CalendarDays className="w-4 h-4 text-green-600 flex-shrink-0" />
+                              <span>Planted <strong>{formatDate(currentCropForDrawer.plantingDate)}</strong></span>
+                            </div>
+                          )}
+                          {currentCropForDrawer.expectedHarvestDate && (
+                            <div className="flex items-center gap-2 text-sm text-foreground/70">
+                              <Wheat className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                              <span>Expected harvest <strong>{formatDate(currentCropForDrawer.expectedHarvestDate)}</strong></span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="border-2 border-dashed border-green-200 rounded-xl p-5 text-center">
+                          <Leaf className="w-8 h-8 mx-auto text-green-300 mb-2" />
+                          <p className="text-sm text-foreground/50">No crop assigned for {selectedYear}</p>
+                          {selectedYear === CURRENT_YEAR && (
+                            <button
+                              onClick={() => { setSelectedFieldForHistory(null); setAssignForField(f); assignForm.reset(); }}
+                              className="mt-3 text-xs font-semibold text-green-700 hover:underline cursor-pointer"
+                            >
+                              + Assign a crop
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* quick link to history */}
+                    {fieldAssignments.length > 1 && (
+                      <button
+                        onClick={() => setDrawerTab("history")}
+                        className="w-full flex items-center justify-between text-sm text-foreground/60 hover:text-foreground border border-border/50 rounded-xl px-4 py-3 hover:bg-black/[0.02] transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <History className="w-4 h-4" />
+                          View full crop rotation history
+                        </span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {drawerTab === "history" && (
+                  <div>
+                    <p className="text-sm text-foreground/50 mb-5">
+                      All recorded crop assignments for this field across all seasons.
+                    </p>
+                    {fieldAssignments.length === 0 ? (
+                      <div className="py-12 text-center">
+                        <History className="w-10 h-10 mx-auto text-foreground/20 mb-3" />
+                        <p className="text-foreground/40 text-sm">No crop history recorded yet.</p>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        {/* vertical timeline line */}
+                        <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-border" />
+                        <div className="space-y-6 pl-12">
+                          {fieldAssignments.map((a, i) => (
+                            <div key={a.id} className="relative">
+                              {/* dot */}
+                              <div className={`absolute -left-8 top-1 w-3 h-3 rounded-full border-2 ${i === 0 && a.year === CURRENT_YEAR ? "bg-green-600 border-green-600" : "bg-white border-border"}`} />
+                              <div className={`rounded-xl border p-4 ${i === 0 && a.year === CURRENT_YEAR ? "border-green-200 bg-green-50" : "border-border/50 bg-white"}`}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${i === 0 && a.year === CURRENT_YEAR ? "bg-green-700 text-white" : "bg-black/5 text-foreground/70"}`}>
+                                    <Wheat className="w-3 h-3" />
+                                    {a.cropName}
+                                  </span>
+                                  <span className="text-xs font-bold text-foreground/40">
+                                    {a.year ?? "—"}{a.season ? ` · ${a.season}` : ""}
+                                  </span>
+                                </div>
+                                {a.plantingDate && (
+                                  <p className="text-xs text-foreground/60 flex items-center gap-1.5 mt-1">
+                                    <CalendarDays className="w-3 h-3 flex-shrink-0" />
+                                    Planted {formatDate(a.plantingDate)}
+                                  </p>
+                                )}
+                                {a.expectedHarvestDate && (
+                                  <p className="text-xs text-foreground/60 flex items-center gap-1.5 mt-0.5">
+                                    <Wheat className="w-3 h-3 flex-shrink-0 text-amber-500" />
+                                    Harvest {formatDate(a.expectedHarvestDate)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── ASSIGN CROP DIALOG ── */}
       <Dialog open={!!assignForField} onOpenChange={(o) => { if (!o) setAssignForField(null); }}>
