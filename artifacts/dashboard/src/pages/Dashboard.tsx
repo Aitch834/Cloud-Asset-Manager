@@ -61,13 +61,13 @@ export default function Dashboard() {
         </Card>
 
         <Card className="border-l-4 border-l-accent flex flex-col justify-center">
-          <CardContent className="p-8">
-             <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mb-4">
+          <CardContent className="p-8 text-center">
+            <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mb-4 mx-auto">
               <AlertTriangle className="w-6 h-6 text-accent" />
             </div>
             <p className="text-foreground/60 font-medium mb-1">Action Required</p>
             <h3 className="text-3xl font-display font-bold text-foreground">{dashboard.overdueActions}</h3>
-            <p className="text-sm mt-2 text-foreground/70">Overdue checks or missing records</p>
+            <p className="text-sm mt-2 mb-4 text-foreground/70">Overdue checks or missing records</p>
           </CardContent>
         </Card>
       </div>
