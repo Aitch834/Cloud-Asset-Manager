@@ -323,17 +323,14 @@ export default function FieldsPage() {
                   </div>
 
                   {/* Green header banner */}
-                  <div className="h-20 bg-gradient-to-br from-green-100 to-emerald-50 rounded-t-2xl border-b border-border/50 relative overflow-hidden flex items-end px-4 pb-3">
-                    <svg className="absolute inset-0 w-full h-full opacity-10" preserveAspectRatio="none">
-                      <path d="M0,50 Q25,20 50,50 T100,50 T150,50" stroke="green" fill="none" strokeWidth="2" />
-                    </svg>
+                  <div className="h-20 bg-gradient-to-br from-green-100 to-emerald-50 rounded-t-2xl border-b border-border/50 flex items-end px-4 pb-3">
                     {crop ? (
-                      <span className="relative z-10 inline-flex items-center gap-1.5 bg-green-700 text-white text-xs font-semibold px-2.5 py-1 rounded-full shadow">
+                      <span className="inline-flex items-center gap-1.5 bg-green-700 text-white text-xs font-semibold px-2.5 py-1 rounded-full shadow">
                         <Wheat className="w-3 h-3" />
                         {crop.cropName}
                       </span>
                     ) : (
-                      <span className="relative z-10 inline-flex items-center gap-1.5 bg-black/10 text-foreground/50 text-xs font-medium px-2.5 py-1 rounded-full">
+                      <span className="inline-flex items-center gap-1.5 bg-black/10 text-foreground/50 text-xs font-medium px-2.5 py-1 rounded-full">
                         <Leaf className="w-3 h-3" />
                         No crop assigned
                       </span>
