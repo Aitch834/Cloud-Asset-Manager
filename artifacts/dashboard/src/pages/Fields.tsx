@@ -12,10 +12,11 @@ import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
 import {
   Plus, Search, Map, MoreVertical, Pencil, Trash2, AlertTriangle,
-  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown,
+  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -54,6 +55,133 @@ interface AssignCropFormData { cropId: number; plantingDate: string; expectedHar
 function formatDate(dateStr?: string | null) {
   if (!dateStr) return null;
   return new Date(dateStr).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+interface Farm { name?: string; address?: string; postcode?: string; cphNumber?: string; }
+interface PrintableAssignment extends FieldCropAssignment { fieldName?: string; soilType?: string; areaSqMetres?: number; fieldReference?: string; }
+
+function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }: {
+  farmId: number;
+  year: number;
+  fields: FieldRecord[];
+  assignments: FieldCropAssignment[];
+  crops: CropRecord[];
+  onClose: () => void;
+}) {
+  const { data: farmData } = useQuery<{ record: Farm }>({
+    queryKey: ["farm", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}`);
+      return r.json();
+    },
+  });
+  const farm = farmData?.record;
+
+  const rows: PrintableAssignment[] = fields.map(f => {
+    const asgn = assignments.find(a => a.fieldId === f.id && (a.year === year || (!a.year && year === CURRENT_YEAR)));
+    const crop = asgn ? crops.find(c => c.id === asgn.cropId) : undefined;
+    return {
+      id: asgn?.id ?? 0,
+      fieldId: f.id,
+      cropId: asgn?.cropId ?? 0,
+      cropName: crop?.name ?? "—",
+      plantingDate: asgn?.plantingDate,
+      expectedHarvestDate: asgn?.expectedHarvestDate,
+      season: asgn?.season,
+      year: asgn?.year,
+      fieldName: f.name,
+      soilType: f.soilType,
+      areaSqMetres: f.areaSqMetres,
+      fieldReference: f.fieldReference,
+    };
+  });
+
+  const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Printer className="w-5 h-5 text-green-600" />
+            Crop Register — {year} Season
+          </DialogTitle>
+          <DialogDescription>
+            Review the record below, then click Print to produce a compliance document for Red Tractor audit.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div id="fields-print-area" className="border border-border rounded-lg p-6 space-y-5 text-sm mt-2">
+          {/* Document header */}
+          <div className="flex justify-between items-start border-b pb-4">
+            <div>
+              <p className="text-base font-bold text-foreground">{farm?.name ?? "Farm"}</p>
+              {farm?.address && <p className="text-xs text-foreground/60">{farm.address}{farm.postcode ? `, ${farm.postcode}` : ""}</p>}
+              {farm?.cphNumber && <p className="text-xs text-foreground/60 mt-0.5">CPH: <span className="font-mono font-semibold">{farm.cphNumber}</span></p>}
+            </div>
+            <div className="text-right text-xs text-foreground/50">
+              <p className="font-semibold text-foreground text-sm">Crop Register</p>
+              <p>Season: <strong className="text-foreground">{year}</strong></p>
+              <p>Printed: {printedDate}</p>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-green-50 text-foreground/70">
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Field Name</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Ref</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Area (ha)</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Soil Type</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Crop</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Season</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Planted</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Exp. Harvest</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <tr key={row.fieldId} className={i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}>
+                    <td className="border border-border/60 px-3 py-2 font-medium">{row.fieldName || `Field #${row.fieldId}`}</td>
+                    <td className="border border-border/60 px-3 py-2 text-foreground/60">{row.fieldReference || "—"}</td>
+                    <td className="border border-border/60 px-3 py-2">{row.areaSqMetres ? (row.areaSqMetres / 10000).toFixed(2) : "—"}</td>
+                    <td className="border border-border/60 px-3 py-2">{row.soilType || "—"}</td>
+                    <td className="border border-border/60 px-3 py-2 font-medium">{row.cropName}</td>
+                    <td className="border border-border/60 px-3 py-2">{row.season || "—"}</td>
+                    <td className="border border-border/60 px-3 py-2">{formatDate(row.plantingDate) || "—"}</td>
+                    <td className="border border-border/60 px-3 py-2">{formatDate(row.expectedHarvestDate) || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Summary */}
+          <div className="flex gap-6 pt-2 text-xs text-foreground/60 border-t">
+            <span><strong className="text-foreground">{fields.length}</strong> field{fields.length !== 1 ? "s" : ""} total</span>
+            <span><strong className="text-foreground">{rows.filter(r => r.cropId).length}</strong> with crop assigned</span>
+            <span><strong className="text-foreground">{rows.filter(r => !r.cropId).length}</strong> unassigned</span>
+          </div>
+
+          {/* Footer */}
+          <div className="text-xs text-foreground/40 border-t pt-3 italic">
+            This is an on-farm record for Red Tractor compliance purposes.
+            Retain for a minimum of 3 years and make available for inspection at audit.
+            BDE Farm Trac · Printed {printedDate}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button onClick={() => window.print()} className="gap-2">
+            <Printer className="w-4 h-4" /> Print Record
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function FieldCardMenu({
@@ -192,6 +320,7 @@ export default function FieldsPage() {
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
   const [selectedFieldForHistory, setSelectedFieldForHistory] = useState<FieldRecord | null>(null);
   const [drawerTab, setDrawerTab] = useState<"overview" | "history">("overview");
+  const [printOpen, setPrintOpen] = useState(false);
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -247,6 +376,13 @@ export default function FieldsPage() {
 
   return (
     <AppLayout title="Fields & Crops">
+      <style>{`
+        @media print {
+          body > * { display: none !important; }
+          [role="dialog"] #fields-print-area { display: block !important; position: fixed; top:0; left:0; width:100%; padding:24px; font-size:11px; color:#000; background:#fff; }
+        }
+      `}</style>
+
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-black/5 rounded-xl p-1 w-fit mb-6">
         <button
@@ -290,6 +426,10 @@ export default function FieldsPage() {
                 </select>
               </div>
             </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button variant="outline" onClick={() => setPrintOpen(true)} className="gap-2 flex-shrink-0">
+                <Printer className="w-4 h-4" /> Print Register
+              </Button>
             <Dialog open={isAddFieldOpen} onOpenChange={setIsAddFieldOpen}>
               <DialogTrigger asChild>
                 <Button className="w-full sm:w-auto"><Plus className="w-4 h-4 mr-2" /> Add Field</Button>
@@ -321,6 +461,7 @@ export default function FieldsPage() {
                 </form>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -689,6 +830,18 @@ export default function FieldsPage() {
           </div>
         );
       })()}
+
+      {/* ── PRINT CROP REGISTER ── */}
+      {printOpen && (
+        <PrintCropRegister
+          farmId={farmId}
+          year={selectedYear}
+          fields={fields}
+          assignments={assignments}
+          crops={crops}
+          onClose={() => setPrintOpen(false)}
+        />
+      )}
 
       {/* ── ASSIGN CROP DIALOG ── */}
       <Dialog open={!!assignForField} onOpenChange={(o) => { if (!o) setAssignForField(null); }}>
