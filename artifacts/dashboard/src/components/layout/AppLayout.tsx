@@ -16,16 +16,16 @@ export function AppLayout({ children, title }: { children: ReactNode, title: str
     <div className="flex min-h-screen w-full bg-background">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Sidebar backdrop — always rendered when sidebar is open */}
+      {/* Sidebar backdrop — sits below the header so the hamburger stays clickable */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50"
+          className="fixed inset-0 z-30 bg-black/50"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       <div className="flex-1 flex flex-col overflow-hidden relative">
-        <header className="h-20 flex items-center justify-between px-8 bg-background border-b border-border/50 sticky top-0 z-30">
+        <header className="h-20 flex items-center justify-between px-8 bg-background border-b border-border/50 sticky top-0 z-40">
           <div className="flex items-center gap-4">
             <button
               className="md:hidden p-2 rounded-lg hover:bg-black/5 cursor-pointer"

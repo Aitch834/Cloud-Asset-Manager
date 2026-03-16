@@ -15,6 +15,8 @@ import ModulePage from "@/pages/ModulePage";
 import MovementsPage from "@/pages/Movements";
 import HelpCentre from "@/pages/HelpCentre";
 import FarmSettingsPage from "@/pages/FarmSettings";
+import AppSettingsPage from "@/pages/SettingsPage";
+import StaffPage from "@/pages/Staff";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -310,12 +312,7 @@ function HelpPage() {
 }
 
 function SettingsPage() {
-  return <ModulePage title="Staff & Settings" apiPath="tenants/current/users" scope="global" responseKey="users" columns={[
-    { key: "email", label: "Email" },
-    { key: "firstName", label: "First Name" },
-    { key: "lastName", label: "Last Name" },
-    { key: "isActive", label: "Active" },
-  ]} />;
+  return <AppSettingsPage />;
 }
 
 function RouteErrorBoundary({ children }: { children: React.ReactNode }) {
@@ -355,6 +352,7 @@ function Router() {
       <Route path="/documents" component={DocumentsPage} />
       <Route path="/weather" component={WeatherPage} />
       <Route path="/help" component={HelpPage} />
+      <Route path="/staff" component={StaffPage} />
       <Route path="/settings/farm" component={FarmSettingsPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />

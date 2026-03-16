@@ -65,6 +65,7 @@ const livestockNav: NavItem[] = [
 ];
 
 const otherNav: NavItem[] = [
+  { name: "Staff", href: "/staff", icon: Users },
   { name: "Training", href: "/training", icon: GraduationCap, moduleKeys: ["staff-training"] },
   { name: "Suppliers & Stock", href: "/stock", icon: Package, moduleKeys: ["stock-suppliers"] },
   { name: "Financial", href: "/financial", icon: PoundSterling, moduleKeys: ["financial-records"] },
@@ -246,7 +247,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       {/* Mobile sidebar — fixed overlay, slides in/out. Always in DOM; visibility controlled only by transform */}
       <div className={cn(
         sidebarBaseClasses,
-        "fixed inset-y-0 left-0 z-50 transition-transform duration-300",
+        "fixed inset-y-0 left-0 z-[60] transition-transform duration-300",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <SidebarInner {...innerProps} onNavClick={onClose} />
