@@ -15,6 +15,10 @@ export interface FarmDashboardResponse {
   overdueActions: number;
   /** @nullable */
   upcomingInspection?: Date | null;
+  fieldCount?: number;
+  equipmentCount?: number;
+  sprayCount?: number;
+  inspectionCount?: number;
   moduleStats: FarmDashboardResponseModuleStatsItem[];
   activeSubscriptions: Subscription[];
 }

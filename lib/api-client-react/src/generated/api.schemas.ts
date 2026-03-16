@@ -460,16 +460,20 @@ export interface FarmDashboardResponse {
   overdueActions: number;
   /** @nullable */
   upcomingInspection?: string | null;
+  fieldCount?: number;
+  equipmentCount?: number;
+  sprayCount?: number;
+  inspectionCount?: number;
   moduleStats: FarmDashboardResponseModuleStatsItem[];
   activeSubscriptions: Subscription[];
 }
 
 export type ActivityFeedResponseActivitiesItem = {
-  id: number;
-  type: string;
+  id: string;
   description: string;
   module: string;
-  createdAt: string;
+  /** @nullable */
+  createdAt: string | null;
 };
 
 export interface ActivityFeedResponse {

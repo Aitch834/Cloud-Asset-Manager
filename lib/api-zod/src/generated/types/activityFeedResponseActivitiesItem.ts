@@ -7,9 +7,9 @@
  */
 
 export type ActivityFeedResponseActivitiesItem = {
-  id: number;
-  type: string;
+  id: string;
   description: string;
   module: string;
-  createdAt: Date;
+  /** @nullable */
+  createdAt: Date | null;
 };

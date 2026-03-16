@@ -44,12 +44,15 @@ The monorepo is structured with `pnpm workspaces`, using Node.js 24 and TypeScri
 - User-friendly 404 page with navigation back to home and support.
 
 **Production Readiness:**
-- API server performs env var audit at startup (required: PORT, DATABASE_URL, REPL_ID; optional: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, ISSUER_URL).
-- Error boundaries wrap both React apps at the top level.
+- API server performs detailed env var audit at startup — logs ✓/⚠/✗ per variable, masks secret values, fails fast with actionable error if required vars are missing. Tracked vars: PORT, DATABASE_URL, REPL_ID (required); ISSUER_URL, SESSION_SECRET, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, DEV_BYPASS_TOKEN (optional).
+- Error boundaries wrap both React apps at the top level AND per-route in the dashboard (RouteErrorBoundary resets when navigation changes so a crash on one page doesn't kill the whole app).
 - ModulePage has loading skeletons and error states with retry functionality.
 - Xero-compatible CSV export for financial data with proper account code and VAT mapping.
-- Red Tractor compliance export in JSON/CSV formats for manual portal submission.
-- Admin panel supports ticket reply, status management, and email notification placeholder.
+- Red Tractor compliance export (CSV/JSON) at `/farms/:farmId/compliance-export`.
+- Dashboard home activity feed queries real recent records from 6 farm data tables (spray applications, inspections, fields, equipment, soil tests, visitor logs).
+- Dashboard Quick Access cards show live record counts from DB (fields, equipment, spray applications, inspections) — no hardcoded values.
+- Admin panel (website) supports full support ticket workflow: list, view thread, reply, change status. Email notification is placeholder (console log).
+- OpenAPI spec and generated TypeScript client kept in sync — after changing API response shapes, run `pnpm --filter @workspace/api-spec run codegen` then `cd lib/api-client-react && pnpm exec tsc --build`.
 
 ### Multi-Tenant Architecture
 - Each client organization is a tenant, potentially managing multiple farms.

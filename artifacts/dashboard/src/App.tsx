@@ -1,4 +1,5 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import React from "react";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -334,8 +335,18 @@ function SettingsPage() {
   ]} />;
 }
 
+function RouteErrorBoundary({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
+  return (
+    <ErrorBoundary key={location}>
+      {children}
+    </ErrorBoundary>
+  );
+}
+
 function Router() {
   return (
+    <RouteErrorBoundary>
     <Switch>
       <Route path="/" component={Login} />
       <Route path="/select" component={SelectContext} />
@@ -365,6 +376,7 @@ function Router() {
       <Route path="/settings/farm" component={FarmSettingsPage} />
       <Route component={NotFound} />
     </Switch>
+    </RouteErrorBoundary>
   );
 }
 

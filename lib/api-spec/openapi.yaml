@@ -3826,6 +3826,14 @@ components:
         upcomingInspection:
           type: ["string", "null"]
           format: date-time
+        fieldCount:
+          type: integer
+        equipmentCount:
+          type: integer
+        sprayCount:
+          type: integer
+        inspectionCount:
+          type: integer
         moduleStats:
           type: array
           items:
@@ -3857,15 +3865,13 @@ components:
             type: object
             properties:
               id:
-                type: integer
-              type:
                 type: string
               description:
                 type: string
               module:
                 type: string
               createdAt:
-                type: string
+                type: ["string", "null"]
                 format: date-time
-            required: [id, type, description, module, createdAt]
+            required: [id, description, module, createdAt]
       required: [activities]

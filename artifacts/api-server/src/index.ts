@@ -1,28 +1,49 @@
 import app from "./app";
 import { seedDefaults } from "./lib/seedDefaults";
 
-function auditEnvVars() {
-  const required = ["PORT", "DATABASE_URL", "REPL_ID"];
-  const optional = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "ISSUER_URL"];
+interface EnvSpec {
+  key: string;
+  description: string;
+  required: boolean;
+}
+
+const ENV_SPEC: EnvSpec[] = [
+  { key: "PORT",                   description: "HTTP port the server listens on",                required: true  },
+  { key: "DATABASE_URL",           description: "PostgreSQL connection string",                   required: true  },
+  { key: "REPL_ID",                description: "Replit environment identifier (auth callback)",  required: true  },
+  { key: "ISSUER_URL",             description: "Replit OIDC issuer URL for authentication",      required: false },
+  { key: "SESSION_SECRET",         description: "Secret used to sign session cookies",            required: false },
+  { key: "STRIPE_SECRET_KEY",      description: "Stripe API secret key — enables billing",        required: false },
+  { key: "STRIPE_WEBHOOK_SECRET",  description: "Stripe webhook signing secret",                  required: false },
+  { key: "DEV_BYPASS_TOKEN",       description: "Dev-only token that bypasses auth (test mode)",  required: false },
+];
+
+function auditEnvVars(): void {
   const missing: string[] = [];
 
-  for (const key of required) {
-    if (!process.env[key]) {
-      missing.push(key);
+  for (const spec of ENV_SPEC) {
+    const val = process.env[spec.key];
+    if (!val) {
+      if (spec.required) {
+        missing.push(spec.key);
+        console.error(`[ENV]  ✗  ${spec.key.padEnd(26)} — MISSING (required)`);
+      } else {
+        console.warn(`[ENV]  ⚠  ${spec.key.padEnd(26)} — not set (${spec.description} disabled)`);
+      }
+    } else {
+      const masked = val.length > 8 ? `${val.slice(0, 4)}…${val.slice(-4)}` : "***";
+      console.log(`[ENV]  ✓  ${spec.key.padEnd(26)} = ${masked}`);
     }
   }
 
   if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+    throw new Error(
+      `Missing required environment variables: ${missing.join(", ")}. ` +
+      "Set these in your Replit Secrets panel before starting the server.",
+    );
   }
 
-  for (const key of optional) {
-    if (!process.env[key]) {
-      console.warn(`[ENV AUDIT] Optional env var ${key} is not set — related features will be disabled.`);
-    }
-  }
-
-  console.log("[ENV AUDIT] All required environment variables are present.");
+  console.log("[ENV] Environment audit passed.");
 }
 
 auditEnvVars();
@@ -35,8 +56,8 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+  console.log(`[SERVER] Listening on port ${port}`);
   seedDefaults().catch((err) => {
-    console.error("Failed to seed defaults:", err);
+    console.error("[SEED] Failed to seed defaults:", err);
   });
 });

@@ -69,10 +69,10 @@ export default function Dashboard() {
       <div>
         <h3 className="text-xl font-display font-bold mb-4">Quick Access</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <QuickLinkCard href="/fields" title="Fields & Crops" icon={Sprout} count={12} color="bg-emerald-50 text-emerald-600" />
-          <QuickLinkCard href="/equipment" title="Equipment" icon={Tractor} count={8} color="bg-blue-50 text-blue-600" />
-          <QuickLinkCard href="/sprays" title="Sprays" icon={Droplets} count={45} color="bg-cyan-50 text-cyan-600" />
-          <QuickLinkCard href="/inspections" title="Inspections" icon={CheckCircle2} count={3} color="bg-violet-50 text-violet-600" />
+          <QuickLinkCard href="/fields" title="Fields & Crops" icon={Sprout} count={dashboard.fieldCount ?? 0} color="bg-emerald-50 text-emerald-600" />
+          <QuickLinkCard href="/equipment" title="Equipment" icon={Tractor} count={dashboard.equipmentCount ?? 0} color="bg-blue-50 text-blue-600" />
+          <QuickLinkCard href="/sprays" title="Sprays" icon={Droplets} count={dashboard.sprayCount ?? 0} color="bg-cyan-50 text-cyan-600" />
+          <QuickLinkCard href="/inspections" title="Inspections" icon={CheckCircle2} count={dashboard.inspectionCount ?? 0} color="bg-violet-50 text-violet-600" />
         </div>
       </div>
 
@@ -92,7 +92,7 @@ export default function Dashboard() {
                   <div className="flex items-center gap-2 mt-1 text-sm text-foreground/50">
                     <span className="capitalize">{act.module}</span>
                     <span>&bull;</span>
-                    <span>{new Date(act.createdAt).toLocaleDateString('en-GB')}</span>
+                    <span>{act.createdAt ? new Date(act.createdAt).toLocaleDateString('en-GB') : "—"}</span>
                   </div>
                 </div>
               </div>

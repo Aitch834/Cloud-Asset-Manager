@@ -131,17 +131,41 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
 
   const activeSubs = subs.filter((s) => s.status === "active");
 
-  const [inspResult] = await db
-    .select({ nextDue: inspectionRecordsTable.nextInspectionDue })
-    .from(inspectionRecordsTable)
-    .where(eq(inspectionRecordsTable.farmId, farmId))
-    .orderBy(desc(inspectionRecordsTable.inspectionDate))
-    .limit(1);
-
-  const [ncCount] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(nonconformanceRecordsTable)
-    .where(and(eq(nonconformanceRecordsTable.farmId, farmId), eq(nonconformanceRecordsTable.status, "open")));
+  const [
+    [inspResult],
+    [ncCount],
+    [fieldCount],
+    [equipmentCount],
+    [sprayCount],
+    [inspectionCount],
+  ] = await Promise.all([
+    db
+      .select({ nextDue: inspectionRecordsTable.nextInspectionDue })
+      .from(inspectionRecordsTable)
+      .where(eq(inspectionRecordsTable.farmId, farmId))
+      .orderBy(desc(inspectionRecordsTable.inspectionDate))
+      .limit(1),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(nonconformanceRecordsTable)
+      .where(and(eq(nonconformanceRecordsTable.farmId, farmId), eq(nonconformanceRecordsTable.status, "open"))),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(fieldsTable)
+      .where(and(eq(fieldsTable.farmId, farmId), eq(fieldsTable.isActive, true))),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(equipmentTable)
+      .where(eq(equipmentTable.farmId, farmId)),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(sprayApplicationsTable)
+      .where(eq(sprayApplicationsTable.farmId, farmId)),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(inspectionRecordsTable)
+      .where(eq(inspectionRecordsTable.farmId, farmId)),
+  ]);
 
   const moduleStats = activeSubs.map((s) => ({
     moduleKey: s.moduleKey,
@@ -158,6 +182,10 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
     complianceScore,
     overdueActions: ncCount.count,
     upcomingInspection: inspResult?.nextDue || null,
+    fieldCount: fieldCount.count,
+    equipmentCount: equipmentCount.count,
+    sprayCount: sprayCount.count,
+    inspectionCount: inspectionCount.count,
     moduleStats,
     activeSubscriptions: activeSubs.map((s) => ({
       id: s.id,
@@ -174,7 +202,35 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
 router.get("/farms/:farmId/activity", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  res.json({ activities: [] });
+
+  const [sprays, inspections, fields, equipment, soilTests, visitors] = await Promise.all([
+    db.select({ id: sprayApplicationsTable.id, createdAt: sprayApplicationsTable.applicationDate, label: sprayApplicationsTable.operatorName })
+      .from(sprayApplicationsTable).where(eq(sprayApplicationsTable.farmId, farmId)).orderBy(desc(sprayApplicationsTable.applicationDate)).limit(5),
+    db.select({ id: inspectionRecordsTable.id, createdAt: inspectionRecordsTable.inspectionDate, label: inspectionRecordsTable.inspectionType })
+      .from(inspectionRecordsTable).where(eq(inspectionRecordsTable.farmId, farmId)).orderBy(desc(inspectionRecordsTable.inspectionDate)).limit(5),
+    db.select({ id: fieldsTable.id, createdAt: fieldsTable.createdAt, label: fieldsTable.name })
+      .from(fieldsTable).where(eq(fieldsTable.farmId, farmId)).orderBy(desc(fieldsTable.createdAt)).limit(5),
+    db.select({ id: equipmentTable.id, createdAt: equipmentTable.createdAt, label: equipmentTable.name })
+      .from(equipmentTable).where(eq(equipmentTable.farmId, farmId)).orderBy(desc(equipmentTable.createdAt)).limit(5),
+    db.select({ id: soilTestRecordsTable.id, createdAt: soilTestRecordsTable.sampleDate, label: soilTestRecordsTable.labReference })
+      .from(soilTestRecordsTable).where(eq(soilTestRecordsTable.farmId, farmId)).orderBy(desc(soilTestRecordsTable.sampleDate)).limit(5),
+    db.select({ id: visitorContractorLogTable.id, createdAt: visitorContractorLogTable.visitDate, label: visitorContractorLogTable.visitorName })
+      .from(visitorContractorLogTable).where(eq(visitorContractorLogTable.farmId, farmId)).orderBy(desc(visitorContractorLogTable.visitDate)).limit(5),
+  ]);
+
+  const activities = [
+    ...sprays.map((r) => ({ id: `spray-${r.id}`, module: "sprays", description: `Spray application recorded${r.label ? ` by ${r.label}` : ""}`, createdAt: r.createdAt })),
+    ...inspections.map((r) => ({ id: `insp-${r.id}`, module: "inspections", description: `Inspection completed${r.label ? `: ${r.label}` : ""}`, createdAt: r.createdAt })),
+    ...fields.map((r) => ({ id: `field-${r.id}`, module: "fields", description: `Field registered: ${r.label ?? "Unnamed"}`, createdAt: r.createdAt })),
+    ...equipment.map((r) => ({ id: `equip-${r.id}`, module: "equipment", description: `Equipment added: ${r.label ?? "Unnamed"}`, createdAt: r.createdAt })),
+    ...soilTests.map((r) => ({ id: `soil-${r.id}`, module: "soil", description: `Soil test submitted${r.label ? ` (ref: ${r.label})` : ""}`, createdAt: r.createdAt })),
+    ...visitors.map((r) => ({ id: `visitor-${r.id}`, module: "visitors", description: `Visitor logged: ${r.label ?? "Unknown"}`, createdAt: r.createdAt })),
+  ]
+    .filter((a) => a.createdAt)
+    .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime())
+    .slice(0, 10);
+
+  res.json({ activities });
 });
 
 // ─── Fields ─────────────────────────────────────────

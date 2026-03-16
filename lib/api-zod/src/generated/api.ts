@@ -764,6 +764,10 @@ export const GetFarmDashboardResponse = zod.object({
   complianceScore: zod.number(),
   overdueActions: zod.number(),
   upcomingInspection: zod.date().nullish(),
+  fieldCount: zod.number().optional(),
+  equipmentCount: zod.number().optional(),
+  sprayCount: zod.number().optional(),
+  inspectionCount: zod.number().optional(),
   moduleStats: zod.array(
     zod.object({
       moduleKey: zod.string(),
@@ -799,11 +803,10 @@ export const GetFarmActivityHeader = zod.object({
 export const GetFarmActivityResponse = zod.object({
   activities: zod.array(
     zod.object({
-      id: zod.number(),
-      type: zod.string(),
+      id: zod.string(),
       description: zod.string(),
       module: zod.string(),
-      createdAt: zod.date(),
+      createdAt: zod.date().nullable(),
     }),
   ),
 });
