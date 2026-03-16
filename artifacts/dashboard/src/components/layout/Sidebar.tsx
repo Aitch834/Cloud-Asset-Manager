@@ -123,6 +123,69 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
+function SidebarInner({ onNavClick, onLogout, currentFarmName, filteredCoreNav, filteredComplianceNav, filteredBiosecurityNav, filteredLivestockNav, filteredOtherNav }: {
+  onNavClick?: () => void;
+  onLogout: () => void;
+  currentFarmName?: string;
+  filteredCoreNav: NavItem[];
+  filteredComplianceNav: NavItem[];
+  filteredBiosecurityNav: NavItem[];
+  filteredLivestockNav: NavItem[];
+  filteredOtherNav: NavItem[];
+}) {
+  return (
+    <>
+      <div className="p-5 flex items-center gap-3 flex-shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+          <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Logo" className="w-6 h-6 object-contain" />
+        </div>
+        <div>
+          <h1 className="text-lg font-display font-bold text-white tracking-wide">BDE Farm Trac</h1>
+          <p className="text-[10px] text-sidebar-foreground/70 uppercase tracking-wider font-semibold">Red Tractor</p>
+        </div>
+      </div>
+
+      <div className="px-3 py-2 flex-shrink-0">
+        <Link href="/select" className="block" onClick={onNavClick}>
+          <div className="w-full flex items-center justify-between px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-colors border border-white/5 cursor-pointer">
+            <div className="flex flex-col text-left">
+              <span className="text-[10px] text-white/50 font-medium">Current Farm</span>
+              <span className="text-sm font-semibold text-white">{currentFarmName || "Select Farm"}</span>
+            </div>
+            <ChevronDown className="w-4 h-4 text-white/50" />
+          </div>
+        </Link>
+      </div>
+
+      <nav className="flex-1 px-3 py-3 space-y-0 overflow-y-auto">
+        <NavSection items={filteredCoreNav} onNavClick={onNavClick} />
+        <NavSection title="Compliance" items={filteredComplianceNav} onNavClick={onNavClick} />
+        <NavSection title="Biosecurity" items={filteredBiosecurityNav} onNavClick={onNavClick} />
+        <NavSection title="Livestock" items={filteredLivestockNav} onNavClick={onNavClick} />
+        <NavSection title="Management" items={filteredOtherNav} onNavClick={onNavClick} />
+      </nav>
+
+      <div className="p-3 border-t border-sidebar-border space-y-0 flex-shrink-0">
+        {bottomNav.map((item) => (
+          <Link key={item.name} href={item.href} className="block" onClick={onNavClick}>
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sidebar-foreground/80 hover:bg-white/5 hover:text-white transition-colors cursor-pointer text-sm">
+              <item.icon className="w-4 h-4 text-sidebar-foreground/50" />
+              {item.name}
+            </div>
+          </Link>
+        ))}
+        <button 
+          onClick={onLogout}
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sidebar-foreground/80 hover:bg-red-500/10 hover:text-red-400 transition-colors cursor-pointer text-sm"
+        >
+          <LogOut className="w-4 h-4 opacity-50" />
+          Sign Out
+        </button>
+      </div>
+    </>
+  );
+}
+
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const { farmId, clearState } = useAppStore();
   const { data: farmsData } = useListFarms({ query: { enabled: true } });
@@ -161,59 +224,33 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     window.location.href = "/api/logout";
   };
 
+  const sidebarBaseClasses = "flex flex-col w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen";
+
+  const innerProps = {
+    onLogout: handleLogout,
+    currentFarmName: currentFarm?.name,
+    filteredCoreNav,
+    filteredComplianceNav,
+    filteredBiosecurityNav,
+    filteredLivestockNav,
+    filteredOtherNav,
+  };
+
   return (
-    <div className={cn(
-      "flex flex-col w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen",
-      "fixed inset-y-0 left-0 z-50 transition-transform duration-300 md:relative md:translate-x-0 md:z-auto",
-      isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-    )}>
-      <div className="p-5 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-          <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Logo" className="w-6 h-6 object-contain" />
-        </div>
-        <div>
-          <h1 className="text-lg font-display font-bold text-white tracking-wide">BDE Farm Trac</h1>
-          <p className="text-[10px] text-sidebar-foreground/70 uppercase tracking-wider font-semibold">Red Tractor</p>
-        </div>
+    <>
+      {/* Desktop sidebar — always visible, in normal document flow */}
+      <div className={cn(sidebarBaseClasses, "hidden md:flex sticky top-0")}>
+        <SidebarInner {...innerProps} />
       </div>
 
-      <div className="px-3 py-2">
-        <Link href="/select" className="block">
-          <div className="w-full flex items-center justify-between px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-colors border border-white/5 cursor-pointer">
-            <div className="flex flex-col text-left">
-              <span className="text-[10px] text-white/50 font-medium">Current Farm</span>
-              <span className="text-sm font-semibold text-white">{currentFarm?.name || "Select Farm"}</span>
-            </div>
-            <ChevronDown className="w-4 h-4 text-white/50" />
-          </div>
-        </Link>
+      {/* Mobile sidebar — fixed overlay, slides in/out */}
+      <div className={cn(
+        sidebarBaseClasses,
+        "flex md:hidden fixed inset-y-0 left-0 z-50 transition-transform duration-300",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <SidebarInner {...innerProps} onNavClick={onClose} />
       </div>
-
-      <nav className="flex-1 px-3 py-3 space-y-0 overflow-y-auto">
-        <NavSection items={filteredCoreNav} onNavClick={onClose} />
-        <NavSection title="Compliance" items={filteredComplianceNav} onNavClick={onClose} />
-        <NavSection title="Biosecurity" items={filteredBiosecurityNav} onNavClick={onClose} />
-        <NavSection title="Livestock" items={filteredLivestockNav} onNavClick={onClose} />
-        <NavSection title="Management" items={filteredOtherNav} onNavClick={onClose} />
-      </nav>
-
-      <div className="p-3 border-t border-sidebar-border space-y-0">
-        {bottomNav.map((item) => (
-          <Link key={item.name} href={item.href} className="block" onClick={onClose}>
-            <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sidebar-foreground/80 hover:bg-white/5 hover:text-white transition-colors cursor-pointer text-sm">
-              <item.icon className="w-4 h-4 text-sidebar-foreground/50" />
-              {item.name}
-            </div>
-          </Link>
-        ))}
-        <button 
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sidebar-foreground/80 hover:bg-red-500/10 hover:text-red-400 transition-colors cursor-pointer text-sm"
-        >
-          <LogOut className="w-4 h-4 opacity-50" />
-          Sign Out
-        </button>
-      </div>
-    </div>
+    </>
   );
 }

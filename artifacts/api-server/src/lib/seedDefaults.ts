@@ -1,5 +1,5 @@
-import { db, rolesTable, modulesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, rolesTable, modulesTable, tenantsTable, farmsTable, subscriptionsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 
 const SYSTEM_ROLES = [
   { name: "BDE Super Admin", description: "Full platform access — BDE staff only", isSystemRole: true },
@@ -14,7 +14,7 @@ const MODULES = [
   { key: "sprays-inputs", name: "Sprays & Inputs", description: "Spray applications, product tracking, nutrient management plans", monthlyPricePence: 1500 },
   { key: "soil-management", name: "Soil Management", description: "Soil test records, nutrient analysis", monthlyPricePence: 1000 },
   { key: "equipment-management", name: "Equipment & Vehicle Management", description: "Equipment register, maintenance logs, calibration records", monthlyPricePence: 1500 },
-  { key: "livestock-management", name: "Livestock Management", description: "Herd/flock register, movements, medicines, feed and water records", monthlyPricePence: 3000, requiresSector: "livestock" },
+  { key: "livestock-management", name: "Livestock Management", description: "Herd/flock register, movements, medicines, feed and water records", monthlyPricePence: 3000 },
   { key: "biosecurity", name: "Biosecurity & Visitors", description: "Visitor log, pest control, cleaning and disinfection records", monthlyPricePence: 1000 },
   { key: "staff-training", name: "Staff & Training", description: "Training records, certificates, competency tracking", monthlyPricePence: 1000 },
   { key: "risk-waste", name: "Risk & Waste Management", description: "Risk assessments, COSHH, waste disposal records", monthlyPricePence: 1000 },
@@ -43,4 +43,72 @@ export async function seedDefaults() {
   }
 
   console.log("Default roles and modules seeded");
+
+  if (process.env.NODE_ENV === "development") {
+    await seedDevData();
+  }
+}
+
+async function seedDevData() {
+  const DEV_TENANT_SLUG = "oakfield-farms";
+  const DEV_FARM_NAME = "Oakfield Arable & Beef Farm";
+
+  let [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.slug, DEV_TENANT_SLUG)).limit(1);
+  if (!tenant) {
+    [tenant] = await db.insert(tenantsTable).values({
+      name: "Oakfield Farms Ltd",
+      slug: DEV_TENANT_SLUG,
+      isActive: true,
+    }).returning();
+    console.log("[SEED] Created dev tenant:", DEV_TENANT_SLUG);
+  }
+
+  let [farm] = await db.select().from(farmsTable).where(and(
+    eq(farmsTable.tenantId, tenant.id),
+    eq(farmsTable.name, DEV_FARM_NAME),
+  )).limit(1);
+
+  if (!farm) {
+    [farm] = await db.insert(farmsTable).values({
+      tenantId: tenant.id,
+      name: DEV_FARM_NAME,
+      address: "Oakfield Lane, Ripon, North Yorkshire",
+      postcode: "HG4 2RB",
+      cphNumber: "32/541/0072",
+      gridReference: "SE 354 742",
+      totalAcreage: 648,
+      sectorArable: true,
+      sectorBeef: true,
+      sectorDairy: false,
+      sectorPigs: false,
+      sectorPoultry: false,
+      sectorHorticulture: false,
+      isActive: true,
+    }).returning();
+    console.log("[SEED] Created dev farm:", DEV_FARM_NAME);
+  }
+
+  const allModules = await db.select().from(modulesTable);
+  for (const mod of allModules) {
+    const existing = await db.select().from(subscriptionsTable).where(and(
+      eq(subscriptionsTable.farmId, farm.id),
+      eq(subscriptionsTable.tenantId, tenant.id),
+      eq(subscriptionsTable.moduleId, mod.id),
+    )).limit(1);
+
+    if (existing.length === 0) {
+      const periodStart = new Date();
+      const periodEnd = new Date(periodStart);
+      periodEnd.setFullYear(periodEnd.getFullYear() + 10);
+      await db.insert(subscriptionsTable).values({
+        tenantId: tenant.id,
+        farmId: farm.id,
+        moduleId: mod.id,
+        status: "active",
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+      });
+    }
+  }
+  console.log("[SEED] Dev subscriptions ensured for all modules on farm:", farm.id);
 }
