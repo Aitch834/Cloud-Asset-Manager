@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./src/generated/api": "./src/generated/api.ts",
-    "./src/generated/api.schemas": "./src/generated/api.schemas.ts"
+    "./src/generated/api.schemas": "./src/generated/api.schemas.ts",
+    "./src/custom-fetch": "./src/custom-fetch.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "catalog:"

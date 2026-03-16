@@ -1,5 +1,6 @@
 import app from "./app";
 import { seedDefaults } from "./lib/seedDefaults";
+import { startAlertingJob } from "./lib/alertingJob";
 
 interface EnvSpec {
   key: string;
@@ -60,4 +61,5 @@ app.listen(port, () => {
   seedDefaults().catch((err) => {
     console.error("[SEED] Failed to seed defaults:", err);
   });
+  startAlertingJob();
 });

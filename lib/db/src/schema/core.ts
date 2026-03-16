@@ -104,6 +104,22 @@ export const subscriptionsTable = pgTable("subscriptions", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+export const notificationsTable = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  tenantId: integer("tenant_id").notNull().references(() => tenantsTable.id),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  type: text("type").notNull(),
+  severity: text("severity").notNull().default("warning"),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  relatedModule: text("related_module"),
+  relatedId: integer("related_id"),
+  dedupeKey: text("dedupe_key").unique(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const userInvitationsTable = pgTable("user_invitations", {
   id: serial("id").primaryKey(),
   tenantId: integer("tenant_id").notNull().references(() => tenantsTable.id),

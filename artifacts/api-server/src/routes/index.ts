@@ -8,6 +8,7 @@ import rolesRouter from "./roles";
 import billingRouter from "./billing";
 import adminRouter from "./admin";
 import farmsRouter from "./farms";
+import { notificationsRouter } from "./notifications";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(rolesRouter);
 router.use(billingRouter);
 router.use(adminRouter);
 router.use(farmsRouter);
+router.use(notificationsRouter);
 
 export default router;

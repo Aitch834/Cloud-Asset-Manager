@@ -45,7 +45,8 @@ import {
   subscriptionsTable,
   modulesTable,
 } from "@workspace/db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, lt } from "drizzle-orm";
+import { createNonconformanceNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 
 const router: IRouter = Router();
@@ -131,9 +132,12 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
 
   const activeSubs = subs.filter((s) => s.status === "active");
 
+  const now = new Date();
+
   const [
     [inspResult],
     [ncCount],
+    [overdueInspCount],
     [fieldCount],
     [equipmentCount],
     [sprayCount],
@@ -149,6 +153,10 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
       .select({ count: sql<number>`count(*)::int` })
       .from(nonconformanceRecordsTable)
       .where(and(eq(nonconformanceRecordsTable.farmId, farmId), eq(nonconformanceRecordsTable.status, "open"))),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(inspectionRecordsTable)
+      .where(and(eq(inspectionRecordsTable.farmId, farmId), lt(inspectionRecordsTable.nextInspectionDue, now))),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(fieldsTable)
@@ -175,12 +183,13 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
     hasOverdue: false,
   }));
 
-  const complianceScore = ncCount.count === 0 ? 95 : Math.max(50, 95 - ncCount.count * 5);
+  const totalOverdue = ncCount.count + overdueInspCount.count;
+  const complianceScore = totalOverdue === 0 ? 95 : Math.max(50, 95 - totalOverdue * 5);
 
   res.json({
     farm,
     complianceScore,
-    overdueActions: ncCount.count,
+    overdueActions: totalOverdue,
     upcomingInspection: inspResult?.nextDue || null,
     fieldCount: fieldCount.count,
     equipmentCount: equipmentCount.count,
@@ -1014,6 +1023,12 @@ router.post("/farms/:farmId/nonconformances", requireAuth, requireTenant, requir
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(nonconformanceRecordsTable).values({ ...req.body, farmId }).returning();
+  createNonconformanceNotification({
+    tenantId: req.tenantId!,
+    farmId,
+    ncId: record.id,
+    description: record.description || "Unnamed issue",
+  }).catch(() => {});
   res.status(201).json({ record });
 });
 
