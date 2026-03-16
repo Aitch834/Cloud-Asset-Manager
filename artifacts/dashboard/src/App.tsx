@@ -12,6 +12,7 @@ import Dashboard from "@/pages/Dashboard";
 import FieldsPage from "@/pages/Fields";
 import EquipmentPage from "@/pages/Equipment";
 import ModulePage from "@/pages/ModulePage";
+import MovementsPage from "@/pages/Movements";
 import HelpCentre from "@/pages/HelpCentre";
 import FarmSettingsPage from "@/pages/FarmSettings";
 import NotFound from "@/pages/not-found";
@@ -174,22 +175,6 @@ function LivestockPage() {
   ]} />;
 }
 
-function MovementsPage() {
-  return <ModulePage title="Livestock Movements" apiPath="movements" columns={[
-    { key: "movementDate", label: "Date" },
-    { key: "movementType", label: "Type" },
-    { key: "animalCount", label: "Count" },
-    { key: "originCph", label: "Origin CPH" },
-    { key: "destinationCph", label: "Destination CPH" },
-  ]} formFields={[
-    { key: "movementDate", label: "Movement Date", type: "date", required: true },
-    { key: "movementType", label: "Type", type: "select", options: ["on", "off", "between"], required: true },
-    { key: "animalCount", label: "Animal Count", type: "number", required: true },
-    { key: "originCph", label: "Origin CPH" },
-    { key: "destinationCph", label: "Destination CPH" },
-    { key: "licenceNumber", label: "Licence Number" },
-  ]} />;
-}
 
 function MedicinePage() {
   return <ModulePage title="Medicine Records" apiPath="medicine-records" columns={[

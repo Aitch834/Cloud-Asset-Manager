@@ -1,5 +1,5 @@
 import { db, rolesTable, modulesTable, tenantsTable, farmsTable, subscriptionsTable } from "@workspace/db";
-import { cropsTable, fieldCropAssignmentsTable, fieldsTable } from "@workspace/db/schema";
+import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const SYSTEM_ROLES = [
@@ -114,6 +114,7 @@ async function seedDevData() {
   console.log("[SEED] Dev subscriptions ensured for all modules on farm:", farm.id);
 
   await seedCropData(farm.id);
+  await seedMovementData(farm.id);
 }
 
 async function seedCropData(farmId: number) {
@@ -145,4 +146,52 @@ async function seedCropData(farmId: number) {
     await db.insert(fieldCropAssignmentsTable).values(assignments as typeof fieldCropAssignmentsTable.$inferInsert[]);
   }
   console.log("[SEED] Dev crop data seeded for farm:", farmId);
+}
+
+async function seedMovementData(farmId: number) {
+  const existing = await db.select().from(livestockMovementsTable).where(eq(livestockMovementsTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) return;
+
+  const yr = new Date().getFullYear();
+  const movements = [
+    {
+      farmId,
+      movementType: "on",
+      movementDate: new Date(`${yr}-02-14`),
+      fromLocation: "32/541/0018 — Harrogate Auction Mart",
+      toLocation: "32/541/0072",
+      numberOfAnimals: 24,
+      licenceNumber: "AML2-2026-00147",
+      transporterDetails: "J. Haigh Haulage, HG4 8TP, YR73 BXK",
+      reason: "Purchase — store cattle",
+      notes: "24 Limousin cross store bullocks purchased at Harrogate",
+    },
+    {
+      farmId,
+      movementType: "off",
+      movementDate: new Date(`${yr}-03-04`),
+      fromLocation: "32/541/0072",
+      toLocation: "ABP Malton Abattoir — 21/223/0001",
+      numberOfAnimals: 8,
+      licenceNumber: "AML2-2026-00291",
+      transporterDetails: "ABP Transport Ltd, YO17 7DL, YX21 ELP",
+      reason: "Slaughter — finished beef",
+      notes: "8 finished Charolais cross steers dispatched to ABP Malton",
+    },
+    {
+      farmId,
+      movementType: "between",
+      movementDate: new Date(`${yr}-03-10`),
+      fromLocation: "32/541/0072 — Home Farm",
+      toLocation: "32/541/0091 — North Block",
+      numberOfAnimals: 12,
+      licenceNumber: null,
+      transporterDetails: null,
+      reason: "Grazing rotation",
+      notes: "12 suckler cows moved to North Block for spring grazing",
+    },
+  ];
+
+  await db.insert(livestockMovementsTable).values(movements);
+  console.log("[SEED] Dev movement records seeded for farm:", farmId);
 }
