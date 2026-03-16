@@ -13,6 +13,7 @@ import FieldsPage from "@/pages/Fields";
 import EquipmentPage from "@/pages/Equipment";
 import ModulePage from "@/pages/ModulePage";
 import MovementsPage from "@/pages/Movements";
+import SuppliersStockPage from "@/pages/SuppliersStock";
 import HelpCentre from "@/pages/HelpCentre";
 import FarmSettingsPage from "@/pages/FarmSettings";
 import AppSettingsPage from "@/pages/SettingsPage";
@@ -213,19 +214,7 @@ function TrainingPage() {
 }
 
 function StockPage() {
-  return <ModulePage title="Suppliers & Stock" apiPath="suppliers" columns={[
-    { key: "companyName", label: "Company" },
-    { key: "contactName", label: "Contact" },
-    { key: "phone", label: "Phone" },
-    { key: "email", label: "Email" },
-    { key: "isActive", label: "Active" },
-  ]} formFields={[
-    { key: "companyName", label: "Company Name", required: true },
-    { key: "contactName", label: "Contact Name" },
-    { key: "phone", label: "Phone" },
-    { key: "email", label: "Email", type: "email" },
-    { key: "address", label: "Address", type: "textarea" },
-  ]} />;
+  return <SuppliersStockPage />;
 }
 
 function FinancialPage() {

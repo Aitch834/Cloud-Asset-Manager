@@ -38,6 +38,8 @@ import {
   suppliersTable,
   stockItemsTable,
   stockDeliveriesTable,
+  stockLevelsTable,
+  stockMovementsTable,
   financialTransactionsTable,
   documentRecordsTable,
   weatherStationsTable,
@@ -459,6 +461,34 @@ router.post("/farms/:farmId/spray-applications", requireAuth, requireTenant, req
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(sprayApplicationsTable).values({ ...req.body, farmId }).returning();
+
+  const rate = parseFloat(req.body.applicationRate);
+  const area = parseFloat(req.body.areaSprayedHa);
+  if (!isNaN(rate) && !isNaN(area) && area > 0 && req.body.productId) {
+    const [product] = await db.select().from(sprayProductsTable).where(eq(sprayProductsTable.id, Number(req.body.productId))).limit(1);
+    if (product?.stockItemId) {
+      const qtyUsed = rate * area;
+      const qtyChange = -qtyUsed;
+      await db.insert(stockMovementsTable).values({
+        farmId,
+        stockItemId: product.stockItemId,
+        movementType: "usage",
+        quantityChange: String(qtyChange),
+        referenceType: "spray_application",
+        referenceId: record.id,
+        fieldId: req.body.fieldId ? Number(req.body.fieldId) : null,
+        performedBy: req.body.operatorName || null,
+        notes: `Auto-deducted: spray application on ${req.body.applicationDate}`,
+      });
+      const [existing] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, product.stockItemId))).limit(1);
+      if (existing) {
+        await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(existing.currentQuantity) + qtyChange), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id));
+      } else {
+        await db.insert(stockLevelsTable).values({ farmId, stockItemId: product.stockItemId, currentQuantity: String(qtyChange) });
+      }
+    }
+  }
+
   res.status(201).json({ record });
 });
 
@@ -1222,7 +1252,26 @@ router.delete("/farms/:farmId/suppliers/:recordId", requireAuth, requireTenant, 
 router.get("/farms/:farmId/stock-items", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(stockItemsTable).where(eq(stockItemsTable.farmId, farmId)).orderBy(desc(stockItemsTable.createdAt));
+  const supplierAlias = suppliersTable;
+  const records = await db.select({
+    id: stockItemsTable.id,
+    farmId: stockItemsTable.farmId,
+    name: stockItemsTable.name,
+    category: stockItemsTable.category,
+    productCode: stockItemsTable.productCode,
+    mappNumber: stockItemsTable.mappNumber,
+    unit: stockItemsTable.unit,
+    reorderLevel: stockItemsTable.reorderLevel,
+    storageLocation: stockItemsTable.storageLocation,
+    defaultSupplierId: stockItemsTable.defaultSupplierId,
+    defaultSupplierName: supplierAlias.name,
+    notes: stockItemsTable.notes,
+    isActive: stockItemsTable.isActive,
+    createdAt: stockItemsTable.createdAt,
+  }).from(stockItemsTable)
+    .leftJoin(supplierAlias, eq(stockItemsTable.defaultSupplierId, supplierAlias.id))
+    .where(eq(stockItemsTable.farmId, farmId))
+    .orderBy(stockItemsTable.name);
   res.json({ records });
 });
 
@@ -1237,7 +1286,28 @@ router.post("/farms/:farmId/stock-items", requireAuth, requireTenant, requireMod
 router.get("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(stockDeliveriesTable).where(eq(stockDeliveriesTable.farmId, farmId)).orderBy(desc(stockDeliveriesTable.deliveryDate));
+  const records = await db.select({
+    id: stockDeliveriesTable.id,
+    farmId: stockDeliveriesTable.farmId,
+    supplierId: stockDeliveriesTable.supplierId,
+    supplierName: suppliersTable.name,
+    stockItemId: stockDeliveriesTable.stockItemId,
+    stockItemName: stockItemsTable.name,
+    stockItemUnit: stockItemsTable.unit,
+    deliveryDate: stockDeliveriesTable.deliveryDate,
+    quantity: stockDeliveriesTable.quantity,
+    batchNumber: stockDeliveriesTable.batchNumber,
+    expiryDate: stockDeliveriesTable.expiryDate,
+    costPence: stockDeliveriesTable.costPence,
+    invoiceReference: stockDeliveriesTable.invoiceReference,
+    receivedBy: stockDeliveriesTable.receivedBy,
+    notes: stockDeliveriesTable.notes,
+    createdAt: stockDeliveriesTable.createdAt,
+  }).from(stockDeliveriesTable)
+    .leftJoin(suppliersTable, eq(stockDeliveriesTable.supplierId, suppliersTable.id))
+    .leftJoin(stockItemsTable, eq(stockDeliveriesTable.stockItemId, stockItemsTable.id))
+    .where(eq(stockDeliveriesTable.farmId, farmId))
+    .orderBy(desc(stockDeliveriesTable.deliveryDate));
   res.json({ records });
 });
 
@@ -1245,6 +1315,30 @@ router.post("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requi
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(stockDeliveriesTable).values({ ...req.body, farmId }).returning();
+
+  if (record.stockItemId && record.quantity) {
+    const qtyIn = parseFloat(record.quantity);
+    if (!isNaN(qtyIn) && qtyIn > 0) {
+      await db.insert(stockMovementsTable).values({
+        farmId,
+        stockItemId: record.stockItemId,
+        movementType: "received",
+        quantityChange: String(qtyIn),
+        referenceType: "delivery",
+        referenceId: record.id,
+        deliveryId: record.id,
+        performedBy: record.receivedBy || null,
+        notes: `Goods received${record.batchNumber ? ` — batch ${record.batchNumber}` : ""}${record.invoiceReference ? `, invoice ${record.invoiceReference}` : ""}`,
+      });
+      const [existing] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, record.stockItemId))).limit(1);
+      if (existing) {
+        await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(existing.currentQuantity) + qtyIn), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id));
+      } else {
+        await db.insert(stockLevelsTable).values({ farmId, stockItemId: record.stockItemId, currentQuantity: String(qtyIn) });
+      }
+    }
+  }
+
   res.status(201).json({ record });
 });
 
@@ -1741,6 +1835,72 @@ router.delete("/farms/:farmId/stock-deliveries/:recordId", requireAuth, requireT
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(stockDeliveriesTable).where(and(eq(stockDeliveriesTable.id, recordId), eq(stockDeliveriesTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Stock Movements ──────────────────────────────
+router.get("/farms/:farmId/stock-movements", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const stockItemId = req.query.stockItemId ? Number(req.query.stockItemId) : null;
+  const base = db.select({
+    id: stockMovementsTable.id,
+    stockItemId: stockMovementsTable.stockItemId,
+    stockItemName: stockItemsTable.name,
+    stockItemUnit: stockItemsTable.unit,
+    movementType: stockMovementsTable.movementType,
+    quantityChange: stockMovementsTable.quantityChange,
+    referenceType: stockMovementsTable.referenceType,
+    referenceId: stockMovementsTable.referenceId,
+    fieldId: stockMovementsTable.fieldId,
+    deliveryId: stockMovementsTable.deliveryId,
+    movedAt: stockMovementsTable.movedAt,
+    performedBy: stockMovementsTable.performedBy,
+    notes: stockMovementsTable.notes,
+    createdAt: stockMovementsTable.createdAt,
+  }).from(stockMovementsTable).leftJoin(stockItemsTable, eq(stockMovementsTable.stockItemId, stockItemsTable.id));
+  const conditions = [eq(stockMovementsTable.farmId, farmId)];
+  if (stockItemId) conditions.push(eq(stockMovementsTable.stockItemId, stockItemId));
+  const records = await base.where(and(...conditions)).orderBy(desc(stockMovementsTable.movedAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/stock-movements", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = req.body;
+  const [record] = await db.insert(stockMovementsTable).values({ ...body, farmId, movementType: body.movementType || "adjustment" }).returning();
+  if (record.stockItemId && record.quantityChange) {
+    const qtyChange = parseFloat(record.quantityChange);
+    if (!isNaN(qtyChange)) {
+      const [existing] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, record.stockItemId))).limit(1);
+      if (existing) {
+        await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(existing.currentQuantity) + qtyChange), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id));
+      } else {
+        await db.insert(stockLevelsTable).values({ farmId, stockItemId: record.stockItemId, currentQuantity: String(qtyChange) });
+      }
+    }
+  }
+  res.status(201).json({ record });
+});
+
+// ─── Stock Levels ─────────────────────────────────
+router.get("/farms/:farmId/stock-levels", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select({
+    id: stockLevelsTable.id,
+    stockItemId: stockLevelsTable.stockItemId,
+    stockItemName: stockItemsTable.name,
+    stockItemCategory: stockItemsTable.category,
+    stockItemUnit: stockItemsTable.unit,
+    stockItemReorderLevel: stockItemsTable.reorderLevel,
+    currentQuantity: stockLevelsTable.currentQuantity,
+    lastUpdated: stockLevelsTable.lastUpdated,
+  }).from(stockLevelsTable)
+    .leftJoin(stockItemsTable, eq(stockLevelsTable.stockItemId, stockItemsTable.id))
+    .where(eq(stockLevelsTable.farmId, farmId))
+    .orderBy(stockItemsTable.name);
+  res.json({ records });
 });
 
 router.put("/farms/:farmId/documents/:recordId", requireAuth, requireTenant, requireModuleByKey("document-management", "write"), async (req: Request, res: Response): Promise<void> => {
