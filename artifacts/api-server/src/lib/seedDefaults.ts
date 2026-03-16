@@ -1,4 +1,5 @@
 import { db, rolesTable, modulesTable, tenantsTable, farmsTable, subscriptionsTable } from "@workspace/db";
+import { cropsTable, fieldCropAssignmentsTable, fieldsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const SYSTEM_ROLES = [
@@ -111,4 +112,37 @@ async function seedDevData() {
     }
   }
   console.log("[SEED] Dev subscriptions ensured for all modules on farm:", farm.id);
+
+  await seedCropData(farm.id);
+}
+
+async function seedCropData(farmId: number) {
+  const DEV_CROPS = [
+    { name: "Winter Wheat", variety: "KWS Zyatt", category: "Combinable Crops" },
+    { name: "Oil Seed Rape", variety: "Extase", category: "Oilseeds" },
+    { name: "Spring Barley", variety: "Laureate", category: "Combinable Crops" },
+    { name: "Field Beans", variety: "Lynx", category: "Pulses" },
+  ];
+
+  const existingCrops = await db.select().from(cropsTable).where(eq(cropsTable.farmId, farmId));
+  if (existingCrops.length > 0) return;
+
+  const seededCrops = await db.insert(cropsTable).values(
+    DEV_CROPS.map(c => ({ ...c, farmId }))
+  ).returning();
+
+  const fields = await db.select().from(fieldsTable).where(eq(fieldsTable.farmId, farmId));
+  if (fields.length === 0) return;
+
+  const currentYear = new Date().getFullYear();
+  const assignments = [
+    { fieldId: fields[0]?.id, cropId: seededCrops[0]?.id, plantingDate: new Date(`${currentYear - 1}-10-12`), expectedHarvestDate: new Date(`${currentYear}-08-20`), season: `Winter ${currentYear - 1}/${String(currentYear).slice(2)}`, year: currentYear },
+    { fieldId: fields[1]?.id, cropId: seededCrops[1]?.id, plantingDate: new Date(`${currentYear - 1}-09-05`), expectedHarvestDate: new Date(`${currentYear}-07-25`), season: `Winter ${currentYear - 1}/${String(currentYear).slice(2)}`, year: currentYear },
+    { fieldId: fields[2]?.id, cropId: seededCrops[2]?.id, plantingDate: new Date(`${currentYear}-04-03`), expectedHarvestDate: new Date(`${currentYear}-08-15`), season: `Spring ${currentYear}`, year: currentYear },
+  ].filter(a => a.fieldId && a.cropId);
+
+  if (assignments.length > 0) {
+    await db.insert(fieldCropAssignmentsTable).values(assignments as typeof fieldCropAssignmentsTable.$inferInsert[]);
+  }
+  console.log("[SEED] Dev crop data seeded for farm:", farmId);
 }
