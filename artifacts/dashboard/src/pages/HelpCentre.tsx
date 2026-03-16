@@ -117,9 +117,13 @@ export default function HelpCentre() {
                   </div>
                   {openId === article.id && (
                     <div className="px-5 pb-5 pt-0 border-t border-border bg-black/[0.015]">
-                      <p className="text-foreground/75 text-sm leading-relaxed mt-4">
-                        {article.content}
-                      </p>
+                      <div className="mt-4 space-y-3">
+                        {article.content.split("\n\n").map((para, i) => (
+                          <p key={i} className="text-foreground/75 text-sm leading-relaxed">
+                            {para}
+                          </p>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </Card>
