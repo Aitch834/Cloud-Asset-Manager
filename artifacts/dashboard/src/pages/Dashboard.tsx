@@ -2,12 +2,13 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useGetFarmDashboard, useGetFarmActivity } from "@workspace/api-client-react/src/generated/api";
-import { Activity, AlertTriangle, CheckCircle2, Sprout, Tractor, Droplets } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Sprout, Tractor, Droplets, FileText, Leaf, Clock, ArrowRight } from "lucide-react";
 import { Link, Redirect } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
 export default function Dashboard() {
   const { farmId } = useAppStore();
-  
+
   if (!farmId) return <Redirect href="/select" />;
 
   const { data: dashboard, isLoading } = useGetFarmDashboard(farmId);
@@ -72,6 +73,9 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Compliance Health Panel */}
+      <ComplianceHealthPanel farmId={farmId} />
+
       {/* Module Quick Links */}
       <div>
         <h3 className="text-xl font-display font-bold mb-4">Quick Access</h3>
@@ -108,6 +112,158 @@ export default function Dashboard() {
         </CardContent>
       </Card>
     </AppLayout>
+  );
+}
+
+function ComplianceHealthPanel({ farmId }: { farmId: number }) {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const ninetyDays = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString();
+
+  const spraysQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), select: d => d.records ?? [] });
+  const productsQ = useQuery({ queryKey: ["spray-products", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.json()), select: d => d.records ?? [] });
+  const plansQ = useQuery({ queryKey: ["nmp-plans", farmId], queryFn: () => fetch(`/api/farms/${farmId}/nmp-plans`).then(r => r.json()), select: d => d.records ?? [] });
+  const docsQ = useQuery({ queryKey: ["documents", farmId], queryFn: () => fetch(`/api/farms/${farmId}/documents`).then(r => r.json()), select: d => d.records ?? [] });
+  const fieldsQ = useQuery({ queryKey: ["fields", farmId], queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()), select: d => d.records ?? [] });
+
+  const sprays: any[] = spraysQ.data ?? [];
+  const products: any[] = productsQ.data ?? [];
+  const plans: any[] = plansQ.data ?? [];
+  const docs: any[] = docsQ.data ?? [];
+  const fields: any[] = fieldsQ.data ?? [];
+
+  const currentYear = now.getFullYear();
+
+  const checks = [
+    {
+      label: "Spray Applications",
+      status: sprays.length > 0
+        ? sprays.some(s => new Date(s.applicationDate) >= new Date(thirtyDaysAgo))
+          ? "ok" : "warn"
+        : "gap",
+      message: sprays.length === 0
+        ? "No spray records on file"
+        : sprays.some(s => new Date(s.applicationDate) >= new Date(thirtyDaysAgo))
+          ? `${sprays.length} total applications recorded`
+          : `Last application over 30 days ago — confirm records are up to date`,
+      href: "/sprays",
+      icon: Droplets,
+    },
+    {
+      label: "Product Register",
+      status: products.length > 0 ? "ok" : "gap",
+      message: products.length === 0
+        ? "No products in spray register — required before logging applications"
+        : `${products.length} product${products.length !== 1 ? "s" : ""} registered`,
+      href: "/sprays",
+      icon: Droplets,
+    },
+    {
+      label: `NMP for ${currentYear}`,
+      status: plans.some(p => p.planYear === currentYear || p.planYear === String(currentYear))
+        ? "ok"
+        : plans.some(p => p.planYear === currentYear - 1 || p.planYear === String(currentYear - 1))
+          ? "warn"
+          : "gap",
+      message: plans.some(p => p.planYear === currentYear || p.planYear === String(currentYear))
+        ? `${currentYear} Nutrient Management Plan on record`
+        : plans.some(p => p.planYear === currentYear - 1 || p.planYear === String(currentYear - 1))
+          ? `Only ${currentYear - 1} NMP on record — ${currentYear} plan not yet created`
+          : "No Nutrient Management Plan for the current growing year",
+      href: "/nmp",
+      icon: Leaf,
+    },
+    {
+      label: "Field Coverage (NMP)",
+      status: fields.length === 0 ? "warn" :
+        plans.length === 0 ? "gap" : "ok",
+      message: fields.length === 0 ? "No fields registered yet" :
+        plans.length === 0 ? `${fields.length} field${fields.length !== 1 ? "s" : ""} with no NMP entries` :
+        `${fields.length} field${fields.length !== 1 ? "s" : ""} in system — verify all are covered in NMP`,
+      href: "/nmp",
+      icon: Leaf,
+    },
+    {
+      label: "Document Register",
+      status: (() => {
+        if (docs.length === 0) return "gap";
+        const expired = docs.filter(d => d.expiryDate && new Date(d.expiryDate) < now).length;
+        const expiring = docs.filter(d => d.expiryDate && new Date(d.expiryDate) > now && new Date(d.expiryDate) < new Date(ninetyDays)).length;
+        if (expired > 0) return "gap";
+        if (expiring > 0) return "warn";
+        return "ok";
+      })(),
+      message: (() => {
+        if (docs.length === 0) return "No documents in register — add certificates and compliance records";
+        const expired = docs.filter(d => d.expiryDate && new Date(d.expiryDate) < now).length;
+        const expiring = docs.filter(d => d.expiryDate && new Date(d.expiryDate) > now && new Date(d.expiryDate) < new Date(ninetyDays)).length;
+        if (expired > 0) return `${expired} expired document${expired !== 1 ? "s" : ""} — update or renew immediately`;
+        if (expiring > 0) return `${expiring} document${expiring !== 1 ? "s" : ""} expiring within 90 days`;
+        return `${docs.length} document${docs.length !== 1 ? "s" : ""} on record — all valid`;
+      })(),
+      href: "/documents",
+      icon: FileText,
+    },
+    {
+      label: "Operator Certificates",
+      status: (() => {
+        const certs = docs.filter(d => d.documentType === "Spray Operator Certificate (PA1/PA6)");
+        if (certs.length === 0) return "warn";
+        const expired = certs.filter(d => d.expiryDate && new Date(d.expiryDate) < now).length;
+        return expired > 0 ? "gap" : "ok";
+      })(),
+      message: (() => {
+        const certs = docs.filter(d => d.documentType === "Spray Operator Certificate (PA1/PA6)");
+        if (certs.length === 0) return "No PA1/PA6 certificates on record — required for spray operators";
+        const expired = certs.filter(d => d.expiryDate && new Date(d.expiryDate) < now).length;
+        return expired > 0 ? `${expired} operator certificate${expired !== 1 ? "s" : ""} expired` : `${certs.length} operator certificate${certs.length !== 1 ? "s" : ""} on record`;
+      })(),
+      href: "/documents",
+      icon: FileText,
+    },
+  ];
+
+  const okCount = checks.filter(c => c.status === "ok").length;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-xl font-display font-bold">Compliance Health</h3>
+        <span className="text-sm text-foreground/50">{okCount}/{checks.length} checks passing</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {checks.map((check) => {
+          const Icon = check.icon;
+          const statusConfig = {
+            ok: { bg: "bg-emerald-50", border: "border-emerald-100", iconBg: "bg-emerald-100", iconColor: "text-emerald-600", dot: "bg-emerald-500", label: "OK", labelColor: "text-emerald-700" },
+            warn: { bg: "bg-amber-50", border: "border-amber-100", iconBg: "bg-amber-100", iconColor: "text-amber-600", dot: "bg-amber-500", label: "Attention", labelColor: "text-amber-700" },
+            gap: { bg: "bg-red-50", border: "border-red-100", iconBg: "bg-red-100", iconColor: "text-red-600", dot: "bg-red-500", label: "Action Required", labelColor: "text-red-700" },
+          }[check.status];
+          return (
+            <Link key={check.label} href={check.href}>
+              <div className={`p-4 rounded-xl border ${statusConfig.bg} ${statusConfig.border} hover:shadow-sm transition-all cursor-pointer group`}>
+                <div className="flex items-start gap-3">
+                  <div className={`w-9 h-9 rounded-lg ${statusConfig.iconBg} flex items-center justify-center flex-shrink-0`}>
+                    <Icon className={`w-4 h-4 ${statusConfig.iconColor}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-semibold text-foreground/70">{check.label}</span>
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${statusConfig.bg} ${statusConfig.labelColor}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot}`}></span>
+                        {statusConfig.label}
+                      </span>
+                    </div>
+                    <p className="text-sm text-foreground/70 leading-snug">{check.message}</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-foreground/20 group-hover:text-foreground/50 transition-colors flex-shrink-0 mt-0.5" />
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

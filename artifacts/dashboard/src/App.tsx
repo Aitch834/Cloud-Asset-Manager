@@ -16,6 +16,9 @@ import MovementsPage from "@/pages/Movements";
 import SuppliersStockPage from "@/pages/SuppliersStock";
 import FinancialPage from "@/pages/FinancialPage";
 import HarvestPage from "@/pages/HarvestPage";
+import SprayPage from "@/pages/SprayPage";
+import NMPPage from "@/pages/NMPPage";
+import DocumentsPageCustom from "@/pages/DocumentsPage";
 import HelpCentre from "@/pages/HelpCentre";
 import FarmSettingsPage from "@/pages/FarmSettings";
 import AppSettingsPage from "@/pages/SettingsPage";
@@ -31,21 +34,6 @@ const queryClient = new QueryClient({
   },
 });
 
-function SpraysPage() {
-  return <ModulePage title="Spray Records" apiPath="spray-applications" columns={[
-    { key: "applicationDate", label: "Date" },
-    { key: "fieldName", label: "Field" },
-    { key: "productName", label: "Product" },
-    { key: "operatorName", label: "Operator" },
-    { key: "areaSprayedHa", label: "Area (ha)" },
-  ]} formFields={[
-    { key: "applicationDate", label: "Application Date", type: "date", required: true },
-    { key: "operatorName", label: "Operator", required: true },
-    { key: "reasonForApplication", label: "Reason", required: true },
-    { key: "areaSprayedHa", label: "Area (ha)", type: "number" },
-    { key: "notes", label: "Notes", type: "textarea" },
-  ]} />;
-}
 
 function SoilPage() {
   return <ModulePage title="Soil Tests" apiPath="soil-tests" columns={[
@@ -252,19 +240,6 @@ function HaulagePage() {
   ]} />;
 }
 
-function DocumentsPage() {
-  return <ModulePage title="Documents" apiPath="documents" columns={[
-    { key: "title", label: "Title" },
-    { key: "documentType", label: "Type" },
-    { key: "category", label: "Category" },
-    { key: "createdAt", label: "Uploaded" },
-  ]} formFields={[
-    { key: "title", label: "Title", required: true },
-    { key: "documentType", label: "Type", type: "select", options: ["certificate", "report", "policy", "procedure", "record", "other"] },
-    { key: "category", label: "Category" },
-    { key: "notes", label: "Notes", type: "textarea" },
-  ]} />;
-}
 
 function WeatherPage() {
   return <ModulePage title="Weather Records" apiPath="weather-readings" columns={[
@@ -309,7 +284,8 @@ function Router() {
       <Route path="/fields" component={FieldsPage} />
       <Route path="/harvest" component={HarvestPage} />
       <Route path="/equipment" component={EquipmentPage} />
-      <Route path="/sprays" component={SpraysPage} />
+      <Route path="/sprays" component={SprayPage} />
+      <Route path="/nmp" component={NMPPage} />
       <Route path="/soil" component={SoilPage} />
       <Route path="/inspections" component={InspectionsPage} />
       <Route path="/risks" component={RisksPage} />
@@ -325,7 +301,7 @@ function Router() {
       <Route path="/financial" component={FinancialPage} />
       <Route path="/environmental" component={EnvironmentalPage} />
       <Route path="/haulage" component={HaulagePage} />
-      <Route path="/documents" component={DocumentsPage} />
+      <Route path="/documents" component={DocumentsPageCustom} />
       <Route path="/weather" component={WeatherPage} />
       <Route path="/help" component={HelpPage} />
       <Route path="/staff" component={StaffPage} />

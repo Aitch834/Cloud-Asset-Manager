@@ -44,6 +44,7 @@ const coreNav: NavItem[] = [
   { name: "Fields & Crops", href: "/fields", icon: Sprout, moduleKeys: ["field-crop-management"] },
   { name: "Harvest Records", href: "/harvest", icon: Wheat, moduleKeys: ["field-crop-management"] },
   { name: "Spray Records", href: "/sprays", icon: Droplets, moduleKeys: ["sprays-inputs"] },
+  { name: "NMP", href: "/nmp", icon: Leaf, moduleKeys: ["sprays-inputs"] },
   { name: "Soil Tests", href: "/soil", icon: TestTube, moduleKeys: ["soil-management"] },
   { name: "Equipment", href: "/equipment", icon: Tractor, moduleKeys: ["equipment-management"] },
 ];
