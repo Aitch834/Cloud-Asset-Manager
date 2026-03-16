@@ -243,10 +243,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         <SidebarInner {...innerProps} />
       </div>
 
-      {/* Mobile sidebar — fixed overlay, slides in/out */}
+      {/* Mobile sidebar — fixed overlay, slides in/out. Always in DOM; visibility controlled only by transform */}
       <div className={cn(
         sidebarBaseClasses,
-        "flex md:hidden fixed inset-y-0 left-0 z-50 transition-transform duration-300",
+        "fixed inset-y-0 left-0 z-50 transition-transform duration-300",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <SidebarInner {...innerProps} onNavClick={onClose} />

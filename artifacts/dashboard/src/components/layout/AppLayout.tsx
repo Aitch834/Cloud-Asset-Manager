@@ -16,10 +16,10 @@ export function AppLayout({ children, title }: { children: ReactNode, title: str
     <div className="flex min-h-screen w-full bg-background">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Mobile backdrop */}
+      {/* Sidebar backdrop — always rendered when sidebar is open */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          className="fixed inset-0 z-40 bg-black/50"
           onClick={() => setSidebarOpen(false)}
         />
       )}
