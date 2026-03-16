@@ -13,8 +13,17 @@
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
 
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
 
   --color-sidebar: hsl(var(--sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
@@ -47,6 +56,16 @@
   /* Cards are pure white to stand out off the cream background */
   --card: 0 0% 100%;
   --card-foreground: 150 20% 15%;
+
+  /* Popover (dropdown menus, select content) — solid white, never transparent */
+  --popover: 0 0% 100%;
+  --popover-foreground: 150 20% 15%;
+
+  /* Secondary and muted tones */
+  --secondary: 60 20% 94%;
+  --secondary-foreground: 150 20% 15%;
+  --muted: 60 20% 94%;
+  --muted-foreground: 150 10% 45%;
   
   /* Sidebar is a very deep green */
   --sidebar: 154 35% 12%;
