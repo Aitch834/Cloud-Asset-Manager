@@ -25,7 +25,7 @@ export function AppLayout({ children, title }: { children: ReactNode, title: str
       )}
 
       <div className="flex-1 flex flex-col overflow-hidden relative">
-        <header className="h-20 flex items-center justify-between px-8 bg-background/80 backdrop-blur-md border-b border-border/50 sticky top-0 z-10">
+        <header className="h-20 flex items-center justify-between px-8 bg-background border-b border-border/50 sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button
               className="md:hidden p-2 rounded-lg hover:bg-black/5 cursor-pointer"
