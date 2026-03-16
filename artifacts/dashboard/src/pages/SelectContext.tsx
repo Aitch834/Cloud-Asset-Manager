@@ -70,6 +70,13 @@ export default function SelectContext() {
 
   const { mutate: createFarm, isPending: isCreating } = useCreateFarm();
 
+  // If tenant and farm are already persisted from a previous visit, skip selection entirely.
+  useEffect(() => {
+    if (tenantSlug && farmId) {
+      setLocation('/dashboard');
+    }
+  }, [tenantSlug, farmId, setLocation]);
+
   useEffect(() => {
     if (tenantsData?.tenants && tenantsData.tenants.length === 1 && !tenantSlug) {
       setTenantSlug(tenantsData.tenants[0].tenantSlug);
