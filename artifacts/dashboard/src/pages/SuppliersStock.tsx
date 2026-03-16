@@ -342,16 +342,61 @@ function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, q
   );
 }
 
+const FINANCIAL_CATEGORIES = [
+  "Seeds & Seed Treatments", "Fertiliser", "Pesticides & Herbicides",
+  "Fungicides", "Insecticides", "Veterinary & Medicine", "Feed & Bedding",
+  "Fuel", "Machinery & Equipment", "Labour", "Agri-Environment Scheme",
+  "Grant / Subsidy", "Crop Sales", "Livestock Sales", "Haulage",
+  "Other Income", "Other Expense",
+];
+
 function GoodsReceivedTab({ deliveries, products, suppliers, loading, farmId, onRefresh, toast, onGoToProducts }: any) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<any>({ stockItemId: "", supplierId: "", deliveryDate: "", quantity: "", batchNumber: "", invoiceReference: "", receivedBy: "", costPence: "", notes: "" });
+  const [invoiceDelivery, setInvoiceDelivery] = useState<any>(null);
+  const [invoiceForm, setInvoiceForm] = useState<any>({});
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/stock-deliveries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, costPence: body.costPence ? Math.round(parseFloat(body.costPence) * 100) : null }) }),
     onSuccess: () => { toast({ title: "Goods received logged" }); onRefresh(); setOpen(false); setForm({ stockItemId: "", supplierId: "", deliveryDate: "", quantity: "", batchNumber: "", invoiceReference: "", receivedBy: "", costPence: "", notes: "" }); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
+
+  const invoiceMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/financial-transactions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...body,
+        amountPence: body.amountPence ? Math.round(parseFloat(body.amountPence) * 100) : 0,
+        vatAmountPence: body.vatAmountPence ? Math.round(parseFloat(body.vatAmountPence) * 100) : null,
+      }),
+    }),
+    onSuccess: () => {
+      toast({ title: "Invoice linked to Financial Records" });
+      onRefresh();
+      setInvoiceDelivery(null);
+    },
+    onError: () => toast({ title: "Failed to save invoice", variant: "destructive" }),
+  });
+
+  const openRaiseInvoice = (d: any) => {
+    setInvoiceDelivery(d);
+    setInvoiceForm({
+      stockDeliveryId: d.id,
+      transactionType: "expense",
+      transactionDate: d.deliveryDate ? d.deliveryDate.split("T")[0] : "",
+      description: `Goods Received — ${d.stockItemName || "product"}${d.quantity ? ` (${d.quantity} ${d.stockItemUnit || ""})`.trim() : ""}`,
+      category: "Other Expense",
+      vendorCustomer: d.supplierName || "",
+      reference: d.invoiceReference || "",
+      amountPence: d.costPence ? (d.costPence / 100).toFixed(2) : "",
+      vatAmountPence: "",
+      paymentMethod: "",
+      notes: d.batchNumber ? `Batch: ${d.batchNumber}` : "",
+    });
+  };
 
   const filtered = (deliveries ?? []).filter((d: any) => !search || d.stockItemName?.toLowerCase().includes(search.toLowerCase()) || d.supplierName?.toLowerCase().includes(search.toLowerCase()));
   const hasProducts = products.length > 0;
@@ -384,7 +429,7 @@ function GoodsReceivedTab({ deliveries, products, suppliers, loading, farmId, on
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Date", "Product", "Supplier", "Quantity", "Batch No.", "Invoice Ref", "Cost", "Received By"].map(h => (
+                {["Date", "Product", "Supplier", "Quantity", "Batch No.", "Invoice Ref", "Cost", "Received By", "Financial Record"].map(h => (
                   <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -400,12 +445,100 @@ function GoodsReceivedTab({ deliveries, products, suppliers, loading, farmId, on
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{d.invoiceReference || "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem" }}>{fmtCost(d.costPence)}</td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{d.receivedBy || "—"}</td>
+                  <td style={{ padding: "0.5rem 0.875rem" }}>
+                    {d.financialTransactionId ? (
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        background: "#dcfce7", color: "#166534", borderRadius: 6,
+                        padding: "2px 8px", fontSize: "0.75rem", fontWeight: 500,
+                      }}>
+                        ✓ Invoice Raised
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => openRaiseInvoice(d)}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 4,
+                          background: "#eff6ff", border: "1px solid #bfdbfe",
+                          borderRadius: 6, padding: "3px 10px", fontSize: "0.75rem",
+                          color: "#1e40af", cursor: "pointer", fontWeight: 500, whiteSpace: "nowrap",
+                        }}
+                      >
+                        + Raise Invoice
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <Dialog open={invoiceDelivery !== null} onOpenChange={o => { if (!o) setInvoiceDelivery(null); }}>
+        <DialogContent style={{ maxWidth: 520 }}>
+          <DialogHeader>
+            <DialogTitle>Raise Invoice — Link to Financial Records</DialogTitle>
+          </DialogHeader>
+          <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 8 }}>
+            Pre-filled from the goods received record. Adjust any fields as needed.
+          </p>
+          <div className="space-y-3 py-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Transaction Date <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Input type="date" value={invoiceForm.transactionDate || ""} onChange={e => setInvoiceForm((f: any) => ({ ...f, transactionDate: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Category <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Select value={invoiceForm.category || ""} onValueChange={v => setInvoiceForm((f: any) => ({ ...f, category: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    {FINANCIAL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Description <span style={{ color: "#ef4444" }}>*</span></Label>
+              <Input value={invoiceForm.description || ""} onChange={e => setInvoiceForm((f: any) => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Amount (£) <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Input type="number" step="0.01" placeholder="0.00" value={invoiceForm.amountPence || ""} onChange={e => setInvoiceForm((f: any) => ({ ...f, amountPence: e.target.value }))} />
+              </div>
+              <div>
+                <Label>VAT (£)</Label>
+                <Input type="number" step="0.01" placeholder="0.00" value={invoiceForm.vatAmountPence || ""} onChange={e => setInvoiceForm((f: any) => ({ ...f, vatAmountPence: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Supplier</Label>
+                <Input value={invoiceForm.vendorCustomer || ""} onChange={e => setInvoiceForm((f: any) => ({ ...f, vendorCustomer: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Invoice Reference</Label>
+                <Input value={invoiceForm.reference || ""} onChange={e => setInvoiceForm((f: any) => ({ ...f, reference: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea rows={2} value={invoiceForm.notes || ""} onChange={e => setInvoiceForm((f: any) => ({ ...f, notes: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInvoiceDelivery(null)}>Cancel</Button>
+            <Button
+              onClick={() => invoiceMut.mutate(invoiceForm)}
+              disabled={!invoiceForm.transactionDate || !invoiceForm.description || !invoiceForm.category || !invoiceForm.amountPence || invoiceMut.isPending}
+            >
+              Save & Link Invoice
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: 520 }}>

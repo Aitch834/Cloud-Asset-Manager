@@ -1303,9 +1303,11 @@ router.get("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requir
     receivedBy: stockDeliveriesTable.receivedBy,
     notes: stockDeliveriesTable.notes,
     createdAt: stockDeliveriesTable.createdAt,
+    financialTransactionId: financialTransactionsTable.id,
   }).from(stockDeliveriesTable)
     .leftJoin(suppliersTable, eq(stockDeliveriesTable.supplierId, suppliersTable.id))
     .leftJoin(stockItemsTable, eq(stockDeliveriesTable.stockItemId, stockItemsTable.id))
+    .leftJoin(financialTransactionsTable, eq(financialTransactionsTable.stockDeliveryId, stockDeliveriesTable.id))
     .where(eq(stockDeliveriesTable.farmId, farmId))
     .orderBy(desc(stockDeliveriesTable.deliveryDate));
   res.json({ records });
@@ -1346,7 +1348,36 @@ router.post("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requi
 router.get("/farms/:farmId/financial-transactions", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(financialTransactionsTable).where(eq(financialTransactionsTable.farmId, farmId)).orderBy(desc(financialTransactionsTable.transactionDate));
+  const records = await db.select({
+    id: financialTransactionsTable.id,
+    farmId: financialTransactionsTable.farmId,
+    stockDeliveryId: financialTransactionsTable.stockDeliveryId,
+    transactionType: financialTransactionsTable.transactionType,
+    category: financialTransactionsTable.category,
+    description: financialTransactionsTable.description,
+    amountPence: financialTransactionsTable.amountPence,
+    currency: financialTransactionsTable.currency,
+    transactionDate: financialTransactionsTable.transactionDate,
+    reference: financialTransactionsTable.reference,
+    vendorCustomer: financialTransactionsTable.vendorCustomer,
+    paymentMethod: financialTransactionsTable.paymentMethod,
+    vatAmountPence: financialTransactionsTable.vatAmountPence,
+    vatRate: financialTransactionsTable.vatRate,
+    notes: financialTransactionsTable.notes,
+    createdAt: financialTransactionsTable.createdAt,
+    linkedDeliveryDate: stockDeliveriesTable.deliveryDate,
+    linkedDeliveryProductName: stockItemsTable.name,
+    linkedDeliveryProductUnit: stockItemsTable.unit,
+    linkedDeliveryQuantity: stockDeliveriesTable.quantity,
+    linkedDeliveryBatchNumber: stockDeliveriesTable.batchNumber,
+    linkedDeliveryInvoiceRef: stockDeliveriesTable.invoiceReference,
+    linkedDeliverySupplierName: suppliersTable.name,
+  }).from(financialTransactionsTable)
+    .leftJoin(stockDeliveriesTable, eq(financialTransactionsTable.stockDeliveryId, stockDeliveriesTable.id))
+    .leftJoin(stockItemsTable, eq(stockDeliveriesTable.stockItemId, stockItemsTable.id))
+    .leftJoin(suppliersTable, eq(stockDeliveriesTable.supplierId, suppliersTable.id))
+    .where(eq(financialTransactionsTable.farmId, farmId))
+    .orderBy(desc(financialTransactionsTable.transactionDate));
   res.json({ records });
 });
 

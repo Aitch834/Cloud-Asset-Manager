@@ -14,6 +14,7 @@ import EquipmentPage from "@/pages/Equipment";
 import ModulePage from "@/pages/ModulePage";
 import MovementsPage from "@/pages/Movements";
 import SuppliersStockPage from "@/pages/SuppliersStock";
+import FinancialPage from "@/pages/FinancialPage";
 import HelpCentre from "@/pages/HelpCentre";
 import FarmSettingsPage from "@/pages/FarmSettings";
 import AppSettingsPage from "@/pages/SettingsPage";
@@ -217,22 +218,6 @@ function StockPage() {
   return <SuppliersStockPage />;
 }
 
-function FinancialPage() {
-  return <ModulePage title="Financial Records" apiPath="financial-transactions" columns={[
-    { key: "transactionDate", label: "Date" },
-    { key: "description", label: "Description" },
-    { key: "category", label: "Category" },
-    { key: "transactionType", label: "Type" },
-    { key: "amountPence", label: "Amount", render: (val: number) => val ? `\u00A3${(val / 100).toFixed(2)}` : "-" },
-  ]} formFields={[
-    { key: "transactionDate", label: "Date", type: "date", required: true },
-    { key: "description", label: "Description", required: true },
-    { key: "category", label: "Category", required: true },
-    { key: "transactionType", label: "Type", type: "select", options: ["income", "expense"], required: true },
-    { key: "amountPence", label: "Amount (pence)", type: "number", required: true },
-    { key: "vatAmountPence", label: "VAT (pence)", type: "number" },
-  ]} />;
-}
 
 function EnvironmentalPage() {
   return <ModulePage title="Environmental Features" apiPath="environmental-features" columns={[
