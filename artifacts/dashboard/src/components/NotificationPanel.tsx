@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Bell, X, CheckCheck, AlertTriangle, Info, AlertCircle, ClipboardCheck, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -106,7 +107,9 @@ function NotificationItem({ notif, farmId, onClose }: NotificationItemProps) {
 export function NotificationPanel() {
   const { farmId } = useAppStore();
   const [open, setOpen] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  const buttonRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { data } = useNotifications(farmId);
   const { mutate: markAllRead } = useMarkAllRead(farmId);
@@ -114,9 +117,23 @@ export function NotificationPanel() {
   const notifications = data?.notifications ?? [];
   const unreadCount = data?.unreadCount ?? 0;
 
+  const handleOpen = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setOpen(prev => !prev);
+  };
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideButton = buttonRef.current?.contains(target);
+      const insideDropdown = dropdownRef.current?.contains(target);
+      if (!insideButton && !insideDropdown) {
         setOpen(false);
       }
     }
@@ -124,11 +141,77 @@ export function NotificationPanel() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  const dropdown = open ? (
+    <div
+      ref={dropdownRef}
+      style={{ top: dropdownStyle.top, right: dropdownStyle.right }}
+      className="fixed w-[360px] bg-white rounded-2xl shadow-2xl border border-border/50 z-[500] overflow-hidden"
+    >
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-white">
+        <div className="flex items-center gap-2">
+          <Bell className="w-4 h-4 text-primary" />
+          <h3 className="font-display font-bold text-foreground text-sm">Notifications</h3>
+          {unreadCount > 0 && (
+            <span className="bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              {unreadCount} new
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <button
+              onClick={() => markAllRead()}
+              className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1 cursor-pointer"
+            >
+              <CheckCheck className="w-3 h-3" />
+              Mark all read
+            </button>
+          )}
+          <button onClick={() => setOpen(false)} className="p-1 rounded hover:bg-black/5 cursor-pointer">
+            <X className="w-4 h-4 text-foreground/40" />
+          </button>
+        </div>
+      </div>
+
+      <div className="max-h-[420px] overflow-y-auto divide-y divide-border/30">
+        {notifications.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center px-6">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+              <ClipboardCheck className="w-6 h-6 text-primary" />
+            </div>
+            <p className="font-semibold text-foreground text-sm">All clear</p>
+            <p className="text-xs text-foreground/50 mt-1">No alerts right now — your farm is on track.</p>
+          </div>
+        ) : (
+          notifications.map(notif => (
+            <NotificationItem
+              key={notif.id}
+              notif={notif}
+              farmId={farmId!}
+              onClose={() => setOpen(false)}
+            />
+          ))
+        )}
+      </div>
+
+      {notifications.length > 0 && (
+        <div className="border-t border-border/50 px-4 py-2.5 bg-black/[0.02]">
+          <Link href="/inspections" onClick={() => setOpen(false)}>
+            <button className="w-full text-xs text-foreground/50 hover:text-primary transition-colors flex items-center justify-center gap-1 cursor-pointer">
+              View all in Inspections
+              <ChevronRight className="w-3 h-3" />
+            </button>
+          </Link>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
-    <div className="relative" ref={panelRef}>
+    <div ref={buttonRef}>
       <button
         className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl bg-white border border-border shadow-sm hover:shadow-md transition-all text-foreground/70 cursor-pointer min-w-[36px]"
-        onClick={() => setOpen(prev => !prev)}
+        onClick={handleOpen}
         aria-label="Open notifications"
       >
         <Bell className="w-5 h-5" />
@@ -141,67 +224,7 @@ export function NotificationPanel() {
         )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-12 w-[360px] bg-white rounded-2xl shadow-2xl border border-border/50 z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-white">
-            <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-primary" />
-              <h3 className="font-display font-bold text-foreground text-sm">Notifications</h3>
-              {unreadCount > 0 && (
-                <span className="bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                  {unreadCount} new
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {unreadCount > 0 && (
-                <button
-                  onClick={() => markAllRead()}
-                  className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1 cursor-pointer"
-                >
-                  <CheckCheck className="w-3 h-3" />
-                  Mark all read
-                </button>
-              )}
-              <button onClick={() => setOpen(false)} className="p-1 rounded hover:bg-black/5 cursor-pointer">
-                <X className="w-4 h-4 text-foreground/40" />
-              </button>
-            </div>
-          </div>
-
-          <div className="max-h-[420px] overflow-y-auto divide-y divide-border/30">
-            {notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center px-6">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                  <ClipboardCheck className="w-6 h-6 text-primary" />
-                </div>
-                <p className="font-semibold text-foreground text-sm">All clear</p>
-                <p className="text-xs text-foreground/50 mt-1">No alerts right now — your farm is on track.</p>
-              </div>
-            ) : (
-              notifications.map(notif => (
-                <NotificationItem
-                  key={notif.id}
-                  notif={notif}
-                  farmId={farmId!}
-                  onClose={() => setOpen(false)}
-                />
-              ))
-            )}
-          </div>
-
-          {notifications.length > 0 && (
-            <div className="border-t border-border/50 px-4 py-2.5 bg-black/[0.02]">
-              <Link href="/inspections" onClick={() => setOpen(false)}>
-                <button className="w-full text-xs text-foreground/50 hover:text-primary transition-colors flex items-center justify-center gap-1 cursor-pointer">
-                  View all in Inspections
-                  <ChevronRight className="w-3 h-3" />
-                </button>
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
+      {typeof document !== "undefined" && createPortal(dropdown, document.body)}
     </div>
   );
 }
