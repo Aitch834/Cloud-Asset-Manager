@@ -15,6 +15,7 @@ import ModulePage from "@/pages/ModulePage";
 import MovementsPage from "@/pages/Movements";
 import SuppliersStockPage from "@/pages/SuppliersStock";
 import FinancialPage from "@/pages/FinancialPage";
+import HarvestPage from "@/pages/HarvestPage";
 import HelpCentre from "@/pages/HelpCentre";
 import FarmSettingsPage from "@/pages/FarmSettings";
 import AppSettingsPage from "@/pages/SettingsPage";
@@ -306,6 +307,7 @@ function Router() {
       <Route path="/select" component={SelectContext} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/fields" component={FieldsPage} />
+      <Route path="/harvest" component={HarvestPage} />
       <Route path="/equipment" component={EquipmentPage} />
       <Route path="/sprays" component={SpraysPage} />
       <Route path="/soil" component={SoilPage} />

@@ -6,6 +6,9 @@ import {
   cropsTable,
   fieldCropAssignmentsTable,
   harvestRecordsTable,
+  cropTransportRecordsTable,
+  cropStorageRecordsTable,
+  cropDestinationsTable,
   sprayProductsTable,
   sprayApplicationsTable,
   nutrientManagementPlansTable,
@@ -371,9 +374,19 @@ router.get("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleB
     .from(harvestRecordsTable)
     .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .leftJoin(equipmentTable, eq(harvestRecordsTable.equipmentId, equipmentTable.id))
     .where(eq(fieldsTable.farmId, farmId))
     .orderBy(desc(harvestRecordsTable.harvestDate));
-  res.json({ records: records.map((r) => ({ ...r.harvest_records, fieldCropAssignment: r.field_crop_assignments, field: r.fields })) });
+  res.json({
+    records: records.map((r) => ({
+      ...r.harvest_records,
+      fieldCropAssignment: r.field_crop_assignments,
+      field: r.fields,
+      crop: r.crops,
+      equipment: r.equipment,
+    })),
+  });
 });
 
 router.post("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -388,8 +401,90 @@ router.post("/farms/:farmId/harvests", requireAuth, requireTenant, requireModule
       .limit(1);
     if (!fca) { res.status(400).json({ error: "Field crop assignment not found on this farm" }); return; }
   }
-  const [record] = await db.insert(harvestRecordsTable).values(req.body).returning();
+  const { equipmentId, operatorName, areaHarvestedHa, ...rest } = req.body;
+  const [record] = await db.insert(harvestRecordsTable).values({
+    ...rest,
+    equipmentId: equipmentId ? Number(equipmentId) : null,
+    operatorName: operatorName || null,
+    areaHarvestedHa: areaHarvestedHa || null,
+  }).returning();
   res.status(201).json({ record });
+});
+
+// ─── Harvest Transport Records ───────────────────────
+router.get("/farms/:farmId/harvest-transport", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db
+    .select()
+    .from(cropTransportRecordsTable)
+    .innerJoin(harvestRecordsTable, eq(cropTransportRecordsTable.harvestRecordId, harvestRecordsTable.id))
+    .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
+    .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .where(eq(fieldsTable.farmId, farmId))
+    .orderBy(desc(cropTransportRecordsTable.departureTime));
+  res.json({
+    records: records.map((r) => ({
+      ...r.crop_transport_records,
+      harvest: r.harvest_records,
+      field: r.fields,
+      crop: r.crops,
+    })),
+  });
+});
+
+router.post("/farms/:farmId/harvest-transport", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const valid = await validateHarvestOwnership(req.body.harvestRecordId, farmId);
+  if (!valid) { res.status(400).json({ error: "Harvest record not found on this farm" }); return; }
+  const [record] = await db.insert(cropTransportRecordsTable).values(req.body).returning();
+  res.status(201).json({ record });
+});
+
+router.delete("/farms/:farmId/harvest-transport/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(cropTransportRecordsTable).where(eq(cropTransportRecordsTable.id, recordId));
+  res.json({ success: true });
+});
+
+// ─── Harvest Storage Records ─────────────────────────
+router.get("/farms/:farmId/harvest-storage", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db
+    .select()
+    .from(cropStorageRecordsTable)
+    .leftJoin(harvestRecordsTable, eq(cropStorageRecordsTable.harvestRecordId, harvestRecordsTable.id))
+    .leftJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
+    .leftJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .where(eq(cropStorageRecordsTable.farmId, farmId))
+    .orderBy(desc(cropStorageRecordsTable.dateIn));
+  res.json({
+    records: records.map((r) => ({
+      ...r.crop_storage_records,
+      harvest: r.harvest_records,
+      crop: r.crops,
+    })),
+  });
+});
+
+router.post("/farms/:farmId/harvest-storage", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(cropStorageRecordsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.delete("/farms/:farmId/harvest-storage/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(cropStorageRecordsTable).where(and(eq(cropStorageRecordsTable.id, recordId), eq(cropStorageRecordsTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 // ─── Spray Products ────────────────────────────────
