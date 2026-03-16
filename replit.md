@@ -43,6 +43,15 @@ The monorepo is structured with `pnpm workspaces`, using Node.js 24 and TypeScri
 - Privacy policy and cookies policy pages for GDPR compliance.
 - User-friendly 404 page with navigation back to home and support.
 
+**Test Dashboard (`artifacts/test-dashboard`):**
+- Login-free copy of the dashboard sharing the exact same React source code.
+- Runs on port 3002 at `/test-dashboard/`. Selectable from the Replit preview dropdown as "artifacts/test-dashboard: web".
+- Auth bypass is controlled by `VITE_DEV_BYPASS_AUTH=true` and `VITE_DEV_BYPASS_TOKEN=bde-dev-bypass-local` (baked into its `vite.config.ts`). These bypass the login page and inject `X-Dev-Bypass` into every API request.
+- On the API server, `devBypassMiddleware` (active only in `NODE_ENV=development`) accepts the token and injects a mock super-admin user — no DB session needed.
+- `tenantMiddleware` grants bypass users super-admin access to any tenant without a DB membership record.
+- `GET /tenants/mine` with bypass returns all active tenants so the select screen works.
+- Any change to `artifacts/dashboard/src/` is immediately reflected in the test dashboard via HMR.
+
 **Production Readiness:**
 - API server performs detailed env var audit at startup — logs ✓/⚠/✗ per variable, masks secret values, fails fast with actionable error if required vars are missing. Tracked vars: PORT, DATABASE_URL, REPL_ID (required); ISSUER_URL, SESSION_SECRET, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, DEV_BYPASS_TOKEN (optional).
 - Error boundaries wrap both React apps at the top level AND per-route in the dashboard (RouteErrorBoundary resets when navigation changes so a crash on one page doesn't kill the whole app).

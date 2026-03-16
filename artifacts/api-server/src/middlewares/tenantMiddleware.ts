@@ -33,6 +33,26 @@ export async function tenantMiddleware(
     return;
   }
 
+  // Dev bypass: grant super-admin access without a DB membership record
+  if (req.isBypassMode) {
+    const [tenant] = await db
+      .select()
+      .from(tenantsTable)
+      .where(and(eq(tenantsTable.slug, tenantSlug), eq(tenantsTable.isActive, true)))
+      .limit(1);
+
+    if (!tenant) {
+      res.status(404).json({ error: "Tenant not found" });
+      return;
+    }
+
+    req.tenantId = tenant.id;
+    req.tenantSlug = tenant.slug;
+    req.isSuperAdmin = true;
+    next();
+    return;
+  }
+
   const [tenant] = await db
     .select()
     .from(tenantsTable)

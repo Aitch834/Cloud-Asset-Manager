@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import { tenantMiddleware } from "./middlewares/tenantMiddleware";
+import { devBypassMiddleware } from "./middlewares/devBypassMiddleware";
 import router from "./routes";
 
 const app: Express = express();
@@ -18,6 +19,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   express.json()(req, res, next);
 });
 app.use(express.urlencoded({ extended: true }));
+app.use(devBypassMiddleware);
 app.use(authMiddleware);
 app.use(tenantMiddleware);
 

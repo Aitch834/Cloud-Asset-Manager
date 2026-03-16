@@ -1,9 +1,23 @@
+import { useEffect } from "react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
 export default function Login() {
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (import.meta.env.VITE_DEV_BYPASS_AUTH === "true") {
+      setLocation("/select");
+    }
+  }, [setLocation]);
+
   const handleLogin = () => {
     window.location.href = `/api/login?returnTo=${encodeURIComponent(import.meta.env.BASE_URL + 'select')}`;
   };
+
+  if (import.meta.env.VITE_DEV_BYPASS_AUTH === "true") {
+    return null;
+  }
 
   return (
     <div className="min-h-screen w-full flex bg-background">

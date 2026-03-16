@@ -7,6 +7,25 @@ import crypto from "crypto";
 const router: IRouter = Router();
 
 router.get("/tenants/mine", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  // Dev bypass: return all tenants so the test dashboard can select any
+  if (req.isBypassMode) {
+    const allTenants = await db
+      .select({ id: tenantsTable.id, name: tenantsTable.name, slug: tenantsTable.slug })
+      .from(tenantsTable)
+      .where(eq(tenantsTable.isActive, true));
+
+    res.json({
+      tenants: allTenants.map((t) => ({
+        tenantId: t.id,
+        roleId: null,
+        isSuperAdmin: true,
+        tenantName: t.name,
+        tenantSlug: t.slug,
+      })),
+    });
+    return;
+  }
+
   const userTenantRows = await db
     .select({
       tenantId: userTenantsTable.tenantId,

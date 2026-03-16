@@ -22,6 +22,12 @@ window.fetch = async (...args) => {
     (newConfig.headers as Headers).set('x-tenant-slug', tenantSlug);
   }
   
+  // Inject dev bypass header when running in test-dashboard mode
+  const bypassToken = import.meta.env.VITE_DEV_BYPASS_TOKEN;
+  if (bypassToken) {
+    (newConfig.headers as Headers).set('x-dev-bypass', bypassToken);
+  }
+
   // Always include credentials for cookie-based Replit Auth
   newConfig.credentials = 'include';
   
