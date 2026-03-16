@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 import { useAppStore } from "@/hooks/use-app-store";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -157,10 +158,10 @@ export default function SuppliersStockPage() {
   };
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "1.5rem" }}>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Suppliers &amp; Stock</h1>
-        <p className="text-sm text-gray-500 mt-1">Product catalogue, goods received, live stock levels and full movement history</p>
+    <AppLayout title="Suppliers & Stock">
+    <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+      <div className="mb-4">
+        <p className="text-sm text-gray-500">Product catalogue, goods received, live stock levels and full movement history</p>
       </div>
 
       <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e5e7eb", marginBottom: "1.5rem", overflowX: "auto" }}>
@@ -223,6 +224,7 @@ export default function SuppliersStockPage() {
         />
       )}
     </div>
+    </AppLayout>
   );
 }
 
