@@ -127,16 +127,18 @@ export function NotificationPanel() {
   return (
     <div className="relative" ref={panelRef}>
       <button
-        className="p-2.5 rounded-full bg-white border border-border shadow-sm hover:shadow-md transition-all text-foreground/70 relative cursor-pointer"
+        className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl bg-white border border-border shadow-sm hover:shadow-md transition-all text-foreground/70 cursor-pointer min-w-[36px]"
         onClick={() => setOpen(prev => !prev)}
         aria-label="Open notifications"
       >
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-white">
+        <Bell className="w-5 h-5" />
+        {unreadCount > 0 ? (
+          <span className="text-[10px] font-bold text-red-500 leading-none">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
+        ) : (
+          <span className="text-[10px] leading-none opacity-0 select-none">0</span>
         )}
-        <Bell className="w-5 h-5" />
       </button>
 
       {open && (
