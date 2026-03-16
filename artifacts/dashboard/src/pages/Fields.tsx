@@ -322,25 +322,28 @@ export default function FieldsPage() {
                     />
                   </div>
 
-                  {/* Green header banner */}
-                  <div className="h-20 bg-gradient-to-br from-green-100 to-emerald-50 rounded-t-2xl border-b border-border/50 flex items-end px-4 pb-3">
-                    {crop ? (
-                      <span className="inline-flex items-center gap-1.5 bg-green-700 text-white text-xs font-semibold px-2.5 py-1 rounded-full shadow">
-                        <Wheat className="w-3 h-3" />
-                        {crop.cropName}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 bg-black/10 text-foreground/50 text-xs font-medium px-2.5 py-1 rounded-full">
-                        <Leaf className="w-3 h-3" />
-                        No crop assigned
-                      </span>
-                    )}
+                  {/* Green header — field name */}
+                  <div className="bg-gradient-to-br from-green-100 to-emerald-50 rounded-t-2xl border-b border-border/50 px-4 pt-4 pb-3">
+                    <h3 className="text-lg font-bold text-foreground pr-8 leading-snug">{field.name || `Field #${field.id}`}</h3>
                   </div>
 
                   <div className="p-5">
-                    <h3 className="text-lg font-bold text-foreground mb-3 pr-6">{field.name || `Field #${field.id}`}</h3>
+                    {/* Crop badge */}
+                    <div className="mb-3">
+                      {crop ? (
+                        <span className="inline-flex items-center gap-1.5 bg-green-700 text-white text-xs font-semibold px-2.5 py-1 rounded-full shadow">
+                          <Wheat className="w-3 h-3" />
+                          {crop.cropName}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 bg-black/5 text-foreground/40 text-xs font-medium px-2.5 py-1 rounded-full">
+                          <Leaf className="w-3 h-3" />
+                          No crop assigned
+                        </span>
+                      )}
+                    </div>
 
-                    {/* Crop details row */}
+                    {/* Crop details or assign prompt */}
                     {crop ? (
                       <div className="bg-green-50 border border-green-100 rounded-xl p-3 mb-3 space-y-1">
                         {crop.plantingDate && (
