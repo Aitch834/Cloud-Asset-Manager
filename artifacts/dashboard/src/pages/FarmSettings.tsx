@@ -219,7 +219,7 @@ export default function FarmSettings() {
             </div>
           </div>
 
-          <div className="mt-6">
+          <div style={{ marginTop: "2rem" }}>
             <Label className="mb-3 block">Farm Sectors</Label>
             <p className="text-xs text-muted-foreground mb-3">
               Select all types of farming activity on this holding.
