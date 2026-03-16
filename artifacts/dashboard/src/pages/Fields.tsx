@@ -76,7 +76,7 @@ function FieldCardMenu({ field, farmId }: { field: FieldRecord; farmId: number }
   };
 
   return (
-    <div className="absolute top-4 right-4" ref={menuRef}>
+    <div className="relative" ref={menuRef}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(prev => !prev); }}
         className="w-8 h-8 rounded-full bg-white/50 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors cursor-pointer"
@@ -86,7 +86,7 @@ function FieldCardMenu({ field, farmId }: { field: FieldRecord; farmId: number }
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 w-40 bg-white rounded-xl shadow-xl border border-border/50 z-20 overflow-hidden py-1">
+        <div className="absolute right-0 top-10 w-40 bg-white rounded-xl shadow-xl border border-border/50 z-50 overflow-hidden py-1">
           <button
             className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-black/5 transition-colors cursor-pointer"
             onClick={() => { setOpen(false); setEditOpen(true); reset({ name: field.name ?? "", areaSqMetres: field.areaSqMetres ?? 0, soilType: field.soilType ?? "" }); }}
@@ -244,12 +244,15 @@ export default function FieldsPage() {
             <p className="text-lg">No fields found.</p>
           </div>
         ) : filtered.map((field) => (
-          <Card key={field.id} className="group">
+          <Card key={field.id} className="group relative">
+            {/* Options menu — outside overflow-hidden so the dropdown isn't clipped */}
+            <div className="absolute top-4 right-4 z-30">
+              <FieldCardMenu field={field} farmId={farmId} />
+            </div>
             <div className="h-24 bg-gradient-to-br from-green-100 to-emerald-50 rounded-t-2xl border-b border-border/50 p-4 relative overflow-hidden">
               <svg className="absolute inset-0 w-full h-full opacity-10" preserveAspectRatio="none">
                 <path d="M0,50 Q25,20 50,50 T100,50 T150,50" stroke="green" fill="none" strokeWidth="2" />
               </svg>
-              <FieldCardMenu field={field} farmId={farmId} />
             </div>
             <div className="p-5">
               <h3 className="text-xl font-bold text-foreground mb-1">{field.name || `Field #${field.id}`}</h3>
