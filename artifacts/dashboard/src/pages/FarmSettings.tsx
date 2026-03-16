@@ -90,8 +90,18 @@ export default function FarmSettings() {
     );
   }
 
-  if (!currentFarm || !formData) {
+  if (!currentFarm) {
     return <Redirect href="/select" />;
+  }
+
+  if (!formData) {
+    return (
+      <AppLayout title="Farm Settings">
+        <div className="animate-pulse space-y-6">
+          <div className="h-64 bg-black/5 rounded-2xl" />
+        </div>
+      </AppLayout>
+    );
   }
 
   const updateField = (field: keyof Omit<FarmFormData, "sectors">, value: string) => {

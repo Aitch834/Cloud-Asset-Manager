@@ -370,8 +370,8 @@ function Router() {
       <Route path="/documents" component={DocumentsPage} />
       <Route path="/weather" component={WeatherPage} />
       <Route path="/help" component={HelpPage} />
-      <Route path="/settings" component={SettingsPage} />
       <Route path="/settings/farm" component={FarmSettingsPage} />
+      <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>
     </RouteErrorBoundary>

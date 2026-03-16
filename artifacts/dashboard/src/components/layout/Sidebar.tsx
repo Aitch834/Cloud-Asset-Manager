@@ -92,7 +92,7 @@ function filterNavItems(items: NavItem[], activeModuleKeys: Set<string>, sectors
   });
 }
 
-function NavSection({ title, items }: { title?: string; items: NavItem[] }) {
+function NavSection({ title, items, onNavClick }: { title?: string; items: NavItem[]; onNavClick?: () => void }) {
   const [location] = useLocation();
   if (items.length === 0) return null;
   return (
@@ -101,7 +101,7 @@ function NavSection({ title, items }: { title?: string; items: NavItem[] }) {
       {items.map((item) => {
         const isActive = location === item.href;
         return (
-          <Link key={item.name} href={item.href} className="block">
+          <Link key={item.name} href={item.href} className="block" onClick={onNavClick}>
             <div className={cn(
               "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group cursor-pointer text-sm",
               isActive 
@@ -118,7 +118,12 @@ function NavSection({ title, items }: { title?: string; items: NavItem[] }) {
   );
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const { farmId, clearState } = useAppStore();
   const { data: farmsData } = useListFarms({ query: { enabled: true } });
   const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } });
@@ -157,7 +162,11 @@ export function Sidebar() {
   };
 
   return (
-    <div className="hidden md:flex flex-col w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen sticky top-0">
+    <div className={cn(
+      "flex flex-col w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen",
+      "fixed inset-y-0 left-0 z-50 transition-transform duration-300 md:relative md:translate-x-0 md:z-auto",
+      isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+    )}>
       <div className="p-5 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
           <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Logo" className="w-6 h-6 object-contain" />
@@ -181,16 +190,16 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-3 space-y-0 overflow-y-auto">
-        <NavSection items={filteredCoreNav} />
-        <NavSection title="Compliance" items={filteredComplianceNav} />
-        <NavSection title="Biosecurity" items={filteredBiosecurityNav} />
-        <NavSection title="Livestock" items={filteredLivestockNav} />
-        <NavSection title="Management" items={filteredOtherNav} />
+        <NavSection items={filteredCoreNav} onNavClick={onClose} />
+        <NavSection title="Compliance" items={filteredComplianceNav} onNavClick={onClose} />
+        <NavSection title="Biosecurity" items={filteredBiosecurityNav} onNavClick={onClose} />
+        <NavSection title="Livestock" items={filteredLivestockNav} onNavClick={onClose} />
+        <NavSection title="Management" items={filteredOtherNav} onNavClick={onClose} />
       </nav>
 
       <div className="p-3 border-t border-sidebar-border space-y-0">
         {bottomNav.map((item) => (
-          <Link key={item.name} href={item.href} className="block">
+          <Link key={item.name} href={item.href} className="block" onClick={onClose}>
             <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sidebar-foreground/80 hover:bg-white/5 hover:text-white transition-colors cursor-pointer text-sm">
               <item.icon className="w-4 h-4 text-sidebar-foreground/50" />
               {item.name}

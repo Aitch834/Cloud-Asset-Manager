@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Menu, Bell } from "lucide-react";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -9,15 +9,28 @@ export function AppLayout({ children, title }: { children: ReactNode, title: str
   const { data: farmsData } = useListFarms();
   const currentFarm = farmsData?.farms?.find((f) => f.id === farmId);
   const farmName = currentFarm?.name;
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen w-full bg-background">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       <div className="flex-1 flex flex-col overflow-hidden relative">
-        
         <header className="h-20 flex items-center justify-between px-8 bg-background/80 backdrop-blur-md border-b border-border/50 sticky top-0 z-10">
           <div className="flex items-center gap-4">
-            <button className="md:hidden p-2 rounded-lg hover:bg-black/5">
+            <button
+              className="md:hidden p-2 rounded-lg hover:bg-black/5 cursor-pointer"
+              onClick={() => setSidebarOpen(prev => !prev)}
+              aria-label="Toggle navigation menu"
+            >
               <Menu className="w-6 h-6" />
             </button>
             <div>
@@ -27,9 +40,9 @@ export function AppLayout({ children, title }: { children: ReactNode, title: str
               )}
             </div>
           </div>
-          
+
           <div className="flex items-center gap-4">
-            <button className="p-2.5 rounded-full bg-white border border-border shadow-sm hover:shadow-md transition-all text-foreground/70 relative">
+            <button className="p-2.5 rounded-full bg-white border border-border shadow-sm hover:shadow-md transition-all text-foreground/70 relative cursor-pointer">
               <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
               <Bell className="w-5 h-5" />
             </button>
@@ -44,7 +57,6 @@ export function AppLayout({ children, title }: { children: ReactNode, title: str
             {children}
           </div>
         </main>
-
       </div>
     </div>
   );
