@@ -17,6 +17,7 @@ export const equipmentTable = pgTable("equipment", {
   status: text("status").notNull().default("active"),
   location: text("location"),
   notes: text("notes"),
+  photos: text("photos"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

@@ -1,48 +1,207 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Dialog, DialogContent, DialogHeader, DialogTitle, 
-  DialogFooter, DialogTrigger 
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogFooter, DialogTrigger
 } from "@/components/ui/dialog";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useEquipment, useAddEquipment } from "@/hooks/use-equipment";
-import { Plus, Search, Tractor, Calendar } from "lucide-react";
+import { Plus, Search, Tractor, Calendar, Camera, X, Pencil, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getListEquipmentQueryKey } from "@workspace/api-client-react/src/generated/api";
+import { useToast } from "@/hooks/use-toast";
 
 interface EquipmentRecord {
   id: number;
   name?: string;
-  equipmentType?: string;
+  type?: string;
   make?: string;
   model?: string;
   serialNumber?: string;
   registrationNumber?: string;
+  yearOfManufacture?: number;
+  location?: string;
+  status?: string;
+  notes?: string;
+  photos?: string;
   nextCalibrationDue?: string;
   isActive?: boolean;
 }
 
 interface EquipmentFormData {
   name: string;
+  type: string;
+  make: string;
+  model: string;
   serialNumber: string;
-  equipmentType: string;
+  registrationNumber: string;
+  yearOfManufacture: string;
+  location: string;
+  notes: string;
+}
+
+const MAX_PHOTOS = 5;
+
+function parsePhotos(raw?: string): string[] {
+  if (!raw) return [];
+  try { return JSON.parse(raw) as string[]; } catch { return []; }
+}
+
+function PhotoUploader({
+  photos,
+  onChange,
+}: {
+  photos: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return;
+    const remaining = MAX_PHOTOS - photos.length;
+    const toProcess = Array.from(files).slice(0, remaining);
+    toProcess.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        onChange([...photos, dataUrl]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const remove = (i: number) => onChange(photos.filter((_, idx) => idx !== i));
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {photos.map((src, i) => (
+          <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-border group">
+            <img src={src} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <X className="w-3 h-3 text-white" />
+            </button>
+          </div>
+        ))}
+        {photos.length < MAX_PHOTOS && (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="w-20 h-20 rounded-lg border-2 border-dashed border-border hover:border-primary/50 flex flex-col items-center justify-center gap-1 text-foreground/40 hover:text-primary/60 transition-colors"
+          >
+            <Camera className="w-5 h-5" />
+            <span className="text-xs">Add</span>
+          </button>
+        )}
+      </div>
+      <p className="text-xs text-foreground/40">
+        Up to {MAX_PHOTOS} photos. JPG, PNG accepted.
+      </p>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        className="hidden"
+        onChange={(e) => handleFiles(e.target.files)}
+      />
+    </div>
+  );
 }
 
 export default function EquipmentPage() {
   const { farmId } = useAppStore();
   const [isAddOpen, setIsAddOpen] = useState(false);
-  
+  const [managingItem, setManagingItem] = useState<EquipmentRecord | null>(null);
+  const [addPhotos, setAddPhotos] = useState<string[]>([]);
+  const [editPhotos, setEditPhotos] = useState<string[]>([]);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useEquipment(farmId ?? 0);
+  const { mutate: createEquip, isPending } = useAddEquipment(farmId ?? 0);
+  const { register, handleSubmit, reset } = useForm<EquipmentFormData>();
+  const { register: regEdit, handleSubmit: handleEditSubmit, reset: resetEdit } = useForm<EquipmentFormData>();
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, body }: { id: number; body: Record<string, unknown> }) => {
+      const res = await fetch(`/api/farms/${farmId}/equipment/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey(farmId ?? 0) });
+      setManagingItem(null);
+      toast({ title: "Equipment updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update equipment", variant: "destructive" });
+    },
+  });
+
   if (!farmId) return <Redirect href="/select" />;
 
-  const { data, isLoading } = useEquipment(farmId);
-  const { mutate: createEquip, isPending } = useAddEquipment(farmId);
-  const { register, handleSubmit, reset } = useForm<EquipmentFormData>();
+  const onAdd = (formValues: EquipmentFormData) => {
+    createEquip(
+      {
+        farmId,
+        data: {
+          ...formValues,
+          yearOfManufacture: formValues.yearOfManufacture ? parseInt(formValues.yearOfManufacture, 10) : undefined,
+          photos: addPhotos.length ? JSON.stringify(addPhotos) : undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          setIsAddOpen(false);
+          reset();
+          setAddPhotos([]);
+          toast({ title: "Equipment registered" });
+        },
+        onError: () => {
+          toast({ title: "Failed to register equipment", variant: "destructive" });
+        },
+      }
+    );
+  };
 
-  const onSubmit = (formValues: EquipmentFormData) => {
-    createEquip({ farmId, data: formValues }, {
-      onSuccess: () => { setIsAddOpen(false); reset(); }
+  const openManage = (item: EquipmentRecord) => {
+    setManagingItem(item);
+    setEditPhotos(parsePhotos(item.photos));
+    resetEdit({
+      name: item.name ?? "",
+      type: item.type ?? "",
+      make: item.make ?? "",
+      model: item.model ?? "",
+      serialNumber: item.serialNumber ?? "",
+      registrationNumber: item.registrationNumber ?? "",
+      yearOfManufacture: item.yearOfManufacture ? String(item.yearOfManufacture) : "",
+      location: item.location ?? "",
+      notes: item.notes ?? "",
+    });
+  };
+
+  const onEdit = (formValues: EquipmentFormData) => {
+    if (!managingItem) return;
+    updateMutation.mutate({
+      id: managingItem.id,
+      body: {
+        ...formValues,
+        yearOfManufacture: formValues.yearOfManufacture ? parseInt(formValues.yearOfManufacture, 10) : undefined,
+        photos: JSON.stringify(editPhotos),
+      },
     });
   };
 
@@ -55,29 +214,67 @@ export default function EquipmentPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
           <Input placeholder="Search equipment..." className="pl-10 bg-white" />
         </div>
-        
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+
+        <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) { reset(); setAddPhotos([]); } }}>
           <DialogTrigger asChild>
             <Button><Plus className="w-4 h-4 mr-2" /> Add Equipment</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Register Equipment</DialogTitle></DialogHeader>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">Make & Model</label>
-                <Input {...register("name", { required: true })} placeholder="e.g. John Deere 6155R" />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">Registration / Serial Number</label>
-                <Input {...register("serialNumber")} />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">Equipment Type</label>
-                <Input {...register("equipmentType")} placeholder="e.g. Tractor, Sprayer" />
+            <form onSubmit={handleSubmit(onAdd)} className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <Label htmlFor="add-name">Name / Description *</Label>
+                  <Input id="add-name" {...register("name", { required: true })} placeholder="e.g. John Deere 6155R" className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="add-make">Make</Label>
+                  <Input id="add-make" {...register("make")} placeholder="e.g. John Deere" className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="add-model">Model</Label>
+                  <Input id="add-model" {...register("model")} placeholder="e.g. 6155R" className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="add-type">Equipment Type</Label>
+                  <Input id="add-type" {...register("type")} placeholder="e.g. Tractor, Sprayer" className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="add-year">Year of Manufacture</Label>
+                  <Input id="add-year" type="number" {...register("yearOfManufacture")} placeholder="e.g. 2021" className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="add-serial">Serial Number</Label>
+                  <Input id="add-serial" {...register("serialNumber")} className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="add-reg">Registration Number</Label>
+                  <Input id="add-reg" {...register("registrationNumber")} className="mt-1" />
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="add-location">Location / Storage</Label>
+                  <Input id="add-location" {...register("location")} placeholder="e.g. Main Yard" className="mt-1" />
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="add-notes">Notes</Label>
+                  <textarea
+                    id="add-notes"
+                    {...register("notes")}
+                    placeholder="Service history, condition, etc."
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label className="mb-2 block">Photos (optional)</Label>
+                  <PhotoUploader photos={addPhotos} onChange={setAddPhotos} />
+                </div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={isPending}>Save</Button>
+                <Button type="submit" disabled={isPending}>
+                  {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Register
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -97,16 +294,26 @@ export default function EquipmentPage() {
           </thead>
           <tbody className="divide-y divide-border/50">
             {isLoading ? (
-               <tr><td colSpan={5} className="px-6 py-12 text-center text-foreground/50">Loading equipment...</td></tr>
+              <tr><td colSpan={5} className="px-6 py-12 text-center text-foreground/50">Loading equipment...</td></tr>
             ) : equipment.length === 0 ? (
-               <tr><td colSpan={5} className="px-6 py-12 text-center text-foreground/50">No equipment registered.</td></tr>
+              <tr><td colSpan={5} className="px-6 py-12 text-center text-foreground/50">No equipment registered.</td></tr>
             ) : equipment.map(item => (
               <tr key={item.id} className="hover:bg-black/5 transition-colors">
-                <td className="px-6 py-4 font-medium flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center">
-                    <Tractor className="w-5 h-5 text-orange-600" />
+                <td className="px-6 py-4 font-medium">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-orange-50 flex-shrink-0 flex items-center justify-center">
+                      {parsePhotos(item.photos)[0]
+                        ? <img src={parsePhotos(item.photos)[0]} alt={item.name} className="w-full h-full object-cover" />
+                        : <Tractor className="w-5 h-5 text-orange-600" />
+                      }
+                    </div>
+                    <div>
+                      <p>{item.name || `Asset #${item.id}`}</p>
+                      {(item.make || item.model) && (
+                        <p className="text-xs text-foreground/50">{[item.make, item.model].filter(Boolean).join(" ")}</p>
+                      )}
+                    </div>
                   </div>
-                  {item.name || `Asset #${item.id}`}
                 </td>
                 <td className="px-6 py-4 text-foreground/70">{item.serialNumber || item.registrationNumber || '-'}</td>
                 <td className="px-6 py-4">
@@ -121,13 +328,79 @@ export default function EquipmentPage() {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <Button variant="ghost" size="sm">Manage</Button>
+                  <Button variant="ghost" size="sm" onClick={() => openManage(item)}>
+                    <Pencil className="w-4 h-4 mr-1.5" /> Manage
+                  </Button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      <Dialog open={!!managingItem} onOpenChange={(open) => { if (!open) setManagingItem(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Equipment — {managingItem?.name}</DialogTitle>
+          </DialogHeader>
+          {managingItem && (
+            <form onSubmit={handleEditSubmit(onEdit)} className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <Label>Name / Description</Label>
+                  <Input {...regEdit("name")} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Make</Label>
+                  <Input {...regEdit("make")} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Model</Label>
+                  <Input {...regEdit("model")} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Equipment Type</Label>
+                  <Input {...regEdit("type")} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Year of Manufacture</Label>
+                  <Input type="number" {...regEdit("yearOfManufacture")} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Serial Number</Label>
+                  <Input {...regEdit("serialNumber")} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Registration Number</Label>
+                  <Input {...regEdit("registrationNumber")} className="mt-1" />
+                </div>
+                <div className="col-span-2">
+                  <Label>Location / Storage</Label>
+                  <Input {...regEdit("location")} className="mt-1" />
+                </div>
+                <div className="col-span-2">
+                  <Label>Notes</Label>
+                  <textarea
+                    {...regEdit("notes")}
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label className="mb-2 block">Photos</Label>
+                  <PhotoUploader photos={editPhotos} onChange={setEditPhotos} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setManagingItem(null)}>Cancel</Button>
+                <Button type="submit" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

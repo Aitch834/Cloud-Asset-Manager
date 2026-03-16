@@ -12,6 +12,7 @@ import Dashboard from "@/pages/Dashboard";
 import FieldsPage from "@/pages/Fields";
 import EquipmentPage from "@/pages/Equipment";
 import ModulePage from "@/pages/ModulePage";
+import HelpCentre from "@/pages/HelpCentre";
 import FarmSettingsPage from "@/pages/FarmSettings";
 import NotFound from "@/pages/not-found";
 
@@ -320,10 +321,7 @@ function WeatherPage() {
 }
 
 function HelpPage() {
-  return <ModulePage title="Help Centre" apiPath="help/articles" scope="global" columns={[
-    { key: "title", label: "Article" },
-    { key: "category", label: "Category" },
-  ]} />;
+  return <HelpCentre />;
 }
 
 function SettingsPage() {

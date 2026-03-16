@@ -263,7 +263,7 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
                   )}
                 </div>
               ))}
-              <div className="md:col-span-2 flex gap-2 justify-end pt-2">
+              <div className="md:col-span-2 flex gap-4 justify-end pt-2">
                 <Button variant="outline" type="button" onClick={() => { setShowForm(false); setEditingRecord(null); setFormData({}); }}>Cancel</Button>
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
