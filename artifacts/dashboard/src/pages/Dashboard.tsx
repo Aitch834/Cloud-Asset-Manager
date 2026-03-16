@@ -33,24 +33,28 @@ export default function Dashboard() {
       {/* Hero Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="border-transparent lg:col-span-2 overflow-hidden relative bg-white">
-          <div className="absolute top-0 right-0 p-8 opacity-[0.04] pointer-events-none text-primary">
-            <ShieldIcon className="w-48 h-48" />
+          <div className="absolute bottom-0 right-4 opacity-[0.04] pointer-events-none text-primary translate-y-4">
+            <ShieldIcon className="w-40 h-40" />
           </div>
-          <CardContent className="p-8 flex items-center justify-between relative z-10 h-full">
-            <div>
-              <p className="text-foreground/50 text-sm font-semibold uppercase tracking-widest mb-2">Compliance Score</p>
-              <h2 className="text-6xl font-display font-bold mb-3 text-primary">{dashboard.complianceScore}%</h2>
-              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${dashboard.complianceScore > 90 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                {dashboard.complianceScore > 90 ? "✓ Excellent standing for next Red Tractor audit" : "⚠ Requires attention before next audit"}
+          <CardContent className="p-8 flex items-center justify-between gap-6 relative z-10 h-full">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-full mb-3">
+                <Tractor className="w-4 h-4 text-primary" />
+                <span className="text-xs font-bold text-primary uppercase tracking-wider">Red Tractor Scheme</span>
+              </div>
+              <h2 className="text-5xl font-display font-bold mb-3 text-primary">{dashboard.complianceScore}%</h2>
+              <p className="text-sm text-foreground/50 font-medium mb-2">Compliance Score</p>
+              <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${dashboard.complianceScore > 90 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                {dashboard.complianceScore > 90 ? "✓ Excellent standing for next audit" : "⚠ Requires attention before next audit"}
               </div>
             </div>
-            <div className="w-36 h-36 relative flex-shrink-0">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" strokeWidth="8" className="text-primary/10" />
-                <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" strokeWidth="8" className="text-primary" strokeLinecap="round" strokeDasharray={`${dashboard.complianceScore * 2.51} 251`} />
+            <div style={{ width: 88, height: 88, position: 'relative', flexShrink: 0 }}>
+              <svg width="88" height="88" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
+                <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" strokeWidth="9" className="text-primary/10" />
+                <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" strokeWidth="9" className="text-primary" strokeLinecap="round" strokeDasharray={`${dashboard.complianceScore * 2.51} 251`} />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-bold text-primary">{dashboard.complianceScore}%</span>
+                <span className="text-base font-bold text-primary">{dashboard.complianceScore}%</span>
               </div>
             </div>
           </CardContent>
