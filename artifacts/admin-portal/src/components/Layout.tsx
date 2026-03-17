@@ -1,11 +1,12 @@
 import { Link, useLocation } from "wouter";
 import { clearSecret } from "@/lib/auth";
-import { LayoutDashboard, Users, MessageSquare, LogOut, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Users, MessageSquare, LogOut, ShieldCheck, Database } from "lucide-react";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/support", label: "Support Tickets", icon: MessageSquare },
+  { href: "/database", label: "SQL Console", icon: Database },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

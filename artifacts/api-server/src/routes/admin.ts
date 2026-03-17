@@ -176,6 +176,81 @@ router.patch("/admin/support-tickets/:ticketId/status", requireAuth, async (req:
   res.json({ ticket: updated });
 });
 
+router.get("/admin/schema", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const result = await db.execute(sql`
+    SELECT
+      t.table_name,
+      c.column_name,
+      c.data_type,
+      c.is_nullable
+    FROM information_schema.tables t
+    JOIN information_schema.columns c
+      ON c.table_name = t.table_name AND c.table_schema = t.table_schema
+    WHERE t.table_schema = 'public'
+      AND t.table_type = 'BASE TABLE'
+    ORDER BY t.table_name, c.ordinal_position
+  `);
+
+  type SchemaRow = { table_name: string; column_name: string; data_type: string; is_nullable: string };
+  const grouped: Record<string, { name: string; type: string; nullable: boolean }[]> = {};
+  for (const row of result.rows as SchemaRow[]) {
+    if (!grouped[row.table_name]) grouped[row.table_name] = [];
+    grouped[row.table_name].push({
+      name: row.column_name,
+      type: row.data_type,
+      nullable: row.is_nullable === "YES",
+    });
+  }
+
+  res.json({ tables: grouped });
+});
+
+router.post("/admin/sql", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const { query, limit = 500 } = req.body;
+  if (!query || typeof query !== "string" || query.trim().length === 0) {
+    res.status(400).json({ error: "Query is required." });
+    return;
+  }
+
+  const stripped = query.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\n]*/g, "").trim().toLowerCase();
+  if (!stripped.startsWith("select") && !stripped.startsWith("with")) {
+    res.status(400).json({ error: "Only SELECT (or WITH…SELECT) queries are permitted." });
+    return;
+  }
+
+  const dangerous = /\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|pg_read_file|pg_write_file|pg_exec|copy)\b/i;
+  if (dangerous.test(query)) {
+    res.status(400).json({ error: "Query contains disallowed keywords." });
+    return;
+  }
+
+  const safeLimit = Math.min(Math.max(1, parseInt(String(limit), 10) || 500), 2000);
+  const cleanQuery = query.trim().replace(/;\s*$/, "");
+  const wrappedQuery = `SELECT * FROM (${cleanQuery}) AS __bde_q LIMIT ${safeLimit}`;
+
+  const start = Date.now();
+  try {
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`SET LOCAL statement_timeout = '10000'`);
+      await tx.execute(sql`SET TRANSACTION READ ONLY`);
+      return await tx.execute(sql.raw(wrappedQuery));
+    });
+
+    const durationMs = Date.now() - start;
+    const rows = result.rows as Record<string, unknown>[];
+    const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+
+    res.json({ columns, rows, rowCount: rows.length, durationMs, limited: rows.length === safeLimit });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Query failed.";
+    res.status(400).json({ error: msg });
+  }
+});
+
 router.post("/admin/impersonate", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 

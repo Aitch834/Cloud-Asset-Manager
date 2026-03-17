@@ -103,12 +103,32 @@ export interface TicketMessage {
   createdAt: string;
 }
 
+export interface SchemaColumn {
+  name: string;
+  type: string;
+  nullable: boolean;
+}
+
+export interface SqlResult {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  rowCount: number;
+  durationMs: number;
+  limited: boolean;
+}
+
 export const api = {
   verifySecret: (secret: string) =>
     get<{ stats: Stats }>("/admin/stats", secret),
 
   getStats: (secret: string) =>
     get<{ stats: Stats }>("/admin/stats", secret),
+
+  getSchema: (secret: string) =>
+    get<{ tables: Record<string, SchemaColumn[]> }>("/admin/schema", secret),
+
+  runSql: (query: string, limit: number, secret: string) =>
+    post<SqlResult>("/admin/sql", { query, limit }, secret),
 
   getTenants: (secret: string) =>
     get<{ tenants: Tenant[] }>("/admin/tenants", secret),
