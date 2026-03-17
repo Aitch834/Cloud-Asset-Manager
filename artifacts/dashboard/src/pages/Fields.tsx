@@ -231,14 +231,14 @@ function FieldCardMenu({
     <div className="relative" ref={menuRef}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(prev => !prev); }}
-        className="w-8 h-8 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors cursor-pointer shadow-sm"
+        className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-black/5 transition-colors cursor-pointer shadow-sm border border-border/30"
         aria-label="Field options"
       >
         <MoreVertical className="w-4 h-4 text-foreground/70" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 w-44 bg-white rounded-xl shadow-xl border border-border/50 z-50 overflow-hidden py-1">
+        <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-xl border border-border z-[200] overflow-hidden py-1" style={{ isolation: "isolate" }}>
           <button
             className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-black/5 transition-colors cursor-pointer"
             onClick={() => { setOpen(false); onAssignCrop(); }}
@@ -320,15 +320,13 @@ function FieldCardMenu({
         </DialogContent>
       </Dialog>
 
-      {boundaryOpen && (
-        <FieldBoundaryMapDialog
-          fieldId={field.id}
-          fieldName={field.name || `Field #${field.id}`}
-          open={boundaryOpen}
-          onClose={() => setBoundaryOpen(false)}
-          onSaved={() => { onBoundaryUpdated?.(); }}
-        />
-      )}
+      <FieldBoundaryMapDialog
+        fieldId={field.id}
+        fieldName={field.name || `Field #${field.id}`}
+        open={boundaryOpen}
+        onClose={() => setBoundaryOpen(false)}
+        onSaved={() => { onBoundaryUpdated?.(); }}
+      />
     </div>
   );
 }

@@ -36,6 +36,14 @@ function shoelaceHectares(pts: LatLng[]): number {
   return Math.abs(area / 2) / 10000;
 }
 
+function destroyMap(ctx: { map: L.Map; polygon: L.Polygon | null; markers: L.Marker[] } | null) {
+  if (!ctx) return;
+  try {
+    ctx.map.off();
+    ctx.map.remove();
+  } catch { }
+}
+
 export function FieldBoundaryMapDialog({ fieldId, fieldName, open, onClose, onSaved }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletRef = useRef<{
@@ -53,18 +61,27 @@ export function FieldBoundaryMapDialog({ fieldId, fieldName, open, onClose, onSa
   const [existingBoundary, setExistingBoundary] = useState<LatLng[] | null>(null);
 
   useEffect(() => {
-    if (!open) return;
-    import("leaflet").then((L) => {
-      if (!("_leafletLoaded" in window)) {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-        document.head.appendChild(link);
-        (window as Record<string, unknown>)["_leafletLoaded"] = true;
-      }
-      (window as Record<string, unknown>)["_L"] = L;
-      setLeafletReady(true);
-    });
+    if (open) {
+      import("leaflet").then((L) => {
+        if (!("_leafletLoaded" in window)) {
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+          document.head.appendChild(link);
+          (window as Record<string, unknown>)["_leafletLoaded"] = true;
+        }
+        (window as Record<string, unknown>)["_L"] = L;
+        setLeafletReady(true);
+      });
+    } else {
+      destroyMap(leafletRef.current);
+      leafletRef.current = null;
+      setPoints([]);
+      setArea(0);
+      setError(null);
+      setExistingBoundary(null);
+      setLeafletReady(false);
+    }
   }, [open]);
 
   useEffect(() => {
@@ -85,10 +102,8 @@ export function FieldBoundaryMapDialog({ fieldId, fieldName, open, onClose, onSa
     if (!open || !leafletReady || !mapRef.current) return;
     const L = (window as Record<string, unknown>)["_L"] as typeof import("leaflet");
 
-    if (leafletRef.current) {
-      leafletRef.current.map.remove();
-      leafletRef.current = null;
-    }
+    destroyMap(leafletRef.current);
+    leafletRef.current = null;
 
     const map = L.map(mapRef.current, { zoomControl: true }).setView([52.2, -1.0], 13);
 
@@ -107,9 +122,8 @@ export function FieldBoundaryMapDialog({ fieldId, fieldName, open, onClose, onSa
       const poly = L.polygon(latlngs, { color: "#16a34a", fillOpacity: 0.2 }).addTo(map);
       leafletRef.current.polygon = poly;
       map.fitBounds(poly.getBounds(), { padding: [40, 40] });
-      const pts = existingBoundary;
-      setPoints(pts);
-      setArea(shoelaceHectares(pts));
+      setPoints(existingBoundary);
+      setArea(shoelaceHectares(existingBoundary));
 
       existingBoundary.forEach((pt) => {
         const marker = L.circleMarker([pt.lat, pt.lng], {
@@ -151,7 +165,7 @@ export function FieldBoundaryMapDialog({ fieldId, fieldName, open, onClose, onSa
     });
 
     return () => {
-      map.remove();
+      destroyMap(leafletRef.current);
       leafletRef.current = null;
     };
   }, [open, leafletReady, existingBoundary]);
@@ -224,26 +238,28 @@ export function FieldBoundaryMapDialog({ fieldId, fieldName, open, onClose, onSa
         <div className="relative w-full" style={{ height: 440 }}>
           <div ref={mapRef} className="w-full h-full" />
 
-          {!leafletReady && (
+          {!leafletReady && open && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/10">
               <div className="text-sm text-white bg-black/60 rounded-lg px-4 py-2">Loading map…</div>
             </div>
           )}
 
-          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm rounded-xl shadow-md px-3 py-2 text-sm z-[999]">
-            {points.length === 0 && <span className="text-foreground/60">Click map to add points</span>}
-            {points.length > 0 && points.length < 3 && (
-              <span className="text-foreground/70">{points.length} point{points.length > 1 ? "s" : ""} — need {3 - points.length} more</span>
-            )}
-            {points.length >= 3 && (
-              <span className="font-semibold text-green-700">
-                {area.toFixed(2)} ha &middot; {points.length} pts
-              </span>
-            )}
-          </div>
+          {leafletReady && (
+            <div className="absolute top-3 left-3 bg-white rounded-xl shadow-md px-3 py-2 text-sm z-[999] border border-border/40">
+              {points.length === 0 && <span className="text-foreground/60">Click map to add points</span>}
+              {points.length > 0 && points.length < 3 && (
+                <span className="text-foreground/70">{points.length} point{points.length > 1 ? "s" : ""} — need {3 - points.length} more</span>
+              )}
+              {points.length >= 3 && (
+                <span className="font-semibold text-green-700">
+                  {area.toFixed(2)} ha &middot; {points.length} pts
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
-        <DialogFooter className="px-6 py-4 flex-row items-center gap-2 border-t">
+        <DialogFooter className="px-6 py-4 flex-row items-center gap-2 border-t bg-white">
           {error && <p className="text-sm text-red-600 flex-1">{error}</p>}
           <div className="flex items-center gap-2 ml-auto">
             <Button variant="outline" size="sm" onClick={handleUndo} disabled={points.length === 0}>
