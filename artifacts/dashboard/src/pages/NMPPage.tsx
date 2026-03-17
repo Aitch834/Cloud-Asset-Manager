@@ -62,7 +62,7 @@ export default function NMPPage() {
   const emptyPlan = { planYear: String(CURRENT_YEAR), preparedBy: "", approvedBy: "", approvedDate: "", notes: "" };
   const [planForm, setPlanForm] = useState<any>(emptyPlan);
 
-  const emptyEntry = { fieldId: "", nitrogenKgHa: "", phosphorusKgHa: "", potassiumKgHa: "", organicManureType: "", organicManureRate: "", applicationMethod: "", timingNotes: "" };
+  const emptyEntry = { fieldId: "", cropType: "", nitrogenKgHa: "", phosphorusKgHa: "", potassiumKgHa: "", organicManureType: "", organicManureRate: "", applicationMethod: "", timingNotes: "" };
   const [entryForm, setEntryForm] = useState<any>(emptyEntry);
 
   const createPlanMut = useMutation({
@@ -251,7 +251,7 @@ export default function NMPPage() {
                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
                               <thead>
                                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                                  {["Field", "N (kg/ha)", "P (kg/ha)", "K (kg/ha)", "Organic Manure", "Rate (t/ha)", "Method", "Timing Notes", ""].map((h, i) => (
+                                  {["Field", "Crop", "N (kg/ha)", "P (kg/ha)", "K (kg/ha)", "Organic Manure", "Rate (t/ha)", "Method", "Timing Notes", ""].map((h, i) => (
                                     <th key={i} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.72rem", whiteSpace: "nowrap" }}>{h}</th>
                                   ))}
                                 </tr>
@@ -261,6 +261,9 @@ export default function NMPPage() {
                                   <tr key={e.id} style={{ borderBottom: i < entries.length - 1 ? "1px solid #f3f4f6" : "none" }}>
                                     <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600, color: "#1e40af" }}>
                                       {e.fieldName || `Field #${e.fieldId}`}
+                                    </td>
+                                    <td style={{ padding: "0.5rem 0.75rem", color: "#374151", fontWeight: 500 }}>
+                                      {e.cropType || <span style={{ color: "#d1d5db" }}>—</span>}
                                     </td>
                                     <td style={{ padding: "0.5rem 0.75rem" }}>
                                       {e.nitrogenKgHa
@@ -413,8 +416,21 @@ export default function NMPPage() {
                 )}
               </div>
 
+              {/* Crop type — Red Tractor requires crop-specific nutrient plans */}
+              <div>
+                <Label>Crop / Enterprise <span style={{ fontSize: "0.78rem", color: "#9ca3af", fontWeight: 400 }}>(recommended)</span></Label>
+                <Input
+                  placeholder="e.g. Winter Wheat, Oil Seed Rape, Spring Barley"
+                  value={entryForm.cropType}
+                  onChange={e => setEntryForm((f: any) => ({ ...f, cropType: e.target.value }))}
+                />
+                <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 3 }}>
+                  If the same field has more than one crop (e.g. catch crop rotation), add a separate entry per crop.
+                </p>
+              </div>
+
               <div style={{ background: "#f9fafb", borderRadius: 8, padding: "0.625rem 0.875rem", fontSize: "0.8rem", color: "#374151" }}>
-                <strong>Planned nutrient applications</strong> — enter the target kg/ha for each nutrient. Leave blank if not applicable for this field.
+                <strong>Planned nutrient applications</strong> — enter the target kg/ha for each nutrient. Leave blank if not applicable.
               </div>
 
               <div className="grid grid-cols-3 gap-3">
@@ -524,6 +540,7 @@ function PrintDialog({ plan, farmId, onClose }: { plan: any; farmId: number | nu
     const rows = entries.map((e: any) =>
       `<tr>
         <td>${e.fieldName || `Field #${e.fieldId}`}</td>
+        <td>${e.cropType || "—"}</td>
         <td>${e.nitrogenKgHa || "—"}</td>
         <td>${e.phosphorusKgHa || "—"}</td>
         <td>${e.potassiumKgHa || "—"}</td>
@@ -556,7 +573,7 @@ function PrintDialog({ plan, farmId, onClose }: { plan: any; farmId: number | nu
       ${plan.notes ? `<p style="font-size:11px;background:#f9fafb;padding:6px 8px;border-radius:4px;margin:8px 0">${plan.notes}</p>` : ""}
       <table>
         <thead><tr>
-          <th>Field</th><th>N (kg/ha)</th><th>P (kg/ha)</th><th>K (kg/ha)</th>
+          <th>Field</th><th>Crop</th><th>N (kg/ha)</th><th>P (kg/ha)</th><th>K (kg/ha)</th>
           <th>Organic Manure</th><th>Rate</th><th>Method</th><th>Timing Notes</th>
         </tr></thead>
         <tbody>${rows}</tbody>

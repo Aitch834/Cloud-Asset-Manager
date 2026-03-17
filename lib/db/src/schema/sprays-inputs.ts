@@ -55,6 +55,7 @@ export const nmpFieldEntriesTable = pgTable("nmp_field_entries", {
   id: serial("id").primaryKey(),
   planId: integer("plan_id").notNull().references(() => nutrientManagementPlansTable.id),
   fieldId: integer("field_id").notNull().references(() => fieldsTable.id),
+  cropType: text("crop_type"),
   nitrogenKgHa: numeric("nitrogen_kg_ha", { precision: 10, scale: 2 }),
   phosphorusKgHa: numeric("phosphorus_kg_ha", { precision: 10, scale: 2 }),
   potassiumKgHa: numeric("potassium_kg_ha", { precision: 10, scale: 2 }),

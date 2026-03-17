@@ -683,6 +683,36 @@ router.delete("/farms/:farmId/nmp-plans/:planId/field-entries/:entryId", require
   res.json({ success: true });
 });
 
+// ─── Field-specific NMP entries (all years) ─────────
+router.get("/farms/:farmId/fields/:fieldId/nmp-entries", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const fieldId = parseInt(req.params.fieldId);
+  if (!fieldId) { res.status(400).json({ error: "Invalid field ID" }); return; }
+  const entries = await db
+    .select({
+      id: nmpFieldEntriesTable.id,
+      planId: nmpFieldEntriesTable.planId,
+      planYear: nutrientManagementPlansTable.planYear,
+      preparedBy: nutrientManagementPlansTable.preparedBy,
+      approvedDate: nutrientManagementPlansTable.approvedDate,
+      cropType: nmpFieldEntriesTable.cropType,
+      nitrogenKgHa: nmpFieldEntriesTable.nitrogenKgHa,
+      phosphorusKgHa: nmpFieldEntriesTable.phosphorusKgHa,
+      potassiumKgHa: nmpFieldEntriesTable.potassiumKgHa,
+      organicManureType: nmpFieldEntriesTable.organicManureType,
+      organicManureRate: nmpFieldEntriesTable.organicManureRate,
+      applicationMethod: nmpFieldEntriesTable.applicationMethod,
+      timingNotes: nmpFieldEntriesTable.timingNotes,
+      createdAt: nmpFieldEntriesTable.createdAt,
+    })
+    .from(nmpFieldEntriesTable)
+    .innerJoin(nutrientManagementPlansTable, eq(nmpFieldEntriesTable.planId, nutrientManagementPlansTable.id))
+    .where(and(eq(nmpFieldEntriesTable.fieldId, fieldId), eq(nutrientManagementPlansTable.farmId, farmId)))
+    .orderBy(desc(nutrientManagementPlansTable.planYear));
+  res.json({ entries });
+});
+
 // ─── Soil Tests ─────────────────────────────────────
 router.get("/farms/:farmId/soil-tests", requireAuth, requireTenant, requireModuleByKey("soil-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);

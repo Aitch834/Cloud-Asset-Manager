@@ -12,7 +12,7 @@ import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
 import {
   Plus, Search, Map, MoreVertical, Pencil, Trash2, AlertTriangle,
-  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer,
+  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
@@ -319,7 +319,7 @@ export default function FieldsPage() {
   const [assignForField, setAssignForField] = useState<FieldRecord | null>(null);
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
   const [selectedFieldForHistory, setSelectedFieldForHistory] = useState<FieldRecord | null>(null);
-  const [drawerTab, setDrawerTab] = useState<"overview" | "history">("overview");
+  const [drawerTab, setDrawerTab] = useState<"overview" | "history" | "nmp">("overview");
   const [printOpen, setPrintOpen] = useState(false);
 
   if (!farmId) return <Redirect href="/select" />;
@@ -327,6 +327,12 @@ export default function FieldsPage() {
   const { data: fieldsData, isLoading: fieldsLoading } = useFields(farmId);
   const { data: cropsData, isLoading: cropsLoading } = useCrops(farmId);
   const { data: assignmentsData } = useFieldCropAssignments(farmId);
+  const fieldNmpQ = useQuery({
+    queryKey: ["field-nmp-entries", farmId, selectedFieldForHistory?.id, drawerTab],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields/${selectedFieldForHistory?.id}/nmp-entries`).then(r => r.json()),
+    enabled: !!farmId && !!selectedFieldForHistory && drawerTab === "nmp",
+    select: (d: any) => d.entries ?? [],
+  });
 
   const { mutate: createField, isPending: creatingField } = useAddField(farmId);
   const { mutate: createCrop, isPending: creatingCrop } = useAddCrop(farmId);
@@ -683,13 +689,13 @@ export default function FieldsPage() {
                 </div>
                 {/* drawer tabs */}
                 <div className="flex gap-1 mt-4">
-                  {(["overview", "history"] as const).map(t => (
+                  {(["overview", "history", "nmp"] as const).map(t => (
                     <button
                       key={t}
                       onClick={() => setDrawerTab(t)}
-                      className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer capitalize ${drawerTab === t ? "bg-white shadow text-foreground" : "text-foreground/50 hover:text-foreground"}`}
+                      className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${drawerTab === t ? "bg-white shadow text-foreground" : "text-foreground/50 hover:text-foreground"}`}
                     >
-                      {t === "history" ? "Crop History" : "Overview"}
+                      {t === "history" ? "Crop History" : t === "nmp" ? "NMP" : "Overview"}
                     </button>
                   ))}
                 </div>
@@ -771,6 +777,92 @@ export default function FieldsPage() {
                         </span>
                         <ChevronRight className="w-4 h-4" />
                       </button>
+                    )}
+                  </div>
+                )}
+
+                {drawerTab === "nmp" && (
+                  <div>
+                    <p className="text-sm text-foreground/50 mb-5">
+                      Nutrient Management Plan entries for this field — showing N, P and K budgets from all recorded annual plans.
+                    </p>
+                    {fieldNmpQ.isLoading ? (
+                      <div className="space-y-3">
+                        {[1, 2].map(i => <div key={i} className="h-24 rounded-xl bg-black/5 animate-pulse" />)}
+                      </div>
+                    ) : !fieldNmpQ.data || fieldNmpQ.data.length === 0 ? (
+                      <div className="py-12 text-center border-2 border-dashed border-green-200 rounded-xl">
+                        <FlaskConical className="w-10 h-10 mx-auto text-green-300 mb-3" />
+                        <p className="text-foreground/40 text-sm font-medium">No NMP entries for this field yet</p>
+                        <p className="text-foreground/30 text-xs mt-1">Go to the NMP page to create an annual plan and add field entries.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {fieldNmpQ.data.map((entry: any) => (
+                          <div key={entry.id} className="bg-white border border-border/50 rounded-xl overflow-hidden">
+                            {/* Plan year header */}
+                            <div className="bg-green-50 border-b border-green-100 px-4 py-2.5 flex items-center justify-between">
+                              <span className="font-bold text-green-800 text-sm">{entry.planYear} Plan</span>
+                              <div className="flex items-center gap-2">
+                                {entry.cropType && (
+                                  <span className="inline-flex items-center gap-1 bg-green-700 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                                    <Wheat className="w-3 h-3" />{entry.cropType}
+                                  </span>
+                                )}
+                                {entry.approvedDate
+                                  ? <span className="text-xs text-green-700 font-medium">✓ Approved</span>
+                                  : <span className="text-xs text-amber-600 font-medium">Pending</span>}
+                              </div>
+                            </div>
+                            {/* Nutrient values */}
+                            <div className="px-4 py-3 grid grid-cols-3 gap-3">
+                              <div className="text-center">
+                                <p className="text-xs text-foreground/40 font-semibold uppercase mb-1">Nitrogen N</p>
+                                <p className="font-bold text-blue-700 text-base">{entry.nitrogenKgHa ? `${entry.nitrogenKgHa}` : "—"}</p>
+                                <p className="text-xs text-foreground/40">kg/ha</p>
+                              </div>
+                              <div className="text-center border-x border-border/30">
+                                <p className="text-xs text-foreground/40 font-semibold uppercase mb-1">Phosphorus P</p>
+                                <p className="font-bold text-purple-700 text-base">{entry.phosphorusKgHa ? `${entry.phosphorusKgHa}` : "—"}</p>
+                                <p className="text-xs text-foreground/40">kg/ha</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-xs text-foreground/40 font-semibold uppercase mb-1">Potassium K</p>
+                                <p className="font-bold text-amber-700 text-base">{entry.potassiumKgHa ? `${entry.potassiumKgHa}` : "—"}</p>
+                                <p className="text-xs text-foreground/40">kg/ha</p>
+                              </div>
+                            </div>
+                            {/* Manure / method details */}
+                            {(entry.organicManureType || entry.applicationMethod) && (
+                              <div className="px-4 pb-3 flex flex-wrap gap-3 text-xs text-foreground/60">
+                                {entry.organicManureType && entry.organicManureType !== "None" && (
+                                  <span className="flex items-center gap-1">
+                                    <Leaf className="w-3 h-3 text-green-600" />
+                                    {entry.organicManureType}
+                                    {entry.organicManureRate ? ` · ${entry.organicManureRate} t/ha` : ""}
+                                  </span>
+                                )}
+                                {entry.applicationMethod && (
+                                  <span className="flex items-center gap-1">
+                                    <Sprout className="w-3 h-3 text-green-600" />
+                                    {entry.applicationMethod}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {entry.timingNotes && (
+                              <div className="px-4 pb-3">
+                                <p className="text-xs text-foreground/50 italic">"{entry.timingNotes}"</p>
+                              </div>
+                            )}
+                            {entry.preparedBy && (
+                              <div className="px-4 pb-3 text-xs text-foreground/40 border-t border-border/30 pt-2">
+                                Prepared by: {entry.preparedBy}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}
