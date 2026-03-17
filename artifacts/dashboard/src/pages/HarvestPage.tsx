@@ -336,10 +336,10 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Machinery Used</Label>
-                <Select value={form.equipmentId} onValueChange={v => setForm((f: any) => ({ ...f, equipmentId: v }))}>
+                <Select value={form.equipmentId} onValueChange={v => setForm((f: any) => ({ ...f, equipmentId: v === "__none__" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select machinery..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None / not recorded</SelectItem>
+                    <SelectItem value="__none__">None / not recorded</SelectItem>
                     {equipment.map((eq: any) => (
                       <SelectItem key={eq.id} value={String(eq.id)}>
                         {eq.name} {eq.registrationNumber ? `(${eq.registrationNumber})` : ""}
@@ -665,10 +665,10 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
           <div className="space-y-3 py-2">
             <div>
               <Label>Linked Harvest (optional)</Label>
-              <Select value={form.harvestRecordId} onValueChange={v => setForm((f: any) => ({ ...f, harvestRecordId: v }))}>
+              <Select value={form.harvestRecordId} onValueChange={v => setForm((f: any) => ({ ...f, harvestRecordId: v === "__none__" ? "" : v }))}>
                 <SelectTrigger><SelectValue placeholder="Select harvest to link..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Not linked to a specific harvest</SelectItem>
+                  <SelectItem value="__none__">Not linked to a specific harvest</SelectItem>
                   {harvests.map((h: any) => (
                     <SelectItem key={h.id} value={String(h.id)}>
                       {fmt(h.harvestDate)} — {h.field?.name || "Field"} / {h.crop?.name || "Crop"}

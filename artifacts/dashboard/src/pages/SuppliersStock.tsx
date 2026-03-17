@@ -531,10 +531,10 @@ function GoodsReceivedTab({ deliveries, products, suppliers, loading, farmId, on
               </div>
               <div>
                 <Label>Supplier</Label>
-                <Select value={form.supplierId} onValueChange={v => setForm((f: any) => ({ ...f, supplierId: v }))}>
+                <Select value={form.supplierId} onValueChange={v => setForm((f: any) => ({ ...f, supplierId: v === "__none__" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select supplier..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="__none__">None</SelectItem>
                     {suppliers.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -767,10 +767,10 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
               </div>
               <div>
                 <Label>Default Supplier</Label>
-                <Select value={form.defaultSupplierId} onValueChange={v => setForm((f: any) => ({ ...f, defaultSupplierId: v }))}>
+                <Select value={form.defaultSupplierId} onValueChange={v => setForm((f: any) => ({ ...f, defaultSupplierId: v === "__none__" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="__none__">None</SelectItem>
                     {suppliers.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>

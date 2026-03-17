@@ -195,7 +195,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
               <Label>Product <span style={{ color: "#ef4444" }}>*</span></Label>
               <Select value={form.productId} onValueChange={v => setForm((f: any) => ({ ...f, productId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select product..." /></SelectTrigger>
-                <SelectContent>{products.length === 0 ? <SelectItem value="" disabled>Add products in the Product Register tab first</SelectItem> : products.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.productName}{p.activeIngredient ? ` (${p.activeIngredient})` : ""}</SelectItem>)}</SelectContent>
+                <SelectContent>{products.length === 0 ? <SelectItem value="__none__" disabled>Add products in the Product Register tab first</SelectItem> : products.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.productName}{p.activeIngredient ? ` (${p.activeIngredient})` : ""}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-3 gap-3">

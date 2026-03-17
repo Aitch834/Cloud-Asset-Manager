@@ -401,7 +401,7 @@ export default function NMPPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {fields.length === 0 ? (
-                      <SelectItem value="" disabled>No fields registered — add fields in Fields &amp; Crops first</SelectItem>
+                      <SelectItem value="__none__" disabled>No fields registered — add fields in Fields &amp; Crops first</SelectItem>
                     ) : (
                       fields.map((f: any) => (
                         <SelectItem key={f.id} value={String(f.id)}>
