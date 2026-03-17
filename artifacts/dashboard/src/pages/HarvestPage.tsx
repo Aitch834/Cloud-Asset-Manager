@@ -316,7 +316,14 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Field & Crop <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Select value={form.fieldCropAssignmentId} onValueChange={v => setForm((f: any) => ({ ...f, fieldCropAssignmentId: v }))}>
+                <Select
+                  value={form.fieldCropAssignmentId}
+                  onValueChange={v => {
+                    const fc = fieldCrops.find((x: any) => String(x.id) === v);
+                    const area = fc?.areaHectares ? parseFloat(String(fc.areaHectares)).toFixed(2) : "";
+                    setForm((f: any) => ({ ...f, fieldCropAssignmentId: v, areaHarvestedHa: area }));
+                  }}
+                >
                   <SelectTrigger><SelectValue placeholder="Select field / crop..." /></SelectTrigger>
                   <SelectContent>
                     {fieldCrops.map((fc: any) => (

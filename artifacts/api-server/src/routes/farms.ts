@@ -376,6 +376,8 @@ router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModu
       id: fieldCropAssignmentsTable.id,
       fieldId: fieldCropAssignmentsTable.fieldId,
       fieldName: fieldsTable.name,
+      fieldReference: fieldsTable.fieldReference,
+      areaHectares: fieldsTable.areaHectares,
       cropId: fieldCropAssignmentsTable.cropId,
       cropName: cropsTable.name,
       plantingDate: fieldCropAssignmentsTable.plantingDate,
