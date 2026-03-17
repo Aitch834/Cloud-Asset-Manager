@@ -2,7 +2,10 @@ import { cn } from "@/lib/utils";
 
 export function TabBar({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("flex items-center gap-2 bg-black/[0.07] rounded-xl p-1.5 w-fit", className)}>
+    <div
+      className={cn("flex items-center w-fit flex-wrap", className)}
+      style={{ gap: 6, padding: 6, background: "rgba(0,0,0,0.07)", borderRadius: 12 }}
+    >
       {children}
     </div>
   );
@@ -19,15 +22,26 @@ export function TabButton({
   children: React.ReactNode;
   size?: "sm" | "md";
 }) {
+  const pad = size === "md" ? "10px 20px" : "6px 16px";
   return (
     <button
       onClick={onClick}
+      style={{
+        padding: pad,
+        fontSize: "0.875rem",
+        fontWeight: 600,
+        borderRadius: 8,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+        transition: "background 0.15s, color 0.15s",
+        background: active ? "#fff" : "transparent",
+        boxShadow: active ? "0 1px 2px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.06)" : "none",
+        border: "none",
+        color: active ? "hsl(var(--foreground))" : "hsl(var(--foreground) / 0.6)",
+      }}
       className={cn(
-        "rounded-lg text-sm font-semibold transition-all cursor-pointer whitespace-nowrap",
-        size === "md" ? "px-5 py-2.5" : "px-4 py-1.5",
-        active
-          ? "bg-white shadow-sm border border-black/[0.06] text-foreground"
-          : "text-foreground/60 hover:text-foreground hover:bg-black/[0.05]",
+        "hover:text-foreground",
+        !active && "hover:bg-black/[0.05]",
       )}
     >
       {children}
