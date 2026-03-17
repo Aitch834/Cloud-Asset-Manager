@@ -57,7 +57,7 @@ function formatDate(dateStr?: string | null) {
   return new Date(dateStr).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-interface Farm { name?: string; address?: string; postcode?: string; cphNumber?: string; }
+interface Farm { name?: string; address?: string; postcode?: string; cphNumber?: string; redTractorId?: string | null; }
 interface PrintableAssignment extends FieldCropAssignment { fieldName?: string; soilType?: string; areaSqMetres?: number; fieldReference?: string; }
 
 function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }: {
@@ -118,6 +118,7 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
               <p className="text-base font-bold text-foreground">{farm?.name ?? "Farm"}</p>
               {farm?.address && <p className="text-xs text-foreground/60">{farm.address}{farm.postcode ? `, ${farm.postcode}` : ""}</p>}
               {farm?.cphNumber && <p className="text-xs text-foreground/60 mt-0.5">CPH: <span className="font-mono font-semibold">{farm.cphNumber}</span></p>}
+              {farm?.redTractorId && <p className="text-xs text-foreground/60 mt-0.5">Red Tractor ID: <span className="font-mono font-semibold">{farm.redTractorId}</span></p>}
             </div>
             <div className="text-right text-xs text-foreground/50">
               <p className="font-semibold text-foreground text-sm">Crop Register</p>
@@ -166,10 +167,12 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
           </div>
 
           {/* Footer */}
-          <div className="text-xs text-foreground/40 border-t pt-3 italic">
-            This is an on-farm record for Red Tractor compliance purposes.
-            Retain for a minimum of 3 years and make available for inspection at audit.
-            BDE Farm Trac · Printed {printedDate}
+          <div className="text-xs text-foreground/40 border-t pt-3 flex items-center justify-between">
+            <span className="italic">
+              This is an on-farm record for Red Tractor compliance purposes.
+              Retain for a minimum of 3 years and make available for inspection at audit.
+            </span>
+            <span className="font-medium not-italic text-foreground/50 ml-4 whitespace-nowrap">Powered by BDE Farm Trac · {printedDate}</span>
           </div>
         </div>
 

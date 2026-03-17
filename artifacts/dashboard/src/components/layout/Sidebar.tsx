@@ -127,10 +127,11 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-function SidebarInner({ onNavClick, onLogout, currentFarmName, filteredCoreNav, filteredComplianceNav, filteredBiosecurityNav, filteredLivestockNav, filteredOtherNav }: {
+function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTractorId, filteredCoreNav, filteredComplianceNav, filteredBiosecurityNav, filteredLivestockNav, filteredOtherNav }: {
   onNavClick?: () => void;
   onLogout: () => void;
   currentFarmName?: string;
+  currentFarmRedTractorId?: string | null;
   filteredCoreNav: NavItem[];
   filteredComplianceNav: NavItem[];
   filteredBiosecurityNav: NavItem[];
@@ -145,7 +146,13 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, filteredCoreNav, 
         </div>
         <div>
           <h1 className="text-lg font-display font-bold text-white tracking-wide">BDE Farm Trac</h1>
-          <p className="text-[10px] text-sidebar-foreground/70 uppercase tracking-wider font-semibold">Red Tractor</p>
+          {currentFarmRedTractorId ? (
+            <p className="text-[10px] text-sidebar-foreground/70 uppercase tracking-wider font-semibold">
+              RT ID: {currentFarmRedTractorId}
+            </p>
+          ) : (
+            <p className="text-[10px] text-sidebar-foreground/70 uppercase tracking-wider font-semibold">Red Tractor</p>
+          )}
         </div>
       </div>
 
@@ -233,6 +240,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const innerProps = {
     onLogout: handleLogout,
     currentFarmName: currentFarm?.name,
+    currentFarmRedTractorId: (currentFarm as any)?.redTractorId,
     filteredCoreNav,
     filteredComplianceNav,
     filteredBiosecurityNav,

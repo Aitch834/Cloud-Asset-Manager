@@ -36,10 +36,11 @@ interface FarmFormData {
   postcode: string;
   gridReference: string;
   totalAcreage: string;
+  redTractorId: string;
   sectors: Record<SectorKey, boolean>;
 }
 
-function farmToFormData(farm: Farm): FarmFormData {
+function farmToFormData(farm: Farm & { redTractorId?: string | null }): FarmFormData {
   return {
     name: farm.name || "",
     cphNumber: farm.cphNumber || "",
@@ -47,6 +48,7 @@ function farmToFormData(farm: Farm): FarmFormData {
     postcode: farm.postcode || "",
     gridReference: farm.gridReference || "",
     totalAcreage: farm.totalAcreage?.toString() || "",
+    redTractorId: farm.redTractorId || "",
     sectors: {
       sectorArable: !!farm.sectorArable,
       sectorBeef: !!farm.sectorBeef,
@@ -131,7 +133,8 @@ export default function FarmSettings() {
         gridReference: formData.gridReference.trim() || undefined,
         totalAcreage: formData.totalAcreage ? parseInt(formData.totalAcreage, 10) : undefined,
         ...formData.sectors,
-      },
+        redTractorId: formData.redTractorId.trim() || undefined,
+      } as any,
     }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListFarmsQueryKey() });
@@ -175,6 +178,17 @@ export default function FarmSettings() {
                 onChange={e => updateField("cphNumber", e.target.value)}
               />
               <p className="text-xs text-muted-foreground mt-1">County Parish Holding number</p>
+            </div>
+
+            <div>
+              <Label htmlFor="settings-rt-id">Red Tractor ID</Label>
+              <Input
+                id="settings-rt-id"
+                placeholder="e.g. 12345678"
+                value={formData.redTractorId}
+                onChange={e => updateField("redTractorId", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Red Tractor membership number — appears on all compliance reports</p>
             </div>
 
             <div>

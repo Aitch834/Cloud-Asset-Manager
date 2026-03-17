@@ -98,7 +98,7 @@ router.put("/tenants/current", requireAuth, requireTenant, requireClientAdmin, a
 });
 
 router.post("/tenants/current/farms", requireAuth, requireTenant, requireClientAdmin, async (req: Request, res: Response): Promise<void> => {
-  const { name, address, postcode, cphNumber, gridReference, totalAcreage, sectorArable, sectorBeef, sectorDairy, sectorPigs, sectorPoultry, sectorHorticulture } = req.body;
+  const { name, address, postcode, cphNumber, gridReference, totalAcreage, sectorArable, sectorBeef, sectorDairy, sectorPigs, sectorPoultry, sectorHorticulture, redTractorId } = req.body;
 
   if (!name) {
     res.status(400).json({ error: "Farm name is required" });
@@ -119,6 +119,7 @@ router.post("/tenants/current/farms", requireAuth, requireTenant, requireClientA
     sectorPigs: sectorPigs ?? false,
     sectorPoultry: sectorPoultry ?? false,
     sectorHorticulture: sectorHorticulture ?? false,
+    redTractorId: redTractorId || null,
   }).returning();
 
   res.status(201).json({ farm });
@@ -131,11 +132,11 @@ router.get("/tenants/current/farms", requireAuth, requireTenant, async (req: Req
 
 router.put("/tenants/current/farms/:farmId", requireAuth, requireTenant, requireClientAdmin, async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId as string, 10);
-  const { name, address, postcode, cphNumber, gridReference, totalAcreage, sectorArable, sectorBeef, sectorDairy, sectorPigs, sectorPoultry, sectorHorticulture } = req.body;
+  const { name, address, postcode, cphNumber, gridReference, totalAcreage, sectorArable, sectorBeef, sectorDairy, sectorPigs, sectorPoultry, sectorHorticulture, redTractorId } = req.body;
 
   const [updated] = await db
     .update(farmsTable)
-    .set({ name, address, postcode, cphNumber, gridReference, totalAcreage, sectorArable, sectorBeef, sectorDairy, sectorPigs, sectorPoultry, sectorHorticulture })
+    .set({ name, address, postcode, cphNumber, gridReference, totalAcreage, sectorArable, sectorBeef, sectorDairy, sectorPigs, sectorPoultry, sectorHorticulture, redTractorId: redTractorId || null })
     .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
     .returning();
 

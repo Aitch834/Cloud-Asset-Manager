@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { useListFarms } from "@workspace/api-client-react/src/generated/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,8 @@ export default function NMPPage() {
   const [deletePlanId, setDeletePlanId] = useState<number | null>(null);
   const [printPlan, setPrintPlan] = useState<any | null>(null);
   const [entryCountByPlan, setEntryCountByPlan] = useState<Record<number, number>>({});
+  const { data: farmsData } = useListFarms();
+  const currentFarm = farmsData?.farms?.find((f: any) => f.id === farmId);
 
   const plansQ = useQuery({
     queryKey: ["nmp-plans", farmId],
@@ -512,7 +515,7 @@ export default function NMPPage() {
           </DialogContent>
         </Dialog>
 
-        {printPlan && <PrintDialog plan={printPlan} farmId={farmId} onClose={() => setPrintPlan(null)} />}
+        {printPlan && <PrintDialog plan={printPlan} farmId={farmId} farm={currentFarm} onClose={() => setPrintPlan(null)} />}
       </div>
     </AppLayout>
   );
@@ -526,7 +529,7 @@ function NutrientBadge({ val, color, bg, letter }: { val: string; color: string;
   );
 }
 
-function PrintDialog({ plan, farmId, onClose }: { plan: any; farmId: number | null; onClose: () => void }) {
+function PrintDialog({ plan, farmId, farm, onClose }: { plan: any; farmId: number | null; farm?: any; onClose: () => void }) {
   const entriesQ = useQuery({
     queryKey: ["nmp-entries-print", farmId, plan.id],
     queryFn: () => fetch(`/api/farms/${farmId}/nmp-plans/${plan.id}/field-entries`).then(r => r.json()),
@@ -551,6 +554,7 @@ function PrintDialog({ plan, farmId, onClose }: { plan: any; farmId: number | nu
       </tr>`).join("");
     const win = window.open("", "_blank");
     if (!win) return;
+    const farmHeader = farm ? `<div style="margin-bottom:6px"><strong style="font-size:12px">${farm.name || ""}</strong>${farm.cphNumber ? `<span style="color:#6b7280;margin-left:10px;font-size:10px">CPH: ${farm.cphNumber}</span>` : ""}${farm.redTractorId ? `<span style="color:#6b7280;margin-left:10px;font-size:10px">Red Tractor ID: ${farm.redTractorId}</span>` : ""}</div>` : "";
     win.document.write(`
       <html><head><title>NMP ${plan.planYear}</title>
       <style>
@@ -561,8 +565,9 @@ function PrintDialog({ plan, farmId, onClose }: { plan: any; farmId: number | nu
         td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top}
         tr:nth-child(even){background:#f9fafb}
         .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;font-size:11px;margin:10px 0}
-        .footer{margin-top:24px;font-size:9px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px}
+        .footer{margin-top:24px;font-size:9px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;display:flex;justify-content:space-between}
       </style></head><body>
+      ${farmHeader}
       <h1>Nutrient Management Plan — ${plan.planYear}</h1>
       <div class="meta">
         <div><b>Prepared by:</b> ${plan.preparedBy || "—"}</div>
@@ -578,7 +583,7 @@ function PrintDialog({ plan, farmId, onClose }: { plan: any; farmId: number | nu
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <div class="footer">BDE Farm Trac — Red Tractor Compliance Platform | ${today}</div>
+      <div class="footer"><span>Retain for a minimum of 3 years and make available at Red Tractor audit.</span><span>Powered by BDE Farm Trac · ${today}</span></div>
       </body></html>`);
     win.document.close();
     win.focus();

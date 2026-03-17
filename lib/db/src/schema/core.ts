@@ -29,6 +29,7 @@ export const farmsTable = pgTable("farms", {
   sectorPigs: boolean("sector_pigs").notNull().default(false),
   sectorPoultry: boolean("sector_poultry").notNull().default(false),
   sectorHorticulture: boolean("sector_horticulture").notNull().default(false),
+  redTractorId: text("red_tractor_id"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
