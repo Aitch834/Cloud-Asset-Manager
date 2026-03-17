@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { TabButton, TabBar } from "@/components/ui/tab-button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -396,20 +397,10 @@ export default function FieldsPage() {
       `}</style>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 bg-black/5 rounded-xl p-1 w-fit mb-6">
-        <button
-          onClick={() => setTab("fields")}
-          className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${tab === "fields" ? "bg-white shadow text-foreground" : "text-foreground/50 hover:text-foreground"}`}
-        >
-          Fields
-        </button>
-        <button
-          onClick={() => setTab("crops")}
-          className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${tab === "crops" ? "bg-white shadow text-foreground" : "text-foreground/50 hover:text-foreground"}`}
-        >
-          Crops Register
-        </button>
-      </div>
+      <TabBar className="mb-6">
+        <TabButton active={tab === "fields"} onClick={() => setTab("fields")}>Fields</TabButton>
+        <TabButton active={tab === "crops"} onClick={() => setTab("crops")}>Crops Register</TabButton>
+      </TabBar>
 
       {/* ── FIELDS TAB ── */}
       {tab === "fields" && (
@@ -684,17 +675,11 @@ export default function FieldsPage() {
                   )}
                 </div>
                 {/* tabs */}
-                <div className="flex gap-1 mt-4">
-                  {(["overview", "history", "nmp"] as const).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setDrawerTab(t)}
-                      className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${drawerTab === t ? "bg-white shadow text-foreground" : "text-foreground/50 hover:text-foreground"}`}
-                    >
-                      {t === "history" ? "Crop History" : t === "nmp" ? "NMP" : "Overview"}
-                    </button>
-                  ))}
-                </div>
+                <TabBar className="mt-4">
+                  <TabButton size="sm" active={drawerTab === "overview"} onClick={() => setDrawerTab("overview")}>Overview</TabButton>
+                  <TabButton size="sm" active={drawerTab === "history"} onClick={() => setDrawerTab("history")}>Crop History</TabButton>
+                  <TabButton size="sm" active={drawerTab === "nmp"} onClick={() => setDrawerTab("nmp")}>NMP</TabButton>
+                </TabBar>
               </div>
 
               {/* body */}

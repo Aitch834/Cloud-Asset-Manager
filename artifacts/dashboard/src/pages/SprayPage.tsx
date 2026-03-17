@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -22,13 +23,6 @@ const RATE_UNITS = ["L/ha", "kg/ha", "g/ha", "mL/ha", "kg/1000L", "L/1000L"];
 const WIND_DIRS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 const PRODUCT_CATEGORIES = ["Herbicide", "Fungicide", "Insecticide", "Molluscicide", "Growth Regulator", "Foliar Feed", "Adjuvant", "Other"];
 
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick} style={{ padding: "0.5rem 1.125rem", fontSize: "0.875rem", fontWeight: active ? 600 : 400, color: active ? "#0369a1" : "#6b7280", background: "none", borderBottomWidth: active ? 2 : 0, borderBottomStyle: "solid" as const, borderBottomColor: active ? "#0369a1" : "transparent", borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, cursor: "pointer", whiteSpace: "nowrap" as const }}>
-      {children}
-    </button>
-  );
-}
 
 export default function SprayPage() {
   const { farmId } = useAppStore();
@@ -55,11 +49,11 @@ export default function SprayPage() {
           <StatCard icon={<FlaskConical size={18} color="#7c3aed" />} label="Products Registered" value={products.length} bg="#f5f3ff" iconBg="#ede9fe" />
           <StatCard icon={<Droplets size={18} color="#166534" />} label="Fields Treated" value={new Set(applications.map((a: any) => a.fieldId)).size} bg="#f0fdf4" iconBg="#dcfce7" />
         </div>
-        <div style={{ borderBottom: "1px solid #e5e7eb", display: "flex", gap: 0, marginBottom: "1.25rem" }}>
+        <TabBar className="mb-5">
           <TabButton active={tab === "applications"} onClick={() => setTab("applications")}>Applications Log</TabButton>
           <TabButton active={tab === "products"} onClick={() => setTab("products")}>Product Register</TabButton>
           <TabButton active={tab === "print"} onClick={() => setTab("print")}>Print / Export</TabButton>
-        </div>
+        </TabBar>
         {tab === "applications" && <ApplicationsTab applications={applications} products={products} fields={fields} farmId={farmId} loading={applicationsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-applications", farmId] })} toast={toast} />}
         {tab === "products" && <ProductsTab products={products} farmId={farmId} loading={productsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-products", farmId] })} toast={toast} />}
         {tab === "print" && <PrintTab applications={applications} farm={currentFarm} />}

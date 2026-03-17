@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -82,30 +83,6 @@ function movementBadge(type: string, qty: string) {
   return <Badge style={{ background: isIn ? "#dbeafe" : "#f3e8ff", color: isIn ? "#1e40af" : "#6b21a8", border: "none" }} className="text-xs">Adjustment</Badge>;
 }
 
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "0.5rem 1rem",
-        fontWeight: active ? 600 : 400,
-        color: active ? "#166534" : "#6b7280",
-        background: "none",
-        borderTop: "none",
-        borderLeft: "none",
-        borderRight: "none",
-        borderBottomWidth: "2px",
-        borderBottomStyle: "solid",
-        borderBottomColor: active ? "#166534" : "transparent",
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-        fontSize: "0.875rem",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
 
 function EmptyState({ icon: Icon, title, subtitle }: { icon: React.ElementType; title: string; subtitle: string }) {
   return (
@@ -166,13 +143,13 @@ export default function SuppliersStockPage() {
         <p className="text-sm text-gray-500">Product catalogue, goods received, live stock levels and full movement history</p>
       </div>
 
-      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e5e7eb", marginBottom: "1.5rem", overflowX: "auto" }}>
+      <TabBar className="mb-6 overflow-x-auto flex-wrap">
         <TabButton active={tab === "levels"} onClick={() => setTab("levels")}>Stock Levels</TabButton>
         <TabButton active={tab === "received"} onClick={() => setTab("received")}>Goods Received</TabButton>
         <TabButton active={tab === "movements"} onClick={() => setTab("movements")}>Movements</TabButton>
         <TabButton active={tab === "products"} onClick={() => setTab("products")}>Product Catalogue</TabButton>
         <TabButton active={tab === "suppliers"} onClick={() => setTab("suppliers")}>Suppliers</TabButton>
-      </div>
+      </TabBar>
 
       {tab === "levels" && (
         <StockLevelsTab

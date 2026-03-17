@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -37,31 +38,6 @@ const QUALITY_GRADES = ["Grade 1 (Premium)", "Grade 2 (Standard)", "Grade 3 (Fee
 
 type TabKey = "log" | "transport" | "storage" | "print";
 
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "0.5rem 1.125rem",
-        fontSize: "0.875rem",
-        fontWeight: active ? 600 : 400,
-        color: active ? "#15803d" : "#6b7280",
-        background: "none",
-        borderBottomWidth: active ? 2 : 0,
-        borderBottomStyle: "solid" as const,
-        borderBottomColor: active ? "#15803d" : "transparent",
-        borderTopWidth: 0,
-        borderLeftWidth: 0,
-        borderRightWidth: 0,
-        cursor: "pointer",
-        whiteSpace: "nowrap" as const,
-        transition: "color 0.15s",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
 
 export default function HarvestPage() {
   const { farmId } = useAppStore();
@@ -125,12 +101,12 @@ export default function HarvestPage() {
           <StatCard icon={<Warehouse size={18} color="#7c3aed" />} label="Storage Records" value={storages.length} bg="#f5f3ff" iconBg="#ede9fe" />
         </div>
 
-        <div style={{ borderBottom: "1px solid #e5e7eb", display: "flex", gap: 0, marginBottom: "1.25rem", overflowX: "auto" }}>
+        <TabBar className="mb-5">
           <TabButton active={tab === "log"} onClick={() => setTab("log")}>Harvest Log</TabButton>
           <TabButton active={tab === "transport"} onClick={() => setTab("transport")}>Transport Legs</TabButton>
           <TabButton active={tab === "storage"} onClick={() => setTab("storage")}>Storage Records</TabButton>
           <TabButton active={tab === "print"} onClick={() => setTab("print")}>Print / Export</TabButton>
-        </div>
+        </TabBar>
 
         {tab === "log" && (
           <HarvestLogTab
