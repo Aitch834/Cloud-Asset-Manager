@@ -11,13 +11,13 @@ export default function Features() {
       title: "Red Tractor Compliance",
       icon: ClipboardCheck,
       color: "bg-blue-50 text-blue-600 border-blue-100",
-      features: ["Official template matching", "Automated gap analysis", "Audit history log", "Action item tracker"]
+      features: ["Official template matching", "Automated gap analysis", "Audit history log", "One-click print-ready compliance reports"]
     },
     {
       title: "Field & Crop Management",
       icon: Map,
       color: "bg-brand-pale text-brand-forest border-brand-light/30",
-      features: ["GPS boundary mapping", "Crop rotation history", "Harvest & yield tracking", "Destination logging"]
+      features: ["GPS boundary mapping", "Crop rotation history", "Harvest audit trail — transport, storage & yield", "Planned vs. actual harvest cross-referencing"]
     },
     {
       title: "Stock & Suppliers",
@@ -59,7 +59,7 @@ export default function Features() {
       title: "Nutrient & Soil",
       icon: Sprout,
       color: "bg-lime-50 text-lime-600 border-lime-100",
-      features: ["Nutrient Management Plans", "Soil test records", "RB209 compliance", "Fertilizer logs"]
+      features: ["Nutrient Management Plans", "Soil test records", "RB209 compliance", "NVZ Nitrate Vulnerable Zone records"]
     },
     {
       title: "Biosecurity & Risk",
