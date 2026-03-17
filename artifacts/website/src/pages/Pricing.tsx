@@ -15,6 +15,9 @@ const MODULES = [
   { id: "financial", name: "Financial & Exports", price: 15 },
   { id: "weather", name: "Weather Tracking", price: 5 },
   { id: "documents", name: "Advanced Document Storage", price: 10 },
+  { id: "nutrient", name: "Nutrient & Soil (NMP / NVZ)", price: 15 },
+  { id: "biosecurity", name: "Biosecurity & Risk", price: 15 },
+  { id: "staff", name: "Staff & Training", price: 15 },
 ];
 
 interface Farm {
