@@ -384,6 +384,13 @@ router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModu
       year: fieldCropAssignmentsTable.year,
       notes: fieldCropAssignmentsTable.notes,
       createdAt: fieldCropAssignmentsTable.createdAt,
+      // Earliest actual harvest date recorded against this assignment, if any.
+      // Returned as a string (ISO date) or null when no harvest record exists.
+      actualHarvestDate: sql<string | null>`(
+        SELECT MIN(${harvestRecordsTable.harvestDate})
+        FROM ${harvestRecordsTable}
+        WHERE ${harvestRecordsTable.fieldCropAssignmentId} = ${fieldCropAssignmentsTable.id}
+      )`,
     })
     .from(fieldCropAssignmentsTable)
     .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))

@@ -51,6 +51,7 @@ interface FieldCropAssignment {
   cropName: string;
   plantingDate?: string;
   expectedHarvestDate?: string;
+  actualHarvestDate?: string | null;
   season?: string;
   year?: number;
 }
@@ -84,6 +85,8 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
   });
   const farm = farmData?.record;
 
+  const isHistorical = year < CURRENT_YEAR;
+
   const rows: PrintableAssignment[] = fields.map(f => {
     const asgn = assignments.find(a => a.fieldId === f.id && (a.year === year || (!a.year && year === CURRENT_YEAR)));
     const crop = asgn ? crops.find(c => c.id === asgn.cropId) : undefined;
@@ -94,6 +97,7 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
       cropName: crop?.name ?? "—",
       plantingDate: asgn?.plantingDate,
       expectedHarvestDate: asgn?.expectedHarvestDate,
+      actualHarvestDate: asgn?.actualHarvestDate,
       season: asgn?.season,
       year: asgn?.year,
       fieldName: f.name,
@@ -110,7 +114,7 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
 <html lang="en"><head><meta charset="utf-8"><title>Crop Register — ${year} Season</title>
 <style>body{font-family:Arial,sans-serif;font-size:11px;color:#000;margin:0;padding:24px}.hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:12px;margin-bottom:12px}.hdr h1{font-size:13px;font-weight:700;margin:0 0 2px}.hdr p{font-size:10px;color:#555;margin:1px 0}.hdr-r{text-align:right;font-size:10px;color:#666}.hdr-r b{display:block;font-size:12px;font-weight:600;color:#000}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#f0fdf4;font-weight:600;text-align:left;border:1px solid #d1d5db;padding:5px 8px}td{border:1px solid #d1d5db;padding:5px 8px}tr:nth-child(even) td{background:#fafafa}.summary{display:flex;gap:20px;font-size:10px;color:#555;padding:6px 0;border-top:1px solid #e5e7eb}.footer{display:flex;justify-content:space-between;font-size:9px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:4px}@media print{@page{margin:1.5cm}}</style>
 </head><body><div class="hdr"><div><h1>${farm?.name ?? "Farm"}</h1>${farm?.address ? `<p>${farm.address}${farm.postcode ? ", " + farm.postcode : ""}</p>` : ""}${farm?.cphNumber ? `<p>CPH: <span style="font-family:monospace;font-weight:600">${farm.cphNumber}</span></p>` : ""}${farm?.redTractorId ? `<p>Red Tractor ID: <span style="font-family:monospace;font-weight:600">${farm.redTractorId}</span></p>` : ""}</div><div class="hdr-r"><b>Crop Register</b>Season: <b>${year}</b><br>Printed: ${printedDate}</div></div>
-<table><thead><tr><th>Field Name</th><th>Ref</th><th>Area (ha)</th><th>Soil Type</th><th>Crop</th><th>Season</th><th>Planted</th><th>Exp. Harvest</th></tr></thead><tbody>${rows.map(row => `<tr><td style="font-weight:500">${row.fieldName || "Field #" + row.fieldId}</td><td style="color:#666">${row.fieldReference || "—"}</td><td>${row.areaHectares ? parseFloat(String(row.areaHectares)).toFixed(2) : "—"}</td><td>${row.soilType || "—"}</td><td style="font-weight:500">${row.cropName}</td><td>${row.season || "—"}</td><td>${formatDate(row.plantingDate) || "—"}</td><td>${formatDate(row.expectedHarvestDate) || "—"}</td></tr>`).join("")}</tbody></table>
+<table><thead><tr><th>Field Name</th><th>Ref</th><th>Area (ha)</th><th>Soil Type</th><th>Crop</th><th>Season</th><th>Planted</th><th>${isHistorical ? "Actual Harvest" : "Exp. Harvest"}</th></tr></thead><tbody>${rows.map(row => `<tr><td style="font-weight:500">${row.fieldName || "Field #" + row.fieldId}</td><td style="color:#666">${row.fieldReference || "—"}</td><td>${row.areaHectares ? parseFloat(String(row.areaHectares)).toFixed(2) : "—"}</td><td>${row.soilType || "—"}</td><td style="font-weight:500">${row.cropName}</td><td>${row.season || "—"}</td><td>${formatDate(row.plantingDate) || "—"}</td><td>${isHistorical ? (formatDate(row.actualHarvestDate) || "—") : (formatDate(row.expectedHarvestDate) || "—")}</td></tr>`).join("")}</tbody></table>
 <div class="summary"><span><b>${fields.length}</b> field${fields.length !== 1 ? "s" : ""} total</span> <span><b>${rows.filter(r => r.cropId).length}</b> with crop assigned</span> <span><b>${rows.filter(r => !r.cropId).length}</b> unassigned</span></div>
 <div class="footer"><em>On-farm record for Red Tractor compliance. Retain for minimum 3 years and make available for inspection at audit.</em><span>Powered by BDE Farm Trac · ${printedDate}</span></div>
 </body></html>`;
@@ -158,7 +162,7 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
                   <th className="border border-border/60 px-3 py-2 text-left font-semibold">Crop</th>
                   <th className="border border-border/60 px-3 py-2 text-left font-semibold">Season</th>
                   <th className="border border-border/60 px-3 py-2 text-left font-semibold">Planted</th>
-                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Exp. Harvest</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">{isHistorical ? "Actual Harvest" : "Exp. Harvest"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -171,7 +175,11 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
                     <td className="border border-border/60 px-3 py-2 font-medium">{row.cropName}</td>
                     <td className="border border-border/60 px-3 py-2">{row.season || "—"}</td>
                     <td className="border border-border/60 px-3 py-2">{formatDate(row.plantingDate) || "—"}</td>
-                    <td className="border border-border/60 px-3 py-2">{formatDate(row.expectedHarvestDate) || "—"}</td>
+                    <td className="border border-border/60 px-3 py-2">
+                      {isHistorical
+                        ? (formatDate(row.actualHarvestDate) || "—")
+                        : (formatDate(row.expectedHarvestDate) || "—")}
+                    </td>
                   </tr>
                 ))}
               </tbody>
