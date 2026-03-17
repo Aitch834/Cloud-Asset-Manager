@@ -660,39 +660,25 @@ export default function FieldsPage() {
         </>
       )}
 
-      {/* ── FIELD HISTORY DRAWER ── */}
-      {selectedFieldForHistory && (() => {
-        const f = selectedFieldForHistory;
-        const fieldAssignments = assignments
-          .filter(a => a.fieldId === f.id)
-          .sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
-        const currentCropForDrawer = currentCropByField[f.id];
-
-        return (
-          <div className="fixed inset-0 z-50 flex justify-end">
-            {/* backdrop */}
-            <div
-              className="absolute inset-0 bg-black/30"
-              onClick={() => setSelectedFieldForHistory(null)}
-            />
-            {/* panel */}
-            <div className="relative bg-white w-full max-w-md flex flex-col shadow-2xl">
+      {/* ── FIELD HISTORY DIALOG ── */}
+      <Dialog open={!!selectedFieldForHistory} onOpenChange={(o) => { if (!o) setSelectedFieldForHistory(null); }}>
+        <DialogContent className="max-w-lg p-0 flex flex-col max-h-[85vh] overflow-hidden gap-0">
+          {selectedFieldForHistory && (() => {
+            const f = selectedFieldForHistory;
+            const fieldAssignments = assignments
+              .filter(a => a.fieldId === f.id)
+              .sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+            const currentCropForDrawer = currentCropByField[f.id];
+            return (
+              <>
               {/* header */}
               <div className="bg-gradient-to-br from-green-100 to-emerald-50 border-b border-border/50 px-6 pt-5 pb-4 flex-shrink-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Field Details</p>
-                    <h2 className="text-xl font-bold text-foreground leading-tight">{f.name || `Field #${f.id}`}</h2>
-                    {f.fieldReference && (
-                      <p className="text-xs text-foreground/50 mt-0.5">Ref: {f.fieldReference}</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setSelectedFieldForHistory(null)}
-                    className="mt-0.5 p-1.5 rounded-lg hover:bg-black/10 transition-colors flex-shrink-0 cursor-pointer"
-                  >
-                    <X className="w-4 h-4 text-foreground/60" />
-                  </button>
+                <div className="pr-6">
+                  <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Field Details</p>
+                  <h2 className="text-xl font-bold text-foreground leading-tight">{f.name || `Field #${f.id}`}</h2>
+                  {f.fieldReference && (
+                    <p className="text-xs text-foreground/50 mt-0.5">Ref: {f.fieldReference}</p>
+                  )}
                 </div>
                 {/* drawer tabs */}
                 <div className="flex gap-1 mt-4">
@@ -925,10 +911,11 @@ export default function FieldsPage() {
                 )}
 
               </div>
-            </div>
-          </div>
-        );
-      })()}
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* ── PRINT CROP REGISTER ── */}
       {printOpen && (
