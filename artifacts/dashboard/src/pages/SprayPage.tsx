@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { printHtml } from "@/lib/utils";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -406,8 +407,6 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
 function PrintTab({ applications, farm }: any) {
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const handlePrint = () => {
-    const win = window.open("", "_blank");
-    if (!win) return;
     const rows = applications.map((r: any) => `
       <tr>
         <td>${fmt(r.applicationDate)}</td><td>${r.fieldName || "—"}</td><td>${r.productName || "—"}</td>
@@ -420,8 +419,7 @@ function PrintTab({ applications, farm }: any) {
         <td>${r.reasonForApplication || "—"}</td>
       </tr>`).join("");
     const farmLine = farm ? `<p style="font-size:10px;color:#374151;margin:2px 0"><strong>${farm.name || ""}${farm.cphNumber ? ` · CPH: ${farm.cphNumber}` : ""}${farm.redTractorId ? ` · Red Tractor ID: ${farm.redTractorId}` : ""}</strong></p>` : "";
-    win.document.write(`<html><head><title>Spray Records</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:2cm}h1{font-size:15px;border-bottom:2px solid #333;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#f3f4f6;padding:5px 6px;text-align:left;font-size:10px;border:1px solid #d1d5db}td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top}tr:nth-child(even){background:#f9fafb}.footer{margin-top:24px;font-size:9px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;display:flex;justify-content:space-between}</style></head><body><h1>Spray Application Records — Red Tractor Compliance</h1>${farmLine}<p style="font-size:10px;color:#6b7280;margin:2px 0">Printed: ${today}</p><table><thead><tr><th>Date</th><th>Field</th><th>Product</th><th>Rate</th><th>Area</th><th>Water Vol.</th><th>Wind</th><th>Temp</th><th>Operator</th><th>Certificate</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table><div class="footer"><span>Retain for a minimum of 3 years and make available at Red Tractor audit.</span><span>Powered by BDE Farm Trac · ${today}</span></div></body></html>`);
-    win.document.close(); win.focus(); win.print();
+    printHtml(`<html><head><title>Spray Records</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:2cm}h1{font-size:15px;border-bottom:2px solid #333;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#f3f4f6;padding:5px 6px;text-align:left;font-size:10px;border:1px solid #d1d5db}td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top}tr:nth-child(even){background:#f9fafb}.footer{margin-top:24px;font-size:9px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;display:flex;justify-content:space-between}</style></head><body><h1>Spray Application Records — Red Tractor Compliance</h1>${farmLine}<p style="font-size:10px;color:#6b7280;margin:2px 0">Printed: ${today}</p><table><thead><tr><th>Date</th><th>Field</th><th>Product</th><th>Rate</th><th>Area</th><th>Water Vol.</th><th>Wind</th><th>Temp</th><th>Operator</th><th>Certificate</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table><div class="footer"><span>Retain for a minimum of 3 years and make available at Red Tractor audit.</span><span>Powered by BDE Farm Trac · ${today}</span></div></body></html>`);
   };
   return (
     <div>

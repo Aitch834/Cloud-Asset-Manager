@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { printHtml } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -371,8 +372,6 @@ function PrintTab({ farmId }: { farmId: number }) {
   const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   const handlePrint = () => {
-    const win = window.open("", "_blank");
-    if (!win) return;
     const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
     const farmLine = farm
       ? `<div style="display:flex;justify-content:space-between;border-bottom:2px solid #16a34a;padding-bottom:12px;margin-bottom:20px"><div><h2 style="font-size:14px;margin:0 0 2px;font-weight:700">${farm.name ?? ""}</h2>${farm.address ? `<p style="font-size:10px;color:#6b7280;margin:1px 0">${farm.address}${farm.postcode ? `, ${farm.postcode}` : ""}</p>` : ""}${farm.cphNumber ? `<p style="font-size:10px;color:#6b7280;margin:1px 0">CPH: ${farm.cphNumber}</p>` : ""}</div><div style="text-align:right"><p style="font-size:13px;font-weight:700;margin:0">Medicine Register</p><p style="font-size:10px;color:#6b7280;margin:2px 0">Printed: ${today}</p></div></div>`
@@ -388,10 +387,7 @@ function PrintTab({ farmId }: { farmId: number }) {
     const table = records.length > 0
       ? `<table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr><th style="${thStyle}">Medicine</th><th style="${thStyle}">Herd / Group</th><th style="${thStyle}">Date Admin.</th><th style="${thStyle}">Dosage</th><th style="${thStyle}">Route</th><th style="${thStyle}">Batch No.</th><th style="${thStyle}">W/D Period</th><th style="${thStyle}">W/D Ends</th><th style="${thStyle}">Vet / Auth.</th><th style="${thStyle}">Reason</th></tr></thead><tbody>${rows}</tbody></table>`
       : `<p style="color:#9ca3af;font-style:italic;text-align:center;padding:2rem 0">No medicine records to display.</p>`;
-    win.document.write(`<html><head><title>Medicine Register</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:2cm}h2{margin:0}</style></head><body>${farmLine}${table}<div style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:24px;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af"><span>Medicine register required by Red Tractor Livestock Standards. Retain for minimum 5 years. Withdrawal periods must be observed before slaughter, milk sale or egg collection.</span><span>BDE Farm Trac · ${today}</span></div></body></html>`);
-    win.document.close();
-    win.focus();
-    win.print();
+    printHtml(`<html><head><title>Medicine Register</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:2cm}h2{margin:0}</style></head><body>${farmLine}${table}<div style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:24px;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af"><span>Medicine register required by Red Tractor Livestock Standards. Retain for minimum 5 years. Withdrawal periods must be observed before slaughter, milk sale or egg collection.</span><span>BDE Farm Trac · ${today}</span></div></body></html>`);
   };
 
   return (

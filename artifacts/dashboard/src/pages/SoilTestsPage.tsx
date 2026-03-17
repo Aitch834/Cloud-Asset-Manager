@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { printHtml } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -447,8 +448,6 @@ function PrintTab({ farmId }: { farmId: number }) {
     : testsWithResults.filter(t => new Date(t.sampleDate).getFullYear() === printYear);
 
   const handlePrint = () => {
-    const win = window.open("", "_blank");
-    if (!win) return;
     const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
     const farmLine = farm
       ? `<div style="display:flex;justify-content:space-between;border-bottom:2px solid #16a34a;padding-bottom:12px;margin-bottom:20px"><div><h2 style="font-size:14px;margin:0 0 2px;font-weight:700">${farm.name ?? ""}</h2>${farm.address ? `<p style="font-size:10px;color:#6b7280;margin:1px 0">${farm.address}${farm.postcode ? `, ${farm.postcode}` : ""}</p>` : ""}${farm.cphNumber ? `<p style="font-size:10px;color:#6b7280;margin:1px 0">CPH: ${farm.cphNumber}</p>` : ""}</div><div style="text-align:right"><p style="font-size:13px;font-weight:700;margin:0">Soil Test Register</p>${printYear !== "all" ? `<p style="font-size:10px;color:#6b7280;margin:2px 0">Year: ${printYear}</p>` : ""}<p style="font-size:10px;color:#6b7280;margin:2px 0">Printed: ${today}</p></div></div>`
@@ -463,10 +462,7 @@ function PrintTab({ farmId }: { farmId: number }) {
         : `<p style="font-size:9px;color:#9ca3af;font-style:italic;padding:2px 0">No nutrient results recorded.</p>`;
       return `<div style="margin-bottom:20px;page-break-inside:avoid"><div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:6px 10px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><div><strong style="font-size:11px">${fieldName}</strong>${test.sampleReference ? `<span style="font-family:monospace;font-size:10px;color:#6b7280;margin-left:8px">${test.sampleReference}</span>` : ""}</div><div style="font-size:10px;color:#6b7280">${formatDateLong(test.sampleDate)}${test.laboratory ? ` · ${test.laboratory}` : ""}${test.sampleDepthCm ? ` · ${test.sampleDepthCm}cm` : ""}</div></div>${resultsTable}${test.notes ? `<p style="font-size:9px;color:#6b7280;font-style:italic;margin:3px 0">Notes: ${test.notes}</p>` : ""}</div>`;
     }).join("");
-    win.document.write(`<html><head><title>Soil Test Register</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:2cm}h2{margin:0}</style></head><body>${farmLine}${testBlocks.length > 0 ? testBlocks : '<p style="color:#9ca3af;font-style:italic;text-align:center;padding:2rem 0">No soil tests to display.</p>'}<div style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:24px;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af"><span>Soil test records for Red Tractor compliance. Retain for 3 years and make available at audit.</span><span>BDE Farm Trac · ${today}</span></div></body></html>`);
-    win.document.close();
-    win.focus();
-    win.print();
+    printHtml(`<html><head><title>Soil Test Register</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:2cm}h2{margin:0}</style></head><body>${farmLine}${testBlocks.length > 0 ? testBlocks : '<p style="color:#9ca3af;font-style:italic;text-align:center;padding:2rem 0">No soil tests to display.</p>'}<div style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:24px;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af"><span>Soil test records for Red Tractor compliance. Retain for 3 years and make available at audit.</span><span>BDE Farm Trac · ${today}</span></div></body></html>`);
   };
 
   return (

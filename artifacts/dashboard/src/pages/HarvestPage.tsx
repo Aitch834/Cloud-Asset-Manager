@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { printHtml } from "@/lib/utils";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -737,9 +738,7 @@ function PrintTab({ harvests, transports, storages }: any) {
   const handlePrint = () => {
     const content = printRef.current;
     if (!content) return;
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(`
+    printHtml(`
       <html><head><title>Harvest Records — Red Tractor Audit</title>
       <style>
         body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 2cm; }
@@ -750,12 +749,8 @@ function PrintTab({ harvests, transports, storages }: any) {
         td { padding: 4px 8px; border: 1px solid #e5e7eb; vertical-align: top; }
         tr:nth-child(even) { background: #f9fafb; }
         .footer { margin-top: 30px; font-size: 10px; color: #9ca3af; }
-        @media print { .no-print { display: none; } }
       </style></head><body>${content.innerHTML}</body></html>
     `);
-    win.document.close();
-    win.focus();
-    win.print();
   };
 
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
