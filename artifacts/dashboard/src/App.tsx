@@ -13,6 +13,7 @@ import FieldsPage from "@/pages/Fields";
 import EquipmentPage from "@/pages/Equipment";
 import ModulePage from "@/pages/ModulePage";
 import MovementsPage from "@/pages/Movements";
+import LivestockPageFull from "@/pages/LivestockPage";
 import SuppliersStockPage from "@/pages/SuppliersStock";
 import FinancialPage from "@/pages/FinancialPage";
 import HarvestPage from "@/pages/HarvestPage";
@@ -153,19 +154,7 @@ function CleaningPage() {
 }
 
 function LivestockPage() {
-  return <ModulePage title="Herds & Animals" apiPath="herds" columns={[
-    { key: "herdName", label: "Herd/Flock Name" },
-    { key: "speciesType", label: "Species" },
-    { key: "breedType", label: "Breed" },
-    { key: "currentCount", label: "Count" },
-    { key: "isActive", label: "Active" },
-  ]} formFields={[
-    { key: "herdName", label: "Herd/Flock Name", required: true },
-    { key: "speciesType", label: "Species", type: "select", options: ["cattle", "sheep", "pigs", "poultry", "goats", "other"], required: true },
-    { key: "breedType", label: "Breed" },
-    { key: "currentCount", label: "Current Count", type: "number" },
-    { key: "notes", label: "Notes", type: "textarea" },
-  ]} />;
+  return <LivestockPageFull />;
 }
 
 

@@ -1,13 +1,14 @@
 import React, { useState } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Redirect } from "wouter";
 import {
   Plus, Search, RefreshCw, Loader2, Pencil, Trash2, X, Printer,
-  ArrowRight, Paperclip, CheckCircle2, AlertTriangle, Upload, File,
+  ArrowRight, Paperclip, CheckCircle2, AlertTriangle, Upload, File, Skull,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -355,6 +356,333 @@ function PrintRecord({ movement, farm, onClose }: {
   );
 }
 
+interface MortalityRecord {
+  id: number;
+  farmId: number;
+  herdId: number | null;
+  tagNumber: string | null;
+  species: string;
+  breed: string | null;
+  dateOfDeath: string;
+  causeOfDeath: string;
+  disposalMethod: string;
+  disposalOperator: string | null;
+  disposalRef: string | null;
+  veterinaryAttended: boolean;
+  vetName: string | null;
+  postMortemCarriedOut: boolean;
+  postMortemFindings: string | null;
+  bcmsNotified: boolean;
+  bcmsNotificationRef: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+const EMPTY_MORTALITY = {
+  tagNumber: "",
+  species: "",
+  breed: "",
+  dateOfDeath: new Date().toISOString().slice(0, 10),
+  causeOfDeath: "",
+  disposalMethod: "",
+  disposalOperator: "",
+  disposalRef: "",
+  veterinaryAttended: false,
+  vetName: "",
+  postMortemCarriedOut: false,
+  postMortemFindings: "",
+  bcmsNotified: false,
+  bcmsNotificationRef: "",
+  notes: "",
+};
+
+function MortalitySection({ farmId }: { farmId: number }) {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<MortalityRecord | null>(null);
+  const [formData, setFormData] = useState<typeof EMPTY_MORTALITY>(EMPTY_MORTALITY);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const baseUrl = `/api/farms/${farmId}/mortality-records`;
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["mortality-records", farmId],
+    queryFn: async () => {
+      const res = await fetch(baseUrl);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json() as Promise<{ records: MortalityRecord[] }>;
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
+      const res = await fetch(baseUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Failed to create");
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["mortality-records", farmId] }); setShowForm(false); setFormData(EMPTY_MORTALITY); },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, body }: { id: number; body: Record<string, unknown> }) => {
+      const res = await fetch(`${baseUrl}/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Failed to update");
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["mortality-records", farmId] }); setEditingRecord(null); setShowForm(false); setFormData(EMPTY_MORTALITY); },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => { await fetch(`${baseUrl}/${id}`, { method: "DELETE" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["mortality-records", farmId] }); setDeleteId(null); },
+  });
+
+  const records: MortalityRecord[] = data?.records ?? [];
+  const filtered = records.filter(r =>
+    !search || r.species?.toLowerCase().includes(search.toLowerCase()) ||
+    r.tagNumber?.toLowerCase().includes(search.toLowerCase()) ||
+    r.causeOfDeath?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  function setField(key: keyof typeof EMPTY_MORTALITY, val: string | boolean) {
+    setFormData(f => ({ ...f, [key]: val }));
+  }
+
+  function openEdit(r: MortalityRecord) {
+    setEditingRecord(r);
+    setFormData({
+      tagNumber: r.tagNumber ?? "",
+      species: r.species ?? "",
+      breed: r.breed ?? "",
+      dateOfDeath: r.dateOfDeath ? r.dateOfDeath.slice(0, 10) : "",
+      causeOfDeath: r.causeOfDeath ?? "",
+      disposalMethod: r.disposalMethod ?? "",
+      disposalOperator: r.disposalOperator ?? "",
+      disposalRef: r.disposalRef ?? "",
+      veterinaryAttended: r.veterinaryAttended ?? false,
+      vetName: r.vetName ?? "",
+      postMortemCarriedOut: r.postMortemCarriedOut ?? false,
+      postMortemFindings: r.postMortemFindings ?? "",
+      bcmsNotified: r.bcmsNotified ?? false,
+      bcmsNotificationRef: r.bcmsNotificationRef ?? "",
+      notes: r.notes ?? "",
+    });
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const body = {
+      ...formData,
+      dateOfDeath: formData.dateOfDeath ? new Date(formData.dateOfDeath).toISOString() : null,
+    };
+    if (editingRecord) { updateMutation.mutate({ id: editingRecord.id, body }); }
+    else { createMutation.mutate(body); }
+  }
+
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <>
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-900 flex gap-3 items-start mb-4">
+        <span className="text-amber-500 mt-0.5 shrink-0">ℹ</span>
+        <span>
+          <strong>Fallen stock / mortality records</strong> — All animal deaths must be recorded. Fallen stock must be disposed of by an approved collector or permitted method.
+          Cattle deaths must be reported to BCMS within 7 days. Retain records for a minimum of 3 years.
+        </span>
+      </div>
+
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
+          <Input placeholder="Search by species, tag, cause..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Button onClick={() => { setEditingRecord(null); setFormData({ ...EMPTY_MORTALITY, dateOfDeath: new Date().toISOString().slice(0, 10) }); setShowForm(true); }} className="gap-2">
+          <Plus className="w-4 h-4" /> Record Death
+        </Button>
+      </div>
+
+      {showForm && (
+        <Card className="mb-6 border-primary/20">
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-base">{editingRecord ? "Edit Mortality Record" : "Record Animal Death"}</h3>
+              <button onClick={() => { setShowForm(false); setEditingRecord(null); setFormData(EMPTY_MORTALITY); }} className="p-1 rounded hover:bg-black/5"><X className="w-5 h-5 text-foreground/50" /></button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Date of Death <span className="text-red-500">*</span></label>
+                  <Input type="date" value={formData.dateOfDeath} onChange={e => setField("dateOfDeath", e.target.value)} required />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Species <span className="text-red-500">*</span></label>
+                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.species} onChange={e => setField("species", e.target.value)} required>
+                    <option value="">Select species...</option>
+                    {["Cattle", "Sheep", "Pigs", "Poultry", "Goats", "Other"].map(s => <option key={s} value={s.toLowerCase()}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Ear Tag / ID Number</label>
+                  <Input placeholder="e.g. UK123456789012" value={formData.tagNumber} onChange={e => setField("tagNumber", e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Breed</label>
+                  <Input placeholder="e.g. Limousin cross" value={formData.breed} onChange={e => setField("breed", e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Cause of Death <span className="text-red-500">*</span></label>
+                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.causeOfDeath} onChange={e => setField("causeOfDeath", e.target.value)} required>
+                    <option value="">Select cause...</option>
+                    {["Disease / Illness", "Injury / Accident", "Euthanasia (vet)", "Euthanasia (emergency)", "Natural causes", "Dystocia / Calving difficulty", "Pneumonia", "Metabolic disorder", "Unknown", "Other"].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Disposal Method <span className="text-red-500">*</span></label>
+                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.disposalMethod} onChange={e => setField("disposalMethod", e.target.value)} required>
+                    <option value="">Select method...</option>
+                    {["Fallen stock collector", "Hunt / knackerman", "On-farm burial (permitted)", "Incineration", "Rendering plant", "Other permitted method"].map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Disposal Operator</label>
+                  <Input placeholder="Company / collector name" value={formData.disposalOperator} onChange={e => setField("disposalOperator", e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Disposal Reference No.</label>
+                  <Input placeholder="Collection or permit reference" value={formData.disposalRef} onChange={e => setField("disposalRef", e.target.value)} />
+                </div>
+              </div>
+
+              <div className="border-t border-border pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <input type="checkbox" checked={formData.veterinaryAttended} onChange={e => setField("veterinaryAttended", e.target.checked)} className="rounded" />
+                    Vet attended / certified
+                  </label>
+                  {formData.veterinaryAttended && (
+                    <Input placeholder="Vet name" value={formData.vetName} onChange={e => setField("vetName", e.target.value)} />
+                  )}
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <input type="checkbox" checked={formData.postMortemCarriedOut} onChange={e => setField("postMortemCarriedOut", e.target.checked)} className="rounded" />
+                    Post-mortem carried out
+                  </label>
+                  {formData.postMortemCarriedOut && (
+                    <Input placeholder="PM findings summary" value={formData.postMortemFindings} onChange={e => setField("postMortemFindings", e.target.value)} />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <input type="checkbox" checked={formData.bcmsNotified} onChange={e => setField("bcmsNotified", e.target.checked)} className="rounded" />
+                    BCMS / APHA notified
+                  </label>
+                  {formData.bcmsNotified && (
+                    <Input placeholder="BCMS notification reference" value={formData.bcmsNotificationRef} onChange={e => setField("bcmsNotificationRef", e.target.value)} />
+                  )}
+                  <div>
+                    <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
+                    <Input placeholder="Any additional notes" value={formData.notes} onChange={e => setField("notes", e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2 border-t border-border">
+                <Button variant="outline" type="button" onClick={() => { setShowForm(false); setEditingRecord(null); setFormData(EMPTY_MORTALITY); }}>Cancel</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  {editingRecord ? "Update Record" : "Save Record"}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <div className="overflow-x-auto">
+          {isLoading ? (
+            <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-16 px-6">
+              <div className="w-16 h-16 mx-auto rounded-full bg-primary/5 flex items-center justify-center mb-4">
+                <Skull className="w-8 h-8 text-primary/40" />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground/80 mb-1">No mortality records</h3>
+              <p className="text-foreground/50 text-sm">{search ? "No records match your search." : "All animal deaths must be recorded. Use the button above to add a record."}</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Date</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Species / Tag</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Cause</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Disposal</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">BCMS</th>
+                  <th className="text-right p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(r => (
+                  <tr key={r.id} className="border-b border-border/50 hover:bg-black/[0.02] transition-colors">
+                    <td className="p-4 text-sm font-medium">{formatDate(r.dateOfDeath)}</td>
+                    <td className="p-4">
+                      <div className="text-sm font-medium capitalize">{r.species}</div>
+                      {r.breed && <div className="text-xs text-foreground/50">{r.breed}</div>}
+                      {r.tagNumber && <div className="text-xs font-mono text-foreground/60">{r.tagNumber}</div>}
+                    </td>
+                    <td className="p-4 text-sm text-foreground/70">{r.causeOfDeath}</td>
+                    <td className="p-4 text-sm text-foreground/70">
+                      <div>{r.disposalMethod}</div>
+                      {r.disposalRef && <div className="text-xs font-mono text-foreground/50">{r.disposalRef}</div>}
+                    </td>
+                    <td className="p-4">
+                      {r.bcmsNotified ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3" /> Notified
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                          <AlertTriangle className="w-3 h-3" /> Pending
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => openEdit(r)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-primary"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => setDeleteId(r.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/50 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        {filtered.length > 0 && (
+          <div className="px-4 py-3 border-t border-border text-sm text-foreground/50">
+            Showing {filtered.length} of {records.length} records
+          </div>
+        )}
+      </Card>
+
+      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete Mortality Record</DialogTitle></DialogHeader>
+          <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId && deleteMutation.mutate(deleteId)} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 const EMPTY_FORM = {
   movementType: "",
   movementDate: "",
@@ -381,6 +709,7 @@ export default function Movements() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [printRecord, setPrintRecord] = useState<Movement | null>(null);
   const [expandedAttachments, setExpandedAttachments] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<"movements" | "mortality">("movements");
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -562,6 +891,12 @@ export default function Movements() {
         }
       `}</style>
 
+      <TabBar className="mb-6">
+        <TabButton active={activeTab === "movements"} onClick={() => setActiveTab("movements")}>Movements</TabButton>
+        <TabButton active={activeTab === "mortality"} onClick={() => setActiveTab("mortality")}>Mortality Log</TabButton>
+      </TabBar>
+
+      {activeTab === "movements" && (<>
       {/* Overdue compliance alert */}
       {overdueMovements.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-900 flex gap-3 items-start">
@@ -846,6 +1181,8 @@ export default function Movements() {
           </div>
         )}
       </Card>
+      </>)}
+      {activeTab === "mortality" && <MortalitySection farmId={farmId} />}
     </AppLayout>
   );
 }

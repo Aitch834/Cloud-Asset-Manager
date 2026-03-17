@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -17,12 +17,12 @@ import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
 import {
   Plus, Search, Map, MoreVertical, Pencil, Trash2, AlertTriangle,
-  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical,
+  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2,
 } from "lucide-react";
 import { FieldBoundaryMapDialog } from "@/components/fields/FieldBoundaryMapDialog";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -317,9 +317,310 @@ function FieldCardMenu({
   );
 }
 
+interface SeedRecord {
+  id: number;
+  farmId: number;
+  fieldId: number | null;
+  drillingDate: string;
+  cropName: string;
+  variety: string | null;
+  seedLotNumber: string | null;
+  seedRate: string | null;
+  seedRateUnit: string | null;
+  isTreated: boolean;
+  treatmentProduct: string | null;
+  operator: string | null;
+  areaSeededHa: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+const EMPTY_SEED = {
+  fieldId: "",
+  drillingDate: new Date().toISOString().slice(0, 10),
+  cropName: "",
+  variety: "",
+  seedLotNumber: "",
+  seedRate: "",
+  seedRateUnit: "kg/ha",
+  isTreated: false,
+  treatmentProduct: "",
+  operator: "",
+  areaSeededHa: "",
+  notes: "",
+};
+
+function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: FieldRecord[] }) {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<SeedRecord | null>(null);
+  const [formData, setFormData] = useState<typeof EMPTY_SEED>(EMPTY_SEED);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const baseUrl = `/api/farms/${farmId}/seed-drilling`;
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["seed-drilling", farmId],
+    queryFn: async () => {
+      const res = await fetch(baseUrl);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json() as Promise<{ records: SeedRecord[] }>;
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
+      const res = await fetch(baseUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Failed to create");
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seed-drilling", farmId] }); setShowForm(false); setFormData(EMPTY_SEED); },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, body }: { id: number; body: Record<string, unknown> }) => {
+      const res = await fetch(`${baseUrl}/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Failed to update");
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seed-drilling", farmId] }); setEditingRecord(null); setShowForm(false); setFormData(EMPTY_SEED); },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => { await fetch(`${baseUrl}/${id}`, { method: "DELETE" }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seed-drilling", farmId] }); setDeleteId(null); },
+  });
+
+  const records: SeedRecord[] = data?.records ?? [];
+  const filtered = records.filter(r =>
+    !search ||
+    r.cropName?.toLowerCase().includes(search.toLowerCase()) ||
+    r.variety?.toLowerCase().includes(search.toLowerCase()) ||
+    r.seedLotNumber?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const fieldNameById = Object.fromEntries(fields.map(f => [f.id, f.name]));
+
+  function setField(key: keyof typeof EMPTY_SEED, val: string | boolean) {
+    setFormData(f => ({ ...f, [key]: val }));
+  }
+
+  function openEdit(r: SeedRecord) {
+    setEditingRecord(r);
+    setFormData({
+      fieldId: r.fieldId != null ? String(r.fieldId) : "",
+      drillingDate: r.drillingDate ? r.drillingDate.slice(0, 10) : "",
+      cropName: r.cropName ?? "",
+      variety: r.variety ?? "",
+      seedLotNumber: r.seedLotNumber ?? "",
+      seedRate: r.seedRate ?? "",
+      seedRateUnit: r.seedRateUnit ?? "kg/ha",
+      isTreated: r.isTreated ?? false,
+      treatmentProduct: r.treatmentProduct ?? "",
+      operator: r.operator ?? "",
+      areaSeededHa: r.areaSeededHa ?? "",
+      notes: r.notes ?? "",
+    });
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const body = {
+      ...formData,
+      fieldId: formData.fieldId ? Number(formData.fieldId) : null,
+      drillingDate: formData.drillingDate ? new Date(formData.drillingDate).toISOString() : null,
+      seedRate: formData.seedRate ? formData.seedRate : null,
+      areaSeededHa: formData.areaSeededHa ? formData.areaSeededHa : null,
+    };
+    if (editingRecord) { updateMutation.mutate({ id: editingRecord.id, body }); }
+    else { createMutation.mutate(body); }
+  }
+
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <p className="text-sm text-foreground/60">Seed drilling and establishment records — variety, batch number, seed rate, and treated seed status for each drilling operation.</p>
+        </div>
+        <Button onClick={() => { setEditingRecord(null); setFormData({ ...EMPTY_SEED, drillingDate: new Date().toISOString().slice(0, 10) }); setShowForm(true); }} className="gap-2 shrink-0">
+          <Plus className="w-4 h-4" /> Add Drilling Record
+        </Button>
+      </div>
+
+      <div className="relative w-full sm:w-80 mb-6">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
+        <Input placeholder="Search crop, variety, lot..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+
+      {showForm && (
+        <Card className="mb-6 border-primary/20">
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-base">{editingRecord ? "Edit Drilling Record" : "New Drilling Record"}</h3>
+              <button onClick={() => { setShowForm(false); setEditingRecord(null); setFormData(EMPTY_SEED); }} className="p-1 rounded hover:bg-black/5"><X className="w-5 h-5 text-foreground/50" /></button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Drilling Date <span className="text-red-500">*</span></label>
+                  <Input type="date" value={formData.drillingDate} onChange={e => setField("drillingDate", e.target.value)} required />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Field</label>
+                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.fieldId} onChange={e => setField("fieldId", e.target.value)}>
+                    <option value="">— All / No specific field —</option>
+                    {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Area Seeded (ha)</label>
+                  <Input type="number" step="0.01" placeholder="e.g. 12.50" value={formData.areaSeededHa} onChange={e => setField("areaSeededHa", e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Crop <span className="text-red-500">*</span></label>
+                  <Input placeholder="e.g. Winter Wheat, OSR, Barley" value={formData.cropName} onChange={e => setField("cropName", e.target.value)} required />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Variety</label>
+                  <Input placeholder="e.g. KWS Zyatt, Skyfall" value={formData.variety} onChange={e => setField("variety", e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Seed Lot / Batch No.</label>
+                  <Input placeholder="e.g. UK2025-A1234" value={formData.seedLotNumber} onChange={e => setField("seedLotNumber", e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Seed Rate</label>
+                  <Input type="number" step="0.01" placeholder="e.g. 150" value={formData.seedRate} onChange={e => setField("seedRate", e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Rate Unit</label>
+                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.seedRateUnit} onChange={e => setField("seedRateUnit", e.target.value)}>
+                    {["kg/ha", "seeds/m²", "kg/acre"].map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Operator / Driller</label>
+                  <Input placeholder="Person or contractor" value={formData.operator} onChange={e => setField("operator", e.target.value)} />
+                </div>
+              </div>
+
+              <div className="border-t border-border pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <input type="checkbox" checked={formData.isTreated} onChange={e => setField("isTreated", e.target.checked)} className="rounded" />
+                    Seed is treated / dressed
+                  </label>
+                  {formData.isTreated && (
+                    <Input placeholder="Treatment product (e.g. Redigo Pro, Latitude)" value={formData.treatmentProduct} onChange={e => setField("treatmentProduct", e.target.value)} />
+                  )}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
+                  <Input placeholder="Any additional notes" value={formData.notes} onChange={e => setField("notes", e.target.value)} />
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2 border-t border-border">
+                <Button variant="outline" type="button" onClick={() => { setShowForm(false); setEditingRecord(null); setFormData(EMPTY_SEED); }}>Cancel</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  {editingRecord ? "Update Record" : "Save Record"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </Card>
+      )}
+
+      <Card>
+        <div className="overflow-x-auto">
+          {isLoading ? (
+            <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-16 px-6">
+              <div className="w-16 h-16 mx-auto rounded-full bg-primary/5 flex items-center justify-center mb-4">
+                <Wheat className="w-8 h-8 text-primary/40" />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground/80 mb-1">No seed drilling records yet</h3>
+              <p className="text-foreground/50 text-sm">{search ? "No records match your search." : "Record each drilling operation to build your establishment history."}</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Date</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Crop / Variety</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Field</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Lot No.</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Rate</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Area (ha)</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Treated</th>
+                  <th className="text-right p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(r => (
+                  <tr key={r.id} className="border-b border-border/50 hover:bg-black/[0.02] transition-colors">
+                    <td className="p-4 text-sm font-medium">{r.drillingDate ? new Date(r.drillingDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
+                    <td className="p-4">
+                      <div className="text-sm font-medium">{r.cropName}</div>
+                      {r.variety && <div className="text-xs text-foreground/50">{r.variety}</div>}
+                    </td>
+                    <td className="p-4 text-sm text-foreground/70">{r.fieldId ? (fieldNameById[r.fieldId] ?? "—") : "—"}</td>
+                    <td className="p-4 text-sm font-mono text-foreground/70">{r.seedLotNumber || "—"}</td>
+                    <td className="p-4 text-sm text-foreground/70">{r.seedRate ? `${r.seedRate} ${r.seedRateUnit || "kg/ha"}` : "—"}</td>
+                    <td className="p-4 text-sm text-foreground/70">{r.areaSeededHa ? parseFloat(r.areaSeededHa).toFixed(2) : "—"}</td>
+                    <td className="p-4">
+                      {r.isTreated ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                          <FlaskConical className="w-3 h-3" /> Treated
+                        </span>
+                      ) : (
+                        <span className="text-xs text-foreground/40">Untreated</span>
+                      )}
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => openEdit(r)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-primary"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => setDeleteId(r.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/50 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        {filtered.length > 0 && (
+          <div className="px-4 py-3 border-t border-border text-sm text-foreground/50">
+            Showing {filtered.length} of {records.length} records
+          </div>
+        )}
+      </Card>
+
+      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete Drilling Record</DialogTitle></DialogHeader>
+          <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId && deleteMutation.mutate(deleteId)} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export default function FieldsPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"fields" | "crops">("fields");
+  const [tab, setTab] = useState<"fields" | "crops" | "seed">("fields");
   const [search, setSearch] = useState("");
   const [isAddFieldOpen, setIsAddFieldOpen] = useState(false);
   const [isAddCropOpen, setIsAddCropOpen] = useState(false);
@@ -400,6 +701,7 @@ export default function FieldsPage() {
       <TabBar className="mb-6">
         <TabButton active={tab === "fields"} onClick={() => setTab("fields")}>Fields</TabButton>
         <TabButton active={tab === "crops"} onClick={() => setTab("crops")}>Crops Register</TabButton>
+        <TabButton active={tab === "seed"} onClick={() => setTab("seed")}>Seed Records</TabButton>
       </TabBar>
 
       {/* ── FIELDS TAB ── */}
@@ -978,6 +1280,9 @@ export default function FieldsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── SEED RECORDS TAB ── */}
+      {tab === "seed" && <SeedDrillingSection farmId={farmId} fields={fields} />}
     </AppLayout>
   );
 }
