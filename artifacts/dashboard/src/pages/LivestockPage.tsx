@@ -9,6 +9,7 @@ import { Redirect } from "wouter";
 import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { printHtml } from "@/lib/utils";
 
 function formatDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -89,6 +90,18 @@ function PrintHerdRegisterDialog({ farmId, herds, onClose }: { farmId: number; h
   });
   const farm = farmData?.record;
   const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  const handleHerdPrint = () => {
+    const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Herd &amp; Flock Register</title>
+<style>body{font-family:Arial,sans-serif;font-size:11px;color:#000;margin:0;padding:24px}.hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:12px;margin-bottom:12px}.hdr h1{font-size:13px;font-weight:700;margin:0 0 2px}.hdr p{font-size:10px;color:#555;margin:1px 0}.hdr-r{text-align:right;font-size:10px;color:#666}.hdr-r b{display:block;font-size:12px;font-weight:600;color:#000}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#f0fdf4;font-weight:600;text-align:left;border:1px solid #d1d5db;padding:5px 8px}td{border:1px solid #d1d5db;padding:5px 8px}tr:nth-child(even) td{background:#fafafa}.summary{display:flex;gap:20px;font-size:10px;color:#555;padding:6px 0;border-top:1px solid #e5e7eb}.footer{display:flex;justify-content:space-between;font-size:9px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:4px}@media print{@page{margin:1.5cm}}</style>
+</head><body><div class="hdr"><div><h1>${farm?.name ?? "Farm"}</h1>${farm?.address ? `<p>${farm.address}${farm.postcode ? ", " + farm.postcode : ""}</p>` : ""}${farm?.cphNumber ? `<p>CPH: <span style="font-family:monospace;font-weight:600">${farm.cphNumber}</span></p>` : ""}${farm?.redTractorId ? `<p>Red Tractor ID: <span style="font-family:monospace;font-weight:600">${farm.redTractorId}</span></p>` : ""}</div><div class="hdr-r"><b>Herd &amp; Flock Register</b>Printed: ${printedDate}</div></div>
+<table><thead><tr><th>Name</th><th>Species</th><th>Breed</th><th>Herd / Flock No.</th><th>Status</th><th>Notes</th></tr></thead><tbody>${herds.length === 0 ? `<tr><td colspan="6" style="text-align:center;color:#9ca3af;font-style:italic;padding:12px">No herds recorded</td></tr>` : herds.map(h => `<tr><td style="font-weight:500">${h.name}</td><td style="text-transform:capitalize">${h.type || "—"}</td><td>${h.breed || "—"}</td><td style="font-family:monospace">${h.herdNumber || "—"}</td><td>${h.isActive ? "Active" : "Inactive"}</td><td style="color:#6b7280">${h.notes || "—"}</td></tr>`).join("")}</tbody></table>
+<div class="summary"><span><b>${herds.length}</b> herd${herds.length !== 1 ? "s" : ""} / flock${herds.length !== 1 ? "s" : ""} registered</span> <span><b>${herds.filter(h => h.isActive).length}</b> active</span></div>
+<div class="footer"><em>On-farm record for Red Tractor compliance. Retain for minimum 3 years and make available for inspection at audit.</em><span>BDE Farm Trac · ${printedDate}</span></div>
+</body></html>`;
+    printHtml(html, "herd-flock-register.html");
+  };
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -172,7 +185,7 @@ function PrintHerdRegisterDialog({ farmId, herds, onClose }: { farmId: number; h
 
         <div className="flex justify-end gap-3 pt-2">
           <Button variant="outline" onClick={onClose}>Close</Button>
-          <Button onClick={() => window.print()} className="gap-2">
+          <Button onClick={handleHerdPrint} className="gap-2">
             <Printer className="w-4 h-4" /> Print Register
           </Button>
         </div>
@@ -198,6 +211,19 @@ function PrintVetPlanDialog({ farmId, plan, onClose }: { farmId: number; plan: V
     { label: "Mastitis Prevention (Dairy)", value: plan.mastitisPrevention },
     { label: "Additional Notes", value: plan.notes },
   ].filter(s => s.value);
+
+  const handleVetPrint = () => {
+    const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Vet Health Plan ${plan.planYear}</title>
+<style>body{font-family:Arial,sans-serif;font-size:11px;color:#000;margin:0;padding:24px}.hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:12px;margin-bottom:12px}.hdr h1{font-size:13px;font-weight:700;margin:0 0 2px}.hdr p{font-size:10px;color:#555;margin:1px 0}.hdr-r{text-align:right;font-size:10px;color:#666}.hdr-r b{display:block;font-size:12px;font-weight:600;color:#000}.meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 32px;padding:10px 0;border-bottom:1px solid #e5e7eb;margin-bottom:12px}.meta-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af}.section{border:1px solid #e5e7eb;border-radius:4px;padding:10px;margin-bottom:8px}.section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin:0 0 4px}.section-body{white-space:pre-line;line-height:1.5}.sig{border-top:1px solid #e5e7eb;padding-top:12px;margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:32px}.sigline{border-bottom:1px solid #999;height:32px;margin:24px 0 4px}.note{font-size:9px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}@media print{@page{margin:1.5cm}}</style>
+</head><body><div class="hdr"><div><h1>${farm?.name ?? "Farm"}</h1>${farm?.address ? `<p>${farm.address}${farm.postcode ? ", " + farm.postcode : ""}</p>` : ""}${farm?.cphNumber ? `<p>CPH: <span style="font-family:monospace;font-weight:600">${farm.cphNumber}</span></p>` : ""}${farm?.redTractorId ? `<p>Red Tractor ID: <span style="font-family:monospace;font-weight:600">${farm.redTractorId}</span></p>` : ""}</div><div class="hdr-r"><b>Vet Health Plan ${plan.planYear}</b>Plan date: <b>${formatDateLong(plan.planDate)}</b>${plan.reviewDate ? `<br>Review due: ${formatDateLong(plan.reviewDate)}` : ""}<br>Printed: ${printedDate}</div></div>
+<div class="meta"><div><div class="meta-label">Attending Vet</div><div style="font-weight:600">${plan.vetName}</div></div>${plan.practiceName ? `<div><div class="meta-label">Practice</div><div style="font-weight:600">${plan.practiceName}</div></div>` : ""}${plan.practicePhone ? `<div><div class="meta-label">Phone</div><div>${plan.practicePhone}</div></div>` : ""}${plan.practiceAddress ? `<div><div class="meta-label">Address</div><div>${plan.practiceAddress}</div></div>` : ""}</div>
+${sections.length === 0 ? `<p style="color:#9ca3af;font-style:italic;text-align:center;padding:12px">No plan content recorded.</p>` : sections.map(s => `<div class="section"><p class="section-label">${s.label}</p><p class="section-body">${s.value ?? ""}</p></div>`).join("")}
+<div class="sig"><div><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af">Farmer Signature</p><div class="sigline"></div><p style="font-size:9px;color:#9ca3af">Name &amp; Date</p></div><div><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af">Vet Signature</p><div class="sigline"></div><p style="font-size:9px;color:#9ca3af">Name &amp; Date</p></div></div>
+<div class="note">This veterinary health plan is an on-farm record required by Red Tractor Livestock Standards. Retain for a minimum of 3 years and make available for inspection at audit.</div>
+</body></html>`;
+    printHtml(html, `vet-health-plan-${plan.planYear}.html`);
+  };
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -300,7 +326,7 @@ function PrintVetPlanDialog({ farmId, plan, onClose }: { farmId: number; plan: V
 
         <div className="flex justify-end gap-3 pt-2">
           <Button variant="outline" onClick={onClose}>Close</Button>
-          <Button onClick={() => window.print()} className="gap-2">
+          <Button onClick={handleVetPrint} className="gap-2">
             <Printer className="w-4 h-4" /> Print Plan
           </Button>
         </div>

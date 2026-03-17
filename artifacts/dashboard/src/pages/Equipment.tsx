@@ -15,6 +15,7 @@ import { Redirect } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getListEquipmentQueryKey } from "@workspace/api-client-react/src/generated/api";
 import { useToast } from "@/hooks/use-toast";
+import { printHtml } from "@/lib/utils";
 
 interface EquipmentRecord {
   id: number;
@@ -220,6 +221,17 @@ export default function EquipmentPage() {
 
   const equipment = (data?.records ?? []) as EquipmentRecord[];
   const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  const handleEquipmentPrint = () => {
+    const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Machinery &amp; Equipment Register</title>
+<style>body{font-family:Arial,sans-serif;font-size:11px;color:#000;margin:0;padding:24px}.hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:12px;margin-bottom:12px}.hdr h1{font-size:13px;font-weight:700;margin:0 0 2px}.hdr p{font-size:10px;color:#555;margin:1px 0}.hdr-r{text-align:right;font-size:10px;color:#666}.hdr-r b{display:block;font-size:12px;font-weight:600;color:#000}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#f0fdf4;font-weight:600;text-align:left;border:1px solid #d1d5db;padding:5px 8px}td{border:1px solid #d1d5db;padding:5px 8px}tr:nth-child(even) td{background:#fafafa}.footer{font-size:9px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:4px;font-style:italic}@media print{@page{margin:1.5cm}}</style>
+</head><body><div class="hdr"><div><h1>${farm?.name ?? "Farm"}</h1>${farm?.address ? `<p>${farm.address}${farm.postcode ? ", " + farm.postcode : ""}</p>` : ""}${farm?.cphNumber ? `<p>CPH: <span style="font-family:monospace;font-weight:600">${farm.cphNumber}</span></p>` : ""}</div><div class="hdr-r"><b>Machinery &amp; Equipment Register</b>Printed: ${printedDate}<br>${equipment.length} item${equipment.length !== 1 ? "s" : ""}</div></div>
+<table><thead><tr><th>Name</th><th>Type</th><th>Make / Model</th><th>Serial / Reg</th><th>Year</th><th>Status</th><th>Next Calibration</th></tr></thead><tbody>${equipment.map(item => `<tr><td>${item.name || "Asset #" + item.id}</td><td>${item.type || "—"}</td><td>${[item.make, item.model].filter(Boolean).join(" ") || "—"}</td><td style="font-family:monospace">${item.serialNumber || item.registrationNumber || "—"}</td><td>${item.yearOfManufacture || "—"}</td><td>${item.isActive !== false ? "Active" : "Inactive"}</td><td>${item.nextCalibrationDue ? new Date(item.nextCalibrationDue).toLocaleDateString("en-GB") : "—"}</td></tr>`).join("")}</tbody></table>
+<div class="footer">On-farm record for Red Tractor compliance purposes. Retain for a minimum of 3 years and make available for inspection at audit. BDE Farm Trac · Printed ${printedDate}</div>
+</body></html>`;
+    printHtml(html, "equipment-register.html");
+  };
 
   return (
     <AppLayout title="Machinery & Equipment">
@@ -496,7 +508,7 @@ export default function EquipmentPage() {
 
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setPrintOpen(false)}>Close</Button>
-              <Button onClick={() => window.print()} className="gap-2">
+              <Button onClick={handleEquipmentPrint} className="gap-2">
                 <Printer className="w-4 h-4" /> Print Register
               </Button>
             </div>
