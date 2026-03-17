@@ -7,7 +7,6 @@ import {
   Linking,
   Modal,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -22,8 +21,51 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
+import { kvGet } from "@/lib/database";
 import { generateId, getList, appendToList, STORAGE_KEYS } from "@/lib/storage";
 import type { FieldBoundary } from "@/lib/types";
+
+function calculateAreaHectares(points: { latitude: number; longitude: number }[]): number {
+  if (points.length < 3) return 0;
+  const R = 6371000;
+  let area = 0;
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const xi = (points[i].longitude * Math.PI / 180) * R * Math.cos((points[i].latitude * Math.PI / 180));
+    const yi = (points[i].latitude * Math.PI / 180) * R;
+    const xj = (points[j].longitude * Math.PI / 180) * R * Math.cos((points[j].latitude * Math.PI / 180));
+    const yj = (points[j].latitude * Math.PI / 180) * R;
+    area += xi * yj - xj * yi;
+  }
+  return Math.abs(area / 2) / 10000;
+}
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  try {
+    let token: string | null = null;
+    if (Platform.OS !== "web") {
+      const SecureStore = await import("expo-secure-store");
+      token = await SecureStore.getItemAsync("auth_session_token");
+    } else {
+      try { token = localStorage.getItem("auth_session_token"); } catch { }
+    }
+    if (!token) {
+      const raw = await kvGet("bde_auth_token");
+      token = raw ? JSON.parse(raw) : null;
+    }
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const farmRaw = await kvGet("bde_current_farm");
+    if (farmRaw) {
+      const farm = JSON.parse(farmRaw);
+      const slug = farm.tenantSlug || farm.slug || "";
+      if (slug) headers["x-tenant-slug"] = slug;
+    }
+  } catch { }
+  return headers;
+}
 
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
@@ -36,6 +78,8 @@ export default function MapScreen() {
   const [loading, setLoading] = useState(true);
   const [nameModalVisible, setNameModalVisible] = useState(false);
   const [fieldNameInput, setFieldNameInput] = useState("");
+  const [calculatedArea, setCalculatedArea] = useState(0);
+  const [syncing, setSyncing] = useState(false);
 
   const loadFields = useCallback(async () => {
     const allFields = await getList<FieldBoundary>(STORAGE_KEYS.FIELD_BOUNDARIES, currentFarm?.id);
@@ -84,20 +128,23 @@ export default function MapScreen() {
       Alert.alert("Not Enough Points", "You need at least 3 GPS points to define a field boundary.");
       return;
     }
+    const area = calculateAreaHectares(recordedPoints);
+    setCalculatedArea(area);
     setFieldNameInput("");
     setNameModalVisible(true);
   };
 
   const saveField = async (name: string) => {
+    const area = calculateAreaHectares(recordedPoints);
     const newField: FieldBoundary = {
       id: generateId(),
       farmId: currentFarm?.id || "",
       fieldName: name,
       coordinates: recordedPoints,
-      areaHectares: "",
+      areaHectares: area > 0 ? area.toFixed(4) : "",
       soilType: "",
       currentCrop: "",
-      notes: `${recordedPoints.length} boundary points recorded`,
+      notes: `${recordedPoints.length} GPS boundary points`,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -106,6 +153,31 @@ export default function MapScreen() {
     setIsRecording(false);
     setRecordedPoints([]);
     setNameModalVisible(false);
+
+    const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+    if (apiDomain && currentFarm?.id) {
+      setSyncing(true);
+      try {
+        const headers = await getAuthHeaders();
+        const fieldRes = await fetch(`https://${apiDomain}/api/farms/${currentFarm.id}/fields`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ name, areaHectares: area > 0 ? String(area.toFixed(4)) : null }),
+        });
+        if (fieldRes.ok) {
+          const { record } = await fieldRes.json() as { record: { id: number } };
+          const polygonPoints = recordedPoints.map((p) => ({ lat: p.latitude, lng: p.longitude }));
+          await fetch(`https://${apiDomain}/api/farms/${currentFarm.id}/fields/${record.id}/boundary`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ polygonPoints, areaHectares: area, capturedBy: "mobile-gps" }),
+          });
+        }
+      } catch {
+      } finally {
+        setSyncing(false);
+      }
+    }
   };
 
   if (!permission) {
@@ -232,6 +304,14 @@ export default function MapScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { paddingBottom: insets.bottom + spacing.lg }]}>
             <Text style={styles.modalTitle}>Name This Field</Text>
+            {calculatedArea > 0 && (
+              <View style={styles.areaChip}>
+                <Feather name="map" size={14} color={colors.primary} />
+                <Text style={styles.areaText}>
+                  Calculated area: <Text style={styles.areaValue}>{calculatedArea.toFixed(2)} ha</Text>
+                </Text>
+              </View>
+            )}
             <TextInput
               style={styles.modalInput}
               value={fieldNameInput}
@@ -260,6 +340,13 @@ export default function MapScreen() {
           </View>
         </View>
       </Modal>
+
+      {syncing && (
+        <View style={styles.syncingBanner}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.syncingText}>Syncing to cloud…</Text>
+        </View>
+      )}
 
       <View style={{ height: 100 }} />
     </View>
@@ -371,5 +458,39 @@ const styles = StyleSheet.create({
   modalActions: {
     flexDirection: "row",
     gap: spacing.md,
+  },
+  areaChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.primary + "15",
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  areaText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  areaValue: {
+    fontFamily: fonts.bold,
+    color: colors.primary,
+  },
+  syncingBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  syncingText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
   },
 });

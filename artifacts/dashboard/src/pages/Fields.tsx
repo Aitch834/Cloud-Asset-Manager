@@ -14,6 +14,7 @@ import {
   Plus, Search, Map, MoreVertical, Pencil, Trash2, AlertTriangle,
   Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical,
 } from "lucide-react";
+import { FieldBoundaryMapDialog } from "@/components/fields/FieldBoundaryMapDialog";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -24,7 +25,7 @@ interface FieldRecord {
   id: number;
   name?: string;
   fieldReference?: string;
-  areaSqMetres?: number;
+  areaHectares?: string | number | null;
   soilType?: string;
   currentUse?: string;
   isActive?: boolean;
@@ -48,7 +49,7 @@ interface FieldCropAssignment {
   year?: number;
 }
 
-interface FieldFormData { name: string; areaSqMetres: number; soilType: string; }
+interface FieldFormData { name: string; areaHectares: number; soilType: string; }
 interface CropFormData { name: string; variety: string; category: string; }
 interface AssignCropFormData { cropId: number; plantingDate: string; expectedHarvestDate: string; season: string; }
 
@@ -58,7 +59,7 @@ function formatDate(dateStr?: string | null) {
 }
 
 interface Farm { name?: string; address?: string; postcode?: string; cphNumber?: string; redTractorId?: string | null; }
-interface PrintableAssignment extends FieldCropAssignment { fieldName?: string; soilType?: string; areaSqMetres?: number; fieldReference?: string; }
+interface PrintableAssignment extends FieldCropAssignment { fieldName?: string; soilType?: string; areaHectares?: string | number | null; fieldReference?: string; }
 
 function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }: {
   farmId: number;
@@ -91,7 +92,7 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
       year: asgn?.year,
       fieldName: f.name,
       soilType: f.soilType,
-      areaSqMetres: f.areaSqMetres,
+      areaHectares: f.areaHectares,
       fieldReference: f.fieldReference,
     };
   });
@@ -147,7 +148,7 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
                   <tr key={row.fieldId} className={i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}>
                     <td className="border border-border/60 px-3 py-2 font-medium">{row.fieldName || `Field #${row.fieldId}`}</td>
                     <td className="border border-border/60 px-3 py-2 text-foreground/60">{row.fieldReference || "—"}</td>
-                    <td className="border border-border/60 px-3 py-2">{row.areaSqMetres ? (row.areaSqMetres / 10000).toFixed(2) : "—"}</td>
+                    <td className="border border-border/60 px-3 py-2">{row.areaHectares ? parseFloat(String(row.areaHectares)).toFixed(2) : "—"}</td>
                     <td className="border border-border/60 px-3 py-2">{row.soilType || "—"}</td>
                     <td className="border border-border/60 px-3 py-2 font-medium">{row.cropName}</td>
                     <td className="border border-border/60 px-3 py-2">{row.season || "—"}</td>
@@ -188,24 +189,26 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
 }
 
 function FieldCardMenu({
-  field, farmId, crops, currentCrop, onAssignCrop,
+  field, farmId, crops, currentCrop, onAssignCrop, onBoundaryUpdated,
 }: {
   field: FieldRecord;
   farmId: number;
   crops: CropRecord[];
   currentCrop?: FieldCropAssignment;
   onAssignCrop: () => void;
+  onBoundaryUpdated?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [boundaryOpen, setBoundaryOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const { mutate: updateField, isPending: isUpdating } = useUpdateField(farmId);
   const { mutate: deleteField, isPending: isDeleting } = useDeleteField(farmId);
 
   const { register, handleSubmit, reset } = useForm<FieldFormData>({
-    defaultValues: { name: field.name ?? "", areaSqMetres: field.areaSqMetres ?? 0, soilType: field.soilType ?? "" },
+    defaultValues: { name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "" },
   });
 
   useEffect(() => {
@@ -246,7 +249,14 @@ function FieldCardMenu({
           <div className="h-px bg-border/50 my-1" />
           <button
             className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-black/5 transition-colors cursor-pointer"
-            onClick={() => { setOpen(false); setEditOpen(true); reset({ name: field.name ?? "", areaSqMetres: field.areaSqMetres ?? 0, soilType: field.soilType ?? "" }); }}
+            onClick={() => { setOpen(false); setBoundaryOpen(true); }}
+          >
+            <Map className="w-4 h-4 text-blue-600" />
+            Draw boundary on map
+          </button>
+          <button
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-black/5 transition-colors cursor-pointer"
+            onClick={() => { setOpen(false); setEditOpen(true); reset({ name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "" }); }}
           >
             <Pencil className="w-4 h-4 text-foreground/50" />
             Edit field
@@ -274,8 +284,8 @@ function FieldCardMenu({
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Area (sq metres)</label>
-                <Input type="number" step="0.01" {...register("areaSqMetres", { valueAsNumber: true })} />
+                <label className="text-sm font-medium mb-1.5 block">Area (ha)</label>
+                <Input type="number" step="0.0001" {...register("areaHectares", { valueAsNumber: true })} />
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Soil Type</label>
@@ -309,6 +319,16 @@ function FieldCardMenu({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {boundaryOpen && (
+        <FieldBoundaryMapDialog
+          fieldId={field.id}
+          fieldName={field.name || `Field #${field.id}`}
+          open={boundaryOpen}
+          onClose={() => setBoundaryOpen(false)}
+          onSaved={() => { onBoundaryUpdated?.(); }}
+        />
+      )}
     </div>
   );
 }
@@ -327,7 +347,7 @@ export default function FieldsPage() {
 
   if (!farmId) return <Redirect href="/select" />;
 
-  const { data: fieldsData, isLoading: fieldsLoading } = useFields(farmId);
+  const { data: fieldsData, isLoading: fieldsLoading, refetch: fieldsRefetch } = useFields(farmId);
   const { data: cropsData, isLoading: cropsLoading } = useCrops(farmId);
   const { data: assignmentsData } = useFieldCropAssignments(farmId);
   const fieldNmpQ = useQuery({
@@ -455,8 +475,8 @@ export default function FieldsPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-sm font-medium mb-1.5 block">Area (sq metres)</label>
-                      <Input type="number" step="0.01" {...fieldForm.register("areaSqMetres", { valueAsNumber: true })} placeholder="0.00" />
+                      <label className="text-sm font-medium mb-1.5 block">Area (ha)</label>
+                      <Input type="number" step="0.0001" {...fieldForm.register("areaHectares", { valueAsNumber: true })} placeholder="e.g. 12.5" />
                     </div>
                     <div>
                       <label className="text-sm font-medium mb-1.5 block">Soil Type</label>
@@ -492,6 +512,7 @@ export default function FieldsPage() {
                       crops={crops}
                       currentCrop={crop}
                       onAssignCrop={() => { setAssignForField(field); assignForm.reset(); }}
+                      onBoundaryUpdated={() => { fieldsRefetch(); }}
                     />
                   </div>
 
@@ -558,7 +579,7 @@ export default function FieldsPage() {
                       <div className="flex-1">
                         <p className="text-xs text-foreground/50 uppercase font-semibold mb-0.5">Area</p>
                         <p className="text-sm font-medium text-foreground">
-                          {field.areaSqMetres ? `${(field.areaSqMetres / 10000).toFixed(2)} ha` : '—'}
+                          {field.areaHectares ? `${parseFloat(String(field.areaHectares)).toFixed(2)} ha` : '—'}
                         </p>
                       </div>
                     </div>
@@ -714,7 +735,7 @@ export default function FieldsPage() {
                       <div className="bg-black/[0.03] rounded-xl p-4">
                         <p className="text-xs text-foreground/50 uppercase font-semibold mb-1">Area</p>
                         <p className="text-base font-bold text-foreground">
-                          {f.areaSqMetres ? `${(f.areaSqMetres / 10000).toFixed(2)} ha` : "—"}
+                          {f.areaHectares ? `${parseFloat(String(f.areaHectares)).toFixed(2)} ha` : "—"}
                         </p>
                       </div>
                       <div className="bg-black/[0.03] rounded-xl p-4">

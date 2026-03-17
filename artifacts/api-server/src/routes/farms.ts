@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import {
   farmsTable,
   fieldsTable,
+  fieldBoundariesTable,
   cropsTable,
   fieldCropAssignmentsTable,
   harvestRecordsTable,
@@ -289,6 +290,36 @@ router.delete("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, req
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.update(fieldsTable).set({ isActive: false }).where(and(eq(fieldsTable.id, recordId), eq(fieldsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Field Boundaries ────────────────────────────────
+router.get("/farms/:farmId/fields/:recordId/boundary", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const fieldId = parseInt(req.params.recordId, 10);
+  if (isNaN(fieldId)) { res.status(400).json({ error: "Invalid field ID" }); return; }
+  const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, fieldId), eq(fieldsTable.farmId, farmId)));
+  if (!field) { res.status(404).json({ error: "Field not found" }); return; }
+  const [boundary] = await db.select().from(fieldBoundariesTable).where(eq(fieldBoundariesTable.fieldId, fieldId)).orderBy(desc(fieldBoundariesTable.capturedAt)).limit(1);
+  res.json({ boundary: boundary ?? null });
+});
+
+router.post("/farms/:farmId/fields/:recordId/boundary", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const fieldId = parseInt(req.params.recordId, 10);
+  if (isNaN(fieldId)) { res.status(400).json({ error: "Invalid field ID" }); return; }
+  const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, fieldId), eq(fieldsTable.farmId, farmId)));
+  if (!field) { res.status(404).json({ error: "Field not found" }); return; }
+  const { polygonPoints, capturedBy, areaHectares } = req.body as { polygonPoints: unknown; capturedBy?: string; areaHectares?: number };
+  if (!polygonPoints || !Array.isArray(polygonPoints) || polygonPoints.length < 3) {
+    res.status(400).json({ error: "polygonPoints must be an array of at least 3 points" }); return;
+  }
+  const [boundary] = await db.insert(fieldBoundariesTable).values({ fieldId, polygonPoints, capturedBy: capturedBy ?? null }).returning();
+  if (areaHectares != null && !isNaN(areaHectares)) {
+    await db.update(fieldsTable).set({ areaHectares: String(areaHectares) }).where(eq(fieldsTable.id, fieldId));
+  }
+  res.status(201).json({ boundary });
 });
 
 // ─── Crops ──────────────────────────────────────────
