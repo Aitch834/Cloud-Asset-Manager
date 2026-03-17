@@ -65,3 +65,18 @@ export const nmpFieldEntriesTable = pgTable("nmp_field_entries", {
   timingNotes: text("timing_notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const nvzFertiliserApplicationsTable = pgTable("nvz_fertiliser_applications", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  fieldId: integer("field_id").notNull().references(() => fieldsTable.id),
+  applicationDate: timestamp("application_date", { withTimezone: true }).notNull(),
+  productName: text("product_name").notNull(),
+  productType: text("product_type").notNull(),
+  nitrogenKgHa: numeric("nitrogen_kg_ha", { precision: 10, scale: 2 }).notNull(),
+  areaAppliedHa: numeric("area_applied_ha", { precision: 10, scale: 4 }).notNull(),
+  totalNitrogenKg: numeric("total_nitrogen_kg", { precision: 10, scale: 2 }).notNull(),
+  applicationMethod: text("application_method"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

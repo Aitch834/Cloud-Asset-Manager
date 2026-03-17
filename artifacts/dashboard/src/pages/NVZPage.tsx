@@ -1,0 +1,701 @@
+import React, { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { useAppStore } from "@/hooks/use-app-store";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { TabButton } from "@/components/ui/tab-button";
+import {
+  AlertTriangle, CheckCircle2, Info, Plus, Trash2,
+  Leaf, FlaskConical, Droplets,
+} from "lucide-react";
+
+const PRODUCT_TYPES: { value: string; label: string; isOrganic: boolean; isLiquid: boolean }[] = [
+  { value: "synthetic-n", label: "Synthetic N (AN/Urea/UAN)", isOrganic: false, isLiquid: false },
+  { value: "slurry", label: "Slurry (cattle/pig)", isOrganic: true, isLiquid: true },
+  { value: "digestate", label: "Digestate (AD)", isOrganic: true, isLiquid: true },
+  { value: "fy", label: "Farm Yard Manure (solid)", isOrganic: true, isLiquid: false },
+  { value: "poultry-manure", label: "Poultry Manure", isOrganic: true, isLiquid: false },
+  { value: "compost", label: "Compost / Green Waste", isOrganic: true, isLiquid: false },
+  { value: "organic-n", label: "Other Organic N", isOrganic: true, isLiquid: false },
+];
+
+const APP_METHODS = [
+  "Trailing shoe", "Dribble bar", "Injected", "Band spread",
+  "Broadcast (surface)", "Umbilical", "Tanker spread",
+  "Spinner / broadcast", "Foliar", "Irrigation",
+];
+
+const LAND_TYPES = ["arable", "grassland", "mixed"];
+
+const ORGANIC_TYPES = new Set(["slurry", "digestate", "fy", "poultry-manure", "compost", "organic-n"]);
+const LIQUID_TYPES = new Set(["slurry", "digestate"]);
+
+const TOTAL_N_LIMIT = 250;
+const ORGANIC_N_LIMIT = 170;
+
+interface ClosedPeriodInfo { closed: boolean; reason: string | null }
+
+function checkTodayClosedPeriod(productType: string, landType: string | null | undefined): ClosedPeriodInfo {
+  if (!LIQUID_TYPES.has(productType)) return { closed: false, reason: null };
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  const dayOfYear = month * 100 + day;
+
+  if (landType === "arable") {
+    if (dayOfYear >= 801 || dayOfYear <= 131) {
+      return { closed: true, reason: "Slurry/digestate on arable land — closed period 1 Aug to 31 Jan" };
+    }
+  } else if (landType === "grassland") {
+    if (dayOfYear >= 1015 || dayOfYear <= 131) {
+      return { closed: true, reason: "Slurry/digestate on grassland — closed period 15 Oct to 31 Jan" };
+    }
+  } else if (landType === "mixed") {
+    if (dayOfYear >= 801 || dayOfYear <= 131) {
+      return { closed: true, reason: "Slurry/digestate on mixed land — closed period applies (1 Aug–31 Jan for arable portion)" };
+    }
+  }
+  return { closed: false, reason: null };
+}
+
+function checkDateClosedPeriod(productType: string, landType: string | null | undefined, date: Date): ClosedPeriodInfo {
+  if (!LIQUID_TYPES.has(productType)) return { closed: false, reason: null };
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const dayOfYear = month * 100 + day;
+
+  if (landType === "arable") {
+    if (dayOfYear >= 801 || dayOfYear <= 131) {
+      return { closed: true, reason: "Applied during closed period (1 Aug–31 Jan, arable)" };
+    }
+  } else if (landType === "grassland") {
+    if (dayOfYear >= 1015 || dayOfYear <= 131) {
+      return { closed: true, reason: "Applied during closed period (15 Oct–31 Jan, grassland)" };
+    }
+  } else if (landType === "mixed") {
+    if (dayOfYear >= 801 || dayOfYear <= 131) {
+      return { closed: true, reason: "Applied during closed period (1 Aug–31 Jan)" };
+    }
+  }
+  return { closed: false, reason: null };
+}
+
+interface FieldSummary {
+  fieldId: number; fieldName: string; areaHectares: string | null;
+  isNvz: boolean; nvzLandType: string | null;
+  totalNKg: number; organicNKg: number;
+  totalNKgHa: number; organicNKgHa: number;
+  applicationCount: number;
+}
+
+interface NvzApplication {
+  id: number; fieldId: number; fieldName: string | null;
+  applicationDate: string; productName: string; productType: string;
+  nitrogenKgHa: string; areaAppliedHa: string; totalNitrogenKg: string;
+  applicationMethod: string | null; notes: string | null; createdAt: string;
+}
+
+interface Field { id: number; name: string; areaHectares: string | null; isNvz: boolean; nvzLandType: string | null; }
+
+const emptyForm = {
+  fieldId: "",
+  applicationDate: new Date().toISOString().slice(0, 10),
+  productName: "",
+  productType: "",
+  nitrogenKgHa: "",
+  areaAppliedHa: "",
+  applicationMethod: "",
+  notes: "",
+};
+
+function NBar({ value, limit, className = "" }: { value: number; limit: number; className?: string }) {
+  const pct = Math.min((value / limit) * 100, 100);
+  const over = value > limit;
+  const warn = value > limit * 0.85;
+  return (
+    <div className={`h-2 rounded-full overflow-hidden bg-black/5 ${className}`}>
+      <div
+        className={`h-full rounded-full transition-all ${over ? "bg-red-500" : warn ? "bg-amber-400" : "bg-green-500"}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+function NvzFieldCard({ fs, onEdit }: { fs: FieldSummary; onEdit: (fs: FieldSummary) => void }) {
+  const totalOver = fs.totalNKgHa > TOTAL_N_LIMIT;
+  const organicOver = fs.organicNKgHa > ORGANIC_N_LIMIT;
+  const totalWarn = fs.totalNKgHa > TOTAL_N_LIMIT * 0.85 && !totalOver;
+  const organicWarn = fs.organicNKgHa > ORGANIC_N_LIMIT * 0.85 && !organicOver;
+  const areaHa = parseFloat(String(fs.areaHectares ?? "0")) || null;
+
+  const closedPeriodWarnings = LIQUID_TYPES.size > 0
+    ? ["slurry", "digestate"].map((pt) => checkTodayClosedPeriod(pt, fs.nvzLandType)).filter((c) => c.closed)
+    : [];
+  const hasTodayClosed = closedPeriodWarnings.length > 0;
+
+  return (
+    <div className={`border rounded-xl p-4 space-y-3 ${fs.isNvz ? "border-green-200 bg-green-50/30" : "border-border bg-card"}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-foreground">{fs.fieldName}</span>
+            {fs.isNvz ? (
+              <Badge className="bg-green-100 text-green-800 border-green-200 text-[11px]">NVZ</Badge>
+            ) : (
+              <Badge variant="outline" className="text-foreground/40 text-[11px]">Non-NVZ</Badge>
+            )}
+            {fs.nvzLandType && (
+              <Badge variant="outline" className="capitalize text-[11px]">{fs.nvzLandType}</Badge>
+            )}
+          </div>
+          <div className="text-xs text-foreground/50 mt-0.5">
+            {areaHa ? `${areaHa.toFixed(2)} ha` : "Area unknown"} · {fs.applicationCount} application{fs.applicationCount !== 1 ? "s" : ""} in 12 months
+          </div>
+        </div>
+        <button
+          onClick={() => onEdit(fs)}
+          className="text-xs text-foreground/50 hover:text-foreground border border-border/50 rounded-lg px-2 py-1 bg-white whitespace-nowrap"
+        >
+          NVZ settings
+        </button>
+      </div>
+
+      {hasTodayClosed && (
+        <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+          <span>Closed period active today — slurry/digestate spreading not permitted on this field</span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-foreground/60">Total N (12-month)</span>
+            <span className={`font-semibold ${totalOver ? "text-red-600" : totalWarn ? "text-amber-600" : "text-foreground"}`}>
+              {fs.totalNKgHa.toFixed(1)} <span className="font-normal text-foreground/40">/ {TOTAL_N_LIMIT} kg/ha</span>
+            </span>
+          </div>
+          <NBar value={fs.totalNKgHa} limit={TOTAL_N_LIMIT} />
+          {totalOver && (
+            <div className="text-[11px] text-red-600 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              Exceeds 250 kg N/ha annual limit
+            </div>
+          )}
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-foreground/60">Organic N (12-month)</span>
+            <span className={`font-semibold ${organicOver ? "text-red-600" : organicWarn ? "text-amber-600" : "text-foreground"}`}>
+              {fs.organicNKgHa.toFixed(1)} <span className="font-normal text-foreground/40">/ {ORGANIC_N_LIMIT} kg/ha</span>
+            </span>
+          </div>
+          <NBar value={fs.organicNKgHa} limit={ORGANIC_N_LIMIT} />
+          {organicOver && (
+            <div className="text-[11px] text-red-600 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              Exceeds 170 kg organic N/ha NVZ limit
+            </div>
+          )}
+        </div>
+      </div>
+
+      {fs.applicationCount === 0 && (
+        <div className="text-xs text-foreground/40 italic">No applications logged in the last 12 months</div>
+      )}
+    </div>
+  );
+}
+
+export default function NVZPage() {
+  const { farmId } = useAppStore();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<"summary" | "log">("summary");
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState<typeof emptyForm>(emptyForm);
+  const [search, setSearch] = useState("");
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [nvzEditField, setNvzEditField] = useState<FieldSummary | null>(null);
+  const [nvzEditForm, setNvzEditForm] = useState({ isNvz: false, nvzLandType: "" });
+
+  const summaryQ = useQuery<{ summary: FieldSummary[] }>({
+    queryKey: ["nvz-summary", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/nvz/field-summary`).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+
+  const appsQ = useQuery<{ records: NvzApplication[] }>({
+    queryKey: ["nvz-applications", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/nvz-applications`).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+
+  const fieldsQ = useQuery<{ records: Field[] }>({
+    queryKey: ["fields", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+
+  const summary: FieldSummary[] = summaryQ.data?.summary ?? [];
+  const applications: NvzApplication[] = appsQ.data?.records ?? [];
+  const fields: Field[] = fieldsQ.data?.records ?? [];
+
+  const filteredApps = useMemo(() => {
+    if (!search.trim()) return applications;
+    const q = search.toLowerCase();
+    return applications.filter(
+      (a) =>
+        (a.fieldName ?? "").toLowerCase().includes(q) ||
+        a.productName.toLowerCase().includes(q) ||
+        a.productType.toLowerCase().includes(q)
+    );
+  }, [applications, search]);
+
+  const nvzFields = summary.filter((f) => f.isNvz);
+  const nvzFieldCount = nvzFields.length;
+  const alertFields = summary.filter((f) => f.totalNKgHa > TOTAL_N_LIMIT || f.organicNKgHa > ORGANIC_N_LIMIT).length;
+  const warnFields = summary.filter(
+    (f) => (!f.totalNKgHa || f.totalNKgHa <= TOTAL_N_LIMIT) &&
+      (!f.organicNKgHa || f.organicNKgHa <= ORGANIC_N_LIMIT) &&
+      (f.totalNKgHa > TOTAL_N_LIMIT * 0.85 || f.organicNKgHa > ORGANIC_N_LIMIT * 0.85)
+  ).length;
+
+  const addMut = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      fetch(`/api/farms/${farmId}/nvz-applications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      toast({ title: "Application logged" });
+      qc.invalidateQueries({ queryKey: ["nvz-applications", farmId] });
+      qc.invalidateQueries({ queryKey: ["nvz-summary", farmId] });
+      setAddOpen(false);
+      setForm(emptyForm);
+    },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/farms/${farmId}/nvz-applications/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Record deleted" });
+      qc.invalidateQueries({ queryKey: ["nvz-applications", farmId] });
+      qc.invalidateQueries({ queryKey: ["nvz-summary", farmId] });
+      setDeleteId(null);
+    },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const nvzEditMut = useMutation({
+    mutationFn: ({ fieldId, body }: { fieldId: number; body: Record<string, unknown> }) =>
+      fetch(`/api/farms/${farmId}/fields/${fieldId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      toast({ title: "Field NVZ settings updated" });
+      qc.invalidateQueries({ queryKey: ["nvz-summary", farmId] });
+      qc.invalidateQueries({ queryKey: ["fields", farmId] });
+      setNvzEditField(null);
+    },
+    onError: () => toast({ title: "Failed to update field", variant: "destructive" }),
+  });
+
+  const handleAdd = () => {
+    if (!form.fieldId || !form.applicationDate || !form.productName || !form.productType || !form.nitrogenKgHa || !form.areaAppliedHa) {
+      toast({ title: "Please fill in all required fields", variant: "destructive" });
+      return;
+    }
+    addMut.mutate({
+      fieldId: parseInt(form.fieldId),
+      applicationDate: form.applicationDate,
+      productName: form.productName,
+      productType: form.productType,
+      nitrogenKgHa: parseFloat(form.nitrogenKgHa),
+      areaAppliedHa: parseFloat(form.areaAppliedHa),
+      applicationMethod: form.applicationMethod || undefined,
+      notes: form.notes || undefined,
+    });
+  };
+
+  const totalNApplied = applications.reduce((s, a) => s + parseFloat(a.totalNitrogenKg ?? "0"), 0);
+
+  const fmt = (d: string) =>
+    new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+
+  const productLabel = (pt: string) => PRODUCT_TYPES.find((p) => p.value === pt)?.label ?? pt;
+
+  const selectedField = fields.find((f) => f.id === parseInt(form.fieldId));
+
+  const closedPeriodWarning =
+    form.productType && form.applicationDate && selectedField
+      ? checkDateClosedPeriod(form.productType, selectedField.nvzLandType, new Date(form.applicationDate))
+      : null;
+
+  return (
+    <AppLayout title="NVZ Compliance">
+      <div className="max-w-5xl mx-auto space-y-4">
+
+        {/* Info banner */}
+        <div className="flex gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800">
+          <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-600" />
+          <div className="space-y-0.5">
+            <p className="font-semibold">NVZ Compliance Requirements (England)</p>
+            <p className="text-green-700 text-xs leading-relaxed">
+              Fields in Nitrate Vulnerable Zones must not exceed <strong>170 kg organic N/ha/year</strong> from livestock manures, or <strong>250 kg total N/ha/year</strong> from all sources. Slurry and digestate are subject to closed spreading periods: arable land <strong>1 Aug – 31 Jan</strong>, grassland <strong>15 Oct – 31 Jan</strong>. Records are required under the Nitrates Action Programme.
+            </p>
+          </div>
+        </div>
+
+        {/* Summary stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="border border-border rounded-xl p-3 bg-card">
+            <div className="text-2xl font-bold text-foreground">{nvzFieldCount}</div>
+            <div className="text-xs text-foreground/50 mt-0.5">NVZ fields</div>
+          </div>
+          <div className="border border-border rounded-xl p-3 bg-card">
+            <div className="text-2xl font-bold text-foreground">{applications.length}</div>
+            <div className="text-xs text-foreground/50 mt-0.5">Applications logged</div>
+          </div>
+          <div className={`border rounded-xl p-3 ${alertFields > 0 ? "border-red-200 bg-red-50" : "border-border bg-card"}`}>
+            <div className={`text-2xl font-bold ${alertFields > 0 ? "text-red-600" : "text-foreground"}`}>{alertFields}</div>
+            <div className="text-xs text-foreground/50 mt-0.5">Fields over limit</div>
+          </div>
+          <div className={`border rounded-xl p-3 ${warnFields > 0 ? "border-amber-200 bg-amber-50" : "border-border bg-card"}`}>
+            <div className={`text-2xl font-bold ${warnFields > 0 ? "text-amber-600" : "text-foreground"}`}>{warnFields}</div>
+            <div className="text-xs text-foreground/50 mt-0.5">Fields approaching limit</div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-border pb-0">
+          <TabButton active={tab === "summary"} onClick={() => setTab("summary")}>NVZ Summary</TabButton>
+          <TabButton active={tab === "log"} onClick={() => setTab("log")}>Application Log</TabButton>
+        </div>
+
+        {/* ── SUMMARY TAB ── */}
+        {tab === "summary" && (
+          <div className="space-y-3">
+            {summaryQ.isLoading ? (
+              <p className="text-sm text-foreground/40 text-center py-10">Loading field data…</p>
+            ) : summary.length === 0 ? (
+              <div className="border border-border rounded-xl p-10 text-center text-foreground/40">
+                <Leaf className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">No active fields found</p>
+                <p className="text-sm mt-1">Add fields in Fields &amp; Crops, then log applications here.</p>
+              </div>
+            ) : (
+              <>
+                {alertFields > 0 && (
+                  <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span><strong>{alertFields} field{alertFields > 1 ? "s" : ""}</strong> ha{alertFields > 1 ? "ve" : "s"} exceeded NVZ nitrogen limits in the last 12 months. Review applications immediately.</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {summary.map((fs) => (
+                    <NvzFieldCard key={fs.fieldId} fs={fs} onEdit={(f) => { setNvzEditField(f); setNvzEditForm({ isNvz: f.isNvz, nvzLandType: f.nvzLandType ?? "" }); }} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── LOG TAB ── */}
+        {tab === "log" && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <Input
+                placeholder="Search by field or product…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="max-w-xs"
+              />
+              <div className="flex-1" />
+              <div className="text-xs text-foreground/50 hidden sm:block">
+                {totalNApplied > 0 && `Total N logged: ${totalNApplied.toFixed(0)} kg`}
+              </div>
+              <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}>
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Log Application
+              </Button>
+            </div>
+
+            {appsQ.isLoading ? (
+              <p className="text-sm text-foreground/40 text-center py-10">Loading…</p>
+            ) : filteredApps.length === 0 ? (
+              <div className="border border-border rounded-xl p-10 text-center text-foreground/40">
+                <FlaskConical className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">No applications logged yet</p>
+                <p className="text-sm mt-1">Use "Log Application" to record each fertiliser or manure application.</p>
+              </div>
+            ) : (
+              <div className="border border-border rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/40 border-b border-border text-left">
+                      <th className="px-4 py-2.5 font-medium text-foreground/60 text-xs">Date</th>
+                      <th className="px-4 py-2.5 font-medium text-foreground/60 text-xs">Field</th>
+                      <th className="px-4 py-2.5 font-medium text-foreground/60 text-xs">Product</th>
+                      <th className="px-4 py-2.5 font-medium text-foreground/60 text-xs">Type</th>
+                      <th className="px-4 py-2.5 font-medium text-foreground/60 text-xs text-right">N kg/ha</th>
+                      <th className="px-4 py-2.5 font-medium text-foreground/60 text-xs text-right">Area (ha)</th>
+                      <th className="px-4 py-2.5 font-medium text-foreground/60 text-xs text-right">Total N (kg)</th>
+                      <th className="px-4 py-2.5 font-medium text-foreground/60 text-xs"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredApps.map((a, idx) => {
+                      const fieldLandType = summary.find((f) => f.fieldId === a.fieldId)?.nvzLandType;
+                      const cp = checkDateClosedPeriod(a.productType, fieldLandType, new Date(a.applicationDate));
+                      const isOrganic = ORGANIC_TYPES.has(a.productType);
+                      return (
+                        <tr
+                          key={a.id}
+                          className={`border-b border-border/50 last:border-0 ${idx % 2 === 1 ? "bg-muted/20" : ""} ${cp.closed ? "bg-red-50/50" : ""}`}
+                        >
+                          <td className="px-4 py-2.5 whitespace-nowrap">{fmt(a.applicationDate)}</td>
+                          <td className="px-4 py-2.5 font-medium">{a.fieldName ?? `Field #${a.fieldId}`}</td>
+                          <td className="px-4 py-2.5 text-foreground/70">{a.productName}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${isOrganic ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>
+                              {isOrganic ? <Droplets className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+                              {isOrganic ? "Organic" : "Synthetic"}
+                            </span>
+                            {cp.closed && (
+                              <span className="ml-1.5 inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                                <AlertTriangle className="w-3 h-3" />
+                                Closed period
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums">{parseFloat(a.nitrogenKgHa).toFixed(1)}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums">{parseFloat(a.areaAppliedHa).toFixed(2)}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums font-medium">{parseFloat(a.totalNitrogenKg).toFixed(1)}</td>
+                          <td className="px-4 py-2.5">
+                            <button
+                              onClick={() => setDeleteId(a.id)}
+                              className="text-foreground/30 hover:text-red-500 transition-colors p-1 rounded"
+                              title="Delete record"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── ADD APPLICATION DIALOG ── */}
+      <Dialog open={addOpen} onOpenChange={(o) => { if (!o) setAddOpen(false); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Log Fertiliser Application</DialogTitle>
+            <DialogDescription>
+              Record a fertiliser or manure application for NVZ compliance tracking.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Field <span className="text-red-500">*</span></label>
+                <Select value={form.fieldId} onValueChange={(v) => setForm((f) => ({ ...f, fieldId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select field…" /></SelectTrigger>
+                  <SelectContent>
+                    {fields.map((f) => (
+                      <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Application Date <span className="text-red-500">*</span></label>
+                <Input
+                  type="date"
+                  value={form.applicationDate}
+                  onChange={(e) => setForm((f) => ({ ...f, applicationDate: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Product Name <span className="text-red-500">*</span></label>
+                <Input
+                  placeholder="e.g. Ammonium Nitrate 34.5%"
+                  value={form.productName}
+                  onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Product Type <span className="text-red-500">*</span></label>
+                <Select value={form.productType} onValueChange={(v) => setForm((f) => ({ ...f, productType: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
+                  <SelectContent>
+                    {PRODUCT_TYPES.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">N Rate (kg/ha) <span className="text-red-500">*</span></label>
+                <Input
+                  type="number" step="0.1" min="0" placeholder="e.g. 80"
+                  value={form.nitrogenKgHa}
+                  onChange={(e) => setForm((f) => ({ ...f, nitrogenKgHa: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Area Applied (ha) <span className="text-red-500">*</span></label>
+                <Input
+                  type="number" step="0.01" min="0" placeholder="e.g. 12.50"
+                  value={form.areaAppliedHa}
+                  onChange={(e) => setForm((f) => ({ ...f, areaAppliedHa: e.target.value }))}
+                />
+              </div>
+            </div>
+            {form.nitrogenKgHa && form.areaAppliedHa && (
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm">
+                <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                <span className="text-green-800">
+                  Total N applied:{" "}
+                  <strong>{(parseFloat(form.nitrogenKgHa) * parseFloat(form.areaAppliedHa)).toFixed(1)} kg</strong>
+                </span>
+              </div>
+            )}
+            {closedPeriodWarning?.closed && (
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span><strong>Closed period warning:</strong> {closedPeriodWarning.reason}. Spreading on this date may breach NVZ regulations.</span>
+              </div>
+            )}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Application Method</label>
+              <Select value={form.applicationMethod} onValueChange={(v) => setForm((f) => ({ ...f, applicationMethod: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select method…" /></SelectTrigger>
+                <SelectContent>
+                  {APP_METHODS.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Notes</label>
+              <Input
+                placeholder="Optional notes…"
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button onClick={handleAdd} disabled={addMut.isPending}>
+              {addMut.isPending ? "Saving…" : "Save Application"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── DELETE CONFIRM ── */}
+      <Dialog open={deleteId !== null} onOpenChange={(o) => { if (!o) setDeleteId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              Delete Record
+            </DialogTitle>
+            <DialogDescription>
+              This application record will be permanently removed from the NVZ compliance log. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => { if (deleteId) deleteMut.mutate(deleteId); }}>
+              {deleteMut.isPending ? "Deleting…" : "Delete Record"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── NVZ FIELD SETTINGS DIALOG ── */}
+      <Dialog open={nvzEditField !== null} onOpenChange={(o) => { if (!o) setNvzEditField(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>NVZ Settings — {nvzEditField?.fieldName}</DialogTitle>
+            <DialogDescription>
+              Mark this field as within a Nitrate Vulnerable Zone and set its land type for closed-period calculations.
+            </DialogDescription>
+          </DialogHeader>
+          {nvzEditField && (
+            <div className="space-y-4 mt-2">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="isNvzCheck"
+                  checked={nvzEditForm.isNvz}
+                  onChange={(e) => setNvzEditForm((f) => ({ ...f, isNvz: e.target.checked }))}
+                  className="w-4 h-4 accent-green-600"
+                />
+                <label htmlFor="isNvzCheck" className="text-sm font-medium cursor-pointer">
+                  This field is within a Nitrate Vulnerable Zone (NVZ)
+                </label>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Land Type</label>
+                <Select
+                  value={nvzEditForm.nvzLandType}
+                  onValueChange={(v) => setNvzEditForm((f) => ({ ...f, nvzLandType: v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select land type…" /></SelectTrigger>
+                  <SelectContent>
+                    {LAND_TYPES.map((t) => (
+                      <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-foreground/50 mt-1">Used to determine closed periods for slurry and digestate.</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setNvzEditField(null)}>Cancel</Button>
+            <Button
+              disabled={nvzEditMut.isPending}
+              onClick={() => {
+                if (!nvzEditField) return;
+                nvzEditMut.mutate({
+                  fieldId: nvzEditField.fieldId,
+                  body: { isNvz: nvzEditForm.isNvz, nvzLandType: nvzEditForm.nvzLandType || null },
+                });
+              }}
+            >
+              {nvzEditMut.isPending ? "Saving…" : "Save Settings"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </AppLayout>
+  );
+}

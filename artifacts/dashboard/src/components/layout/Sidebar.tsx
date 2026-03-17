@@ -25,6 +25,7 @@ import {
   GraduationCap,
   ShieldCheck,
   HelpCircle,
+  FlaskConical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -45,6 +46,7 @@ const coreNav: NavItem[] = [
   { name: "Harvest Records", href: "/harvest", icon: Wheat, moduleKeys: ["field-crop-management"] },
   { name: "Spray Records", href: "/sprays", icon: Droplets, moduleKeys: ["sprays-inputs"] },
   { name: "NMP", href: "/nmp", icon: Leaf, moduleKeys: ["sprays-inputs"] },
+  { name: "NVZ Compliance", href: "/nvz", icon: FlaskConical, moduleKeys: ["sprays-inputs"] },
   { name: "Soil Tests", href: "/soil", icon: TestTube, moduleKeys: ["soil-management"] },
   { name: "Equipment", href: "/equipment", icon: Tractor, moduleKeys: ["equipment-management"] },
 ];

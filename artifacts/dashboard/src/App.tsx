@@ -19,6 +19,7 @@ import FinancialPage from "@/pages/FinancialPage";
 import HarvestPage from "@/pages/HarvestPage";
 import SprayPage from "@/pages/SprayPage";
 import NMPPage from "@/pages/NMPPage";
+import NVZPage from "@/pages/NVZPage";
 import DocumentsPageCustom from "@/pages/DocumentsPage";
 import HelpCentre from "@/pages/HelpCentre";
 import FarmSettingsPage from "@/pages/FarmSettings";
@@ -275,6 +276,7 @@ function Router() {
       <Route path="/equipment" component={EquipmentPage} />
       <Route path="/sprays" component={SprayPage} />
       <Route path="/nmp" component={NMPPage} />
+      <Route path="/nvz" component={NVZPage} />
       <Route path="/soil" component={SoilPage} />
       <Route path="/inspections" component={InspectionsPage} />
       <Route path="/risks" component={RisksPage} />

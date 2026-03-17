@@ -10,6 +10,8 @@ export const fieldsTable = pgTable("fields", {
   soilType: text("soil_type"),
   currentUse: text("current_use"),
   isOrganic: boolean("is_organic").notNull().default(false),
+  isNvz: boolean("is_nvz").notNull().default(false),
+  nvzLandType: text("nvz_land_type"),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

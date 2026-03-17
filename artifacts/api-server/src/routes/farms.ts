@@ -14,6 +14,7 @@ import {
   sprayApplicationsTable,
   nutrientManagementPlansTable,
   nmpFieldEntriesTable,
+  nvzFertiliserApplicationsTable,
   soilTestRecordsTable,
   soilTestResultsTable,
   equipmentTable,
@@ -54,7 +55,7 @@ import {
   subscriptionsTable,
   modulesTable,
 } from "@workspace/db";
-import { eq, and, desc, sql, lt } from "drizzle-orm";
+import { eq, and, desc, sql, lt, gte } from "drizzle-orm";
 import { createNonconformanceNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 
@@ -745,6 +746,106 @@ router.get("/farms/:farmId/fields/:fieldId/nmp-entries", requireAuth, requireTen
     .where(and(eq(nmpFieldEntriesTable.fieldId, fieldId), eq(nutrientManagementPlansTable.farmId, farmId)))
     .orderBy(desc(nutrientManagementPlansTable.planYear));
   res.json({ entries });
+});
+
+// ─── NVZ Fertiliser Applications ────────────────────
+router.get("/farms/:farmId/nvz-applications", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db
+    .select({
+      id: nvzFertiliserApplicationsTable.id,
+      farmId: nvzFertiliserApplicationsTable.farmId,
+      fieldId: nvzFertiliserApplicationsTable.fieldId,
+      fieldName: fieldsTable.name,
+      areaHectares: fieldsTable.areaHectares,
+      applicationDate: nvzFertiliserApplicationsTable.applicationDate,
+      productName: nvzFertiliserApplicationsTable.productName,
+      productType: nvzFertiliserApplicationsTable.productType,
+      nitrogenKgHa: nvzFertiliserApplicationsTable.nitrogenKgHa,
+      areaAppliedHa: nvzFertiliserApplicationsTable.areaAppliedHa,
+      totalNitrogenKg: nvzFertiliserApplicationsTable.totalNitrogenKg,
+      applicationMethod: nvzFertiliserApplicationsTable.applicationMethod,
+      notes: nvzFertiliserApplicationsTable.notes,
+      createdAt: nvzFertiliserApplicationsTable.createdAt,
+    })
+    .from(nvzFertiliserApplicationsTable)
+    .leftJoin(fieldsTable, eq(nvzFertiliserApplicationsTable.fieldId, fieldsTable.id))
+    .where(eq(nvzFertiliserApplicationsTable.farmId, farmId))
+    .orderBy(desc(nvzFertiliserApplicationsTable.applicationDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/nvz-applications", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { fieldId, applicationDate, productName, productType, nitrogenKgHa, areaAppliedHa, applicationMethod, notes } = req.body as {
+    fieldId: number; applicationDate: string; productName: string; productType: string;
+    nitrogenKgHa: number; areaAppliedHa: number; applicationMethod?: string; notes?: string;
+  };
+  if (!fieldId || !applicationDate || !productName || !productType || nitrogenKgHa == null || areaAppliedHa == null) {
+    res.status(400).json({ error: "Missing required fields" }); return;
+  }
+  const totalNitrogenKg = String((parseFloat(String(nitrogenKgHa)) * parseFloat(String(areaAppliedHa))).toFixed(2));
+  const [record] = await db.insert(nvzFertiliserApplicationsTable).values({
+    farmId, fieldId, applicationDate: new Date(applicationDate),
+    productName, productType,
+    nitrogenKgHa: String(nitrogenKgHa), areaAppliedHa: String(areaAppliedHa), totalNitrogenKg,
+    applicationMethod: applicationMethod ?? null, notes: notes ?? null,
+  }).returning();
+  res.status(201).json({ record });
+});
+
+router.delete("/farms/:farmId/nvz-applications/:recordId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(nvzFertiliserApplicationsTable).where(and(eq(nvzFertiliserApplicationsTable.id, recordId), eq(nvzFertiliserApplicationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── NVZ Field Summary (rolling 12-month totals) ────
+router.get("/farms/:farmId/nvz/field-summary", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 1);
+
+  const fields = await db.select({
+    id: fieldsTable.id, name: fieldsTable.name,
+    areaHectares: fieldsTable.areaHectares,
+    isNvz: fieldsTable.isNvz, nvzLandType: fieldsTable.nvzLandType,
+  }).from(fieldsTable).where(and(eq(fieldsTable.farmId, farmId), eq(fieldsTable.isActive, true)));
+
+  const apps = await db.select({
+    fieldId: nvzFertiliserApplicationsTable.fieldId,
+    productType: nvzFertiliserApplicationsTable.productType,
+    nitrogenKgHa: nvzFertiliserApplicationsTable.nitrogenKgHa,
+    areaAppliedHa: nvzFertiliserApplicationsTable.areaAppliedHa,
+    totalNitrogenKg: nvzFertiliserApplicationsTable.totalNitrogenKg,
+    applicationDate: nvzFertiliserApplicationsTable.applicationDate,
+  }).from(nvzFertiliserApplicationsTable)
+    .where(and(eq(nvzFertiliserApplicationsTable.farmId, farmId), gte(nvzFertiliserApplicationsTable.applicationDate, cutoff)));
+
+  const summary = fields.map((f) => {
+    const fieldApps = apps.filter((a) => a.fieldId === f.id);
+    const organicTypes = ["slurry", "fy", "poultry-manure", "organic-n", "digestate", "compost"];
+    const totalNKg = fieldApps.reduce((s, a) => s + parseFloat(a.totalNitrogenKg ?? "0"), 0);
+    const organicNKg = fieldApps.filter((a) => organicTypes.includes(a.productType)).reduce((s, a) => s + parseFloat(a.totalNitrogenKg ?? "0"), 0);
+    const areaHa = parseFloat(String(f.areaHectares ?? "1")) || 1;
+    const totalNKgHa = totalNKg / areaHa;
+    const organicNKgHa = organicNKg / areaHa;
+    return {
+      fieldId: f.id, fieldName: f.name, areaHectares: f.areaHectares,
+      isNvz: f.isNvz, nvzLandType: f.nvzLandType,
+      totalNKg: parseFloat(totalNKg.toFixed(2)),
+      organicNKg: parseFloat(organicNKg.toFixed(2)),
+      totalNKgHa: parseFloat(totalNKgHa.toFixed(2)),
+      organicNKgHa: parseFloat(organicNKgHa.toFixed(2)),
+      applicationCount: fieldApps.length,
+    };
+  });
+  res.json({ summary });
 });
 
 // ─── Soil Tests ─────────────────────────────────────
