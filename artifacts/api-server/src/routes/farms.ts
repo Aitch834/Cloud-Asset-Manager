@@ -120,6 +120,14 @@ function getRecordId(req: Request): number | null {
   return isNaN(id) ? null : id;
 }
 
+router.get("/farms/:farmId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId));
+  if (!record) { res.status(404).json({ error: "Farm not found" }); return; }
+  res.json({ record });
+});
+
 router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
