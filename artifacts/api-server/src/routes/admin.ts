@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable } from "@workspace/db";
-import { eq, and, count, desc } from "drizzle-orm";
+import { eq, and, count, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 
 const router: IRouter = Router();
@@ -90,12 +90,21 @@ router.get("/admin/stats", requireAuth, async (req: Request, res: Response): Pro
   const [activeSubCount] = await db.select({ count: count() }).from(subscriptionsTable).where(eq(subscriptionsTable.status, "active"));
   const [userCount] = await db.select({ count: count() }).from(usersTable);
 
+  const mrrResult = await db.execute(sql`
+    SELECT COALESCE(SUM(m.monthly_price_pence), 0) AS mrr_pence
+    FROM subscriptions s
+    JOIN modules m ON m.id = s.module_id
+    WHERE s.status = 'active'
+  `);
+  const mrrPence = Number((mrrResult.rows[0] as { mrr_pence: string })?.mrr_pence ?? 0);
+
   res.json({
     stats: {
       totalTenants: tenantCount.count,
       totalFarms: farmCount.count,
       activeSubscriptions: activeSubCount.count,
       totalUsers: userCount.count,
+      mrrPence,
     },
   });
 });

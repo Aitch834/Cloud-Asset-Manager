@@ -17,6 +17,7 @@ const ENV_SPEC: EnvSpec[] = [
   { key: "STRIPE_SECRET_KEY",      description: "Stripe API secret key — enables billing",        required: false },
   { key: "STRIPE_WEBHOOK_SECRET",  description: "Stripe webhook signing secret",                  required: false },
   { key: "DEV_BYPASS_TOKEN",       description: "Dev-only token that bypasses auth (test mode)",  required: false },
+  { key: "ADMIN_PORTAL_SECRET",    description: "Admin portal master secret — enables portal",    required: false },
 ];
 
 function auditEnvVars(): void {
