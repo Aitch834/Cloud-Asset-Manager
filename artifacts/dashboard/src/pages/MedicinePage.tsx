@@ -370,11 +370,34 @@ function PrintTab({ farmId }: { farmId: number }) {
   const farm = farmQ.data?.record;
   const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
+  const handlePrint = () => {
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const farmLine = farm
+      ? `<div style="display:flex;justify-content:space-between;border-bottom:2px solid #16a34a;padding-bottom:12px;margin-bottom:20px"><div><h2 style="font-size:14px;margin:0 0 2px;font-weight:700">${farm.name ?? ""}</h2>${farm.address ? `<p style="font-size:10px;color:#6b7280;margin:1px 0">${farm.address}${farm.postcode ? `, ${farm.postcode}` : ""}</p>` : ""}${farm.cphNumber ? `<p style="font-size:10px;color:#6b7280;margin:1px 0">CPH: ${farm.cphNumber}</p>` : ""}</div><div style="text-align:right"><p style="font-size:13px;font-weight:700;margin:0">Medicine Register</p><p style="font-size:10px;color:#6b7280;margin:2px 0">Printed: ${today}</p></div></div>`
+      : `<div style="border-bottom:2px solid #16a34a;padding-bottom:12px;margin-bottom:20px"><p style="font-size:13px;font-weight:700;margin:0">Medicine Register</p><p style="font-size:10px;color:#6b7280;margin:2px 0">Printed: ${today}</p></div>`;
+    const colStyle = "border:1px solid #e5e7eb;padding:5px 8px";
+    const rows = records.map((r, i) => {
+      const herdName = herds.find(h => h.id === r.herdId)?.name ?? "—";
+      const inWd = isInWithdrawal(r.withdrawalEndDate);
+      const bg = inWd ? "#fffbeb" : i % 2 ? "#f9fafb" : "#fff";
+      return `<tr style="background:${bg}"><td style="${colStyle};font-weight:600">${r.medicineName}</td><td style="${colStyle}">${herdName}</td><td style="${colStyle};white-space:nowrap">${formatDateLong(r.administeredDate)}</td><td style="${colStyle}">${r.dosage ?? "—"}</td><td style="${colStyle}">${r.administrationRoute ?? "—"}</td><td style="${colStyle};font-family:monospace">${r.batchNumber ?? "—"}</td><td style="${colStyle}">${r.withdrawalPeriodDays ? `${r.withdrawalPeriodDays} days` : "None"}</td><td style="${colStyle};white-space:nowrap;${inWd ? "color:#b45309;font-weight:700" : ""}">${r.withdrawalEndDate ? formatDateLong(r.withdrawalEndDate) : "—"}${inWd ? " ⚠" : ""}</td><td style="${colStyle}">${r.vetName ?? "—"}</td><td style="${colStyle}">${r.reason ?? "—"}</td></tr>`;
+    }).join("");
+    const thStyle = "border:1px solid #e5e7eb;padding:5px 8px;text-align:left;font-size:9px;text-transform:uppercase;color:#6b7280;background:#f0fdf4";
+    const table = records.length > 0
+      ? `<table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr><th style="${thStyle}">Medicine</th><th style="${thStyle}">Herd / Group</th><th style="${thStyle}">Date Admin.</th><th style="${thStyle}">Dosage</th><th style="${thStyle}">Route</th><th style="${thStyle}">Batch No.</th><th style="${thStyle}">W/D Period</th><th style="${thStyle}">W/D Ends</th><th style="${thStyle}">Vet / Auth.</th><th style="${thStyle}">Reason</th></tr></thead><tbody>${rows}</tbody></table>`
+      : `<p style="color:#9ca3af;font-style:italic;text-align:center;padding:2rem 0">No medicine records to display.</p>`;
+    win.document.write(`<html><head><title>Medicine Register</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:2cm}h2{margin:0}</style></head><body>${farmLine}${table}<div style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:24px;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af"><span>Medicine register required by Red Tractor Livestock Standards. Retain for minimum 5 years. Withdrawal periods must be observed before slaughter, milk sale or egg collection.</span><span>BDE Farm Trac · ${today}</span></div></body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+  };
+
   return (
     <div>
-      <style>{`@media print { .no-print { display: none !important; } body { font-size: 11px; } }`}</style>
-      <div className="no-print flex justify-end mb-6">
-        <Button onClick={() => window.print()} className="gap-2">
+      <div className="flex justify-end mb-6">
+        <Button onClick={handlePrint} className="gap-2">
           <Printer className="w-4 h-4" /> Print / Export PDF
         </Button>
       </div>
