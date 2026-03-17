@@ -20,6 +20,10 @@ export function cn(...inputs: ClassValue[]) {
 export function printHtml(html: string, _filename?: string): void {
   const htmlWithScript = html.replace(
     "</body>",
+    // Screen-only rule hides all visible content so the tab appears as a
+    // blank white page behind the print dialog — less jarring for the user.
+    // The @media print rule restores visibility so the printed output is unaffected.
+    `<style>@media screen{body>*{visibility:hidden!important}}@media print{body>*{visibility:visible!important}}</style>` +
     `<script>` +
     `window.addEventListener('load',function(){setTimeout(function(){window.print();},300);});` +
     `window.addEventListener('afterprint',function(){window.close();});` +
