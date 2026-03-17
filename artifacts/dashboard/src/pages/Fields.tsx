@@ -1,4 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -198,11 +202,9 @@ function FieldCardMenu({
   onAssignCrop: () => void;
   onBoundaryUpdated?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [boundaryOpen, setBoundaryOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const { mutate: updateField, isPending: isUpdating } = useUpdateField(farmId);
   const { mutate: deleteField, isPending: isDeleting } = useDeleteField(farmId);
@@ -210,14 +212,6 @@ function FieldCardMenu({
   const { register, handleSubmit, reset } = useForm<FieldFormData>({
     defaultValues: { name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "" },
   });
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    if (open) document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
 
   const handleEdit = (values: FieldFormData) => {
     updateField({ farmId, recordId: field.id, data: values }, { onSuccess: () => { setEditOpen(false); reset(values); } });
@@ -228,48 +222,39 @@ function FieldCardMenu({
   };
 
   return (
-    <div className="relative" ref={menuRef}>
-      <button
-        onClick={(e) => { e.stopPropagation(); setOpen(prev => !prev); }}
-        className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-black/5 transition-colors cursor-pointer shadow-sm border border-border/30"
-        aria-label="Field options"
-      >
-        <MoreVertical className="w-4 h-4 text-foreground/70" />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-xl border border-border z-[200] overflow-hidden py-1" style={{ isolation: "isolate" }}>
+    <div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
           <button
-            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-black/5 transition-colors cursor-pointer"
-            onClick={() => { setOpen(false); onAssignCrop(); }}
+            className="w-8 h-8 rounded-full bg-white flex items-center justify-center hover:bg-black/5 transition-colors cursor-pointer shadow-sm border border-border/30"
+            aria-label="Field options"
           >
+            <MoreVertical className="w-4 h-4 text-foreground/70" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={() => onAssignCrop()}>
             <Sprout className="w-4 h-4 text-green-600" />
             {currentCrop ? "Change crop" : "Assign crop"}
-          </button>
-          <div className="h-px bg-border/50 my-1" />
-          <button
-            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-black/5 transition-colors cursor-pointer"
-            onClick={() => { setOpen(false); setBoundaryOpen(true); }}
-          >
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setBoundaryOpen(true)}>
             <Map className="w-4 h-4 text-blue-600" />
             Draw boundary on map
-          </button>
-          <button
-            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-black/5 transition-colors cursor-pointer"
-            onClick={() => { setOpen(false); setEditOpen(true); reset({ name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "" }); }}
-          >
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => { setEditOpen(true); reset({ name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "" }); }}>
             <Pencil className="w-4 h-4 text-foreground/50" />
             Edit field
-          </button>
-          <button
-            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-            onClick={() => { setOpen(false); setDeleteOpen(true); }}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-red-600 focus:text-red-600 focus:bg-red-50"
+            onClick={() => setDeleteOpen(true)}
           >
             <Trash2 className="w-4 h-4" />
             Delete field
-          </button>
-        </div>
-      )}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
