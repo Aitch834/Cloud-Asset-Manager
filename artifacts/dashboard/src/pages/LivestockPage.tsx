@@ -6,14 +6,29 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Redirect } from "wouter";
-import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2 } from "lucide-react";
+import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
 function formatDate(val: string | null | undefined): string {
   if (!val) return "—";
   try { return new Date(val).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); }
   catch { return val; }
+}
+
+function formatDateLong(val: string | null | undefined): string {
+  if (!val) return "—";
+  try { return new Date(val).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }); }
+  catch { return val; }
+}
+
+interface Farm {
+  id: number;
+  name: string;
+  address: string | null;
+  postcode: string | null;
+  cphNumber: string | null;
+  redTractorId: string | null;
 }
 
 interface Herd {
@@ -67,6 +82,233 @@ const EMPTY_PLAN = {
   notes: "",
 };
 
+function PrintHerdRegisterDialog({ farmId, herds, onClose }: { farmId: number; herds: Herd[]; onClose: () => void }) {
+  const { data: farmData } = useQuery<{ record: Farm }>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+  });
+  const farm = farmData?.record;
+  const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <style>{`
+          @media print {
+            body > * { display: none !important; }
+            [role="dialog"] { position: fixed; inset: 0; overflow: visible !important; }
+            [role="dialog"] > * { display: none !important; }
+            [role="dialog"] #livestock-herd-print-area { display: block !important; position: fixed; top:0; left:0; width:100%; padding:24px; font-size:11px; color:#000; background:#fff; }
+          }
+        `}</style>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Printer className="w-5 h-5 text-green-600" />
+            Herd &amp; Flock Register
+          </DialogTitle>
+          <DialogDescription>
+            Review the register below, then click Print to produce a compliance document for Red Tractor audit.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div id="livestock-herd-print-area" className="border border-border rounded-lg p-6 space-y-5 text-sm mt-2">
+          <div className="flex justify-between items-start border-b pb-4">
+            <div>
+              <p className="text-base font-bold text-foreground">{farm?.name ?? "Farm"}</p>
+              {farm?.address && <p className="text-xs text-foreground/60">{farm.address}{farm.postcode ? `, ${farm.postcode}` : ""}</p>}
+              {farm?.cphNumber && <p className="text-xs text-foreground/60 mt-0.5">CPH: <span className="font-mono font-semibold">{farm.cphNumber}</span></p>}
+              {farm?.redTractorId && <p className="text-xs text-foreground/60 mt-0.5">Red Tractor ID: <span className="font-mono font-semibold">{farm.redTractorId}</span></p>}
+            </div>
+            <div className="text-right text-xs text-foreground/50">
+              <p className="font-semibold text-foreground text-sm">Herd &amp; Flock Register</p>
+              <p>Printed: {printedDate}</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-green-50 text-foreground/70">
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Name</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Species</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Breed</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Herd / Flock No.</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Status</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {herds.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="border border-border/60 px-3 py-4 text-center text-foreground/40 italic">No herds recorded</td>
+                  </tr>
+                ) : herds.map((h, i) => (
+                  <tr key={h.id} className={i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}>
+                    <td className="border border-border/60 px-3 py-2 font-medium">{h.name}</td>
+                    <td className="border border-border/60 px-3 py-2 capitalize">{h.type || "—"}</td>
+                    <td className="border border-border/60 px-3 py-2">{h.breed || "—"}</td>
+                    <td className="border border-border/60 px-3 py-2 font-mono">{h.herdNumber || "—"}</td>
+                    <td className="border border-border/60 px-3 py-2">{h.isActive ? "Active" : "Inactive"}</td>
+                    <td className="border border-border/60 px-3 py-2 text-foreground/60">{h.notes || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex gap-6 pt-2 text-xs text-foreground/60 border-t">
+            <span><strong className="text-foreground">{herds.length}</strong> herd{herds.length !== 1 ? "s" : ""} / flock{herds.length !== 1 ? "s" : ""} registered</span>
+            <span><strong className="text-foreground">{herds.filter(h => h.isActive).length}</strong> active</span>
+          </div>
+
+          <div className="text-xs text-foreground/40 border-t pt-3 flex items-center justify-between">
+            <span className="italic">
+              This is an on-farm record for Red Tractor compliance purposes.
+              Retain for a minimum of 3 years and make available for inspection at audit.
+            </span>
+            <span className="font-medium not-italic text-foreground/50 ml-4 whitespace-nowrap">BDE Farm Trac · {printedDate}</span>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button onClick={() => window.print()} className="gap-2">
+            <Printer className="w-4 h-4" /> Print Register
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PrintVetPlanDialog({ farmId, plan, onClose }: { farmId: number; plan: VetHealthPlan; onClose: () => void }) {
+  const { data: farmData } = useQuery<{ record: Farm }>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+  });
+  const farm = farmData?.record;
+  const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  const sections: { label: string; value: string | null | undefined }[] = [
+    { label: "Key Health Priorities", value: plan.healthPriorities },
+    { label: "Vaccination Protocol", value: plan.vaccinationProtocol },
+    { label: "Biosecurity Measures", value: plan.biosecurityMeasures },
+    { label: "Worming / Parasite Protocol", value: plan.wormingProtocol },
+    { label: "Fluke Treatment", value: plan.flukeTreatment },
+    { label: "Mastitis Prevention (Dairy)", value: plan.mastitisPrevention },
+    { label: "Additional Notes", value: plan.notes },
+  ].filter(s => s.value);
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <style>{`
+          @media print {
+            body > * { display: none !important; }
+            [role="dialog"] { position: fixed; inset: 0; overflow: visible !important; }
+            [role="dialog"] > * { display: none !important; }
+            [role="dialog"] #vet-plan-print-area { display: block !important; position: fixed; top:0; left:0; width:100%; padding:24px; font-size:11px; color:#000; background:#fff; }
+          }
+        `}</style>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Printer className="w-5 h-5 text-green-600" />
+            Vet Health Plan — {plan.planYear}
+          </DialogTitle>
+          <DialogDescription>
+            Review the plan below, then click Print to produce a signed compliance document for Red Tractor audit.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div id="vet-plan-print-area" className="border border-border rounded-lg p-6 space-y-5 text-sm mt-2">
+          <div className="flex justify-between items-start border-b pb-4">
+            <div>
+              <p className="text-base font-bold text-foreground">{farm?.name ?? "Farm"}</p>
+              {farm?.address && <p className="text-xs text-foreground/60">{farm.address}{farm.postcode ? `, ${farm.postcode}` : ""}</p>}
+              {farm?.cphNumber && <p className="text-xs text-foreground/60 mt-0.5">CPH: <span className="font-mono font-semibold">{farm.cphNumber}</span></p>}
+              {farm?.redTractorId && <p className="text-xs text-foreground/60 mt-0.5">Red Tractor ID: <span className="font-mono font-semibold">{farm.redTractorId}</span></p>}
+            </div>
+            <div className="text-right text-xs text-foreground/50">
+              <p className="font-semibold text-foreground text-sm">Vet Health Plan {plan.planYear}</p>
+              <p>Plan date: <strong className="text-foreground">{formatDateLong(plan.planDate)}</strong></p>
+              {plan.reviewDate && <p>Review due: {formatDateLong(plan.reviewDate)}</p>}
+              <p className="mt-1">Printed: {printedDate}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-xs pb-3 border-b">
+            <div>
+              <span className="font-bold text-foreground/50 uppercase tracking-wider">Attending Vet</span>
+              <p className="font-semibold text-foreground mt-0.5">{plan.vetName}</p>
+            </div>
+            {plan.practiceName && (
+              <div>
+                <span className="font-bold text-foreground/50 uppercase tracking-wider">Practice</span>
+                <p className="font-semibold text-foreground mt-0.5">{plan.practiceName}</p>
+              </div>
+            )}
+            {plan.practicePhone && (
+              <div>
+                <span className="font-bold text-foreground/50 uppercase tracking-wider">Phone</span>
+                <p className="text-foreground mt-0.5">{plan.practicePhone}</p>
+              </div>
+            )}
+            {plan.practiceAddress && (
+              <div>
+                <span className="font-bold text-foreground/50 uppercase tracking-wider">Address</span>
+                <p className="text-foreground mt-0.5">{plan.practiceAddress}</p>
+              </div>
+            )}
+          </div>
+
+          {sections.length === 0 ? (
+            <p className="text-foreground/40 italic text-xs text-center py-4">No plan content recorded.</p>
+          ) : (
+            <div className="space-y-4">
+              {sections.map(s => (
+                <div key={s.label} className="border border-border/40 rounded-md p-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-foreground/50 mb-1.5">{s.label}</p>
+                  <p className="text-sm text-foreground/80 whitespace-pre-line leading-relaxed">{s.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="border-t border-border pt-4 mt-4">
+            <div className="grid grid-cols-2 gap-8">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-foreground/50 mb-6">Farmer Signature</p>
+                <div className="border-b border-foreground/30 mb-1" />
+                <p className="text-xs text-foreground/40">Name &amp; Date</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-foreground/50 mb-6">Vet Signature</p>
+                <div className="border-b border-foreground/30 mb-1" />
+                <p className="text-xs text-foreground/40">Name &amp; Date</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-xs text-foreground/40 border-t pt-3 flex items-center justify-between">
+            <span className="italic">
+              This veterinary health plan is an on-farm record required by Red Tractor Livestock Standards.
+              Retain for a minimum of 3 years and make available for inspection at audit.
+            </span>
+            <span className="font-medium not-italic text-foreground/50 ml-4 whitespace-nowrap">BDE Farm Trac · {printedDate}</span>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button onClick={() => window.print()} className="gap-2">
+            <Printer className="w-4 h-4" /> Print Plan
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function HerdsSection({ farmId }: { farmId: number }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -74,6 +316,7 @@ function HerdsSection({ farmId }: { farmId: number }) {
   const [editingHerd, setEditingHerd] = useState<Herd | null>(null);
   const [formData, setFormData] = useState<typeof EMPTY_HERD>(EMPTY_HERD);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [printOpen, setPrintOpen] = useState(false);
 
   const baseUrl = `/api/farms/${farmId}/herds`;
 
@@ -138,9 +381,14 @@ function HerdsSection({ farmId }: { farmId: number }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input placeholder="Search herds..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button onClick={() => { setEditingHerd(null); setFormData(EMPTY_HERD); setShowForm(true); }} className="gap-2">
-          <Plus className="w-4 h-4" /> Add Herd / Flock
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" onClick={() => setPrintOpen(true)} disabled={records.length === 0} className="gap-2">
+            <Printer className="w-4 h-4" /> Print Register
+          </Button>
+          <Button onClick={() => { setEditingHerd(null); setFormData(EMPTY_HERD); setShowForm(true); }} className="gap-2">
+            <Plus className="w-4 h-4" /> Add Herd / Flock
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -241,6 +489,14 @@ function HerdsSection({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {printOpen && (
+        <PrintHerdRegisterDialog
+          farmId={farmId}
+          herds={records}
+          onClose={() => setPrintOpen(false)}
+        />
+      )}
     </>
   );
 }
@@ -251,6 +507,7 @@ function VetHealthPlansSection({ farmId }: { farmId: number }) {
   const [editingPlan, setEditingPlan] = useState<VetHealthPlan | null>(null);
   const [formData, setFormData] = useState<typeof EMPTY_PLAN>(EMPTY_PLAN);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [printPlan, setPrintPlan] = useState<VetHealthPlan | null>(null);
 
   const baseUrl = `/api/farms/${farmId}/vet-health-plans`;
 
@@ -474,6 +731,13 @@ function VetHealthPlansSection({ farmId }: { farmId: number }) {
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => setPrintPlan(p)}
+                  className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-green-600"
+                  title="Print this plan"
+                >
+                  <Printer className="w-4 h-4" />
+                </button>
                 <button onClick={() => openEdit(p)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-primary"><Pencil className="w-4 h-4" /></button>
                 <button onClick={() => setDeleteId(p.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/50 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
               </div>
@@ -522,6 +786,14 @@ function VetHealthPlansSection({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {printPlan && (
+        <PrintVetPlanDialog
+          farmId={farmId}
+          plan={printPlan}
+          onClose={() => setPrintPlan(null)}
+        />
+      )}
     </>
   );
 }
