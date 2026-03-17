@@ -899,6 +899,27 @@ router.delete("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant,
   res.json({ success: true });
 });
 
+// ─── Soil Test Results (individual nutrient rows) ───
+router.post("/farms/:farmId/soil-tests/:recordId/results", requireAuth, requireTenant, requireModuleByKey("soil-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [test] = await db.select({ id: soilTestRecordsTable.id }).from(soilTestRecordsTable).where(and(eq(soilTestRecordsTable.id, recordId), eq(soilTestRecordsTable.farmId, farmId)));
+  if (!test) { res.status(404).json({ error: "Not found" }); return; }
+  const [result] = await db.insert(soilTestResultsTable).values({ ...req.body, soilTestId: recordId }).returning();
+  res.status(201).json({ result });
+});
+
+router.delete("/farms/:farmId/soil-tests/:recordId/results/:resultId", requireAuth, requireTenant, requireModuleByKey("soil-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const resultId = parseInt(req.params.resultId, 10);
+  if (isNaN(resultId)) { res.status(400).json({ error: "Invalid result ID" }); return; }
+  await db.delete(soilTestResultsTable).where(eq(soilTestResultsTable.id, resultId));
+  res.json({ success: true });
+});
+
 // ─── Equipment ──────────────────────────────────────
 router.get("/farms/:farmId/equipment", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);

@@ -1,0 +1,691 @@
+import React, { useState } from "react";
+import { useAppStore } from "@/hooks/use-app-store";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { TabBar, TabButton } from "@/components/ui/tab-button";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Redirect } from "wouter";
+import {
+  Plus, Search, Loader2, Pencil, Trash2, Users, Bug, ShieldCheck,
+  CheckCircle2, XCircle, AlertTriangle, Calendar,
+} from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+
+type MainTab = "visitors" | "pest-control" | "cleaning";
+
+function formatDate(val: string | null | undefined): string {
+  if (!val) return "—";
+  try { return new Date(val).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); }
+  catch { return val; }
+}
+function formatDateTime(val: string | null | undefined): string {
+  if (!val) return "—";
+  try { return new Date(val).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
+  catch { return val; }
+}
+function daysBetween(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null;
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const d = new Date(dateStr); d.setHours(0, 0, 0, 0);
+  return Math.round((d.getTime() - now.getTime()) / 86400000);
+}
+function dueBadge(dateStr: string | null | undefined, label = "Follow-up") {
+  if (!dateStr) return null;
+  const days = daysBetween(dateStr);
+  if (days === null) return null;
+  if (days < 0) return <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200"><AlertTriangle className="w-3 h-3" />{label} overdue</span>;
+  if (days === 0) return <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200"><AlertTriangle className="w-3 h-3" />{label} today</span>;
+  if (days <= 14) return <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200"><Calendar className="w-3 h-3" />{label} in {days}d</span>;
+  return null;
+}
+
+// ─── Visitor Log ──────────────────────────────────────────────────────────────
+
+interface Visitor {
+  id: number; farmId: number; visitorName: string; company: string | null; purpose: string;
+  vehicleRegistration: string | null; arrivalTime: string; departureTime: string | null;
+  areasVisited: string | null; biosecurityDeclarationSigned: boolean; healthDeclarationSigned: boolean;
+  escortedBy: string | null; notes: string | null; createdAt: string;
+}
+
+const EMPTY_VISITOR = {
+  visitorName: "", company: "", purpose: "", vehicleRegistration: "",
+  arrivalTime: new Date().toISOString().slice(0, 16), departureTime: "",
+  areasVisited: "", biosecurityDeclarationSigned: false, healthDeclarationSigned: false,
+  escortedBy: "", notes: "",
+};
+
+function VisitorTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Visitor | null>(null);
+  const [form, setForm] = useState<typeof EMPTY_VISITOR>(EMPTY_VISITOR);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery<{ records: Visitor[] }>({
+    queryKey: ["visitors", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/visitors`).then(r => r.json()),
+  });
+  const records: Visitor[] = data?.records ?? [];
+  const filtered = records.filter(r => !search
+    || r.visitorName.toLowerCase().includes(search.toLowerCase())
+    || r.company?.toLowerCase().includes(search.toLowerCase())
+    || r.purpose.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const createM = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      fetch(`/api/farms/${farmId}/visitors`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["visitors", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); },
+  });
+  const updateM = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      fetch(`/api/farms/${farmId}/visitors/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["visitors", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); },
+  });
+  const deleteM = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/visitors/${id}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["visitors", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(v: Visitor) {
+    setEditing(v);
+    setForm({
+      visitorName: v.visitorName, company: v.company ?? "", purpose: v.purpose,
+      vehicleRegistration: v.vehicleRegistration ?? "", arrivalTime: v.arrivalTime?.slice(0, 16) ?? "",
+      departureTime: v.departureTime?.slice(0, 16) ?? "", areasVisited: v.areasVisited ?? "",
+      biosecurityDeclarationSigned: v.biosecurityDeclarationSigned, healthDeclarationSigned: v.healthDeclarationSigned,
+      escortedBy: v.escortedBy ?? "", notes: v.notes ?? "",
+    });
+    setFormOpen(true);
+  }
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const body = {
+      ...form,
+      arrivalTime: form.arrivalTime ? new Date(form.arrivalTime).toISOString() : null,
+      departureTime: form.departureTime ? new Date(form.departureTime).toISOString() : null,
+    };
+    if (editing) { updateM.mutate({ id: editing.id, body }); } else { createM.mutate(body); }
+  }
+  const isSubmitting = createM.isPending || updateM.isPending;
+
+  return (
+    <>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
+          <Input placeholder="Search visitors, company, purpose..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Button onClick={() => { setEditing(null); setForm(EMPTY_VISITOR); setFormOpen(true); }} className="gap-2 shrink-0">
+          <Plus className="w-4 h-4" /> Log Visitor
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <div className="text-center py-16 px-6">
+            <div className="w-16 h-16 mx-auto rounded-full bg-primary/5 flex items-center justify-center mb-4">
+              <Users className="w-8 h-8 text-primary/40" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground/80 mb-1">No visitor records</h3>
+            <p className="text-foreground/50 text-sm">{search ? "No visitors match your search." : "Log visitors and contractors to maintain biosecurity compliance."}</p>
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  {["Visitor / Contractor", "Company", "Purpose", "Arrival", "Departure", "Biosec", "Health", ""].map(h => (
+                    <th key={h} className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(v => (
+                  <tr key={v.id} className="border-b border-border/50 hover:bg-black/[0.02] transition-colors">
+                    <td className="p-4 text-sm font-medium">{v.visitorName}</td>
+                    <td className="p-4 text-sm text-foreground/70">{v.company || "—"}</td>
+                    <td className="p-4 text-sm text-foreground/70 max-w-[160px] truncate">{v.purpose}</td>
+                    <td className="p-4 text-sm text-foreground/70 whitespace-nowrap">{formatDateTime(v.arrivalTime)}</td>
+                    <td className="p-4 text-sm text-foreground/70 whitespace-nowrap">{v.departureTime ? formatDateTime(v.departureTime) : <span className="text-amber-600 text-xs font-medium">On site</span>}</td>
+                    <td className="p-4">
+                      {v.biosecurityDeclarationSigned
+                        ? <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        : <XCircle className="w-4 h-4 text-red-400" />}
+                    </td>
+                    <td className="p-4">
+                      {v.healthDeclarationSigned
+                        ? <CheckCircle2 className="w-4 h-4 text-green-600" />
+                        : <XCircle className="w-4 h-4 text-red-400" />}
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => openEdit(v)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-primary"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => setDeleteId(v.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/40 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" />
+              {editing ? "Edit Visitor Record" : "Log Visitor / Contractor"}
+            </DialogTitle>
+            <DialogDescription>Record all persons visiting the farm for Red Tractor biosecurity compliance.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Name <span className="text-red-500">*</span></label>
+                <Input placeholder="Full name" value={form.visitorName} onChange={e => setForm(f => ({ ...f, visitorName: e.target.value }))} required />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Company / Organisation</label>
+                <Input placeholder="e.g. ADAS, NFU, Vet practice" value={form.company} onChange={e => setForm(f => ({ ...f, company: e.target.value }))} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Purpose of Visit <span className="text-red-500">*</span></label>
+                <Input placeholder="e.g. Vet visit, Red Tractor audit, Agronomist inspection" value={form.purpose} onChange={e => setForm(f => ({ ...f, purpose: e.target.value }))} required />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Vehicle Registration</label>
+                <Input placeholder="e.g. AB12 CDE" value={form.vehicleRegistration} onChange={e => setForm(f => ({ ...f, vehicleRegistration: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Escorted By</label>
+                <Input placeholder="Staff member name" value={form.escortedBy} onChange={e => setForm(f => ({ ...f, escortedBy: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Arrival Date &amp; Time <span className="text-red-500">*</span></label>
+                <Input type="datetime-local" value={form.arrivalTime} onChange={e => setForm(f => ({ ...f, arrivalTime: e.target.value }))} required />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Departure Date &amp; Time</label>
+                <Input type="datetime-local" value={form.departureTime} onChange={e => setForm(f => ({ ...f, departureTime: e.target.value }))} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Areas Visited</label>
+                <Input placeholder="e.g. Dairy unit, Cattle shed 1, Crop store" value={form.areasVisited} onChange={e => setForm(f => ({ ...f, areasVisited: e.target.value }))} />
+              </div>
+            </div>
+            <div className="border-t border-border pt-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-foreground/40 mb-3">Declarations Signed</p>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2 text-sm text-foreground/80 cursor-pointer">
+                  <input type="checkbox" checked={form.biosecurityDeclarationSigned} onChange={e => setForm(f => ({ ...f, biosecurityDeclarationSigned: e.target.checked }))} className="rounded w-4 h-4 accent-green-600" />
+                  Biosecurity Declaration
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground/80 cursor-pointer">
+                  <input type="checkbox" checked={form.healthDeclarationSigned} onChange={e => setForm(f => ({ ...f, healthDeclarationSigned: e.target.checked }))} className="rounded w-4 h-4 accent-green-600" />
+                  Health Declaration
+                </label>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
+              <Input placeholder="Additional notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); }}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                {editing ? "Update Record" : "Log Visitor"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete Visitor Record</DialogTitle></DialogHeader>
+          <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId && deleteM.mutate(deleteId)} disabled={deleteM.isPending}>
+              {deleteM.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ─── Pest Control ─────────────────────────────────────────────────────────────
+
+interface PestRecord {
+  id: number; farmId: number; pestType: string; location: string | null; treatmentMethod: string | null;
+  productUsed: string | null; treatmentDate: string; treatedBy: string | null;
+  followUpDate: string | null; outcome: string | null; notes: string | null; createdAt: string;
+}
+
+const EMPTY_PEST = { pestType: "", location: "", treatmentMethod: "", productUsed: "", treatmentDate: new Date().toISOString().slice(0, 10), treatedBy: "", followUpDate: "", outcome: "", notes: "" };
+const PEST_TYPES = ["Rats / Mice", "Rabbits", "Foxes", "Pigeons / Corvids", "Moles", "Slugs / Snails", "Insects", "Other"];
+
+function PestControlTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<PestRecord | null>(null);
+  const [form, setForm] = useState<typeof EMPTY_PEST>(EMPTY_PEST);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery<{ records: PestRecord[] }>({
+    queryKey: ["pest-control", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/pest-control`).then(r => r.json()),
+  });
+  const records: PestRecord[] = data?.records ?? [];
+  const filtered = records.filter(r => !search
+    || r.pestType.toLowerCase().includes(search.toLowerCase())
+    || r.location?.toLowerCase().includes(search.toLowerCase())
+    || r.productUsed?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const createM = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      fetch(`/api/farms/${farmId}/pest-control`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pest-control", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_PEST); },
+  });
+  const updateM = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      fetch(`/api/farms/${farmId}/pest-control/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pest-control", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_PEST); },
+  });
+  const deleteM = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/pest-control/${id}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pest-control", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(p: PestRecord) {
+    setEditing(p);
+    setForm({ pestType: p.pestType, location: p.location ?? "", treatmentMethod: p.treatmentMethod ?? "", productUsed: p.productUsed ?? "", treatmentDate: p.treatmentDate?.slice(0, 10) ?? "", treatedBy: p.treatedBy ?? "", followUpDate: p.followUpDate?.slice(0, 10) ?? "", outcome: p.outcome ?? "", notes: p.notes ?? "" });
+    setFormOpen(true);
+  }
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const body = { ...form, treatmentDate: form.treatmentDate ? new Date(form.treatmentDate).toISOString() : null, followUpDate: form.followUpDate ? new Date(form.followUpDate).toISOString() : null };
+    if (editing) { updateM.mutate({ id: editing.id, body }); } else { createM.mutate(body); }
+  }
+  const isSubmitting = createM.isPending || updateM.isPending;
+
+  return (
+    <>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
+          <Input placeholder="Search pest type, location, product..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Button onClick={() => { setEditing(null); setForm(EMPTY_PEST); setFormOpen(true); }} className="gap-2 shrink-0">
+          <Plus className="w-4 h-4" /> Add Record
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <div className="text-center py-16 px-6">
+            <div className="w-16 h-16 mx-auto rounded-full bg-primary/5 flex items-center justify-center mb-4">
+              <Bug className="w-8 h-8 text-primary/40" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground/80 mb-1">No pest control records</h3>
+            <p className="text-foreground/50 text-sm">{search ? "No records match your search." : "Record pest treatments to demonstrate active management for Red Tractor."}</p>
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  {["Pest Type", "Location", "Product / Method", "Treatment Date", "Treated By", "Follow-up", "Outcome", ""].map(h => (
+                    <th key={h} className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(p => (
+                  <tr key={p.id} className="border-b border-border/50 hover:bg-black/[0.02] transition-colors">
+                    <td className="p-4 text-sm font-medium">{p.pestType}</td>
+                    <td className="p-4 text-sm text-foreground/70">{p.location || "—"}</td>
+                    <td className="p-4 text-sm text-foreground/70">{p.productUsed || p.treatmentMethod || "—"}</td>
+                    <td className="p-4 text-sm text-foreground/70 whitespace-nowrap">{formatDate(p.treatmentDate)}</td>
+                    <td className="p-4 text-sm text-foreground/70">{p.treatedBy || "—"}</td>
+                    <td className="p-4 text-sm">
+                      <div className="flex flex-col gap-1">
+                        {p.followUpDate && <span className="text-foreground/70">{formatDate(p.followUpDate)}</span>}
+                        {dueBadge(p.followUpDate)}
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm text-foreground/70 max-w-[120px] truncate">{p.outcome || "—"}</td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => openEdit(p)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-primary"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => setDeleteId(p.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/40 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_PEST); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bug className="w-5 h-5 text-primary" />
+              {editing ? "Edit Pest Control Record" : "Add Pest Control Record"}
+            </DialogTitle>
+            <DialogDescription>Record pest control activities to demonstrate proactive management.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Pest Type <span className="text-red-500">*</span></label>
+                <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={PEST_TYPES.includes(form.pestType) ? form.pestType : "Other"} onChange={e => setForm(f => ({ ...f, pestType: e.target.value }))} required>
+                  <option value="">Select...</option>
+                  {PEST_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Location</label>
+                <Input placeholder="e.g. Grain store, Yard perimeter" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Treatment Date <span className="text-red-500">*</span></label>
+                <Input type="date" value={form.treatmentDate} onChange={e => setForm(f => ({ ...f, treatmentDate: e.target.value }))} required />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Treated By</label>
+                <Input placeholder="Name or contractor" value={form.treatedBy} onChange={e => setForm(f => ({ ...f, treatedBy: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Treatment Method</label>
+                <Input placeholder="e.g. Traps, Bait stations, Shooting" value={form.treatmentMethod} onChange={e => setForm(f => ({ ...f, treatmentMethod: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Product Used</label>
+                <Input placeholder="e.g. Brodifacoum, Pindone" value={form.productUsed} onChange={e => setForm(f => ({ ...f, productUsed: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Follow-up Date</label>
+                <Input type="date" value={form.followUpDate} onChange={e => setForm(f => ({ ...f, followUpDate: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Outcome</label>
+                <Input placeholder="e.g. Effective, Ongoing, Refer to contractor" value={form.outcome} onChange={e => setForm(f => ({ ...f, outcome: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
+              <Input placeholder="Additional notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); setForm(EMPTY_PEST); }}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                {editing ? "Update Record" : "Save Record"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete Pest Control Record</DialogTitle></DialogHeader>
+          <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId && deleteM.mutate(deleteId)} disabled={deleteM.isPending}>
+              {deleteM.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ─── Cleaning & Disinfection ──────────────────────────────────────────────────
+
+interface CleaningRecord {
+  id: number; farmId: number; area: string; cleaningType: string; productsUsed: string | null;
+  dilutionRate: string | null; contactTime: string | null; cleanedBy: string | null;
+  cleanedDate: string; nextDueDate: string | null; verifiedBy: string | null; notes: string | null; createdAt: string;
+}
+
+const EMPTY_CLEANING = { area: "", cleaningType: "", productsUsed: "", dilutionRate: "", contactTime: "", cleanedBy: "", cleanedDate: new Date().toISOString().slice(0, 10), nextDueDate: "", verifiedBy: "", notes: "" };
+const CLEANING_TYPES = ["Routine clean", "Deep clean", "Disinfection", "Fogging / fumigation", "Pre-housing clean", "Post-TB restriction clean", "Emergency clean", "Other"];
+
+function CleaningTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<CleaningRecord | null>(null);
+  const [form, setForm] = useState<typeof EMPTY_CLEANING>(EMPTY_CLEANING);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery<{ records: CleaningRecord[] }>({
+    queryKey: ["cleaning", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/cleaning`).then(r => r.json()),
+  });
+  const records: CleaningRecord[] = data?.records ?? [];
+  const filtered = records.filter(r => !search
+    || r.area.toLowerCase().includes(search.toLowerCase())
+    || r.cleaningType.toLowerCase().includes(search.toLowerCase())
+    || r.productsUsed?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const createM = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      fetch(`/api/farms/${farmId}/cleaning`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_CLEANING); },
+  });
+  const updateM = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      fetch(`/api/farms/${farmId}/cleaning/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_CLEANING); },
+  });
+  const deleteM = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/cleaning/${id}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(c: CleaningRecord) {
+    setEditing(c);
+    setForm({ area: c.area, cleaningType: c.cleaningType, productsUsed: c.productsUsed ?? "", dilutionRate: c.dilutionRate ?? "", contactTime: c.contactTime ?? "", cleanedBy: c.cleanedBy ?? "", cleanedDate: c.cleanedDate?.slice(0, 10) ?? "", nextDueDate: c.nextDueDate?.slice(0, 10) ?? "", verifiedBy: c.verifiedBy ?? "", notes: c.notes ?? "" });
+    setFormOpen(true);
+  }
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const body = { ...form, cleanedDate: form.cleanedDate ? new Date(form.cleanedDate).toISOString() : null, nextDueDate: form.nextDueDate ? new Date(form.nextDueDate).toISOString() : null };
+    if (editing) { updateM.mutate({ id: editing.id, body }); } else { createM.mutate(body); }
+  }
+  const isSubmitting = createM.isPending || updateM.isPending;
+
+  return (
+    <>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
+          <Input placeholder="Search area, type, product..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Button onClick={() => { setEditing(null); setForm(EMPTY_CLEANING); setFormOpen(true); }} className="gap-2 shrink-0">
+          <Plus className="w-4 h-4" /> Add Record
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <div className="text-center py-16 px-6">
+            <div className="w-16 h-16 mx-auto rounded-full bg-primary/5 flex items-center justify-center mb-4">
+              <ShieldCheck className="w-8 h-8 text-primary/40" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground/80 mb-1">No cleaning records</h3>
+            <p className="text-foreground/50 text-sm">{search ? "No records match your search." : "Record cleaning and disinfection activities to maintain biosecurity standards."}</p>
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  {["Area", "Type", "Products", "Cleaned Date", "Cleaned By", "Next Due", "Verified By", ""].map(h => (
+                    <th key={h} className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(c => (
+                  <tr key={c.id} className="border-b border-border/50 hover:bg-black/[0.02] transition-colors">
+                    <td className="p-4 text-sm font-medium">{c.area}</td>
+                    <td className="p-4 text-sm text-foreground/70">{c.cleaningType}</td>
+                    <td className="p-4 text-sm text-foreground/70 max-w-[140px] truncate">{c.productsUsed || "—"}</td>
+                    <td className="p-4 text-sm text-foreground/70 whitespace-nowrap">{formatDate(c.cleanedDate)}</td>
+                    <td className="p-4 text-sm text-foreground/70">{c.cleanedBy || "—"}</td>
+                    <td className="p-4 text-sm">
+                      <div className="flex flex-col gap-1">
+                        {c.nextDueDate && <span className="text-foreground/70 whitespace-nowrap">{formatDate(c.nextDueDate)}</span>}
+                        {dueBadge(c.nextDueDate, "Due")}
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm text-foreground/70">{c.verifiedBy || "—"}</td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => openEdit(c)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-primary"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => setDeleteId(c.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/40 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_CLEANING); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-primary" />
+              {editing ? "Edit Cleaning Record" : "Add Cleaning Record"}
+            </DialogTitle>
+            <DialogDescription>Record cleaning and disinfection to maintain Red Tractor biosecurity standards.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Area / Location <span className="text-red-500">*</span></label>
+                <Input placeholder="e.g. Dairy parlour, Cattle shed 2" value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))} required />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaning Type <span className="text-red-500">*</span></label>
+                <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.cleaningType} onChange={e => setForm(f => ({ ...f, cleaningType: e.target.value }))} required>
+                  <option value="">Select type...</option>
+                  {CLEANING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaned Date <span className="text-red-500">*</span></label>
+                <Input type="date" value={form.cleanedDate} onChange={e => setForm(f => ({ ...f, cleanedDate: e.target.value }))} required />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaned By</label>
+                <Input placeholder="Name or contractor" value={form.cleanedBy} onChange={e => setForm(f => ({ ...f, cleanedBy: e.target.value }))} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Products Used</label>
+                <Input placeholder="e.g. Virkon S 1%, Stalosan F" value={form.productsUsed} onChange={e => setForm(f => ({ ...f, productsUsed: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Dilution Rate</label>
+                <Input placeholder="e.g. 1:100, 1%" value={form.dilutionRate} onChange={e => setForm(f => ({ ...f, dilutionRate: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Contact Time</label>
+                <Input placeholder="e.g. 30 minutes, overnight" value={form.contactTime} onChange={e => setForm(f => ({ ...f, contactTime: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Next Due Date</label>
+                <Input type="date" value={form.nextDueDate} onChange={e => setForm(f => ({ ...f, nextDueDate: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Verified By</label>
+                <Input placeholder="Supervisor / farm manager" value={form.verifiedBy} onChange={e => setForm(f => ({ ...f, verifiedBy: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
+              <Input placeholder="Additional notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); setForm(EMPTY_CLEANING); }}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                {editing ? "Update Record" : "Save Record"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete Cleaning Record</DialogTitle></DialogHeader>
+          <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId && deleteM.mutate(deleteId)} disabled={deleteM.isPending}>
+              {deleteM.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ─── Page ──────────────────────────────────────────────────────────────────────
+
+export default function BiosecurityPage({ defaultTab = "visitors" }: { defaultTab?: MainTab }) {
+  const { farmId } = useAppStore();
+  const [tab, setTab] = useState<MainTab>(defaultTab);
+  if (!farmId) return <Redirect href="/select" />;
+  return (
+    <AppLayout title="Biosecurity">
+      <TabBar className="mb-6">
+        <TabButton active={tab === "visitors"} onClick={() => setTab("visitors")}>Visitor Log</TabButton>
+        <TabButton active={tab === "pest-control"} onClick={() => setTab("pest-control")}>Pest Control</TabButton>
+        <TabButton active={tab === "cleaning"} onClick={() => setTab("cleaning")}>Cleaning &amp; Disinfection</TabButton>
+      </TabBar>
+      {tab === "visitors" && <VisitorTab farmId={farmId} />}
+      {tab === "pest-control" && <PestControlTab farmId={farmId} />}
+      {tab === "cleaning" && <CleaningTab farmId={farmId} />}
+    </AppLayout>
+  );
+}

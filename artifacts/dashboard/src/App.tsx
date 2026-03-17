@@ -26,6 +26,9 @@ import FarmSettingsPage from "@/pages/FarmSettings";
 import AppSettingsPage from "@/pages/SettingsPage";
 import StaffPage from "@/pages/Staff";
 import NotFound from "@/pages/not-found";
+import SoilTestsPage from "@/pages/SoilTestsPage";
+import BiosecurityPage from "@/pages/BiosecurityPage";
+import MedicinePageDedicated from "@/pages/MedicinePage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,18 +41,7 @@ const queryClient = new QueryClient({
 
 
 function SoilPage() {
-  return <ModulePage title="Soil Tests" apiPath="soil-tests" columns={[
-    { key: "sampleDate", label: "Sample Date" },
-    { key: "labReference", label: "Lab Reference" },
-    { key: "sampledBy", label: "Sampled By" },
-    { key: "status", label: "Status" },
-  ]} formFields={[
-    { key: "sampleDate", label: "Sample Date", type: "date", required: true },
-    { key: "labReference", label: "Lab Reference" },
-    { key: "sampledBy", label: "Sampled By", required: true },
-    { key: "status", label: "Status", type: "select", options: ["pending", "received", "analysed"] },
-    { key: "notes", label: "Notes", type: "textarea" },
-  ]} />;
+  return <SoilTestsPage />;
 }
 
 function InspectionsPage() {
@@ -104,54 +96,15 @@ function WastePage() {
 }
 
 function VisitorsPage() {
-  return <ModulePage title="Visitor & Contractor Log" apiPath="visitors" columns={[
-    { key: "visitorName", label: "Name" },
-    { key: "companyName", label: "Company" },
-    { key: "purpose", label: "Purpose" },
-    { key: "arrivalTime", label: "Arrived" },
-    { key: "departureTime", label: "Departed" },
-  ]} formFields={[
-    { key: "visitorName", label: "Visitor Name", required: true },
-    { key: "companyName", label: "Company" },
-    { key: "purpose", label: "Purpose of Visit", required: true },
-    { key: "vehicleReg", label: "Vehicle Reg" },
-    { key: "arrivalTime", label: "Arrival Time", type: "datetime-local", required: true },
-    { key: "biosecurityChecked", label: "Biosecurity Checked", type: "select", options: ["true", "false"] },
-  ]} />;
+  return <BiosecurityPage defaultTab="visitors" />;
 }
 
 function PestControlPage() {
-  return <ModulePage title="Pest Control" apiPath="pest-control" columns={[
-    { key: "pestType", label: "Pest Type" },
-    { key: "treatmentDate", label: "Date" },
-    { key: "treatmentMethod", label: "Method" },
-    { key: "location", label: "Location" },
-    { key: "conductedBy", label: "Conducted By" },
-  ]} formFields={[
-    { key: "pestType", label: "Pest Type", required: true },
-    { key: "treatmentDate", label: "Treatment Date", type: "date", required: true },
-    { key: "treatmentMethod", label: "Method", required: true },
-    { key: "location", label: "Location" },
-    { key: "conductedBy", label: "Conducted By", required: true },
-    { key: "notes", label: "Notes", type: "textarea" },
-  ]} />;
+  return <BiosecurityPage defaultTab="pest-control" />;
 }
 
 function CleaningPage() {
-  return <ModulePage title="Cleaning & Disinfection" apiPath="cleaning" columns={[
-    { key: "cleanedDate", label: "Date" },
-    { key: "area", label: "Area" },
-    { key: "method", label: "Method" },
-    { key: "cleanedBy", label: "Cleaned By" },
-    { key: "productUsed", label: "Product Used" },
-  ]} formFields={[
-    { key: "cleanedDate", label: "Cleaning Date", type: "date", required: true },
-    { key: "area", label: "Area/Location", required: true },
-    { key: "method", label: "Method", required: true },
-    { key: "cleanedBy", label: "Cleaned By", required: true },
-    { key: "productUsed", label: "Product Used" },
-    { key: "notes", label: "Notes", type: "textarea" },
-  ]} />;
+  return <BiosecurityPage defaultTab="cleaning" />;
 }
 
 function LivestockPage() {
@@ -160,20 +113,7 @@ function LivestockPage() {
 
 
 function MedicinePage() {
-  return <ModulePage title="Medicine Records" apiPath="medicine-records" columns={[
-    { key: "medicineName", label: "Medicine" },
-    { key: "administeredDate", label: "Date" },
-    { key: "administeredBy", label: "Given By" },
-    { key: "dosage", label: "Dosage" },
-    { key: "withdrawalEndDate", label: "Withdrawal End" },
-  ]} formFields={[
-    { key: "medicineName", label: "Medicine Name", required: true },
-    { key: "administeredDate", label: "Date Given", type: "date", required: true },
-    { key: "administeredBy", label: "Given By", required: true },
-    { key: "dosage", label: "Dosage", required: true },
-    { key: "batchNumber", label: "Batch Number" },
-    { key: "withdrawalDays", label: "Withdrawal Days", type: "number" },
-  ]} />;
+  return <MedicinePageDedicated />;
 }
 
 function TrainingPage() {
