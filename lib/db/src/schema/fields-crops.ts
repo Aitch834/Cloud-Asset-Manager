@@ -111,3 +111,21 @@ export const cropFinancialTransactionsTable = pgTable("crop_financial_transactio
   transactionDate: timestamp("transaction_date", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const seedDrillingRecordsTable = pgTable("seed_drilling_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  fieldId: integer("field_id").references(() => fieldsTable.id),
+  drillingDate: timestamp("drilling_date", { withTimezone: true }).notNull(),
+  cropName: text("crop_name").notNull(),
+  variety: text("variety"),
+  seedLotNumber: text("seed_lot_number"),
+  seedRate: numeric("seed_rate", { precision: 10, scale: 2 }),
+  seedRateUnit: text("seed_rate_unit"),
+  isTreated: boolean("is_treated").notNull().default(false),
+  treatmentProduct: text("treatment_product"),
+  operator: text("operator"),
+  areaSeededHa: numeric("area_seeded_ha", { precision: 10, scale: 4 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

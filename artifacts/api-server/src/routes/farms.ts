@@ -25,6 +25,9 @@ import {
   livestockMedicineRecordsTable,
   livestockFeedRecordsTable,
   livestockWaterRecordsTable,
+  livestockMortalityTable,
+  vetHealthPlansTable,
+  seedDrillingRecordsTable,
   visitorContractorLogTable,
   pestControlRecordsTable,
   cleaningDisinfectionRecordsTable,
@@ -2417,6 +2420,84 @@ router.get("/farms/:farmId/compliance-export", requireAuth, requireTenant, async
   }
 
   res.json(exportData);
+});
+
+router.get("/farms/:farmId/mortality-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(livestockMortalityTable).where(eq(livestockMortalityTable.farmId, farmId)).orderBy(desc(livestockMortalityTable.dateOfDeath));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/mortality-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await db.insert(livestockMortalityTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/mortality-records/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const recordId = Number(req.params.recordId);
+  const [record] = await db.update(livestockMortalityTable).set(req.body).where(and(eq(livestockMortalityTable.id, recordId), eq(livestockMortalityTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/mortality-records/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const recordId = Number(req.params.recordId);
+  await db.delete(livestockMortalityTable).where(and(eq(livestockMortalityTable.id, recordId), eq(livestockMortalityTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/vet-health-plans", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(vetHealthPlansTable).where(eq(vetHealthPlansTable.farmId, farmId)).orderBy(desc(vetHealthPlansTable.planYear));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/vet-health-plans", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await db.insert(vetHealthPlansTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/vet-health-plans/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const recordId = Number(req.params.recordId);
+  const [record] = await db.update(vetHealthPlansTable).set(req.body).where(and(eq(vetHealthPlansTable.id, recordId), eq(vetHealthPlansTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/vet-health-plans/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const recordId = Number(req.params.recordId);
+  await db.delete(vetHealthPlansTable).where(and(eq(vetHealthPlansTable.id, recordId), eq(vetHealthPlansTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/seed-drilling", requireAuth, requireTenant, requireModuleByKey("crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const records = await db.select().from(seedDrillingRecordsTable).where(eq(seedDrillingRecordsTable.farmId, farmId)).orderBy(desc(seedDrillingRecordsTable.drillingDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/seed-drilling", requireAuth, requireTenant, requireModuleByKey("crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const [record] = await db.insert(seedDrillingRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/seed-drilling/:recordId", requireAuth, requireTenant, requireModuleByKey("crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const recordId = Number(req.params.recordId);
+  const [record] = await db.update(seedDrillingRecordsTable).set(req.body).where(and(eq(seedDrillingRecordsTable.id, recordId), eq(seedDrillingRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/seed-drilling/:recordId", requireAuth, requireTenant, requireModuleByKey("crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const recordId = Number(req.params.recordId);
+  await db.delete(seedDrillingRecordsTable).where(and(eq(seedDrillingRecordsTable.id, recordId), eq(seedDrillingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 export default router;
