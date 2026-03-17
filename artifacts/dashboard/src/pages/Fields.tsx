@@ -662,7 +662,10 @@ export default function FieldsPage() {
 
       {/* ── FIELD HISTORY DIALOG ── */}
       <Dialog open={!!selectedFieldForHistory} onOpenChange={(o) => { if (!o) setSelectedFieldForHistory(null); }}>
-        <DialogContent className="max-w-lg p-0 flex flex-col max-h-[85vh] overflow-hidden gap-0">
+        <DialogContent className="max-w-lg p-0 flex flex-col max-h-[85vh] overflow-hidden gap-0" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">
+            {selectedFieldForHistory?.name || `Field #${selectedFieldForHistory?.id}`} — Field Details
+          </DialogTitle>
           {selectedFieldForHistory && (() => {
             const f = selectedFieldForHistory;
             const fieldAssignments = assignments
@@ -672,15 +675,15 @@ export default function FieldsPage() {
             return (
               <>
               {/* header */}
-              <div className="bg-gradient-to-br from-green-100 to-emerald-50 border-b border-border/50 px-6 pt-5 pb-4 flex-shrink-0">
-                <div className="pr-6">
+              <div className="bg-gradient-to-br from-green-100 to-emerald-50 border-b border-border/50 px-8 pt-6 pb-4 flex-shrink-0 rounded-t-2xl">
+                <div className="pr-8">
                   <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Field Details</p>
                   <h2 className="text-xl font-bold text-foreground leading-tight">{f.name || `Field #${f.id}`}</h2>
                   {f.fieldReference && (
                     <p className="text-xs text-foreground/50 mt-0.5">Ref: {f.fieldReference}</p>
                   )}
                 </div>
-                {/* drawer tabs */}
+                {/* tabs */}
                 <div className="flex gap-1 mt-4">
                   {(["overview", "history", "nmp"] as const).map(t => (
                     <button
@@ -871,17 +874,22 @@ export default function FieldsPage() {
                         <p className="text-foreground/40 text-sm">No crop history recorded yet.</p>
                       </div>
                     ) : (
-                      <div className="relative">
-                        {/* vertical timeline line */}
-                        <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-border" />
-                        <div className="space-y-6 pl-12">
-                          {fieldAssignments.map((a, i) => (
-                            <div key={a.id} className="relative">
-                              {/* dot */}
-                              <div className={`absolute -left-8 top-1 w-3 h-3 rounded-full border-2 ${i === 0 && a.year === CURRENT_YEAR ? "bg-green-600 border-green-600" : "bg-white border-border"}`} />
-                              <div className={`rounded-xl border p-4 ${i === 0 && a.year === CURRENT_YEAR ? "border-green-200 bg-green-50" : "border-border/50 bg-white"}`}>
+                      <div className="space-y-3">
+                        {fieldAssignments.map((a, i) => {
+                          const isCurrent = i === 0 && a.year === CURRENT_YEAR;
+                          return (
+                            <div key={a.id} className="flex items-start gap-3">
+                              {/* dot + connecting line */}
+                              <div className="flex flex-col items-center flex-shrink-0 pt-1.5">
+                                <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${isCurrent ? "bg-green-600 border-green-600" : "bg-white border-border"}`} />
+                                {i < fieldAssignments.length - 1 && (
+                                  <div className="w-0.5 flex-1 bg-border mt-1" style={{ minHeight: "24px" }} />
+                                )}
+                              </div>
+                              {/* card */}
+                              <div className={`flex-1 rounded-xl border p-4 mb-0 ${isCurrent ? "border-green-200 bg-green-50" : "border-border/50 bg-black/[0.01]"}`}>
                                 <div className="flex items-center justify-between mb-2">
-                                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${i === 0 && a.year === CURRENT_YEAR ? "bg-green-700 text-white" : "bg-black/5 text-foreground/70"}`}>
+                                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${isCurrent ? "bg-green-700 text-white" : "bg-black/5 text-foreground/70"}`}>
                                     <Wheat className="w-3 h-3" />
                                     {a.cropName}
                                   </span>
@@ -903,8 +911,8 @@ export default function FieldsPage() {
                                 )}
                               </div>
                             </div>
-                          ))}
-                        </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
