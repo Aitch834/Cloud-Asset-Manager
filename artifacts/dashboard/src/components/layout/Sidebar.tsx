@@ -27,6 +27,7 @@ import {
   HelpCircle,
   FlaskConical,
   LifeBuoy,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -79,6 +80,7 @@ const otherNav: NavItem[] = [
   { name: "Haulage", href: "/haulage", icon: Truck, moduleKeys: ["haulage-transport"] },
   { name: "Documents", href: "/documents", icon: FileText, moduleKeys: ["document-management"] },
   { name: "Weather", href: "/weather", icon: CloudSun, moduleKeys: ["weather-tracking"] },
+  { name: "Harvest Dashboard", href: "/harvest-dashboard", icon: BarChart3, moduleKeys: ["field-crop-management"] },
 ];
 
 const bottomNav: NavItem[] = [
