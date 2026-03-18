@@ -119,4 +119,12 @@ export const STORAGE_KEYS = {
   PENDING_SYNC: "bde_pending_sync",
   USER_PROFILE: "bde_user_profile",
   FARM_LIST: "bde_farm_list",
+  MEDICINE_RECORDS: "bde_medicine_records",
+  LIVESTOCK_CHECKS: "bde_livestock_checks",
+  LIVESTOCK_MOVEMENTS: "bde_livestock_movements",
+  HARVEST_RECORDS: "bde_harvest_records",
+  NVZ_APPLICATIONS: "bde_nvz_applications",
+  EQUIPMENT_DEFECTS: "bde_equipment_defects",
+  PEST_CONTROL_VISITS: "bde_pest_control_visits",
+  FIELD_INSPECTIONS: "bde_field_inspections",
 } as const;

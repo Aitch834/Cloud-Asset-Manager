@@ -96,6 +96,14 @@ const TABLE_MAP: Record<string, string> = {
   bde_field_boundaries: "field_boundaries",
   bde_compliance_forms: "compliance_forms",
   bde_photos: "photos",
+  bde_medicine_records: "medicine_records",
+  bde_livestock_checks: "livestock_checks",
+  bde_livestock_movements: "livestock_movements",
+  bde_harvest_records: "harvest_records",
+  bde_nvz_applications: "nvz_applications",
+  bde_equipment_defects: "equipment_defects",
+  bde_pest_control_visits: "pest_control_visits",
+  bde_field_inspections: "field_inspections",
 };
 
 export function getTableForKey(key: string): string | null {

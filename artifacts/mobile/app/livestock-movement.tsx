@@ -1,0 +1,295 @@
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { colors } from "@/constants/colors";
+import { radius, spacing } from "@/constants/spacing";
+import { fonts, fontSize } from "@/constants/typography";
+import { useFarm } from "@/lib/context/FarmContext";
+import { useSync } from "@/lib/context/SyncContext";
+import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import type { LivestockMovement } from "@/lib/types";
+
+type MovType = LivestockMovement["movementType"];
+
+const MOVEMENT_TYPES: { key: MovType; label: string; icon: keyof typeof Feather.glyphMap; color: string }[] = [
+  { key: "on", label: "On to Farm", icon: "arrow-down-circle", color: colors.success },
+  { key: "off", label: "Off Farm", icon: "arrow-up-circle", color: colors.error },
+  { key: "between", label: "Between Holdings", icon: "repeat", color: colors.info },
+];
+
+const SPECIES_OPTIONS = ["Cattle", "Sheep", "Pigs", "Goats", "Deer", "Horses", "Poultry", "Other"];
+
+export default function LivestockMovementScreen() {
+  const insets = useSafeAreaInsets();
+  const { currentFarm, user: _user } = useFarm();
+  const { refreshPendingCount } = useSync();
+  const [saving, setSaving] = useState(false);
+
+  const [herdName, setHerdName] = useState("");
+  const [species, setSpecies] = useState("");
+  const [animalCount, setAnimalCount] = useState("");
+  const [movementType, setMovementType] = useState<MovType>("off");
+  const [fromLocation, setFromLocation] = useState("");
+  const [toLocation, setToLocation] = useState("");
+  const [movementRef, setMovementRef] = useState("");
+  const [transporterName, setTransporterName] = useState("");
+  const [vehicleReg, setVehicleReg] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const handleSave = async () => {
+    if (!animalCount.trim() || !fromLocation.trim() || !toLocation.trim()) {
+      Alert.alert("Required Fields", "Please enter animal count, from location and to location.");
+      return;
+    }
+
+    setSaving(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    let latitude: number | undefined;
+    let longitude: number | undefined;
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        latitude = loc.coords.latitude;
+        longitude = loc.coords.longitude;
+      }
+    } catch (locErr: unknown) {
+      console.warn("Location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
+    }
+
+    const record: LivestockMovement = {
+      id: generateId(),
+      farmId: currentFarm?.id || "",
+      herdName: herdName.trim(),
+      species,
+      animalCount: animalCount.trim(),
+      movementType,
+      fromLocation: fromLocation.trim(),
+      toLocation: toLocation.trim(),
+      movementDate: new Date().toISOString(),
+      movementRef: movementRef.trim(),
+      transporterName: transporterName.trim(),
+      vehicleReg: vehicleReg.trim(),
+      notes: notes.trim(),
+      latitude,
+      longitude,
+      createdAt: new Date().toISOString(),
+      synced: false,
+    };
+
+    await appendToList(STORAGE_KEYS.LIVESTOCK_MOVEMENTS, record);
+    await refreshPendingCount();
+    setSaving(false);
+    Alert.alert("Saved", "Livestock movement recorded successfully.", [
+      { text: "OK", onPress: () => router.back() },
+    ]);
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Button title="" icon="arrow-left" variant="ghost" size="sm" onPress={() => router.back()} />
+        <Text style={styles.title}>Livestock Movement</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.flex}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.form}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.sectionLabel}>
+            <Feather name="repeat" size={14} color={colors.info} />
+            <Text style={styles.sectionTitle}>Movement Type</Text>
+          </View>
+          <View style={styles.chipRow}>
+            {MOVEMENT_TYPES.map((m) => (
+              <Pressable
+                key={m.key}
+                onPress={() => { Haptics.selectionAsync(); setMovementType(m.key); }}
+                style={[
+                  styles.chip,
+                  movementType === m.key && { backgroundColor: m.color, borderColor: m.color },
+                ]}
+              >
+                <Feather
+                  name={m.icon}
+                  size={15}
+                  color={movementType === m.key ? colors.textInverse : m.color}
+                />
+                <Text style={[styles.chipText, movementType === m.key && { color: colors.textInverse }]}>
+                  {m.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.sectionLabel}>
+            <Feather name="users" size={14} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Animal Details</Text>
+          </View>
+          <Input
+            label="Herd / Group Name (optional)"
+            placeholder="e.g. Spring calves"
+            value={herdName}
+            onChangeText={setHerdName}
+          />
+          <View style={styles.sectionLabel}>
+            <Feather name="tag" size={14} color={colors.textSecondary} />
+            <Text style={styles.sectionTitle}>Species</Text>
+          </View>
+          <View style={styles.chipRow}>
+            {SPECIES_OPTIONS.map((s) => (
+              <Pressable
+                key={s}
+                onPress={() => { Haptics.selectionAsync(); setSpecies(s); }}
+                style={[
+                  styles.chip,
+                  species === s && { backgroundColor: colors.primary, borderColor: colors.primary },
+                ]}
+              >
+                <Text style={[styles.chipText, species === s && { color: colors.textInverse }]}>{s}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Input
+            label="Number of Animals"
+            placeholder="e.g. 24"
+            value={animalCount}
+            onChangeText={setAnimalCount}
+            keyboardType="number-pad"
+            required
+          />
+
+          <View style={styles.sectionLabel}>
+            <Feather name="map-pin" size={14} color={colors.fieldBrown} />
+            <Text style={styles.sectionTitle}>Location</Text>
+          </View>
+          <Input
+            label="From Location / CPH"
+            placeholder="e.g. Home farm CPH 12/345/6789"
+            value={fromLocation}
+            onChangeText={setFromLocation}
+            required
+          />
+          <Input
+            label="To Location / CPH"
+            placeholder="e.g. Market / abattoir CPH"
+            value={toLocation}
+            onChangeText={setToLocation}
+            required
+          />
+
+          <View style={styles.sectionLabel}>
+            <Feather name="truck" size={14} color={colors.textSecondary} />
+            <Text style={styles.sectionTitle}>Transport & Reference</Text>
+          </View>
+          <Input
+            label="Movement Reference / AML No."
+            placeholder="e.g. AML2-12345"
+            value={movementRef}
+            onChangeText={setMovementRef}
+          />
+          <Input
+            label="Transporter Name"
+            placeholder="e.g. Smith Haulage"
+            value={transporterName}
+            onChangeText={setTransporterName}
+          />
+          <Input
+            label="Vehicle Registration"
+            placeholder="e.g. AB12 CDE"
+            value={vehicleReg}
+            onChangeText={setVehicleReg}
+          />
+          <Input
+            label="Notes"
+            placeholder="Any additional notes..."
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={2}
+          />
+
+          <Button
+            title="Save Movement Record"
+            onPress={handleSave}
+            loading={saving}
+            fullWidth
+            icon="check"
+          />
+
+          <View style={{ height: insets.bottom + spacing.xxxl }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text },
+  form: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  sectionLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+    marginTop: spacing.sm,
+  },
+  sectionTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+});

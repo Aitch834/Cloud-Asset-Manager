@@ -262,6 +262,14 @@ function getSyncEndpoint(recordType: string, farmId: string): string | null {
     bde_field_boundaries: `/farms/${farmId}/fields`,
     bde_compliance_forms: `/farms/${farmId}/documents`,
     bde_photos: `/farms/${farmId}/documents`,
+    bde_medicine_records: `/farms/${farmId}/medicine-records`,
+    bde_livestock_checks: `/farms/${farmId}/documents`,
+    bde_livestock_movements: `/farms/${farmId}/movements`,
+    bde_harvest_records: `/farms/${farmId}/crops`,
+    bde_nvz_applications: `/farms/${farmId}/nvz-applications`,
+    bde_equipment_defects: `/farms/${farmId}/documents`,
+    bde_pest_control_visits: `/farms/${farmId}/documents`,
+    bde_field_inspections: `/farms/${farmId}/documents`,
   };
   return typeMap[recordType] || null;
 }

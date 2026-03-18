@@ -159,6 +159,160 @@ export interface PhotoRecord {
   synced: boolean;
 }
 
+export interface MedicineRecord {
+  id: string;
+  farmId: string;
+  herdName: string;
+  animalId: string;
+  medicineName: string;
+  batchNumber: string;
+  dosage: string;
+  dosageUnit: string;
+  administrationRoute: string;
+  administeredBy: string;
+  administeredDate: string;
+  withdrawalPeriodDays: string;
+  withdrawalEndDate: string;
+  reason: string;
+  vetName: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface LivestockCheck {
+  id: string;
+  farmId: string;
+  herdName: string;
+  checkDate: string;
+  checkedBy: string;
+  overallCondition: "excellent" | "good" | "fair" | "poor";
+  sickCount: string;
+  mortalityCount: string;
+  feedOk: boolean;
+  waterOk: boolean;
+  shelterOk: boolean;
+  actionTaken: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface LivestockMovement {
+  id: string;
+  farmId: string;
+  herdName: string;
+  species: string;
+  animalCount: string;
+  movementType: "on" | "off" | "between";
+  fromLocation: string;
+  toLocation: string;
+  movementDate: string;
+  movementRef: string;
+  transporterName: string;
+  vehicleReg: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface HarvestRecord {
+  id: string;
+  farmId: string;
+  fieldName: string;
+  cropType: string;
+  harvestDate: string;
+  startTime: string;
+  endTime: string;
+  yieldAmount: string;
+  yieldUnit: string;
+  moisturePercent: string;
+  grainQualityNotes: string;
+  trailerVehicleNumber: string;
+  storageDestination: string;
+  operatorName: string;
+  equipmentUsed: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface NvzApplication {
+  id: string;
+  farmId: string;
+  fieldName: string;
+  applicationDate: string;
+  productName: string;
+  productType: string;
+  nitrogenKgHa: string;
+  areaAppliedHa: string;
+  applicationMethod: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface EquipmentDefect {
+  id: string;
+  farmId: string;
+  equipmentName: string;
+  reportedDate: string;
+  reportedBy: string;
+  defectDescription: string;
+  severity: "minor" | "major" | "unsafe";
+  actionTaken: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PestControlVisit {
+  id: string;
+  farmId: string;
+  location: string;
+  visitDate: string;
+  pestType: string;
+  activityObserved: string;
+  actionTaken: string;
+  baitUsed: string;
+  carriedOutBy: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface FieldInspection {
+  id: string;
+  farmId: string;
+  fieldName: string;
+  inspectionDate: string;
+  cropType: string;
+  growthStage: string;
+  pestDiseaseObservations: string;
+  actionRequired: "none" | "monitor" | "treat" | "urgent";
+  recommendedAction: string;
+  inspector: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface SyncQueueItem {
   id: string;
   type: string;
