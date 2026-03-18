@@ -58,10 +58,12 @@ import {
   weatherReadingsTable,
   subscriptionsTable,
   modulesTable,
+  tenantsTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte } from "drizzle-orm";
 import { createNonconformanceNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
+import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 
 const router: IRouter = Router();
 
@@ -2799,6 +2801,177 @@ router.delete("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requir
   await db.delete(biofuelDeliveriesTable).where(and(eq(biofuelDeliveriesTable.id, recordId), eq(biofuelDeliveriesTable.farmId, farmId)));
   res.json({ success: true });
 });
+
+// ─── Biofuel PDF: Sustainability Declaration ─────────────────────────────────
+
+router.get(
+  "/farms/:farmId/biofuel/deliveries/:deliveryId/sustainability-declaration.pdf",
+  requireAuth, requireTenant,
+  async (req: Request, res: Response): Promise<void> => {
+    const farmId = await validateFarmAccess(req, res);
+    if (!farmId) return;
+
+    const deliveryId = Number(req.params.deliveryId);
+    const tenantId = (req as any).tenantId as number;
+
+    const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+    if (!farm) { res.status(404).json({ error: "Farm not found" }); return; }
+
+    const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
+
+    const [delivery] = await db.select().from(biofuelDeliveriesTable)
+      .where(and(eq(biofuelDeliveriesTable.id, deliveryId), eq(biofuelDeliveriesTable.farmId, farmId)))
+      .limit(1);
+    if (!delivery) { res.status(404).json({ error: "Delivery not found" }); return; }
+
+    const certs = await db.select().from(biofuelCertificationsTable)
+      .where(and(eq(biofuelCertificationsTable.farmId, farmId), eq(biofuelCertificationsTable.status, "active")))
+      .limit(1);
+
+    const farmInfo = {
+      name: farm.name,
+      address: farm.address,
+      postcode: farm.postcode,
+      cphNumber: farm.cphNumber,
+      sbiNumber: (farm as any).sbiNumber ?? null,
+      farmManager: (farm as any).farmManager ?? null,
+      tenantName: tenant?.name ?? farm.name,
+      tenantEmail: tenant?.contactEmail ?? "",
+    };
+
+    const pdf = await generateSustainabilityDeclaration(farmInfo, {
+      id: delivery.id,
+      deliveryDate: delivery.deliveryDate.toISOString(),
+      buyerName: delivery.buyerName,
+      buyerRtfoRef: delivery.buyerRtfoRef,
+      cropType: delivery.cropType,
+      quantityTonnes: delivery.quantityTonnes ?? undefined,
+      fieldNames: delivery.fieldNames ?? [],
+      certificationRef: delivery.certificationRef,
+      sustainabilityDeclarationRef: delivery.sustainabilityDeclarationRef,
+      sustainabilityScheme: delivery.sustainabilityScheme,
+      ghgSavingPercent: delivery.ghgSavingPercent ?? undefined,
+      notes: delivery.notes,
+    }, certs[0] ? {
+      scheme: certs[0].scheme,
+      certificationNumber: certs[0].certificationNumber,
+      issuingBody: certs[0].issuingBody,
+      issueDate: certs[0].issueDate?.toISOString(),
+      expiryDate: certs[0].expiryDate?.toISOString(),
+      status: certs[0].status,
+      rtfoOperatorNumber: certs[0].rtfoOperatorNumber,
+    } : null);
+
+    const slug = farm.name.replace(/[^a-z0-9]+/gi, "-");
+    const dateStr = delivery.deliveryDate.toISOString().split("T")[0];
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="Sustainability-Declaration-${slug}-${dateStr}.pdf"`,
+      "Content-Length": String(pdf.length),
+    });
+    res.send(pdf);
+  }
+);
+
+// ─── Biofuel PDF: Audit Pack ──────────────────────────────────────────────────
+
+router.get(
+  "/farms/:farmId/biofuel/audit-pack.pdf",
+  requireAuth, requireTenant,
+  async (req: Request, res: Response): Promise<void> => {
+    const farmId = await validateFarmAccess(req, res);
+    if (!farmId) return;
+
+    const tenantId = (req as any).tenantId as number;
+
+    const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+    if (!farm) { res.status(404).json({ error: "Farm not found" }); return; }
+
+    const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
+
+    const [allCerts, allFields, allDeliveries] = await Promise.all([
+      db.select().from(biofuelCertificationsTable).where(eq(biofuelCertificationsTable.farmId, farmId)).orderBy(desc(biofuelCertificationsTable.createdAt)),
+      db.select().from(biofuelFieldDeclarationsTable).where(eq(biofuelFieldDeclarationsTable.farmId, farmId)).orderBy(biofuelFieldDeclarationsTable.fieldName),
+      db.select().from(biofuelDeliveriesTable).where(eq(biofuelDeliveriesTable.farmId, farmId)).orderBy(desc(biofuelDeliveriesTable.deliveryDate)),
+    ]);
+
+    const [nvzApps, sprayApps, harvestRecs, deliverySummary] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int`, total: sql<string>`coalesce(sum(total_nitrogen_kg), 0)::text` }).from(nvzFertiliserApplicationsTable).where(eq(nvzFertiliserApplicationsTable.farmId, farmId)),
+      db.select({ count: sql<number>`count(*)::int` }).from(sprayApplicationsTable).where(eq(sprayApplicationsTable.farmId, farmId)),
+      db.select({ count: sql<number>`count(*)::int`, total: sql<string>`coalesce(sum(yield_tonnes), 0)::text` }).from(harvestRecordsTable).where(eq(harvestRecordsTable.farmId, farmId)),
+      db.select({ count: sql<number>`count(*)::int`, total: sql<string>`coalesce(sum(quantity_tonnes), 0)::text` }).from(biofuelDeliveriesTable).where(eq(biofuelDeliveriesTable.farmId, farmId)),
+    ]);
+
+    const farmInfo = {
+      name: farm.name,
+      address: farm.address,
+      postcode: farm.postcode,
+      cphNumber: farm.cphNumber,
+      sbiNumber: (farm as any).sbiNumber ?? null,
+      farmManager: (farm as any).farmManager ?? null,
+      tenantName: tenant?.name ?? farm.name,
+      tenantEmail: tenant?.contactEmail ?? "",
+    };
+
+    const year = new Date().getFullYear();
+    const periodLabel = req.query.period as string || `${year} Audit Period`;
+
+    const pdf = await generateAuditPack(
+      farmInfo,
+      allCerts.map(c => ({
+        scheme: c.scheme,
+        certificationNumber: c.certificationNumber,
+        issuingBody: c.issuingBody,
+        issueDate: c.issueDate?.toISOString(),
+        expiryDate: c.expiryDate?.toISOString(),
+        status: c.status,
+        rtfoOperatorNumber: c.rtfoOperatorNumber,
+      })),
+      allFields.map(f => ({
+        fieldName: f.fieldName,
+        landUseIn2008: f.landUseIn2008,
+        eligibilityStatus: f.eligibilityStatus,
+        convertedAfter2008: f.convertedAfter2008,
+        highCarbonStockRisk: f.highCarbonStockRisk,
+        highBiodiversityRisk: f.highBiodiversityRisk,
+        declarationDate: f.declarationDate?.toISOString(),
+        declaredBy: f.declaredBy,
+      })),
+      allDeliveries.map(d => ({
+        id: d.id,
+        deliveryDate: d.deliveryDate.toISOString(),
+        buyerName: d.buyerName,
+        buyerRtfoRef: d.buyerRtfoRef,
+        cropType: d.cropType,
+        quantityTonnes: d.quantityTonnes ?? undefined,
+        fieldNames: d.fieldNames ?? [],
+        certificationRef: d.certificationRef,
+        sustainabilityDeclarationRef: d.sustainabilityDeclarationRef,
+        sustainabilityScheme: d.sustainabilityScheme,
+        ghgSavingPercent: d.ghgSavingPercent ?? undefined,
+        notes: d.notes,
+      })),
+      {
+        nvzApplicationCount: nvzApps[0]?.count ?? 0,
+        totalNitrogenKgHa: nvzApps[0]?.total ?? "0",
+        sprayApplicationCount: sprayApps[0]?.count ?? 0,
+        harvestRecordCount: harvestRecs[0]?.count ?? 0,
+        totalHarvestTonnes: harvestRecs[0]?.total ?? "0",
+        biofuelDeliveryCount: deliverySummary[0]?.count ?? 0,
+        totalBiofuelTonnes: deliverySummary[0]?.total ?? "0",
+      },
+      periodLabel,
+    );
+
+    const slug = farm.name.replace(/[^a-z0-9]+/gi, "-");
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="RTFO-Audit-Pack-${slug}-${year}.pdf"`,
+      "Content-Length": String(pdf.length),
+    });
+    res.send(pdf);
+  }
+);
 
 // ─── RTFO Buyers ──────────────────────────────────────────────────────────────
 

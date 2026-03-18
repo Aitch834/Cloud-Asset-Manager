@@ -18,6 +18,8 @@ import {
   Building2,
   Phone,
   Mail,
+  FileText,
+  Download,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -146,6 +148,8 @@ export default function BiofuelPage() {
   const [editingField, setEditingField] = useState<FieldDeclaration | null>(null);
   const [editingDelivery, setEditingDelivery] = useState<Delivery | null>(null);
   const [editingBuyer, setEditingBuyer] = useState<Buyer | null>(null);
+  const [declarationDownloading, setDeclarationDownloading] = useState<number | null>(null);
+  const [auditPackDownloading, setAuditPackDownloading] = useState(false);
 
   const certsQ = useQuery<{ records: Certification[] }>({
     queryKey: ["biofuel-certs", farmId],
@@ -249,6 +253,48 @@ export default function BiofuelPage() {
     onSuccess: () => { invalidate(); toast({ title: "Buyer removed" }); },
   });
 
+  const handleDeclarationDownload = async (delivery: Delivery) => {
+    setDeclarationDownloading(delivery.id);
+    try {
+      const res = await fetch(`/api/farms/${farmId}/biofuel/deliveries/${delivery.id}/sustainability-declaration.pdf`);
+      if (!res.ok) throw new Error("Failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const match = cd.match(/filename="([^"]+)"/);
+      a.download = match?.[1] ?? `Sustainability-Declaration-${delivery.id}.pdf`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Could not download declaration", variant: "destructive" });
+    } finally {
+      setDeclarationDownloading(null);
+    }
+  };
+
+  const handleAuditPackDownload = async () => {
+    setAuditPackDownloading(true);
+    try {
+      const res = await fetch(`/api/farms/${farmId}/biofuel/audit-pack.pdf`);
+      if (!res.ok) throw new Error("Failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const match = cd.match(/filename="([^"]+)"/);
+      a.download = match?.[1] ?? "RTFO-Audit-Pack.pdf";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Could not download audit pack", variant: "destructive" });
+    } finally {
+      setAuditPackDownloading(false);
+    }
+  };
+
   const certs = certsQ.data?.records ?? [];
   const fields = fieldsQ.data?.records ?? [];
   const deliveries = deliveriesQ.data?.records ?? [];
@@ -313,6 +359,21 @@ export default function BiofuelPage() {
 
         {activeTab === "overview" && (
           <div>
+            {/* Audit Pack export button */}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAuditPackDownload}
+                disabled={auditPackDownloading}
+                style={{ display: "flex", alignItems: "center", gap: 6 }}
+              >
+                {auditPackDownloading
+                  ? <><span className="animate-spin mr-1">⏳</span> Generating…</>
+                  : <><Download size={14} /> Export Audit Pack</>
+                }
+              </Button>
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
               {[
                 { label: "Active Certification", value: activeCert ? activeCert.scheme : "None", sub: activeCert ? certStatusBadge(activeCert) : <Badge className="bg-red-100 text-red-700">Not Certified</Badge>, icon: Award, color: "#16a34a" },
@@ -602,7 +663,21 @@ export default function BiofuelPage() {
                       {d.sustainabilityScheme && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Scheme: {d.sustainabilityScheme}</div>}
                       {d.ghgSavingPercent && <div style={{ fontSize: 12, color: "#16a34a", marginTop: 2 }}>GHG saving: {d.ghgSavingPercent}%</div>}
                     </div>
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        title="Download Sustainability Declaration PDF"
+                        disabled={declarationDownloading === d.id}
+                        onClick={() => handleDeclarationDownload(d)}
+                        style={{ display: "flex", alignItems: "center", gap: 5, color: "#16a34a", borderColor: "#16a34a" }}
+                      >
+                        {declarationDownloading === d.id
+                          ? <span className="animate-spin" style={{ fontSize: 11 }}>⏳</span>
+                          : <FileText size={13} />
+                        }
+                        <span style={{ fontSize: 12 }}>{declarationDownloading === d.id ? "Generating…" : "Declaration"}</span>
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => { setEditingDelivery(d); setDeliveryDialog(true); }}><Edit size={14} /></Button>
                       <Button size="sm" variant="outline" style={{ color: "#dc2626" }} onClick={() => { if (confirm("Delete this delivery?")) deleteDeliveryMut.mutate(d.id); }}><Trash2 size={14} /></Button>
                     </div>
