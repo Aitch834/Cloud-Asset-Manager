@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { requireAuth, requireTenant, requireClientAdmin } from "../middlewares/roleMiddleware";
 import Stripe from "stripe";
 import express from "express";
+import { sendSetupGuideEmail } from "../lib/mailer";
 
 function getStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -162,6 +163,37 @@ router.post("/billing/webhook", express.raw({ type: "application/json" }), async
           stripeSubscriptionId: session.subscription as string,
           status: "active",
         });
+      }
+
+      // Send personalised setup guide email to the customer
+      try {
+        const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
+        const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+        const modules = await db
+          .select({ key: modulesTable.key })
+          .from(modulesTable)
+          .where(and(...moduleIds.map((id) => eq(modulesTable.id, id))));
+
+        if (tenant && farm) {
+          const result = await sendSetupGuideEmail({
+            tenantName: tenant.name,
+            tenantEmail: tenant.contactEmail,
+            farmName: farm.name,
+            cphNumber: farm.cphNumber ?? undefined,
+            redTractorId: (farm as any).redTractorId ?? undefined,
+            farmManager: (farm as any).farmManager ?? undefined,
+            postcode: farm.postcode ?? undefined,
+            moduleKeys: modules.map((m) => m.key),
+            generatedAt: new Date(),
+          });
+          if (result.sent) {
+            console.log(`[BILLING] Setup guide emailed to ${tenant.contactEmail} on purchase`);
+          } else {
+            console.warn(`[BILLING] Setup guide email skipped: ${result.reason}`);
+          }
+        }
+      } catch (emailErr) {
+        console.error("[BILLING] Setup guide email error (non-fatal):", emailErr);
       }
     }
   }

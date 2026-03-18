@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { api, type Tenant, type Farm, type Subscription, type TenantUser } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
-import { ArrowLeft, MapPin, CreditCard, Users, CheckCircle, XCircle, Building2, FileDown, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Users, CheckCircle, XCircle, Building2, FileDown, Loader2, Mail, MailCheck } from "lucide-react";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -46,6 +46,8 @@ export default function CustomerDetail() {
   const [loading, setLoading] = useState(true);
   const [downloadingFarmId, setDownloadingFarmId] = useState<number | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [emailingFarmId, setEmailingFarmId] = useState<number | null>(null);
+  const [emailResult, setEmailResult] = useState<{ farmId: number; success: boolean; to?: string } | null>(null);
 
   useEffect(() => {
     api.getTenantDetail(tenantId, secret)
@@ -58,6 +60,19 @@ export default function CustomerDetail() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [tenantId]);
+
+  const handleSendEmail = async (farm: Farm) => {
+    setEmailingFarmId(farm.id);
+    setEmailResult(null);
+    try {
+      const result = await api.sendSetupGuide(tenantId, farm.id, secret);
+      setEmailResult({ farmId: farm.id, success: result.sent, to: result.to });
+    } catch {
+      setEmailResult({ farmId: farm.id, success: false });
+    } finally {
+      setEmailingFarmId(null);
+    }
+  };
 
   const handleDownloadGuide = async (farm: Farm) => {
     setDownloadingFarmId(farm.id);
@@ -179,18 +194,52 @@ export default function CustomerDetail() {
                       </p>
                     )}
                   </div>
-                  <button
-                    onClick={() => handleDownloadGuide(farm)}
-                    disabled={isDownloading}
-                    title="Download tailored setup guide PDF"
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-3 py-1.5 hover:bg-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 mt-0.5"
-                  >
-                    {isDownloading
-                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      : <FileDown className="w-3.5 h-3.5" />
-                    }
-                    {isDownloading ? "Generating…" : "Setup Guide"}
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                    {/* Download PDF */}
+                    <button
+                      onClick={() => handleDownloadGuide(farm)}
+                      disabled={isDownloading}
+                      title="Download tailored setup guide PDF"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-3 py-1.5 hover:bg-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isDownloading
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <FileDown className="w-3.5 h-3.5" />
+                      }
+                      {isDownloading ? "Generating…" : "Setup Guide"}
+                    </button>
+
+                    {/* Email setup guide */}
+                    {(() => {
+                      const isSending = emailingFarmId === farm.id;
+                      const sentResult = emailResult?.farmId === farm.id ? emailResult : null;
+                      if (sentResult?.success) {
+                        return (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 border border-green-300 rounded-lg px-3 py-1.5 bg-green-50">
+                            <MailCheck className="w-3.5 h-3.5" />
+                            Sent
+                          </span>
+                        );
+                      }
+                      return (
+                        <button
+                          onClick={() => handleSendEmail(farm)}
+                          disabled={isSending}
+                          title={`Email setup guide to ${tenant.contactEmail}`}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground border border-border rounded-lg px-3 py-1.5 hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isSending
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Mail className="w-3.5 h-3.5" />
+                          }
+                          {isSending ? "Sending…" : "Email Guide"}
+                          {sentResult && !sentResult.success && (
+                            <span className="text-red-500 ml-1">(failed)</span>
+                          )}
+                        </button>
+                      );
+                    })()}
+                  </div>
                 </div>
               );
             })}

@@ -3,6 +3,7 @@ import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTen
 import { eq, and, count, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
+import { sendSetupGuideEmail } from "../lib/mailer";
 
 const router: IRouter = Router();
 
@@ -332,6 +333,51 @@ router.get(
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Length", pdfBuffer.length);
     res.send(pdfBuffer);
+  }
+);
+
+// ─── Send Setup Guide by Email ────────────────────────────────────────────────
+
+router.post(
+  "/admin/tenants/:tenantId/farms/:farmId/send-setup-guide",
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    if (!(await checkPlatformAdmin(req, res))) return;
+
+    const tenantId = parseInt(req.params.tenantId as string, 10);
+    const farmId = parseInt(req.params.farmId as string, 10);
+
+    const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
+    if (!tenant) { res.status(404).json({ error: "Tenant not found" }); return; }
+
+    const [farm] = await db.select().from(farmsTable)
+      .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, tenantId)))
+      .limit(1);
+    if (!farm) { res.status(404).json({ error: "Farm not found" }); return; }
+
+    const subs = await db
+      .select({ moduleKey: modulesTable.key })
+      .from(subscriptionsTable)
+      .innerJoin(modulesTable, eq(subscriptionsTable.moduleId, modulesTable.id))
+      .where(and(eq(subscriptionsTable.farmId, farmId), eq(subscriptionsTable.status, "active")));
+
+    const result = await sendSetupGuideEmail({
+      tenantName: tenant.name,
+      tenantEmail: tenant.contactEmail,
+      farmName: farm.name,
+      cphNumber: farm.cphNumber ?? undefined,
+      redTractorId: (farm as any).redTractorId ?? undefined,
+      farmManager: (farm as any).farmManager ?? undefined,
+      postcode: farm.postcode ?? undefined,
+      moduleKeys: subs.map((s) => s.moduleKey),
+      generatedAt: new Date(),
+    });
+
+    if (result.sent) {
+      res.json({ sent: true, to: tenant.contactEmail });
+    } else {
+      res.status(500).json({ sent: false, reason: result.reason });
+    }
   }
 );
 

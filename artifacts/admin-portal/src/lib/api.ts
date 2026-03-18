@@ -169,4 +169,11 @@ export const api = {
 
   downloadSetupGuide: (tenantId: number, farmId: number, secret: string) =>
     getBlob(`/admin/tenants/${tenantId}/farms/${farmId}/setup-guide.pdf`, secret),
+
+  sendSetupGuide: (tenantId: number, farmId: number, secret: string) =>
+    post<{ sent: boolean; to?: string; reason?: string }>(
+      `/admin/tenants/${tenantId}/farms/${farmId}/send-setup-guide`,
+      {},
+      secret
+    ),
 };
