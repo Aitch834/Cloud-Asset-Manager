@@ -544,9 +544,9 @@ function SprayDayViewTab({ applications, loading }: { applications: any[]; loadi
                 <div key={a.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "1rem 1.25rem", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10 }}>
                     <div>
-                      <p style={{ fontWeight: 700, color: "#111827", fontSize: "0.95rem" }}>{a.field?.name || "Unknown Field"}</p>
-                      <p style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: 1 }}>{a.product?.name || "Unknown Product"}</p>
-                      {a.product?.category && <CategoryBadge cat={a.product.category} />}
+                      <p style={{ fontWeight: 700, color: "#111827", fontSize: "0.95rem" }}>{a.fieldName || "Unknown Field"}</p>
+                      <p style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: 1 }}>{a.productName || "Unknown Product"}</p>
+                      {a.productCategory && <CategoryBadge cat={a.productCategory} />}
                     </div>
                     {wc && (
                       <span style={{ fontSize: "0.7rem", fontWeight: 700, color: wc.color, background: wc.bg, borderRadius: 6, padding: "2px 7px", flexShrink: 0 }}>

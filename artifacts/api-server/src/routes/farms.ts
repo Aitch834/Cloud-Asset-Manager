@@ -590,6 +590,7 @@ router.get("/farms/:farmId/spray-applications", requireAuth, requireTenant, requ
       fieldName: fieldsTable.name,
       productId: sprayApplicationsTable.productId,
       productName: sprayProductsTable.productName,
+      productCategory: sprayProductsTable.category,
       applicationDate: sprayApplicationsTable.applicationDate,
       applicationRate: sprayApplicationsTable.applicationRate,
       rateUnit: sprayApplicationsTable.rateUnit,
