@@ -13,6 +13,16 @@ async function get<T>(path: string, secret: string): Promise<T> {
   return res.json();
 }
 
+async function getBlob(path: string, secret: string): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`${BASE}${path}`, { headers: { "x-admin-secret": secret } });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  const cd = res.headers.get("content-disposition") ?? "";
+  const match = cd.match(/filename="([^"]+)"/);
+  const filename = match ? match[1] : "download.pdf";
+  const blob = await res.blob();
+  return { blob, filename };
+}
+
 async function post<T>(path: string, body: unknown, secret: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
@@ -156,4 +166,7 @@ export const api = {
 
   createTicket: (data: { name: string; email: string; subject: string; description: string; source?: string }, _secret: string) =>
     post<SupportTicket>("/support/tickets", data, _secret),
+
+  downloadSetupGuide: (tenantId: number, farmId: number, secret: string) =>
+    getBlob(`/admin/tenants/${tenantId}/farms/${farmId}/setup-guide.pdf`, secret),
 };

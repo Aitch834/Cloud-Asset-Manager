@@ -19,6 +19,7 @@
     "express": "^5",
     "google-auth-library": "^10.6.1",
     "openid-client": "^6.8.2",
+    "pdfkit": "^0.18.0",
     "stripe": "^20.4.1"
   },
   "devDependencies": {
@@ -26,6 +27,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
+    "@types/pdfkit": "^0.17.5",
     "esbuild": "^0.27.3",
     "tsx": "catalog:"
   }

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { api, type Tenant, type Farm, type Subscription, type TenantUser } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
-import { ArrowLeft, MapPin, CreditCard, Users, CheckCircle, XCircle, Building2 } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Users, CheckCircle, XCircle, Building2, FileDown, Loader2 } from "lucide-react";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -44,6 +44,8 @@ export default function CustomerDetail() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [users, setUsers] = useState<TenantUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [downloadingFarmId, setDownloadingFarmId] = useState<number | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     api.getTenantDetail(tenantId, secret)
@@ -56,6 +58,26 @@ export default function CustomerDetail() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [tenantId]);
+
+  const handleDownloadGuide = async (farm: Farm) => {
+    setDownloadingFarmId(farm.id);
+    setDownloadError(null);
+    try {
+      const { blob, filename } = await api.downloadSetupGuide(tenantId, farm.id, secret);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(`Failed to generate guide for ${farm.name}. Please try again.`);
+    } finally {
+      setDownloadingFarmId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -77,10 +99,6 @@ export default function CustomerDetail() {
       </div>
     );
   }
-
-  const mrrPence = subscriptions
-    .filter((s) => s.status === "active")
-    .length * 0;
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
@@ -120,37 +138,62 @@ export default function CustomerDetail() {
         </div>
       </div>
 
+      {downloadError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">
+          {downloadError}
+        </div>
+      )}
+
       <Section title={`Farms (${farms.length})`}>
         {farms.length === 0 ? (
           <p className="text-sm text-muted-foreground">No farms registered.</p>
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-hidden">
-            {farms.map((farm, i) => (
-              <div
-                key={farm.id}
-                className={`px-5 py-4 flex items-start gap-3 ${i < farms.length - 1 ? "border-b border-border" : ""}`}
-              >
-                <Building2 className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-sm">{farm.name}</p>
-                    {!farm.isActive && <Badge variant="destructive">Inactive</Badge>}
-                    {farm.redTractorId && (
-                      <Badge variant="success">RT: {farm.redTractorId}</Badge>
+            {farms.map((farm, i) => {
+              const farmSubs = subscriptions.filter((s) => s.farmId === farm.id && s.status === "active");
+              const isDownloading = downloadingFarmId === farm.id;
+              return (
+                <div
+                  key={farm.id}
+                  className={`px-5 py-4 flex items-start gap-3 ${i < farms.length - 1 ? "border-b border-border" : ""}`}
+                >
+                  <Building2 className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-sm">{farm.name}</p>
+                      {!farm.isActive && <Badge variant="destructive">Inactive</Badge>}
+                      {farm.redTractorId && (
+                        <Badge variant="success">RT: {farm.redTractorId}</Badge>
+                      )}
+                    </div>
+                    {(farm.address || farm.postcode) && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3" />
+                        {[farm.address, farm.postcode].filter(Boolean).join(", ")}
+                      </p>
+                    )}
+                    {farmSubs.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {farmSubs.length} active module{farmSubs.length !== 1 ? "s" : ""}:{" "}
+                        {farmSubs.map((s) => s.moduleName).join(", ")}
+                      </p>
                     )}
                   </div>
-                  {(farm.address || farm.postcode) && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-3 h-3" />
-                      {[farm.address, farm.postcode].filter(Boolean).join(", ")}
-                    </p>
-                  )}
+                  <button
+                    onClick={() => handleDownloadGuide(farm)}
+                    disabled={isDownloading}
+                    title="Download tailored setup guide PDF"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-3 py-1.5 hover:bg-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 mt-0.5"
+                  >
+                    {isDownloading
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <FileDown className="w-3.5 h-3.5" />
+                    }
+                    {isDownloading ? "Generating…" : "Setup Guide"}
+                  </button>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {subscriptions.filter((s) => s.farmId === farm.id).length} modules
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Section>

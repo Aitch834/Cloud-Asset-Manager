@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable } from "@workspace/db";
 import { eq, and, count, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
+import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
 
 const router: IRouter = Router();
 
@@ -277,5 +278,61 @@ router.post("/admin/impersonate", requireAuth, async (req: Request, res: Respons
     },
   });
 });
+
+// ─── Setup Guide PDF ──────────────────────────────────────────────────────────
+
+router.get(
+  "/admin/tenants/:tenantId/farms/:farmId/setup-guide.pdf",
+  requireAuth,
+  async (req: Request, res: Response): Promise<void> => {
+    if (!(await checkPlatformAdmin(req, res))) return;
+
+    const tenantId = parseInt(req.params.tenantId as string, 10);
+    const farmId = parseInt(req.params.farmId as string, 10);
+
+    const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
+    if (!tenant) { res.status(404).json({ error: "Tenant not found" }); return; }
+
+    const [farm] = await db.select().from(farmsTable)
+      .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, tenantId)))
+      .limit(1);
+    if (!farm) { res.status(404).json({ error: "Farm not found" }); return; }
+
+    const subs = await db
+      .select({
+        moduleKey: modulesTable.key,
+        moduleName: modulesTable.name,
+        status: subscriptionsTable.status,
+      })
+      .from(subscriptionsTable)
+      .innerJoin(modulesTable, eq(subscriptionsTable.moduleId, modulesTable.id))
+      .where(
+        and(
+          eq(subscriptionsTable.farmId, farmId),
+          eq(subscriptionsTable.status, "active"),
+        )
+      );
+
+    const moduleKeys = subs.map((s) => s.moduleKey);
+
+    const pdfBuffer = await generateSetupGuidePdf({
+      tenantName: tenant.name,
+      tenantEmail: tenant.contactEmail,
+      farmName: farm.name,
+      cphNumber: farm.cphNumber ?? undefined,
+      redTractorId: (farm as any).redTractorId ?? undefined,
+      farmManager: (farm as any).farmManager ?? undefined,
+      postcode: farm.postcode ?? undefined,
+      moduleKeys,
+      generatedAt: new Date(),
+    });
+
+    const filename = `BDE-Farm-Trac-Setup-Guide-${farm.name.replace(/[^a-z0-9]+/gi, "-")}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
+    res.send(pdfBuffer);
+  }
+);
 
 export default router;
