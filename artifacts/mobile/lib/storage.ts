@@ -127,4 +127,6 @@ export const STORAGE_KEYS = {
   EQUIPMENT_DEFECTS: "bde_equipment_defects",
   PEST_CONTROL_VISITS: "bde_pest_control_visits",
   FIELD_INSPECTIONS: "bde_field_inspections",
+  BIOFUEL_FIELD_DECLARATIONS: "bde_biofuel_field_declarations",
+  BIOFUEL_DELIVERY_RECORDS: "bde_biofuel_delivery_records",
 } as const;

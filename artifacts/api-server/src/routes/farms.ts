@@ -1,6 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import {
+  biofuelCertificationsTable,
+  biofuelFieldDeclarationsTable,
+  biofuelDeliveriesTable,
   farmsTable,
   fieldsTable,
   fieldBoundariesTable,
@@ -2637,6 +2640,117 @@ router.delete("/farms/:farmId/seed-drilling/:recordId", requireAuth, requireTena
   const recordId = Number(req.params.recordId);
   await db.delete(seedDrillingRecordsTable).where(and(eq(seedDrillingRecordsTable.id, recordId), eq(seedDrillingRecordsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+
+router.get("/farms/:farmId/biofuel/certification", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(biofuelCertificationsTable).where(eq(biofuelCertificationsTable.farmId, farmId)).orderBy(desc(biofuelCertificationsTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/biofuel/certification", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(biofuelCertificationsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/biofuel/certification/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  const [record] = await db.update(biofuelCertificationsTable).set(req.body).where(and(eq(biofuelCertificationsTable.id, recordId), eq(biofuelCertificationsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/biofuel/certification/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  await db.delete(biofuelCertificationsTable).where(and(eq(biofuelCertificationsTable.id, recordId), eq(biofuelCertificationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/biofuel/field-declarations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(biofuelFieldDeclarationsTable).where(eq(biofuelFieldDeclarationsTable.farmId, farmId)).orderBy(desc(biofuelFieldDeclarationsTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/biofuel/field-declarations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(biofuelFieldDeclarationsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/biofuel/field-declarations/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  const [record] = await db.update(biofuelFieldDeclarationsTable).set(req.body).where(and(eq(biofuelFieldDeclarationsTable.id, recordId), eq(biofuelFieldDeclarationsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/biofuel/field-declarations/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  await db.delete(biofuelFieldDeclarationsTable).where(and(eq(biofuelFieldDeclarationsTable.id, recordId), eq(biofuelFieldDeclarationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/biofuel/deliveries", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(biofuelDeliveriesTable).where(eq(biofuelDeliveriesTable.farmId, farmId)).orderBy(desc(biofuelDeliveriesTable.deliveryDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/biofuel/deliveries", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(biofuelDeliveriesTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  const [record] = await db.update(biofuelDeliveriesTable).set(req.body).where(and(eq(biofuelDeliveriesTable.id, recordId), eq(biofuelDeliveriesTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  await db.delete(biofuelDeliveriesTable).where(and(eq(biofuelDeliveriesTable.id, recordId), eq(biofuelDeliveriesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/biofuel/ghg-summary", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [nvzApps, sprayApps, harvestRecs, deliveries] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int`, totalNKgHa: sql<string>`coalesce(sum(total_n_applied_kg_ha), 0)::text` }).from(nvzFertiliserApplicationsTable).where(eq(nvzFertiliserApplicationsTable.farmId, farmId)),
+    db.select({ count: sql<number>`count(*)::int` }).from(sprayApplicationsTable).where(eq(sprayApplicationsTable.farmId, farmId)),
+    db.select({ count: sql<number>`count(*)::int`, totalYield: sql<string>`coalesce(sum(yield_tonnes), 0)::text` }).from(harvestRecordsTable).where(eq(harvestRecordsTable.farmId, farmId)),
+    db.select({ count: sql<number>`count(*)::int`, totalTonnes: sql<string>`coalesce(sum(quantity_tonnes), 0)::text` }).from(biofuelDeliveriesTable).where(eq(biofuelDeliveriesTable.farmId, farmId)),
+  ]);
+  res.json({
+    nvzApplicationCount: nvzApps[0]?.count ?? 0,
+    totalNitrogenKgHa: nvzApps[0]?.totalNKgHa ?? "0",
+    sprayApplicationCount: sprayApps[0]?.count ?? 0,
+    harvestRecordCount: harvestRecs[0]?.count ?? 0,
+    totalHarvestTonnes: harvestRecs[0]?.totalYield ?? "0",
+    biofuelDeliveryCount: deliveries[0]?.count ?? 0,
+    totalBiofuelTonnes: deliveries[0]?.totalTonnes ?? "0",
+  });
 });
 
 export default router;

@@ -35,6 +35,7 @@ import NotFound from "@/pages/not-found";
 import SoilTestsPage from "@/pages/SoilTestsPage";
 import BiosecurityPage from "@/pages/BiosecurityPage";
 import MedicinePageDedicated from "@/pages/MedicinePage";
+import BiofuelPage from "@/pages/BiofuelPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -250,6 +251,7 @@ function Router() {
       <Route path="/staff" component={StaffPage} />
       <Route path="/settings/farm" component={FarmSettingsPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/biofuel" component={BiofuelPage} />
       <Route component={NotFound} />
     </Switch>
     </RouteErrorBoundary>

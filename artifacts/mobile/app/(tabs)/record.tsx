@@ -146,6 +146,24 @@ const recordOptions: RecordOption[] = [
     bgColor: colors.successBg,
     route: "/field-inspection",
   },
+  {
+    id: "land-eligibility",
+    title: "Land Eligibility Declaration",
+    description: "RTFO/ISCC field land-use declaration — confirm no peatland, wetland or forest conversion after 2008",
+    icon: "map",
+    color: "#16a34a",
+    bgColor: "#dcfce7",
+    route: "/land-eligibility",
+  },
+  {
+    id: "biofuel-delivery",
+    title: "Biofuel Crop Delivery",
+    description: "Log biofuel crop consignment — buyer, RTFO ref, quantity and sustainability scheme",
+    icon: "truck",
+    color: "#d97706",
+    bgColor: "#fef3c7",
+    route: "/biofuel-delivery",
+  },
 ];
 
 export default function RecordScreen() {

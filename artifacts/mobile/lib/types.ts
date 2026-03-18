@@ -313,6 +313,44 @@ export interface FieldInspection {
   synced: boolean;
 }
 
+export interface BiofuelFieldDeclaration {
+  id: string;
+  farmId: string;
+  fieldName: string;
+  landUseIn2008: string;
+  convertedAfter2008: boolean;
+  conversionFrom: string;
+  highCarbonStockRisk: boolean;
+  highBiodiversityRisk: boolean;
+  eligibilityStatus: "eligible" | "not-eligible" | "requires-verification";
+  declarationDate: string;
+  declaredBy: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface BiofuelDeliveryRecord {
+  id: string;
+  farmId: string;
+  deliveryDate: string;
+  buyerName: string;
+  buyerRtfoRef: string;
+  cropType: string;
+  quantityTonnes: string;
+  certificationRef: string;
+  sustainabilityDeclarationRef: string;
+  sustainabilityScheme: string;
+  ghgSavingPercent: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface SyncQueueItem {
   id: string;
   type: string;
