@@ -2713,21 +2713,21 @@ router.delete("/farms/:farmId/seed-drilling/:recordId", requireAuth, requireTena
 });
 
 
-router.get("/farms/:farmId/biofuel/certification", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/biofuel/certification", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(biofuelCertificationsTable).where(eq(biofuelCertificationsTable.farmId, farmId)).orderBy(desc(biofuelCertificationsTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/biofuel/certification", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/biofuel/certification", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(biofuelCertificationsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/biofuel/certification/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/biofuel/certification/:recordId", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
@@ -2735,7 +2735,7 @@ router.put("/farms/:farmId/biofuel/certification/:recordId", requireAuth, requir
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/biofuel/certification/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/biofuel/certification/:recordId", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
@@ -2743,21 +2743,21 @@ router.delete("/farms/:farmId/biofuel/certification/:recordId", requireAuth, req
   res.json({ success: true });
 });
 
-router.get("/farms/:farmId/biofuel/field-declarations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/biofuel/field-declarations", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(biofuelFieldDeclarationsTable).where(eq(biofuelFieldDeclarationsTable.farmId, farmId)).orderBy(desc(biofuelFieldDeclarationsTable.createdAt));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/biofuel/field-declarations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/biofuel/field-declarations", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(biofuelFieldDeclarationsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/biofuel/field-declarations/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/biofuel/field-declarations/:recordId", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
@@ -2765,7 +2765,7 @@ router.put("/farms/:farmId/biofuel/field-declarations/:recordId", requireAuth, r
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/biofuel/field-declarations/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/biofuel/field-declarations/:recordId", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
@@ -2773,21 +2773,21 @@ router.delete("/farms/:farmId/biofuel/field-declarations/:recordId", requireAuth
   res.json({ success: true });
 });
 
-router.get("/farms/:farmId/biofuel/deliveries", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/biofuel/deliveries", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(biofuelDeliveriesTable).where(eq(biofuelDeliveriesTable.farmId, farmId)).orderBy(desc(biofuelDeliveriesTable.deliveryDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/biofuel/deliveries", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/biofuel/deliveries", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(biofuelDeliveriesTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
@@ -2795,7 +2795,7 @@ router.put("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requireTe
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
@@ -2807,7 +2807,7 @@ router.delete("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requir
 
 router.get(
   "/farms/:farmId/biofuel/deliveries/:deliveryId/sustainability-declaration.pdf",
-  requireAuth, requireTenant,
+  requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "read"),
   async (req: Request, res: Response): Promise<void> => {
     const farmId = await validateFarmAccess(req, res);
     if (!farmId) return;
@@ -2878,7 +2878,7 @@ router.get(
 
 router.get(
   "/farms/:farmId/biofuel/audit-pack.pdf",
-  requireAuth, requireTenant,
+  requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "read"),
   async (req: Request, res: Response): Promise<void> => {
     const farmId = await validateFarmAccess(req, res);
     if (!farmId) return;
@@ -2976,7 +2976,7 @@ router.get(
 
 // ─── RTFO Buyers ──────────────────────────────────────────────────────────────
 
-router.get("/farms/:farmId/biofuel/buyers", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/biofuel/buyers", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(rtfoBuyersTable)
@@ -2985,14 +2985,14 @@ router.get("/farms/:farmId/biofuel/buyers", requireAuth, requireTenant, async (r
   res.json({ records });
 });
 
-router.post("/farms/:farmId/biofuel/buyers", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/biofuel/buyers", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(rtfoBuyersTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/biofuel/buyers/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/biofuel/buyers/:recordId", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
@@ -3002,7 +3002,7 @@ router.put("/farms/:farmId/biofuel/buyers/:recordId", requireAuth, requireTenant
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/biofuel/buyers/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/biofuel/buyers/:recordId", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
@@ -3010,7 +3010,7 @@ router.delete("/farms/:farmId/biofuel/buyers/:recordId", requireAuth, requireTen
   res.json({ success: true });
 });
 
-router.get("/farms/:farmId/biofuel/ghg-summary", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/biofuel/ghg-summary", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [nvzApps, sprayApps, harvestRecs, deliveries] = await Promise.all([

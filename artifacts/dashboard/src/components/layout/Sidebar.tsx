@@ -76,7 +76,7 @@ const livestockNav: NavItem[] = [
 ];
 
 const biofuelNav: NavItem[] = [
-  { name: "Biofuel / RTFO", href: "/biofuel", icon: Fuel },
+  { name: "Biofuel / RTFO", href: "/biofuel", icon: Fuel, moduleKeys: ["biofuel-rtfo"] },
 ];
 
 const otherNav: NavItem[] = [
