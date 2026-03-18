@@ -2,7 +2,8 @@ import { Layout } from "@/components/layout/Layout";
 import { motion } from "framer-motion";
 import { 
   ClipboardCheck, Map, Package, Tractor, FileText, LineChart, 
-  CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap, Smartphone
+  CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
+  Droplets, AlertTriangle, ClipboardList, Leaf, Truck, Fuel
 } from "lucide-react";
 
 export default function Features() {
@@ -20,10 +21,16 @@ export default function Features() {
       features: ["GPS boundary mapping", "Crop rotation history", "Harvest audit trail — transport, storage & yield", "Planned vs. actual harvest cross-referencing"]
     },
     {
-      title: "Stock & Suppliers",
-      icon: Package,
-      color: "bg-earth-cream text-earth-brown border-earth-tan/30",
-      features: ["Supplier directory", "Delivery receipt logging", "Live inventory tracking", "Batch number trace"]
+      title: "Sprays & Inputs",
+      icon: Droplets,
+      color: "bg-cyan-50 text-cyan-600 border-cyan-100",
+      features: ["Spray application records", "Product & batch tracking", "Operator & equipment logging", "Withholding period alerts"]
+    },
+    {
+      title: "Soil Management",
+      icon: Sprout,
+      color: "bg-lime-50 text-lime-600 border-lime-100",
+      features: ["Soil test records", "Nutrient Management Plans", "RB209 compliance", "NVZ Nitrate Vulnerable Zone records"]
     },
     {
       title: "Equipment & Vehicles",
@@ -32,40 +39,16 @@ export default function Features() {
       features: ["Equipment register", "Maintenance logs", "Sprayer calibration tracking", "Asset onboarding/offboarding"]
     },
     {
-      title: "Document Management",
-      icon: FileText,
-      color: "bg-gray-100 text-gray-700 border-gray-200",
-      features: ["PDF & photo storage", "Record attachment", "Thumbnail previews", "Cloud backup"]
-    },
-    {
-      title: "Financial Records",
-      icon: LineChart,
-      color: "bg-emerald-50 text-emerald-600 border-emerald-100",
-      features: ["Input cost logging", "Crop sales transactions", "CSV export", "Xero compatible export"]
-    },
-    {
-      title: "Weather Tracking",
-      icon: CloudRain,
-      color: "bg-sky-50 text-sky-600 border-sky-100",
-      features: ["Farm-base station input", "Vehicle-mounted integration", "Spray-record auto-link", "Historical charting"]
-    },
-    {
       title: "Livestock Management",
       icon: PawPrint,
       color: "bg-rose-50 text-rose-600 border-rose-100",
       features: ["Herd/flock register", "Movement records (eAML2)", "Medicine & Vet logs", "Feed traceability"]
     },
     {
-      title: "Nutrient & Soil",
-      icon: Sprout,
-      color: "bg-lime-50 text-lime-600 border-lime-100",
-      features: ["Nutrient Management Plans", "Soil test records", "RB209 compliance", "NVZ Nitrate Vulnerable Zone records"]
-    },
-    {
-      title: "Biosecurity & Risk",
+      title: "Biosecurity & Visitors",
       icon: ShieldAlert,
       color: "bg-red-50 text-red-600 border-red-100",
-      features: ["Visitor & Contractor logs", "Pest control records", "Cleaning & Disinfection", "COSHH assessments"]
+      features: ["Visitor & Contractor logs", "Pest control records", "Cleaning & Disinfection logs", "COSHH assessments"]
     },
     {
       title: "Staff & Training",
@@ -74,11 +57,59 @@ export default function Features() {
       features: ["Certificate tracking", "Expiry alerts (PA1/PA6)", "Role-based permissions", "Farm assignments"]
     },
     {
-      title: "Mobile Apps",
-      icon: Smartphone,
+      title: "Risk & Waste Management",
+      icon: AlertTriangle,
+      color: "bg-amber-50 text-amber-600 border-amber-100",
+      features: ["Risk assessment records", "COSHH data sheets", "Waste disposal logs", "Corrective action tracking"]
+    },
+    {
+      title: "Inspections & Audits",
+      icon: ClipboardList,
       color: "bg-violet-50 text-violet-600 border-violet-100",
-      features: ["iOS & Android", "Offline-first sync", "In-field photo capture", "GPS auto-field detection"]
-    }
+      features: ["Inspection records", "Non-conformance logging", "Corrective actions", "Print-ready audit summaries"]
+    },
+    {
+      title: "Environmental Features",
+      icon: Leaf,
+      color: "bg-green-50 text-green-600 border-green-100",
+      features: ["Environmental feature mapping", "Agri-environment scheme records", "Stewardship agreement logging", "Habitat & hedgerow records"]
+    },
+    {
+      title: "Transport & Haulage",
+      icon: Truck,
+      color: "bg-stone-50 text-stone-600 border-stone-200",
+      features: ["Haulage movement records", "Load & tonnage tracking", "Haulier directory", "Delivery confirmation logs"]
+    },
+    {
+      title: "Stock & Suppliers",
+      icon: Package,
+      color: "bg-earth-cream text-earth-brown border-earth-tan/30",
+      features: ["Supplier directory", "Delivery receipt logging", "Live inventory tracking", "Batch number trace"]
+    },
+    {
+      title: "Financial Records",
+      icon: LineChart,
+      color: "bg-emerald-50 text-emerald-600 border-emerald-100",
+      features: ["Input cost logging", "Crop sales transactions", "CSV export", "Xero compatible export"]
+    },
+    {
+      title: "Document Management",
+      icon: FileText,
+      color: "bg-gray-100 text-gray-700 border-gray-200",
+      features: ["PDF & photo storage", "Record attachment", "Thumbnail previews", "Cloud backup"]
+    },
+    {
+      title: "Weather Tracking",
+      icon: CloudRain,
+      color: "bg-sky-50 text-sky-600 border-sky-100",
+      features: ["Farm-base station input", "Vehicle-mounted integration", "Spray-record auto-link", "Historical charting"]
+    },
+    {
+      title: "Biofuel / RTFO Compliance",
+      icon: Fuel,
+      color: "bg-yellow-50 text-yellow-700 border-yellow-100",
+      features: ["RTFO sustainability declarations", "Field eligibility tracking", "GHG traceability records", "Audit pack PDF generation"]
+    },
   ];
 
   return (
