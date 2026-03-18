@@ -2,6 +2,29 @@ import { pgTable, text, serial, integer, timestamp, numeric, boolean, jsonb } fr
 import { farmsTable } from "./core";
 import { fieldsTable } from "./fields-crops";
 
+// ─── RTFO Registered Buyers ───────────────────────────────────────────────────
+// Buyers are obligated fuel suppliers registered with the Department for Transport.
+// They carry an RTF Obligation Number (their government-issued ID).
+export const rtfoBuyersTable = pgTable("rtfo_buyers", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  companyName: text("company_name").notNull(),
+  tradingName: text("trading_name"),
+  rtfoObligationNumber: text("rtfo_obligation_number"),   // DfT-assigned government ID
+  isccCertNumber: text("iscc_cert_number"),               // Optional: buyer's own ISCC cert ref
+  contactName: text("contact_name"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+  addressLine1: text("address_line1"),
+  addressLine2: text("address_line2"),
+  town: text("town"),
+  county: text("county"),
+  postcode: text("postcode"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const biofuelCertificationsTable = pgTable("biofuel_certifications", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
@@ -40,6 +63,7 @@ export const biofuelFieldDeclarationsTable = pgTable("biofuel_field_declarations
 export const biofuelDeliveriesTable = pgTable("biofuel_deliveries", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  buyerId: integer("buyer_id").references(() => rtfoBuyersTable.id),
   deliveryDate: timestamp("delivery_date", { withTimezone: true }).notNull(),
   buyerName: text("buyer_name").notNull(),
   buyerRtfoRef: text("buyer_rtfo_ref"),

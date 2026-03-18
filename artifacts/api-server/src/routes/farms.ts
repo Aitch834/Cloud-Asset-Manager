@@ -4,6 +4,7 @@ import {
   biofuelCertificationsTable,
   biofuelFieldDeclarationsTable,
   biofuelDeliveriesTable,
+  rtfoBuyersTable,
   farmsTable,
   fieldsTable,
   fieldBoundariesTable,
@@ -2796,6 +2797,42 @@ router.delete("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requir
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
   await db.delete(biofuelDeliveriesTable).where(and(eq(biofuelDeliveriesTable.id, recordId), eq(biofuelDeliveriesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── RTFO Buyers ──────────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/biofuel/buyers", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(rtfoBuyersTable)
+    .where(eq(rtfoBuyersTable.farmId, farmId))
+    .orderBy(rtfoBuyersTable.companyName);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/biofuel/buyers", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(rtfoBuyersTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/biofuel/buyers/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  const [record] = await db.update(rtfoBuyersTable).set(req.body)
+    .where(and(eq(rtfoBuyersTable.id, recordId), eq(rtfoBuyersTable.farmId, farmId)))
+    .returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/biofuel/buyers/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  await db.delete(rtfoBuyersTable).where(and(eq(rtfoBuyersTable.id, recordId), eq(rtfoBuyersTable.farmId, farmId)));
   res.json({ success: true });
 });
 

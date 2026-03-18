@@ -15,6 +15,9 @@ import {
   Edit,
   ChevronRight,
   Info,
+  Building2,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -39,7 +42,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
-type Tab = "overview" | "certification" | "fields" | "deliveries";
+type Tab = "overview" | "certification" | "fields" | "buyers" | "deliveries";
 
 interface Certification {
   id: number;
@@ -70,6 +73,7 @@ interface FieldDeclaration {
 
 interface Delivery {
   id: number;
+  buyerId?: number;
   deliveryDate: string;
   buyerName: string;
   buyerRtfoRef?: string;
@@ -78,6 +82,23 @@ interface Delivery {
   certificationRef?: string;
   sustainabilityScheme?: string;
   ghgSavingPercent?: string;
+  notes?: string;
+}
+
+interface Buyer {
+  id: number;
+  companyName: string;
+  tradingName?: string;
+  rtfoObligationNumber?: string;
+  isccCertNumber?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  town?: string;
+  county?: string;
+  postcode?: string;
   notes?: string;
 }
 
@@ -120,9 +141,11 @@ export default function BiofuelPage() {
   const [certDialog, setCertDialog] = useState(false);
   const [fieldDialog, setFieldDialog] = useState(false);
   const [deliveryDialog, setDeliveryDialog] = useState(false);
+  const [buyerDialog, setBuyerDialog] = useState(false);
   const [editingCert, setEditingCert] = useState<Certification | null>(null);
   const [editingField, setEditingField] = useState<FieldDeclaration | null>(null);
   const [editingDelivery, setEditingDelivery] = useState<Delivery | null>(null);
+  const [editingBuyer, setEditingBuyer] = useState<Buyer | null>(null);
 
   const certsQ = useQuery<{ records: Certification[] }>({
     queryKey: ["biofuel-certs", farmId],
@@ -148,10 +171,17 @@ export default function BiofuelPage() {
     enabled: !!farmId,
   });
 
+  const buyersQ = useQuery<{ records: Buyer[] }>({
+    queryKey: ["biofuel-buyers", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/biofuel/buyers`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["biofuel-certs", farmId] });
     qc.invalidateQueries({ queryKey: ["biofuel-fields", farmId] });
     qc.invalidateQueries({ queryKey: ["biofuel-deliveries", farmId] });
+    qc.invalidateQueries({ queryKey: ["biofuel-buyers", farmId] });
     qc.invalidateQueries({ queryKey: ["biofuel-ghg", farmId] });
   };
 
@@ -203,9 +233,26 @@ export default function BiofuelPage() {
     onSuccess: () => { invalidate(); toast({ title: "Delivery deleted" }); },
   });
 
+  const buyerMut = useMutation({
+    mutationFn: (data: Partial<Buyer>) => {
+      const url = editingBuyer
+        ? `/api/farms/${farmId}/biofuel/buyers/${editingBuyer.id}`
+        : `/api/farms/${farmId}/biofuel/buyers`;
+      return fetch(url, { method: editingBuyer ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    },
+    onSuccess: () => { invalidate(); setBuyerDialog(false); setEditingBuyer(null); toast({ title: "Buyer saved" }); },
+    onError: () => toast({ title: "Error saving buyer", variant: "destructive" }),
+  });
+
+  const deleteBuyerMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/buyers/${id}`, { method: "DELETE" }),
+    onSuccess: () => { invalidate(); toast({ title: "Buyer removed" }); },
+  });
+
   const certs = certsQ.data?.records ?? [];
   const fields = fieldsQ.data?.records ?? [];
   const deliveries = deliveriesQ.data?.records ?? [];
+  const buyers = buyersQ.data?.records ?? [];
   const ghg = ghgQ.data;
 
   const activeCert = certs.find(c => c.status === "active");
@@ -216,6 +263,7 @@ export default function BiofuelPage() {
     { id: "overview", label: "Overview", icon: BarChart3 },
     { id: "certification", label: "Certification", icon: Award },
     { id: "fields", label: "Field Declarations", icon: MapPin },
+    { id: "buyers", label: "Registered Buyers", icon: Building2 },
     { id: "deliveries", label: "Delivery Records", icon: Truck },
   ];
 
@@ -432,6 +480,96 @@ export default function BiofuelPage() {
           </div>
         )}
 
+        {activeTab === "buyers" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div>
+                <h2 style={{ margin: "0 0 4px", fontWeight: 600, fontSize: 16 }}>Registered RTFO Buyers</h2>
+                <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
+                  Buyers are obligated fuel suppliers registered with the Department for Transport.
+                  Each buyer holds an <strong>RTF Obligation Number</strong> — the government-issued ID you must record for audit.
+                </p>
+              </div>
+              <Button size="sm" onClick={() => { setEditingBuyer(null); setBuyerDialog(true); }} style={{ flexShrink: 0, marginLeft: 16 }}>
+                <Plus size={15} className="mr-1" /> Add Buyer
+              </Button>
+            </div>
+
+            {/* Regulatory context callout */}
+            <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <Info size={16} style={{ color: "#2563eb", marginTop: 2, flexShrink: 0 }} />
+              <div style={{ fontSize: 13, color: "#1e40af", lineHeight: 1.5 }}>
+                <strong>What is an RTF Obligation Number?</strong> The Department for Transport assigns this unique reference to every fuel supplier
+                (oil company, fuel distributor, etc.) that is legally obligated to blend renewable fuel into their supplies under the RTFO.
+                It appears on sustainability declarations and is your audit trail that the delivery went to a legitimate, registered buyer.
+                You can verify buyers on the{" "}
+                <a href="https://www.gov.uk/guidance/renewable-transport-fuel-obligation" target="_blank" rel="noopener noreferrer" style={{ color: "#1d4ed8" }}>DfT RTFO page</a>.
+              </div>
+            </div>
+
+            {buyers.length === 0 ? (
+              <div style={{ background: "#fff", borderRadius: 12, padding: 48, textAlign: "center", border: "1px solid #e5e7eb" }}>
+                <Building2 size={40} style={{ color: "#d1d5db", margin: "0 auto 12px" }} />
+                <p style={{ fontWeight: 600, color: "#374151" }}>No buyers added yet</p>
+                <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 16 }}>
+                  Add the fuel companies you sell biofuel crops to. Once added, you can select them when recording deliveries.
+                </p>
+                <Button size="sm" onClick={() => { setEditingBuyer(null); setBuyerDialog(true); }}>Add First Buyer</Button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {buyers.map(b => (
+                  <div key={b.id} style={{ background: "#fff", borderRadius: 12, padding: "20px 24px", border: "1px solid #e5e7eb", display: "flex", alignItems: "flex-start", gap: 16 }}>
+                    <div style={{ background: "#eff6ff", borderRadius: 8, padding: 10, flexShrink: 0 }}>
+                      <Building2 size={20} style={{ color: "#2563eb" }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>
+                        {b.companyName}
+                        {b.tradingName && b.tradingName !== b.companyName && (
+                          <span style={{ fontWeight: 400, color: "#6b7280", fontSize: 13 }}> — trading as {b.tradingName}</span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", fontSize: 13, color: "#4b5563", marginTop: 4 }}>
+                        {b.rtfoObligationNumber && (
+                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <Badge className="bg-blue-100 text-blue-700 text-xs font-mono">RTF {b.rtfoObligationNumber}</Badge>
+                          </span>
+                        )}
+                        {b.isccCertNumber && (
+                          <span style={{ color: "#6b7280" }}>ISCC: {b.isccCertNumber}</span>
+                        )}
+                        {b.contactName && (
+                          <span style={{ color: "#6b7280" }}>Contact: {b.contactName}</span>
+                        )}
+                        {b.contactEmail && (
+                          <span style={{ display: "flex", alignItems: "center", gap: 3, color: "#6b7280" }}>
+                            <Mail size={12} />{b.contactEmail}
+                          </span>
+                        )}
+                        {b.contactPhone && (
+                          <span style={{ display: "flex", alignItems: "center", gap: 3, color: "#6b7280" }}>
+                            <Phone size={12} />{b.contactPhone}
+                          </span>
+                        )}
+                      </div>
+                      {(b.town || b.postcode) && (
+                        <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 3 }}>
+                          {[b.addressLine1, b.town, b.county, b.postcode].filter(Boolean).join(", ")}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                      <Button size="sm" variant="outline" onClick={() => { setEditingBuyer(b); setBuyerDialog(true); }}><Edit size={14} /></Button>
+                      <Button size="sm" variant="outline" style={{ color: "#dc2626" }} onClick={() => { if (confirm(`Remove ${b.companyName}?`)) deleteBuyerMut.mutate(b.id); }}><Trash2 size={14} /></Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === "deliveries" && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -494,8 +632,16 @@ export default function BiofuelPage() {
         open={deliveryDialog}
         onClose={() => { setDeliveryDialog(false); setEditingDelivery(null); }}
         initial={editingDelivery}
+        buyers={buyers}
         onSave={(data) => deliveryMut.mutate(data)}
         saving={deliveryMut.isPending}
+      />
+      <BuyerDialog
+        open={buyerDialog}
+        onClose={() => { setBuyerDialog(false); setEditingBuyer(null); }}
+        initial={editingBuyer}
+        onSave={(data) => buyerMut.mutate(data)}
+        saving={buyerMut.isPending}
       />
     </AppLayout>
   );
@@ -631,13 +777,32 @@ function FieldDeclarationDialog({ open, onClose, initial, onSave, saving }: {
   );
 }
 
-function DeliveryDialog({ open, onClose, initial, onSave, saving }: {
+function DeliveryDialog({ open, onClose, initial, buyers, onSave, saving }: {
   open: boolean; onClose: () => void; initial: Delivery | null;
+  buyers: Buyer[];
   onSave: (data: Partial<Delivery>) => void; saving: boolean;
 }) {
   const [form, setForm] = useState<Partial<Delivery>>({});
-  const set = (k: keyof Delivery, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k: keyof Delivery, v: string | number | undefined) => setForm(f => ({ ...f, [k]: v }));
   const val = (k: keyof Delivery) => (form as Record<string, string>)[k] ?? (initial as Record<string, string> | null)?.[k] ?? "";
+
+  const selectedBuyerId = form.buyerId ?? initial?.buyerId;
+
+  const handleBuyerSelect = (value: string) => {
+    if (value === "__none__") {
+      setForm(f => ({ ...f, buyerId: undefined, buyerName: "", buyerRtfoRef: "" }));
+      return;
+    }
+    const buyer = buyers.find(b => b.id === parseInt(value, 10));
+    if (buyer) {
+      setForm(f => ({
+        ...f,
+        buyerId: buyer.id,
+        buyerName: buyer.companyName,
+        buyerRtfoRef: buyer.rtfoObligationNumber ?? f.buyerRtfoRef ?? "",
+      }));
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -648,10 +813,50 @@ function DeliveryDialog({ open, onClose, initial, onSave, saving }: {
             <div><Label>Delivery Date *</Label><Input type="date" value={val("deliveryDate")?.split("T")[0] ?? ""} onChange={e => set("deliveryDate", e.target.value)} /></div>
             <div><Label>Quantity (tonnes) *</Label><Input type="number" value={val("quantityTonnes")} onChange={e => set("quantityTonnes", e.target.value)} placeholder="e.g. 250.5" /></div>
           </div>
-          <div><Label>Buyer Name *</Label><Input value={val("buyerName")} onChange={e => set("buyerName", e.target.value)} placeholder="e.g. Vivergo Fuels, Ensus" /></div>
+
+          {/* Buyer selection */}
+          {buyers.length > 0 ? (
+            <div>
+              <Label>Buyer *</Label>
+              <Select value={selectedBuyerId ? String(selectedBuyerId) : "__none__"} onValueChange={handleBuyerSelect}>
+                <SelectTrigger><SelectValue placeholder="Select a registered buyer…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— select buyer —</SelectItem>
+                  {buyers.map(b => (
+                    <SelectItem key={b.id} value={String(b.id)}>
+                      {b.companyName}{b.rtfoObligationNumber ? ` (RTF ${b.rtfoObligationNumber})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedBuyerId && (
+                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                  Buyer name and RTF Obligation Number auto-filled from buyer record.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <Label>Buyer Name *</Label>
+              <Input value={val("buyerName")} onChange={e => set("buyerName", e.target.value)} placeholder="e.g. Vivergo Fuels, Ensus" />
+              <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                Tip: Add buyers under the "Registered Buyers" tab to select them from a dropdown here.
+              </p>
+            </div>
+          )}
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div><Label>Buyer RTFO Reference</Label><Input value={val("buyerRtfoRef")} onChange={e => set("buyerRtfoRef", e.target.value)} placeholder="e.g. RTFO-2024-xxxx" /></div>
-            <div><Label>Crop Type</Label><Input value={val("cropType")} onChange={e => set("cropType", e.target.value)} placeholder="e.g. Feed wheat, OSR" /></div>
+            <div>
+              <Label>Buyer RTF Obligation No.</Label>
+              <Input
+                value={val("buyerRtfoRef")}
+                onChange={e => set("buyerRtfoRef", e.target.value)}
+                placeholder="e.g. RTFO-2024-xxxx"
+                readOnly={!!selectedBuyerId}
+                style={selectedBuyerId ? { background: "#f9fafb", color: "#374151" } : {}}
+              />
+            </div>
+            <div><Label>Crop Type *</Label><Input value={val("cropType")} onChange={e => set("cropType", e.target.value)} placeholder="e.g. Feed wheat, OSR" /></div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div><Label>Sustainability Scheme</Label><Input value={val("sustainabilityScheme")} onChange={e => set("sustainabilityScheme", e.target.value)} placeholder="e.g. ISCC UK" /></div>
@@ -664,6 +869,80 @@ function DeliveryDialog({ open, onClose, initial, onSave, saving }: {
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => onSave(form)} disabled={saving}>{saving ? "Saving..." : "Save Delivery"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BuyerDialog({ open, onClose, initial, onSave, saving }: {
+  open: boolean; onClose: () => void; initial: Buyer | null;
+  onSave: (data: Partial<Buyer>) => void; saving: boolean;
+}) {
+  const [form, setForm] = useState<Partial<Buyer>>({});
+  const set = (k: keyof Buyer, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const val = (k: keyof Buyer) => (form as Record<string, string>)[k] ?? (initial as Record<string, string> | null)?.[k] ?? "";
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent style={{ maxWidth: 600 }}>
+        <DialogHeader>
+          <DialogTitle>{initial ? "Edit Buyer" : "Add RTFO Buyer"}</DialogTitle>
+        </DialogHeader>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {/* Identity */}
+          <div style={{ background: "#f9fafb", borderRadius: 8, padding: "12px 14px", border: "1px solid #e5e7eb" }}>
+            <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Company Identity</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Label>Company Name *</Label>
+                <Input value={val("companyName")} onChange={e => set("companyName", e.target.value)} placeholder="e.g. Vivergo Fuels Ltd" />
+              </div>
+              <div>
+                <Label>Trading Name <span style={{ color: "#9ca3af", fontWeight: 400 }}>(if different)</span></Label>
+                <Input value={val("tradingName")} onChange={e => set("tradingName", e.target.value)} placeholder="Optional" />
+              </div>
+              <div>
+                <Label>RTF Obligation Number</Label>
+                <Input value={val("rtfoObligationNumber")} onChange={e => set("rtfoObligationNumber", e.target.value)} placeholder="DfT-assigned reference" className="font-mono" />
+              </div>
+              <div>
+                <Label>Buyer's ISCC Cert No. <span style={{ color: "#9ca3af", fontWeight: 400 }}>(optional)</span></Label>
+                <Input value={val("isccCertNumber")} onChange={e => set("isccCertNumber", e.target.value)} placeholder="e.g. ISCC-UK-..." />
+              </div>
+            </div>
+          </div>
+
+          {/* Contact */}
+          <div style={{ background: "#f9fafb", borderRadius: 8, padding: "12px 14px", border: "1px solid #e5e7eb" }}>
+            <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Contact</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div><Label>Contact Name</Label><Input value={val("contactName")} onChange={e => set("contactName", e.target.value)} placeholder="e.g. Jane Smith" /></div>
+              <div><Label>Phone</Label><Input value={val("contactPhone")} onChange={e => set("contactPhone", e.target.value)} placeholder="e.g. 01234 567890" /></div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Label>Email</Label><Input type="email" value={val("contactEmail")} onChange={e => set("contactEmail", e.target.value)} placeholder="e.g. sustainability@company.co.uk" />
+              </div>
+            </div>
+          </div>
+
+          {/* Address */}
+          <div style={{ background: "#f9fafb", borderRadius: 8, padding: "12px 14px", border: "1px solid #e5e7eb" }}>
+            <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Address</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Address Line 1</Label><Input value={val("addressLine1")} onChange={e => set("addressLine1", e.target.value)} /></div>
+              <div style={{ gridColumn: "1 / -1" }}><Label>Address Line 2</Label><Input value={val("addressLine2")} onChange={e => set("addressLine2", e.target.value)} /></div>
+              <div><Label>Town / City</Label><Input value={val("town")} onChange={e => set("town", e.target.value)} /></div>
+              <div><Label>County</Label><Input value={val("county")} onChange={e => set("county", e.target.value)} /></div>
+              <div><Label>Postcode</Label><Input value={val("postcode")} onChange={e => set("postcode", e.target.value)} className="uppercase" /></div>
+            </div>
+          </div>
+
+          <div><Label>Notes</Label><Textarea value={val("notes")} onChange={e => set("notes", e.target.value)} rows={2} placeholder="Any additional notes about this buyer…" /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onSave(form)} disabled={saving}>{saving ? "Saving..." : "Save Buyer"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
