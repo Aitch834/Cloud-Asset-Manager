@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean, varchar, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, varchar, jsonb, uniqueIndex, numeric } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 export const tenantsTable = pgTable("tenants", {
@@ -30,6 +30,12 @@ export const farmsTable = pgTable("farms", {
   sectorPoultry: boolean("sector_poultry").notNull().default(false),
   sectorHorticulture: boolean("sector_horticulture").notNull().default(false),
   redTractorId: text("red_tractor_id"),
+  sbiNumber: text("sbi_number"),
+  totalHectares: numeric("total_hectares", { precision: 10, scale: 2 }),
+  isNvzDesignated: boolean("is_nvz_designated").notNull().default(false),
+  farmManager: text("farm_manager"),
+  holdingType: text("holding_type"),
+  assuranceBody: text("assurance_body"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

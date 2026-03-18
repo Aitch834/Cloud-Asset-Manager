@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -27,28 +34,65 @@ const SECTORS = [
   { key: "sectorHorticulture", label: "Horticulture" },
 ] as const;
 
+const HOLDING_TYPES = [
+  { value: "owned", label: "Owner occupied" },
+  { value: "tenanted", label: "Tenanted" },
+  { value: "contract", label: "Contract farmed" },
+  { value: "managed", label: "Managed / Share farmed" },
+] as const;
+
+const ASSURANCE_BODIES = [
+  "Acoura",
+  "ADAS",
+  "Control Union",
+  "CERT UK",
+  "NSF",
+  "SGS",
+  "Other",
+] as const;
+
 type SectorKey = typeof SECTORS[number]["key"];
 
 interface FarmFormData {
   name: string;
   cphNumber: string;
+  sbiNumber: string;
   address: string;
   postcode: string;
   gridReference: string;
   totalAcreage: string;
+  totalHectares: string;
   redTractorId: string;
+  farmManager: string;
+  holdingType: string;
+  assuranceBody: string;
+  isNvzDesignated: boolean;
   sectors: Record<SectorKey, boolean>;
 }
 
-function farmToFormData(farm: Farm & { redTractorId?: string | null }): FarmFormData {
+function farmToFormData(farm: Farm & {
+  redTractorId?: string | null;
+  sbiNumber?: string | null;
+  totalHectares?: string | null;
+  farmManager?: string | null;
+  holdingType?: string | null;
+  assuranceBody?: string | null;
+  isNvzDesignated?: boolean | null;
+}): FarmFormData {
   return {
     name: farm.name || "",
     cphNumber: farm.cphNumber || "",
+    sbiNumber: (farm as any).sbiNumber || "",
     address: farm.address || "",
     postcode: farm.postcode || "",
     gridReference: farm.gridReference || "",
     totalAcreage: farm.totalAcreage?.toString() || "",
-    redTractorId: farm.redTractorId || "",
+    totalHectares: (farm as any).totalHectares?.toString() || "",
+    redTractorId: (farm as any).redTractorId || "",
+    farmManager: (farm as any).farmManager || "",
+    holdingType: (farm as any).holdingType || "",
+    assuranceBody: (farm as any).assuranceBody || "",
+    isNvzDesignated: !!(farm as any).isNvzDesignated,
     sectors: {
       sectorArable: !!farm.sectorArable,
       sectorBeef: !!farm.sectorBeef,
@@ -58,6 +102,17 @@ function farmToFormData(farm: Farm & { redTractorId?: string | null }): FarmForm
       sectorHorticulture: !!farm.sectorHorticulture,
     },
   };
+}
+
+function SectionHeader({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="pb-2 border-b border-border mb-5">
+      <h3 className="text-base font-bold">{title}</h3>
+      {description && (
+        <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
+      )}
+    </div>
+  );
 }
 
 export default function FarmSettings() {
@@ -106,7 +161,7 @@ export default function FarmSettings() {
     );
   }
 
-  const updateField = (field: keyof Omit<FarmFormData, "sectors">, value: string) => {
+  const updateField = (field: keyof Omit<FarmFormData, "sectors" | "isNvzDesignated">, value: string) => {
     setFormData(prev => prev ? { ...prev, [field]: value } : prev);
   };
 
@@ -134,6 +189,12 @@ export default function FarmSettings() {
         totalAcreage: formData.totalAcreage ? parseInt(formData.totalAcreage, 10) : undefined,
         ...formData.sectors,
         redTractorId: formData.redTractorId.trim() || undefined,
+        sbiNumber: formData.sbiNumber.trim() || undefined,
+        totalHectares: formData.totalHectares.trim() || undefined,
+        farmManager: formData.farmManager.trim() || undefined,
+        holdingType: formData.holdingType || undefined,
+        assuranceBody: formData.assuranceBody.trim() || undefined,
+        isNvzDesignated: formData.isNvzDesignated,
       } as any,
     }, {
       onSuccess: () => {
@@ -149,95 +210,214 @@ export default function FarmSettings() {
 
   return (
     <AppLayout title="Farm Settings">
-      <Card>
-        <CardContent className="p-6 md:p-8 space-y-6">
-          <div>
-            <h3 className="text-lg font-bold mb-1">Farm Details</h3>
-            <p className="text-sm text-muted-foreground">
-              Update your farm's name, location, and type information.
-            </p>
-          </div>
+      <div className="max-w-3xl space-y-6">
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="md:col-span-2">
-              <Label htmlFor="settings-name">Farm Name *</Label>
-              <Input
-                id="settings-name"
-                placeholder="e.g. Manor Farm"
-                value={formData.name}
-                onChange={e => updateField("name", e.target.value)}
-              />
+        {/* ── Farm Identity ── */}
+        <Card>
+          <CardContent className="p-6 md:p-8 space-y-5">
+            <SectionHeader
+              title="Farm Identity"
+              description="Core identifiers used on compliance reports and correspondence."
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="md:col-span-2">
+                <Label htmlFor="settings-name">Farm Name *</Label>
+                <Input
+                  id="settings-name"
+                  placeholder="e.g. Manor Farm"
+                  value={formData.name}
+                  onChange={e => updateField("name", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="settings-cph">CPH Number</Label>
+                <Input
+                  id="settings-cph"
+                  placeholder="e.g. 12/345/6789"
+                  value={formData.cphNumber}
+                  onChange={e => updateField("cphNumber", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">County Parish Holding number (APHA / BCMS)</p>
+              </div>
+
+              <div>
+                <Label htmlFor="settings-sbi">SBI Number</Label>
+                <Input
+                  id="settings-sbi"
+                  placeholder="e.g. 105123456"
+                  value={formData.sbiNumber}
+                  onChange={e => updateField("sbiNumber", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Single Business Identifier (Rural Payments Agency)</p>
+              </div>
+
+              <div>
+                <Label htmlFor="settings-rt-id">Red Tractor Membership Number</Label>
+                <Input
+                  id="settings-rt-id"
+                  placeholder="e.g. 12345678"
+                  value={formData.redTractorId}
+                  onChange={e => updateField("redTractorId", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Appears on all compliance reports</p>
+              </div>
+
+              <div>
+                <Label htmlFor="settings-assurance-body">Certification / Assurance Body</Label>
+                <Select
+                  value={formData.assuranceBody || "__none__"}
+                  onValueChange={v => updateField("assuranceBody", v === "__none__" ? "" : v)}
+                >
+                  <SelectTrigger id="settings-assurance-body">
+                    <SelectValue placeholder="Select body…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not specified</SelectItem>
+                    {ASSURANCE_BODIES.map(b => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">The body that carries out your Red Tractor inspection</p>
+              </div>
+
+              <div>
+                <Label htmlFor="settings-manager">Farm Manager / Responsible Person</Label>
+                <Input
+                  id="settings-manager"
+                  placeholder="e.g. John Smith"
+                  value={formData.farmManager}
+                  onChange={e => updateField("farmManager", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Named on compliance exports and inspection reports</p>
+              </div>
+
+              <div>
+                <Label htmlFor="settings-holding-type">Holding Type</Label>
+                <Select
+                  value={formData.holdingType || "__none__"}
+                  onValueChange={v => updateField("holdingType", v === "__none__" ? "" : v)}
+                >
+                  <SelectTrigger id="settings-holding-type">
+                    <SelectValue placeholder="Select type…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not specified</SelectItem>
+                    {HOLDING_TYPES.map(ht => (
+                      <SelectItem key={ht.value} value={ht.value}>{ht.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Location ── */}
+        <Card>
+          <CardContent className="p-6 md:p-8 space-y-5">
+            <SectionHeader
+              title="Location"
+              description="Farm address and map reference."
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="md:col-span-2">
+                <Label htmlFor="settings-address">Address</Label>
+                <Input
+                  id="settings-address"
+                  placeholder="Farm address"
+                  value={formData.address}
+                  onChange={e => updateField("address", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="settings-postcode">Postcode</Label>
+                <Input
+                  id="settings-postcode"
+                  placeholder="e.g. YO1 7HJ"
+                  value={formData.postcode}
+                  onChange={e => updateField("postcode", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="settings-grid">OS Grid Reference</Label>
+                <Input
+                  id="settings-grid"
+                  placeholder="e.g. SE 605 515"
+                  value={formData.gridReference}
+                  onChange={e => updateField("gridReference", e.target.value)}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Land & NVZ ── */}
+        <Card>
+          <CardContent className="p-6 md:p-8 space-y-5">
+            <SectionHeader
+              title="Land & Compliance Details"
+              description="Total farm size and regulatory designations that affect compliance rules."
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <Label htmlFor="settings-hectares">Total Area (hectares)</Label>
+                <Input
+                  id="settings-hectares"
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 101.2"
+                  value={formData.totalHectares}
+                  onChange={e => updateField("totalHectares", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Used for NVZ, biofuel, and spray compliance calculations</p>
+              </div>
+
+              <div>
+                <Label htmlFor="settings-acreage">Total Area (acres)</Label>
+                <Input
+                  id="settings-acreage"
+                  type="number"
+                  placeholder="e.g. 250"
+                  value={formData.totalAcreage}
+                  onChange={e => updateField("totalAcreage", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">For reference — enter either or both</p>
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="settings-cph">CPH Number</Label>
-              <Input
-                id="settings-cph"
-                placeholder="e.g. 12/345/6789"
-                value={formData.cphNumber}
-                onChange={e => updateField("cphNumber", e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground mt-1">County Parish Holding number</p>
+            <div className="pt-2">
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <Checkbox
+                  checked={formData.isNvzDesignated}
+                  onCheckedChange={checked =>
+                    setFormData(prev => prev ? { ...prev, isNvzDesignated: !!checked } : prev)
+                  }
+                  className="mt-0.5"
+                />
+                <div>
+                  <span className="text-sm font-medium group-hover:text-foreground">
+                    Farm is within a Nitrate Vulnerable Zone (NVZ)
+                  </span>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Enables NVZ closed period warnings and the 170 kg N/ha organic manure limit across all relevant modules. You can also flag individual fields within the Field Register.
+                  </p>
+                </div>
+              </label>
             </div>
+          </CardContent>
+        </Card>
 
-            <div>
-              <Label htmlFor="settings-rt-id">Red Tractor ID</Label>
-              <Input
-                id="settings-rt-id"
-                placeholder="e.g. 12345678"
-                value={formData.redTractorId}
-                onChange={e => updateField("redTractorId", e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground mt-1">Red Tractor membership number — appears on all compliance reports</p>
-            </div>
-
-            <div>
-              <Label htmlFor="settings-grid">Grid Reference</Label>
-              <Input
-                id="settings-grid"
-                placeholder="e.g. SE 605 515"
-                value={formData.gridReference}
-                onChange={e => updateField("gridReference", e.target.value)}
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <Label htmlFor="settings-address">Address</Label>
-              <Input
-                id="settings-address"
-                placeholder="Farm address"
-                value={formData.address}
-                onChange={e => updateField("address", e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="settings-postcode">Postcode</Label>
-              <Input
-                id="settings-postcode"
-                placeholder="e.g. YO1 7HJ"
-                value={formData.postcode}
-                onChange={e => updateField("postcode", e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="settings-acreage">Total Acreage</Label>
-              <Input
-                id="settings-acreage"
-                type="number"
-                placeholder="e.g. 250"
-                value={formData.totalAcreage}
-                onChange={e => updateField("totalAcreage", e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginTop: "2rem" }}>
-            <Label className="mb-3 block">Farm Sectors</Label>
-            <p className="text-xs text-muted-foreground mb-3">
-              Select all types of farming activity on this holding.
-            </p>
+        {/* ── Sectors ── */}
+        <Card>
+          <CardContent className="p-6 md:p-8">
+            <SectionHeader
+              title="Farm Sectors"
+              description="Select all types of farming activity on this holding. Sectors determine which Red Tractor standards apply."
+            />
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {SECTORS.map(s => (
                 <label
@@ -252,16 +432,18 @@ export default function FarmSettings() {
                 </label>
               ))}
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          <div className="flex justify-end pt-4 border-t">
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-              Save Changes
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        {/* ── Save ── */}
+        <div className="flex justify-end">
+          <Button onClick={handleSave} disabled={isSaving} size="lg">
+            {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Save Changes
+          </Button>
+        </div>
+
+      </div>
     </AppLayout>
   );
 }
