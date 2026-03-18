@@ -90,7 +90,7 @@ export interface SupportTicket {
   name: string;
   email: string;
   subject: string;
-  message: string;
+  description: string;
   status: string;
   createdAt: string;
 }
@@ -153,4 +153,7 @@ export const api = {
 
   updateTicketStatus: (id: number, status: string, secret: string) =>
     patch<{ ticket: SupportTicket }>(`/admin/support-tickets/${id}/status`, { status }, secret),
+
+  createTicket: (data: { name: string; email: string; subject: string; description: string; source?: string }, _secret: string) =>
+    post<SupportTicket>("/support/tickets", data, _secret),
 };

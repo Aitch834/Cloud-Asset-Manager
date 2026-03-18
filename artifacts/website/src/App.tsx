@@ -11,6 +11,7 @@ import Features from "./pages/Features";
 import Pricing from "./pages/Pricing";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
+import Support from "./pages/Support";
 import Privacy from "./pages/Privacy";
 import Cookies from "./pages/Cookies";
 import Login from "./pages/Login";
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/pricing" component={Pricing} />
       <Route path="/about" component={About} />
       <Route path="/contact" component={Contact} />
+      <Route path="/support" component={Support} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/cookies" component={Cookies} />
       <Route path="/login" component={Login} />

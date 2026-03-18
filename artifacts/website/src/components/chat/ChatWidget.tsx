@@ -23,6 +23,7 @@ export function ChatWidget() {
   // Escalate Form State
   const [ticketName, setTicketName] = useState("");
   const [ticketEmail, setTicketEmail] = useState("");
+  const [ticketSubject, setTicketSubject] = useState("");
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -65,13 +66,16 @@ export function ChatWidget() {
     e.preventDefault();
     if (!ticketName.trim() || !ticketEmail.trim()) return;
 
+    const firstUserMsg = messages.find(m => m.role === "user");
+    const derivedSubject = ticketSubject.trim() || (firstUserMsg ? firstUserMsg.content.slice(0, 80) : "Chat Escalation");
+
     ticketMutation.mutate(
       {
         data: {
           name: ticketName,
           email: ticketEmail,
-          subject: "Chat Escalation: Software Inquiry",
-          description: "User requested human support from chat widget.",
+          subject: derivedSubject,
+          description: "User requested human support via website chat widget.",
           conversationHistory: messages
         }
       },
@@ -191,6 +195,12 @@ export function ChatWidget() {
                       onChange={e => setTicketEmail(e.target.value)}
                       required
                       className="bg-white"
+                    />
+                    <Input
+                      placeholder="Subject (optional — we'll use your message if blank)"
+                      value={ticketSubject}
+                      onChange={e => setTicketSubject(e.target.value)}
+                      className="bg-white text-xs"
                     />
                     <div className="flex gap-2">
                       <Button 

@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   HelpCircle,
   FlaskConical,
+  LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -82,6 +83,7 @@ const otherNav: NavItem[] = [
 
 const bottomNav: NavItem[] = [
   { name: "Help Centre", href: "/help", icon: HelpCircle },
+  { name: "Support", href: "/support", icon: LifeBuoy },
   { name: "Farm Settings", href: "/settings/farm", icon: MapPin },
   { name: "Settings", href: "/settings", icon: Settings },
 ];

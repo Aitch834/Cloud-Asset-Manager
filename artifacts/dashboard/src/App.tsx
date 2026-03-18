@@ -22,6 +22,7 @@ import NMPPage from "@/pages/NMPPage";
 import NVZPage from "@/pages/NVZPage";
 import DocumentsPageCustom from "@/pages/DocumentsPage";
 import HelpCentre from "@/pages/HelpCentre";
+import SupportPage from "@/pages/SupportPage";
 import FarmSettingsPage from "@/pages/FarmSettings";
 import AppSettingsPage from "@/pages/SettingsPage";
 import StaffPage from "@/pages/Staff";
@@ -235,6 +236,7 @@ function Router() {
       <Route path="/documents" component={DocumentsPageCustom} />
       <Route path="/weather" component={WeatherPage} />
       <Route path="/help" component={HelpPage} />
+      <Route path="/support" component={SupportPage} />
       <Route path="/staff" component={StaffPage} />
       <Route path="/settings/farm" component={FarmSettingsPage} />
       <Route path="/settings" component={SettingsPage} />
