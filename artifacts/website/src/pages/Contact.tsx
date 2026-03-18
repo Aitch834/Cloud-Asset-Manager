@@ -26,12 +26,23 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const AVAILABLE_MODULES = [
-  { id: "core", label: "Red Tractor Core" },
-  { id: "field", label: "Field & Crop" },
-  { id: "livestock", label: "Livestock" },
-  { id: "equipment", label: "Equipment" },
-  { id: "weather", label: "Weather Tracking" },
-  { id: "financial", label: "Financials" },
+  { id: "red-tractor-compliance", label: "Red Tractor Compliance" },
+  { id: "field-crop-management", label: "Field & Crop Management" },
+  { id: "sprays-inputs", label: "Sprays & Inputs" },
+  { id: "soil-management", label: "Soil Management" },
+  { id: "equipment-management", label: "Equipment & Vehicles" },
+  { id: "livestock-management", label: "Livestock Management" },
+  { id: "biosecurity", label: "Biosecurity & Visitors" },
+  { id: "staff-training", label: "Staff & Training" },
+  { id: "risk-waste", label: "Risk & Waste Management" },
+  { id: "inspections", label: "Inspections & Audits" },
+  { id: "environmental", label: "Environmental Features" },
+  { id: "haulage-transport", label: "Transport & Haulage" },
+  { id: "stock-suppliers", label: "Stock & Suppliers" },
+  { id: "financial-records", label: "Financial Records" },
+  { id: "document-management", label: "Document Management" },
+  { id: "weather-tracking", label: "Weather Tracking" },
+  { id: "biofuel-rtfo", label: "Biofuel / RTFO Compliance" },
 ];
 
 export default function Contact() {
@@ -43,7 +54,7 @@ export default function Contact() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       farmCount: 1,
-      modulesInterested: ["core"],
+      modulesInterested: ["red-tractor-compliance"],
     }
   });
 
