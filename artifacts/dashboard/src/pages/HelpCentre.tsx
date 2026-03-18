@@ -20,6 +20,16 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Livestock": "bg-amber-50 text-amber-700",
   "Inspections": "bg-violet-50 text-violet-700",
   "Compliance": "bg-red-50 text-red-700",
+  "Biosecurity": "bg-lime-50 text-lime-700",
+  "Staff & Training": "bg-indigo-50 text-indigo-700",
+  "Risk & Waste": "bg-rose-50 text-rose-700",
+  "Financial": "bg-green-50 text-green-700",
+  "Weather": "bg-sky-50 text-sky-700",
+  "Documents": "bg-gray-50 text-gray-700",
+  "Biofuel / RTFO": "bg-teal-50 text-teal-700",
+  "Mobile App": "bg-purple-50 text-purple-700",
+  "Dashboards": "bg-fuchsia-50 text-fuchsia-700",
+  "Nutrient Management": "bg-yellow-50 text-yellow-700",
 };
 
 function categoryColor(cat: string) {
