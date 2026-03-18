@@ -24,6 +24,10 @@ import DocumentsPageCustom from "@/pages/DocumentsPage";
 import HelpCentre from "@/pages/HelpCentre";
 import SupportPage from "@/pages/SupportPage";
 import HarvestDashboard from "@/pages/HarvestDashboard";
+import LivestockHealthDashboard from "@/pages/LivestockHealthDashboard";
+import NVZDashboard from "@/pages/NVZDashboard";
+import SoilDashboard from "@/pages/SoilDashboard";
+import FleetDashboard from "@/pages/FleetDashboard";
 import FarmSettingsPage from "@/pages/FarmSettings";
 import AppSettingsPage from "@/pages/SettingsPage";
 import StaffPage from "@/pages/Staff";
@@ -239,6 +243,10 @@ function Router() {
       <Route path="/help" component={HelpPage} />
       <Route path="/support" component={SupportPage} />
       <Route path="/harvest-dashboard" component={HarvestDashboard} />
+      <Route path="/livestock-health" component={LivestockHealthDashboard} />
+      <Route path="/nvz-dashboard" component={NVZDashboard} />
+      <Route path="/soil-dashboard" component={SoilDashboard} />
+      <Route path="/fleet-dashboard" component={FleetDashboard} />
       <Route path="/staff" component={StaffPage} />
       <Route path="/settings/farm" component={FarmSettingsPage} />
       <Route path="/settings" component={SettingsPage} />

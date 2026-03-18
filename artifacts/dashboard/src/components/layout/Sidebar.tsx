@@ -28,6 +28,8 @@ import {
   FlaskConical,
   LifeBuoy,
   BarChart3,
+  Wrench,
+  Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -69,6 +71,7 @@ const livestockNav: NavItem[] = [
   { name: "Herds & Animals", href: "/livestock", icon: HeartPulse, moduleKeys: ["livestock-management"], requiresLivestock: true },
   { name: "Movements", href: "/movements", icon: Truck, moduleKeys: ["livestock-management"], requiresLivestock: true },
   { name: "Medicine", href: "/medicine", icon: HeartPulse, moduleKeys: ["livestock-management"], requiresLivestock: true },
+  { name: "Health Dashboard", href: "/livestock-health", icon: BarChart3, moduleKeys: ["livestock-management"], requiresLivestock: true },
 ];
 
 const otherNav: NavItem[] = [
@@ -81,6 +84,9 @@ const otherNav: NavItem[] = [
   { name: "Documents", href: "/documents", icon: FileText, moduleKeys: ["document-management"] },
   { name: "Weather", href: "/weather", icon: CloudSun, moduleKeys: ["weather-tracking"] },
   { name: "Harvest Dashboard", href: "/harvest-dashboard", icon: BarChart3, moduleKeys: ["field-crop-management"] },
+  { name: "NVZ Status Board", href: "/nvz-dashboard", icon: Gauge, moduleKeys: ["sprays-inputs"] },
+  { name: "Soil Health", href: "/soil-dashboard", icon: FlaskConical, moduleKeys: ["soil-management"] },
+  { name: "Fleet Status", href: "/fleet-dashboard", icon: Wrench, moduleKeys: ["equipment-management"] },
 ];
 
 const bottomNav: NavItem[] = [

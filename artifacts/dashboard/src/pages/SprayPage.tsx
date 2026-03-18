@@ -29,7 +29,7 @@ export default function SprayPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"applications" | "products" | "print">("applications");
+  const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print">("applications");
 
   const applicationsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const productsQ = useQuery({ queryKey: ["spray-products", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
@@ -52,10 +52,12 @@ export default function SprayPage() {
         </div>
         <TabBar className="mb-5">
           <TabButton active={tab === "applications"} onClick={() => setTab("applications")}>Applications Log</TabButton>
+          <TabButton active={tab === "dayview"} onClick={() => setTab("dayview")}>Day View</TabButton>
           <TabButton active={tab === "products"} onClick={() => setTab("products")}>Product Register</TabButton>
           <TabButton active={tab === "print"} onClick={() => setTab("print")}>Print / Export</TabButton>
         </TabBar>
         {tab === "applications" && <ApplicationsTab applications={applications} products={products} fields={fields} farmId={farmId} loading={applicationsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-applications", farmId] })} toast={toast} />}
+        {tab === "dayview" && <SprayDayViewTab applications={applications} loading={applicationsQ.isLoading} />}
         {tab === "products" && <ProductsTab products={products} farmId={farmId} loading={productsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-products", farmId] })} toast={toast} />}
         {tab === "print" && <PrintTab applications={applications} farm={currentFarm} />}
       </div>
@@ -460,6 +462,124 @@ function PrintTab({ applications, farm }: any) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function SprayDayViewTab({ applications, loading }: { applications: any[]; loading: boolean }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+
+  const dayApps = applications.filter((a: any) => {
+    if (!a.applicationDate) return false;
+    return new Date(a.applicationDate).toISOString().slice(0, 10) === selectedDate;
+  });
+
+  const totalArea = dayApps.reduce((s: number, a: any) => s + (parseFloat(a.areaSprayedHa) || 0), 0);
+  const uniqueFields = new Set(dayApps.map((a: any) => a.fieldId)).size;
+  const uniqueProducts = new Set(dayApps.map((a: any) => a.productId).filter(Boolean)).size;
+  const operators = [...new Set(dayApps.map((a: any) => a.operatorName).filter(Boolean))];
+
+  const displayDate = new Date(selectedDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const isToday = selectedDate === todayStr;
+
+  function windCondition(speed: number | null) {
+    if (speed === null || speed === undefined) return null;
+    if (speed <= 10) return { label: "Good", bg: "#dcfce7", color: "#166534" };
+    if (speed <= 19) return { label: "Marginal", bg: "#fef3c7", color: "#92400e" };
+    return { label: "Poor", bg: "#fee2e2", color: "#991b1b" };
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1.5rem", flexWrap: "wrap" }}>
+        <div>
+          <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#6b7280", display: "block", marginBottom: 4 }}>Select Date</label>
+          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+            style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "0.4rem 0.75rem", fontSize: "0.875rem", background: "#fff", color: "#111827" }} />
+        </div>
+        <div style={{ paddingTop: 18 }}>
+          <button onClick={() => setSelectedDate(todayStr)}
+            style={{ background: isToday ? "#e0f2fe" : "#f3f4f6", color: isToday ? "#0369a1" : "#374151", border: "none", borderRadius: 8, padding: "0.4rem 0.9rem", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer" }}>
+            Today
+          </button>
+        </div>
+        <div style={{ paddingTop: 18, marginLeft: "auto" }}>
+          <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>{displayDate}</span>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
+      ) : dayApps.length === 0 ? (
+        <EmptyState icon={<Droplets size={28} color="#9ca3af" />}
+          title={`No spray activity on ${displayDate}`}
+          subtitle="Select a different date or log a spray application." />
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: "1.5rem" }}>
+            {[
+              { label: "Applications", value: dayApps.length.toString(), color: "#0369a1", bg: "#f0f9ff" },
+              { label: "Fields Treated", value: uniqueFields.toString(), color: "#166534", bg: "#f0fdf4" },
+              { label: "Total Area", value: `${totalArea.toFixed(1)} ha`, color: "#7c3aed", bg: "#f5f3ff" },
+              { label: "Products Used", value: uniqueProducts.toString(), color: "#92400e", bg: "#fffbeb" },
+            ].map(({ label, value, color, bg }) => (
+              <div key={label} style={{ background: bg, border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem" }}>
+                <p style={{ fontSize: "0.72rem", color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600 }}>{label}</p>
+                <p style={{ fontSize: "1.5rem", fontWeight: 700, color }}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {operators.length > 0 && (
+            <div style={{ marginBottom: "1rem", fontSize: "0.8rem", color: "#6b7280" }}>
+              Operators: <strong style={{ color: "#374151" }}>{operators.join(", ")}</strong>
+            </div>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
+            {dayApps.map((a: any) => {
+              const wc = windCondition(parseFloat(a.windSpeedKmh));
+              return (
+                <div key={a.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: "1rem 1.25rem", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10 }}>
+                    <div>
+                      <p style={{ fontWeight: 700, color: "#111827", fontSize: "0.95rem" }}>{a.field?.name || "Unknown Field"}</p>
+                      <p style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: 1 }}>{a.product?.name || "Unknown Product"}</p>
+                      {a.product?.category && <CategoryBadge cat={a.product.category} />}
+                    </div>
+                    {wc && (
+                      <span style={{ fontSize: "0.7rem", fontWeight: 700, color: wc.color, background: wc.bg, borderRadius: 6, padding: "2px 7px", flexShrink: 0 }}>
+                        Wind: {wc.label}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {[
+                      ["Rate", a.applicationRate ? `${a.applicationRate} ${a.rateUnit || ""}`.trim() : "—"],
+                      ["Area", a.areaSprayedHa ? `${a.areaSprayedHa} ha` : "—"],
+                      ["Wind", a.windSpeedKmh ? `${a.windSpeedKmh} km/h ${a.windDirection || ""}`.trim() : "—"],
+                      ["Temp", a.temperatureC != null ? `${a.temperatureC}°C` : "—"],
+                      ["Operator", a.operatorName || "—"],
+                      ["Cert No.", a.certificateNumber || "—"],
+                    ].map(([k, v]) => (
+                      <div key={k}>
+                        <span style={{ fontSize: "0.7rem", color: "#9ca3af", display: "block", textTransform: "uppercase", letterSpacing: "0.03em", fontWeight: 600 }}>{k}</span>
+                        <span style={{ fontSize: "0.85rem", color: "#374151", fontWeight: 500 }}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {a.reasonForApplication && (
+                    <p style={{ marginTop: 10, fontSize: "0.78rem", color: "#9ca3af", borderTop: "1px solid #f3f4f6", paddingTop: 8 }}>
+                      Reason: {a.reasonForApplication}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
