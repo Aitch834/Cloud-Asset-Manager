@@ -102,6 +102,18 @@ export const cropDestinationsTable = pgTable("crop_destinations", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const storageLocationsTable = pgTable("storage_locations", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("grain_store"),
+  capacityTonnes: numeric("capacity_tonnes", { precision: 10, scale: 2 }),
+  locationDescription: text("location_description"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const cropFinancialTransactionsTable = pgTable("crop_financial_transactions", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

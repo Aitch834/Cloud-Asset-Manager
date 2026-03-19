@@ -18,12 +18,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FieldPicker } from "@/components/ui/FieldPicker";
+import { StoragePicker } from "@/components/ui/StoragePicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
+import { useApiStorageLocations } from "@/lib/hooks/useApiStorageLocations";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { HarvestRecord, TransportRun } from "@/lib/types";
 
@@ -46,6 +48,7 @@ export default function HarvestRecordScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
+  const { locations: storageLocations, loading: storageLoading, error: storageError } = useApiStorageLocations(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [fieldName, setFieldName] = useState("");
@@ -263,11 +266,13 @@ export default function HarvestRecordScreen() {
                 value={run.vehicleNumber}
                 onChangeText={(v) => updateRun(index, "vehicleNumber", v)}
               />
-              <Input
+              <StoragePicker
                 label="Storage Destination"
-                placeholder="e.g. Home store bin 2, Co-op Dereham"
                 value={run.storageDestination}
-                onChangeText={(v) => updateRun(index, "storageDestination", v)}
+                onChange={(v) => updateRun(index, "storageDestination", v)}
+                locations={storageLocations}
+                loading={storageLoading}
+                error={storageError}
               />
               <Input
                 label="Load Notes (optional)"

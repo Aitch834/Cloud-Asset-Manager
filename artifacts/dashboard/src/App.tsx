@@ -40,6 +40,7 @@ import InspectionsPageFull from "@/pages/InspectionsPageFull";
 import WeatherPageFull from "@/pages/WeatherPageFull";
 import HaulagePageFull from "@/pages/HaulagePageFull";
 import EnvironmentalPageFull from "@/pages/EnvironmentalPageFull";
+import StorageLocationsPage from "@/pages/StorageLocationsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -179,6 +180,7 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/fields" component={FieldsPage} />
       <Route path="/harvest" component={HarvestPage} />
+      <Route path="/storage-locations" component={StorageLocationsPage} />
       <Route path="/equipment" component={EquipmentPage} />
       <Route path="/sprays" component={SprayPage} />
       <Route path="/nmp" component={NMPPage} />

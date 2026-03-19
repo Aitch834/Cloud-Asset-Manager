@@ -60,6 +60,7 @@ import {
   subscriptionsTable,
   modulesTable,
   tenantsTable,
+  storageLocationsTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte } from "drizzle-orm";
 import { createNonconformanceNotification } from "../lib/alertingJob";
@@ -2184,6 +2185,39 @@ router.delete("/farms/:farmId/haulage/:recordId", requireAuth, requireTenant, re
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(haulageRecordsTable).where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Storage Locations ─────────────────────────────
+router.get("/farms/:farmId/storage-locations", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(storageLocationsTable).where(eq(storageLocationsTable.farmId, farmId)).orderBy(storageLocationsTable.name);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/storage-locations", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(storageLocationsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/storage-locations/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(storageLocationsTable).set(req.body).where(and(eq(storageLocationsTable.id, recordId), eq(storageLocationsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/storage-locations/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(storageLocationsTable).where(and(eq(storageLocationsTable.id, recordId), eq(storageLocationsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
