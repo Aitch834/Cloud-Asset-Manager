@@ -46,6 +46,7 @@ import {
   correctiveActionsTable,
   environmentalFeaturesTable,
   agriEnvironmentSchemeRecordsTable,
+  environmentalAssessmentsTable,
   haulageRecordsTable,
   hauliersTable,
   suppliersTable,
@@ -1546,6 +1547,39 @@ router.delete("/farms/:farmId/agri-schemes/:recordId", requireAuth, requireTenan
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(agriEnvironmentSchemeRecordsTable).where(and(eq(agriEnvironmentSchemeRecordsTable.id, recordId), eq(agriEnvironmentSchemeRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Environmental Assessments ─────────────────────
+router.get("/farms/:farmId/environmental-assessments", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(environmentalAssessmentsTable).where(eq(environmentalAssessmentsTable.farmId, farmId)).orderBy(desc(environmentalAssessmentsTable.assessmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/environmental-assessments", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(environmentalAssessmentsTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/environmental-assessments/:recordId", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(environmentalAssessmentsTable).set(req.body).where(and(eq(environmentalAssessmentsTable.id, recordId), eq(environmentalAssessmentsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/environmental-assessments/:recordId", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(environmentalAssessmentsTable).where(and(eq(environmentalAssessmentsTable.id, recordId), eq(environmentalAssessmentsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
