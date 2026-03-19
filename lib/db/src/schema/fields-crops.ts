@@ -145,3 +145,22 @@ export const seedDrillingRecordsTable = pgTable("seed_drilling_records", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const nvzRiskAssessmentsTable = pgTable("nvz_risk_assessments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  assessmentDate: timestamp("assessment_date", { withTimezone: true }).notNull(),
+  assessedBy: text("assessed_by").notNull(),
+  soilType: text("soil_type"),
+  drainageRisk: text("drainage_risk"),
+  slopeRisk: text("slope_risk"),
+  distanceToWatercourse: text("distance_to_watercourse"),
+  floodRisk: text("flood_risk"),
+  organicMatterLevel: text("organic_matter_level"),
+  applicationRestrictionsIdentified: text("application_restrictions_identified"),
+  mitigationMeasures: text("mitigation_measures"),
+  overallRiskLevel: text("overall_risk_level"),
+  nextReviewDate: timestamp("next_review_date", { withTimezone: true }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

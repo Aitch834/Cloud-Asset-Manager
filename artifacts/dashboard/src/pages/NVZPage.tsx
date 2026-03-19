@@ -217,13 +217,19 @@ export default function NVZPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"summary" | "log">("summary");
+  const [tab, setTab] = useState<"summary" | "log" | "risk-assessments">("summary");
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState<typeof emptyForm>(emptyForm);
   const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [nvzEditField, setNvzEditField] = useState<FieldSummary | null>(null);
   const [nvzEditForm, setNvzEditForm] = useState({ isNvz: false, nvzLandType: "" });
+
+  const [raAddOpen, setRaAddOpen] = useState(false);
+  const [raEditItem, setRaEditItem] = useState<any>(null);
+  const [raDeleteId, setRaDeleteId] = useState<number | null>(null);
+  const emptyRaForm = { assessmentDate: "", assessedBy: "", soilType: "", drainageRisk: "", slopeRisk: "", distanceToWatercourse: "", floodRisk: "", organicMatterLevel: "", applicationRestrictionsIdentified: "", mitigationMeasures: "", overallRiskLevel: "", nextReviewDate: "", notes: "" };
+  const [raForm, setRaForm] = useState({ ...emptyRaForm });
 
   const summaryQ = useQuery<{ summary: FieldSummary[] }>({
     queryKey: ["nvz-summary", farmId],
@@ -243,9 +249,29 @@ export default function NVZPage() {
     enabled: !!farmId,
   });
 
+  const riskAssessmentsQ = useQuery<{ records: any[] }>({
+    queryKey: ["nvz-risk-assessments", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/nvz-risk-assessments`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const raCreateMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/nvz-risk-assessments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Risk assessment saved" }); qc.invalidateQueries({ queryKey: ["nvz-risk-assessments", farmId] }); setRaAddOpen(false); setRaForm({ ...emptyRaForm }); },
+  });
+  const raUpdateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/nvz-risk-assessments/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Risk assessment updated" }); qc.invalidateQueries({ queryKey: ["nvz-risk-assessments", farmId] }); setRaEditItem(null); },
+  });
+  const raDeleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/nvz-risk-assessments/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Risk assessment deleted" }); qc.invalidateQueries({ queryKey: ["nvz-risk-assessments", farmId] }); setRaDeleteId(null); },
+  });
+
   const summary: FieldSummary[] = summaryQ.data?.summary ?? [];
   const applications: NvzApplication[] = appsQ.data?.records ?? [];
   const fields: Field[] = fieldsQ.data?.records ?? [];
+  const riskAssessments: any[] = riskAssessmentsQ.data?.records ?? [];
 
   const filteredApps = useMemo(() => {
     if (!search.trim()) return applications;
@@ -382,6 +408,7 @@ export default function NVZPage() {
         <div className="flex gap-1 border-b border-border pb-0">
           <TabButton active={tab === "summary"} onClick={() => setTab("summary")}>NVZ Summary</TabButton>
           <TabButton active={tab === "log"} onClick={() => setTab("log")}>Application Log</TabButton>
+          <TabButton active={tab === "risk-assessments"} onClick={() => setTab("risk-assessments")}>Risk Assessments {riskAssessments.length > 0 && `(${riskAssessments.length})`}</TabButton>
         </div>
 
         {/* ── SUMMARY TAB ── */}
@@ -635,6 +662,134 @@ export default function NVZPage() {
             <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => { if (deleteId) deleteMut.mutate(deleteId); }}>
               {deleteMut.isPending ? "Deleting…" : "Delete Record"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── RISK ASSESSMENTS TAB ── */}
+      {tab === "risk-assessments" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div style={{ flex: 1 }}>
+              <p className="text-sm text-foreground/60">
+                Record NVZ risk assessments as required by the Nitrates Action Programme. Assessments should identify application restrictions, drainage risk, and mitigation measures.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => { setRaForm({ ...emptyRaForm }); setRaAddOpen(true); }}>
+              <Plus className="w-4 h-4 mr-1" /> Add Assessment
+            </Button>
+          </div>
+
+          {riskAssessmentsQ.isLoading ? (
+            <p className="text-sm text-foreground/40 text-center py-10">Loading…</p>
+          ) : riskAssessments.length === 0 ? (
+            <div className="border border-border rounded-xl p-10 text-center text-foreground/40">
+              <Leaf className="w-8 h-8 mx-auto mb-3 opacity-30" />
+              <p className="font-medium">No risk assessments recorded</p>
+              <p className="text-sm mt-1">Log a formal NVZ risk assessment to demonstrate compliance with the Nitrates Action Programme.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
+                    {["Date", "Assessed By", "Overall Risk", "Restrictions", "Next Review", ""].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600, fontSize: "0.75rem", textTransform: "uppercase", color: "#6b7280", letterSpacing: "0.05em" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {riskAssessments.map((r: any) => {
+                    const riskColor = r.overallRiskLevel === "High" ? "#dc2626" : r.overallRiskLevel === "Medium" ? "#d97706" : "#16a34a";
+                    const riskBg = r.overallRiskLevel === "High" ? "#fef2f2" : r.overallRiskLevel === "Medium" ? "#fffbeb" : "#f0fdf4";
+                    return (
+                      <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                        <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.assessmentDate ? new Date(r.assessmentDate).toLocaleDateString("en-GB") : "—"}</td>
+                        <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.assessedBy}</td>
+                        <td style={{ padding: "0.625rem 0.75rem" }}>
+                          {r.overallRiskLevel ? <span style={{ background: riskBg, color: riskColor, border: `1px solid ${riskBg === "#f0fdf4" ? "#bbf7d0" : riskBg === "#fffbeb" ? "#fde68a" : "#fecaca"}`, borderRadius: 4, padding: "2px 8px", fontSize: "0.75rem", fontWeight: 600 }}>{r.overallRiskLevel}</span> : <span style={{ color: "#9ca3af" }}>—</span>}
+                        </td>
+                        <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.applicationRestrictionsIdentified || "None noted"}</td>
+                        <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.nextReviewDate ? new Date(r.nextReviewDate).toLocaleDateString("en-GB") : "—"}</td>
+                        <td style={{ padding: "0.625rem 0.75rem" }}>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => {
+                              setRaEditItem(r);
+                              setRaForm({ assessmentDate: r.assessmentDate ? r.assessmentDate.slice(0, 10) : "", assessedBy: r.assessedBy ?? "", soilType: r.soilType ?? "", drainageRisk: r.drainageRisk ?? "", slopeRisk: r.slopeRisk ?? "", distanceToWatercourse: r.distanceToWatercourse ?? "", floodRisk: r.floodRisk ?? "", organicMatterLevel: r.organicMatterLevel ?? "", applicationRestrictionsIdentified: r.applicationRestrictionsIdentified ?? "", mitigationMeasures: r.mitigationMeasures ?? "", overallRiskLevel: r.overallRiskLevel ?? "", nextReviewDate: r.nextReviewDate ? r.nextReviewDate.slice(0, 10) : "", notes: r.notes ?? "" });
+                            }}>Edit</Button>
+                            <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setRaDeleteId(r.id)}>Del</Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── RISK ASSESSMENT ADD/EDIT DIALOG ── */}
+      <Dialog open={raAddOpen || !!raEditItem} onOpenChange={open => { if (!open) { setRaAddOpen(false); setRaEditItem(null); } }}>
+        <DialogContent style={{ maxWidth: 580, maxHeight: "90vh", overflowY: "auto" }}>
+          <DialogHeader><DialogTitle>{raEditItem ? "Edit Risk Assessment" : "Add NVZ Risk Assessment"}</DialogTitle></DialogHeader>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><label className="text-sm font-medium mb-1.5 block">Assessment Date *</label><Input type="date" value={raForm.assessmentDate} onChange={e => setRaForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
+              <div><label className="text-sm font-medium mb-1.5 block">Assessed By *</label><Input value={raForm.assessedBy} onChange={e => setRaForm(f => ({ ...f, assessedBy: e.target.value }))} placeholder="Name / Organisation" /></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><label className="text-sm font-medium mb-1.5 block">Soil Type</label><Input value={raForm.soilType} onChange={e => setRaForm(f => ({ ...f, soilType: e.target.value }))} placeholder="e.g. Sandy loam, Clay" /></div>
+              <div><label className="text-sm font-medium mb-1.5 block">Organic Matter Level</label><Input value={raForm.organicMatterLevel} onChange={e => setRaForm(f => ({ ...f, organicMatterLevel: e.target.value }))} placeholder="e.g. Low, Medium, High" /></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><label className="text-sm font-medium mb-1.5 block">Drainage Risk</label>
+                <Select value={raForm.drainageRisk} onValueChange={v => setRaForm(f => ({ ...f, drainageRisk: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>{["Low", "Medium", "High"].map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><label className="text-sm font-medium mb-1.5 block">Slope Risk</label>
+                <Select value={raForm.slopeRisk} onValueChange={v => setRaForm(f => ({ ...f, slopeRisk: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>{["Low", "Medium", "High"].map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><label className="text-sm font-medium mb-1.5 block">Flood Risk</label><Input value={raForm.floodRisk} onChange={e => setRaForm(f => ({ ...f, floodRisk: e.target.value }))} placeholder="e.g. Zone 1, Zone 3" /></div>
+              <div><label className="text-sm font-medium mb-1.5 block">Distance to Watercourse</label><Input value={raForm.distanceToWatercourse} onChange={e => setRaForm(f => ({ ...f, distanceToWatercourse: e.target.value }))} placeholder="e.g. >50m, 20m" /></div>
+            </div>
+            <div><label className="text-sm font-medium mb-1.5 block">Application Restrictions Identified</label><Input value={raForm.applicationRestrictionsIdentified} onChange={e => setRaForm(f => ({ ...f, applicationRestrictionsIdentified: e.target.value }))} placeholder="e.g. No spreading Dec–Feb, buffer zone required" /></div>
+            <div><label className="text-sm font-medium mb-1.5 block">Mitigation Measures</label><Input value={raForm.mitigationMeasures} onChange={e => setRaForm(f => ({ ...f, mitigationMeasures: e.target.value }))} placeholder="e.g. Trailing shoe only, maintain 10m buffer" /></div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><label className="text-sm font-medium mb-1.5 block">Overall Risk Level</label>
+                <Select value={raForm.overallRiskLevel} onValueChange={v => setRaForm(f => ({ ...f, overallRiskLevel: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>{["Low", "Medium", "High"].map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><label className="text-sm font-medium mb-1.5 block">Next Review Date</label><Input type="date" value={raForm.nextReviewDate} onChange={e => setRaForm(f => ({ ...f, nextReviewDate: e.target.value }))} /></div>
+            </div>
+            <div><label className="text-sm font-medium mb-1.5 block">Notes</label><Input value={raForm.notes} onChange={e => setRaForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => { setRaAddOpen(false); setRaEditItem(null); }}>Cancel</Button>
+            <Button onClick={() => {
+              if (raEditItem) raUpdateMut.mutate({ id: raEditItem.id, body: raForm });
+              else raCreateMut.mutate(raForm);
+            }} disabled={!raForm.assessmentDate || !raForm.assessedBy}>Save Assessment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={raDeleteId !== null} onOpenChange={open => { if (!open) setRaDeleteId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Delete Risk Assessment</DialogTitle><DialogDescription>This cannot be undone.</DialogDescription></DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setRaDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => raDeleteId !== null && raDeleteMut.mutate(raDeleteId)}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

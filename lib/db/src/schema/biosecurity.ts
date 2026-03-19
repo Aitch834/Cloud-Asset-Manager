@@ -48,3 +48,24 @@ export const cleaningDisinfectionRecordsTable = pgTable("cleaning_disinfection_r
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const biosecurityPlansTable = pgTable("biosecurity_plans", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  restrictedAreas: text("restricted_areas"),
+  visitorProcedures: text("visitor_procedures"),
+  vehicleEntryProcedures: text("vehicle_entry_procedures"),
+  cleaningProtocols: text("cleaning_protocols"),
+  pestManagementApproach: text("pest_management_approach"),
+  diseaseResponsePlan: text("disease_response_plan"),
+  wasteManagementProcedures: text("waste_management_procedures"),
+  waterSourceProtection: text("water_source_protection"),
+  staffResponsibilities: text("staff_responsibilities"),
+  planAuthor: text("plan_author"),
+  lastReviewedDate: timestamp("last_reviewed_date", { withTimezone: true }),
+  nextReviewDate: timestamp("next_review_date", { withTimezone: true }),
+  approvedBy: text("approved_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});

@@ -62,6 +62,8 @@ import {
   modulesTable,
   tenantsTable,
   storageLocationsTable,
+  biosecurityPlansTable,
+  nvzRiskAssessmentsTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte } from "drizzle-orm";
 import { createNonconformanceNotification } from "../lib/alertingJob";
@@ -3154,6 +3156,59 @@ router.get("/farms/:farmId/biofuel/ghg-summary", requireAuth, requireTenant, req
     biofuelDeliveryCount: deliveries[0]?.count ?? 0,
     totalBiofuelTonnes: deliveries[0]?.totalTonnes ?? "0",
   });
+});
+
+// ─── Biosecurity Plan (one per farm, upsert) ──────────────────────────────────
+router.get("/farms/:farmId/biosecurity-plan", requireAuth, requireTenant, requireModuleByKey("biosecurity", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [plan] = await db.select().from(biosecurityPlansTable).where(eq(biosecurityPlansTable.farmId, farmId));
+  res.json({ plan: plan ?? null });
+});
+
+router.put("/farms/:farmId/biosecurity-plan", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [existing] = await db.select({ id: biosecurityPlansTable.id }).from(biosecurityPlansTable).where(eq(biosecurityPlansTable.farmId, farmId));
+  let plan;
+  if (existing) {
+    [plan] = await db.update(biosecurityPlansTable).set({ ...req.body, farmId }).where(eq(biosecurityPlansTable.id, existing.id)).returning();
+  } else {
+    [plan] = await db.insert(biosecurityPlansTable).values({ ...req.body, farmId }).returning();
+  }
+  res.json({ plan });
+});
+
+// ─── NVZ Risk Assessments ──────────────────────────────────────────────────────
+router.get("/farms/:farmId/nvz-risk-assessments", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(nvzRiskAssessmentsTable).where(eq(nvzRiskAssessmentsTable.farmId, farmId)).orderBy(desc(nvzRiskAssessmentsTable.assessmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/nvz-risk-assessments", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(nvzRiskAssessmentsTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/nvz-risk-assessments/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const [record] = await db.update(nvzRiskAssessmentsTable).set(req.body).where(and(eq(nvzRiskAssessmentsTable.id, recordId), eq(nvzRiskAssessmentsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/nvz-risk-assessments/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(nvzRiskAssessmentsTable).where(and(eq(nvzRiskAssessmentsTable.id, recordId), eq(nvzRiskAssessmentsTable.farmId, farmId)));
+  res.json({ ok: true });
 });
 
 export default router;

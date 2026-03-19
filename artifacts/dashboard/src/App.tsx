@@ -31,6 +31,7 @@ import FleetDashboard from "@/pages/FleetDashboard";
 import FarmSettingsPage from "@/pages/FarmSettings";
 import AppSettingsPage from "@/pages/SettingsPage";
 import StaffPage from "@/pages/Staff";
+import StaffTrainingPage from "@/pages/StaffTrainingPage";
 import NotFound from "@/pages/not-found";
 import SoilTestsPage from "@/pages/SoilTestsPage";
 import BiosecurityPage from "@/pages/BiosecurityPage";
@@ -118,20 +119,7 @@ function MedicinePage() {
 }
 
 function TrainingPage() {
-  return <ModulePage title="Staff Training" apiPath="training" columns={[
-    { key: "trainingTitle", label: "Title" },
-    { key: "trainingDate", label: "Date" },
-    { key: "staffName", label: "Staff" },
-    { key: "provider", label: "Provider" },
-    { key: "expiryDate", label: "Expires" },
-  ]} formFields={[
-    { key: "trainingTitle", label: "Training Title", required: true },
-    { key: "trainingDate", label: "Date", type: "date", required: true },
-    { key: "staffName", label: "Staff Name", required: true },
-    { key: "provider", label: "Provider" },
-    { key: "expiryDate", label: "Expiry Date", type: "date" },
-    { key: "notes", label: "Notes", type: "textarea" },
-  ]} />;
+  return <StaffTrainingPage />;
 }
 
 function StockPage() {
