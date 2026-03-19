@@ -68,6 +68,10 @@ interface FarmFormData {
   assuranceBody: string;
   isNvzDesignated: boolean;
   sectors: Record<SectorKey, boolean>;
+  eaml2Email: string;
+  flockMark: string;
+  herdMark: string;
+  bcmsHoldingNumber: string;
 }
 
 function farmToFormData(farm: Farm & {
@@ -101,6 +105,10 @@ function farmToFormData(farm: Farm & {
       sectorPoultry: !!farm.sectorPoultry,
       sectorHorticulture: !!farm.sectorHorticulture,
     },
+    eaml2Email: (farm as any).eaml2Email || "",
+    flockMark: (farm as any).flockMark || "",
+    herdMark: (farm as any).herdMark || "",
+    bcmsHoldingNumber: (farm as any).bcmsHoldingNumber || "",
   };
 }
 
@@ -195,6 +203,10 @@ export default function FarmSettings() {
         holdingType: formData.holdingType || undefined,
         assuranceBody: formData.assuranceBody.trim() || undefined,
         isNvzDesignated: formData.isNvzDesignated,
+        eaml2Email: formData.eaml2Email.trim() || undefined,
+        flockMark: formData.flockMark.trim() || undefined,
+        herdMark: formData.herdMark.trim() || undefined,
+        bcmsHoldingNumber: formData.bcmsHoldingNumber.trim() || undefined,
       } as any,
     }, {
       onSuccess: () => {
@@ -431,6 +443,66 @@ export default function FarmSettings() {
                   <span className="text-sm font-medium">{s.label}</span>
                 </label>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── eAML2 / BCMS Integration ── */}
+        <Card>
+          <CardContent className="p-6 md:p-8 space-y-5">
+            <SectionHeader
+              title="eAML2 / BCMS Integration"
+              description="Reference details for electronic livestock movement reporting to APHA and BCMS. These are stored for reference and appear on movement exports — submission to eAML2.net or BCMS is done separately."
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="md:col-span-2">
+                <Label htmlFor="settings-eaml2-email">eAML2 / BCMS Registered Email</Label>
+                <Input
+                  id="settings-eaml2-email"
+                  type="email"
+                  placeholder="e.g. farmer@example.com"
+                  value={formData.eaml2Email}
+                  onChange={e => updateField("eaml2Email", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">The email address registered with eAML2.net / BCMS Online for this holding</p>
+              </div>
+
+              <div>
+                <Label htmlFor="settings-flock-mark">Flock Mark (Sheep &amp; Goats)</Label>
+                <Input
+                  id="settings-flock-mark"
+                  placeholder="e.g. UK123456"
+                  value={formData.flockMark}
+                  onChange={e => updateField("flockMark", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">APHA-issued 8-character flock mark (UK + 6 digits). Required for all sheep and goat movement documents.</p>
+              </div>
+
+              <div>
+                <Label htmlFor="settings-herd-mark">Herd Mark (Cattle)</Label>
+                <Input
+                  id="settings-herd-mark"
+                  placeholder="e.g. UK654321"
+                  value={formData.herdMark}
+                  onChange={e => updateField("herdMark", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">BCMS-issued herd mark for cattle. Printed on cattle passports and required for BCMS movement notifications.</p>
+              </div>
+
+              <div>
+                <Label htmlFor="settings-bcms-holding">BCMS Holding Number (Cattle)</Label>
+                <Input
+                  id="settings-bcms-holding"
+                  placeholder="e.g. 32541/0001"
+                  value={formData.bcmsHoldingNumber}
+                  onChange={e => updateField("bcmsHoldingNumber", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Your BCMS-registered holding number for cattle movements (may differ from CPH format)</p>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 mt-2">
+              <strong>How eAML2 and BCMS work with BDE Farm Trac:</strong> Record all livestock movements in the Movements section. Use the "Export CSV" button to download a structured report you can use as a reference when submitting to eAML2.net (sheep/pigs) or BCMS Online (cattle). Paste the AML reference number back into each movement record once submitted. Movements must be reported within 3 days for cattle.
             </div>
           </CardContent>
         </Card>

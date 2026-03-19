@@ -48,6 +48,8 @@ export const livestockMovementsTable = pgTable("livestock_movements", {
   bcmsSubmissionRef: text("bcms_submission_ref"),
   legalNotificationSubmitted: boolean("legal_notification_submitted").notNull().default(false),
   legalNotificationDate: timestamp("legal_notification_date", { withTimezone: true }),
+  species: text("species"),
+  earTagNumbers: text("ear_tag_numbers"),
   transporterDetails: text("transporter_details"),
   reason: text("reason"),
   notes: text("notes"),

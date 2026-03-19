@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Redirect } from "wouter";
 import {
   Plus, Search, RefreshCw, Loader2, Pencil, Trash2, X, Printer,
-  ArrowRight, Paperclip, CheckCircle2, AlertTriangle, Upload, File, Skull,
+  ArrowRight, Paperclip, CheckCircle2, AlertTriangle, Upload, File, Skull, Download, ExternalLink,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -29,6 +29,8 @@ interface Movement {
   bcmsSubmissionRef: string | null;
   legalNotificationSubmitted: boolean;
   legalNotificationDate: string | null;
+  species: string | null;
+  earTagNumbers: string | null;
   transporterDetails: string | null;
   reason: string | null;
   notes: string | null;
@@ -718,6 +720,8 @@ const EMPTY_FORM = {
   fromLocation: "",
   toLocation: "",
   numberOfAnimals: "",
+  species: "",
+  earTagNumbers: "",
   licenceNumber: "",
   bcmsSubmissionRef: "",
   legalNotificationSubmitted: false,
@@ -726,6 +730,36 @@ const EMPTY_FORM = {
   reason: "",
   notes: "",
 };
+
+function exportMovementsCsv(records: Movement[], farmCph: string) {
+  const headers = [
+    "Record ID", "Movement Date", "Movement Type", "Species", "Number of Animals",
+    "Ear Tag Numbers", "From Location / CPH", "To Location / CPH",
+    "AML Licence Reference", "BCMS/eAML2 Submission Ref",
+    "BCMS/APHA Notified", "Notification Date",
+    "Transporter / Haulier", "Reason", "Notes",
+  ];
+  const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "";
+  const rows = records.map(r => [
+    r.id, fmtD(r.movementDate), r.movementType,
+    r.species || "", r.numberOfAnimals ?? "",
+    r.earTagNumbers || "",
+    r.fromLocation || "", r.toLocation || "",
+    r.licenceNumber || "", r.bcmsSubmissionRef || "",
+    r.legalNotificationSubmitted ? "Yes" : "No",
+    fmtD(r.legalNotificationDate),
+    r.transporterDetails || "", r.reason || "", r.notes || "",
+  ]);
+  const csv = [headers, ...rows].map(row => row.map(esc).join(",")).join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `livestock-movements-cph${farmCph || "unknown"}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function Movements() {
   const { farmId } = useAppStore();
@@ -821,6 +855,7 @@ export default function Movements() {
     const s = search.toLowerCase();
     return (
       r.movementType?.toLowerCase().includes(s) ||
+      r.species?.toLowerCase().includes(s) ||
       r.fromLocation?.toLowerCase().includes(s) ||
       r.toLocation?.toLowerCase().includes(s) ||
       r.licenceNumber?.toLowerCase().includes(s) ||
@@ -843,6 +878,8 @@ export default function Movements() {
       fromLocation: r.fromLocation ?? "",
       toLocation: r.toLocation ?? "",
       numberOfAnimals: r.numberOfAnimals != null ? String(r.numberOfAnimals) : "",
+      species: r.species ?? "",
+      earTagNumbers: r.earTagNumbers ?? "",
       licenceNumber: r.licenceNumber ?? "",
       bcmsSubmissionRef: r.bcmsSubmissionRef ?? "",
       legalNotificationSubmitted: r.legalNotificationSubmitted ?? false,
@@ -936,6 +973,33 @@ export default function Movements() {
         </div>
       )}
 
+      {/* eAML2 / BCMS quick-action banner */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-900 flex items-start gap-3">
+        <ExternalLink className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+        <div className="flex-1">
+          <strong>Submit to eAML2 / BCMS:</strong> Record movements here, then submit to the appropriate government portal.
+          Paste the reference number back into each movement record once submitted.
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <a
+            href="https://www.eaml2.org.uk"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-900 bg-white border border-blue-300 rounded-md px-2.5 py-1 hover:bg-blue-50 transition-colors"
+          >
+            eAML2.net <ExternalLink className="w-3 h-3" />
+          </a>
+          <a
+            href="https://www.bcms.gov.uk"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-900 bg-white border border-blue-300 rounded-md px-2.5 py-1 hover:bg-blue-50 transition-colors"
+          >
+            BCMS Online <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      </div>
+
       {/* Regulatory reminder */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-900 flex gap-3 items-start">
         <span className="text-amber-500 mt-0.5 shrink-0">ℹ</span>
@@ -960,6 +1024,15 @@ export default function Movements() {
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-1" /> Refresh
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportMovementsCsv(records, farmData?.cphNumber ?? "")}
+            disabled={records.length === 0}
+            title="Download all movements as CSV for eAML2 / BCMS reference"
+          >
+            <Download className="w-4 h-4 mr-1" /> Export CSV
           </Button>
           <Button size="sm" onClick={openAdd}>
             <Plus className="w-4 h-4 mr-1" /> Add Movement
@@ -1017,10 +1090,49 @@ export default function Movements() {
                   <Input type="number" min="1" value={formData.numberOfAnimals} onChange={(e) => setField("numberOfAnimals", e.target.value)} placeholder="e.g. 12" />
                 </div>
                 <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Species</label>
+                  <select
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    value={formData.species}
+                    onChange={(e) => setField("species", e.target.value)}
+                  >
+                    <option value="">Not specified</option>
+                    <option value="cattle">Cattle</option>
+                    <option value="sheep">Sheep</option>
+                    <option value="pigs">Pigs</option>
+                    <option value="goats">Goats</option>
+                    <option value="deer">Deer</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">AML Licence / Reference No.</label>
                   <Input placeholder="e.g. AML12345678" value={formData.licenceNumber} onChange={(e) => setField("licenceNumber", e.target.value)} />
                 </div>
               </div>
+
+              {/* Ear tag numbers — shown for cattle, sheep, goats */}
+              {(formData.species === "cattle" || formData.species === "sheep" || formData.species === "goats") && (
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">
+                    Individual Ear Tag Numbers
+                    {formData.species === "cattle" && <span className="ml-1.5 text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Required for BCMS cattle traceability</span>}
+                  </label>
+                  <textarea
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring min-h-[72px] resize-y"
+                    placeholder={formData.species === "cattle"
+                      ? "e.g. UK123456789012, UK123456789013 (one per line or comma-separated)"
+                      : "e.g. UK123456789012, UK123456789013 (optional for sheep/goats)"}
+                    value={formData.earTagNumbers}
+                    onChange={(e) => setField("earTagNumbers", e.target.value)}
+                  />
+                  <p className="text-xs text-foreground/50 mt-1">
+                    {formData.species === "cattle"
+                      ? "BCMS requires individual ear tag numbers for all cattle movements. Enter one per line or comma-separated."
+                      : "Ear tag numbers are optional for sheep/goats (batch movements are acceptable) but aid traceability."}
+                  </p>
+                </div>
+              )}
 
               {/* BCMS / Legal Notification section */}
               <div className="border border-border rounded-xl p-4 space-y-4 bg-amber-50/30">
@@ -1137,6 +1249,7 @@ export default function Movements() {
                 <tr className="border-b border-border">
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Date</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Type</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Species</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">From → To</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Animals</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">AML Ref</th>
@@ -1150,6 +1263,13 @@ export default function Movements() {
                     <tr className="border-b border-border/50 hover:bg-black/[0.02] transition-colors">
                       <td className="p-4 text-sm font-medium text-foreground">{formatDate(r.movementDate)}</td>
                       <td className="p-4">{movementTypeBadge(r.movementType)}</td>
+                      <td className="p-4">
+                        {r.species ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 capitalize">
+                            {r.species}
+                          </span>
+                        ) : <span className="text-foreground/30 text-xs">—</span>}
+                      </td>
                       <td className="p-4 text-sm text-foreground/70">
                         <span className="font-mono text-xs">{r.fromLocation || "—"}</span>
                         <span className="mx-1.5 text-foreground/30">→</span>
@@ -1193,7 +1313,7 @@ export default function Movements() {
                     </tr>
                     {expandedAttachments === r.id && (
                       <tr key={`attach-${r.id}`} className="bg-muted/20 border-b border-border/30">
-                        <td colSpan={7} className="py-2">
+                        <td colSpan={8} className="py-2">
                           <AttachmentsPanel movementId={r.id} farmId={farmId} />
                         </td>
                       </tr>
