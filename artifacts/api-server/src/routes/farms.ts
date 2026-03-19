@@ -3453,4 +3453,128 @@ router.get("/access-token/:token", async (req: Request, res: Response): Promise<
   });
 });
 
+// ── Business Reports ──────────────────────────────────────────────────────────
+
+router.get("/:farmId/reports/gross-margin", requireAuth, async (req, res): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
+  const startDate = new Date(`${year}-01-01T00:00:00Z`);
+  const endDate = new Date(`${year + 1}-01-01T00:00:00Z`);
+
+  const harvests = await db
+    .select({
+      id: harvestRecordsTable.id,
+      harvestDate: harvestRecordsTable.harvestDate,
+      yieldTonnes: harvestRecordsTable.yieldTonnes,
+      areaHarvestedHa: harvestRecordsTable.areaHarvestedHa,
+      moisturePercent: harvestRecordsTable.moisturePercent,
+      cropName: cropsTable.name,
+      variety: cropsTable.variety,
+      fieldId: fieldCropAssignmentsTable.fieldId,
+    })
+    .from(harvestRecordsTable)
+    .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
+    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+    .where(and(eq(fieldsTable.farmId, farmId), gte(harvestRecordsTable.harvestDate, startDate), lt(harvestRecordsTable.harvestDate, endDate)));
+
+  const costs = await db.select().from(financialTransactionsTable).where(
+    and(eq(financialTransactionsTable.farmId, farmId), gte(financialTransactionsTable.transactionDate, startDate), lt(financialTransactionsTable.transactionDate, endDate))
+  );
+
+  res.json({ harvests, costs, year });
+});
+
+router.get("/:farmId/reports/grain-position", requireAuth, async (req, res): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
+  const startDate = new Date(`${year}-01-01T00:00:00Z`);
+  const endDate = new Date(`${year + 1}-01-01T00:00:00Z`);
+
+  const harvests = await db
+    .select({
+      id: harvestRecordsTable.id,
+      harvestDate: harvestRecordsTable.harvestDate,
+      yieldTonnes: harvestRecordsTable.yieldTonnes,
+      areaHarvestedHa: harvestRecordsTable.areaHarvestedHa,
+      cropName: cropsTable.name,
+      variety: cropsTable.variety,
+    })
+    .from(harvestRecordsTable)
+    .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
+    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+    .where(and(eq(fieldsTable.farmId, farmId), gte(harvestRecordsTable.harvestDate, startDate), lt(harvestRecordsTable.harvestDate, endDate)));
+
+  const haulage = await db.select().from(haulageRecordsTable).where(
+    and(eq(haulageRecordsTable.farmId, farmId), gte(haulageRecordsTable.departureDate, startDate), lt(haulageRecordsTable.departureDate, endDate))
+  );
+
+  const cropStorage = await db.select().from(cropStorageRecordsTable).where(eq(cropStorageRecordsTable.farmId, farmId));
+
+  const cropSalesTransactions = await db.select().from(financialTransactionsTable).where(
+    and(
+      eq(financialTransactionsTable.farmId, farmId),
+      eq(financialTransactionsTable.transactionType, "income"),
+      gte(financialTransactionsTable.transactionDate, startDate),
+      lt(financialTransactionsTable.transactionDate, endDate)
+    )
+  );
+
+  res.json({ harvests, haulage, cropStorage, cropSalesTransactions, year });
+});
+
+router.get("/:farmId/reports/subsidies", requireAuth, async (req, res): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
+  const startDate = new Date(`${year}-01-01T00:00:00Z`);
+  const endDate = new Date(`${year + 1}-01-01T00:00:00Z`);
+
+  const schemes = await db.select().from(agriEnvironmentSchemeRecordsTable).where(eq(agriEnvironmentSchemeRecordsTable.farmId, farmId));
+
+  const subsidyTransactions = await db.select().from(financialTransactionsTable).where(
+    and(
+      eq(financialTransactionsTable.farmId, farmId),
+      eq(financialTransactionsTable.transactionType, "income"),
+      gte(financialTransactionsTable.transactionDate, startDate),
+      lt(financialTransactionsTable.transactionDate, endDate)
+    )
+  );
+
+  res.json({ schemes, subsidyTransactions, year });
+});
+
+router.get("/:farmId/reports/year-on-year", requireAuth, async (req, res): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+
+  const allHarvests = await db
+    .select({
+      harvestDate: harvestRecordsTable.harvestDate,
+      yieldTonnes: harvestRecordsTable.yieldTonnes,
+      areaHarvestedHa: harvestRecordsTable.areaHarvestedHa,
+      cropName: cropsTable.name,
+    })
+    .from(harvestRecordsTable)
+    .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
+    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+    .where(eq(fieldsTable.farmId, farmId));
+
+  const allTransactions = await db.select().from(financialTransactionsTable).where(eq(financialTransactionsTable.farmId, farmId));
+
+  res.json({ harvests: allHarvests, transactions: allTransactions });
+});
+
+router.get("/:farmId/reports/assets", requireAuth, async (req, res): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+
+  const equipment = await db.select().from(equipmentTable).where(and(eq(equipmentTable.farmId, farmId), eq(equipmentTable.isActive, true)));
+
+  const maintenanceCosts = await db.select().from(equipmentMaintenanceLogsTable)
+    .where(sql`equipment_id IN (SELECT id FROM equipment WHERE farm_id = ${farmId})`);
+
+  res.json({ equipment, maintenanceCosts });
+});
+
 export default router;
+

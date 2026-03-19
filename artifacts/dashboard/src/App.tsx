@@ -28,6 +28,7 @@ import LivestockHealthDashboard from "@/pages/LivestockHealthDashboard";
 import NVZDashboard from "@/pages/NVZDashboard";
 import SoilDashboard from "@/pages/SoilDashboard";
 import FleetDashboard from "@/pages/FleetDashboard";
+import BusinessReportsPage from "@/pages/BusinessReportsPage";
 import FarmSettingsPage from "@/pages/FarmSettings";
 import AppSettingsPage from "@/pages/SettingsPage";
 import StaffPage from "@/pages/Staff";
@@ -190,6 +191,7 @@ function Router() {
       <Route path="/training" component={TrainingPage} />
       <Route path="/stock" component={StockPage} />
       <Route path="/financial" component={FinancialPage} />
+      <Route path="/business-reports" component={BusinessReportsPage} />
       <Route path="/environmental" component={EnvironmentalPage} />
       <Route path="/haulage" component={HaulagePage} />
       <Route path="/documents" component={DocumentsPageCustom} />
