@@ -149,6 +149,15 @@ const recordOptions: RecordOption[] = [
     route: "/pest-control-visit",
   },
   {
+    id: "cleaning",
+    title: "Cleaning & Disinfection",
+    description: "Record cleaning and disinfection of livestock buildings, vehicles and equipment",
+    icon: "wind",
+    color: "#0891b2",
+    bgColor: "#e0f2fe",
+    route: "/cleaning-record",
+  },
+  {
     id: "field-inspection",
     title: "Field Crop Inspection",
     description: "Crop walking notes — pest and disease observations, growth stage and action flags",

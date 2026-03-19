@@ -302,6 +302,25 @@ export interface PestControlVisit {
   synced: boolean;
 }
 
+export interface CleaningRecord {
+  id: string;
+  farmId: string;
+  area: string;
+  cleaningType: string;
+  productsUsed: string;
+  dilutionRate: string;
+  contactTime: string;
+  cleanedBy: string;
+  cleanedDate: string;
+  nextDueDate: string;
+  verifiedBy: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface FieldInspection {
   id: string;
   farmId: string;

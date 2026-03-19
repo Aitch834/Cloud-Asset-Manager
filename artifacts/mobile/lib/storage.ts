@@ -126,6 +126,7 @@ export const STORAGE_KEYS = {
   NVZ_APPLICATIONS: "bde_nvz_applications",
   EQUIPMENT_DEFECTS: "bde_equipment_defects",
   PEST_CONTROL_VISITS: "bde_pest_control_visits",
+  CLEANING_RECORDS: "bde_cleaning_records",
   FIELD_INSPECTIONS: "bde_field_inspections",
   BIOFUEL_FIELD_DECLARATIONS: "bde_biofuel_field_declarations",
   BIOFUEL_DELIVERY_RECORDS: "bde_biofuel_delivery_records",

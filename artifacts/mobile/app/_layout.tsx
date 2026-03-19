@@ -81,6 +81,7 @@ function RootLayoutNav() {
         <Stack.Screen name="soil-sample" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="photo-capture" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="compliance-form" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="cleaning-record" options={{ headerShown: false, presentation: "modal" }} />
       </Stack>
       <SyncStatusBar />
     </View>
