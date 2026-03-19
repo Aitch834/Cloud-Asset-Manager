@@ -68,10 +68,13 @@ interface FarmFormData {
   assuranceBody: string;
   isNvzDesignated: boolean;
   sectors: Record<SectorKey, boolean>;
+  country: string;
   eaml2Email: string;
   flockMark: string;
   herdMark: string;
   bcmsHoldingNumber: string;
+  scotEidNumber: string;
+  eidCymruNumber: string;
 }
 
 function farmToFormData(farm: Farm & {
@@ -105,10 +108,13 @@ function farmToFormData(farm: Farm & {
       sectorPoultry: !!farm.sectorPoultry,
       sectorHorticulture: !!farm.sectorHorticulture,
     },
+    country: (farm as any).country || "england",
     eaml2Email: (farm as any).eaml2Email || "",
     flockMark: (farm as any).flockMark || "",
     herdMark: (farm as any).herdMark || "",
     bcmsHoldingNumber: (farm as any).bcmsHoldingNumber || "",
+    scotEidNumber: (farm as any).scotEidNumber || "",
+    eidCymruNumber: (farm as any).eidCymruNumber || "",
   };
 }
 
@@ -203,10 +209,13 @@ export default function FarmSettings() {
         holdingType: formData.holdingType || undefined,
         assuranceBody: formData.assuranceBody.trim() || undefined,
         isNvzDesignated: formData.isNvzDesignated,
+        country: formData.country || "england",
         eaml2Email: formData.eaml2Email.trim() || undefined,
         flockMark: formData.flockMark.trim() || undefined,
         herdMark: formData.herdMark.trim() || undefined,
         bcmsHoldingNumber: formData.bcmsHoldingNumber.trim() || undefined,
+        scotEidNumber: formData.scotEidNumber.trim() || undefined,
+        eidCymruNumber: formData.eidCymruNumber.trim() || undefined,
       } as any,
     }, {
       onSuccess: () => {
@@ -363,6 +372,25 @@ export default function FarmSettings() {
                   onChange={e => updateField("gridReference", e.target.value)}
                 />
               </div>
+
+              <div>
+                <Label htmlFor="settings-country">Country / Devolved Nation</Label>
+                <Select
+                  value={formData.country || "england"}
+                  onValueChange={v => updateField("country", v)}
+                >
+                  <SelectTrigger id="settings-country">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="england">England</SelectItem>
+                    <SelectItem value="scotland">Scotland</SelectItem>
+                    <SelectItem value="wales">Wales</SelectItem>
+                    <SelectItem value="northern_ireland">Northern Ireland</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Determines which livestock movement portals apply to this holding (eAML2, ScotEID, EIDCymru, or NIFAIS)</p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -447,16 +475,35 @@ export default function FarmSettings() {
           </CardContent>
         </Card>
 
-        {/* ── eAML2 / BCMS Integration ── */}
+        {/* ── Livestock Movement Reporting ── */}
         <Card>
           <CardContent className="p-6 md:p-8 space-y-5">
             <SectionHeader
-              title="eAML2 / BCMS Integration"
-              description="Reference details for electronic livestock movement reporting to APHA and BCMS. These are stored for reference and appear on movement exports — submission to eAML2.net or BCMS is done separately."
+              title="Livestock Movement Reporting"
+              description="Reference identifiers for electronic livestock movement reporting. Stored here and included in movement exports — submission to the relevant government portal is done separately."
             />
+
+            {/* Country-specific guidance banner */}
+            {formData.country === "scotland" && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                <strong>Scotland:</strong> All livestock movements (cattle, sheep, goats, pigs) are reported to <strong>ScotEID</strong> — Scotland's national electronic identification database. Register at{" "}
+                <a href="https://www.scoteid.com" target="_blank" rel="noopener noreferrer" className="underline">scoteid.com</a>.
+              </div>
+            )}
+            {formData.country === "wales" && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                <strong>Wales:</strong> Sheep and goat movements are reported via <strong>EIDCymru</strong> (eidcymru.org). Cattle movements use <strong>BCMS Online</strong> as in England. Pig movements use <strong>eAML2.org.uk</strong>.
+              </div>
+            )}
+            {formData.country === "northern_ireland" && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                <strong>Northern Ireland:</strong> Livestock movements are recorded on <strong>NIFAIS</strong> (Northern Ireland Food Animal Information System) for cattle and <strong>APHIS</strong> for sheep and pigs. Contact DAERA for registration.
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="md:col-span-2">
-                <Label htmlFor="settings-eaml2-email">eAML2 / BCMS Registered Email</Label>
+                <Label htmlFor="settings-eaml2-email">Registered Email Address</Label>
                 <Input
                   id="settings-eaml2-email"
                   type="email"
@@ -464,18 +511,18 @@ export default function FarmSettings() {
                   value={formData.eaml2Email}
                   onChange={e => updateField("eaml2Email", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">The email address registered with eAML2.net / BCMS Online for this holding</p>
+                <p className="text-xs text-muted-foreground mt-1">Email registered with your livestock movement portal (eAML2 / BCMS / ScotEID / EIDCymru)</p>
               </div>
 
               <div>
-                <Label htmlFor="settings-flock-mark">Flock Mark (Sheep &amp; Goats)</Label>
+                <Label htmlFor="settings-flock-mark">Flock Mark (Sheep, Goats &amp; Pigs)</Label>
                 <Input
                   id="settings-flock-mark"
                   placeholder="e.g. UK123456"
                   value={formData.flockMark}
                   onChange={e => updateField("flockMark", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">APHA-issued 8-character flock mark (UK + 6 digits). Required for all sheep and goat movement documents.</p>
+                <p className="text-xs text-muted-foreground mt-1">APHA-issued 8-character flock mark (UK + 6 digits). Required for all sheep, goat and pig movement documents.</p>
               </div>
 
               <div>
@@ -486,7 +533,7 @@ export default function FarmSettings() {
                   value={formData.herdMark}
                   onChange={e => updateField("herdMark", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">BCMS-issued herd mark for cattle. Printed on cattle passports and required for BCMS movement notifications.</p>
+                <p className="text-xs text-muted-foreground mt-1">BCMS / ScotEID herd mark for cattle. Printed on cattle passports and required for movement notifications.</p>
               </div>
 
               <div>
@@ -497,12 +544,43 @@ export default function FarmSettings() {
                   value={formData.bcmsHoldingNumber}
                   onChange={e => updateField("bcmsHoldingNumber", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">Your BCMS-registered holding number for cattle movements (may differ from CPH format)</p>
+                <p className="text-xs text-muted-foreground mt-1">Your BCMS-registered holding number for cattle movements. Used in England and Wales.</p>
               </div>
+
+              {(formData.country === "scotland") && (
+                <div>
+                  <Label htmlFor="settings-scoteid">ScotEID Flock / Herd Number</Label>
+                  <Input
+                    id="settings-scoteid"
+                    placeholder="e.g. SC123456"
+                    value={formData.scotEidNumber}
+                    onChange={e => updateField("scotEidNumber", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Your ScotEID-registered flock or herd number for electronic movement reporting in Scotland.</p>
+                </div>
+              )}
+
+              {(formData.country === "wales") && (
+                <div>
+                  <Label htmlFor="settings-eidcymru">EIDCymru Flock Number (Sheep &amp; Goats)</Label>
+                  <Input
+                    id="settings-eidcymru"
+                    placeholder="e.g. WL123456"
+                    value={formData.eidCymruNumber}
+                    onChange={e => updateField("eidCymruNumber", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Your EIDCymru-registered flock number for electronic sheep and goat movement reporting in Wales.</p>
+                </div>
+              )}
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 mt-2">
-              <strong>How eAML2 and BCMS work with BDE Farm Trac:</strong> Record all livestock movements in the Movements section. Use the "Export CSV" button to download a structured report you can use as a reference when submitting to eAML2.net (sheep/pigs) or BCMS Online (cattle). Paste the AML reference number back into each movement record once submitted. Movements must be reported within 3 days for cattle.
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900 mt-2">
+              <strong>How movement reporting works with BDE Farm Trac:</strong> Record all livestock movements in the Movements section. Use the "Export CSV" button to download a structured report as a reference when submitting to your relevant portal. Paste the movement reference number back into each record once submitted.
+              {" "}<strong>Cattle</strong> must be reported within 3 days.{" "}
+              {formData.country === "scotland" && <>All species in Scotland are reported to <strong>ScotEID</strong>.</>}
+              {formData.country === "wales" && <>In Wales, sheep and goats use <strong>EIDCymru</strong>; cattle use <strong>BCMS Online</strong>.</>}
+              {(formData.country === "england" || !formData.country) && <>In England, sheep, goats and pigs use <strong>eAML2.org.uk</strong>; cattle use <strong>BCMS Online</strong>.</>}
+              {formData.country === "northern_ireland" && <>In Northern Ireland, use <strong>NIFAIS</strong> for cattle and <strong>APHIS</strong> for sheep and pigs.</>}
             </div>
           </CardContent>
         </Card>

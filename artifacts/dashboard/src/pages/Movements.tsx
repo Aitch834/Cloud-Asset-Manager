@@ -53,6 +53,9 @@ interface Farm {
   address: string | null;
   postcode: string | null;
   cphNumber: string | null;
+  country: string | null;
+  scotEidNumber: string | null;
+  eidCymruNumber: string | null;
 }
 
 function formatDate(val: string | null | undefined): string {
@@ -973,40 +976,72 @@ export default function Movements() {
         </div>
       )}
 
-      {/* eAML2 / BCMS quick-action banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-900 flex items-start gap-3">
-        <ExternalLink className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-        <div className="flex-1">
-          <strong>Submit to eAML2 / BCMS:</strong> Record movements here, then submit to the appropriate government portal.
-          Paste the reference number back into each movement record once submitted.
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <a
-            href="https://www.eaml2.org.uk"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-900 bg-white border border-blue-300 rounded-md px-2.5 py-1 hover:bg-blue-50 transition-colors"
-          >
-            eAML2.net <ExternalLink className="w-3 h-3" />
-          </a>
-          <a
-            href="https://www.bcms.gov.uk"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-900 bg-white border border-blue-300 rounded-md px-2.5 py-1 hover:bg-blue-50 transition-colors"
-          >
-            BCMS Online <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-      </div>
+      {/* Country-aware portal quick-action banner */}
+      {(() => {
+        const country = farmData?.country ?? "england";
+        const isScotland = country === "scotland";
+        const isWales = country === "wales";
+        const isNI = country === "northern_ireland";
+        const portalLinks: { label: string; href: string }[] = isScotland
+          ? [
+              { label: "ScotEID", href: "https://www.scoteid.com" },
+              { label: "BCMS Online", href: "https://www.bcms.gov.uk" },
+            ]
+          : isWales
+          ? [
+              { label: "EIDCymru", href: "https://www.eidcymru.org" },
+              { label: "eAML2.net", href: "https://www.eaml2.org.uk" },
+              { label: "BCMS Online", href: "https://www.bcms.gov.uk" },
+            ]
+          : isNI
+          ? [
+              { label: "NIFAIS", href: "https://www.daera-ni.gov.uk/topics/animal-identification-movement-and-tracing/nifais" },
+            ]
+          : [
+              { label: "eAML2.net", href: "https://www.eaml2.org.uk" },
+              { label: "BCMS Online", href: "https://www.bcms.gov.uk" },
+            ];
+
+        const portalDescription = isScotland
+          ? "All livestock movements in Scotland (cattle, sheep, goats, pigs) are reported to ScotEID. Cattle also require BCMS notification."
+          : isWales
+          ? "In Wales: sheep and goats use EIDCymru; pigs use eAML2.net; cattle use BCMS Online."
+          : isNI
+          ? "In Northern Ireland: cattle and sheep movements are recorded on NIFAIS. Contact DAERA for scheme details."
+          : "In England: sheep, goats and pigs use eAML2.net; cattle use BCMS Online.";
+
+        return (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-900 flex items-start gap-3">
+            <ExternalLink className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <strong>Submit to government portal:</strong> {portalDescription}{" "}
+              Paste the reference number back into each movement record once submitted.
+            </div>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              {portalLinks.map(link => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-900 bg-white border border-blue-300 rounded-md px-2.5 py-1 hover:bg-blue-50 transition-colors"
+                >
+                  {link.label} <ExternalLink className="w-3 h-3" />
+                </a>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Regulatory reminder */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-900 flex gap-3 items-start">
         <span className="text-amber-500 mt-0.5 shrink-0">ℹ</span>
         <span>
-          <strong>Regulatory reminder:</strong> All on/off livestock movements must be reported to BCMS/APHA via eAML2 or AML forms
-          within 3 days (cattle) or as required for sheep/pigs. Record the submission reference here and attach a copy of the form.
-          Printed records are for on-farm Red Tractor compliance records only.
+          <strong>Regulatory reminder:</strong> All on/off livestock movements must be reported to the relevant government portal.
+          Cattle must be reported within 3 days; sheep, goats and pigs as required by the applicable scheme.
+          Record the submission reference here and attach a copy of the AML form.
+          Printed records are for on-farm Red Tractor compliance use only.
         </span>
       </div>
 
