@@ -1,8 +1,32 @@
 import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable } from "@workspace/db";
+import { usersTable, userTenantsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable } from "@workspace/db/schema";
 import { eq, and, lt, isNull, sql, gte, lte } from "drizzle-orm";
+import { sendSms } from "./sms";
 
 const ESCALATION_DAYS = 7;
+
+const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated"]);
+
+async function dispatchSmsForCriticalAlert(tenantId: number, title: string, message: string) {
+  const smsUsers = await db
+    .select({ phoneNumber: usersTable.phoneNumber, smsOptIn: usersTable.smsOptIn })
+    .from(usersTable)
+    .innerJoin(userTenantsTable, eq(userTenantsTable.userId, usersTable.id))
+    .where(
+      and(
+        eq(userTenantsTable.tenantId, tenantId),
+        eq(userTenantsTable.isActive, true),
+      )
+    );
+
+  for (const user of smsUsers) {
+    if (!user.phoneNumber) continue;
+    if (user.smsOptIn !== "all" && user.smsOptIn !== "critical") continue;
+    const smsBody = `BDE Farm Trac Alert\n${title}\n${message.slice(0, 140)}`;
+    await sendSms(user.phoneNumber, smsBody);
+  }
+}
 
 async function upsertNotification(data: {
   tenantId: number;
@@ -23,6 +47,9 @@ async function upsertNotification(data: {
 
   if (existing.length === 0) {
     await db.insert(notificationsTable).values(data);
+    if (CRITICAL_TYPES.has(data.type)) {
+      await dispatchSmsForCriticalAlert(data.tenantId, data.title, data.message);
+    }
   }
 }
 

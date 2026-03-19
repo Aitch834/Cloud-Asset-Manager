@@ -41,6 +41,7 @@ import WeatherPageFull from "@/pages/WeatherPageFull";
 import HaulagePageFull from "@/pages/HaulagePageFull";
 import EnvironmentalPageFull from "@/pages/EnvironmentalPageFull";
 import StorageLocationsPage from "@/pages/StorageLocationsPage";
+import AccountSettings from "@/pages/AccountSettings";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -213,6 +214,7 @@ function Router() {
       <Route path="/staff" component={StaffPage} />
       <Route path="/settings/farm" component={FarmSettingsPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/account" component={AccountSettings} />
       <Route path="/biofuel" component={BiofuelPage} />
       <Route component={NotFound} />
     </Switch>

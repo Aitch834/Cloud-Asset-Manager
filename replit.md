@@ -101,7 +101,7 @@ The platform supports 16 core compliance modules, each with monthly pricing, cov
 - **Payments:** Stripe (for subscription billing and webhooks)
 - **Authentication:** Replit Auth (OpenID Connect with PKCE)
 - **AI Integration:** OpenAI (for support chat - gpt-5-mini)
-- **SMS (planned, not yet built):** Twilio integration for SMS notifications is designed but deferred. When ready, use the Replit Twilio integration connector (connector:ccfg_twilio_01K69QJTED9YTJFE2SJ7E4SY08) OR store TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER as env secrets. DB additions needed: phoneNumber + smsOptIn on usersTable; smsEnabled + smsOnCriticalOnly on userTenantsTable. Create lib/sms.ts wrapper and extend alertingJob.ts to dispatch texts for critical notifications.
+- **SMS Notifications (Twilio):** BUILT. TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER stored as secrets. usersTable has phoneNumber (varchar), smsOptIn (varchar: all/critical/none, default none), smsConsentAt (timestamp). Wrapper at artifacts/api-server/src/lib/sms.ts. alertingJob.ts dispatches SMS on new critical alerts (movement_unnotified, certificate_expired, nonconformance_escalated). API routes GET/PUT /api/account/profile. Dashboard page at /account (Account & Notifications) accessible from sidebar and Settings page.
 - **Mobile Development:** Expo SDK 54, expo-router, expo-auth-session, expo-location, expo-image-picker, expo-haptics, expo-crypto
 - **Mobile Storage:** SQLite (native), AsyncStorage (web), SecureStore (native)
 - **Mapping:** react-native-maps (native)

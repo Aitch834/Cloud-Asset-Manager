@@ -121,23 +121,17 @@ export default function SettingsPage() {
           </Card>
         </div>
 
-        {/* Notifications — placeholder for future settings */}
+        {/* Notifications */}
         <div>
           <h2 className="text-xs uppercase tracking-widest font-bold text-foreground/40 mb-3 px-1">Notifications</h2>
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Bell className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">In-app Notifications</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Alerts for overdue inspections, expiring calibrations, and compliance reminders are shown via the bell icon. 
-                    Notification preference settings are coming soon.
-                  </p>
-                </div>
-              </div>
+            <CardContent className="p-2">
+              <SettingRow
+                icon={Bell}
+                label="Account & Notifications"
+                description="Set your mobile number and choose which compliance alerts to receive by SMS"
+                href="/account"
+              />
             </CardContent>
           </Card>
         </div>
