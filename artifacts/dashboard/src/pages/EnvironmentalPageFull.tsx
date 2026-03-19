@@ -330,13 +330,14 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
       )}
 
       <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
-        <DialogContent style={{ maxWidth: 560 }} className="max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl w-full">
           <DialogHeader><DialogTitle>Add Environmental Feature</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-6 py-2">
+            {/* Left column — form fields */}
+            <div className="space-y-3">
               <div><Label>Feature Type <span style={{ color: "#ef4444" }}>*</span></Label>
                 <Select value={form.featureType} onValueChange={v => setForm((f: any) => ({ ...f, featureType: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
                   <SelectContent>
                     {["hedgerow", "pond", "woodland", "wetland", "grassland", "wildflower_margin", "watercourse", "buffer_strip", "other"].map(t => (
                       <SelectItem key={t} value={t}><FeatureTypeLabel type={t} /></SelectItem>
@@ -345,29 +346,38 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
                 </Select>
               </div>
               <div><Label>Date Recorded <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.dateRecorded} onChange={e => setForm((f: any) => ({ ...f, dateRecorded: e.target.value }))} /></div>
+              <div><Label>Description</Label><Input placeholder="e.g. Northern boundary hedgerow" value={form.description} onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Area (hectares)</Label><Input type="number" step="0.0001" min="0" value={form.areaHectares} onChange={e => setForm((f: any) => ({ ...f, areaHectares: e.target.value }))} /></div>
+                <div><Label>Length (metres)</Label><Input type="number" step="0.1" min="0" value={form.lengthMetres} onChange={e => setForm((f: any) => ({ ...f, lengthMetres: e.target.value }))} /></div>
+              </div>
+              <div><Label>Management Practice</Label><Input placeholder="e.g. Annual trim, no autumn cutting" value={form.managementPractice} onChange={e => setForm((f: any) => ({ ...f, managementPractice: e.target.value }))} /></div>
+              <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={3} /></div>
             </div>
-            <div><Label>Description</Label><Input placeholder="e.g. Northern boundary hedgerow" value={form.description} onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Area (hectares)</Label><Input type="number" step="0.0001" min="0" value={form.areaHectares} onChange={e => setForm((f: any) => ({ ...f, areaHectares: e.target.value }))} /></div>
-              <div><Label>Length (metres)</Label><Input type="number" step="0.1" min="0" value={form.lengthMetres} onChange={e => setForm((f: any) => ({ ...f, lengthMetres: e.target.value }))} /></div>
-            </div>
-            <div><Label>Management Practice</Label><Input placeholder="e.g. Annual trim, no autumn cutting" value={form.managementPractice} onChange={e => setForm((f: any) => ({ ...f, managementPractice: e.target.value }))} /></div>
 
-            <div>
-              <Label className="flex items-center gap-1.5 mb-2">
+            {/* Right column — map */}
+            <div className="flex flex-col gap-2">
+              <Label className="flex items-center gap-1.5">
                 <MapPin size={14} className="text-muted-foreground" />
                 GPS Pin Location
               </Label>
-              <StorageLocationMapPicker
-                key={addOpen ? "open" : "closed"}
-                value={pin}
-                onChange={setPin}
-              />
+              <p className="text-xs text-muted-foreground -mt-1">Click the map to drop a pin at the feature's location.</p>
+              <div className="flex-1 min-h-0">
+                <StorageLocationMapPicker
+                  key={addOpen ? "open" : "closed"}
+                  value={pin}
+                  onChange={setPin}
+                />
+              </div>
+              {pin && (
+                <p className="text-xs text-muted-foreground font-mono text-center">
+                  {pin.lat.toFixed(5)}, {pin.lng.toFixed(5)}
+                </p>
+              )}
             </div>
-
-            <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="mt-2">
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button
               onClick={() => createMut.mutate({
