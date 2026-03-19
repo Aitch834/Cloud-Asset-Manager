@@ -222,6 +222,12 @@ export interface LivestockMovement {
   synced: boolean;
 }
 
+export interface TransportRun {
+  vehicleNumber: string;
+  storageDestination: string;
+  loadNotes?: string;
+}
+
 export interface HarvestRecord {
   id: string;
   farmId: string;
@@ -234,6 +240,7 @@ export interface HarvestRecord {
   yieldUnit: string;
   moisturePercent: string;
   grainQualityNotes: string;
+  transportRuns?: TransportRun[];
   trailerVehicleNumber: string;
   storageDestination: string;
   operatorName: string;

@@ -25,12 +25,21 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
-import type { HarvestRecord } from "@/lib/types";
+import type { HarvestRecord, TransportRun } from "@/lib/types";
 
 const CROP_TYPES = [
   "Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley",
   "Oats", "OSR", "Peas", "Beans", "Maize", "Rye", "Triticale", "Other",
 ];
+
+function formatCurrentTime() {
+  const now = new Date();
+  const h = now.getHours().toString().padStart(2, "0");
+  const m = now.getMinutes().toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+const emptyRun = (): TransportRun => ({ vehicleNumber: "", storageDestination: "", loadNotes: "" });
 
 export default function HarvestRecordScreen() {
   const insets = useSafeAreaInsets();
@@ -45,13 +54,26 @@ export default function HarvestRecordScreen() {
   const [yieldUnit, setYieldUnit] = useState("t/ha");
   const [moisturePercent, setMoisturePercent] = useState("");
   const [grainQualityNotes, setGrainQualityNotes] = useState("");
-  const [trailerVehicleNumber, setTrailerVehicleNumber] = useState("");
-  const [storageDestination, setStorageDestination] = useState("");
+  const [transportRuns, setTransportRuns] = useState<TransportRun[]>([emptyRun()]);
   const [equipmentUsed, setEquipmentUsed] = useState("");
   const [operatorName, setOperatorName] = useState(user?.name || "");
-  const [startTime, setStartTime] = useState("");
+  const [startTime, setStartTime] = useState(formatCurrentTime());
   const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState("");
+
+  function updateRun(index: number, field: keyof TransportRun, value: string) {
+    setTransportRuns((prev) => prev.map((r, i) => i === index ? { ...r, [field]: value } : r));
+  }
+
+  function addRun() {
+    Haptics.selectionAsync();
+    setTransportRuns((prev) => [...prev, emptyRun()]);
+  }
+
+  function removeRun(index: number) {
+    Haptics.selectionAsync();
+    setTransportRuns((prev) => prev.filter((_, i) => i !== index));
+  }
 
   const handleSave = async () => {
     if (!fieldName.trim() || !cropType) {
@@ -75,6 +97,8 @@ export default function HarvestRecordScreen() {
       console.warn("Location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
     }
 
+    const filledRuns = transportRuns.filter((r) => r.vehicleNumber.trim() || r.storageDestination.trim());
+
     const record: HarvestRecord = {
       id: generateId(),
       farmId: currentFarm?.id || "",
@@ -87,8 +111,9 @@ export default function HarvestRecordScreen() {
       yieldUnit,
       moisturePercent: moisturePercent.trim(),
       grainQualityNotes: grainQualityNotes.trim(),
-      trailerVehicleNumber: trailerVehicleNumber.trim(),
-      storageDestination: storageDestination.trim(),
+      transportRuns: filledRuns.length > 0 ? filledRuns : undefined,
+      trailerVehicleNumber: filledRuns.map((r) => r.vehicleNumber).filter(Boolean).join(", "),
+      storageDestination: filledRuns.map((r) => r.storageDestination).filter(Boolean).join(", "),
       operatorName: operatorName.trim(),
       equipmentUsed: equipmentUsed.trim(),
       notes: notes.trim(),
@@ -209,23 +234,54 @@ export default function HarvestRecordScreen() {
               containerStyle={styles.flex}
             />
           </View>
+          <Text style={styles.hintText}>Start time pre-filled from your device clock. Tap to adjust.</Text>
 
           <View style={styles.sectionLabel}>
             <Feather name="truck" size={14} color={colors.textSecondary} />
             <Text style={styles.sectionTitle}>Transport & Storage</Text>
           </View>
-          <Input
-            label="Trailer / Vehicle No."
-            placeholder="e.g. Trailer 3, AB12 CDE"
-            value={trailerVehicleNumber}
-            onChangeText={setTrailerVehicleNumber}
-          />
-          <Input
-            label="Storage Destination"
-            placeholder="e.g. Grain store 1, merchant name"
-            value={storageDestination}
-            onChangeText={setStorageDestination}
-          />
+          <Text style={styles.hintText}>
+            Add a row for each tractor/trailer run. Use multiple rows if loads go to different stores or vehicles change throughout the day.
+          </Text>
+
+          {transportRuns.map((run, index) => (
+            <View key={index} style={styles.transportCard}>
+              <View style={styles.transportCardHeader}>
+                <View style={styles.transportRunBadge}>
+                  <Feather name="truck" size={11} color={colors.textSecondary} />
+                  <Text style={styles.transportRunLabel}>Run {index + 1}</Text>
+                </View>
+                {transportRuns.length > 1 && (
+                  <Pressable onPress={() => removeRun(index)} style={styles.removeBtn} hitSlop={8}>
+                    <Feather name="x" size={14} color={colors.textSecondary} />
+                  </Pressable>
+                )}
+              </View>
+              <Input
+                label="Tractor / Trailer No."
+                placeholder="e.g. AB12 CDE, Trailer 3"
+                value={run.vehicleNumber}
+                onChangeText={(v) => updateRun(index, "vehicleNumber", v)}
+              />
+              <Input
+                label="Storage Destination"
+                placeholder="e.g. Home store bin 2, Co-op Dereham"
+                value={run.storageDestination}
+                onChangeText={(v) => updateRun(index, "storageDestination", v)}
+              />
+              <Input
+                label="Load Notes (optional)"
+                placeholder="e.g. approx 10t, partial load, final run"
+                value={run.loadNotes ?? ""}
+                onChangeText={(v) => updateRun(index, "loadNotes", v)}
+              />
+            </View>
+          ))}
+
+          <Pressable onPress={addRun} style={styles.addRunBtn}>
+            <Feather name="plus" size={15} color={colors.primary} />
+            <Text style={styles.addRunText}>Add Another Transport Run</Text>
+          </Pressable>
 
           <View style={styles.sectionLabel}>
             <Feather name="tool" size={14} color={colors.textSecondary} />
@@ -243,6 +299,8 @@ export default function HarvestRecordScreen() {
             value={operatorName}
             onChangeText={setOperatorName}
           />
+          <Text style={styles.hintText}>Pre-filled from your login. Tap to change if recording on behalf of another operator.</Text>
+
           <Input
             label="Notes"
             placeholder="Any additional notes..."
@@ -283,8 +341,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    marginBottom: spacing.md,
-    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    marginTop: spacing.lg,
   },
   sectionTitle: {
     fontFamily: fonts.semiBold,
@@ -312,5 +370,58 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
     color: colors.text,
+  },
+  hintText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
+    lineHeight: 16,
+  },
+  transportCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  transportCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  transportRunBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  transportRunLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  removeBtn: {
+    padding: spacing.xs,
+  },
+  addRunBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderStyle: "dashed",
+    borderRadius: radius.lg,
+    marginBottom: spacing.xl,
+  },
+  addRunText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.primary,
   },
 });
