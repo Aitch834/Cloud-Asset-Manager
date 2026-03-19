@@ -330,9 +330,9 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
       )}
 
       <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
-        <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <DialogContent style={{ maxWidth: "56rem", maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader><DialogTitle>Add Environmental Feature</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-5">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
             {/* Left column — form fields */}
             <div className="space-y-3">
               <div><Label>Feature Type <span style={{ color: "#ef4444" }}>*</span></Label>
