@@ -365,7 +365,7 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
                 key={addOpen ? "open" : "closed"}
                 value={pin}
                 onChange={setPin}
-                mapHeight={200}
+                mapHeight={400}
               />
             </div>
           </div>
