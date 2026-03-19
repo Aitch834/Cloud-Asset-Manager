@@ -103,12 +103,21 @@ const recordOptions: RecordOption[] = [
   },
   {
     id: "harvest",
-    title: "Harvest Record",
-    description: "Detailed combine harvest log with yield, moisture, transport and storage",
+    title: "Harvest Record — Combine",
+    description: "Combine operator: log the field, crop, yield, moisture and timing for a harvest session",
     icon: "scissors",
     color: colors.fieldGold,
     bgColor: "#FEF3C7",
     route: "/harvest-record",
+  },
+  {
+    id: "transport-run",
+    title: "Transport Run — Driver",
+    description: "Driver: log each trailer load — select today's harvest session, vehicle, storage destination",
+    icon: "truck",
+    color: "#0284c7",
+    bgColor: "#e0f2fe",
+    route: "/transport-run",
   },
   {
     id: "nvz",

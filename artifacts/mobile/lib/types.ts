@@ -358,6 +358,23 @@ export interface BiofuelDeliveryRecord {
   synced: boolean;
 }
 
+export interface HarvestTransportRecord {
+  id: string;
+  farmId: string;
+  harvestRecordId: string;
+  fieldName: string;
+  cropType: string;
+  vehicleNumber: string;
+  storageDestination: string;
+  loadNotes?: string;
+  driverName: string;
+  harvestDate: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface SyncQueueItem {
   id: string;
   type: string;

@@ -18,16 +18,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FieldPicker } from "@/components/ui/FieldPicker";
-import { StoragePicker } from "@/components/ui/StoragePicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
-import { useApiStorageLocations } from "@/lib/hooks/useApiStorageLocations";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
-import type { HarvestRecord, TransportRun } from "@/lib/types";
+import type { HarvestRecord } from "@/lib/types";
 
 const CROP_TYPES = [
   "Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley",
@@ -41,14 +39,11 @@ function formatCurrentTime() {
   return `${h}:${m}`;
 }
 
-const emptyRun = (): TransportRun => ({ vehicleNumber: "", storageDestination: "", loadNotes: "" });
-
 export default function HarvestRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
-  const { locations: storageLocations, loading: storageLoading, error: storageError } = useApiStorageLocations(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [fieldName, setFieldName] = useState("");
@@ -57,26 +52,11 @@ export default function HarvestRecordScreen() {
   const [yieldUnit, setYieldUnit] = useState("t/ha");
   const [moisturePercent, setMoisturePercent] = useState("");
   const [grainQualityNotes, setGrainQualityNotes] = useState("");
-  const [transportRuns, setTransportRuns] = useState<TransportRun[]>([emptyRun()]);
   const [equipmentUsed, setEquipmentUsed] = useState("");
   const [operatorName, setOperatorName] = useState(user?.name || "");
   const [startTime, setStartTime] = useState(formatCurrentTime());
   const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState("");
-
-  function updateRun(index: number, field: keyof TransportRun, value: string) {
-    setTransportRuns((prev) => prev.map((r, i) => i === index ? { ...r, [field]: value } : r));
-  }
-
-  function addRun() {
-    Haptics.selectionAsync();
-    setTransportRuns((prev) => [...prev, emptyRun()]);
-  }
-
-  function removeRun(index: number) {
-    Haptics.selectionAsync();
-    setTransportRuns((prev) => prev.filter((_, i) => i !== index));
-  }
 
   const handleSave = async () => {
     if (!fieldName.trim() || !cropType) {
@@ -100,8 +80,6 @@ export default function HarvestRecordScreen() {
       console.warn("Location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
     }
 
-    const filledRuns = transportRuns.filter((r) => r.vehicleNumber.trim() || r.storageDestination.trim());
-
     const record: HarvestRecord = {
       id: generateId(),
       farmId: currentFarm?.id || "",
@@ -114,9 +92,8 @@ export default function HarvestRecordScreen() {
       yieldUnit,
       moisturePercent: moisturePercent.trim(),
       grainQualityNotes: grainQualityNotes.trim(),
-      transportRuns: filledRuns.length > 0 ? filledRuns : undefined,
-      trailerVehicleNumber: filledRuns.map((r) => r.vehicleNumber).filter(Boolean).join(", "),
-      storageDestination: filledRuns.map((r) => r.storageDestination).filter(Boolean).join(", "),
+      trailerVehicleNumber: "",
+      storageDestination: "",
       operatorName: operatorName.trim(),
       equipmentUsed: equipmentUsed.trim(),
       notes: notes.trim(),
@@ -129,7 +106,7 @@ export default function HarvestRecordScreen() {
     await appendToList(STORAGE_KEYS.HARVEST_RECORDS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "Harvest record saved successfully.", [
+    Alert.alert("Harvest Session Created", "Transport drivers can now link their runs to this session.", [
       { text: "OK", onPress: () => router.back() },
     ]);
   };
@@ -138,7 +115,10 @@ export default function HarvestRecordScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Button title="" icon="arrow-left" variant="ghost" size="sm" onPress={() => router.back()} />
-        <Text style={styles.title}>Harvest Record</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.title}>Harvest Record</Text>
+          <Text style={styles.subtitle}>Combine operator</Text>
+        </View>
         <View style={{ width: 36 }} />
       </View>
 
@@ -148,6 +128,13 @@ export default function HarvestRecordScreen() {
           contentContainerStyle={styles.form}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={styles.infoBanner}>
+            <Feather name="info" size={13} color={colors.fieldGold} />
+            <Text style={styles.infoBannerText}>
+              This record covers the combine. Transport drivers log each load separately using <Text style={styles.infoBannerBold}>Transport Run</Text>.
+            </Text>
+          </View>
+
           <View style={styles.sectionLabel}>
             <Feather name="map-pin" size={14} color={colors.fieldGold} />
             <Text style={styles.sectionTitle}>Field</Text>
@@ -240,55 +227,6 @@ export default function HarvestRecordScreen() {
           <Text style={styles.hintText}>Start time pre-filled from your device clock. Tap to adjust.</Text>
 
           <View style={styles.sectionLabel}>
-            <Feather name="truck" size={14} color={colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Transport & Storage</Text>
-          </View>
-          <Text style={styles.hintText}>
-            Add a row for each tractor/trailer run. Use multiple rows if loads go to different stores or vehicles change throughout the day.
-          </Text>
-
-          {transportRuns.map((run, index) => (
-            <View key={index} style={styles.transportCard}>
-              <View style={styles.transportCardHeader}>
-                <View style={styles.transportRunBadge}>
-                  <Feather name="truck" size={11} color={colors.textSecondary} />
-                  <Text style={styles.transportRunLabel}>Run {index + 1}</Text>
-                </View>
-                {transportRuns.length > 1 && (
-                  <Pressable onPress={() => removeRun(index)} style={styles.removeBtn} hitSlop={8}>
-                    <Feather name="x" size={14} color={colors.textSecondary} />
-                  </Pressable>
-                )}
-              </View>
-              <Input
-                label="Tractor / Trailer No."
-                placeholder="e.g. AB12 CDE, Trailer 3"
-                value={run.vehicleNumber}
-                onChangeText={(v) => updateRun(index, "vehicleNumber", v)}
-              />
-              <StoragePicker
-                label="Storage Destination"
-                value={run.storageDestination}
-                onChange={(v) => updateRun(index, "storageDestination", v)}
-                locations={storageLocations}
-                loading={storageLoading}
-                error={storageError}
-              />
-              <Input
-                label="Load Notes (optional)"
-                placeholder="e.g. approx 10t, partial load, final run"
-                value={run.loadNotes ?? ""}
-                onChangeText={(v) => updateRun(index, "loadNotes", v)}
-              />
-            </View>
-          ))}
-
-          <Pressable onPress={addRun} style={styles.addRunBtn}>
-            <Feather name="plus" size={15} color={colors.primary} />
-            <Text style={styles.addRunText}>Add Another Transport Run</Text>
-          </Pressable>
-
-          <View style={styles.sectionLabel}>
             <Feather name="tool" size={14} color={colors.textSecondary} />
             <Text style={styles.sectionTitle}>Equipment & Operator</Text>
           </View>
@@ -316,7 +254,7 @@ export default function HarvestRecordScreen() {
           />
 
           <Button
-            title="Save Harvest Record"
+            title="Save Harvest Session"
             onPress={handleSave}
             loading={saving}
             fullWidth
@@ -340,8 +278,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
   },
+  headerCenter: {
+    alignItems: "center",
+  },
   title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text },
+  subtitle: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 1 },
   form: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  infoBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fde68a",
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  infoBannerText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.fieldBrown,
+    lineHeight: 17,
+  },
+  infoBannerBold: {
+    fontFamily: fonts.semiBold,
+    color: colors.fieldBrown,
+  },
   sectionLabel: {
     flexDirection: "row",
     alignItems: "center",
@@ -383,50 +347,5 @@ const styles = StyleSheet.create({
     marginTop: -spacing.sm,
     marginBottom: spacing.md,
     lineHeight: 16,
-  },
-  transportCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-  },
-  transportCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
-  },
-  transportRunBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  transportRunLabel: {
-    fontFamily: fonts.semiBold,
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-  },
-  removeBtn: {
-    padding: spacing.xs,
-  },
-  addRunBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderStyle: "dashed",
-    borderRadius: radius.lg,
-    marginBottom: spacing.xl,
-  },
-  addRunText: {
-    fontFamily: fonts.semiBold,
-    fontSize: fontSize.sm,
-    color: colors.primary,
   },
 });
