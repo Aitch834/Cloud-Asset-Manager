@@ -5,7 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { Smartphone, BellRing, BellOff, AlertTriangle, Loader2, CheckCircle2 } from "lucide-react";
+import { Smartphone, BellRing, BellOff, AlertTriangle, Loader2, CheckCircle2, Lock } from "lucide-react";
+import { useAppStore } from "@/hooks/use-app-store";
+import { useGetFarmDashboard } from "@workspace/api-client-react/src/generated/api";
 
 type SmsOptIn = "all" | "critical" | "none";
 
@@ -19,37 +21,44 @@ interface AccountProfile {
   smsConsentAt: string | null;
 }
 
-function SmsLevelButton({ value, current, icon: Icon, label, description, onChange }: {
+function SmsLevelButton({ value, current, icon: Icon, label, description, onChange, disabled }: {
   value: SmsOptIn;
   current: SmsOptIn;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   description: string;
   onChange: (v: SmsOptIn) => void;
+  disabled?: boolean;
 }) {
   const isSelected = current === value;
   return (
     <button
       type="button"
-      onClick={() => onChange(value)}
+      onClick={() => !disabled && onChange(value)}
+      disabled={disabled}
       className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${
-        isSelected
+        disabled
+          ? "border-border opacity-50 cursor-not-allowed"
+          : isSelected
           ? "border-primary bg-primary/5 ring-1 ring-primary"
           : "border-border hover:border-primary/40 hover:bg-black/[0.02]"
       }`}
     >
-      <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+      <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${isSelected && !disabled ? "text-primary" : "text-muted-foreground"}`} />
       <div>
-        <p className={`text-sm font-medium ${isSelected ? "text-primary" : "text-foreground"}`}>{label}</p>
+        <p className={`text-sm font-medium ${isSelected && !disabled ? "text-primary" : "text-foreground"}`}>{label}</p>
         <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
       </div>
-      {isSelected && <CheckCircle2 className="w-4 h-4 text-primary ml-auto flex-shrink-0 mt-0.5" />}
+      {isSelected && !disabled && <CheckCircle2 className="w-4 h-4 text-primary ml-auto flex-shrink-0 mt-0.5" />}
     </button>
   );
 }
 
 export default function AccountSettings() {
   const { toast } = useToast();
+  const { farmId } = useAppStore();
+  const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } });
+
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -57,6 +66,9 @@ export default function AccountSettings() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [smsOptIn, setSmsOptIn] = useState<SmsOptIn>("none");
   const [consentChecked, setConsentChecked] = useState(false);
+
+  const activeModules = (dashboardData?.activeSubscriptions ?? []) as Array<Record<string, unknown>>;
+  const hasSmsModule = activeModules.some((m) => m.moduleKey === "sms-alerts");
 
   useEffect(() => {
     async function fetchProfile() {
@@ -147,81 +159,104 @@ export default function AccountSettings() {
             <div className="flex items-center gap-2">
               <Smartphone className="w-4 h-4 text-primary" />
               <CardTitle className="text-sm font-semibold">SMS Text Notifications</CardTitle>
+              {hasSmsModule && (
+                <span className="ml-auto text-[10px] font-bold uppercase tracking-widest text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Active</span>
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Receive compliance alerts by text message. UK mobile numbers only.
+              Receive critical compliance alerts by text message. UK mobile numbers only.
             </p>
           </CardHeader>
-          <CardContent className="space-y-4">
 
-            {/* Phone number */}
-            <div className="space-y-1.5">
-              <Label htmlFor="phone" className="text-sm">Mobile number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+447911123456"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter your UK number in international format, e.g. +447911123456
-              </p>
-            </div>
-
-            {/* Alert level */}
-            <div className="space-y-2">
-              <Label className="text-sm">Alert level</Label>
-              <div className="space-y-2">
-                <SmsLevelButton
-                  value="none"
-                  current={smsOptIn}
-                  icon={BellOff}
-                  label="No SMS alerts"
-                  description="You will only receive in-app notifications."
-                  onChange={setSmsOptIn}
-                />
-                <SmsLevelButton
-                  value="critical"
-                  current={smsOptIn}
-                  icon={AlertTriangle}
-                  label="Critical alerts only"
-                  description="Text only for the most urgent issues: unnotified livestock movements, expired certificates, and overdue non-conformances."
-                  onChange={setSmsOptIn}
-                />
-                <SmsLevelButton
-                  value="all"
-                  current={smsOptIn}
-                  icon={BellRing}
-                  label="All alerts"
-                  description="Text for every compliance notification including warnings and reminders."
-                  onChange={setSmsOptIn}
-                />
+          {!hasSmsModule ? (
+            <CardContent>
+              <div className="rounded-xl border border-dashed border-border bg-muted/30 p-5 flex flex-col items-center text-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                  <Lock className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">SMS Alerts add-on not active</p>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-xs mx-auto">
+                    SMS Text Alerts is available as an add-on for £4/month per farm. Once activated, each user on your account can choose their own alert level.
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  To add this, contact your BDE Farm Trac account manager or visit your subscription settings.
+                </p>
               </div>
-            </div>
+            </CardContent>
+          ) : (
+            <CardContent className="space-y-4">
 
-            {/* GDPR consent */}
-            {smsEnabled && (
-              <label className="flex items-start gap-3 cursor-pointer select-none group">
-                <input
-                  type="checkbox"
-                  checked={consentChecked}
-                  onChange={(e) => setConsentChecked(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded border-border accent-primary flex-shrink-0"
+              {/* Phone number */}
+              <div className="space-y-1.5">
+                <Label htmlFor="phone" className="text-sm">Mobile number</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="+447911123456"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="font-mono"
                 />
-                <span className="text-xs text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
-                  I consent to BDE Farm Trac sending me compliance alert text messages to the number above.
-                  I understand I can withdraw consent at any time by setting the alert level to "No SMS alerts".
-                </span>
-              </label>
-            )}
+                <p className="text-xs text-muted-foreground">
+                  Enter your UK number in international format, e.g. +447911123456
+                </p>
+              </div>
 
-            <Button onClick={handleSave} disabled={saving} className="w-full">
-              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : "Save preferences"}
-            </Button>
+              {/* Alert level */}
+              <div className="space-y-2">
+                <Label className="text-sm">Alert level</Label>
+                <div className="space-y-2">
+                  <SmsLevelButton
+                    value="none"
+                    current={smsOptIn}
+                    icon={BellOff}
+                    label="No SMS alerts"
+                    description="You will only receive in-app notifications."
+                    onChange={setSmsOptIn}
+                  />
+                  <SmsLevelButton
+                    value="critical"
+                    current={smsOptIn}
+                    icon={AlertTriangle}
+                    label="Critical alerts only"
+                    description="Text only for the most urgent issues: unnotified livestock movements, expired certificates, and overdue non-conformances."
+                    onChange={setSmsOptIn}
+                  />
+                  <SmsLevelButton
+                    value="all"
+                    current={smsOptIn}
+                    icon={BellRing}
+                    label="All alerts"
+                    description="Text for every compliance notification including warnings and reminders."
+                    onChange={setSmsOptIn}
+                  />
+                </div>
+              </div>
 
-          </CardContent>
+              {/* GDPR consent */}
+              {smsEnabled && (
+                <label className="flex items-start gap-3 cursor-pointer select-none group">
+                  <input
+                    type="checkbox"
+                    checked={consentChecked}
+                    onChange={(e) => setConsentChecked(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-border accent-primary flex-shrink-0"
+                  />
+                  <span className="text-xs text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
+                    I consent to BDE Farm Trac sending me compliance alert text messages to the number above.
+                    I understand I can withdraw consent at any time by setting the alert level to "No SMS alerts".
+                  </span>
+                </label>
+              )}
+
+              <Button onClick={handleSave} disabled={saving} className="w-full">
+                {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : "Save preferences"}
+              </Button>
+
+            </CardContent>
+          )}
         </Card>
 
       </div>

@@ -101,7 +101,7 @@ The platform supports 16 core compliance modules, each with monthly pricing, cov
 - **Payments:** Stripe (for subscription billing and webhooks)
 - **Authentication:** Replit Auth (OpenID Connect with PKCE)
 - **AI Integration:** OpenAI (for support chat - gpt-5-mini)
-- **SMS Notifications (Twilio):** BUILT. TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER stored as secrets. usersTable has phoneNumber (varchar), smsOptIn (varchar: all/critical/none, default none), smsConsentAt (timestamp). Wrapper at artifacts/api-server/src/lib/sms.ts. alertingJob.ts dispatches SMS on new critical alerts (movement_unnotified, certificate_expired, nonconformance_escalated). API routes GET/PUT /api/account/profile. Dashboard page at /account (Account & Notifications) accessible from sidebar and Settings page.
+- **SMS Notifications (Twilio):** BUILT as paid add-on module. TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER stored as secrets. Module key: "sms-alerts", £4/month (400 pence). usersTable has phoneNumber, smsOptIn (all/critical/none), smsConsentAt. Wrapper at artifacts/api-server/src/lib/sms.ts. alertingJob.ts checks tenant has active sms-alerts subscription before dispatching SMS for critical alerts (movement_unnotified, certificate_expired, nonconformance_escalated). API routes GET/PUT /api/account/profile. Dashboard at /account shows SMS settings when subscribed, or an upgrade prompt when not.
 - **Mobile Development:** Expo SDK 54, expo-router, expo-auth-session, expo-location, expo-image-picker, expo-haptics, expo-crypto
 - **Mobile Storage:** SQLite (native), AsyncStorage (web), SecureStore (native)
 - **Mapping:** react-native-maps (native)

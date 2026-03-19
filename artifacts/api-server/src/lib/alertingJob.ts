@@ -8,7 +8,34 @@ const ESCALATION_DAYS = 7;
 
 const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated"]);
 
+async function tenantHasSmsModule(tenantId: number): Promise<boolean> {
+  const [smsModule] = await db
+    .select({ id: modulesTable.id })
+    .from(modulesTable)
+    .where(eq(modulesTable.key, "sms-alerts"))
+    .limit(1);
+
+  if (!smsModule) return false;
+
+  const [sub] = await db
+    .select({ id: subscriptionsTable.id })
+    .from(subscriptionsTable)
+    .where(
+      and(
+        eq(subscriptionsTable.tenantId, tenantId),
+        eq(subscriptionsTable.moduleId, smsModule.id),
+        eq(subscriptionsTable.status, "active"),
+      )
+    )
+    .limit(1);
+
+  return Boolean(sub);
+}
+
 async function dispatchSmsForCriticalAlert(tenantId: number, title: string, message: string) {
+  const hasModule = await tenantHasSmsModule(tenantId);
+  if (!hasModule) return;
+
   const smsUsers = await db
     .select({ phoneNumber: usersTable.phoneNumber, smsOptIn: usersTable.smsOptIn })
     .from(usersTable)

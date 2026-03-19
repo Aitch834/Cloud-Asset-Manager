@@ -27,6 +27,7 @@ const MODULES = [
   { key: "document-management", name: "Document Management", description: "Document storage, linked records, object storage", monthlyPricePence: 1000 },
   { key: "weather-tracking", name: "Weather Tracking", description: "Weather stations, automated readings, field-level data", monthlyPricePence: 1500 },
   { key: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", description: "RTFO sustainability declarations, field eligibility, GHG traceability, and audit pack generation for farms supplying biofuel feedstocks", monthlyPricePence: 3000 },
+  { key: "sms-alerts", name: "SMS Text Alerts", description: "Receive critical compliance alerts by text message — unnotified movements, expired certificates, and overdue non-conformances", monthlyPricePence: 400 },
 ];
 
 export async function seedDefaults() {
