@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React from "react";
@@ -13,7 +13,8 @@ interface RecordOption {
   id: string;
   title: string;
   description: string;
-  icon: keyof typeof Feather.glyphMap;
+  icon: string;
+  iconFamily?: "Feather" | "MaterialCommunityIcons";
   color: string;
   bgColor: string;
   route: string;
@@ -105,7 +106,8 @@ const recordOptions: RecordOption[] = [
     id: "harvest",
     title: "Harvest Record — Combine",
     description: "Combine operator: log the field, crop, yield, moisture and timing for a harvest session",
-    icon: "scissors",
+    icon: "combine-harvester",
+    iconFamily: "MaterialCommunityIcons",
     color: colors.fieldGold,
     bgColor: "#FEF3C7",
     route: "/harvest-record",
@@ -214,7 +216,11 @@ function RecordOptionCard({ option }: { option: RecordOption }) {
       ]}
     >
       <View style={[styles.cardIcon, { backgroundColor: option.bgColor }]}>
-        <Feather name={option.icon} size={24} color={option.color} />
+        {option.iconFamily === "MaterialCommunityIcons" ? (
+          <MaterialCommunityIcons name={option.icon as keyof typeof MaterialCommunityIcons.glyphMap} size={24} color={option.color} />
+        ) : (
+          <Feather name={option.icon as keyof typeof Feather.glyphMap} size={24} color={option.color} />
+        )}
       </View>
       <View style={styles.cardContent}>
         <Text style={styles.cardTitle}>{option.title}</Text>
