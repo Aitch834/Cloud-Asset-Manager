@@ -24,6 +24,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PestControlVisit } from "@/lib/types";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { pestControlHtml } from "@/lib/printTemplates";
 
 const PEST_TYPES = [
   { key: "rats-mice", label: "Rats / Mice", icon: "alert-circle" as const, color: "#92400E" },
@@ -38,6 +40,7 @@ export default function PestControlVisitScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const [saving, setSaving] = useState(false);
 
   const [location, setLocation] = useState("");
@@ -90,8 +93,10 @@ export default function PestControlVisitScreen() {
     await appendToList(STORAGE_KEYS.PEST_CONTROL_VISITS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "Pest control visit recorded successfully.", [
-      { text: "OK", onPress: () => router.back() },
+    Alert.alert("Saved", "Pest control visit saved. Print or save the visit record?", [
+      { text: "Print", onPress: async () => { await print(pestControlHtml(record, currentFarm)); router.back(); } },
+      { text: "Save PDF", onPress: async () => { await savePdf(pestControlHtml(record, currentFarm), "Pest Control Visit"); router.back(); } },
+      { text: "Done", onPress: () => router.back() },
     ]);
   };
 

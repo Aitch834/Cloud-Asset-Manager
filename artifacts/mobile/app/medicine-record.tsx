@@ -24,6 +24,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { MedicineRecord } from "@/lib/types";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { medicineRecordHtml } from "@/lib/printTemplates";
 
 const ROUTES = [
   { key: "oral", label: "Oral", icon: "droplet" as const },
@@ -45,6 +47,7 @@ export default function MedicineRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const [saving, setSaving] = useState(false);
 
   const [herdName, setHerdName] = useState("");
@@ -110,8 +113,10 @@ export default function MedicineRecordScreen() {
     await appendToList(STORAGE_KEYS.MEDICINE_RECORDS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "Medicine record saved successfully.", [
-      { text: "OK", onPress: () => router.back() },
+    Alert.alert("Saved", "Medicine record saved. Print or save the treatment record?", [
+      { text: "Print", onPress: async () => { await print(medicineRecordHtml(record, currentFarm)); router.back(); } },
+      { text: "Save PDF", onPress: async () => { await savePdf(medicineRecordHtml(record, currentFarm), "Medicine Record"); router.back(); } },
+      { text: "Done", onPress: () => router.back() },
     ]);
   };
 

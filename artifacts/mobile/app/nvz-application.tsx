@@ -26,6 +26,8 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { NvzApplication } from "@/lib/types";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { nvzApplicationHtml } from "@/lib/printTemplates";
 
 const PRODUCT_TYPES = [
   { key: "synthetic-n", label: "Synthetic N", color: colors.info },
@@ -44,6 +46,7 @@ export default function NvzApplicationScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
@@ -97,8 +100,10 @@ export default function NvzApplicationScreen() {
     await appendToList(STORAGE_KEYS.NVZ_APPLICATIONS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "NVZ fertiliser application saved successfully.", [
-      { text: "OK", onPress: () => router.back() },
+    Alert.alert("Saved", "NVZ application saved. Print or save the fertiliser record?", [
+      { text: "Print", onPress: async () => { await print(nvzApplicationHtml(record, currentFarm)); router.back(); } },
+      { text: "Save PDF", onPress: async () => { await savePdf(nvzApplicationHtml(record, currentFarm), "NVZ Application"); router.back(); } },
+      { text: "Done", onPress: () => router.back() },
     ]);
   };
 

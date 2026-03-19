@@ -23,6 +23,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { BiofuelDeliveryRecord } from "@/lib/types";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { biofuelDeclarationHtml } from "@/lib/printTemplates";
 import { Pressable } from "react-native";
 
 const CROP_TYPES = [
@@ -38,6 +40,7 @@ export default function BiofuelDeliveryScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const [saving, setSaving] = useState(false);
 
   const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split("T")[0]);
@@ -94,8 +97,10 @@ export default function BiofuelDeliveryScreen() {
       await appendToList(STORAGE_KEYS.BIOFUEL_DELIVERY_RECORDS, record);
       await refreshPendingCount();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Saved", "Biofuel delivery record saved and queued for sync.", [
-        { text: "OK", onPress: () => router.back() },
+      Alert.alert("Saved", "Biofuel delivery saved. Print or save the RTFO sustainability declaration?", [
+        { text: "Print", onPress: async () => { await print(biofuelDeclarationHtml(record, currentFarm)); router.back(); } },
+        { text: "Save PDF", onPress: async () => { await savePdf(biofuelDeclarationHtml(record, currentFarm), "RTFO Declaration"); router.back(); } },
+        { text: "Done", onPress: () => router.back() },
       ]);
     } catch (e) {
       Alert.alert("Error", "Could not save delivery record. Please try again.");

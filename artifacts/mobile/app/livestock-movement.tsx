@@ -24,6 +24,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { LivestockMovement } from "@/lib/types";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { livestockMovementHtml } from "@/lib/printTemplates";
 
 type MovType = LivestockMovement["movementType"];
 
@@ -39,6 +41,7 @@ export default function LivestockMovementScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user: _user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const [saving, setSaving] = useState(false);
 
   const [herdName, setHerdName] = useState("");
@@ -97,8 +100,10 @@ export default function LivestockMovementScreen() {
     await appendToList(STORAGE_KEYS.LIVESTOCK_MOVEMENTS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "Livestock movement recorded successfully.", [
-      { text: "OK", onPress: () => router.back() },
+    Alert.alert("Saved", "Livestock movement recorded. Print or save the movement certificate?", [
+      { text: "Print", onPress: async () => { await print(livestockMovementHtml(record, currentFarm)); router.back(); } },
+      { text: "Save PDF", onPress: async () => { await savePdf(livestockMovementHtml(record, currentFarm), "Livestock Movement"); router.back(); } },
+      { text: "Done", onPress: () => router.back() },
     ]);
   };
 

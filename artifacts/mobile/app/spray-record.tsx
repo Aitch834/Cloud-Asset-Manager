@@ -27,6 +27,8 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, getList, STORAGE_KEYS } from "@/lib/storage";
 import type { FieldBoundary, SprayRecord, WeatherEntry } from "@/lib/types";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { sprayRecordHtml } from "@/lib/printTemplates";
 
 function isPointInPolygon(
   point: { latitude: number; longitude: number },
@@ -49,6 +51,7 @@ export default function SprayRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const { fields: apiFields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
@@ -162,8 +165,10 @@ export default function SprayRecordScreen() {
     await appendToList(STORAGE_KEYS.SPRAY_RECORDS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "Spray record saved successfully.", [
-      { text: "OK", onPress: () => router.back() },
+    Alert.alert("Saved", "Spray record saved. Print or save the application record?", [
+      { text: "Print", onPress: async () => { await print(sprayRecordHtml(record, currentFarm)); router.back(); } },
+      { text: "Save PDF", onPress: async () => { await savePdf(sprayRecordHtml(record, currentFarm), "Spray Record"); router.back(); } },
+      { text: "Done", onPress: () => router.back() },
     ]);
   };
 

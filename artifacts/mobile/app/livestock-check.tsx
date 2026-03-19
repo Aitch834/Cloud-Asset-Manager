@@ -25,6 +25,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { LivestockCheck } from "@/lib/types";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { livestockCheckHtml } from "@/lib/printTemplates";
 
 type Condition = LivestockCheck["overallCondition"];
 
@@ -39,6 +41,7 @@ export default function LivestockCheckScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const [saving, setSaving] = useState(false);
 
   const [herdName, setHerdName] = useState("");
@@ -97,8 +100,10 @@ export default function LivestockCheckScreen() {
     await appendToList(STORAGE_KEYS.LIVESTOCK_CHECKS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "Livestock health check saved successfully.", [
-      { text: "OK", onPress: () => router.back() },
+    Alert.alert("Saved", "Livestock health check saved. Print or save the check record?", [
+      { text: "Print", onPress: async () => { await print(livestockCheckHtml(record, currentFarm)); router.back(); } },
+      { text: "Save PDF", onPress: async () => { await savePdf(livestockCheckHtml(record, currentFarm), "Livestock Check"); router.back(); } },
+      { text: "Done", onPress: () => router.back() },
     ]);
   };
 

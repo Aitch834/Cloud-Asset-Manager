@@ -24,6 +24,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { CleaningRecord } from "@/lib/types";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { cleaningRecordHtml } from "@/lib/printTemplates";
 
 const CLEANING_TYPES = [
   { key: "routine-clean", label: "Routine clean", icon: "wind" as const },
@@ -46,6 +48,7 @@ export default function CleaningRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -109,8 +112,10 @@ export default function CleaningRecordScreen() {
     await appendToList(STORAGE_KEYS.CLEANING_RECORDS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "Cleaning & disinfection record saved successfully.", [
-      { text: "OK", onPress: () => router.back() },
+    Alert.alert("Saved", "Cleaning record saved. Print or save the C&D record?", [
+      { text: "Print", onPress: async () => { await print(cleaningRecordHtml(record, currentFarm)); router.back(); } },
+      { text: "Save PDF", onPress: async () => { await savePdf(cleaningRecordHtml(record, currentFarm), "Cleaning Record"); router.back(); } },
+      { text: "Done", onPress: () => router.back() },
     ]);
   };
 

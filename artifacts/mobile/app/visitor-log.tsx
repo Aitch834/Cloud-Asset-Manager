@@ -23,11 +23,14 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { VisitorLogEntry } from "@/lib/types";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { visitorLogHtml } from "@/lib/printTemplates";
 
 export default function VisitorLogScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const [saving, setSaving] = useState(false);
 
   const [visitorName, setVisitorName] = useState("");
@@ -67,8 +70,10 @@ export default function VisitorLogScreen() {
     await appendToList(STORAGE_KEYS.VISITOR_LOG, entry);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "Visitor logged successfully.", [
-      { text: "OK", onPress: () => router.back() },
+    Alert.alert("Saved", "Visitor logged. Print or save the visitor record?", [
+      { text: "Print", onPress: async () => { await print(visitorLogHtml(entry, currentFarm)); router.back(); } },
+      { text: "Save PDF", onPress: async () => { await savePdf(visitorLogHtml(entry, currentFarm), "Visitor Log"); router.back(); } },
+      { text: "Done", onPress: () => router.back() },
     ]);
   };
 
