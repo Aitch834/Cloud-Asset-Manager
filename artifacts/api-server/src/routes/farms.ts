@@ -64,6 +64,9 @@ import {
   storageLocationsTable,
   biosecurityPlansTable,
   nvzRiskAssessmentsTable,
+  farmAdvisorsTable,
+  farmInspectionSessionsTable,
+  externalAccessLogTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte } from "drizzle-orm";
 import { createNonconformanceNotification } from "../lib/alertingJob";
@@ -3209,6 +3212,239 @@ router.delete("/farms/:farmId/nvz-risk-assessments/:recordId", requireAuth, requ
   const recordId = parseInt(req.params.recordId);
   await db.delete(nvzRiskAssessmentsTable).where(and(eq(nvzRiskAssessmentsTable.id, recordId), eq(nvzRiskAssessmentsTable.farmId, farmId)));
   res.json({ ok: true });
+});
+
+// ─── Advisors & Access ────────────────────────────────────────────────────────
+
+function generateAccessToken(): string {
+  const { randomBytes } = require("crypto") as typeof import("crypto");
+  return randomBytes(32).toString("hex");
+}
+
+// List advisors for a farm
+router.get("/farms/:farmId/advisors", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(farmAdvisorsTable).where(eq(farmAdvisorsTable.farmId, farmId)).orderBy(desc(farmAdvisorsTable.createdAt));
+  res.json({ records });
+});
+
+// Invite a new advisor
+router.post("/farms/:farmId/advisors", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
+  const token = generateAccessToken();
+  const [record] = await db.insert(farmAdvisorsTable).values({
+    farmId,
+    invitedByUserId: userId,
+    advisorEmail: req.body.advisorEmail,
+    advisorName: req.body.advisorName,
+    advisorRole: req.body.advisorRole,
+    moduleAccess: req.body.moduleAccess ?? [],
+    notes: req.body.notes ?? null,
+    token,
+    status: "active",
+  }).returning();
+  res.status(201).json({ record });
+});
+
+// Update advisor (module access, notes)
+router.put("/farms/:farmId/advisors/:advisorId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const advisorId = parseInt(req.params.advisorId);
+  const [record] = await db.update(farmAdvisorsTable)
+    .set({ moduleAccess: req.body.moduleAccess, notes: req.body.notes, advisorRole: req.body.advisorRole })
+    .where(and(eq(farmAdvisorsTable.id, advisorId), eq(farmAdvisorsTable.farmId, farmId)))
+    .returning();
+  res.json({ record });
+});
+
+// Revoke advisor
+router.delete("/farms/:farmId/advisors/:advisorId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const advisorId = parseInt(req.params.advisorId);
+  await db.update(farmAdvisorsTable)
+    .set({ status: "revoked", revokedAt: new Date() })
+    .where(and(eq(farmAdvisorsTable.id, advisorId), eq(farmAdvisorsTable.farmId, farmId)));
+  res.json({ ok: true });
+});
+
+// List inspection sessions
+router.get("/farms/:farmId/inspection-sessions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(farmInspectionSessionsTable).where(eq(farmInspectionSessionsTable.farmId, farmId)).orderBy(desc(farmInspectionSessionsTable.createdAt));
+  res.json({ records });
+});
+
+// Create inspection session
+router.post("/farms/:farmId/inspection-sessions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
+  const token = generateAccessToken();
+  const [record] = await db.insert(farmInspectionSessionsTable).values({
+    farmId,
+    createdByUserId: userId,
+    accessorEmail: req.body.accessorEmail ?? null,
+    accessorName: req.body.accessorName,
+    accessorOrganisation: req.body.accessorOrganisation ?? null,
+    purpose: req.body.purpose,
+    moduleAccess: req.body.moduleAccess ?? [],
+    token,
+    expiresAt: new Date(req.body.expiresAt),
+  }).returning();
+  res.status(201).json({ record });
+});
+
+// Revoke inspection session
+router.delete("/farms/:farmId/inspection-sessions/:sessionId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const sessionId = parseInt(req.params.sessionId);
+  await db.update(farmInspectionSessionsTable)
+    .set({ revokedAt: new Date() })
+    .where(and(eq(farmInspectionSessionsTable.id, sessionId), eq(farmInspectionSessionsTable.farmId, farmId)));
+  res.json({ ok: true });
+});
+
+// Access log for farm managers
+router.get("/farms/:farmId/access-log", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(externalAccessLogTable)
+    .where(eq(externalAccessLogTable.farmId, farmId))
+    .orderBy(desc(externalAccessLogTable.accessedAt))
+    .limit(200);
+  res.json({ records });
+});
+
+// ─── Public token validation (no auth required) ───────────────────────────────
+
+const ACCESS_MODULE_QUERIES: Record<string, (farmId: number) => Promise<unknown>> = {
+  spray_records: async (farmId) => db.select().from(sprayApplicationsTable).where(eq(sprayApplicationsTable.farmId, farmId)).orderBy(desc(sprayApplicationsTable.applicationDate)).limit(200),
+  fields_crops: async (farmId) => db.select().from(fieldsTable).where(eq(fieldsTable.farmId, farmId)),
+  soil_tests: async (farmId) => db.select().from(soilTestRecordsTable).where(eq(soilTestRecordsTable.farmId, farmId)).orderBy(desc(soilTestRecordsTable.sampleDate)).limit(100),
+  equipment: async (farmId) => db.select().from(equipmentTable).where(eq(equipmentTable.farmId, farmId)),
+  livestock: async (farmId) => db.select().from(herdFlockRegisterTable).where(eq(herdFlockRegisterTable.farmId, farmId)),
+  medicines: async (farmId) => db.select().from(livestockMedicineRecordsTable).where(eq(livestockMedicineRecordsTable.farmId, farmId)).orderBy(desc(livestockMedicineRecordsTable.treatmentDate)).limit(200),
+  movements: async (farmId) => db.select().from(livestockMovementsTable).where(eq(livestockMovementsTable.farmId, farmId)).orderBy(desc(livestockMovementsTable.movementDate)).limit(200),
+  biosecurity: async (farmId) => ({
+    visitors: await db.select().from(visitorContractorLogTable).where(eq(visitorContractorLogTable.farmId, farmId)).orderBy(desc(visitorContractorLogTable.arrivalTime)).limit(100),
+    pestControl: await db.select().from(pestControlRecordsTable).where(eq(pestControlRecordsTable.farmId, farmId)).orderBy(desc(pestControlRecordsTable.treatmentDate)).limit(100),
+    biosecurityPlan: await db.select().from(biosecurityPlansTable).where(eq(biosecurityPlansTable.farmId, farmId)).limit(1),
+  }),
+  staff_training: async (farmId) => ({
+    trainingRecords: await db.select().from(staffTrainingRecordsTable).where(eq(staffTrainingRecordsTable.farmId, farmId)).orderBy(desc(staffTrainingRecordsTable.trainingDate)).limit(200),
+    certificates: await db.select().from(staffCertificatesTable).where(eq(staffCertificatesTable.farmId, farmId)).limit(200),
+  }),
+  inspections: async (farmId) => ({
+    inspections: await db.select().from(inspectionRecordsTable).where(eq(inspectionRecordsTable.farmId, farmId)).orderBy(desc(inspectionRecordsTable.inspectionDate)).limit(100),
+    nonconformances: await db.select().from(nonconformanceRecordsTable).where(eq(nonconformanceRecordsTable.farmId, farmId)).orderBy(desc(nonconformanceRecordsTable.identifiedDate)).limit(100),
+  }),
+  nvz: async (farmId) => ({
+    applications: await db.select().from(nvzFertiliserApplicationsTable).where(eq(nvzFertiliserApplicationsTable.farmId, farmId)).orderBy(desc(nvzFertiliserApplicationsTable.applicationDate)).limit(200),
+    riskAssessments: await db.select().from(nvzRiskAssessmentsTable).where(eq(nvzRiskAssessmentsTable.farmId, farmId)).orderBy(desc(nvzRiskAssessmentsTable.assessmentDate)).limit(50),
+  }),
+  risk_assessments: async (farmId) => ({
+    riskAssessments: await db.select().from(riskAssessmentsTable).where(eq(riskAssessmentsTable.farmId, farmId)).orderBy(desc(riskAssessmentsTable.assessmentDate)).limit(100),
+    coshh: await db.select().from(coshhRecordsTable).where(eq(coshhRecordsTable.farmId, farmId)).limit(100),
+  }),
+  environmental: async (farmId) => db.select().from(environmentalFeaturesTable).where(eq(environmentalFeaturesTable.farmId, farmId)).limit(100),
+  harvest: async (farmId) => db.select().from(harvestRecordsTable).where(eq(harvestRecordsTable.farmId, farmId)).orderBy(desc(harvestRecordsTable.harvestDate)).limit(200),
+};
+
+router.get("/access-token/:token", async (req: Request, res: Response): Promise<void> => {
+  const { token } = req.params;
+
+  // Try advisor token first
+  const [advisor] = await db.select().from(farmAdvisorsTable).where(eq(farmAdvisorsTable.token, token)).limit(1);
+  let farmId: number | null = null;
+  let sessionType: "advisor" | "inspection" | null = null;
+  let sessionId: number | null = null;
+  let accessorName: string | null = null;
+  let accessorEmail: string | null = null;
+  let accessorOrganisation: string | null = null;
+  let moduleAccess: string[] = [];
+  let expiresAt: Date | null = null;
+
+  if (advisor) {
+    if (advisor.status === "revoked") { res.status(403).json({ error: "Access has been revoked" }); return; }
+    farmId = advisor.farmId;
+    sessionType = "advisor";
+    sessionId = advisor.id;
+    accessorName = advisor.advisorName;
+    accessorEmail = advisor.advisorEmail;
+    moduleAccess = advisor.moduleAccess as string[];
+    await db.update(farmAdvisorsTable).set({ lastAccessAt: new Date(), status: "active" }).where(eq(farmAdvisorsTable.id, advisor.id));
+  } else {
+    // Try inspection session
+    const [session] = await db.select().from(farmInspectionSessionsTable).where(eq(farmInspectionSessionsTable.token, token)).limit(1);
+    if (!session) { res.status(404).json({ error: "Access token not found or expired" }); return; }
+    if (session.revokedAt) { res.status(403).json({ error: "Access has been revoked" }); return; }
+    if (new Date() > session.expiresAt) { res.status(403).json({ error: "Access has expired" }); return; }
+    farmId = session.farmId;
+    sessionType = "inspection";
+    sessionId = session.id;
+    accessorName = session.accessorName;
+    accessorEmail = session.accessorEmail ?? null;
+    accessorOrganisation = session.accessorOrganisation ?? null;
+    moduleAccess = session.moduleAccess as string[];
+    expiresAt = session.expiresAt;
+    await db.update(farmInspectionSessionsTable).set({ lastAccessAt: new Date(), accessCount: sql`${farmInspectionSessionsTable.accessCount} + 1` }).where(eq(farmInspectionSessionsTable.id, session.id));
+  }
+
+  // Log this access
+  await db.insert(externalAccessLogTable).values({
+    farmId: farmId!,
+    sessionType: sessionType!,
+    sessionId: sessionId!,
+    accessorEmail,
+    accessorName,
+    pageAccessed: "compliance_view",
+  });
+
+  // Fetch farm details
+  const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId!)).limit(1);
+
+  // Fetch data for each permitted module
+  const data: Record<string, unknown> = {};
+  for (const mod of moduleAccess) {
+    if (ACCESS_MODULE_QUERIES[mod]) {
+      try {
+        data[mod] = await ACCESS_MODULE_QUERIES[mod](farmId!);
+      } catch {
+        data[mod] = [];
+      }
+    }
+  }
+
+  res.json({
+    valid: true,
+    sessionType,
+    farm: {
+      name: farm?.name,
+      cphNumber: farm?.cphNumber,
+      address: farm?.address,
+      postcode: farm?.postcode,
+      sbiNumber: farm?.sbiNumber,
+      redTractorId: farm?.redTractorId,
+      farmManager: farm?.farmManager,
+    },
+    accessor: {
+      name: accessorName,
+      email: accessorEmail,
+      organisation: accessorOrganisation,
+      expiresAt,
+    },
+    permittedModules: moduleAccess,
+    data,
+  });
 });
 
 export default router;

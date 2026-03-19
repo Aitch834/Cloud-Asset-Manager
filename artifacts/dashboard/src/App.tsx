@@ -43,6 +43,8 @@ import HaulagePageFull from "@/pages/HaulagePageFull";
 import EnvironmentalPageFull from "@/pages/EnvironmentalPageFull";
 import StorageLocationsPage from "@/pages/StorageLocationsPage";
 import AccountSettings from "@/pages/AccountSettings";
+import AdvisorsAccessPage from "@/pages/AdvisorsAccessPage";
+import InspectionViewPage from "@/pages/InspectionViewPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -200,10 +202,12 @@ function Router() {
       <Route path="/soil-dashboard" component={SoilDashboard} />
       <Route path="/fleet-dashboard" component={FleetDashboard} />
       <Route path="/staff" component={StaffPage} />
+      <Route path="/settings/access" component={AdvisorsAccessPage} />
       <Route path="/settings/farm" component={FarmSettingsPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/account" component={AccountSettings} />
       <Route path="/biofuel" component={BiofuelPage} />
+      <Route path="/inspect/:token" component={InspectionViewPage} />
       <Route component={NotFound} />
     </Switch>
     </RouteErrorBoundary>

@@ -4,7 +4,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useGetFarmDashboard } from "@workspace/api-client-react/src/generated/api";
 import { 
   Users, MapPin, Bell, CreditCard, ChevronRight, 
-  CheckCircle2, ShieldCheck, Package
+  CheckCircle2, ShieldCheck, Package, Share2
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -56,6 +56,12 @@ export default function SettingsPage() {
                 label="Staff Management"
                 description="Invite team members and manage access"
                 href="/staff"
+              />
+              <SettingRow
+                icon={Share2}
+                label="Advisors & External Access"
+                description="Share read-only farm data with advisors, vets, or inspectors"
+                href="/settings/access"
               />
             </CardContent>
           </Card>

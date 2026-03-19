@@ -19,3 +19,4 @@ export * from "./documents";
 export * from "./weather";
 export * from "./support-enhanced";
 export * from "./biofuel";
+export * from "./access";
