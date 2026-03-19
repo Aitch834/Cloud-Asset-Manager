@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Warehouse, Plus, Pencil, Trash2, CheckCircle, XCircle } from "lucide-react";
+import { Warehouse, Plus, Pencil, Trash2, CheckCircle, XCircle, MapPin } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
+import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
+
+interface LatLng { lat: number; lng: number; }
 
 interface StorageLocation {
   id: number;
@@ -18,6 +21,8 @@ interface StorageLocation {
   type: string;
   capacityTonnes?: string | null;
   locationDescription?: string | null;
+  latitude?: string | null;
+  longitude?: string | null;
   notes?: string | null;
   isActive: boolean;
   createdAt: string;
@@ -43,6 +48,13 @@ function typeBadgeVariant(type: string): "default" | "secondary" | "outline" {
   return "outline";
 }
 
+function locToLatLng(loc: StorageLocation): LatLng | null {
+  if (loc.latitude && loc.longitude) {
+    return { lat: parseFloat(loc.latitude), lng: parseFloat(loc.longitude) };
+  }
+  return null;
+}
+
 const emptyForm = () => ({
   name: "",
   type: "grain_store",
@@ -50,6 +62,7 @@ const emptyForm = () => ({
   locationDescription: "",
   notes: "",
   isActive: true,
+  pin: null as LatLng | null,
 });
 
 export default function StorageLocationsPage() {
@@ -120,6 +133,7 @@ export default function StorageLocationsPage() {
       locationDescription: loc.locationDescription ?? "",
       notes: loc.notes ?? "",
       isActive: loc.isActive,
+      pin: locToLatLng(loc),
     });
     setDialogOpen(true);
   }
@@ -131,9 +145,20 @@ export default function StorageLocationsPage() {
       type: form.type,
       capacityTonnes: form.capacityTonnes || null,
       locationDescription: form.locationDescription || null,
+      latitude: form.pin ? String(form.pin.lat) : null,
+      longitude: form.pin ? String(form.pin.lng) : null,
       notes: form.notes || null,
       isActive: form.isActive,
     } as Omit<StorageLocation, "id" | "createdAt">);
+  }
+
+  function openMapFor(loc: StorageLocation) {
+    const pin = locToLatLng(loc);
+    if (!pin) return;
+    window.open(
+      `https://www.openstreetmap.org/?mlat=${pin.lat}&mlon=${pin.lng}#map=17/${pin.lat}/${pin.lng}`,
+      "_blank",
+    );
   }
 
   return (
@@ -175,55 +200,73 @@ export default function StorageLocationsPage() {
                   <th className="text-left px-4 py-3 font-medium">Type</th>
                   <th className="text-left px-4 py-3 font-medium">Capacity (t)</th>
                   <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Location</th>
+                  <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">GPS</th>
                   <th className="text-left px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {locations.map((loc) => (
-                  <tr key={loc.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-medium">{loc.name}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={typeBadgeVariant(loc.type)}>{typeLabel(loc.type)}</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {loc.capacityTonnes ? `${loc.capacityTonnes} t` : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell max-w-xs truncate">
-                      {loc.locationDescription || "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {loc.isActive ? (
-                        <span className="flex items-center gap-1 text-green-600">
-                          <CheckCircle className="h-4 w-4" />
-                          Active
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <XCircle className="h-4 w-4" />
-                          Inactive
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2 justify-end">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(loc)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(loc.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {locations.map((loc) => {
+                  const pin = locToLatLng(loc);
+                  return (
+                    <tr key={loc.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3 font-medium">{loc.name}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant={typeBadgeVariant(loc.type)}>{typeLabel(loc.type)}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {loc.capacityTonnes ? `${loc.capacityTonnes} t` : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground hidden md:table-cell max-w-xs truncate">
+                        {loc.locationDescription || "—"}
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell">
+                        {pin ? (
+                          <button
+                            onClick={() => openMapFor(loc)}
+                            title="View on OpenStreetMap"
+                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline font-mono"
+                          >
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            {pin.lat.toFixed(4)}, {pin.lng.toFixed(4)}
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">Not set</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {loc.isActive ? (
+                          <span className="flex items-center gap-1 text-green-600">
+                            <CheckCircle className="h-4 w-4" />
+                            Active
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <XCircle className="h-4 w-4" />
+                            Inactive
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2 justify-end">
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(loc)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => setDeleteId(loc.id)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
 
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); setForm(emptyForm()); } }}>
-          <DialogContent style={{ maxWidth: 520 }}>
+          <DialogContent style={{ maxWidth: 620 }} className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editId ? "Edit Storage Location" : "Add Storage Location"}</DialogTitle>
             </DialogHeader>
@@ -265,11 +308,23 @@ export default function StorageLocationsPage() {
               </div>
 
               <div className="space-y-1">
-                <Label>Location on Farm</Label>
+                <Label>Location description</Label>
                 <Input
                   placeholder="e.g. North yard, adjacent to main barn"
                   value={form.locationDescription}
                   onChange={(e) => setForm((f) => ({ ...f, locationDescription: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  GPS Pin Location
+                </Label>
+                <StorageLocationMapPicker
+                  key={dialogOpen ? "open" : "closed"}
+                  value={form.pin}
+                  onChange={(pin) => setForm((f) => ({ ...f, pin }))}
                 />
               </div>
 

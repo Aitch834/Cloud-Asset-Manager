@@ -109,6 +109,8 @@ export const storageLocationsTable = pgTable("storage_locations", {
   type: text("type").notNull().default("grain_store"),
   capacityTonnes: numeric("capacity_tonnes", { precision: 10, scale: 2 }),
   locationDescription: text("location_description"),
+  latitude: numeric("latitude", { precision: 10, scale: 7 }),
+  longitude: numeric("longitude", { precision: 10, scale: 7 }),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
