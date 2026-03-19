@@ -84,13 +84,13 @@ const MODULE_GUIDES: Record<string, ModuleGuide> = {
   "livestock-movements": {
     name: "Livestock Movements",
     description:
-      "All on and off movements must be reported to BCMS within three days for cattle, and retained as records for at least three years for all species.",
+      "All on and off movements must be retained as records for at least three years for all species, and reported to the relevant government portal within the legal timeframe.",
     steps: [
-      "Enter your BCMS holding number (this is your CPH number formatted for eAML2) — required for all cattle movement notifications.",
-      "Register regular movement destinations: markets, abattoirs, and neighbouring holdings — saving these prevents re-entry on every movement.",
-      "Enter any livestock movements that have occurred in the current period (on and off your holding) — include source or destination CPH and individual ear tags for cattle.",
-      "For any cattle purchased, confirm that the animal passport has been received and record the passport number against the ear tag.",
-      "File digital copies of AML1/AML2 movement documents in the Documents section, linked to the relevant movement record.",
+      "Set your farm's Country / Devolved Nation in Farm Settings — this determines which portal links appear in the Movements page (eAML2 / BCMS for England; ScotEID for Scotland; EIDCymru + BCMS for Wales; NIFAIS for Northern Ireland).",
+      "Enter your BCMS holding number, flock mark, and (if applicable) ScotEID or EIDCymru number in Farm Settings — these identifiers appear on movement exports and are required for portal submissions.",
+      "Enter any livestock movements that have occurred in the current period (on and off your holding) — include source or destination CPH and individual ear tags for cattle; flock or herd mark and batch count for sheep, goats and pigs.",
+      "After each movement is recorded, submit it to the appropriate government portal and paste the reference number back into the BDE Farm Trac movement record — cattle must be reported within 3 days.",
+      "File digital copies of AML1/AML2 movement documents (or ScotEID / EIDCymru confirmation screenshots) in the Documents section, linked to the relevant movement record.",
     ],
   },
   "livestock-medicine": {
