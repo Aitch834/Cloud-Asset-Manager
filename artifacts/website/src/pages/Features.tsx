@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { 
   ClipboardCheck, Map, Package, Tractor, FileText, LineChart, 
   CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
-  Droplets, AlertTriangle, ClipboardList, Leaf, Truck, Fuel
+  Droplets, AlertTriangle, ClipboardList, Leaf, Truck, Fuel, Share2
 } from "lucide-react";
 
 export default function Features() {
@@ -109,6 +109,12 @@ export default function Features() {
       icon: Fuel,
       color: "bg-yellow-50 text-yellow-700 border-yellow-100",
       features: ["RTFO sustainability declarations", "Field eligibility tracking", "GHG traceability records", "Audit pack PDF generation"]
+    },
+    {
+      title: "Advisor & Inspector Access",
+      icon: Share2,
+      color: "bg-indigo-50 text-indigo-700 border-indigo-100",
+      features: ["Permanent advisor accounts (agronomists, vets, FACTS advisers)", "Time-limited inspection sessions for Red Tractor CBs", "14-module scope selector — share only what you choose", "Full access log with timestamp and accessor name"]
     },
   ];
 

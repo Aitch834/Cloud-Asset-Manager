@@ -24,6 +24,7 @@ const MODULES = [
   { id: "document-management", name: "Document Management", price: 10 },
   { id: "weather-tracking", name: "Weather Tracking", price: 15 },
   { id: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", price: 30 },
+  { id: "external-access", name: "Advisor & Inspector Access", price: 4 },
 ];
 
 interface Farm {
