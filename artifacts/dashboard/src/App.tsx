@@ -36,6 +36,10 @@ import SoilTestsPage from "@/pages/SoilTestsPage";
 import BiosecurityPage from "@/pages/BiosecurityPage";
 import MedicinePageDedicated from "@/pages/MedicinePage";
 import BiofuelPage from "@/pages/BiofuelPage";
+import InspectionsPageFull from "@/pages/InspectionsPageFull";
+import WeatherPageFull from "@/pages/WeatherPageFull";
+import HaulagePageFull from "@/pages/HaulagePageFull";
+import EnvironmentalPageFull from "@/pages/EnvironmentalPageFull";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,19 +56,7 @@ function SoilPage() {
 }
 
 function InspectionsPage() {
-  return <ModulePage title="Inspections" apiPath="inspections" columns={[
-    { key: "inspectionDate", label: "Date" },
-    { key: "inspectorName", label: "Inspector" },
-    { key: "inspectionType", label: "Type" },
-    { key: "outcome", label: "Outcome" },
-    { key: "nextInspectionDue", label: "Next Due" },
-  ]} formFields={[
-    { key: "inspectionDate", label: "Inspection Date", type: "date", required: true },
-    { key: "inspectorName", label: "Inspector Name", required: true },
-    { key: "inspectionType", label: "Type", type: "select", options: ["Red Tractor", "Internal Audit", "EHO", "Trading Standards", "Other"] },
-    { key: "outcome", label: "Outcome", type: "select", options: ["pass", "conditional_pass", "fail", "pending"] },
-    { key: "notes", label: "Notes", type: "textarea" },
-  ]} />;
+  return <InspectionsPageFull />;
 }
 
 function RisksPage() {
@@ -146,52 +138,19 @@ function StockPage() {
 
 
 function EnvironmentalPage() {
-  return <ModulePage title="Environmental Features" apiPath="environmental-features" columns={[
-    { key: "featureType", label: "Type" },
-    { key: "featureName", label: "Name" },
-    { key: "areaSqMetres", label: "Area (m\u00B2)" },
-    { key: "dateRecorded", label: "Recorded" },
-  ]} formFields={[
-    { key: "featureType", label: "Feature Type", type: "select", options: ["hedgerow", "pond", "woodland", "wetland", "grassland", "wildflower_margin", "other"], required: true },
-    { key: "featureName", label: "Name", required: true },
-    { key: "areaSqMetres", label: "Area (m\u00B2)", type: "number" },
-    { key: "dateRecorded", label: "Date Recorded", type: "date", required: true },
-    { key: "notes", label: "Notes", type: "textarea" },
-  ]} />;
+  return <EnvironmentalPageFull />;
 }
 
 function HaulagePage() {
-  return <ModulePage title="Haulage Records" apiPath="haulage" columns={[
-    { key: "departureDate", label: "Departure" },
-    { key: "cargoDescription", label: "Cargo" },
-    { key: "vehicleReg", label: "Vehicle" },
-    { key: "driverName", label: "Driver" },
-    { key: "destination", label: "Destination" },
-  ]} formFields={[
-    { key: "departureDate", label: "Departure Date", type: "date", required: true },
-    { key: "cargoDescription", label: "Cargo", required: true },
-    { key: "vehicleReg", label: "Vehicle Reg", required: true },
-    { key: "driverName", label: "Driver", required: true },
-    { key: "destination", label: "Destination", required: true },
-    { key: "notes", label: "Notes", type: "textarea" },
-  ]} />;
+  return <HaulagePageFull />;
 }
 
-
 function WeatherPage() {
-  return <ModulePage title="Weather Records" apiPath="weather-readings" columns={[
-    { key: "readingTimestamp", label: "Date/Time" },
-    { key: "temperatureC", label: "Temp (\u00B0C)" },
-    { key: "humidityPercent", label: "Humidity (%)" },
-    { key: "windSpeedKmh", label: "Wind (km/h)" },
-    { key: "rainfallMm", label: "Rain (mm)" },
-  ]} formFields={[
-    { key: "readingTimestamp", label: "Reading Time", type: "datetime-local", required: true },
-    { key: "temperatureC", label: "Temperature (\u00B0C)", type: "number" },
-    { key: "humidityPercent", label: "Humidity (%)", type: "number" },
-    { key: "windSpeedKmh", label: "Wind Speed (km/h)", type: "number" },
-    { key: "rainfallMm", label: "Rainfall (mm)", type: "number" },
-  ]} />;
+  return <WeatherPageFull />;
+}
+
+function CoshhPage() {
+  return <BiosecurityPage defaultTab="coshh" />;
 }
 
 function HelpPage() {
@@ -231,6 +190,7 @@ function Router() {
       <Route path="/visitors" component={VisitorsPage} />
       <Route path="/pest-control" component={PestControlPage} />
       <Route path="/cleaning" component={CleaningPage} />
+      <Route path="/coshh" component={CoshhPage} />
       <Route path="/livestock" component={LivestockPage} />
       <Route path="/movements" component={MovementsPage} />
       <Route path="/medicine" component={MedicinePage} />

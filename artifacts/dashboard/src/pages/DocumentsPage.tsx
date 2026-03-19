@@ -171,9 +171,21 @@ export default function DocumentsPage() {
                   const status = getExpiryStatus(doc.expiryDate);
                   return (
                     <tr key={doc.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                      <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500, maxWidth: 200 }}>
-                        <div>{doc.title}</div>
-                        {doc.notes && <div style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 2 }}>{doc.notes.substring(0, 60)}{doc.notes.length > 60 ? "…" : ""}</div>}
+                      <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500, maxWidth: 220 }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                          {doc.mimeType?.startsWith("image/") && doc.filePath && (
+                            <img
+                              src={doc.filePath}
+                              alt={doc.title}
+                              style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4, border: "1px solid #e5e7eb", flexShrink: 0 }}
+                              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                            />
+                          )}
+                          <div>
+                            <div>{doc.title}</div>
+                            {doc.notes && <div style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 2 }}>{doc.notes.substring(0, 60)}{doc.notes.length > 60 ? "…" : ""}</div>}
+                          </div>
+                        </div>
                       </td>
                       <td style={{ padding: "0.625rem 0.75rem" }}>{doc.documentType ? <DocTypeBadge type={doc.documentType} /> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
                       <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", fontFamily: doc.referenceNumber ? "monospace" : "inherit" }}>{doc.referenceNumber || "—"}</td>

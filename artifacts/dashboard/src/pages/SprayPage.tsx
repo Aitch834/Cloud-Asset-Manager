@@ -81,6 +81,33 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const emptyForm = { fieldId: "", productId: "", applicationDate: "", applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", certificateNumber: "", equipmentUsed: "", reasonForApplication: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
+  const [weatherAutoFilled, setWeatherAutoFilled] = useState(false);
+
+  async function fetchWeatherForDate(date: string) {
+    if (!date || !farmId) return;
+    try {
+      const data = await fetch(`/api/farms/${farmId}/weather-readings`).then(r => r.json());
+      const readings: any[] = data.records ?? [];
+      if (readings.length === 0) return;
+      const target = new Date(date).getTime();
+      let closest: any = null;
+      let closestDiff = Infinity;
+      for (const r of readings) {
+        if (!r.readingTimestamp) continue;
+        const diff = Math.abs(new Date(r.readingTimestamp).getTime() - target);
+        if (diff < closestDiff) { closestDiff = diff; closest = r; }
+      }
+      if (closest && closestDiff < 86400000 * 2) {
+        setForm((f: any) => ({
+          ...f,
+          windSpeedKmh: closest.windSpeedKmh != null ? String(closest.windSpeedKmh) : f.windSpeedKmh,
+          windDirection: closest.windDirection || f.windDirection,
+          temperatureC: closest.temperatureC != null ? String(closest.temperatureC) : f.temperatureC,
+        }));
+        setWeatherAutoFilled(true);
+      }
+    } catch { /* ignore */ }
+  }
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/spray-applications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
@@ -190,7 +217,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
               </div>
               <div>
                 <Label>Application Date <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Input type="date" value={form.applicationDate} onChange={e => setForm((f: any) => ({ ...f, applicationDate: e.target.value }))} />
+                <Input type="date" value={form.applicationDate} onChange={e => { const d = e.target.value; setWeatherAutoFilled(false); setForm((f: any) => ({ ...f, applicationDate: d })); fetchWeatherForDate(d); }} />
               </div>
             </div>
             <div>
@@ -227,6 +254,11 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                 <Input placeholder="e.g. Trailed sprayer, 24m boom" value={form.equipmentUsed} onChange={e => setForm((f: any) => ({ ...f, equipmentUsed: e.target.value }))} />
               </div>
             </div>
+            {weatherAutoFilled && (
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#1d4ed8", display: "flex", alignItems: "center", gap: 6 }}>
+                <span>&#9729;</span> Weather conditions auto-filled from your nearest weather reading. You can adjust the values below.
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Wind Speed (km/h)</Label>

@@ -19,3 +19,17 @@ export const haulageRecordsTable = pgTable("haulage_records", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const hauliersTable = pgTable("hauliers", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  companyName: text("company_name").notNull(),
+  contactName: text("contact_name"),
+  phone: text("phone"),
+  email: text("email"),
+  address: text("address"),
+  vehicleTypes: text("vehicle_types"),
+  operatorLicence: text("operator_licence"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

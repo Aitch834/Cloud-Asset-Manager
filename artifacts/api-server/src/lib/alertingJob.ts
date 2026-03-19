@@ -1,6 +1,6 @@
 import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable } from "@workspace/db";
-import { livestockMovementsTable } from "@workspace/db/schema";
-import { eq, and, lt, isNull, sql } from "drizzle-orm";
+import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable } from "@workspace/db/schema";
+import { eq, and, lt, isNull, sql, gte, lte } from "drizzle-orm";
 
 const ESCALATION_DAYS = 7;
 
@@ -179,11 +179,135 @@ async function checkUnnotifiedMovements() {
   }
 }
 
+async function checkCertificateExpiry() {
+  const WARN_DAYS = 30;
+  const warnCutoff = new Date();
+  warnCutoff.setDate(warnCutoff.getDate() + WARN_DAYS);
+  const now = new Date();
+
+  const certs = await db
+    .select({
+      id: staffCertificatesTable.id,
+      farmId: staffCertificatesTable.farmId,
+      certificateType: staffCertificatesTable.certificateType,
+      certificateNumber: staffCertificatesTable.certificateNumber,
+      expiryDate: staffCertificatesTable.expiryDate,
+      userId: staffCertificatesTable.userId,
+    })
+    .from(staffCertificatesTable)
+    .where(lt(staffCertificatesTable.expiryDate, warnCutoff));
+
+  for (const cert of certs) {
+    if (!cert.expiryDate) continue;
+
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, cert.farmId))
+      .limit(1);
+
+    if (!farm) continue;
+
+    const expiryDate = new Date(cert.expiryDate);
+    const expired = expiryDate < now;
+    const daysUntil = Math.ceil((expiryDate.getTime() - now.getTime()) / 86400000);
+    const expiryStr = expiryDate.toLocaleDateString("en-GB");
+    const certLabel = cert.certificateType || "Certificate";
+
+    if (expired) {
+      await upsertNotification({
+        tenantId: farm.tenantId,
+        farmId: cert.farmId,
+        type: "certificate_expired",
+        severity: "critical",
+        title: `${certLabel} Certificate Expired`,
+        message: `A ${certLabel} certificate (${cert.certificateNumber || "no number"}) expired on ${expiryStr}. This must be renewed immediately — applying pesticides without a valid PA1/PA6 certificate is illegal.`,
+        relatedModule: "staff-training",
+        relatedId: cert.id,
+        dedupeKey: `cert-expired-${cert.id}`,
+      });
+    } else {
+      await upsertNotification({
+        tenantId: farm.tenantId,
+        farmId: cert.farmId,
+        type: "certificate_expiring",
+        severity: "warning",
+        title: `${certLabel} Certificate Expiring Soon`,
+        message: `A ${certLabel} certificate (${cert.certificateNumber || "no number"}) expires on ${expiryStr} — ${daysUntil} day(s) remaining. Arrange renewal before expiry to remain Red Tractor compliant.`,
+        relatedModule: "staff-training",
+        relatedId: cert.id,
+        dedupeKey: `cert-expiring-${cert.id}-days${Math.floor(daysUntil / 7)}`,
+      });
+    }
+  }
+}
+
+async function checkWithholdingPeriods() {
+  const now = new Date();
+
+  const recentApplications = await db
+    .select({
+      id: sprayApplicationsTable.id,
+      farmId: sprayApplicationsTable.farmId,
+      applicationDate: sprayApplicationsTable.applicationDate,
+      productId: sprayApplicationsTable.productId,
+      fieldId: sprayApplicationsTable.fieldId,
+    })
+    .from(sprayApplicationsTable);
+
+  for (const app of recentApplications) {
+    if (!app.applicationDate) continue;
+
+    const [product] = await db
+      .select({
+        productName: sprayProductsTable.productName,
+        harvestInterval: sprayProductsTable.harvestInterval,
+      })
+      .from(sprayProductsTable)
+      .where(eq(sprayProductsTable.id, app.productId))
+      .limit(1);
+
+    if (!product || !product.harvestInterval) continue;
+
+    const appDate = new Date(app.applicationDate);
+    const earliestHarvest = new Date(appDate);
+    earliestHarvest.setDate(earliestHarvest.getDate() + product.harvestInterval);
+
+    if (earliestHarvest <= now) continue;
+
+    const daysRemaining = Math.ceil((earliestHarvest.getTime() - now.getTime()) / 86400000);
+    const harvestDateStr = earliestHarvest.toLocaleDateString("en-GB");
+    const appDateStr = appDate.toLocaleDateString("en-GB");
+
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, app.farmId))
+      .limit(1);
+
+    if (!farm) continue;
+
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: app.farmId,
+      type: "withholding_period_active",
+      severity: "warning",
+      title: "Harvest Withholding Period Active",
+      message: `${product.productName} was applied on ${appDateStr}. The ${product.harvestInterval}-day withholding period means this field must not be harvested before ${harvestDateStr} (${daysRemaining} day(s) remaining).`,
+      relatedModule: "sprays-inputs",
+      relatedId: app.id,
+      dedupeKey: `withhold-${app.id}-${harvestDateStr}`,
+    });
+  }
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
     await checkOverdueInspections();
     await checkUnnotifiedMovements();
+    await checkCertificateExpiry();
+    await checkWithholdingPeriods();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {
     console.error("[ALERTS] Alerting job error:", err);

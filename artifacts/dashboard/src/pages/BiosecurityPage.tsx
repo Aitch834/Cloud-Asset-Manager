@@ -12,8 +12,10 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
-type MainTab = "visitors" | "pest-control" | "cleaning";
+type MainTab = "visitors" | "pest-control" | "cleaning" | "coshh";
 
 function formatDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -670,6 +672,124 @@ function CleaningTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── COSHH Tab ─────────────────────────────────────────────────────────────────
+
+function CoshhTab({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [form, setForm] = useState<any>({ substanceName: "", manufacturer: "", hazardClassification: "", usageArea: "", storageLocation: "", controlMeasures: "", ppe: "", emergencyProcedures: "", assessedBy: "", assessmentDate: "", reviewDate: "", notes: "" });
+
+  const q = useQuery({
+    queryKey: ["coshh", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/coshh`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d) => d.records ?? [],
+  });
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["coshh", farmId] });
+
+  const createMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/coshh`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => { toast({ title: "COSHH assessment saved" }); invalidate(); setAddOpen(false); resetForm(); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/coshh/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const resetForm = () => setForm({ substanceName: "", manufacturer: "", hazardClassification: "", usageArea: "", storageLocation: "", controlMeasures: "", ppe: "", emergencyProcedures: "", assessedBy: "", assessmentDate: "", reviewDate: "", notes: "" });
+  const records: any[] = q.data ?? [];
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>COSHH assessments for hazardous substances used on the farm.</p>
+        <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add COSHH Assessment</Button>
+      </div>
+
+      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <p style={{ fontWeight: 600, color: "#374151" }}>No COSHH assessments recorded</p>
+          <p style={{ fontSize: "0.875rem" }}>Record assessments for pesticides, cleaning chemicals, fuels and other hazardous substances.</p>
+        </div>
+      ) : (
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                {["Substance", "Manufacturer", "Hazard Class", "Usage Area", "Storage", "Assessed By", "Date", "Review Due", ""].map(h => (
+                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r: any, i: number) => (
+                <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                  <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600 }}>{r.substanceName}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.manufacturer || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.hazardClassification || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.usageArea || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.storageLocation || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.assessedBy || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{r.assessmentDate ? new Date(r.assessmentDate).toLocaleDateString("en-GB") : "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{r.reviewDate ? new Date(r.reviewDate).toLocaleDateString("en-GB") : "—"}</td>
+                  <td style={{ padding: "0.5rem" }}>
+                    <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
+        <DialogContent style={{ maxWidth: 560 }}>
+          <DialogHeader><DialogTitle>Add COSHH Assessment</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Substance Name <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Roundup 360" value={form.substanceName} onChange={e => setForm((f: any) => ({ ...f, substanceName: e.target.value }))} /></div>
+              <div><Label>Manufacturer</Label><Input value={form.manufacturer} onChange={e => setForm((f: any) => ({ ...f, manufacturer: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Hazard Classification</Label><Input placeholder="e.g. Irritant, Harmful to environment" value={form.hazardClassification} onChange={e => setForm((f: any) => ({ ...f, hazardClassification: e.target.value }))} /></div>
+              <div><Label>Usage Area</Label><Input placeholder="e.g. Arable fields, buildings" value={form.usageArea} onChange={e => setForm((f: any) => ({ ...f, usageArea: e.target.value }))} /></div>
+            </div>
+            <div><Label>Storage Location</Label><Input placeholder="e.g. Agrochemical store, secure cabinet" value={form.storageLocation} onChange={e => setForm((f: any) => ({ ...f, storageLocation: e.target.value }))} /></div>
+            <div><Label>Control Measures / PPE Required</Label><Textarea placeholder="Describe PPE, handling precautions, ventilation requirements..." value={form.controlMeasures} onChange={e => setForm((f: any) => ({ ...f, controlMeasures: e.target.value }))} rows={2} /></div>
+            <div><Label>Emergency Procedures</Label><Textarea placeholder="Spill response, first aid, emergency contacts..." value={form.emergencyProcedures} onChange={e => setForm((f: any) => ({ ...f, emergencyProcedures: e.target.value }))} rows={2} /></div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Assessed By</Label><Input value={form.assessedBy} onChange={e => setForm((f: any) => ({ ...f, assessedBy: e.target.value }))} /></div>
+              <div><Label>Assessment Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.assessmentDate} onChange={e => setForm((f: any) => ({ ...f, assessmentDate: e.target.value }))} /></div>
+              <div><Label>Review Date</Label><Input type="date" value={form.reviewDate} onChange={e => setForm((f: any) => ({ ...f, reviewDate: e.target.value }))} /></div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button onClick={() => createMut.mutate(form)} disabled={!form.substanceName || !form.assessmentDate || createMut.isPending}>Save Assessment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader><DialogTitle>Delete COSHH Assessment</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Delete this COSHH assessment record?</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function BiosecurityPage({ defaultTab = "visitors" }: { defaultTab?: MainTab }) {
@@ -682,10 +802,12 @@ export default function BiosecurityPage({ defaultTab = "visitors" }: { defaultTa
         <TabButton active={tab === "visitors"} onClick={() => setTab("visitors")}>Visitor Log</TabButton>
         <TabButton active={tab === "pest-control"} onClick={() => setTab("pest-control")}>Pest Control</TabButton>
         <TabButton active={tab === "cleaning"} onClick={() => setTab("cleaning")}>Cleaning &amp; Disinfection</TabButton>
+        <TabButton active={tab === "coshh"} onClick={() => setTab("coshh")}>COSHH</TabButton>
       </TabBar>
       {tab === "visitors" && <VisitorTab farmId={farmId} />}
       {tab === "pest-control" && <PestControlTab farmId={farmId} />}
       {tab === "cleaning" && <CleaningTab farmId={farmId} />}
+      {tab === "coshh" && <CoshhTab farmId={farmId} />}
     </AppLayout>
   );
 }

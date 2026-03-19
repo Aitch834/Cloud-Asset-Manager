@@ -19,6 +19,7 @@ import {
   Trash2,
   PoundSterling,
   Package,
+  Download,
 } from "lucide-react";
 
 const CATEGORIES = [
@@ -61,6 +62,10 @@ export default function FinancialPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState("");
+  const [exportEndDate, setExportEndDate] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [form, setForm] = useState<any>({
     transactionDate: "",
     transactionType: "expense",
@@ -178,6 +183,9 @@ export default function FinancialPage() {
               <SelectItem value="expense">Expenses only</SelectItem>
             </SelectContent>
           </Select>
+          <Button size="sm" variant="outline" onClick={() => setExportOpen(true)}>
+            <Download size={14} className="mr-1" />Export to Xero
+          </Button>
           <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}>
             <Plus size={14} className="mr-1" />Add Transaction
           </Button>
@@ -330,6 +338,60 @@ export default function FinancialPage() {
                 disabled={deleteMut.isPending}
               >
                 Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={exportOpen} onOpenChange={o => { setExportOpen(o); }}>
+          <DialogContent style={{ maxWidth: 440 }}>
+            <DialogHeader><DialogTitle>Export to Xero CSV</DialogTitle></DialogHeader>
+            <p className="text-sm text-gray-600 py-1">Choose a date range to export transactions in Xero-compatible CSV format.</p>
+            <div className="space-y-3 py-2">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">From Date</label>
+                <input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">To Date</label>
+                <input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setExportOpen(false)}>Cancel</Button>
+              <Button
+                onClick={async () => {
+                  if (!farmId) return;
+                  setExporting(true);
+                  try {
+                    const body: any = { format: "xero" };
+                    if (exportStartDate) body.startDate = exportStartDate;
+                    if (exportEndDate) body.endDate = exportEndDate;
+                    const resp = await fetch(`/api/farms/${farmId}/financial-exports`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(body),
+                    });
+                    if (!resp.ok) throw new Error("Export failed");
+                    const blob = await resp.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `xero-export-${exportStartDate || "all"}-to-${exportEndDate || "all"}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    setExportOpen(false);
+                    toast({ title: "Export downloaded" });
+                  } catch {
+                    toast({ title: "Export failed", variant: "destructive" });
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+                disabled={exporting}
+              >
+                <Download size={14} className="mr-1" />
+                {exporting ? "Exporting..." : "Download CSV"}
               </Button>
             </DialogFooter>
           </DialogContent>
