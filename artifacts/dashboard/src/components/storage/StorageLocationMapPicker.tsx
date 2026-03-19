@@ -10,6 +10,7 @@ interface LatLng {
 interface Props {
   value: LatLng | null;
   onChange: (point: LatLng | null) => void;
+  mapHeight?: number;
 }
 
 declare global {
@@ -19,7 +20,7 @@ declare global {
   }
 }
 
-export function StorageLocationMapPicker({ value, onChange }: Props) {
+export function StorageLocationMapPicker({ value, onChange, mapHeight = 280 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const leafletRef = useRef<{
     map: import("leaflet").Map;
@@ -197,7 +198,7 @@ export function StorageLocationMapPicker({ value, onChange }: Props) {
 
       <div
         ref={containerRef}
-        style={{ height: 280, borderRadius: 8, border: "1px solid hsl(var(--border))", overflow: "hidden" }}
+        style={{ height: mapHeight, borderRadius: 8, border: "1px solid hsl(var(--border))", overflow: "hidden" }}
       />
 
       {value ? (

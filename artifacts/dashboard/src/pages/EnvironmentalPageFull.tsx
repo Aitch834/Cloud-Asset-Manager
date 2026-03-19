@@ -330,9 +330,9 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
       )}
 
       <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
-        <DialogContent className="max-w-4xl w-full">
+        <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add Environmental Feature</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-6 py-2">
+          <div className="grid grid-cols-2 gap-5">
             {/* Left column — form fields */}
             <div className="space-y-3">
               <div><Label>Feature Type <span style={{ color: "#ef4444" }}>*</span></Label>
@@ -352,32 +352,25 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
                 <div><Label>Length (metres)</Label><Input type="number" step="0.1" min="0" value={form.lengthMetres} onChange={e => setForm((f: any) => ({ ...f, lengthMetres: e.target.value }))} /></div>
               </div>
               <div><Label>Management Practice</Label><Input placeholder="e.g. Annual trim, no autumn cutting" value={form.managementPractice} onChange={e => setForm((f: any) => ({ ...f, managementPractice: e.target.value }))} /></div>
-              <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={3} /></div>
+              <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
 
             {/* Right column — map */}
-            <div className="flex flex-col gap-2">
-              <Label className="flex items-center gap-1.5">
+            <div>
+              <Label className="flex items-center gap-1.5 mb-2">
                 <MapPin size={14} className="text-muted-foreground" />
                 GPS Pin Location
               </Label>
-              <p className="text-xs text-muted-foreground -mt-1">Click the map to drop a pin at the feature's location.</p>
-              <div className="flex-1 min-h-0">
-                <StorageLocationMapPicker
-                  key={addOpen ? "open" : "closed"}
-                  value={pin}
-                  onChange={setPin}
-                />
-              </div>
-              {pin && (
-                <p className="text-xs text-muted-foreground font-mono text-center">
-                  {pin.lat.toFixed(5)}, {pin.lng.toFixed(5)}
-                </p>
-              )}
+              <StorageLocationMapPicker
+                key={addOpen ? "open" : "closed"}
+                value={pin}
+                onChange={setPin}
+                mapHeight={200}
+              />
             </div>
           </div>
 
-          <DialogFooter className="mt-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button
               onClick={() => createMut.mutate({
