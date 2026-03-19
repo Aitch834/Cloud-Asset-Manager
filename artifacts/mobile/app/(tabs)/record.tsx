@@ -1,4 +1,4 @@
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React from "react";
@@ -8,13 +8,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
+import { CombineIcon } from "@/components/ui/CombineIcon";
 
 interface RecordOption {
   id: string;
   title: string;
   description: string;
-  icon: string;
-  iconFamily?: "Feather" | "MaterialCommunityIcons";
+  icon?: string;
+  IconComponent?: React.ComponentType<{ size: number; color: string }>;
   color: string;
   bgColor: string;
   route: string;
@@ -106,8 +107,7 @@ const recordOptions: RecordOption[] = [
     id: "harvest",
     title: "Harvest Record — Combine",
     description: "Combine operator: log the field, crop, yield, moisture and timing for a harvest session",
-    icon: "combine-harvester",
-    iconFamily: "MaterialCommunityIcons",
+    IconComponent: CombineIcon,
     color: colors.fieldGold,
     bgColor: "#FEF3C7",
     route: "/harvest-record",
@@ -216,8 +216,8 @@ function RecordOptionCard({ option }: { option: RecordOption }) {
       ]}
     >
       <View style={[styles.cardIcon, { backgroundColor: option.bgColor }]}>
-        {option.iconFamily === "MaterialCommunityIcons" ? (
-          <MaterialCommunityIcons name={option.icon as keyof typeof MaterialCommunityIcons.glyphMap} size={24} color={option.color} />
+        {option.IconComponent ? (
+          <option.IconComponent size={24} color={option.color} />
         ) : (
           <Feather name={option.icon as keyof typeof Feather.glyphMap} size={24} color={option.color} />
         )}
