@@ -7,17 +7,23 @@ import { Link } from "wouter";
 const BASE_FEE = 15;
 
 const MODULES = [
-  { id: "core", name: "Red Tractor Core (Required)", price: 20, required: true },
-  { id: "field", name: "Field & Crop Management", price: 15 },
-  { id: "livestock", name: "Livestock Management", price: 25 },
-  { id: "equipment", name: "Equipment & Calibration", price: 10 },
-  { id: "stock", name: "Stock & Suppliers", price: 10 },
-  { id: "financial", name: "Financial & Exports", price: 15 },
-  { id: "weather", name: "Weather Tracking", price: 5 },
-  { id: "documents", name: "Advanced Document Storage", price: 10 },
-  { id: "nutrient", name: "Nutrient & Soil (NMP / NVZ)", price: 15 },
-  { id: "biosecurity", name: "Biosecurity & Risk", price: 15 },
-  { id: "staff", name: "Staff & Training", price: 15 },
+  { id: "red-tractor-compliance", name: "Red Tractor Compliance (Required)", price: 25, required: true },
+  { id: "field-crop-management", name: "Field & Crop Management", price: 20 },
+  { id: "sprays-inputs", name: "Sprays & Inputs", price: 15 },
+  { id: "soil-management", name: "Soil Management", price: 10 },
+  { id: "equipment-management", name: "Equipment & Vehicles", price: 15 },
+  { id: "livestock-management", name: "Livestock Management", price: 30 },
+  { id: "biosecurity", name: "Biosecurity & Visitors", price: 10 },
+  { id: "staff-training", name: "Staff & Training", price: 10 },
+  { id: "risk-waste", name: "Risk & Waste Management", price: 10 },
+  { id: "inspections", name: "Inspections & Audits", price: 15 },
+  { id: "environmental", name: "Environmental Features", price: 10 },
+  { id: "haulage-transport", name: "Transport & Haulage", price: 10 },
+  { id: "stock-suppliers", name: "Stock & Suppliers", price: 15 },
+  { id: "financial-records", name: "Financial Records", price: 20 },
+  { id: "document-management", name: "Document Management", price: 10 },
+  { id: "weather-tracking", name: "Weather Tracking", price: 15 },
+  { id: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", price: 30 },
 ];
 
 interface Farm {
@@ -30,7 +36,7 @@ function createFarm(id: number): Farm {
   return {
     id,
     name: `Farm ${id}`,
-    selectedModules: ["core"],
+    selectedModules: ["red-tractor-compliance"],
   };
 }
 
@@ -44,7 +50,7 @@ function getFarmCost(farm: Farm): number {
 
 export default function Pricing() {
   const [farms, setFarms] = useState<Farm[]>([
-    { id: 1, name: "Farm 1", selectedModules: ["core", "field", "equipment"] },
+    { id: 1, name: "Farm 1", selectedModules: ["red-tractor-compliance", "field-crop-management", "equipment-management"] },
   ]);
   const [activeFarmId, setActiveFarmId] = useState(1);
   const [editingNameId, setEditingNameId] = useState<number | null>(null);
