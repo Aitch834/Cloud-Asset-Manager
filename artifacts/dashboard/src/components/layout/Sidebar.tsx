@@ -88,7 +88,7 @@ const otherNav: NavItem[] = [
   { name: "Training", href: "/training", icon: GraduationCap, moduleKeys: ["staff-training"] },
   { name: "Suppliers & Stock", href: "/stock", icon: Package, moduleKeys: ["stock-suppliers"] },
   { name: "Financial", href: "/financial", icon: PoundSterling, moduleKeys: ["financial-records"] },
-  { name: "Business Reports", href: "/business-reports", icon: BarChart3, moduleKeys: ["financial-records"] },
+  { name: "Business Reports", href: "/business-reports", icon: BarChart3, moduleKeys: ["business-reports"] },
   { name: "Environmental", href: "/environmental", icon: Leaf, moduleKeys: ["environmental"] },
   { name: "Haulage", href: "/haulage", icon: Truck, moduleKeys: ["haulage-transport"] },
   { name: "Documents", href: "/documents", icon: FileText, moduleKeys: ["document-management"] },

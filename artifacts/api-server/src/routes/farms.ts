@@ -2622,6 +2622,12 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
       category: "Getting Started",
       content: `BDE Farm Trac includes a secure external access system that lets you share read-only views of your farm records with anyone who needs to review them — without giving them a full login or access to your entire account. This is designed for agronomists, FACTS advisers, vets, Red Tractor certification bodies, banks, and any other party that periodically needs to review your compliance records.\n\nThe Advisors & External Access feature is available under Settings. It has two tiers.\n\nAdvisor Accounts are for recurring advisors who need regular access — for example your agronomist, BASIS consultant, or vet. You create an advisor account by entering their name, email address, role, and choosing which of 14 modules they can view. Once saved, a secure link is automatically copied to your clipboard. You send that link by email. The advisor clicks it and sees a clean, read-only view of exactly the modules you chose. Their access is permanent until you revoke it. The system records when they last accessed the view, which is visible on your settings page.\n\nInspection Sessions are for time-limited access — most commonly for Red Tractor Certification Body inspectors, one-off audits, or bank reviews. You create a session by entering the inspector's name, organisation, and purpose (e.g. Red Tractor Inspection, Environmental Audit, Due Diligence). You set an expiry date — typically 7 to 30 days — and choose the modules to share. A secure link is generated and copied to your clipboard. No account is required — the link is the key. The session card on your settings page shows a colour-coded expiry badge (green, amber, or red as the date approaches) and an access count showing how many times the link has been used.\n\nThe read-only view that advisors and inspectors see opens in any browser without a login prompt. It shows a green banner across the top confirming they are in read-only mode, the farm's name and registration details (CPH number, Red Tractor ID, SBI number, farm manager), and a section for each permitted module with a table of all records in that module. They cannot edit, add, or delete anything. An expired or revoked link shows a clear error message directing them to contact the farm.\n\nAll access is logged. A full access log at the bottom of your Advisors & External Access settings page records every time an external party views your records — their name, whether they are an advisor account or inspection session, and the exact date and time. This log itself is evidence of your transparency with your assurance body, and if Red Tractor moves toward requiring digital record-sharing as part of the certification process, you will already have the infrastructure in place.`,
     },
+    {
+      id: 26,
+      title: "Understanding Business Reports",
+      category: "Finance & Business",
+      content: `The Business Reports module is a standalone analytical layer that draws on data recorded across your entire BDE Farm Trac account — harvest records, financial transactions, haulage movements, agri-environment schemes, and equipment records — to generate structured management reports. It is available as a separate module subscription at £5/month per farm.\n\nBusiness Reports contains seven report tabs, all accessible from the main navigation sidebar.\n\nGross Margin by Crop shows a breakdown of all harvest records for the selected year, grouped by crop type. For each crop you see the total area harvested, total yield in tonnes, and average yield per hectare. Below the crop yield table, the report shows your variable input costs broken down by category (seeds, fertiliser, pesticides, fungicides, insecticides, veterinary medicines, feed, and haulage) and expresses each as a cost per hectare across the whole farm. The overall gross margin is calculated as total farm output (crop and livestock income) minus total variable costs.\n\nP&L Statement presents a full structured profit and loss account for the selected year. Income is listed first, split into crop sales, livestock sales, agri-environment scheme payments, grants and subsidies, and other income, totalling to your farm output figure. Variable costs are deducted to produce a gross margin. Fixed overheads (labour, fuel, machinery and equipment, and other expenses) are then deducted to arrive at net farm income. This report is designed to give you — and your accountant — a complete picture of financial performance for the year without needing to export to a spreadsheet.\n\nInput Cost Breakdown ranks all expense transactions for the year by category, showing the total amount and percentage of total expenditure for each. A visual percentage bar makes it easy to see at a glance which input categories are driving your costs. Use this report to identify areas for potential saving and to benchmark your cost structure against previous years.\n\nGrain Position shows the total tonnage harvested by crop against total tonnage moved or sold (drawn from your haulage movement records), giving an estimated tonnage remaining in store or unsold. It also shows the total crop sales income recorded for the year. If you keep your haulage and harvest records up to date, this report functions as a live grain marketing position statement.\n\nAgri-Environment & Subsidy Summary lists all active and expired agri-environment scheme agreements on your farm (entered in the Environmental module) alongside all grant and subsidy payment transactions recorded for the year. It shows the total annual scheme value across all active agreements and the total subsidy income actually received. Use this to reconcile expected versus received payments and to monitor agreement expiry dates.\n\nYear-on-Year Comparison shows up to five years of performance data side by side — total area harvested, total yield, average yield per hectare, total income, total expenditure, and net farm income for each year. Trend arrows next to the current year figures indicate whether performance has improved or declined compared to the previous year. A crop mix breakdown table below shows tonnage by crop for each year, making it straightforward to track how your rotation has changed.\n\nAsset Register with Depreciation lists all active equipment on your farm and calculates a net book value for each asset using straight-line depreciation over ten years from the purchase date. The columns shown are: asset name, type, purchase year, age in years, purchase price, annual depreciation charge, estimated net book value, total maintenance expenditure logged against the asset, and current status. The totals row at the top summarises total fleet purchase value, total estimated net book value, and total maintenance spend across all assets. To make this report accurate, enter purchase prices and purchase dates on each equipment record in the Equipment module.\n\nAll Business Reports are driven entirely by records you have already entered elsewhere in the system — there is no data entry required in the reports module itself. The more complete and consistently categorised your records are, the more accurate and useful the reports will be. Financial transactions in particular should use the standard category names (Crop Sales, Fertiliser, Labour, etc.) rather than free-text descriptions to ensure they are allocated correctly in the gross margin and P&L reports.`,
+    },
   ];
 
   const { search, category } = _req.query;
@@ -3455,7 +3461,7 @@ router.get("/access-token/:token", async (req: Request, res: Response): Promise<
 
 // ── Business Reports ──────────────────────────────────────────────────────────
 
-router.get("/:farmId/reports/gross-margin", requireAuth, async (req, res): Promise<void> => {
+router.get("/:farmId/reports/gross-margin", requireAuth, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
   const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
   const startDate = new Date(`${year}-01-01T00:00:00Z`);
@@ -3485,7 +3491,7 @@ router.get("/:farmId/reports/gross-margin", requireAuth, async (req, res): Promi
   res.json({ harvests, costs, year });
 });
 
-router.get("/:farmId/reports/grain-position", requireAuth, async (req, res): Promise<void> => {
+router.get("/:farmId/reports/grain-position", requireAuth, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
   const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
   const startDate = new Date(`${year}-01-01T00:00:00Z`);
@@ -3524,7 +3530,7 @@ router.get("/:farmId/reports/grain-position", requireAuth, async (req, res): Pro
   res.json({ harvests, haulage, cropStorage, cropSalesTransactions, year });
 });
 
-router.get("/:farmId/reports/subsidies", requireAuth, async (req, res): Promise<void> => {
+router.get("/:farmId/reports/subsidies", requireAuth, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
   const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
   const startDate = new Date(`${year}-01-01T00:00:00Z`);
@@ -3544,7 +3550,7 @@ router.get("/:farmId/reports/subsidies", requireAuth, async (req, res): Promise<
   res.json({ schemes, subsidyTransactions, year });
 });
 
-router.get("/:farmId/reports/year-on-year", requireAuth, async (req, res): Promise<void> => {
+router.get("/:farmId/reports/year-on-year", requireAuth, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
 
   const allHarvests = await db
@@ -3565,7 +3571,7 @@ router.get("/:farmId/reports/year-on-year", requireAuth, async (req, res): Promi
   res.json({ harvests: allHarvests, transactions: allTransactions });
 });
 
-router.get("/:farmId/reports/assets", requireAuth, async (req, res): Promise<void> => {
+router.get("/:farmId/reports/assets", requireAuth, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
 
   const equipment = await db.select().from(equipmentTable).where(and(eq(equipmentTable.farmId, farmId), eq(equipmentTable.isActive, true)));

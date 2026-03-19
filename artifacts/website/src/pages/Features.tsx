@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { 
   ClipboardCheck, Map, Package, Tractor, FileText, LineChart, 
   CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
-  Droplets, AlertTriangle, ClipboardList, Leaf, Truck, Fuel, Share2
+  Droplets, AlertTriangle, ClipboardList, Leaf, Truck, Fuel, Share2, BarChart3
 } from "lucide-react";
 
 export default function Features() {
@@ -109,6 +109,12 @@ export default function Features() {
       icon: Fuel,
       color: "bg-yellow-50 text-yellow-700 border-yellow-100",
       features: ["RTFO sustainability declarations", "Field eligibility tracking", "GHG traceability records", "Audit pack PDF generation"]
+    },
+    {
+      title: "Business Reports",
+      icon: BarChart3,
+      color: "bg-emerald-50 text-emerald-700 border-emerald-100",
+      features: ["Gross margin analysis by crop", "Full P&L income statement", "Input cost breakdown with category percentages", "Grain position — harvested vs moved vs in store", "Agri-environment & subsidy income summary", "Year-on-year comparison across up to 5 seasons", "Asset register with straight-line depreciation"]
     },
     {
       title: "Advisor & Inspector Access",

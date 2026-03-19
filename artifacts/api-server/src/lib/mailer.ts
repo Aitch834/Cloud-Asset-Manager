@@ -54,6 +54,7 @@ export async function sendSetupGuideEmail(opts: SetupGuideOptions): Promise<{ se
         "biosecurity": "Biosecurity & Visitors",
         "inspections-compliance": "Inspections & Compliance",
         "financial-records": "Financial Records",
+        "business-reports": "Business Reports",
         "biofuel-rtfo": "Biofuel / RTFO",
         "soil-tests": "Soil Tests",
       };

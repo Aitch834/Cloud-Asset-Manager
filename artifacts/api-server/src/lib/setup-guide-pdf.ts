@@ -141,6 +141,19 @@ const MODULE_GUIDES: Record<string, ModuleGuide> = {
       "Enter your assurance body name and contact details in Farm Settings — these appear on compliance export reports.",
     ],
   },
+  "business-reports": {
+    name: "Business Reports",
+    description:
+      "Business Reports pulls data from across all your farm modules to generate structured analytical reports — gross margin by crop, P&L, input costs, grain position, subsidies, year-on-year comparison, and a depreciation-aware asset register.",
+    steps: [
+      "Ensure you have Financial Records, Field & Crop Management, and Equipment modules active — Business Reports draws on all of these.",
+      "Enter harvest records against each field and crop assignment so that yield data appears in the Gross Margin and Grain Position reports.",
+      "Add financial transactions throughout the year, categorising each as Crop Sales, Seeds, Fertiliser, Pesticides, Labour, Fuel etc. — category accuracy drives the P&L and Input Cost reports.",
+      "Log any agri-environment scheme payments and grant income in Financial Records with the category set to Agri-Environment Scheme or Grant / Subsidy — these appear separately in the Subsidies report.",
+      "Enter purchase prices and purchase dates on each equipment record in the Equipment module — this enables accurate net book value and annual depreciation calculations in the Asset Register.",
+      "Open Business Reports from the main navigation and select the relevant year from the year selector at the top right of each report tab.",
+    ],
+  },
   "financial-records": {
     name: "Financial Records",
     description:
