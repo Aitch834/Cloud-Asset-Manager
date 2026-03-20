@@ -413,6 +413,63 @@ export interface HarvestTransportRecord {
   synced: boolean;
 }
 
+export interface AnimalMortality {
+  id: string;
+  farmId: string;
+  herdName: string;
+  tagNumber: string;
+  species: string;
+  breed: string;
+  dateOfDeath: string;
+  causeOfDeath: string;
+  causeDetail: string;
+  disposalMethod: string;
+  disposalOperator: string;
+  disposalRef: string;
+  veterinaryAttended: boolean;
+  vetName: string;
+  postMortemCarriedOut: boolean;
+  postMortemFindings: string;
+  bcmsNotified: boolean;
+  bcmsNotificationRef: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface FeedRecord {
+  id: string;
+  farmId: string;
+  herdName: string;
+  feedType: string;
+  supplier: string;
+  batchNumber: string;
+  quantityKg: string;
+  feedDate: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface WaterQualityRecord {
+  id: string;
+  farmId: string;
+  herdName: string;
+  waterSource: string;
+  testDate: string;
+  testResult: string;
+  testPass: boolean;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface SyncQueueItem {
   id: string;
   type: string;

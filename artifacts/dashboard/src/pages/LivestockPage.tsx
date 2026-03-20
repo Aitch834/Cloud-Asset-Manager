@@ -5,8 +5,11 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer } from "lucide-react";
+import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { printHtml } from "@/lib/utils";
@@ -62,6 +65,53 @@ interface VetHealthPlan {
   mastitisPrevention: string | null;
   notes: string | null;
   isActive: boolean;
+  createdAt: string;
+}
+
+interface MortalityRecord {
+  id: number;
+  farmId: number;
+  herdId: number | null;
+  tagNumber: string | null;
+  species: string;
+  breed: string | null;
+  dateOfDeath: string;
+  causeOfDeath: string;
+  disposalMethod: string;
+  disposalOperator: string | null;
+  disposalRef: string | null;
+  veterinaryAttended: boolean;
+  vetName: string | null;
+  postMortemCarriedOut: boolean;
+  postMortemFindings: string | null;
+  bcmsNotified: boolean;
+  bcmsNotificationRef: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+interface FeedRecord {
+  id: number;
+  farmId: number;
+  herdId: number | null;
+  feedType: string;
+  supplier: string | null;
+  batchNumber: string | null;
+  quantityKg: string | null;
+  feedDate: string;
+  notes: string | null;
+  createdAt: string;
+}
+
+interface WaterRecord {
+  id: number;
+  farmId: number;
+  herdId: number | null;
+  waterSource: string;
+  testDate: string | null;
+  testResult: string | null;
+  testPass: boolean | null;
+  notes: string | null;
   createdAt: string;
 }
 
@@ -824,9 +874,590 @@ function VetHealthPlansSection({ farmId }: { farmId: number }) {
   );
 }
 
+const CAUSE_LABELS: Record<string, string> = {
+  disease: "Disease / Illness", injury: "Injury / Trauma", metabolic: "Metabolic Disorder",
+  "difficult-birth": "Difficult Birth", hypothermia: "Hypothermia / Exposure",
+  predation: "Predation", accidental: "Accidental", euthanised: "Euthanised",
+  unknown: "Unknown / Sudden Death", other: "Other",
+};
+const DISPOSAL_LABELS: Record<string, string> = {
+  nfas: "Fallen Stock (NFAS)", "hunt-kennel": "Hunt Kennel / Knacker",
+  incineration: "Incineration / Cremation", "burial-licensed": "On-farm Burial",
+  rendering: "Rendering Plant", other: "Other",
+};
+
+const EMPTY_MORTALITY = {
+  tagNumber: "", species: "", breed: "", dateOfDeath: new Date().toISOString().slice(0, 10),
+  causeOfDeath: "", disposalMethod: "", disposalOperator: "", disposalRef: "",
+  veterinaryAttended: false, vetName: "", postMortemCarriedOut: false, postMortemFindings: "",
+  bcmsNotified: false, bcmsNotificationRef: "", notes: "",
+};
+
+function MortalitySection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}/mortality-records`;
+  const { data, isLoading } = useQuery<{ records: MortalityRecord[] }>({
+    queryKey: ["mortality", farmId],
+    queryFn: () => fetch(base).then(r => r.json()),
+  });
+  const records = data?.records ?? [];
+
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<MortalityRecord | null>(null);
+  const [form, setForm] = useState(EMPTY_MORTALITY);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  function setField(k: string, v: string | boolean) { setForm(f => ({ ...f, [k]: v })); }
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof EMPTY_MORTALITY) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setShowForm(false); setForm(EMPTY_MORTALITY); },
+  });
+  const updateMut = useMutation({
+    mutationFn: (body: typeof EMPTY_MORTALITY & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setEditing(null); setShowForm(false); setForm(EMPTY_MORTALITY); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(r: MortalityRecord) {
+    setEditing(r);
+    setForm({
+      tagNumber: r.tagNumber ?? "", species: r.species, breed: r.breed ?? "",
+      dateOfDeath: r.dateOfDeath?.slice(0, 10) ?? "", causeOfDeath: r.causeOfDeath,
+      disposalMethod: r.disposalMethod, disposalOperator: r.disposalOperator ?? "",
+      disposalRef: r.disposalRef ?? "", veterinaryAttended: r.veterinaryAttended,
+      vetName: r.vetName ?? "", postMortemCarriedOut: r.postMortemCarriedOut,
+      postMortemFindings: r.postMortemFindings ?? "", bcmsNotified: r.bcmsNotified,
+      bcmsNotificationRef: r.bcmsNotificationRef ?? "", notes: r.notes ?? "",
+    });
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (editing) updateMut.mutate({ ...form, id: editing.id });
+    else createMut.mutate(form);
+  }
+
+  const filtered = records.filter(r =>
+    (r.tagNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    r.species.toLowerCase().includes(search.toLowerCase()) ||
+    r.causeOfDeath.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4 gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search by tag, species or cause…" className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Button onClick={() => { setEditing(null); setForm(EMPTY_MORTALITY); setShowForm(true); }}>
+          <Plus className="h-4 w-4 mr-1" /> Add Record
+        </Button>
+      </div>
+
+      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+        <strong>Legal requirement:</strong> Keep mortality records for a minimum of 3 years. Cattle deaths must be notified to BCMS within 7 days. Retain disposal certificates.
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+      ) : filtered.length === 0 ? (
+        <Card><CardContent className="py-16 text-center">
+          <AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+          <p className="text-muted-foreground">{search ? "No matching records found." : "No mortality records yet."}</p>
+        </CardContent></Card>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Date</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tag / Species</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Cause</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Disposal</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">BCMS</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Vet</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filtered.map(r => (
+                <tr key={r.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3 font-mono text-xs">{formatDate(r.dateOfDeath)}</td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{r.tagNumber || <span className="text-muted-foreground italic">No tag</span>}</div>
+                    <div className="text-xs text-muted-foreground capitalize">{r.species}{r.breed ? ` · ${r.breed}` : ""}</div>
+                  </td>
+                  <td className="px-4 py-3 text-xs">{CAUSE_LABELS[r.causeOfDeath] ?? r.causeOfDeath}</td>
+                  <td className="px-4 py-3 text-xs">{DISPOSAL_LABELS[r.disposalMethod] ?? r.disposalMethod}</td>
+                  <td className="px-4 py-3">
+                    {r.bcmsNotified
+                      ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle2 className="h-3 w-3" /> Notified</span>
+                      : <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full"><AlertTriangle className="h-3 w-3" /> Pending</span>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{r.veterinaryAttended ? r.vetName || "Yes" : "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent style={{ maxWidth: "42rem" }} className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Edit Mortality Record" : "Log Animal Mortality"}</DialogTitle>
+              <DialogDescription>Required for Red Tractor and BCMS compliance. Retain for 3 years.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div><Label>Ear Tag / Tag Number</Label><Input value={form.tagNumber} onChange={e => setField("tagNumber", e.target.value)} placeholder="e.g. UK123456 78901" /></div>
+                <div><Label>Species *</Label>
+                  <Select value={form.species} onValueChange={v => setField("species", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
+                    <SelectContent>
+                      {["Cattle","Sheep","Pigs","Poultry","Goats","Deer","Other"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Breed</Label><Input value={form.breed} onChange={e => setField("breed", e.target.value)} placeholder="e.g. Limousin × Friesian" /></div>
+                <div><Label>Date of Death *</Label><Input type="date" value={form.dateOfDeath} onChange={e => setField("dateOfDeath", e.target.value)} required /></div>
+                <div><Label>Cause of Death *</Label>
+                  <Select value={form.causeOfDeath} onValueChange={v => setField("causeOfDeath", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select cause" /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(CAUSE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Disposal Method *</Label>
+                  <Select value={form.disposalMethod} onValueChange={v => setField("disposalMethod", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(DISPOSAL_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Disposal Operator / Collector</Label><Input value={form.disposalOperator} onChange={e => setField("disposalOperator", e.target.value)} placeholder="e.g. ABC Fallen Stock Ltd" /></div>
+                <div><Label>Disposal Reference</Label><Input value={form.disposalRef} onChange={e => setField("disposalRef", e.target.value)} placeholder="NFAS certificate no." /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={form.veterinaryAttended} onChange={e => setField("veterinaryAttended", e.target.checked)} className="rounded" />
+                  Veterinary attended
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={form.postMortemCarriedOut} onChange={e => setField("postMortemCarriedOut", e.target.checked)} className="rounded" />
+                  Post-mortem carried out
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={form.bcmsNotified} onChange={e => setField("bcmsNotified", e.target.checked)} className="rounded" />
+                  BCMS notified
+                </label>
+              </div>
+              {form.veterinaryAttended && <div><Label>Vet Name / Practice</Label><Input value={form.vetName} onChange={e => setField("vetName", e.target.value)} placeholder="e.g. Mr A. Jones BVSc" /></div>}
+              {form.postMortemCarriedOut && <div><Label>Post-mortem Findings</Label><Textarea value={form.postMortemFindings} onChange={e => setField("postMortemFindings", e.target.value)} placeholder="Summary of PM findings..." rows={2} /></div>}
+              {form.bcmsNotified && <div><Label>BCMS Notification Reference</Label><Input value={form.bcmsNotificationRef} onChange={e => setField("bcmsNotificationRef", e.target.value)} placeholder="BCMS submission reference" /></div>}
+              <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Additional circumstances or observations..." rows={2} /></div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
+                  {(createMut.isPending || updateMut.isPending) ? <><Loader2 className="animate-spin h-4 w-4 mr-1" /> Saving…</> : editing ? "Update Record" : "Save Record"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteId !== null && (
+        <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Delete Mortality Record?</DialogTitle><DialogDescription>This cannot be undone.</DialogDescription></DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>
+                {deleteMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+const FEED_TYPE_LABELS: Record<string, string> = {
+  "compound-pellets": "Compound Pellets", "rolled-barley": "Rolled Barley",
+  "wholecrop-silage": "Wholecrop Silage", "grass-silage": "Grass Silage",
+  "maize-silage": "Maize Silage", hay: "Hay", straw: "Straw (feed)",
+  "sugar-beet-pulp": "Sugar Beet Pulp", "distillers-grains": "Distillers' Grains",
+  "soya-meal": "Soya Meal", "rape-meal": "Rape Meal", minerals: "Minerals / Boluses",
+  "creep-feed": "Creep Feed", "milk-replacer": "Milk Replacer",
+  "total-mixed-ration": "TMR", other: "Other",
+};
+
+const EMPTY_FEED = {
+  feedType: "", supplier: "", batchNumber: "", quantityKg: "",
+  feedDate: new Date().toISOString().slice(0, 10), notes: "",
+};
+
+function FeedSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}/feed-records`;
+  const { data, isLoading } = useQuery<{ records: FeedRecord[] }>({
+    queryKey: ["feed-records", farmId],
+    queryFn: () => fetch(base).then(r => r.json()),
+  });
+  const records = data?.records ?? [];
+
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<FeedRecord | null>(null);
+  const [form, setForm] = useState(EMPTY_FEED);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  function setField(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof EMPTY_FEED) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-records", farmId] }); setShowForm(false); setForm(EMPTY_FEED); },
+  });
+  const updateMut = useMutation({
+    mutationFn: (body: typeof EMPTY_FEED & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-records", farmId] }); setEditing(null); setShowForm(false); setForm(EMPTY_FEED); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-records", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(r: FeedRecord) {
+    setEditing(r);
+    setForm({
+      feedType: r.feedType, supplier: r.supplier ?? "", batchNumber: r.batchNumber ?? "",
+      quantityKg: r.quantityKg ?? "", feedDate: r.feedDate?.slice(0, 10) ?? "", notes: r.notes ?? "",
+    });
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (editing) updateMut.mutate({ ...form, id: editing.id });
+    else createMut.mutate(form);
+  }
+
+  const filtered = records.filter(r =>
+    r.feedType.toLowerCase().includes(search.toLowerCase()) ||
+    (r.supplier ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (r.batchNumber ?? "").toLowerCase().includes(search.toLowerCase()),
+  );
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4 gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search by feed type, supplier or batch…" className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Button onClick={() => { setEditing(null); setForm(EMPTY_FEED); setShowForm(true); }}>
+          <Plus className="h-4 w-4 mr-1" /> Add Feed Record
+        </Button>
+      </div>
+
+      <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+        <strong>Traceability requirement:</strong> Record all feed deliveries with supplier name and batch/lot number. Retain purchase invoices and delivery notes for 3 years.
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+      ) : filtered.length === 0 ? (
+        <Card><CardContent className="py-16 text-center">
+          <Package className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+          <p className="text-muted-foreground">{search ? "No matching records." : "No feed records yet. Add your first delivery."}</p>
+        </CardContent></Card>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Date</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Feed Type</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Supplier</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Batch No.</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Qty (kg)</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filtered.map(r => (
+                <tr key={r.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3 font-mono text-xs">{formatDate(r.feedDate)}</td>
+                  <td className="px-4 py-3 font-medium">{FEED_TYPE_LABELS[r.feedType] ?? r.feedType}</td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground">{r.supplier || "—"}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{r.batchNumber || "—"}</td>
+                  <td className="px-4 py-3 font-medium">{r.quantityKg ? `${Number(r.quantityKg).toLocaleString()} kg` : "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent style={{ maxWidth: "38rem" }} className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Edit Feed Record" : "Add Feed Record"}</DialogTitle>
+              <DialogDescription>Record feed deliveries with supplier and batch number for traceability.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div><Label>Feed Type *</Label>
+                  <Select value={form.feedType} onValueChange={v => setField("feedType", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(FEED_TYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Feed Date *</Label><Input type="date" value={form.feedDate} onChange={e => setField("feedDate", e.target.value)} required /></div>
+                <div><Label>Supplier</Label><Input value={form.supplier} onChange={e => setField("supplier", e.target.value)} placeholder="Supplier name" /></div>
+                <div><Label>Batch / Lot Number</Label><Input value={form.batchNumber} onChange={e => setField("batchNumber", e.target.value)} placeholder="As on delivery note" /></div>
+                <div><Label>Quantity (kg)</Label><Input type="number" value={form.quantityKg} onChange={e => setField("quantityKg", e.target.value)} placeholder="e.g. 500" min="0" /></div>
+              </div>
+              <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Ration changes, refusals, etc." rows={2} /></div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
+                  {(createMut.isPending || updateMut.isPending) ? <><Loader2 className="animate-spin h-4 w-4 mr-1" /> Saving…</> : editing ? "Update" : "Save Record"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteId !== null && (
+        <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Delete Feed Record?</DialogTitle><DialogDescription>This cannot be undone.</DialogDescription></DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>
+                {deleteMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+const WATER_SOURCE_LABELS: Record<string, string> = {
+  mains: "Mains Supply", borehole: "Borehole / Well", stream: "Stream / River",
+  reservoir: "Farm Reservoir / Pond", rainwater: "Rainwater Harvesting",
+  bowser: "Water Bowser / Tanker", other: "Other",
+};
+
+const EMPTY_WATER = {
+  waterSource: "", testDate: new Date().toISOString().slice(0, 10),
+  testResult: "", testPass: "true", notes: "",
+};
+
+function WaterSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}/water-records`;
+  const { data, isLoading } = useQuery<{ records: WaterRecord[] }>({
+    queryKey: ["water-records", farmId],
+    queryFn: () => fetch(base).then(r => r.json()),
+  });
+  const records = data?.records ?? [];
+
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<WaterRecord | null>(null);
+  const [form, setForm] = useState(EMPTY_WATER);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  function setField(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof EMPTY_WATER) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, testPass: body.testPass === "true" }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-records", farmId] }); setShowForm(false); setForm(EMPTY_WATER); },
+  });
+  const updateMut = useMutation({
+    mutationFn: (body: typeof EMPTY_WATER & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, testPass: body.testPass === "true" }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-records", farmId] }); setEditing(null); setShowForm(false); setForm(EMPTY_WATER); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-records", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(r: WaterRecord) {
+    setEditing(r);
+    setForm({
+      waterSource: r.waterSource, testDate: r.testDate?.slice(0, 10) ?? "",
+      testResult: r.testResult ?? "", testPass: r.testPass === false ? "false" : "true", notes: r.notes ?? "",
+    });
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (editing) updateMut.mutate({ ...form, id: editing.id });
+    else createMut.mutate(form);
+  }
+
+  const filtered = records.filter(r =>
+    (WATER_SOURCE_LABELS[r.waterSource] ?? r.waterSource).toLowerCase().includes(search.toLowerCase()) ||
+    (r.testResult ?? "").toLowerCase().includes(search.toLowerCase()),
+  );
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4 gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search by source or result…" className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Button onClick={() => { setEditing(null); setForm(EMPTY_WATER); setShowForm(true); }}>
+          <Plus className="h-4 w-4 mr-1" /> Add Water Record
+        </Button>
+      </div>
+
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+        <strong>Annual testing required</strong> for pigs and poultry, and for all species where the water source is not mains supply. Retain lab certificates for audit.
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+      ) : filtered.length === 0 ? (
+        <Card><CardContent className="py-16 text-center">
+          <Droplets className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+          <p className="text-muted-foreground">{search ? "No matching records." : "No water quality records yet."}</p>
+        </CardContent></Card>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Test Date</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Water Source</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Result</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Outcome</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Notes</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filtered.map(r => (
+                <tr key={r.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3 font-mono text-xs">{formatDate(r.testDate)}</td>
+                  <td className="px-4 py-3 font-medium">{WATER_SOURCE_LABELS[r.waterSource] ?? r.waterSource}</td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground">{r.testResult || "—"}</td>
+                  <td className="px-4 py-3">
+                    {r.testPass === null ? <span className="text-muted-foreground text-xs">—</span>
+                      : r.testPass
+                        ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle2 className="h-3 w-3" /> Pass</span>
+                        : <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 px-2 py-0.5 rounded-full"><XCircle className="h-3 w-3" /> Fail</span>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground max-w-[200px] truncate">{r.notes || "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent style={{ maxWidth: "36rem" }} className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Edit Water Record" : "Add Water Quality Record"}</DialogTitle>
+              <DialogDescription>Log water source and annual test results for Red Tractor compliance.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div><Label>Water Source *</Label>
+                  <Select value={form.waterSource} onValueChange={v => setField("waterSource", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(WATER_SOURCE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Test Date</Label><Input type="date" value={form.testDate} onChange={e => setField("testDate", e.target.value)} /></div>
+                <div><Label>Test Result / Lab Reference</Label><Input value={form.testResult} onChange={e => setField("testResult", e.target.value)} placeholder="e.g. Pass — E. coli &lt;1 CFU/100ml" /></div>
+                <div><Label>Overall Outcome</Label>
+                  <Select value={form.testPass} onValueChange={v => setField("testPass", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">Pass — Suitable for livestock</SelectItem>
+                      <SelectItem value="false">Fail — Action required</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Lab reference, remedial actions, retest date, etc." rows={2} /></div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
+                  {(createMut.isPending || updateMut.isPending) ? <><Loader2 className="animate-spin h-4 w-4 mr-1" /> Saving…</> : editing ? "Update" : "Save Record"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteId !== null && (
+        <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Delete Water Record?</DialogTitle><DialogDescription>This cannot be undone.</DialogDescription></DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>
+                {deleteMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
 export default function LivestockPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "vet-plans">("herds");
+  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "feed" | "water">("herds");
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -835,9 +1466,21 @@ export default function LivestockPage() {
       <TabBar className="mb-6">
         <TabButton active={tab === "herds"} onClick={() => setTab("herds")}>Herds & Animals</TabButton>
         <TabButton active={tab === "vet-plans"} onClick={() => setTab("vet-plans")}>Vet Health Plans</TabButton>
+        <TabButton active={tab === "mortality"} onClick={() => setTab("mortality")}>
+          <span className="flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> Mortality</span>
+        </TabButton>
+        <TabButton active={tab === "feed"} onClick={() => setTab("feed")}>
+          <span className="flex items-center gap-1"><Package className="h-3.5 w-3.5" /> Feed Records</span>
+        </TabButton>
+        <TabButton active={tab === "water"} onClick={() => setTab("water")}>
+          <span className="flex items-center gap-1"><Droplets className="h-3.5 w-3.5" /> Water Quality</span>
+        </TabButton>
       </TabBar>
       {tab === "herds" && <HerdsSection farmId={farmId} />}
       {tab === "vet-plans" && <VetHealthPlansSection farmId={farmId} />}
+      {tab === "mortality" && <MortalitySection farmId={farmId} />}
+      {tab === "feed" && <FeedSection farmId={farmId} />}
+      {tab === "water" && <WaterSection farmId={farmId} />}
     </AppLayout>
   );
 }
