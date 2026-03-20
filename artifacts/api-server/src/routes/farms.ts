@@ -3033,7 +3033,7 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
       id: 30,
       title: "Water Quality Testing Records",
       category: "Livestock",
-      content: `<p>Providing clean, fresh water is a fundamental animal welfare requirement, and for certain species and water sources Red Tractor requires formal annual testing by an accredited laboratory. The BDE Farm Trac <strong>Water Quality Records</strong> tab (under Livestock) is where you log each test and its outcome.</p>
+      content: `<p>Providing clean, fresh water is a fundamental animal welfare requirement, and for certain species and water sources Red Tractor requires formal annual testing by an accredited laboratory. The BDE Farm Trac <strong>Water Quality Records</strong> tab (under Livestock) is where you log each test and its outcome, attach the lab certificate, and link the test to the specific herd or flock that relies on that water source.</p>
 
 <h3>When Testing Is Required</h3>
 <ul>
@@ -3044,17 +3044,41 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
 <h3>What Tests Are Required</h3>
 <p>Testing should cover microbiological parameters (E. coli, total coliforms, Enterococcus) and, where applicable, chemical parameters (nitrate levels, hardness, pH). Use a UKAS-accredited laboratory for testing. Your vet or assurance body can advise on appropriate test parameters for your species and water source.</p>
 
+<h3>Linking Tests to Herds &amp; Flocks</h3>
+<p>Each water quality record is linked to a specific herd or flock from your <strong>Herd &amp; Flock Register</strong>. This creates a searchable history per animal group — so you can quickly show an inspector every water test carried out for your pig finishing unit or dairy herd, together with the results and certificates. On the dashboard, the herd is selected when adding a record. On the mobile app, your registered herds appear as selectable tiles; if no herds are yet registered, you can type the name manually.</p>
+
 <h3>Adding a Water Record — Dashboard</h3>
 <p>Go to <strong>Livestock</strong> in the sidebar and select the <strong>Water Quality</strong> tab. Click <strong>Add Water Record</strong>. Select the water source from the drop-down (mains, borehole, stream, reservoir, bowser, or other), enter the test date, the result description (e.g. "Pass — E. coli &lt;1 CFU/100ml"), and set the overall outcome to Pass or Fail. If the test fails, record the remedial action taken in the Notes field and log a follow-up test once the issue is resolved.</p>
 
 <h3>Adding a Water Record — Mobile App</h3>
-<p>Tap <strong>Record</strong> in the bottom navigation bar and select <strong>Water Quality Record</strong>. Choose the water source, enter the test date and result, and use the overall suitability toggle to mark the outcome. The record syncs automatically when connected.</p>
+<p>Tap <strong>Record</strong> in the bottom navigation bar and select <strong>Water Quality Record</strong>. The form guides you through:</p>
+<ol>
+<li><strong>Herd or flock</strong> — select from your registered herds, or type a name if none are registered yet</li>
+<li><strong>Water source</strong> — choose from: Mains, Borehole / Well, Stream / River, Farm Reservoir, Rainwater Harvesting, Water Bowser, or Other</li>
+<li><strong>Test date and result</strong> — enter the date and select the result category (Pass — Suitable, Pass — Monitor, or the relevant Fail reason)</li>
+<li><strong>Suitability toggle</strong> — confirm whether the water is suitable for livestock. If you toggle this to <em>Not Suitable</em>, you will be asked to confirm before the record is saved. See the Failed Tests section below</li>
+<li><strong>Notes</strong> — lab reference number, remedial actions, retest date</li>
+</ol>
+<p>GPS coordinates of the water source location are automatically captured when you save the record, provided location permissions are granted. The record syncs to the server automatically when the device next has a connection.</p>
 
-<h3>Retaining Test Certificates</h3>
-<p>Your laboratory will issue a test certificate. Retain this alongside your BDE Farm Trac record — the certificate is the primary evidence; the digital record provides the searchable index and audit trail. Both should be available for inspection at a Red Tractor assessment. Scan or photograph the certificate and attach it to the relevant water record using the document attachment function.</p>
+<h3>Attaching Lab Certificates — Dashboard</h3>
+<p>Your laboratory will issue a test certificate (typically a PDF or scanned letter). This certificate is the primary audit evidence — the digital record in BDE Farm Trac provides the index, history, and search functionality. To attach a certificate:</p>
+<ol>
+<li>Go to <strong>Livestock → Water Quality</strong> and find the test record in the table</li>
+<li>Click the <strong>Lab Certs</strong> button on the right side of the row</li>
+<li>In the panel that opens, enter the laboratory's reference number and a certificate title (optional — if left blank, the title is generated automatically from the reference number)</li>
+<li>Click <strong>Choose File</strong> and select the PDF or photo of the certificate</li>
+<li>The file uploads and is stored against that specific test record. It is immediately accessible via the view link and will be included in audit exports</li>
+</ol>
+<p>You can attach multiple certificates to a single record (for example, where a lab issues separate microbiological and chemical reports). Each attachment can be deleted individually if you upload the wrong file.</p>
 
-<h3>Failed Tests</h3>
-<p>If a test returns a fail result, you must take immediate action to prevent animal welfare issues. Typical remedial steps include switching to an alternative water source, installing UV or chlorination treatment, and arranging a follow-up test. Document all steps taken in the Notes field. Red Tractor assessors will look for evidence that failed tests were followed up promptly and that corrective action was effective before the source was returned to use.</p>`,
+<h3>Failed Tests &amp; Urgent Alerts</h3>
+<p>If a test returns a fail result, you must take immediate action to prevent animal welfare issues. When you mark a water record as unsuitable — either by selecting a fail result or toggling the suitability switch to off — the system responds as follows:</p>
+<ul>
+<li><strong>Mobile app</strong> — a confirmation prompt explains that an urgent alert will be sent when the record syncs. The save button turns red and a warning banner confirms the fail state before you save</li>
+<li><strong>On sync</strong> — a critical notification is raised on the farm dashboard and, if the SMS Alerts module is active, an SMS is sent immediately to all farm management contacts. The message identifies the herd, the water source, and the test result, and instructs recipients to restrict access to the water source</li>
+</ul>
+<p>Typical remedial steps include switching to an alternative water source, installing UV or chlorination treatment, and arranging a follow-up test. Document all steps taken in the Notes field of a new record once the issue is resolved. Red Tractor assessors will look for evidence that failed tests were followed up promptly and that corrective action was effective before the source was returned to use.</p>`,
     },
     {
       id: 31,

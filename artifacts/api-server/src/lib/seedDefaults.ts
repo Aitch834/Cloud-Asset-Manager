@@ -15,7 +15,7 @@ const MODULES = [
   { key: "sprays-inputs", name: "Sprays & Inputs", description: "Spray applications, product tracking, nutrient management plans", monthlyPricePence: 1500 },
   { key: "soil-management", name: "Soil Management", description: "Soil test records, nutrient analysis", monthlyPricePence: 1000 },
   { key: "equipment-management", name: "Equipment & Vehicle Management", description: "Equipment register, maintenance logs, calibration records", monthlyPricePence: 1500 },
-  { key: "livestock-management", name: "Livestock Management", description: "Herd/flock register, movements, medicines, feed and water records", monthlyPricePence: 3000 },
+  { key: "livestock-management", name: "Livestock Management", description: "Herd/flock register, movements, medicines, feed, water quality testing with lab certificate storage, mortality and vet health plans", monthlyPricePence: 3000 },
   { key: "biosecurity", name: "Biosecurity & Visitors", description: "Visitor log, pest control, cleaning and disinfection records", monthlyPricePence: 1000 },
   { key: "staff-training", name: "Staff & Training", description: "Training records, certificates, competency tracking", monthlyPricePence: 1000 },
   { key: "risk-waste", name: "Risk & Waste Management", description: "Risk assessments, COSHH, waste disposal records", monthlyPricePence: 1000 },
@@ -27,7 +27,7 @@ const MODULES = [
   { key: "document-management", name: "Document Management", description: "Document storage, linked records, object storage", monthlyPricePence: 1000 },
   { key: "weather-tracking", name: "Weather Tracking", description: "Weather stations, automated readings, field-level data", monthlyPricePence: 1500 },
   { key: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", description: "RTFO sustainability declarations, field eligibility, GHG traceability, and audit pack generation for farms supplying biofuel feedstocks", monthlyPricePence: 3000 },
-  { key: "sms-alerts", name: "SMS Text Alerts", description: "Receive critical compliance alerts by text message — unnotified movements, expired certificates, and overdue non-conformances", monthlyPricePence: 400 },
+  { key: "sms-alerts", name: "SMS Text Alerts", description: "Receive critical compliance alerts by text message — unnotified livestock movements, expired staff certificates, water quality failures, and overdue non-conformances", monthlyPricePence: 400 },
   { key: "business-reports", name: "Business Reports", description: "Gross margin analysis, P&L statement, input cost breakdown, grain position, subsidy summary, year-on-year comparison and asset register with depreciation", monthlyPricePence: 500 },
 ];
 
