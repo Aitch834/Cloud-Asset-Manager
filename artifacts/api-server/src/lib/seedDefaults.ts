@@ -1,5 +1,5 @@
 import { db, rolesTable, modulesTable, tenantsTable, farmsTable, subscriptionsTable } from "@workspace/db";
-import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable } from "@workspace/db/schema";
+import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const SYSTEM_ROLES = [
@@ -118,6 +118,7 @@ async function seedDevData() {
 
   await seedCropData(farm.id);
   await seedMovementData(farm.id);
+  await seedFieldOperations(farm.id);
 }
 
 async function seedCropData(farmId: number) {
@@ -197,4 +198,130 @@ async function seedMovementData(farmId: number) {
 
   await db.insert(livestockMovementsTable).values(movements);
   console.log("[SEED] Dev movement records seeded for farm:", farmId);
+}
+
+async function seedFieldOperations(farmId: number) {
+  const existing = await db.select().from(fieldOperationsTable).where(eq(fieldOperationsTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) return;
+
+  const yr = new Date().getFullYear();
+  const prevYr = yr - 1;
+
+  const fieldRows = await db.select({ id: fieldsTable.id, name: fieldsTable.name, areaHa: fieldsTable.areaHa }).from(fieldsTable).where(eq(fieldsTable.farmId, farmId)).limit(8);
+
+  const getField = (name: string) => fieldRows.find((f) => f.name?.toLowerCase().includes(name.toLowerCase())) ?? fieldRows[0];
+
+  const ops: (typeof fieldOperationsTable.$inferInsert)[] = [
+    {
+      farmId,
+      fieldId: getField("Home")?.id ?? fieldRows[0]?.id ?? null,
+      fieldName: getField("Home")?.name ?? "Home Field",
+      operationDate: new Date(`${prevYr}-09-18`),
+      operationType: "ploughing",
+      implement: "Lemken Diamant 11 5-furrow",
+      workingDepthCm: 27,
+      passes: 1,
+      areaHa: getField("Home")?.areaHa ?? "18.40",
+      operator: "Tom Barker",
+      notes: "Good soil conditions, turned in wheat stubble. Headlands completed last.",
+    },
+    {
+      farmId,
+      fieldId: getField("North")?.id ?? fieldRows[1]?.id ?? null,
+      fieldName: getField("North")?.name ?? "North Block",
+      operationDate: new Date(`${prevYr}-09-25`),
+      operationType: "subsoiling",
+      implement: "Sumo Trio 5m",
+      workingDepthCm: 40,
+      passes: 1,
+      areaHa: getField("North")?.areaHa ?? "22.10",
+      operator: "Tom Barker",
+      notes: "Compaction evident at 35cm — broke through pan successfully.",
+    },
+    {
+      farmId,
+      fieldId: getField("Home")?.id ?? fieldRows[0]?.id ?? null,
+      fieldName: getField("Home")?.name ?? "Home Field",
+      operationDate: new Date(`${prevYr}-10-02`),
+      operationType: "power_harrowing",
+      implement: "Horsch Joker 6RT",
+      workingDepthCm: 8,
+      passes: 1,
+      areaHa: getField("Home")?.areaHa ?? "18.40",
+      operator: "Tom Barker",
+      notes: "Pre-drilling consolidation — good tilth achieved.",
+    },
+    {
+      farmId,
+      fieldId: getField("South")?.id ?? fieldRows[2]?.id ?? null,
+      fieldName: getField("South")?.name ?? "South Meadow",
+      operationDate: new Date(`${prevYr}-10-10`),
+      operationType: "lime_spreading",
+      implement: "Amazone ZGB 8200 spreader",
+      workingDepthCm: null,
+      passes: 1,
+      areaHa: getField("South")?.areaHa ?? "14.60",
+      quantity: "4.0",
+      quantityUnit: "t/ha",
+      operator: "BDE Contracting Ltd",
+      notes: "Ground limestone applied per soil test rec. pH was 5.8 targeting 6.5.",
+    },
+    {
+      farmId,
+      fieldId: getField("North")?.id ?? fieldRows[1]?.id ?? null,
+      fieldName: getField("North")?.name ?? "North Block",
+      operationDate: new Date(`${prevYr}-10-15`),
+      operationType: "cambridge_rolling",
+      implement: "8m Cambridge roll set",
+      workingDepthCm: null,
+      passes: 1,
+      areaHa: getField("North")?.areaHa ?? "22.10",
+      operator: "Tom Barker",
+      notes: "Post-drilling consolidation. Rolled within 24hrs of drilling.",
+    },
+    {
+      farmId,
+      fieldId: getField("South")?.id ?? fieldRows[2]?.id ?? null,
+      fieldName: getField("South")?.name ?? "South Meadow",
+      operationDate: new Date(`${yr}-02-20`),
+      operationType: "tine_harrowing",
+      implement: "Vaderstad Carrier 500",
+      workingDepthCm: 5,
+      passes: 1,
+      areaHa: getField("South")?.areaHa ?? "14.60",
+      operator: "Tom Barker",
+      notes: "Spring tine pass on established OSR — removed debris, improved airflow.",
+    },
+    {
+      farmId,
+      fieldId: getField("Home")?.id ?? fieldRows[0]?.id ?? null,
+      fieldName: getField("Home")?.name ?? "Home Field",
+      operationDate: new Date(`${yr}-03-05`),
+      operationType: "slug_pellets",
+      implement: "Accord Optima HD drill slug pellet unit",
+      workingDepthCm: null,
+      passes: 1,
+      areaHa: getField("Home")?.areaHa ?? "18.40",
+      quantity: "7",
+      quantityUnit: "kg/ha",
+      operator: "Tom Barker",
+      notes: "Ferric phosphate pellets applied post-drilling. High slug pressure observed.",
+    },
+    {
+      farmId,
+      fieldId: getField("North")?.id ?? fieldRows[1]?.id ?? null,
+      fieldName: getField("North")?.name ?? "North Block",
+      operationDate: new Date(`${yr}-03-12`),
+      operationType: "rolling",
+      implement: "10m flat roll",
+      workingDepthCm: null,
+      passes: 1,
+      areaHa: getField("North")?.areaHa ?? "22.10",
+      operator: "Tom Barker",
+      notes: "Spring rolling — winter barley had been frosted up slightly.",
+    },
+  ];
+
+  await db.insert(fieldOperationsTable).values(ops);
+  console.log("[SEED] Dev field operations seeded for farm:", farmId);
 }

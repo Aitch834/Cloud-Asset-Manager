@@ -146,6 +146,25 @@ export const seedDrillingRecordsTable = pgTable("seed_drilling_records", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const fieldOperationsTable = pgTable("field_operations", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  fieldId: integer("field_id").references(() => fieldsTable.id),
+  fieldName: text("field_name").notNull(),
+  operationDate: timestamp("operation_date", { withTimezone: true }).notNull(),
+  operationType: text("operation_type").notNull(),
+  implement: text("implement"),
+  workingDepthCm: integer("working_depth_cm"),
+  passes: integer("passes").default(1),
+  areaHa: numeric("area_ha", { precision: 10, scale: 4 }),
+  quantity: numeric("quantity", { precision: 10, scale: 3 }),
+  quantityUnit: text("quantity_unit"),
+  operator: text("operator"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const nvzRiskAssessmentsTable = pgTable("nvz_risk_assessments", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

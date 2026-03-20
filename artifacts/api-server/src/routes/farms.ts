@@ -64,6 +64,7 @@ import {
   storageLocationsTable,
   biosecurityPlansTable,
   nvzRiskAssessmentsTable,
+  fieldOperationsTable,
   farmAdvisorsTable,
   farmInspectionSessionsTable,
   externalAccessLogTable,
@@ -550,6 +551,70 @@ router.delete("/farms/:farmId/harvest-storage/:recordId", requireAuth, requireTe
   if (!farmId) return;
   const recordId = parseInt(req.params.recordId);
   await db.delete(cropStorageRecordsTable).where(and(eq(cropStorageRecordsTable.id, recordId), eq(cropStorageRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Field Operations ──────────────────────────────
+router.get("/farms/:farmId/field-operations", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db
+    .select()
+    .from(fieldOperationsTable)
+    .where(eq(fieldOperationsTable.farmId, farmId))
+    .orderBy(desc(fieldOperationsTable.operationDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/field-operations", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { operationDate, operationType, fieldName, fieldId, implement, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, notes } = req.body;
+  const [record] = await db.insert(fieldOperationsTable).values({
+    farmId,
+    fieldId: fieldId ? parseInt(fieldId) : null,
+    fieldName,
+    operationDate: new Date(operationDate),
+    operationType,
+    implement: implement || null,
+    workingDepthCm: workingDepthCm ? parseInt(workingDepthCm) : null,
+    passes: passes ? parseInt(passes) : 1,
+    areaHa: areaHa || null,
+    quantity: quantity || null,
+    quantityUnit: quantityUnit || null,
+    operator: operator || null,
+    notes: notes || null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/field-operations/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const { operationDate, operationType, fieldName, fieldId, implement, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, notes } = req.body;
+  const [record] = await db.update(fieldOperationsTable).set({
+    fieldId: fieldId ? parseInt(fieldId) : null,
+    fieldName,
+    operationDate: operationDate ? new Date(operationDate) : undefined,
+    operationType,
+    implement: implement || null,
+    workingDepthCm: workingDepthCm ? parseInt(workingDepthCm) : null,
+    passes: passes ? parseInt(passes) : 1,
+    areaHa: areaHa || null,
+    quantity: quantity || null,
+    quantityUnit: quantityUnit || null,
+    operator: operator || null,
+    notes: notes || null,
+  }).where(and(eq(fieldOperationsTable.id, recordId), eq(fieldOperationsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/field-operations/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(fieldOperationsTable).where(and(eq(fieldOperationsTable.id, recordId), eq(fieldOperationsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
