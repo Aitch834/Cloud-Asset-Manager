@@ -72,7 +72,7 @@ import {
   externalAccessLogTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte } from "drizzle-orm";
-import { createNonconformanceNotification, createFieldActionNotification } from "../lib/alertingJob";
+import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 
@@ -1354,6 +1354,22 @@ router.post("/farms/:farmId/risk-assessments", requireAuth, requireTenant, requi
   if (!farmId) return;
   const [record] = await db.insert(riskAssessmentsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
+
+  const riskLevel = record.riskLevel;
+  if (riskLevel === "critical" || riskLevel === "high") {
+    const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+    if (farm) {
+      await createCriticalRiskNotification({
+        tenantId: farm.tenantId,
+        farmId,
+        assessmentId: record.id,
+        title: record.title,
+        hazardDescription: record.hazardDescription,
+        riskLevel,
+        assessedBy: record.assessedBy ?? "",
+      });
+    }
+  }
 });
 
 router.put("/farms/:farmId/risk-assessments/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {

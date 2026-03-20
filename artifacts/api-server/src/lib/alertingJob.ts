@@ -1,6 +1,6 @@
 import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable } from "@workspace/db";
 import { usersTable, userTenantsTable } from "@workspace/db/schema";
-import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable } from "@workspace/db/schema";
+import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable } from "@workspace/db/schema";
 import { eq, and, lt, isNull, sql, gte, lte } from "drizzle-orm";
 import { sendSms } from "./sms";
 
@@ -109,6 +109,39 @@ export async function createFieldActionNotification(params: {
 
   if (params.action === "urgent") {
     await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+  }
+}
+
+export async function createCriticalRiskNotification(params: {
+  tenantId: number;
+  farmId: number;
+  assessmentId: number;
+  title: string;
+  hazardDescription: string;
+  riskLevel: string;
+  assessedBy: string;
+}) {
+  const isCritical = params.riskLevel === "critical";
+  const severity = isCritical ? "critical" : "warning";
+  const notifTitle = isCritical
+    ? `Critical Hazard Identified — ${params.title}`
+    : `High-Risk Hazard Logged — ${params.title}`;
+  const message = `${params.assessedBy ? params.assessedBy + " has" : "A new risk assessment has"} identified a ${params.riskLevel}-risk hazard: "${params.hazardDescription.slice(0, 140)}". Review control measures and ensure appropriate safeguards are in place.`;
+
+  await upsertNotification({
+    tenantId: params.tenantId,
+    farmId: params.farmId,
+    type: isCritical ? "risk_assessment_critical" : "risk_assessment_high",
+    severity,
+    title: notifTitle,
+    message,
+    relatedModule: "risk-waste",
+    relatedId: params.assessmentId,
+    dedupeKey: `risk-${isCritical ? "critical" : "high"}-${params.assessmentId}`,
+  });
+
+  if (isCritical) {
+    await dispatchSmsForCriticalAlert(params.tenantId, notifTitle, message);
   }
 }
 
@@ -387,6 +420,54 @@ async function checkWithholdingPeriods() {
   }
 }
 
+async function checkOverdueRiskReviews() {
+  const now = new Date();
+
+  const overdueAssessments = await db
+    .select({
+      id: riskAssessmentsTable.id,
+      farmId: riskAssessmentsTable.farmId,
+      title: riskAssessmentsTable.title,
+      riskLevel: riskAssessmentsTable.riskLevel,
+      reviewDate: riskAssessmentsTable.reviewDate,
+    })
+    .from(riskAssessmentsTable)
+    .where(
+      and(
+        eq(riskAssessmentsTable.status, "active"),
+        lt(riskAssessmentsTable.reviewDate, now),
+      ),
+    );
+
+  for (const assessment of overdueAssessments) {
+    if (!assessment.reviewDate) continue;
+
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, assessment.farmId))
+      .limit(1);
+
+    if (!farm) continue;
+
+    const dueDateStr = new Date(assessment.reviewDate).toLocaleDateString("en-GB");
+    const daysSince = Math.floor((now.getTime() - new Date(assessment.reviewDate).getTime()) / 86400000);
+    const riskLabel = assessment.riskLevel ? `${assessment.riskLevel}-risk ` : "";
+
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: assessment.farmId,
+      type: "risk_review_overdue",
+      severity: "warning",
+      title: `Risk Assessment Review Overdue — ${assessment.title}`,
+      message: `The ${riskLabel}risk assessment "${assessment.title}" was due for review on ${dueDateStr} (${daysSince} day${daysSince !== 1 ? "s" : ""} ago). Review and update this assessment to maintain Red Tractor compliance.`,
+      relatedModule: "risk-waste",
+      relatedId: assessment.id,
+      dedupeKey: `risk-review-overdue-${assessment.id}-week${Math.floor(daysSince / 7)}`,
+    });
+  }
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
@@ -394,6 +475,7 @@ export async function runAlertingJob() {
     await checkUnnotifiedMovements();
     await checkCertificateExpiry();
     await checkWithholdingPeriods();
+    await checkOverdueRiskReviews();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {
     console.error("[ALERTS] Alerting job error:", err);
