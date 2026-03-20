@@ -146,6 +146,28 @@ export interface SqlResult {
   limited: boolean;
 }
 
+export interface InboxEmail {
+  uid: number;
+  seq: number;
+  subject: string;
+  from: string;
+  fromEmail: string;
+  to: string;
+  date: string;
+  preview: string;
+  seen: boolean;
+  hasAttachments: boolean;
+}
+
+export interface FullEmail extends InboxEmail {
+  body: string;
+  bodyHtml: string | null;
+  replyTo: string | null;
+  messageId: string | null;
+  inReplyTo: string | null;
+  references: string | null;
+}
+
 export interface EmailTemplate {
   id: number;
   name: string;
@@ -219,6 +241,21 @@ export const api = {
       {},
       secret
     ),
+
+  getInbox: (secret: string, limit = 50) =>
+    get<{ emails: InboxEmail[] }>(`/admin/inbox?limit=${limit}`, secret),
+
+  getEmail: (uid: number, secret: string) =>
+    get<{ email: FullEmail }>(`/admin/inbox/${uid}`, secret),
+
+  markEmailRead: (uid: number, read: boolean, secret: string) =>
+    patch<{ ok: boolean }>(`/admin/inbox/${uid}/read`, { read }, secret),
+
+  deleteInboxEmail: (uid: number, secret: string) =>
+    del<{ deleted: boolean }>(`/admin/inbox/${uid}`, secret),
+
+  replyToEmail: (uid: number, body: string, secret: string) =>
+    post<{ sent: boolean; reason?: string }>(`/admin/inbox/${uid}/reply`, { body }, secret),
 
   getSentEmails: (secret: string) =>
     get<{ emails: AdminEmailSent[] }>("/admin/emails/sent", secret),

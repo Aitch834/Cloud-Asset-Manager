@@ -4,6 +4,7 @@ import { eq, and, count, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
 import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../lib/mailer";
+import { fetchInbox, fetchEmail, markAsRead, markAsUnread, deleteEmail, isImapConfigured } from "../lib/imap";
 
 const router: IRouter = Router();
 
@@ -407,6 +408,120 @@ router.post(
     }
   }
 );
+
+// ─── Email: IMAP Inbox ───────────────────────────────────────────────────────
+
+router.get("/admin/inbox", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  if (!(await isImapConfigured())) {
+    res.status(503).json({ error: "IMAP not configured (TITAN_IMAP_PASSWORD missing)" });
+    return;
+  }
+
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? "50"), 10) || 50, 200);
+    const emails = await fetchInbox(limit);
+    res.json({ emails });
+  } catch (err) {
+    console.error("[IMAP] fetchInbox error:", err);
+    res.status(502).json({ error: `IMAP error: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
+
+router.get("/admin/inbox/:uid", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const uid = parseInt(req.params.uid as string, 10);
+  if (isNaN(uid)) { res.status(400).json({ error: "Invalid UID" }); return; }
+
+  try {
+    const email = await fetchEmail(uid);
+    res.json({ email });
+  } catch (err) {
+    console.error("[IMAP] fetchEmail error:", err);
+    res.status(502).json({ error: `IMAP error: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
+
+router.patch("/admin/inbox/:uid/read", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const uid = parseInt(req.params.uid as string, 10);
+  if (isNaN(uid)) { res.status(400).json({ error: "Invalid UID" }); return; }
+
+  const { read } = req.body;
+
+  try {
+    if (read === false) {
+      await markAsUnread(uid);
+    } else {
+      await markAsRead(uid);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[IMAP] markAsRead error:", err);
+    res.status(502).json({ error: `IMAP error: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
+
+router.delete("/admin/inbox/:uid", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const uid = parseInt(req.params.uid as string, 10);
+  if (isNaN(uid)) { res.status(400).json({ error: "Invalid UID" }); return; }
+
+  try {
+    await deleteEmail(uid);
+    res.json({ deleted: true });
+  } catch (err) {
+    console.error("[IMAP] deleteEmail error:", err);
+    res.status(502).json({ error: `IMAP error: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
+
+router.post("/admin/inbox/:uid/reply", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const uid = parseInt(req.params.uid as string, 10);
+  if (isNaN(uid)) { res.status(400).json({ error: "Invalid UID" }); return; }
+
+  const { body, subject } = req.body;
+  if (!body || typeof body !== "string" || body.trim().length === 0) {
+    res.status(400).json({ error: "Reply body is required" });
+    return;
+  }
+
+  try {
+    const original = await fetchEmail(uid);
+    const replyTo = original.replyTo || original.fromEmail;
+    const replySubject = subject?.trim() || (original.subject.startsWith("Re:") ? original.subject : `Re: ${original.subject}`);
+
+    const result = await sendAdminEmail({
+      to: replyTo,
+      toName: original.from !== original.fromEmail ? original.from : undefined,
+      subject: replySubject,
+      body: body.trim(),
+    });
+
+    if (result.sent) {
+      await markAsRead(uid);
+      await db.insert(adminEmailsSentTable).values({
+        toAddress: replyTo,
+        toName: original.from || null,
+        subject: replySubject,
+        body: body.trim(),
+        status: "sent",
+      });
+      res.json({ sent: true });
+    } else {
+      res.status(500).json({ sent: false, reason: result.reason });
+    }
+  } catch (err) {
+    console.error("[IMAP] reply error:", err);
+    res.status(502).json({ error: `Error: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
 
 // ─── Email: Compose & Send ────────────────────────────────────────────────────
 

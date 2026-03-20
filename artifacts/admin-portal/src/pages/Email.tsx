@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
-import { api, type EmailTemplate, type AdminEmailSent, type Tenant } from "@/lib/api";
+import { useEffect, useState, useRef } from "react";
+import { api, type EmailTemplate, type AdminEmailSent, type Tenant, type InboxEmail, type FullEmail } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import {
   Mail, Send, Clock, FileText, Plus, Trash2, Edit2, Check, X,
-  ChevronDown, AlertCircle, Loader2, Eye, RefreshCw,
+  ChevronDown, AlertCircle, Loader2, Eye, RefreshCw, Inbox,
+  Reply, Circle, Paperclip, ArrowLeft,
 } from "lucide-react";
 
 const CATEGORIES = ["general", "onboarding", "billing", "support", "compliance"];
@@ -105,6 +106,317 @@ function CustomerSelect({
                 <p className="text-xs text-muted-foreground">{t.contactEmail}</p>
               </button>
             ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  if (isToday) {
+    return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  }
+  const isThisYear = d.getFullYear() === now.getFullYear();
+  if (isThisYear) {
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" });
+}
+
+function InboxTab() {
+  const secret = getSecret()!;
+  const [emails, setEmails] = useState<InboxEmail[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<FullEmail | null>(null);
+  const [loadingEmail, setLoadingEmail] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyBody, setReplyBody] = useState("");
+  const [replying, setReplying] = useState(false);
+  const [replyResult, setReplyResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const replyRef = useRef<HTMLTextAreaElement>(null);
+
+  async function load(quiet = false) {
+    if (!quiet) setLoading(true);
+    else setRefreshing(true);
+    setError(null);
+    try {
+      const r = await api.getInbox(secret, 50);
+      setEmails(r.emails);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg.includes("IMAP") ? msg : `Could not connect to inbox: ${msg}`);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function openEmail(e: InboxEmail) {
+    setLoadingEmail(true);
+    setSelected(null);
+    setReplyOpen(false);
+    setReplyBody("");
+    setReplyResult(null);
+    try {
+      const r = await api.getEmail(e.uid, secret);
+      setSelected(r.email);
+      if (!e.seen) {
+        await api.markEmailRead(e.uid, true, secret);
+        setEmails((prev) => prev.map((m) => m.uid === e.uid ? { ...m, seen: true } : m));
+      }
+    } catch (err) {
+      setError(`Failed to load email: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLoadingEmail(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!selected) return;
+    setDeleting(true);
+    try {
+      await api.deleteInboxEmail(selected.uid, secret);
+      setEmails((prev) => prev.filter((e) => e.uid !== selected.uid));
+      setSelected(null);
+    } catch {}
+    finally { setDeleting(false); }
+  }
+
+  async function handleReply(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selected || !replyBody.trim()) return;
+    setReplying(true);
+    setReplyResult(null);
+    try {
+      const r = await api.replyToEmail(selected.uid, replyBody.trim(), secret);
+      if (r.sent) {
+        setReplyResult({ ok: true, message: "Reply sent successfully" });
+        setReplyBody("");
+        setReplyOpen(false);
+      } else {
+        setReplyResult({ ok: false, message: r.reason ?? "Send failed" });
+      }
+    } catch (err) {
+      setReplyResult({ ok: false, message: String(err) });
+    } finally {
+      setReplying(false);
+    }
+  }
+
+  const unreadCount = emails.filter((e) => !e.seen).length;
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Connecting to inbox…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 max-w-lg">
+        <div className="flex items-start gap-3 px-4 py-4 bg-red-50 border border-red-200 rounded-lg">
+          <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-red-800 text-sm">Could not connect to inbox</p>
+            <p className="text-xs text-red-700 mt-1">{error}</p>
+            <button onClick={() => load()} className="mt-2 text-xs text-red-700 underline">Try again</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full" style={{ minHeight: 0 }}>
+      {/* Email list */}
+      <div className={`flex flex-col border-r border-border ${selected || loadingEmail ? "w-80 shrink-0" : "flex-1"}`}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold">Inbox</span>
+            {unreadCount > 0 && (
+              <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-primary text-primary-foreground rounded-full">
+                {unreadCount}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => load(true)}
+            disabled={refreshing}
+            className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground disabled:opacity-50"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+
+        {emails.length === 0 ? (
+          <div className="flex flex-col items-center justify-center flex-1 text-center text-muted-foreground px-6">
+            <Inbox className="w-8 h-8 mb-2 opacity-30" />
+            <p className="text-sm">No emails in inbox</p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto divide-y divide-border">
+            {emails.map((e) => (
+              <button
+                key={e.uid}
+                onClick={() => openEmail(e)}
+                className={`w-full text-left px-4 py-3 hover:bg-muted/60 transition-colors ${
+                  selected?.uid === e.uid ? "bg-primary/5 border-l-2 border-primary" : ""
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {!e.seen && <Circle className="w-2 h-2 text-primary fill-primary shrink-0" />}
+                    <span className={`text-sm truncate ${!e.seen ? "font-semibold" : "font-medium text-muted-foreground"}`}>
+                      {e.from}
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">{formatDate(e.date)}</span>
+                </div>
+                <p className={`text-xs mt-0.5 truncate ${!e.seen ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                  {e.subject}
+                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <p className="text-xs text-muted-foreground truncate flex-1">{e.preview}</p>
+                  {e.hasAttachments && <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Email detail */}
+      {loadingEmail && (
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {!loadingEmail && selected && (
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-border shrink-0">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelected(null)}
+                    className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground md:hidden"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <h2 className="font-semibold text-base truncate">{selected.subject}</h2>
+                </div>
+                <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground flex-wrap">
+                  <span>From: <span className="text-foreground">{selected.from}</span></span>
+                  {selected.fromEmail !== selected.from && (
+                    <span className="font-mono text-xs">{"<"}{selected.fromEmail}{">"}</span>
+                  )}
+                  <span>·</span>
+                  <span>{new Date(selected.date).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => { setReplyOpen((o) => !o); setTimeout(() => replyRef.current?.focus(), 50); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-muted transition-colors"
+                >
+                  <Reply className="w-3.5 h-3.5" /> Reply
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="p-1.5 rounded hover:bg-red-50 hover:text-red-600 transition-colors text-muted-foreground disabled:opacity-50"
+                  title="Delete"
+                >
+                  {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="px-6 py-5">
+              {selected.bodyHtml ? (
+                <div
+                  className="prose prose-sm max-w-none text-foreground"
+                  dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
+                  style={{ fontSize: "14px", lineHeight: "1.6" }}
+                />
+              ) : (
+                <pre className="whitespace-pre-wrap text-sm text-foreground font-sans leading-relaxed">
+                  {selected.body || "(No content)"}
+                </pre>
+              )}
+            </div>
+
+            {/* Reply box */}
+            {replyOpen && (
+              <div className="mx-6 mb-6 border border-border rounded-lg overflow-hidden">
+                <div className="px-4 py-2 bg-muted/40 border-b border-border flex items-center gap-2">
+                  <Reply className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-sm font-medium">
+                    Replying to {selected.from || selected.fromEmail}
+                  </span>
+                </div>
+                <form onSubmit={handleReply}>
+                  <textarea
+                    ref={replyRef}
+                    value={replyBody}
+                    onChange={(e) => setReplyBody(e.target.value)}
+                    rows={6}
+                    placeholder="Write your reply…"
+                    className="w-full px-4 py-3 text-sm resize-none focus:outline-none"
+                  />
+                  {replyResult && (
+                    <div className={`px-4 py-2 text-xs flex items-center gap-2 ${replyResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                      {replyResult.ok ? <Check className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                      {replyResult.message}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-muted/20">
+                    <button
+                      type="submit"
+                      disabled={replying || !replyBody.trim()}
+                      className="flex items-center gap-2 px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md disabled:opacity-50 hover:bg-primary/90 transition-colors"
+                    >
+                      {replying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      {replying ? "Sending…" : "Send Reply"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setReplyOpen(false); setReplyBody(""); setReplyResult(null); }}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!loadingEmail && !selected && emails.length > 0 && (
+        <div className="flex-1 hidden md:flex items-center justify-center text-muted-foreground">
+          <div className="text-center">
+            <Mail className="w-10 h-10 mx-auto mb-2 opacity-20" />
+            <p className="text-sm">Select an email to read it</p>
           </div>
         </div>
       )}
@@ -680,7 +992,7 @@ function TemplatesTab() {
 
 export default function Email() {
   const secret = getSecret()!;
-  const [tab, setTab] = useState("compose");
+  const [tab, setTab] = useState("inbox");
   const [tenants, setTenants] = useState<Tenant[]>([]);
 
   useEffect(() => {
@@ -690,6 +1002,7 @@ export default function Email() {
   }, []);
 
   const tabs = [
+    { key: "inbox", label: "Inbox", icon: <Inbox className="w-4 h-4" /> },
     { key: "compose", label: "Compose", icon: <Send className="w-4 h-4" /> },
     { key: "sent", label: "Sent", icon: <Clock className="w-4 h-4" /> },
     { key: "templates", label: "Templates", icon: <FileText className="w-4 h-4" /> },
@@ -697,20 +1010,21 @@ export default function Email() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-6 pt-6 pb-0 border-b border-border">
+      <div className="px-6 pt-6 pb-0 border-b border-border shrink-0">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
             <Mail className="w-5 h-5 text-primary" />
           </div>
           <div>
             <h1 className="text-lg font-semibold">Email</h1>
-            <p className="text-sm text-muted-foreground">Send and manage emails via hello@bdefarmtrac.co.uk</p>
+            <p className="text-sm text-muted-foreground">hello@bdefarmtrac.co.uk — inbox, compose &amp; manage</p>
           </div>
         </div>
         <TabBar tabs={tabs} active={tab} onChange={setTab} />
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className={`${tab === "inbox" ? "flex-1 flex flex-col overflow-hidden" : "flex-1 overflow-y-auto"}`}>
+        {tab === "inbox" && <InboxTab />}
         {tab === "compose" && <ComposeTab tenants={tenants} />}
         {tab === "sent" && <SentTab />}
         {tab === "templates" && <TemplatesTab />}
