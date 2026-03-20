@@ -48,7 +48,7 @@ export default function Features() {
       title: "Biosecurity & Visitors",
       icon: ShieldAlert,
       color: "bg-red-50 text-red-600 border-red-100",
-      features: ["Visitor & Contractor logs", "Pest control records", "Cleaning & Disinfection logs", "COSHH assessments"]
+      features: ["Farm Buildings & Areas registry", "Visitor & Contractor logs", "Pest control records", "Cleaning & Disinfection logs", "COSHH assessments"]
     },
     {
       title: "Staff & Training",

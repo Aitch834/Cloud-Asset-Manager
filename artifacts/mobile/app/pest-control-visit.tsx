@@ -27,6 +27,11 @@ import type { PestControlVisit } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { pestControlHtml } from "@/lib/printTemplates";
 
+const COMMON_LOCATIONS = [
+  "Grain store", "Feed store", "Cattle shed", "Dairy parlour",
+  "Poultry house", "Pig building", "Workshop / yard", "Hedge / perimeter", "Other",
+];
+
 const PEST_TYPES = [
   { key: "rats-mice", label: "Rats / Mice", icon: "alert-circle" as const, color: "#92400E" },
   { key: "rabbits", label: "Rabbits", icon: "circle" as const, color: colors.fieldBrown },
@@ -116,14 +121,26 @@ export default function PestControlVisitScreen() {
         >
           <View style={styles.sectionLabel}>
             <Feather name="map-pin" size={14} color={colors.fieldBrown} />
-            <Text style={styles.sectionTitle}>Location</Text>
+            <Text style={styles.sectionTitle}>Location <Text style={styles.required}>*</Text></Text>
+          </View>
+          <View style={styles.chipGrid}>
+            {COMMON_LOCATIONS.map((loc) => {
+              const selected = location === loc;
+              return (
+                <Pressable
+                  key={loc}
+                  onPress={() => { Haptics.selectionAsync(); setLocation(loc); }}
+                  style={[styles.chip, selected && { backgroundColor: "#fef3c7", borderColor: "#d97706" }]}
+                >
+                  <Text style={[styles.chipText, selected && { color: "#d97706", fontFamily: fonts.semiBold }]}>{loc}</Text>
+                </Pressable>
+              );
+            })}
           </View>
           <Input
-            label="Location / Description"
-            placeholder="e.g. Grain store, Chicken shed No.2, North hedgerow"
+            placeholder="Or type a specific location…"
             value={location}
             onChangeText={setLocation}
-            required
           />
 
           <View style={styles.sectionLabel}>
@@ -257,4 +274,5 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.text,
   },
+  required: { color: colors.error },
 });

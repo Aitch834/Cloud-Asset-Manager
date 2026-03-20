@@ -3084,6 +3084,30 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
 <p>For farms employing BASIS-qualified agronomists, the recommendation records within each inspection serve as a lightweight version of the agronomist's written advice — though they do not replace a full written spray recommendation where one is required by the scheme.</p>`,
     },
     {
+      id: 33,
+      title: "Farm Buildings & Areas Registry",
+      category: "Biosecurity",
+      content: `<p>The Farm Buildings &amp; Areas registry is your farm's master list of physical locations — buildings, yards, stores, and outdoor areas. Once defined here, these locations appear as structured dropdown selections across Cleaning &amp; Disinfection, Pest Control, COSHH Assessments, and Risk Assessments. This means every record uses the same, consistently-named location, making it possible to build a complete history of what was done in each building or area.</p>
+
+<h3>Why This Matters for Red Tractor</h3>
+<p>Red Tractor inspectors reviewing biosecurity records often ask about specific buildings — when was Cattle Shed 3 last cleaned? What pest control has been carried out in the grain store? If every record uses slightly different names for the same location (e.g. "Dairy parlour", "dairy parlour", "milking parlour"), these records are impossible to group meaningfully. A structured location registry solves this at source.</p>
+
+<h3>Setting Up Your Locations</h3>
+<p>Navigate to <strong>Biosecurity → Farm Locations</strong> in the sidebar. Click <strong>Add Location</strong> and enter:</p>
+<ul>
+<li><strong>Location Name</strong> — use the name everyone on the farm calls it. Include numbers where relevant (Cattle Shed 1, Cattle Shed 2, etc.)</li>
+<li><strong>Location Type</strong> — choose from Livestock Building, Crop &amp; Feed Store, Equipment &amp; Workshop, Chemical &amp; Fuel Store, Outdoor Area / Yard, Welfare Facility, Office / Farm Building, or Other.</li>
+<li><strong>Description</strong> (optional) — any additional context, e.g. "200-cow cubicle shed, east of yard"</li>
+</ul>
+<p>Add every building and area that might appear in a cleaning, pest control, or risk assessment record. You can add more locations at any time and mark old ones as <strong>Inactive</strong> if they are demolished or no longer used — inactive locations are hidden from dropdowns but their historical records are preserved.</p>
+
+<h3>Using Locations in Other Modules</h3>
+<p>Once you have defined your farm's locations, opening any Cleaning &amp; Disinfection, Pest Control, COSHH, or Risk Assessment record will show a dropdown picker for the area/location field, grouped by location type. If a specific location is not in the list, you can still type a custom value using the <strong>Other / type your own</strong> option at the bottom of the dropdown.</p>
+
+<h3>Viewing Location History</h3>
+<p>Because all records now reference the same standardised location names, you can use the Search function on each module page to filter all records for a specific building — for example, searching "Dairy Parlour" on the Cleaning page will show every cleaning event ever recorded in the dairy parlour, in date order. This is exactly the kind of evidence that satisfies an auditor asking for a location-specific history.</p>`,
+    },
+    {
       id: 26,
       title: "Understanding Business Reports",
       category: "Finance & Business",
