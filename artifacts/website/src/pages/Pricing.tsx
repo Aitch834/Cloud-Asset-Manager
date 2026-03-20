@@ -26,6 +26,7 @@ const MODULES = [
   { id: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", price: 30 },
   { id: "external-access", name: "Advisor & Inspector Access", price: 4 },
   { id: "business-reports", name: "Business Reports", price: 5 },
+  { id: "sms-alerts", name: "SMS Text Alerts", price: 4 },
 ];
 
 interface Farm {
