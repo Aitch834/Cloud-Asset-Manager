@@ -2761,6 +2761,43 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
       content: `BDE Farm Trac includes a secure external access system that lets you share read-only views of your farm records with anyone who needs to review them — without giving them a full login or access to your entire account. This is designed for agronomists, FACTS advisers, vets, Red Tractor certification bodies, banks, and any other party that periodically needs to review your compliance records.\n\nThe Advisors & External Access feature is available under Settings. It has two tiers.\n\nAdvisor Accounts are for recurring advisors who need regular access — for example your agronomist, BASIS consultant, or vet. You create an advisor account by entering their name, email address, role, and choosing which of 14 modules they can view. Once saved, a secure link is automatically copied to your clipboard. You send that link by email. The advisor clicks it and sees a clean, read-only view of exactly the modules you chose. Their access is permanent until you revoke it. The system records when they last accessed the view, which is visible on your settings page.\n\nInspection Sessions are for time-limited access — most commonly for Red Tractor Certification Body inspectors, one-off audits, or bank reviews. You create a session by entering the inspector's name, organisation, and purpose (e.g. Red Tractor Inspection, Environmental Audit, Due Diligence). You set an expiry date — typically 7 to 30 days — and choose the modules to share. A secure link is generated and copied to your clipboard. No account is required — the link is the key. The session card on your settings page shows a colour-coded expiry badge (green, amber, or red as the date approaches) and an access count showing how many times the link has been used.\n\nThe read-only view that advisors and inspectors see opens in any browser without a login prompt. It shows a green banner across the top confirming they are in read-only mode, the farm's name and registration details (CPH number, Red Tractor ID, SBI number, farm manager), and a section for each permitted module with a table of all records in that module. They cannot edit, add, or delete anything. An expired or revoked link shows a clear error message directing them to contact the farm.\n\nAll access is logged. A full access log at the bottom of your Advisors & External Access settings page records every time an external party views your records — their name, whether they are an advisor account or inspection session, and the exact date and time. This log itself is evidence of your transparency with your assurance body, and if Red Tractor moves toward requiring digital record-sharing as part of the certification process, you will already have the infrastructure in place.`,
     },
     {
+      id: 27,
+      title: "Logging Field Operations",
+      category: "Fields & Crops",
+      content: `<img src="/api/help-images/field-register.png" alt="Field Operations Log" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Field Operations module is part of Field &amp; Crop Management and provides a dedicated log for all cultivation, soil amendment, and other field activity events. Keeping these records supports your Red Tractor evidence file and is particularly important for demonstrating good soil management practice — a growing area of focus in Combinable Crops and Fresh Produce standards.</p>
+
+<h3>What Counts as a Field Operation?</h3>
+<p>Field operations cover any physical work carried out on land that is not a spray application or a fertiliser/FYM spreading event (which are recorded in Sprays &amp; Inputs and the NVZ module respectively). Examples include:</p>
+<ul>
+<li><strong>Primary cultivation</strong> — ploughing, sub-soiling, mole ploughing</li>
+<li><strong>Secondary cultivation</strong> — power harrowing, discing, tine harrowing, rotovating, stubble cultivation</li>
+<li><strong>Consolidation</strong> — rolling, Cambridge rolling, bed forming</li>
+<li><strong>Soil amendments</strong> — lime spreading, gypsum application, compost/organic matter application</li>
+<li><strong>Crop establishment</strong> — cover crop seeding, cover crop rolling/crimping, cover crop desiccation</li>
+<li><strong>Drainage</strong> — mole drainage, drainage repair works</li>
+<li><strong>Other applications</strong> — slug pellets, irrigation</li>
+</ul>
+
+<h3>Logging an Operation</h3>
+<p>Navigate to <strong>Field Operations</strong> in the sidebar (under Field &amp; Crop Management). Click <strong>Log Operation</strong> and complete the form:</p>
+<ol>
+<li>Select the <strong>date</strong> and choose the <strong>operation type</strong> from the grouped dropdown.</li>
+<li>Select the <strong>field</strong> from your field register (this auto-fills the area). If the field is not yet registered, type the name manually.</li>
+<li>Enter the <strong>implement or machinery</strong> used — for example "Lemken Diamant 11 5-furrow" or "Sumo Trio 5m". This is useful for cross-referencing with equipment maintenance records.</li>
+<li>For cultivation operations, enter the <strong>working depth in centimetres</strong> and the <strong>number of passes</strong>. Working depth is a useful indicator of soil disturbance and is referenced in soil carbon baseline assessments.</li>
+<li>For lime, compost, gypsum, or slug pellet applications, enter the <strong>quantity</strong> and <strong>unit</strong> (e.g. 4 t/ha).</li>
+<li>Enter the <strong>operator name</strong> and any <strong>notes</strong> about soil conditions, weather, or observations.</li>
+</ol>
+
+<h3>Filtering and Searching</h3>
+<p>The field operations log can be filtered by operation type using the dropdown above the table, and searched by field name, implement, or operator name using the search bar. This makes it straightforward to find all rolling events for a specific field, or all operations carried out by a specific contractor, without scrolling through the full log.</p>
+
+<h3>Red Tractor and Soil Management</h3>
+<p>Red Tractor's Combinable Crops standard requires evidence of soil management practices. Keeping a complete cultivation log — with dates, depths, and implements — demonstrates that you are actively managing soil structure. This is particularly relevant if your farm is in a Soil Health Stewardship agreement or if you are asked to evidence minimum tillage commitments under an agri-environment scheme. Link relevant field operation records to your Environmental Features log where applicable.</p>`,
+    },
+    {
       id: 26,
       title: "Understanding Business Reports",
       category: "Finance & Business",
