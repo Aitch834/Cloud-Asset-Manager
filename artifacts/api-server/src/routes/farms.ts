@@ -2965,6 +2965,64 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
 <p>Some management activities are subject to seasonal restrictions. Hedge trimming, for example, must not take place between 1 March and 31 August under the Wildlife &amp; Countryside Act 1981 (with limited exceptions). Ditch management may be restricted in or near SSSIs or under agri-environment scheme conditions. BDE Farm Trac does not automatically validate management dates against legal restrictions, so it remains your responsibility to check the applicable rules before carrying out management work. Record the actual date the work was done — do not backdate entries.</p>`,
     },
     {
+      id: 32,
+      title: "Field Inspections — Logging, Action Flags & Resolution Tracking",
+      category: "Fields & Crops",
+      content: `<img src="/api/help-images/field-register.png" alt="Field Inspections" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Field Inspections feature allows you and your team to log in-field crop inspection findings — either from the mobile app while out in the field or retrospectively via the web dashboard. Every inspection is stored against your farm record, automatically surfaced on the dashboard, and — where the inspection flags a treatment or urgent action — an alert notification is raised and an SMS is sent to opted-in users immediately.</p>
+
+<h3>Logging an Inspection from the Mobile App</h3>
+<p>Open the BDE Farm Trac mobile app, tap <strong>Record</strong> on the bottom navigation bar, and select <strong>Field Inspection</strong>. Complete the form fields:</p>
+<ul>
+<li><strong>Field name</strong> — type the field name or select it from your field register</li>
+<li><strong>Inspection date</strong> — defaults to today; change if recording retrospectively</li>
+<li><strong>Crop type &amp; growth stage</strong> — enter the crop being inspected and its current growth stage (e.g. BBCH 31 — stem extension, or "flag leaf")</li>
+<li><strong>Pest / disease observations</strong> — free text describing what was seen. Include pest species, disease symptoms, percentage of crop affected, and field sections impacted</li>
+<li><strong>Action required</strong> — select one of four options: <strong>None</strong>, <strong>Monitor</strong>, <strong>Treat</strong>, or <strong>Urgent</strong></li>
+<li><strong>Recommended action</strong> — describe the specific action proposed (e.g. "apply fungicide T1, target septoria")</li>
+<li><strong>Inspector name</strong> — your name or the agronomist's name</li>
+<li><strong>Notes</strong> — any additional context</li>
+</ul>
+<p>Tap <strong>Save</strong>. The record is queued on the device and automatically synced to the server the next time you have a data or Wi-Fi connection. Once synced, the inspection appears on the Field Inspections page of the web dashboard immediately.</p>
+
+<h3>Action Flags</h3>
+<p>The action flag is the key field for prioritisation and alerting:</p>
+<ul>
+<li><strong>None</strong> — no action needed; the inspection is informational</li>
+<li><strong>Monitor</strong> — conditions warrant watching; revisit within a defined period. No alert is raised, but the inspection appears in the Monitoring count on the dashboard</li>
+<li><strong>Treat</strong> — a spray or other treatment is recommended. A warning notification is created and appears in your dashboard notification feed</li>
+<li><strong>Urgent</strong> — immediate action is required. A critical notification is raised and an SMS alert is sent immediately to all farm users who have opted in to SMS notifications. Urgent inspections appear highlighted in red on the dashboard</li>
+</ul>
+
+<h3>Dashboard — Field Inspections Page</h3>
+<p>Navigate to <strong>Field Inspections</strong> in the left sidebar (under Fields &amp; Crops). The page shows four summary cards at the top:</p>
+<ul>
+<li><strong>Total Inspections</strong> — all inspections on record for this farm</li>
+<li><strong>Open Actions</strong> — unresolved treat or urgent inspections requiring a response</li>
+<li><strong>Monitoring</strong> — active monitor-flagged inspections not yet resolved</li>
+<li><strong>Resolved This Month</strong> — inspections resolved in the current calendar month</li>
+</ul>
+<p>The table below lists all inspections with field name, date, crop type, observation summary, action badge, and inspector name. Use the search box to filter by field name or inspector, and use the status and action filters to narrow the list to open actions, monitoring flags, or resolved records.</p>
+
+<h3>Viewing an Inspection</h3>
+<p>Click <strong>View</strong> on any row to open a detail panel showing all fields recorded during the inspection, including the full observation text, recommended action, growth stage, and — if the inspection has been resolved — the resolution details. Use this panel to review an inspection before deciding whether to resolve it or escalate further.</p>
+
+<h3>Resolving an Action</h3>
+<p>Once the required action has been taken (e.g. a treatment spray has been applied), mark the inspection as resolved:</p>
+<ol>
+<li>Click <strong>Resolve</strong> on the table row, or click <strong>View</strong> and then <strong>Mark as Resolved</strong> in the detail panel</li>
+<li>Enter your name in the <strong>Resolved by</strong> field — this is required</li>
+<li>Enter <strong>Resolution notes</strong> describing what action was taken, when, and by whom (e.g. "T1 fungicide applied 18 March by J. Davies — Amistar Top at 1.0 L/ha")</li>
+<li>Click <strong>Mark Resolved</strong></li>
+</ol>
+<p>The inspection status updates to <strong>Resolved</strong> with a green badge, the resolution date and name are recorded, and the Open Actions count on the dashboard decreases accordingly. Resolved inspections remain on record and can be viewed at any time for audit purposes.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Regular field inspections are a core requirement of the Red Tractor Combinable Crops and Fresh Produce standards. Inspectors will expect to see evidence that crop conditions are being monitored throughout the season, that pest and disease pressures are being assessed by a qualified person, and that any treatments applied follow from a documented recommendation. The Field Inspections log provides that audit trail: each record is datestamped, attributed to a named inspector, and links directly to any resulting spray applications through the Spray Records module.</p>
+<p>For farms employing BASIS-qualified agronomists, the recommendation records within each inspection serve as a lightweight version of the agronomist's written advice — though they do not replace a full written spray recommendation where one is required by the scheme.</p>`,
+    },
+    {
       id: 26,
       title: "Understanding Business Reports",
       category: "Finance & Business",
