@@ -1,7 +1,7 @@
 import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable } from "@workspace/db";
 import { usersTable, userTenantsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable } from "@workspace/db/schema";
-import { eq, and, lt, isNull, sql, gte, lte } from "drizzle-orm";
+import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull } from "drizzle-orm";
 import { sendSms } from "./sms";
 
 const ESCALATION_DAYS = 7;
@@ -36,6 +36,10 @@ async function dispatchSmsForCriticalAlert(tenantId: number, title: string, mess
   const hasModule = await tenantHasSmsModule(tenantId);
   if (!hasModule) return;
 
+  // Send to:
+  //   (a) users designated as alert recipients (Farm Managers / receiveAlerts = true), OR
+  //   (b) users who have explicitly opted in via their personal preference
+  // In both cases: must have a phone number and must not have explicitly opted out.
   const smsUsers = await db
     .select({ phoneNumber: usersTable.phoneNumber, smsOptIn: usersTable.smsOptIn })
     .from(usersTable)
@@ -44,12 +48,20 @@ async function dispatchSmsForCriticalAlert(tenantId: number, title: string, mess
       and(
         eq(userTenantsTable.tenantId, tenantId),
         eq(userTenantsTable.isActive, true),
+        isNotNull(usersTable.phoneNumber),
+        ne(usersTable.smsOptIn, "none"),
+        or(
+          eq(userTenantsTable.receiveAlerts, true),
+          eq(usersTable.smsOptIn, "all"),
+          eq(usersTable.smsOptIn, "critical"),
+        ),
       )
     );
 
+  const seen = new Set<string>();
   for (const user of smsUsers) {
-    if (!user.phoneNumber) continue;
-    if (user.smsOptIn !== "all" && user.smsOptIn !== "critical") continue;
+    if (!user.phoneNumber || seen.has(user.phoneNumber)) continue;
+    seen.add(user.phoneNumber);
     const smsBody = `BDE Farm Trac Alert\n${title}\n${message.slice(0, 140)}`;
     await sendSms(user.phoneNumber, smsBody);
   }

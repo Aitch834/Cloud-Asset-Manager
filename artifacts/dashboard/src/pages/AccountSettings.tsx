@@ -221,7 +221,7 @@ export default function AccountSettings() {
                     current={smsOptIn}
                     icon={AlertTriangle}
                     label="Critical alerts only"
-                    description="Text only for the most urgent issues: unnotified livestock movements, expired certificates, and overdue non-conformances."
+                    description="Text only for the most urgent issues: unnotified livestock movements, water quality failures, expired certificates, and overdue non-conformances."
                     onChange={setSmsOptIn}
                   />
                   <SmsLevelButton
@@ -233,6 +233,13 @@ export default function AccountSettings() {
                     onChange={setSmsOptIn}
                   />
                 </div>
+              </div>
+
+              {/* Manager designation note */}
+              <div className="rounded-lg border border-border bg-muted/40 px-3.5 py-3">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  <strong className="font-medium text-foreground">Farm Managers</strong> are automatically included in critical alerts when a mobile number is saved — even if no alert level is selected above. Setting "No SMS alerts" will always override this. Your BDE Farm Trac account administrator can update your alert designation.
+                </p>
               </div>
 
               {/* GDPR consent */}

@@ -86,6 +86,7 @@ export const userTenantsTable = pgTable("user_tenants", {
   roleId: integer("role_id").notNull().references(() => rolesTable.id),
   isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
+  receiveAlerts: boolean("receive_alerts").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => [

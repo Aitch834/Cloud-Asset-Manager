@@ -75,6 +75,7 @@ router.post("/tenants", requireAuth, async (req: Request, res: Response): Promis
     tenantId: tenant.id,
     roleId,
     isSuperAdmin: false,
+    receiveAlerts: true,
   });
 
   res.status(201).json({ tenant });

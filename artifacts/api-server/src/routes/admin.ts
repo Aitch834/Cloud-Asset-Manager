@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable } from "@workspace/db";
+import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable } from "@workspace/db";
 import { eq, and, count, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
@@ -73,16 +73,38 @@ router.get("/admin/tenants/:tenantId", requireAuth, async (req: Request, res: Re
     .select({
       userId: userTenantsTable.userId,
       roleId: userTenantsTable.roleId,
+      roleName: rolesTable.name,
       isActive: userTenantsTable.isActive,
+      receiveAlerts: userTenantsTable.receiveAlerts,
       email: usersTable.email,
       firstName: usersTable.firstName,
       lastName: usersTable.lastName,
     })
     .from(userTenantsTable)
     .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
+    .leftJoin(rolesTable, eq(rolesTable.id, userTenantsTable.roleId))
     .where(eq(userTenantsTable.tenantId, tenantId));
 
   res.json({ tenant, farms, subscriptions: subs, users });
+});
+
+router.patch("/admin/tenants/:tenantId/users/:userId/alerts", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const tenantId = parseInt(req.params.tenantId, 10);
+  const userId = req.params.userId;
+  const { receiveAlerts } = req.body as { receiveAlerts: boolean };
+
+  if (typeof receiveAlerts !== "boolean") {
+    res.status(400).json({ error: "receiveAlerts must be a boolean" });
+    return;
+  }
+
+  await db
+    .update(userTenantsTable)
+    .set({ receiveAlerts })
+    .where(and(eq(userTenantsTable.tenantId, tenantId), eq(userTenantsTable.userId, userId)));
+
+  res.json({ success: true });
 });
 
 router.get("/admin/stats", requireAuth, async (req: Request, res: Response): Promise<void> => {

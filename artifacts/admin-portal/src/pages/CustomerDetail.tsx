@@ -2,13 +2,73 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { api, type Tenant, type Farm, type Subscription, type TenantUser } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
-import { ArrowLeft, MapPin, CreditCard, Users, CheckCircle, XCircle, Building2, FileDown, Loader2, Mail, MailCheck } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Users, CheckCircle, XCircle, Building2, FileDown, Loader2, Mail, MailCheck, Bell, BellOff } from "lucide-react";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
       <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">{title}</h2>
       {children}
+    </div>
+  );
+}
+
+function UserRow({ user, tenantId, isLast, onUpdated }: {
+  user: TenantUser;
+  tenantId: number;
+  isLast: boolean;
+  onUpdated: (updated: TenantUser) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  async function toggleAlerts() {
+    setSaving(true);
+    try {
+      const secret = getSecret();
+      await api.updateUserReceiveAlerts(tenantId, user.userId, !user.receiveAlerts, secret);
+      onUpdated({ ...user, receiveAlerts: !user.receiveAlerts });
+    } catch {
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className={`px-5 py-3.5 flex items-center gap-3 ${!isLast ? "border-b border-border" : ""}`}>
+      <Users className="w-4 h-4 text-muted-foreground shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium">
+          {user.firstName} {user.lastName}
+        </p>
+        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+        {user.roleName && (
+          <p className="text-[11px] text-muted-foreground mt-0.5">{user.roleName}</p>
+        )}
+      </div>
+      <button
+        onClick={toggleAlerts}
+        disabled={saving}
+        title={user.receiveAlerts ? "Receives critical alerts — click to remove" : "Does not receive alerts — click to enable"}
+        className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors ${
+          user.receiveAlerts
+            ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
+            : "bg-muted text-muted-foreground hover:bg-muted/80"
+        }`}
+      >
+        {saving ? (
+          <Loader2 className="w-3 h-3 animate-spin" />
+        ) : user.receiveAlerts ? (
+          <Bell className="w-3 h-3" />
+        ) : (
+          <BellOff className="w-3 h-3" />
+        )}
+        {user.receiveAlerts ? "Receives alerts" : "No alerts"}
+      </button>
+      {user.isActive ? (
+        <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+      ) : (
+        <XCircle className="w-4 h-4 text-destructive shrink-0" />
+      )}
     </div>
   );
 }
@@ -283,23 +343,15 @@ export default function CustomerDetail() {
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             {users.map((user, i) => (
-              <div
+              <UserRow
                 key={user.userId}
-                className={`px-5 py-3.5 flex items-center gap-3 ${i < users.length - 1 ? "border-b border-border" : ""}`}
-              >
-                <Users className="w-4 h-4 text-muted-foreground shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">
-                    {user.firstName} {user.lastName}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                </div>
-                {user.isActive ? (
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                ) : (
-                  <XCircle className="w-4 h-4 text-destructive" />
-                )}
-              </div>
+                user={user}
+                tenantId={tenantId}
+                isLast={i === users.length - 1}
+                onUpdated={(updated) =>
+                  setUsers((prev) => prev.map((u) => (u.userId === updated.userId ? updated : u)))
+                }
+              />
             ))}
           </div>
         )}

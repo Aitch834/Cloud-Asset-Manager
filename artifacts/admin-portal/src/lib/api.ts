@@ -110,7 +110,9 @@ export interface TenantUser {
   firstName: string;
   lastName: string;
   roleId: number;
+  roleName: string | null;
   isActive: boolean;
+  receiveAlerts: boolean;
 }
 
 export interface SupportTicket {
@@ -228,6 +230,9 @@ export const api = {
       `/admin/tenants/${id}`,
       secret
     ),
+
+  updateUserReceiveAlerts: (tenantId: number, userId: string, receiveAlerts: boolean, secret: string) =>
+    patch<{ success: boolean }>(`/admin/tenants/${tenantId}/users/${userId}/alerts`, { receiveAlerts }, secret),
 
   getSupportTickets: (secret: string) =>
     get<{ tickets: SupportTicket[] }>("/admin/support-tickets", secret),
