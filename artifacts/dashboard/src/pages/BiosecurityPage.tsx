@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
+import { FarmLocationSelect } from "@/components/ui/FarmLocationSelect";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card } from "@/components/ui/card";
@@ -412,7 +413,7 @@ function PestControlTab({ farmId }: { farmId: number }) {
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Location</label>
-                <Input placeholder="e.g. Grain store, Yard perimeter" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+                <FarmLocationSelect farmId={farmId} value={form.location} onChange={v => setForm(f => ({ ...f, location: v }))} placeholder="Select or type location…" />
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Treatment Date <span className="text-red-500">*</span></label>
@@ -604,7 +605,7 @@ function CleaningTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Area / Location <span className="text-red-500">*</span></label>
-                <Input placeholder="e.g. Dairy parlour, Cattle shed 2" value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))} required />
+                <FarmLocationSelect farmId={farmId} value={form.area} onChange={v => setForm(f => ({ ...f, area: v }))} required placeholder="Select area / location…" />
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaning Type <span className="text-red-500">*</span></label>
@@ -761,7 +762,7 @@ function CoshhTab({ farmId }: { farmId: number }) {
               <div><Label>Hazard Classification</Label><Input placeholder="e.g. Irritant, Harmful to environment" value={form.hazardClassification} onChange={e => setForm((f: any) => ({ ...f, hazardClassification: e.target.value }))} /></div>
               <div><Label>Usage Area</Label><Input placeholder="e.g. Arable fields, buildings" value={form.usageArea} onChange={e => setForm((f: any) => ({ ...f, usageArea: e.target.value }))} /></div>
             </div>
-            <div><Label>Storage Location</Label><Input placeholder="e.g. Agrochemical store, secure cabinet" value={form.storageLocation} onChange={e => setForm((f: any) => ({ ...f, storageLocation: e.target.value }))} /></div>
+            <div><Label>Storage Location</Label><FarmLocationSelect farmId={farmId} value={form.storageLocation} onChange={v => setForm((f: any) => ({ ...f, storageLocation: v }))} placeholder="Select storage location…" /></div>
             <div><Label>Control Measures / PPE Required</Label><Textarea placeholder="Describe PPE, handling precautions, ventilation requirements..." value={form.controlMeasures} onChange={e => setForm((f: any) => ({ ...f, controlMeasures: e.target.value }))} rows={2} /></div>
             <div><Label>Emergency Procedures</Label><Textarea placeholder="Spill response, first aid, emergency contacts..." value={form.emergencyProcedures} onChange={e => setForm((f: any) => ({ ...f, emergencyProcedures: e.target.value }))} rows={2} /></div>
             <div className="grid grid-cols-3 gap-3">

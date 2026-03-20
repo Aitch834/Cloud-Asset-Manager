@@ -18,6 +18,7 @@ export * from "./financial";
 export * from "./documents";
 export * from "./weather";
 export * from "./support-enhanced";
+export * from "./farm-locations";
 export * from "./biofuel";
 export * from "./access";
 export * from "./admin-emails";

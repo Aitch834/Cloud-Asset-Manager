@@ -21,8 +21,9 @@ The monorepo is structured with `pnpm workspaces`, using Node.js 24 and TypeScri
 - Seeds default roles and modules on startup.
 
 **Database Layer (`lib/db`):**
-- Utilizes PostgreSQL with Drizzle ORM.
-- Comprises over 60 tables across multiple schema files covering authentication, core tenant data, leads, support, and all farm-specific modules (e.g., fields, crops, livestock, equipment, financial).
+- Utilises PostgreSQL with Drizzle ORM.
+- Comprises 60+ tables across multiple schema files covering authentication, core tenant data, leads, support, and all farm-specific modules (e.g., fields, crops, livestock, equipment, financial).
+- `farm_locations` table provides a named registry of farm buildings and areas (livestock buildings, crop stores, equipment stores, chemical stores, outdoor areas, welfare facilities, offices). Used as a shared lookup across Cleaning, Pest Control, Risk Assessments, and COSHH.
 
 **Dashboard (`artifacts/dashboard`):**
 - React + Vite application with `wouter` for routing and TanStack React Query for data fetching.

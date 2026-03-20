@@ -69,6 +69,7 @@ const complianceNav: NavItem[] = [
 ];
 
 const biosecurityNav: NavItem[] = [
+  { name: "Farm Locations", href: "/farm-locations", icon: MapPin, moduleKeys: ["biosecurity"] },
   { name: "Visitor Log", href: "/visitors", icon: Users, moduleKeys: ["biosecurity"] },
   { name: "Pest Control", href: "/pest-control", icon: Bug, moduleKeys: ["biosecurity"] },
   { name: "Cleaning", href: "/cleaning", icon: ShieldCheck, moduleKeys: ["biosecurity"] },

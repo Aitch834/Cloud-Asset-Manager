@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { FarmLocationSelect } from "@/components/ui/FarmLocationSelect";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -296,7 +297,7 @@ export default function RiskAssessmentsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Area / Location</Label>
-                <Input value={form.area ?? ""} onChange={e => set("area", e.target.value)} placeholder="e.g. Agrochemical store, workshop" />
+                <FarmLocationSelect farmId={farmId} value={form.area ?? ""} onChange={v => set("area", v)} placeholder="Select or type area…" />
               </div>
               <div className="space-y-1.5">
                 <Label>Risk Level</Label>

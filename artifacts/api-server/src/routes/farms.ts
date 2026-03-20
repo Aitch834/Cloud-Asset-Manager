@@ -70,6 +70,7 @@ import {
   farmAdvisorsTable,
   farmInspectionSessionsTable,
   externalAccessLogTable,
+  farmLocationsTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification } from "../lib/alertingJob";
@@ -1291,6 +1292,50 @@ router.post("/farms/:farmId/cleaning", requireAuth, requireTenant, requireModule
   if (!farmId) return;
   const [record] = await db.insert(cleaningDisinfectionRecordsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
+});
+
+// ─── Farm Locations ───────────────────────────────
+router.get("/farms/:farmId/farm-locations", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const locations = await db.select().from(farmLocationsTable).where(eq(farmLocationsTable.farmId, farmId)).orderBy(farmLocationsTable.name);
+  res.json(locations);
+});
+
+router.post("/farms/:farmId/farm-locations", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { name, locationType, description, notes, isActive } = req.body;
+  const [location] = await db.insert(farmLocationsTable).values({
+    farmId,
+    name,
+    locationType,
+    description: description || null,
+    notes: notes || null,
+    isActive: isActive !== false,
+  }).returning();
+  res.status(201).json(location);
+});
+
+router.put("/farms/:farmId/farm-locations/:locationId", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const locationId = parseInt(req.params.locationId);
+  const { name, locationType, description, notes, isActive } = req.body;
+  const [location] = await db.update(farmLocationsTable)
+    .set({ name, locationType, description: description || null, notes: notes || null, isActive: isActive !== false })
+    .where(and(eq(farmLocationsTable.id, locationId), eq(farmLocationsTable.farmId, farmId)))
+    .returning();
+  if (!location) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(location);
+});
+
+router.delete("/farms/:farmId/farm-locations/:locationId", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const locationId = parseInt(req.params.locationId);
+  await db.delete(farmLocationsTable).where(and(eq(farmLocationsTable.id, locationId), eq(farmLocationsTable.farmId, farmId)));
+  res.status(204).end();
 });
 
 // ─── Staff Training ───────────────────────────────
