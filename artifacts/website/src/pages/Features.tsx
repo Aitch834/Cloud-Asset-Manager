@@ -42,7 +42,7 @@ export default function Features() {
       title: "Livestock Management",
       icon: PawPrint,
       color: "bg-rose-50 text-rose-600 border-rose-100",
-      features: ["Herd/flock register", "Movement records (eAML2)", "Medicine & Vet logs", "Feed traceability"]
+      features: ["Herd & flock register", "Movement records (eAML2 / ScotEID / EIDCymru)", "Medicine records & withdrawal tracking", "Animal mortality records — cause, disposal & BCMS", "Feed records with supplier & batch traceability", "Annual water quality testing records", "Daily welfare checks with condition scoring", "Annual vet health plans (signed, printable)"]
     },
     {
       title: "Biosecurity & Visitors",

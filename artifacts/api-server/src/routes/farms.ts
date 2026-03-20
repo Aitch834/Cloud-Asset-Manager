@@ -2798,6 +2798,99 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
 <p>Red Tractor's Combinable Crops standard requires evidence of soil management practices. Keeping a complete cultivation log — with dates, depths, and implements — demonstrates that you are actively managing soil structure. This is particularly relevant if your farm is in a Soil Health Stewardship agreement or if you are asked to evidence minimum tillage commitments under an agri-environment scheme. Link relevant field operation records to your Environmental Features log where applicable.</p>`,
     },
     {
+      id: 28,
+      title: "Logging Animal Mortality Records",
+      category: "Livestock",
+      content: `<img src="/api/help-images/medicine-records.png" alt="Livestock Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Accurate mortality records are a legal requirement for all livestock keepers and form a key part of your Red Tractor audit evidence. The BDE Farm Trac Livestock module now includes a dedicated <strong>Mortality Records</strong> tab that captures all the information required by law and by your assurance body.</p>
+
+<h3>Legal Requirements</h3>
+<p>Under The Livestock (Record Keeping) (England) Regulations and equivalent devolved legislation, you must record the death of every bovine animal within 7 days and notify BCMS (the British Cattle Movement Service) within that period. For sheep, pigs, and goats, deaths must be recorded in the farm register with the date, cause of death, and disposal method. All mortality records must be retained for a minimum of <strong>3 years</strong>.</p>
+
+<h3>What to Record</h3>
+<p>For each animal death, record the following:</p>
+<ul>
+<li><strong>Ear tag / tag number</strong> — for cattle, the official UK ear tag number</li>
+<li><strong>Species and breed</strong></li>
+<li><strong>Date of death</strong></li>
+<li><strong>Cause of death</strong> — disease, injury, metabolic disorder, difficult birth, hypothermia, predation, euthanised, or unknown</li>
+<li><strong>Disposal method</strong> — NFAS fallen stock collection, hunt kennel/knacker, licensed incineration/cremation, on-farm burial (with licence), or rendering plant</li>
+<li><strong>Collector/operator name</strong> and <strong>disposal reference number</strong> (e.g. NFAS certificate number)</li>
+<li><strong>Whether a vet attended</strong> and, if so, their name</li>
+<li><strong>Whether a post-mortem was carried out</strong> and the findings</li>
+<li><strong>BCMS notification reference</strong> (cattle only)</li>
+</ul>
+
+<h3>Adding a Mortality Record — Dashboard</h3>
+<p>Go to <strong>Livestock</strong> in the left-hand sidebar and click the <strong>Mortality</strong> tab. Click <strong>Add Record</strong>. Complete all required fields — the form guides you through cause of death and disposal method using standard classification options. Tick <strong>BCMS notified</strong> once you have submitted the notification to the BCMS Online portal, and enter the reference number you receive.</p>
+
+<h3>Adding a Mortality Record — Mobile App</h3>
+<p>Tap <strong>Record</strong> on the bottom navigation bar and select <strong>Animal Mortality Record</strong>. The form includes the same fields as the dashboard. The record is saved to your device immediately and synced to the cloud when you next have an internet connection. This is particularly useful for recording deaths discovered in the field before you return to the office.</p>
+
+<h3>Disposal Documentation</h3>
+<p>You must retain the collection certificate or consignment note from your fallen stock collector. For on-farm burial you must hold a valid burial licence issued by the Environment Agency (England) or equivalent devolved body. Link these documents to the mortality record using the document attachment function.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor Livestock Standards require that mortality records are maintained and available for inspection. The BDE Farm Trac Mortality tab is structured around the information checklist used by Red Tractor assessors, so completing a record in the system means your paper trail is ready for audit without separate filing.</p>`,
+    },
+    {
+      id: 29,
+      title: "Feed Records and Traceability",
+      category: "Livestock",
+      content: `<p>Feed traceability is a core requirement of Red Tractor's Livestock Standards. For cattle, sheep, pigs, and poultry, you must be able to demonstrate which feedstuffs were fed, who supplied them, and — crucially — what batch or lot number each delivery came from. The BDE Farm Trac <strong>Feed Records</strong> tab (under Livestock) provides a structured log that satisfies this requirement.</p>
+
+<h3>Why Batch Numbers Matter</h3>
+<p>If there is a feed recall or a contamination incident, the batch number on your records allows you to identify which animals may have been exposed, when, and in what quantity. Without batch records, you cannot provide this traceability evidence and could face a Red Tractor non-conformance. Retain all original delivery notes and purchase invoices — the batch number on your BDE Farm Trac record must match the batch number printed on the delivery note or bag.</p>
+
+<h3>What to Record</h3>
+<p>For each feed delivery or ration change, record:</p>
+<ul>
+<li><strong>Feed type</strong> — compound pellets, silage, hay, minerals, milk replacer, TMR, etc.</li>
+<li><strong>Supplier name</strong></li>
+<li><strong>Batch / lot number</strong> — as printed on the delivery note, bag, or bulk load documentation</li>
+<li><strong>Quantity (kg)</strong></li>
+<li><strong>Date of delivery or feeding</strong></li>
+<li><strong>Herd or flock name</strong> — which group received the feed</li>
+</ul>
+
+<h3>Adding a Feed Record — Dashboard</h3>
+<p>Go to <strong>Livestock</strong> in the sidebar and select the <strong>Feed Records</strong> tab. Click <strong>Add Feed Record</strong>. Select the feed type from the drop-down list, enter the supplier name and batch/lot number, and enter the quantity in kilograms. Click <strong>Save Record</strong>. All feed records are listed in date order so that you can cross-reference them against medicine records and welfare checks for any given period.</p>
+
+<h3>Adding a Feed Record — Mobile App</h3>
+<p>Tap <strong>Record</strong> in the bottom navigation bar and select <strong>Feed Record</strong>. Enter the herd/flock name, choose the feed type, and fill in the supplier and batch number fields before saving. The record is saved locally and synced automatically when a connection is available — ideal for recording at the point of delivery, before paperwork is misplaced.</p>
+
+<h3>Feed Records vs Daily Welfare Checks</h3>
+<p>The <strong>Livestock Health Check</strong> screen in the mobile app includes a quick "Feed OK" toggle — this is a daily observation record, not a traceability record. The dedicated <strong>Feed Record</strong> is what satisfies the Red Tractor feed traceability requirement and should be completed for each distinct delivery or batch change.</p>`,
+    },
+    {
+      id: 30,
+      title: "Water Quality Testing Records",
+      category: "Livestock",
+      content: `<p>Providing clean, fresh water is a fundamental animal welfare requirement, and for certain species and water sources Red Tractor requires formal annual testing by an accredited laboratory. The BDE Farm Trac <strong>Water Quality Records</strong> tab (under Livestock) is where you log each test and its outcome.</p>
+
+<h3>When Testing Is Required</h3>
+<ul>
+<li><strong>Pigs and poultry</strong> — annual water quality testing is mandatory under Red Tractor Pigs and Red Tractor Poultry standards, regardless of whether the source is mains or non-mains.</li>
+<li><strong>Cattle and sheep (non-mains sources)</strong> — where water is supplied from a borehole, stream, reservoir, or other non-mains source, annual testing is required. Mains water supplied by a regulated water company does not require independent testing, though a record confirming the source type is still recommended.</li>
+</ul>
+
+<h3>What Tests Are Required</h3>
+<p>Testing should cover microbiological parameters (E. coli, total coliforms, Enterococcus) and, where applicable, chemical parameters (nitrate levels, hardness, pH). Use a UKAS-accredited laboratory for testing. Your vet or assurance body can advise on appropriate test parameters for your species and water source.</p>
+
+<h3>Adding a Water Record — Dashboard</h3>
+<p>Go to <strong>Livestock</strong> in the sidebar and select the <strong>Water Quality</strong> tab. Click <strong>Add Water Record</strong>. Select the water source from the drop-down (mains, borehole, stream, reservoir, bowser, or other), enter the test date, the result description (e.g. "Pass — E. coli &lt;1 CFU/100ml"), and set the overall outcome to Pass or Fail. If the test fails, record the remedial action taken in the Notes field and log a follow-up test once the issue is resolved.</p>
+
+<h3>Adding a Water Record — Mobile App</h3>
+<p>Tap <strong>Record</strong> in the bottom navigation bar and select <strong>Water Quality Record</strong>. Choose the water source, enter the test date and result, and use the overall suitability toggle to mark the outcome. The record syncs automatically when connected.</p>
+
+<h3>Retaining Test Certificates</h3>
+<p>Your laboratory will issue a test certificate. Retain this alongside your BDE Farm Trac record — the certificate is the primary evidence; the digital record provides the searchable index and audit trail. Both should be available for inspection at a Red Tractor assessment. Scan or photograph the certificate and attach it to the relevant water record using the document attachment function.</p>
+
+<h3>Failed Tests</h3>
+<p>If a test returns a fail result, you must take immediate action to prevent animal welfare issues. Typical remedial steps include switching to an alternative water source, installing UV or chlorination treatment, and arranging a follow-up test. Document all steps taken in the Notes field. Red Tractor assessors will look for evidence that failed tests were followed up promptly and that corrective action was effective before the source was returned to use.</p>`,
+    },
+    {
       id: 26,
       title: "Understanding Business Reports",
       category: "Finance & Business",
