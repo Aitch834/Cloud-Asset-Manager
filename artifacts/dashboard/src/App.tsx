@@ -48,6 +48,8 @@ import StorageLocationsPage from "@/pages/StorageLocationsPage";
 import AccountSettings from "@/pages/AccountSettings";
 import AdvisorsAccessPage from "@/pages/AdvisorsAccessPage";
 import InspectionViewPage from "@/pages/InspectionViewPage";
+import RiskAssessmentsPage from "@/pages/RiskAssessmentsPage";
+import WasteDisposalPage from "@/pages/WasteDisposalPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,38 +70,11 @@ function InspectionsPage() {
 }
 
 function RisksPage() {
-  return <ModulePage title="Risk Assessments & COSHH" apiPath="risk-assessments" columns={[
-    { key: "title", label: "Title" },
-    { key: "assessmentDate", label: "Date" },
-    { key: "assessedBy", label: "Assessed By" },
-    { key: "riskLevel", label: "Risk Level" },
-    { key: "reviewDate", label: "Review Due" },
-  ]} formFields={[
-    { key: "title", label: "Title", required: true },
-    { key: "assessmentDate", label: "Assessment Date", type: "date", required: true },
-    { key: "assessedBy", label: "Assessed By", required: true },
-    { key: "riskLevel", label: "Risk Level", type: "select", options: ["low", "medium", "high", "critical"] },
-    { key: "hazardDescription", label: "Hazard Description", type: "textarea", required: true },
-    { key: "controlMeasures", label: "Control Measures", type: "textarea" },
-    { key: "reviewDate", label: "Review Date", type: "date" },
-  ]} />;
+  return <RiskAssessmentsPage />;
 }
 
 function WastePage() {
-  return <ModulePage title="Waste Management" apiPath="waste" columns={[
-    { key: "wasteType", label: "Type" },
-    { key: "disposalDate", label: "Date" },
-    { key: "disposalMethod", label: "Method" },
-    { key: "quantityKg", label: "Qty (kg)" },
-    { key: "carrierName", label: "Carrier" },
-  ]} formFields={[
-    { key: "wasteType", label: "Waste Type", required: true },
-    { key: "disposalDate", label: "Disposal Date", type: "date", required: true },
-    { key: "disposalMethod", label: "Method", required: true },
-    { key: "quantityKg", label: "Quantity (kg)", type: "number" },
-    { key: "carrierName", label: "Carrier" },
-    { key: "notes", label: "Notes", type: "textarea" },
-  ]} />;
+  return <WasteDisposalPage />;
 }
 
 function VisitorsPage() {
