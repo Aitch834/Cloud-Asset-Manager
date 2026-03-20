@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import { api, type Lead } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import {
-  Search, TrendingUp, Users, Phone, Mail, Calendar, ChevronRight,
+  Search, TrendingUp, Users, Mail, Calendar, ChevronRight,
   X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save,
 } from "lucide-react";
 
@@ -68,6 +69,7 @@ interface PanelProps {
 
 function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
   const secret = getSecret()!;
+  const [, navigate] = useLocation();
   const [status, setStatus] = useState(lead.status);
   const [notes, setNotes] = useState(lead.notes ?? "");
   const [saving, setSaving] = useState(false);
@@ -114,14 +116,18 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
             </div>
             <div className="space-y-1 col-span-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Email</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <p className="font-semibold text-foreground">{lead.email}</p>
-                <a
-                  href={`mailto:${lead.email}`}
-                  className="text-xs text-primary hover:underline font-medium"
+                <button
+                  onClick={() => {
+                    onClose();
+                    navigate(`/email?tab=compose&to=${encodeURIComponent(lead.email)}&toName=${encodeURIComponent(lead.contactName)}`);
+                  }}
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium"
                 >
+                  <Mail className="w-3 h-3" />
                   Open in Mail
-                </a>
+                </button>
               </div>
             </div>
             {lead.phone && (

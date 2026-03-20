@@ -424,10 +424,10 @@ function InboxTab() {
   );
 }
 
-function ComposeTab({ tenants }: { tenants: Tenant[] }) {
+function ComposeTab({ tenants, initialTo, initialToName }: { tenants: Tenant[]; initialTo?: string; initialToName?: string }) {
   const secret = getSecret()!;
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
-  const [form, setForm] = useState({ to: "", toName: "", subject: "", body: "" });
+  const [form, setForm] = useState({ to: initialTo ?? "", toName: initialToName ?? "", subject: "", body: "" });
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
@@ -992,7 +992,10 @@ function TemplatesTab() {
 
 export default function Email() {
   const secret = getSecret()!;
-  const [tab, setTab] = useState("inbox");
+  const params = new URLSearchParams(window.location.search);
+  const [tab, setTab] = useState(params.get("tab") === "compose" ? "compose" : "inbox");
+  const [initialTo] = useState(params.get("to") ?? "");
+  const [initialToName] = useState(params.get("toName") ?? "");
   const [tenants, setTenants] = useState<Tenant[]>([]);
 
   useEffect(() => {
@@ -1025,7 +1028,7 @@ export default function Email() {
 
       <div className={`${tab === "inbox" ? "flex-1 flex flex-col overflow-hidden" : "flex-1 overflow-y-auto"}`}>
         {tab === "inbox" && <InboxTab />}
-        {tab === "compose" && <ComposeTab tenants={tenants} />}
+        {tab === "compose" && <ComposeTab tenants={tenants} initialTo={initialTo} initialToName={initialToName} />}
         {tab === "sent" && <SentTab />}
         {tab === "templates" && <TemplatesTab />}
       </div>
