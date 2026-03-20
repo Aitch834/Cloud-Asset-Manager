@@ -3125,7 +3125,7 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
       category: "Fields & Crops",
       content: `<img src="/api/help-images/field-register.png" alt="Field Inspections" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
-<p>The Field Inspections feature allows you and your team to log in-field crop inspection findings — either from the mobile app while out in the field or retrospectively via the web dashboard. Every inspection is stored against your farm record, automatically surfaced on the dashboard, and — where the inspection flags a treatment or urgent action — an alert notification is raised and an SMS is sent to opted-in users immediately.</p>
+<p>The Field Inspections feature allows you and your team to log in-field crop inspection findings — either from the mobile app while out in the field or retrospectively via the web dashboard. Every inspection is stored against your farm record, automatically surfaced on the dashboard, and — where the inspection flags a treatment or urgent action — an alert notification is raised and, where the SMS Alerts module is active, an SMS is sent immediately to all designated Farm Managers and opted-in users.</p>
 
 <h3>Logging an Inspection from the Mobile App</h3>
 <p>Open the BDE Farm Trac mobile app, tap <strong>Record</strong> on the bottom navigation bar, and select <strong>Field Inspection</strong>. Complete the form fields:</p>
@@ -3147,7 +3147,7 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
 <li><strong>None</strong> — no action needed; the inspection is informational</li>
 <li><strong>Monitor</strong> — conditions warrant watching; revisit within a defined period. No alert is raised, but the inspection appears in the Monitoring count on the dashboard</li>
 <li><strong>Treat</strong> — a spray or other treatment is recommended. A warning notification is created and appears in your dashboard notification feed</li>
-<li><strong>Urgent</strong> — immediate action is required. A critical notification is raised and an SMS alert is sent immediately to all farm users who have opted in to SMS notifications. Urgent inspections appear highlighted in red on the dashboard</li>
+<li><strong>Urgent</strong> — immediate action is required. A critical notification is raised and an SMS alert is sent immediately to all designated Farm Managers and any users who have opted in to SMS notifications. Urgent inspections appear highlighted in red on the dashboard</li>
 </ul>
 
 <h3>Dashboard — Field Inspections Page</h3>
@@ -3222,6 +3222,50 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
 
 <h3>Exporting Reports</h3>
 <p>Each report can be exported as a PDF or CSV using the <strong>Export PDF</strong> button at the top right of the report view. PDF exports include your farm name, report period, and a BDE Farm Trac watermark — suitable for sharing with accountants, agronomists, or your assurance body.</p>`,
+    },
+    {
+      id: 34,
+      title: "SMS Text Alerts — Setup, Who Receives Them & Opting In",
+      category: "Account & Settings",
+      content: `<p>The <strong>SMS Text Alerts</strong> add-on sends critical compliance notifications to your mobile phone as text messages, so you are immediately informed of issues that need urgent attention — even if you are not logged in to the dashboard. This article explains how to activate the feature, who receives alerts, and how each user can manage their personal preferences.</p>
+
+<h3>Activating the Add-On</h3>
+<p>SMS Text Alerts is an optional add-on available at £4 per farm per month. It is not included in any base subscription. To activate it, contact your BDE Farm Trac account manager or visit your Subscription Settings page in the dashboard. Once active, the SMS Alerts module appears as enabled on the Account &amp; Notifications page for all users on that farm.</p>
+
+<h3>What Triggers an SMS</h3>
+<p>Only critical compliance events trigger a text message. These are:</p>
+<ul>
+<li><strong>Unnotified livestock movement</strong> — a movement on or off the holding has not been notified to the relevant authority (BCMS / APHA / ScotEID / EIDCymru) within the required 3-day window</li>
+<li><strong>Water quality failure</strong> — a water quality test has been logged with a fail result, indicating the water source may be unsuitable for livestock</li>
+<li><strong>Expired staff certificate</strong> — a mandatory training certificate (e.g. PA1/PA6, first aid, sprayer operator) has passed its expiry date</li>
+<li><strong>Overdue non-conformance</strong> — a non-conformance or corrective action has escalated beyond 7 days without resolution</li>
+</ul>
+<p>Warning-level notifications (e.g. field inspection "treat" flags, upcoming expiries) appear only in the in-app notification panel — they do not trigger a text message.</p>
+
+<h3>Who Receives SMS Alerts</h3>
+<p>The system sends critical alerts to two groups of users:</p>
+<ul>
+<li><strong>Designated Farm Managers</strong> — users who have been designated by the BDE Farm Trac account administrator as alert recipients. This designation is set on the account (not by the individual user) and is intended for farm owners, farm managers, and anyone who needs to be informed of critical compliance issues regardless of their personal notification preferences. Farm Managers receive critical alerts automatically once a mobile number is saved on their account — they do not need to manually opt in.</li>
+<li><strong>Opted-in users</strong> — any other user on the account who has added a mobile number and set their alert level to "Critical alerts only" or "All alerts" in Account &amp; Notifications.</li>
+</ul>
+<p>In both cases, the user must have a UK mobile number saved on their account. Setting the alert level to "No SMS alerts" always overrides the Farm Manager designation — so if a designated manager explicitly opts out, they will not receive texts.</p>
+
+<h3>Setting Your Personal Preferences — Account &amp; Notifications</h3>
+<p>Go to <strong>Account &amp; Notifications</strong> in the sidebar (bottom of the navigation). The SMS Text Notifications card shows your current settings.</p>
+<p>Enter your UK mobile number in E.164 format (e.g. <code>+447911123456</code>). Then choose your alert level:</p>
+<ul>
+<li><strong>No SMS alerts</strong> — you will only receive in-app notifications. This setting overrides any Farm Manager designation</li>
+<li><strong>Critical alerts only</strong> — you will receive texts for the critical events listed above</li>
+<li><strong>All alerts</strong> — you will receive texts for every compliance notification, including warnings and reminders</li>
+</ul>
+<p>If you are a designated Farm Manager, you receive critical alerts automatically when a number is saved — but you can still choose "Critical alerts only" or "All alerts" if you want to also receive non-critical notifications via text.</p>
+<p>Tick the consent checkbox confirming you agree to receive compliance alert messages from BDE Farm Trac, then click <strong>Save preferences</strong>. You can update or withdraw consent at any time by returning to this page.</p>
+
+<h3>Updating the Farm Manager Designation</h3>
+<p>The Farm Manager alert designation is managed by BDE Farm Trac staff, not by individual users. If you need someone added as a designated alert recipient — or removed — contact your BDE Farm Trac account manager. The designation is shown on the user list in the BDE admin portal and can be toggled without affecting the user's role or access permissions.</p>
+
+<h3>In-App Notifications</h3>
+<p>SMS alerts run alongside the in-app notification system, which operates independently of the SMS add-on. In-app notifications appear in the bell icon panel at the top right of the dashboard and are visible to all users logged into the farm. They are not per-user — all farm users see the same notification list. Marking a notification as read or deleting it updates it for everyone on that farm.</p>`,
     },
   ];
 
