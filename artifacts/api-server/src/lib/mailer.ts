@@ -1,6 +1,98 @@
 import nodemailer from "nodemailer";
 import { generateSetupGuidePdf, type SetupGuideOptions } from "./setup-guide-pdf";
 
+export interface SendEmailOptions {
+  to: string;
+  toName?: string;
+  subject: string;
+  body: string;
+  replyTo?: string;
+}
+
+export async function sendAdminEmail(opts: SendEmailOptions): Promise<{ sent: boolean; reason?: string }> {
+  const transport = createTransport();
+  if (!transport) {
+    return { sent: false, reason: "SMTP not configured (SMTP_PASS missing)" };
+  }
+
+  const html = wrapInBrandedLayout(opts.body);
+
+  try {
+    await transport.sendMail({
+      from: `"${SMTP_FROM_NAME}" <${SMTP_FROM}>`,
+      to: opts.toName ? `"${opts.toName}" <${opts.to}>` : opts.to,
+      subject: opts.subject,
+      html,
+      replyTo: opts.replyTo ?? SMTP_FROM,
+    });
+    console.log(`[MAILER] Admin email sent to ${opts.to} — "${opts.subject}"`);
+    return { sent: true };
+  } catch (err) {
+    console.error("[MAILER] Failed to send admin email:", err);
+    return { sent: false, reason: String(err) };
+  }
+}
+
+export async function sendTicketReplyEmail(opts: {
+  toEmail: string;
+  toName: string;
+  ticketId: number;
+  ticketSubject: string;
+  replyText: string;
+}): Promise<{ sent: boolean; reason?: string }> {
+  const body = `
+    <p>Hi ${opts.toName.split(" ")[0] || opts.toName},</p>
+    <p>We've replied to your support request:</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;border-radius:6px;margin:16px 0;">
+      <tr><td style="padding:16px 20px;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Your request: ${opts.ticketSubject}</p>
+        <p style="margin:0;font-size:14px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;">${opts.replyText}</p>
+      </td></tr>
+    </table>
+    <p>If you have further questions, please reply to this email and we'll be happy to help.</p>
+    <p>Kind regards,<br>BDE Farm Trac Support Team</p>
+  `;
+  return sendAdminEmail({
+    to: opts.toEmail,
+    toName: opts.toName,
+    subject: `Re: ${opts.ticketSubject} [Ticket #${opts.ticketId}]`,
+    body,
+  });
+}
+
+function wrapInBrandedLayout(content: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+        <tr>
+          <td style="background:#1a6b3a;padding:28px 40px;">
+            <p style="margin:0;font-size:20px;font-weight:bold;color:#ffffff;">BDE Farm Trac</p>
+            <p style="margin:4px 0 0;font-size:11px;color:#a7d9b8;">Red Tractor Compliance Platform</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px 40px;font-size:14px;color:#374151;line-height:1.7;">
+            ${content}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 40px;border-top:1px solid #e5e7eb;">
+            <p style="margin:0;font-size:11px;color:#9ca3af;">
+              © BDE Farm Trac · <a href="https://bdefarmtrac.co.uk" style="color:#1a6b3a;text-decoration:none;">bdefarmtrac.co.uk</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 const SMTP_HOST = "smtp-relay.brevo.com";
 const SMTP_PORT = 587;
 const SMTP_USER = "a558bc001@smtp-brevo.com";

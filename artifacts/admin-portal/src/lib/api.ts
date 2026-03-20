@@ -43,6 +43,25 @@ async function patch<T>(path: string, body: unknown, secret: string): Promise<T>
   return res.json();
 }
 
+async function put<T>(path: string, body: unknown, secret: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "PUT",
+    headers: headers(secret),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+async function del<T>(path: string, secret: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "DELETE",
+    headers: headers(secret),
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
+}
+
 export interface Stats {
   totalTenants: number;
   totalFarms: number;
@@ -127,6 +146,30 @@ export interface SqlResult {
   limited: boolean;
 }
 
+export interface EmailTemplate {
+  id: number;
+  name: string;
+  category: string;
+  subject: string;
+  body: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminEmailSent {
+  id: number;
+  toAddress: string;
+  toName?: string;
+  subject: string;
+  body: string;
+  templateId?: number;
+  ticketId?: number;
+  status: string;
+  errorMessage?: string;
+  sentAt: string;
+}
+
 export const api = {
   verifySecret: (secret: string) =>
     get<{ stats: Stats }>("/admin/stats", secret),
@@ -176,4 +219,22 @@ export const api = {
       {},
       secret
     ),
+
+  getSentEmails: (secret: string) =>
+    get<{ emails: AdminEmailSent[] }>("/admin/emails/sent", secret),
+
+  sendEmail: (data: { to: string; toName?: string; subject: string; body: string; templateId?: number }, secret: string) =>
+    post<{ sent: boolean; email?: AdminEmailSent; reason?: string }>("/admin/emails/send", data, secret),
+
+  getEmailTemplates: (secret: string) =>
+    get<{ templates: EmailTemplate[] }>("/admin/email-templates", secret),
+
+  createEmailTemplate: (data: { name: string; category: string; subject: string; body: string }, secret: string) =>
+    post<{ template: EmailTemplate }>("/admin/email-templates", data, secret),
+
+  updateEmailTemplate: (id: number, data: Partial<{ name: string; category: string; subject: string; body: string; isActive: boolean }>, secret: string) =>
+    put<{ template: EmailTemplate }>(`/admin/email-templates/${id}`, data, secret),
+
+  deleteEmailTemplate: (id: number, secret: string) =>
+    del<{ deleted: boolean }>(`/admin/email-templates/${id}`, secret),
 };

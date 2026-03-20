@@ -1,9 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable } from "@workspace/db";
+import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable } from "@workspace/db";
 import { eq, and, count, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
-import { sendSetupGuideEmail } from "../lib/mailer";
+import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../lib/mailer";
 
 const router: IRouter = Router();
 
@@ -154,10 +154,37 @@ router.post("/admin/support-tickets/:ticketId/reply", requireAuth, async (req: R
     message: message.trim(),
   }).returning();
 
-  // TODO: Send email notification to ticket submitter with reply content
-  console.log(`[EMAIL PLACEHOLDER] Reply notification queued for ticket #${ticketId}`);
+  const emailResult = await sendTicketReplyEmail({
+    toEmail: ticket.email,
+    toName: ticket.name,
+    ticketId,
+    ticketSubject: ticket.subject,
+    replyText: message.trim(),
+  });
 
-  res.status(201).json({ message: reply });
+  if (emailResult.sent) {
+    await db.insert(adminEmailsSentTable).values({
+      toAddress: ticket.email,
+      toName: ticket.name,
+      subject: `Re: ${ticket.subject} [Ticket #${ticketId}]`,
+      body: message.trim(),
+      ticketId,
+      status: "sent",
+    });
+  } else {
+    console.warn(`[MAILER] Ticket reply email failed for ticket #${ticketId}: ${emailResult.reason}`);
+    await db.insert(adminEmailsSentTable).values({
+      toAddress: ticket.email,
+      toName: ticket.name,
+      subject: `Re: ${ticket.subject} [Ticket #${ticketId}]`,
+      body: message.trim(),
+      ticketId,
+      status: "failed",
+      errorMessage: emailResult.reason ?? "Unknown error",
+    });
+  }
+
+  res.status(201).json({ message: reply, emailSent: emailResult.sent });
 });
 
 router.patch("/admin/support-tickets/:ticketId/status", requireAuth, async (req: Request, res: Response): Promise<void> => {
@@ -380,5 +407,132 @@ router.post(
     }
   }
 );
+
+// ─── Email: Compose & Send ────────────────────────────────────────────────────
+
+router.post("/admin/emails/send", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const { to, toName, subject, body, templateId } = req.body;
+  if (!to || typeof to !== "string" || !to.includes("@")) {
+    res.status(400).json({ error: "Valid 'to' email address is required" });
+    return;
+  }
+  if (!subject || typeof subject !== "string" || subject.trim().length === 0) {
+    res.status(400).json({ error: "'subject' is required" });
+    return;
+  }
+  if (!body || typeof body !== "string" || body.trim().length === 0) {
+    res.status(400).json({ error: "'body' is required" });
+    return;
+  }
+
+  const result = await sendAdminEmail({
+    to: to.trim(),
+    toName: toName?.trim() || undefined,
+    subject: subject.trim(),
+    body: body.trim(),
+  });
+
+  const [record] = await db.insert(adminEmailsSentTable).values({
+    toAddress: to.trim(),
+    toName: toName?.trim() || null,
+    subject: subject.trim(),
+    body: body.trim(),
+    templateId: templateId ? parseInt(String(templateId), 10) : null,
+    status: result.sent ? "sent" : "failed",
+    errorMessage: result.sent ? null : (result.reason ?? "Unknown error"),
+  }).returning();
+
+  if (result.sent) {
+    res.json({ sent: true, email: record });
+  } else {
+    res.status(500).json({ sent: false, reason: result.reason, email: record });
+  }
+});
+
+router.get("/admin/emails/sent", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const emails = await db
+    .select()
+    .from(adminEmailsSentTable)
+    .orderBy(desc(adminEmailsSentTable.sentAt))
+    .limit(200);
+
+  res.json({ emails });
+});
+
+// ─── Email Templates ──────────────────────────────────────────────────────────
+
+router.get("/admin/email-templates", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const templates = await db
+    .select()
+    .from(emailTemplatesTable)
+    .orderBy(emailTemplatesTable.category, emailTemplatesTable.name);
+
+  res.json({ templates });
+});
+
+router.post("/admin/email-templates", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const { name, category, subject, body } = req.body;
+  if (!name || !subject || !body) {
+    res.status(400).json({ error: "name, subject and body are required" });
+    return;
+  }
+
+  const [template] = await db.insert(emailTemplatesTable).values({
+    name: name.trim(),
+    category: (category ?? "general").trim(),
+    subject: subject.trim(),
+    body: body.trim(),
+  }).returning();
+
+  res.status(201).json({ template });
+});
+
+router.put("/admin/email-templates/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid template ID" }); return; }
+
+  const { name, category, subject, body, isActive } = req.body;
+
+  const updates: Partial<typeof emailTemplatesTable.$inferInsert> = { updatedAt: new Date() };
+  if (name !== undefined) updates.name = name.trim();
+  if (category !== undefined) updates.category = category.trim();
+  if (subject !== undefined) updates.subject = subject.trim();
+  if (body !== undefined) updates.body = body.trim();
+  if (isActive !== undefined) updates.isActive = Boolean(isActive);
+
+  const [updated] = await db
+    .update(emailTemplatesTable)
+    .set(updates)
+    .where(eq(emailTemplatesTable.id, id))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Template not found" }); return; }
+  res.json({ template: updated });
+});
+
+router.delete("/admin/email-templates/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid template ID" }); return; }
+
+  const [deleted] = await db
+    .delete(emailTemplatesTable)
+    .where(eq(emailTemplatesTable.id, id))
+    .returning();
+
+  if (!deleted) { res.status(404).json({ error: "Template not found" }); return; }
+  res.json({ deleted: true });
+});
 
 export default router;
