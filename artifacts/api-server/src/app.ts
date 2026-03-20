@@ -1,6 +1,8 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import path from "path";
+import { fileURLToPath } from "url";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import { tenantMiddleware } from "./middlewares/tenantMiddleware";
 import { devBypassMiddleware } from "./middlewares/devBypassMiddleware";
@@ -11,6 +13,12 @@ const app: Express = express();
 
 app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+app.use("/api/help-images", express.static(path.join(__dirname, "../public/help-images"), {
+  maxAge: "7d",
+  setHeaders: (res) => { res.setHeader("Cache-Control", "public, max-age=604800"); },
+}));
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (req.originalUrl === "/api/billing/webhook") {

@@ -2476,19 +2476,19 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
       id: 1,
       title: "Getting Started with Red Tractor Compliance",
       category: "Getting Started",
-      content: `Red Tractor Assurance is the UK's largest farm assurance scheme, covering food safety, animal welfare, and environmental protection. To achieve and maintain certification, your farm must keep accurate, up-to-date records across all relevant compliance areas.\n\nBDE Farm Trac is organised into modules that map directly to Red Tractor's inspection requirements. Start by completing your Farm Profile and Field Register under Settings — these underpin every other record in the system. Once your fields and crops are entered, you can begin logging spray applications, equipment checks, and visitor records.\n\nYour compliance score on the dashboard reflects how complete and current your records are. Red Tractor inspectors can request records going back at least three years, so it is important to maintain records consistently, not just in the weeks before an inspection.\n\nIf you are new to Red Tractor assurance, your assurance body will provide a scheme manual specific to your sector (Combinable Crops, Beef & Lamb, Dairy, Pigs, or Fresh Produce). BDE Farm Trac covers the record-keeping obligations from all of these sector standards.`,
+      content: `<img src="/api/help-images/dashboard-overview.png" alt="BDE Farm Trac Dashboard Overview" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />\n\n<p>Red Tractor Assurance is the UK's largest farm assurance scheme, covering food safety, animal welfare, and environmental protection. To achieve and maintain certification, your farm must keep accurate, up-to-date records across all relevant compliance areas.</p>\n\n<p>BDE Farm Trac is organised into modules that map directly to Red Tractor's inspection requirements. Start by completing your Farm Profile and Field Register under Settings — these underpin every other record in the system. Once your fields and crops are entered, you can begin logging spray applications, equipment checks, and visitor records.</p>\n\n<h3>Your Compliance Score</h3>\n<p>The compliance score on your dashboard reflects how complete and current your records are across each module. Red Tractor inspectors can request records going back at least three years, so it is important to maintain records consistently — not just in the weeks before an inspection.</p>\n\n<h3>Getting Started Checklist</h3>\n<ol>\n<li><strong>Complete your Farm Profile</strong> — enter your CPH number, SBI, Red Tractor membership number, and contact details.</li>\n<li><strong>Set up your Field Register</strong> — add all fields with their area, soil type, and current crop.</li>\n<li><strong>Add your staff</strong> — create a profile for each person who will be entering records, including their PA certificates.</li>\n<li><strong>Register your equipment</strong> — add all sprayers and machinery with their NSTS dates.</li>\n<li><strong>Begin recording</strong> — start logging spray applications, movements, and medicine treatments daily.</li>\n</ol>\n\n<p>If you are new to Red Tractor assurance, your assurance body will provide a scheme manual specific to your sector (Combinable Crops, Beef &amp; Lamb, Dairy, Pigs, or Fresh Produce). BDE Farm Trac covers the record-keeping obligations from all of these sector standards.</p>`,
     },
     {
       id: 2,
       title: "Recording Spray Applications",
       category: "Sprays & Inputs",
-      content: `Under Red Tractor and UK law (Plant Protection Products Regulations 2011), you are required to keep a detailed record of every pesticide and herbicide application made on your holding. Records must be made within 48 hours of the application and retained for at least three years.\n\nFor each spray record you must capture: the product name and MAPP number, the active ingredient, the target crop and growth stage, the field or area treated (in hectares), the application date, the total quantity of product used, and the name of the operator who carried out the application. Weather conditions at the time of spraying — wind speed and direction, temperature, and whether rain fell within six hours — are also required.\n\nTo add a record, navigate to Sprays & Inputs and select Add Application. Choose the product from your registered product list or add a new product with its MAPP number. The system will pre-fill the maximum approved dose and buffer zone distances from the product label.\n\nSpray operators must hold a valid certificate of competence (PA1 and the relevant PA2 or PA6 module). These can be linked to staff records in the Staff & Training section so that the system can alert you when certificates are approaching their renewal date.`,
+      content: `<img src="/api/help-images/spray-records.png" alt="Spray Application Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />\n\n<p>Under Red Tractor and UK law (Plant Protection Products Regulations 2011), you are required to keep a detailed record of every pesticide and herbicide application made on your holding. Records must be made within 48 hours of the application and retained for at least three years.</p>\n\n<h3>What to Record</h3>\n<p>For each spray record you must capture:</p>\n<ul>\n<li>Product name and MAPP number</li>\n<li>Active ingredient and target pest or disease</li>\n<li>Target crop and growth stage (BBCH scale)</li>\n<li>Field or area treated in hectares</li>\n<li>Application date and time</li>\n<li>Total quantity of product used</li>\n<li>Operator name and PA certificate number</li>\n<li>Weather conditions — wind speed/direction, temperature, rainfall within 6 hours</li>\n</ul>\n\n<h3>Adding a Record</h3>\n<p>Navigate to <strong>Sprays &amp; Inputs</strong> and select <strong>Add Application</strong>. Choose the product from your registered product list or add a new product with its MAPP number. The system will pre-fill the maximum approved dose and buffer zone distances from the product label.</p>\n\n<h3>Operator Certificates</h3>\n<p>Spray operators must hold a valid certificate of competence (PA1 and the relevant PA2 or PA6 module). These can be linked to staff records in the Staff &amp; Training section so that the system alerts you when certificates are approaching their renewal date.</p>`,
     },
     {
       id: 3,
       title: "Managing Your Field Register",
       category: "Fields & Crops",
-      content: `Your Field Register is a complete list of all parcels of land that form part of your holding. Red Tractor requires this to be kept current and to be cross-referenced against your spray and soil records. Each field should reflect how it is registered with the Rural Payments Agency (RPA) using the same OS grid reference or LPIS parcel identifier where possible.\n\nTo add a field, go to Fields & Crops and select Add Field. Enter the field name or reference number, the total area in hectares, the soil type, and the current crop or land use. You can also record whether the field falls within a Nitrate Vulnerable Zone (NVZ), is subject to any Higher Tier agri-environment agreements, or borders a watercourse — all of which affect what inputs can be applied and when.\n\nOnce a crop is assigned to a field, the system will carry the field through to spray records, soil records, and yield data, giving you a complete crop history without re-entering field details each time.\n\nAt the end of each season, use the Crop Rotation function to archive the current crop and assign the new crop for the coming year. Keeping rotation records helps demonstrate that you are managing soil health in line with Red Tractor soil management requirements.`,
+      content: `<img src="/api/help-images/field-register.png" alt="Field Register" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />\n\n<p>Your Field Register is a complete list of all parcels of land that form part of your holding. Red Tractor requires this to be kept current and to be cross-referenced against your spray and soil records. Each field should reflect how it is registered with the Rural Payments Agency (RPA) using the same OS grid reference or LPIS parcel identifier where possible.</p>\n\n<h3>Adding a Field</h3>\n<p>Go to <strong>Fields &amp; Crops</strong> and select <strong>Add Field</strong>. Enter the field name or reference number, the total area in hectares, the soil type, and the current crop or land use. You can also record whether the field:</p>\n<ul>\n<li>Falls within a Nitrate Vulnerable Zone (NVZ)</li>\n<li>Is subject to any Higher Tier agri-environment agreements</li>\n<li>Borders a watercourse — which affects buffer zone distances for spray applications</li>\n</ul>\n\n<h3>Crop History</h3>\n<p>Once a crop is assigned to a field, the system carries the field through to spray records, soil records, and yield data — giving you a complete crop history without re-entering field details each time.</p>\n\n<h3>End-of-Season Rotation</h3>\n<p>At the end of each season, use the <strong>Crop Rotation</strong> function to archive the current crop and assign the new crop for the coming year. Keeping rotation records helps demonstrate that you are managing soil health in line with Red Tractor soil management requirements.</p>`,
     },
     {
       id: 4,
@@ -2500,7 +2500,29 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
       id: 5,
       title: "Livestock Movement Records",
       category: "Livestock",
-      content: `Under the Cattle Identification Regulations and the Sheep and Goat (Records, Identification and Movement) Order, all livestock keepers must maintain accurate movement records. Which government portal you use to report movements depends on where your holding is located in the UK.\n\nIn England, cattle movements must be reported to BCMS (the British Cattle Movement Service) within three days. Sheep, goat and pig movements are reported to eAML2 (eaml2.org.uk). In Scotland, all livestock movements — cattle, sheep, goats, pigs and deer — are reported through ScotEID (scoteid.com), Scotland's national electronic identification database; cattle also require a BCMS notification. In Wales, sheep and goat movements use EIDCymru (eidcymru.org); pig movements use eAML2; cattle movements use BCMS Online. In Northern Ireland, movements are recorded on NIFAIS for cattle and APHIS for sheep and pigs — contact DAERA for registration.\n\nIn BDE Farm Trac, set your farm's Country in Farm Settings so that the Movements page shows the correct portal links for your holding. Navigate to Livestock Movements to record a movement. Select whether the movement is On (to your holding) or Off (leaving your holding), and enter the date, the number of animals, and the source or destination holding number (CPH). For cattle, enter the individual ear tag numbers for each animal moved. For sheep, goats and pigs, you can record batch movements with a total count and the flock mark.\n\nFor cattle purchases, also record the date the animal passport was received and cross-reference the passport number against the ear tag. Red Tractor inspectors will check that passports are present for all cattle on the holding.\n\nWhen recording movements off the holding — for example to a market, abattoir, or another farm — retain a copy of the movement document (AML1 or AML2) and file it against the movement record in the Documents section. Records must be kept for at least three years. Once you have submitted the movement to the appropriate portal, paste the reference number back into the movement record in BDE Farm Trac.`,
+      content: `<img src="/api/help-images/livestock-movements.png" alt="Livestock Movements" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Under the Cattle Identification Regulations and the Sheep and Goat (Records, Identification and Movement) Order, all livestock keepers must maintain accurate movement records. Which government portal you use depends on where your holding is located in the UK.</p>
+
+<h3>UK Reporting Portals by Country</h3>
+<ul>
+<li><strong>England:</strong> Cattle → BCMS (within 3 days). Sheep, goats &amp; pigs → eAML2 (eaml2.org.uk).</li>
+<li><strong>Scotland:</strong> All species → ScotEID (scoteid.com). Cattle also require BCMS notification.</li>
+<li><strong>Wales:</strong> Sheep &amp; goats → EIDCymru (eidcymru.org). Pigs → eAML2. Cattle → BCMS Online.</li>
+<li><strong>Northern Ireland:</strong> Cattle → NIFAIS. Sheep &amp; pigs → APHIS. Contact DAERA to register.</li>
+</ul>
+
+<h3>Recording a Movement</h3>
+<p>Set your farm’s Country in <strong>Farm Settings</strong> so that the Movements page shows the correct portal links. Navigate to <strong>Livestock Movements</strong> and click <strong>Add Movement</strong>. Enter:</p>
+<ul>
+<li>Date of movement and direction (On or Off holding)</li>
+<li>Species and number of animals</li>
+<li>Source or destination CPH number</li>
+<li>Individual ear tag numbers (cattle) or flock mark and total count (sheep/pigs)</li>
+</ul>
+
+<h3>Cattle Passports</h3>
+<p>For cattle purchases, record the date the animal passport was received and cross-reference the passport number against the ear tag. Red Tractor inspectors check that passports are present for all cattle on the holding. When recording movements off the holding — to a market, abattoir, or another farm — retain a copy of the movement document (AML1 or AML2) and attach it to the movement record in Documents. Records must be kept for at least three years.</p>`,
     },
     {
       id: 6,
@@ -2530,7 +2552,25 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
       id: 10,
       title: "Financial Record Keeping",
       category: "Financial",
-      content: `Red Tractor does not require detailed profit and loss accounting, but it does expect farm businesses to maintain records of inputs purchased, agri-environment scheme payments received, and any sales that fall under traceability requirements. This is separate from your statutory obligation to maintain VAT and income tax records.\n\nIn BDE Farm Trac, the Financial Records module allows you to record input purchases (seeds, fertilisers, pesticides, feed, veterinary medicines) against the relevant field, crop, or livestock group. This builds a cost-of-production picture that you can export to CSV for use in your farm management accounts or import into accounting software such as Xero or Sage.\n\nFor grant and agri-environment scheme records, log each payment received with the scheme name, payment reference, and the period it covers. Where payments are tied to specific actions — such as maintaining buffer strips or establishing wildflower margins — link these to the relevant field record so that evidence of compliance is stored in one place.\n\nWhen exporting data for your accountant, use the Export function to generate a CSV covering the date range required. Red Tractor inspectors occasionally ask for evidence that inputs purchased reconcile with inputs recorded as applied — for example, comparing fertiliser purchase invoices against your nutrient management plan.`,
+      content: `<img src="/api/help-images/financial-records.png" alt="Financial Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Red Tractor does not require detailed profit and loss accounting, but it does expect farm businesses to maintain records of inputs purchased, agri-environment scheme payments received, and any sales that fall under traceability requirements.</p>
+
+<h3>Recording Transactions</h3>
+<p>In BDE Farm Trac, the <strong>Financial Records</strong> module allows you to record income and expenditure transactions. Each record captures the date, description, category, supplier or customer name, net amount, VAT, and total. Categories include:</p>
+<ul>
+<li>Crop Sales and Livestock Sales</li>
+<li>Agrochemicals, Fertilisers, Seeds</li>
+<li>Veterinary and Medicine costs</li>
+<li>Fuel &amp; Lubricants, Contracting</li>
+<li>Subsidies &amp; Grants (BPS, SFI, agri-environment payments)</li>
+</ul>
+
+<h3>Financial Summary Dashboard</h3>
+<p>The top of the Financial Records page shows running totals for Total Income (YTD), Total Expenditure (YTD), Net Profit, and VAT to reclaim — giving you an instant financial overview without opening a spreadsheet.</p>
+
+<h3>Exporting Data</h3>
+<p>Use the <strong>Export</strong> function to generate a CSV covering any date range — suitable for importing into accounting software such as Xero or Sage. Red Tractor inspectors occasionally ask for evidence that inputs purchased reconcile with inputs recorded as applied, so keeping purchase records linked to field applications is good practice.</p>`,
     },
     {
       id: 11,
@@ -2590,7 +2630,26 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
       id: 20,
       title: "Livestock Medicine Records and Withdrawal Periods",
       category: "Livestock",
-      content: `UK law requires all livestock keepers to maintain a medicines register for any veterinary medicinal product administered to animals. This record must be kept for at least five years and must be made available to your vet, the Animal and Plant Health Agency (APHA), and Red Tractor inspectors on request.\n\nFor each medicine administered, you must record: the date of treatment, the identity of the animals treated (ear tag numbers for cattle, or flock/pen identifier for sheep, pigs, or poultry), the name of the product, the batch number, the withdrawal period (from the product datasheet or as directed by your vet), the dose administered, the route of administration (injection, oral, topical, in-feed), and the name of the person who administered it.\n\nIn BDE Farm Trac, go to Livestock and open the Medicine Records section. Click Add Medicine Record. For cattle, you can select individual animals by ear tag from your current herd list. For sheep or pigs, select the group or pen. The system pre-fills the standard withdrawal period from the product database where the product is registered — always verify this against the product label, as your vet may prescribe an extended withdrawal period under a cascade arrangement.\n\nThe system tracks withdrawal period end dates for all treated animals. Animals with active withdrawal periods are flagged on the Livestock dashboard and cannot be moved to slaughter from within BDE Farm Trac until the withdrawal period has cleared. This is a safety net only — you remain legally responsible for ensuring no animal enters the food chain within its withdrawal period. Where a prescription-only medicine (POM-V) is used, attach the vet prescription to the medicine record using the document attachment function.`,
+      content: `<img src="/api/help-images/medicine-records.png" alt="Medicine Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>UK law requires all livestock keepers to maintain a medicines register for any veterinary medicinal product administered to animals. This record must be kept for at least five years and must be made available to your vet, APHA, and Red Tractor inspectors on request.</p>
+
+<h3>What to Record</h3>
+<p>For each medicine administered, you must record:</p>
+<ul>
+<li>Date of treatment</li>
+<li>Identity of animals treated (ear tag numbers for cattle, or pen/group identifier for sheep, pigs, or poultry)</li>
+<li>Product name and batch number</li>
+<li>Dose administered and route (injection, oral, topical, in-feed)</li>
+<li>Withdrawal period end date</li>
+<li>Name of person who administered the treatment</li>
+</ul>
+
+<h3>Withdrawal Period Tracking</h3>
+<p>The system tracks withdrawal period end dates for all treated animals. Animals with active withdrawal periods are flagged with a yellow warning banner on the Medicine Records page. This is a safety net — you remain legally responsible for ensuring no animal enters the food chain within its withdrawal period.</p>
+
+<h3>Adding a Medicine Record</h3>
+<p>Go to <strong>Livestock</strong> and open the <strong>Medicine Records</strong> section. Click <strong>Add Medicine Record</strong>. For cattle, select individual animals by ear tag from your current herd list. For sheep or pigs, select the group or pen. The system pre-fills the standard withdrawal period from the product database — always verify against the product label, as your vet may prescribe an extended withdrawal period under a cascade arrangement. Where a prescription-only medicine (POM-V) is used, attach the vet prescription using the document attachment function.</p>`,
     },
     {
       id: 21,
@@ -2614,7 +2673,21 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
       id: 23,
       title: "Analytical Dashboards and Compliance Snapshots",
       category: "Dashboards",
-      content: `BDE Farm Trac includes a set of analytical dashboards that give you an at-a-glance view of your farm's performance and compliance status across key areas. These dashboards are available from the main navigation and update in real time as records are added.\n\nThe Harvest Dashboard shows yield per hectare by crop type, total production for the season, and a year-on-year comparison. Use this to identify which fields are underperforming and to feed accurate yield data into your next Nutrient Management Plan.\n\nThe NVZ Compliance Dashboard displays nitrogen applied per field as a proportion of the 170 kg N/ha organic manure limit, highlights fields within closed periods, and shows your cumulative nitrogen balance for the season. Any field at risk of a regulatory breach is flagged in red.\n\nThe Soil Health Dashboard aggregates your soil test results across the farm and surfaces fields with below-target pH, high phosphate index (Index 4+), or tests that are overdue for sampling. This helps you prioritise lime and soil management decisions before the next growing season.\n\nThe Fleet Status Dashboard tracks equipment calibration and service due dates. It shows a traffic-light view of all machinery: green (calibration current), amber (due within 90 days), and red (overdue). NSTS certificates and self-check dates are included in this view.\n\nThe Livestock Health Dashboard provides a summary of medicine treatments administered, active withdrawal periods, and mortality records by group. It also surfaces livestock health checks that are overdue according to the checking schedule you have set for each group.\n\nAll dashboards can be exported as a PDF summary report, suitable for sharing with your agronomist, vet, or assurance body. To export, click the Export button at the top right of each dashboard view.`,
+      content: `<img src="/api/help-images/help-centre.png" alt="Help Centre and Dashboards" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>BDE Farm Trac includes a set of analytical dashboards that give you an at-a-glance view of your farm’s performance and compliance status across key areas. These dashboards update in real time as records are added.</p>
+
+<h3>Available Dashboards</h3>
+<ul>
+<li><strong>Harvest Dashboard</strong> — yield per hectare by crop type, total production for the season, and a year-on-year comparison.</li>
+<li><strong>NVZ Compliance Dashboard</strong> — nitrogen applied per field as a proportion of the 170 kg N/ha organic manure limit, highlighting fields within closed periods.</li>
+<li><strong>Soil Health Dashboard</strong> — aggregates soil test results and surfaces fields with below-target pH or overdue sampling.</li>
+<li><strong>Fleet Status Dashboard</strong> — traffic-light view of all machinery: green (calibration current), amber (due within 90 days), red (overdue).</li>
+<li><strong>Livestock Health Dashboard</strong> — summary of medicine treatments, active withdrawal periods, and mortality records by group.</li>
+</ul>
+
+<h3>Exporting Dashboard Snapshots</h3>
+<p>All dashboards can be exported as a PDF summary report, suitable for sharing with your agronomist, vet, or assurance body. Click the <strong>Export</strong> button at the top right of each dashboard view to generate a dated PDF snapshot.</p>`,
     },
     {
       id: 25,
@@ -2626,7 +2699,23 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
       id: 26,
       title: "Understanding Business Reports",
       category: "Finance & Business",
-      content: `The Business Reports module is a standalone analytical layer that draws on data recorded across your entire BDE Farm Trac account — harvest records, financial transactions, haulage movements, agri-environment schemes, and equipment records — to generate structured management reports. It is available as a separate module subscription at £5/month per farm.\n\nBusiness Reports contains seven report tabs, all accessible from the main navigation sidebar.\n\nGross Margin by Crop shows a breakdown of all harvest records for the selected year, grouped by crop type. For each crop you see the total area harvested, total yield in tonnes, and average yield per hectare. Below the crop yield table, the report shows your variable input costs broken down by category (seeds, fertiliser, pesticides, fungicides, insecticides, veterinary medicines, feed, and haulage) and expresses each as a cost per hectare across the whole farm. The overall gross margin is calculated as total farm output (crop and livestock income) minus total variable costs.\n\nP&L Statement presents a full structured profit and loss account for the selected year. Income is listed first, split into crop sales, livestock sales, agri-environment scheme payments, grants and subsidies, and other income, totalling to your farm output figure. Variable costs are deducted to produce a gross margin. Fixed overheads (labour, fuel, machinery and equipment, and other expenses) are then deducted to arrive at net farm income. This report is designed to give you — and your accountant — a complete picture of financial performance for the year without needing to export to a spreadsheet.\n\nInput Cost Breakdown ranks all expense transactions for the year by category, showing the total amount and percentage of total expenditure for each. A visual percentage bar makes it easy to see at a glance which input categories are driving your costs. Use this report to identify areas for potential saving and to benchmark your cost structure against previous years.\n\nGrain Position shows the total tonnage harvested by crop against total tonnage moved or sold (drawn from your haulage movement records), giving an estimated tonnage remaining in store or unsold. It also shows the total crop sales income recorded for the year. If you keep your haulage and harvest records up to date, this report functions as a live grain marketing position statement.\n\nAgri-Environment & Subsidy Summary lists all active and expired agri-environment scheme agreements on your farm (entered in the Environmental module) alongside all grant and subsidy payment transactions recorded for the year. It shows the total annual scheme value across all active agreements and the total subsidy income actually received. Use this to reconcile expected versus received payments and to monitor agreement expiry dates.\n\nYear-on-Year Comparison shows up to five years of performance data side by side — total area harvested, total yield, average yield per hectare, total income, total expenditure, and net farm income for each year. Trend arrows next to the current year figures indicate whether performance has improved or declined compared to the previous year. A crop mix breakdown table below shows tonnage by crop for each year, making it straightforward to track how your rotation has changed.\n\nAsset Register with Depreciation lists all active equipment on your farm and calculates a net book value for each asset using straight-line depreciation over ten years from the purchase date. The columns shown are: asset name, type, purchase year, age in years, purchase price, annual depreciation charge, estimated net book value, total maintenance expenditure logged against the asset, and current status. The totals row at the top summarises total fleet purchase value, total estimated net book value, and total maintenance spend across all assets. To make this report accurate, enter purchase prices and purchase dates on each equipment record in the Equipment module.\n\nAll Business Reports are driven entirely by records you have already entered elsewhere in the system — there is no data entry required in the reports module itself. The more complete and consistently categorised your records are, the more accurate and useful the reports will be. Financial transactions in particular should use the standard category names (Crop Sales, Fertiliser, Labour, etc.) rather than free-text descriptions to ensure they are allocated correctly in the gross margin and P&L reports.`,
+      content: `<img src="/api/help-images/business-reports.png" alt="Business Reports" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Business Reports module is a standalone analytical layer that draws on data recorded across your entire BDE Farm Trac account — harvest records, financial transactions, livestock movements, agri-environment schemes, and equipment records — to generate structured management reports. Available at £5/month per farm.</p>
+
+<h3>Report Tabs</h3>
+<ul>
+<li><strong>Compliance Summary</strong> — Red Tractor compliance scores across all record-keeping areas, with progress bars showing percentage completion per category.</li>
+<li><strong>Spray Overview</strong> — total applications by product, area treated, and cost per hectare for the selected period.</li>
+<li><strong>Livestock Report</strong> — herd or flock summary including movements, medicine treatments, and mortality rates.</li>
+<li><strong>Financial Summary</strong> — gross margin by crop, P&amp;L statement, and input cost breakdown as a percentage of total expenditure.</li>
+<li><strong>Field Analysis</strong> — yield per hectare by field and crop type, with year-on-year comparison.</li>
+<li><strong>Audit Trail</strong> — a log of all record edits, creations, and deletions across the account for the selected period.</li>
+<li><strong>Custom Report</strong> — build your own report by selecting any combination of data fields and date range.</li>
+</ul>
+
+<h3>Exporting Reports</h3>
+<p>Each report can be exported as a PDF or CSV using the <strong>Export PDF</strong> button at the top right of the report view. PDF exports include your farm name, report period, and a BDE Farm Trac watermark — suitable for sharing with accountants, agronomists, or your assurance body.</p>`,
     },
   ];
 

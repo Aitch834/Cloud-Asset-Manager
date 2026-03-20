@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800">
+  <rect width="1280" height="800" fill="#f9fafb"/>
+  
+  <rect x="0" y="0" width="240" height="800" fill="#1a3a2a"/><rect x="0" y="0" width="240" height="64" fill="#166534"/><text x="20" y="38" font-family="Arial,sans-serif" font-size="15" font-weight="bold" fill="#ffffff">🌿 BDE Farm Trac</text><rect x="8" y="72" width="224" height="38" rx="6" fill="#22c55e" opacity="0.25"/><rect x="0" y="74" width="4" height="34" fill="#22c55e"/><text x="20" y="96" font-family="Arial,sans-serif" font-size="13" fill="#ffffff">▣  Dashboard</text><text x="20" y="142" font-family="Arial,sans-serif" font-size="13" fill="#9ca3af">⬡  Field Register</text><text x="20" y="188" font-family="Arial,sans-serif" font-size="13" fill="#9ca3af">🌿  Crop Records</text><text x="20" y="234" font-family="Arial,sans-serif" font-size="13" fill="#9ca3af">💧  Spray Records</text><text x="20" y="280" font-family="Arial,sans-serif" font-size="13" fill="#9ca3af">🧪  Fertiliser Use</text><text x="20" y="326" font-family="Arial,sans-serif" font-size="13" fill="#9ca3af">🐄  Livestock</text><text x="20" y="372" font-family="Arial,sans-serif" font-size="13" fill="#9ca3af">💊  Medicine Records</text><text x="20" y="418" font-family="Arial,sans-serif" font-size="13" fill="#9ca3af">↔  Movements</text><text x="20" y="464" font-family="Arial,sans-serif" font-size="13" fill="#9ca3af">£  Financial Records</text><text x="20" y="510" font-family="Arial,sans-serif" font-size="13" fill="#9ca3af">📊  Business Reports</text><text x="20" y="556" font-family="Arial,sans-serif" font-size="13" fill="#9ca3af">?  Help Centre</text><rect x="8" y="744" width="224" height="44" rx="6" fill="#166534" opacity="0.5"/><text x="20" y="772" font-family="Arial,sans-serif" font-size="11" fill="#9ca3af">🏡 Home Farm</text>
+  
+    <rect x="240" y="0" width="1040" height="64" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="264" y="40" font-family="Arial,sans-serif" font-size="20" font-weight="bold" fill="#111827">Dashboard Overview</text>
+    <rect x="1120" y="16" width="128" height="32" rx="6" fill="#22c55e"/>
+    <text x="1184" y="37" font-family="Arial,sans-serif" font-size="13" font-weight="bold" fill="#ffffff" text-anchor="middle">+ Add Record</text>
+    <circle cx="1252" cy="32" r="18" fill="#dcfce7"/>
+    <text x="1252" y="38" font-family="Arial,sans-serif" font-size="13" font-weight="bold" fill="#166534" text-anchor="middle">JD</text>
+  
+  <rect x="240" y="64" width="1040" height="736" fill="#f9fafb"/>
+
+  <!-- Stat cards row -->
+  
+    <rect x="256" y="80" width="220" height="96" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="272" y="108" font-family="Arial,sans-serif" font-size="12" fill="#6b7280">Fields Registered</text>
+    <text x="272" y="140" font-family="Arial,sans-serif" font-size="28" font-weight="bold" fill="#22c55e">47</text>
+    <text x="272" y="162" font-family="Arial,sans-serif" font-size="11" fill="#6b7280">4 added this season</text>
+  
+  
+    <rect x="492" y="80" width="220" height="96" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="508" y="108" font-family="Arial,sans-serif" font-size="12" fill="#6b7280">Spray Applications</text>
+    <text x="508" y="140" font-family="Arial,sans-serif" font-size="28" font-weight="bold" fill="#3b82f6">128</text>
+    <text x="508" y="162" font-family="Arial,sans-serif" font-size="11" fill="#6b7280">12 this month</text>
+  
+  
+    <rect x="728" y="80" width="220" height="96" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="744" y="108" font-family="Arial,sans-serif" font-size="12" fill="#6b7280">Livestock Head</text>
+    <text x="744" y="140" font-family="Arial,sans-serif" font-size="28" font-weight="bold" fill="#f59e0b">342</text>
+    <text x="744" y="162" font-family="Arial,sans-serif" font-size="11" fill="#6b7280">Cattle + Sheep</text>
+  
+  
+    <rect x="964" y="80" width="220" height="96" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="980" y="108" font-family="Arial,sans-serif" font-size="12" fill="#6b7280">Outstanding Tasks</text>
+    <text x="980" y="140" font-family="Arial,sans-serif" font-size="28" font-weight="bold" fill="#ef4444">3</text>
+    <text x="980" y="162" font-family="Arial,sans-serif" font-size="11" fill="#6b7280">Require attention</text>
+  
+  
+    <rect x="1200" y="80" width="260" height="96" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="1216" y="108" font-family="Arial,sans-serif" font-size="12" fill="#6b7280">Compliance Score</text>
+    <text x="1216" y="140" font-family="Arial,sans-serif" font-size="28" font-weight="bold" fill="#166534">94%</text>
+    <text x="1216" y="162" font-family="Arial,sans-serif" font-size="11" fill="#6b7280">Red Tractor Standard</text>
+  
+
+  <!-- Recent activity card -->
+  
+    <rect x="256" y="192" width="620" height="300" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="272" y="222" font-family="Arial,sans-serif" font-size="15" font-weight="bold" fill="#111827">Recent Activity</text>
+    <line x1="256" y1="236" x2="876" y2="236" stroke="#e5e7eb" stroke-width="1"/>
+    
+    <text x="272" y="252" font-family="Arial,sans-serif" font-size="13" fill="#6b7280">Today</text>
+    <circle cx="288" cy="282" r="5" fill="#22c55e"/>
+    <text x="302" y="286" font-family="Arial,sans-serif" font-size="13" fill="#111827">Spray application recorded — Field 4B (Rapeseed)</text>
+    <circle cx="288" cy="318" r="5" fill="#3b82f6"/>
+    <text x="302" y="322" font-family="Arial,sans-serif" font-size="13" fill="#111827">Medicine treatment: Cow #287 — Penicillin administered</text>
+    <circle cx="288" cy="354" r="5" fill="#f59e0b"/>
+    <text x="302" y="358" font-family="Arial,sans-serif" font-size="13" fill="#111827">Livestock movement recorded — 24 cattle to south pasture</text>
+    <text x="272" y="394" font-family="Arial,sans-serif" font-size="13" fill="#6b7280">Yesterday</text>
+    <circle cx="288" cy="422" r="5" fill="#22c55e"/>
+    <text x="302" y="426" font-family="Arial,sans-serif" font-size="13" fill="#111827">NVZ calculation completed — Field 12A</text>
+  
+  
+
+  <!-- Compliance card -->
+  
+    <rect x="892" y="192" width="568" height="300" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="908" y="222" font-family="Arial,sans-serif" font-size="15" font-weight="bold" fill="#111827">Red Tractor Compliance</text>
+    <line x1="892" y1="236" x2="1460" y2="236" stroke="#e5e7eb" stroke-width="1"/>
+    
+    <text x="908" y="260" font-family="Arial,sans-serif" font-size="13" fill="#111827">Spray Records</text>
+    <rect x="1040" y="244" width="200" height="14" rx="7" fill="#e5e7eb"/>
+    <rect x="1040" y="244" width="192" height="14" rx="7" fill="#22c55e"/>
+    <text x="1248" y="256" font-family="Arial,sans-serif" font-size="12" fill="#111827">96%</text>
+
+    <text x="908" y="298" font-family="Arial,sans-serif" font-size="13" fill="#111827">Medicine Records</text>
+    <rect x="1040" y="282" width="200" height="14" rx="7" fill="#e5e7eb"/>
+    <rect x="1040" y="282" width="188" height="14" rx="7" fill="#22c55e"/>
+    <text x="1248" y="294" font-family="Arial,sans-serif" font-size="12" fill="#111827">94%</text>
+
+    <text x="908" y="336" font-family="Arial,sans-serif" font-size="13" fill="#111827">Movement Records</text>
+    <rect x="1040" y="320" width="200" height="14" rx="7" fill="#e5e7eb"/>
+    <rect x="1040" y="320" width="178" height="14" rx="7" fill="#f59e0b"/>
+    <text x="1248" y="332" font-family="Arial,sans-serif" font-size="12" fill="#111827">89%</text>
+
+    <text x="908" y="374" font-family="Arial,sans-serif" font-size="13" fill="#111827">Financial Records</text>
+    <rect x="1040" y="358" width="200" height="14" rx="7" fill="#e5e7eb"/>
+    <rect x="1040" y="358" width="196" height="14" rx="7" fill="#22c55e"/>
+    <text x="1248" y="370" font-family="Arial,sans-serif" font-size="12" fill="#111827">98%</text>
+  
+  
+
+  <!-- Quick links -->
+  
+    <rect x="256" y="508" width="1204" height="72" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="272" y="538" font-family="Arial,sans-serif" font-size="15" font-weight="bold" fill="#111827">Quick Actions</text>
+    <line x1="256" y1="552" x2="1460" y2="552" stroke="#e5e7eb" stroke-width="1"/>
+    
+    <rect x="272" y="528" width="160" height="36" rx="6" fill="#dcfce7"/>
+    <text x="352" y="551" font-family="Arial,sans-serif" font-size="13" fill="#166534" text-anchor="middle">+ Spray Record</text>
+    <rect x="448" y="528" width="160" height="36" rx="6" fill="#dcfce7"/>
+    <text x="528" y="551" font-family="Arial,sans-serif" font-size="13" fill="#166534" text-anchor="middle">+ Medicine</text>
+    <rect x="624" y="528" width="160" height="36" rx="6" fill="#dcfce7"/>
+    <text x="704" y="551" font-family="Arial,sans-serif" font-size="13" fill="#166534" text-anchor="middle">+ Movement</text>
+    <rect x="800" y="528" width="160" height="36" rx="6" fill="#dcfce7"/>
+    <text x="880" y="551" font-family="Arial,sans-serif" font-size="13" fill="#166534" text-anchor="middle">+ Financial</text>
+  
+  
+
+</svg>

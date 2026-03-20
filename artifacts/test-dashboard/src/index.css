@@ -391,3 +391,25 @@
     inset: -1px;
   }
 }
+/* Help Centre HTML Article Styles */
+.help-html-content p {
+  @apply text-foreground/75 text-sm leading-relaxed mb-3;
+}
+.help-html-content h3 {
+  @apply font-semibold text-foreground text-sm mt-4 mb-2;
+}
+.help-html-content ol, .help-html-content ul {
+  @apply text-foreground/75 text-sm leading-relaxed mb-3 pl-5;
+}
+.help-html-content ol { @apply list-decimal; }
+.help-html-content ul { @apply list-disc; }
+.help-html-content li { @apply mb-1; }
+.help-html-content img {
+  @apply rounded-lg border border-border shadow-sm my-4 w-full max-w-2xl mx-auto block;
+}
+.help-html-content .help-tip {
+  @apply bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800 my-3;
+}
+.help-html-content .help-caption {
+  @apply text-xs text-foreground/50 text-center -mt-3 mb-3 italic;
+}
