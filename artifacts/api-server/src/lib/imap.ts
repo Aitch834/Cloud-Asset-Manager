@@ -2,7 +2,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser, type ParsedMail, type AddressObject } from "mailparser";
 import { Readable } from "stream";
 
-const IMAP_HOST = "imap.titan.email";
+const IMAP_HOST = "imap.secureserver.net";
 const IMAP_PORT = 993;
 const IMAP_USER = process.env.TITAN_IMAP_USER ?? "hello@bdefarmtrac.co.uk";
 const IMAP_PASS = process.env.TITAN_IMAP_PASSWORD ?? "";
