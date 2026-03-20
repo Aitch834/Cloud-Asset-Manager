@@ -106,6 +106,7 @@ const TABLE_MAP: Record<string, string> = {
   bde_field_inspections: "field_inspections",
   bde_biofuel_field_declarations: "biofuel_field_declarations",
   bde_biofuel_delivery_records: "biofuel_delivery_records",
+  bde_field_operations: "field_operations",
 };
 
 export function getTableForKey(key: string): string | null {

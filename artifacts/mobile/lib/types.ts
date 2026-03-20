@@ -98,6 +98,25 @@ export interface CropEvent {
   synced: boolean;
 }
 
+export interface FieldOperation {
+  id: string;
+  farmId: string;
+  fieldName: string;
+  fieldId: string;
+  operationDate: string;
+  operationType: string;
+  implement: string;
+  workingDepthCm: string;
+  passes: string;
+  areaHa: string;
+  quantity: string;
+  quantityUnit: string;
+  operator: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface SoilSample {
   id: string;
   farmId: string;

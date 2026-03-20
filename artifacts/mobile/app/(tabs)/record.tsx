@@ -158,6 +158,15 @@ const recordOptions: RecordOption[] = [
     route: "/cleaning-record",
   },
   {
+    id: "field-operation",
+    title: "Field Operation",
+    description: "Log cultivation, tillage, lime spreading, rolling, cover crops and drainage — with depth, passes and implement",
+    icon: "layers",
+    color: colors.fieldBrown,
+    bgColor: "#FEF3C7",
+    route: "/field-operation",
+  },
+  {
     id: "field-inspection",
     title: "Field Crop Inspection",
     description: "Crop walking notes — pest and disease observations, growth stage and action flags",
