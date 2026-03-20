@@ -6,7 +6,7 @@ import { sendSms } from "./sms";
 
 const ESCALATION_DAYS = 7;
 
-const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated"]);
+const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail"]);
 
 async function tenantHasSmsModule(tenantId: number): Promise<boolean> {
   const [smsModule] = await db
@@ -162,6 +162,32 @@ export async function createNonconformanceNotification(params: {
     relatedId: params.ncId,
     dedupeKey: `nc-raised-${params.ncId}`,
   });
+}
+
+export async function createWaterFailureNotification(params: {
+  tenantId: number;
+  farmId: number;
+  recordId: number;
+  herdName: string;
+  waterSource: string;
+  testResult: string;
+}) {
+  const title = `Livestock Water Quality Failure — ${params.herdName}`;
+  const message = `Water from ${params.waterSource} has been recorded as UNSUITABLE for ${params.herdName}. Test result: ${params.testResult.replace(/-/g, " ")}. Immediate action required — restrict access to this water source and arrange an alternative supply. Review and retest when remediated.`;
+
+  await upsertNotification({
+    tenantId: params.tenantId,
+    farmId: params.farmId,
+    type: "water_quality_fail",
+    severity: "critical",
+    title,
+    message,
+    relatedModule: "livestock-management",
+    relatedId: params.recordId,
+    dedupeKey: `water-fail-${params.recordId}`,
+  });
+
+  await dispatchSmsForCriticalAlert(params.tenantId, title, message);
 }
 
 async function checkEscalations() {

@@ -73,7 +73,7 @@ import {
   farmLocationsTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte } from "drizzle-orm";
-import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification } from "../lib/alertingJob";
+import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 
@@ -1237,6 +1237,23 @@ router.post("/farms/:farmId/water-records", requireAuth, requireTenant, requireM
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(livestockWaterRecordsTable).values({ ...req.body, farmId }).returning();
+  if (req.body.testPass === false || req.body.testPass === "false") {
+    try {
+      const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+      if (farm) {
+        await createWaterFailureNotification({
+          tenantId: farm.tenantId,
+          farmId,
+          recordId: record.id,
+          herdName: req.body.herdName || "Unknown herd",
+          waterSource: req.body.waterSource || "Unknown source",
+          testResult: req.body.testResult || "fail",
+        });
+      }
+    } catch (err) {
+      console.error("[WATER] Failed to create water failure notification:", err);
+    }
+  }
   res.status(201).json({ record });
 });
 

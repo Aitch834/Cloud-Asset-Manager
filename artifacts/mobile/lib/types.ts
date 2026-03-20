@@ -463,6 +463,7 @@ export interface WaterQualityRecord {
   testDate: string;
   testResult: string;
   testPass: boolean;
+  urgentAlert?: boolean;
   notes: string;
   latitude?: number;
   longitude?: number;

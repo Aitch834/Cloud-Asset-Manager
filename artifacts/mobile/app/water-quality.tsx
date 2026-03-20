@@ -89,35 +89,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function ToggleRow({
-  label,
-  sublabel,
-  value,
-  onChange,
-  color = colors.success,
-}: {
-  label: string;
-  sublabel?: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-  color?: string;
-}) {
-  return (
-    <View style={styles.toggleRow}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.toggleLabel}>{label}</Text>
-        {sublabel ? <Text style={styles.toggleSublabel}>{sublabel}</Text> : null}
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        trackColor={{ false: colors.borderLight, true: color }}
-        thumbColor={colors.white}
-      />
-    </View>
-  );
-}
-
 export default function WaterQualityScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
@@ -131,6 +102,49 @@ export default function WaterQualityScreen() {
   const [testResult, setTestResult] = useState("");
   const [testPass, setTestPass] = useState(true);
   const [notes, setNotes] = useState("");
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [gpsStatus, setGpsStatus] = useState<"idle" | "capturing" | "captured" | "denied">("idle");
+
+  const handleTogglePass = (value: boolean) => {
+    if (!value) {
+      Alert.alert(
+        "⚠️ Mark Water as Unsuitable?",
+        "This will flag the water source as unsuitable for livestock. When this record syncs, an urgent alert and SMS will be sent to farm management. Are you sure?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Yes — Mark Unsuitable",
+            style: "destructive",
+            onPress: () => {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              setTestPass(false);
+            },
+          },
+        ],
+      );
+    } else {
+      setTestPass(true);
+    }
+  };
+
+  const captureGps = async (): Promise<{ latitude?: number; longitude?: number }> => {
+    setGpsStatus("capturing");
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setGpsStatus("denied");
+        return {};
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setGpsCoords({ lat: loc.coords.latitude, lon: loc.coords.longitude });
+      setGpsStatus("captured");
+      return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+    } catch (err) {
+      console.warn("GPS unavailable:", err instanceof Error ? err.message : "unknown");
+      setGpsStatus("idle");
+      return {};
+    }
+  };
 
   const handleSave = async () => {
     const resolvedSource = waterSource === "other" ? customWaterSource.trim() : waterSource;
@@ -145,18 +159,7 @@ export default function WaterQualityScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    let latitude: number | undefined;
-    let longitude: number | undefined;
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        latitude = loc.coords.latitude;
-        longitude = loc.coords.longitude;
-      }
-    } catch (locErr: unknown) {
-      console.warn("Location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
-    }
+    const { latitude, longitude } = await captureGps();
 
     const record: WaterQualityRecord = {
       id: generateId(),
@@ -166,6 +169,7 @@ export default function WaterQualityScreen() {
       testDate,
       testResult: testResult || "not-tested",
       testPass,
+      urgentAlert: !testPass,
       notes: notes.trim(),
       latitude,
       longitude,
@@ -176,11 +180,20 @@ export default function WaterQualityScreen() {
     try {
       await appendToList(STORAGE_KEYS.WATER_QUALITY_RECORDS, record);
       await refreshPendingCount();
-      Alert.alert(
-        "Water Record Saved",
-        "The water quality record has been saved and will sync when connected.",
-        [{ text: "Done", onPress: () => router.back() }],
-      );
+
+      if (!testPass) {
+        Alert.alert(
+          "Record Saved — Alert Queued",
+          "The water quality failure has been saved. An urgent SMS alert will be sent to farm management when this device next syncs.",
+          [{ text: "OK", onPress: () => router.back() }],
+        );
+      } else {
+        Alert.alert(
+          "Water Record Saved",
+          "The water quality record has been saved and will sync when connected.",
+          [{ text: "Done", onPress: () => router.back() }],
+        );
+      }
     } catch (err) {
       console.error("Save water record error:", err);
       Alert.alert("Save Failed", "Could not save the record. Please try again.");
@@ -188,6 +201,8 @@ export default function WaterQualityScreen() {
       setSaving(false);
     }
   };
+
+  const isFail = !testPass;
 
   return (
     <KeyboardAvoidingView
@@ -210,7 +225,7 @@ export default function WaterQualityScreen() {
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 120 }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.infoNote}>
@@ -263,17 +278,33 @@ export default function WaterQualityScreen() {
             value={testResult}
             onSelect={(k) => {
               setTestResult(k);
-              setTestPass(k.startsWith("pass"));
+              if (k.startsWith("fail")) {
+                handleTogglePass(false);
+              } else if (k.startsWith("pass")) {
+                setTestPass(true);
+              }
             }}
             selectedColor={testResult.startsWith("fail") ? colors.error : colors.success}
           />
-          <ToggleRow
-            label="Overall: Water suitable for livestock"
-            sublabel="Toggle off if action is required"
-            value={testPass}
-            onChange={setTestPass}
-            color={colors.success}
-          />
+
+          <View style={styles.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.toggleLabel, isFail && { color: colors.error }]}>
+                {isFail ? "⚠️  Water NOT suitable for livestock" : "✓  Water suitable for livestock"}
+              </Text>
+              <Text style={[styles.toggleSublabel, isFail && { color: colors.error }]}>
+                {isFail
+                  ? "Urgent SMS alert will be sent to farm management on sync"
+                  : "Toggle off if action is required"}
+              </Text>
+            </View>
+            <Switch
+              value={testPass}
+              onValueChange={handleTogglePass}
+              trackColor={{ false: colors.error, true: colors.success }}
+              thumbColor={colors.white}
+            />
+          </View>
         </Section>
 
         <Section title="Notes">
@@ -285,16 +316,39 @@ export default function WaterQualityScreen() {
             numberOfLines={4}
           />
         </Section>
+
+        <View style={styles.gpsNote}>
+          <Feather
+            name={gpsStatus === "captured" ? "check-circle" : "map-pin"}
+            size={13}
+            color={gpsStatus === "captured" ? colors.success : gpsStatus === "denied" ? colors.error : colors.textTertiary}
+          />
+          <Text style={[styles.gpsNoteText, gpsStatus === "captured" && { color: colors.success }]}>
+            {gpsStatus === "captured" && gpsCoords
+              ? `GPS captured: ${gpsCoords.lat.toFixed(5)}, ${gpsCoords.lon.toFixed(5)}`
+              : gpsStatus === "denied"
+              ? "GPS permission denied — location not recorded"
+              : "GPS coordinates of water source will be captured on save"}
+          </Text>
+        </View>
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+        {isFail && (
+          <View style={styles.failBanner}>
+            <Feather name="alert-triangle" size={15} color="#7f1d1d" />
+            <Text style={styles.failBannerText}>
+              Water marked as UNSUITABLE — urgent alert will be sent on sync
+            </Text>
+          </View>
+        )}
         <Button
+          title={saving ? "Saving…" : "Save Water Record"}
           onPress={handleSave}
-          disabled={saving}
-          style={{ backgroundColor: colors.info }}
-        >
-          {saving ? "Saving…" : "Save Water Record"}
-        </Button>
+          loading={saving}
+          fullWidth
+          style={{ backgroundColor: isFail ? colors.error : colors.info }}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -339,7 +393,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   blueBadgeText: {
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.semiBold,
     fontSize: 11,
     color: "#1e40af",
   },
@@ -372,7 +426,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   sectionTitle: {
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     textTransform: "uppercase",
@@ -408,9 +462,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: spacing.xs,
+    marginTop: spacing.xs,
   },
   toggleLabel: {
-    fontFamily: fonts.medium,
+    fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.textPrimary,
   },
@@ -420,11 +475,42 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 1,
   },
+  gpsNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  gpsNoteText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textTertiary,
+    flex: 1,
+  },
   footer: {
     padding: spacing.md,
     paddingTop: spacing.sm,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    gap: spacing.sm,
+  },
+  failBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  failBannerText: {
+    flex: 1,
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    color: "#7f1d1d",
   },
 });
