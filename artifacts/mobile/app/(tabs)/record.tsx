@@ -220,6 +220,15 @@ const recordOptions: RecordOption[] = [
     bgColor: "#fef3c7",
     route: "/biofuel-delivery",
   },
+  {
+    id: "environmental-event",
+    title: "Environmental Management Event",
+    description: "Log hedge trimming, pond clearance, mowing, scrub clearance and other habitat management activities",
+    icon: "feather",
+    color: "#16a34a",
+    bgColor: "#dcfce7",
+    route: "/environmental-event",
+  },
 ];
 
 export default function RecordScreen() {

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric, boolean } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { fieldsTable } from "./fields-crops";
 
@@ -44,4 +44,23 @@ export const agriEnvironmentSchemeRecordsTable = pgTable("agri_environment_schem
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const environmentalManagementEventsTable = pgTable("environmental_management_events", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  featureId: integer("feature_id").references(() => environmentalFeaturesTable.id, { onDelete: "set null" }),
+  featureName: text("feature_name"),
+  featureType: text("feature_type"),
+  eventDate: timestamp("event_date", { withTimezone: true }).notNull(),
+  eventType: text("event_type").notNull(),
+  description: text("description"),
+  operator: text("operator"),
+  contractorUsed: boolean("contractor_used").default(false),
+  contractorName: text("contractor_name"),
+  schemeId: integer("scheme_id").references(() => agriEnvironmentSchemeRecordsTable.id, { onDelete: "set null" }),
+  schemeName: text("scheme_name"),
+  fulfilsSchemeObligation: boolean("fulfils_scheme_obligation").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

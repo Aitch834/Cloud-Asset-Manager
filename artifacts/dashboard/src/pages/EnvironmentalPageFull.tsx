@@ -11,10 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck } from "lucide-react";
+import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil } from "lucide-react";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 
-type Tab = "features" | "schemes" | "assessments";
+type Tab = "features" | "schemes" | "assessments" | "events";
 interface LatLng { lat: number; lng: number; }
 
 const fmt = (d: string | null | undefined) => {
@@ -708,6 +708,408 @@ function AssessmentsTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Event type definitions ──────────────────────────────────────────────────
+const EVENT_TYPES = [
+  { value: "hedge_trimming",          label: "Hedge Trimming / Laying" },
+  { value: "scrub_clearance",         label: "Scrub Clearance" },
+  { value: "mowing",                  label: "Mowing / Cutting" },
+  { value: "pond_clearance",          label: "Pond Clearance" },
+  { value: "ditch_clearance",         label: "Ditch Clearance" },
+  { value: "vegetation_management",   label: "Vegetation Management" },
+  { value: "tree_work",               label: "Tree Work / Coppicing" },
+  { value: "grazing",                 label: "Grazing / Livestock Management" },
+  { value: "spraying",                label: "Spraying" },
+  { value: "cultivation",             label: "Cultivation" },
+  { value: "planting",                label: "Planting / Seeding" },
+  { value: "water_management",        label: "Water / Irrigation Management" },
+  { value: "pest_control",            label: "Pest / Invasive Species Control" },
+  { value: "other",                   label: "Other" },
+];
+
+const eventTypeLabel = (v: string) => EVENT_TYPES.find(t => t.value === v)?.label ?? v;
+
+const EVENT_TYPE_COLORS: Record<string, string> = {
+  hedge_trimming: "bg-green-100 text-green-800",
+  scrub_clearance: "bg-lime-100 text-lime-800",
+  mowing: "bg-emerald-100 text-emerald-800",
+  pond_clearance: "bg-cyan-100 text-cyan-800",
+  ditch_clearance: "bg-blue-100 text-blue-800",
+  vegetation_management: "bg-teal-100 text-teal-800",
+  tree_work: "bg-amber-100 text-amber-800",
+  grazing: "bg-orange-100 text-orange-800",
+  spraying: "bg-purple-100 text-purple-800",
+  cultivation: "bg-stone-100 text-stone-800",
+  planting: "bg-green-100 text-green-800",
+  water_management: "bg-sky-100 text-sky-800",
+  pest_control: "bg-red-100 text-red-800",
+  other: "bg-gray-100 text-gray-700",
+};
+
+function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; features: any[]; schemes: any[] }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [filterFeature, setFilterFeature] = useState("__all__");
+  const [filterType, setFilterType] = useState("__all__");
+
+  const emptyForm = () => ({
+    featureId: "", featureName: "", featureType: "",
+    eventDate: new Date().toISOString().slice(0, 10),
+    eventType: "", description: "", operator: "",
+    contractorUsed: false, contractorName: "",
+    fulfilsSchemeObligation: false, schemeId: "", schemeName: "", notes: "",
+  });
+  const [form, setForm] = useState<any>(emptyForm());
+
+  const q = useQuery({
+    queryKey: ["env-management-events", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/environmental-management-events`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d) => d.records ?? [],
+  });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["env-management-events", farmId] });
+
+  const createMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/environmental-management-events`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Event logged" }); invalidate(); setAddOpen(false); setForm(emptyForm()); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/environmental-management-events/${id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Event updated" }); invalidate(); setEditRecord(null); setForm(emptyForm()); },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/environmental-management-events/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
+  });
+
+  function openAdd() { setForm(emptyForm()); setAddOpen(true); }
+  function openEdit(r: any) {
+    setForm({
+      featureId: r.featureId?.toString() ?? "",
+      featureName: r.featureName ?? "",
+      featureType: r.featureType ?? "",
+      eventDate: r.eventDate ? new Date(r.eventDate).toISOString().slice(0, 10) : "",
+      eventType: r.eventType ?? "",
+      description: r.description ?? "",
+      operator: r.operator ?? "",
+      contractorUsed: r.contractorUsed ?? false,
+      contractorName: r.contractorName ?? "",
+      fulfilsSchemeObligation: r.fulfilsSchemeObligation ?? false,
+      schemeId: r.schemeId?.toString() ?? "",
+      schemeName: r.schemeName ?? "",
+      notes: r.notes ?? "",
+    });
+    setEditRecord(r);
+  }
+
+  function handleFeatureSelect(fid: string) {
+    if (fid === "__none__") { setForm((f: any) => ({ ...f, featureId: "", featureName: "", featureType: "" })); return; }
+    const feat = features.find((f: any) => f.id.toString() === fid);
+    setForm((f: any) => ({ ...f, featureId: fid, featureName: feat?.description || featureTypeLabel(feat?.featureType || ""), featureType: feat?.featureType ?? "" }));
+  }
+
+  function handleSchemeSelect(sid: string) {
+    if (sid === "__none__") { setForm((f: any) => ({ ...f, schemeId: "", schemeName: "" })); return; }
+    const scheme = schemes.find((s: any) => s.id.toString() === sid);
+    setForm((f: any) => ({ ...f, schemeId: sid, schemeName: scheme?.schemeName ?? "" }));
+  }
+
+  function handleSubmit() {
+    if (!form.eventDate || !form.eventType) {
+      toast({ title: "Please fill in all required fields", variant: "destructive" }); return;
+    }
+    const payload = {
+      ...form,
+      featureId: form.featureId && form.featureId !== "__none__" ? parseInt(form.featureId) : null,
+      schemeId: form.schemeId && form.schemeId !== "__none__" ? parseInt(form.schemeId) : null,
+    };
+    if (editRecord) { updateMut.mutate({ id: editRecord.id, body: payload }); }
+    else { createMut.mutate(payload); }
+  }
+
+  const allRecords: any[] = q.data ?? [];
+  const filtered = allRecords.filter(r => {
+    if (filterFeature !== "__all__" && r.featureId?.toString() !== filterFeature && r.featureName !== filterFeature) return false;
+    if (filterType !== "__all__" && r.eventType !== filterType) return false;
+    return true;
+  });
+
+  const thisYear = new Date().getFullYear();
+  const eventsThisYear = allRecords.filter(r => new Date(r.eventDate).getFullYear() === thisYear).length;
+  const schemeLinked = allRecords.filter(r => r.fulfilsSchemeObligation).length;
+
+  const dialogOpen = addOpen || !!editRecord;
+  const dialogTitle = editRecord ? "Edit Management Event" : "Log Management Event";
+
+  function featureDisplayName(r: any) {
+    if (r.featureName) return r.featureName;
+    if (r.featureType) return featureTypeLabel(r.featureType);
+    return "—";
+  }
+
+  return (
+    <div>
+      {/* Stats strip */}
+      {allRecords.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
+          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.75rem 1rem" }}>
+            <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Total Events Logged</p>
+            <p style={{ fontSize: "1.25rem", fontWeight: 700, color: "#166534" }}>{allRecords.length}</p>
+          </div>
+          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.75rem 1rem" }}>
+            <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>This Year ({thisYear})</p>
+            <p style={{ fontSize: "1.25rem", fontWeight: 700, color: "#166534" }}>{eventsThisYear}</p>
+          </div>
+          <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "0.75rem 1rem" }}>
+            <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Scheme-Linked Events</p>
+            <p style={{ fontSize: "1.25rem", fontWeight: 700, color: "#1e40af" }}>{schemeLinked}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Red Tractor notice */}
+      <div style={{ marginBottom: 16, padding: "0.875rem 1rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8 }}>
+        <p style={{ fontSize: "0.8rem", color: "#92400e" }}>
+          <strong>Red Tractor requirement:</strong> You must be able to demonstrate that environmental features are actively managed. This log provides the dated evidence trail that management is actually taking place — not just intended. Log every management activity here, even small ones.
+        </p>
+      </div>
+
+      {/* Filters + Add button */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+        {features.length > 0 && (
+          <Select value={filterFeature} onValueChange={setFilterFeature}>
+            <SelectTrigger style={{ width: 200 }}><SelectValue placeholder="All features" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All features</SelectItem>
+              {features.map((f: any) => (
+                <SelectItem key={f.id} value={f.id.toString()}>
+                  {f.description || featureTypeLabel(f.featureType)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger style={{ width: 210 }}><SelectValue placeholder="All event types" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All event types</SelectItem>
+            {EVENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <div style={{ marginLeft: "auto" }}>
+          <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Log Event</Button>
+        </div>
+      </div>
+
+      {/* Table */}
+      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading…</p> : filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <Leaf size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>
+            {allRecords.length === 0 ? "No management events logged yet" : "No events match the current filter"}
+          </p>
+          <p style={{ fontSize: "0.875rem" }}>
+            {allRecords.length === 0 ? "Start building your evidence trail — log every hedge trim, pond clearance, or mowing event." : "Try clearing the filter to see all events."}
+          </p>
+        </div>
+      ) : (
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                {["Date", "Feature", "Event Type", "Description", "Operator", "Scheme", "Notes", ""].map(h => (
+                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r: any, i: number) => {
+                const badgeCls = EVENT_TYPE_COLORS[r.eventType] ?? "bg-gray-100 text-gray-700";
+                return (
+                  <tr key={r.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                    <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap", fontWeight: 500 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <CalendarDays size={13} color="#9ca3af" />
+                        {fmt(r.eventDate)}
+                      </div>
+                    </td>
+                    <td style={{ padding: "0.625rem 0.875rem" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: 500, color: "#111827" }}>
+                        <Leaf size={13} color="#16a34a" />
+                        {featureDisplayName(r)}
+                      </div>
+                    </td>
+                    <td style={{ padding: "0.625rem 0.875rem" }}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badgeCls}`}>
+                        {eventTypeLabel(r.eventType)}
+                      </span>
+                    </td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", maxWidth: 200, fontSize: "0.8rem" }}>{r.description || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>
+                      {r.contractorUsed ? (
+                        <span>{r.contractorName || "Contractor"} <span style={{ fontSize: "0.7rem", color: "#9ca3af" }}>(contractor)</span></span>
+                      ) : (r.operator || "—")}
+                    </td>
+                    <td style={{ padding: "0.625rem 0.875rem" }}>
+                      {r.fulfilsSchemeObligation ? (
+                        <span style={{ fontSize: "0.75rem", background: "#eff6ff", color: "#1e40af", borderRadius: 4, padding: "2px 6px" }}>
+                          {r.schemeName || "Scheme"}
+                        </span>
+                      ) : <span style={{ color: "#9ca3af" }}>—</span>}
+                    </td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", maxWidth: 160, fontSize: "0.8rem" }}>{r.notes || "—"}</td>
+                    <td style={{ padding: "0.5rem" }}>
+                      <div style={{ display: "flex", gap: 2 }}>
+                        <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                        <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={13} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add / Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); } }}>
+        <DialogContent style={{ maxWidth: "42rem", maxHeight: "90vh", overflowY: "auto" }}>
+          <DialogHeader><DialogTitle>{dialogTitle}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-1">
+
+            {/* Date + Event Type */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div className="space-y-1.5">
+                <Label>Date <span style={{ color: "#ef4444" }}>*</span></Label>
+                <input type="date" value={form.eventDate} onChange={e => setForm((f: any) => ({ ...f, eventDate: e.target.value }))}
+                  style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.375rem 0.75rem", fontSize: "0.875rem" }} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Event Type <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Select value={form.eventType || "__none__"} onValueChange={v => v !== "__none__" && setForm((f: any) => ({ ...f, eventType: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__" disabled>Select type…</SelectItem>
+                    {EVENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Feature */}
+            <div className="space-y-1.5">
+              <Label>Feature</Label>
+              {features.length > 0 ? (
+                <Select value={form.featureId || "__none__"} onValueChange={handleFeatureSelect}>
+                  <SelectTrigger><SelectValue placeholder="Select feature…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Not linked to a specific feature —</SelectItem>
+                    {features.map((f: any) => (
+                      <SelectItem key={f.id} value={f.id.toString()}>
+                        {f.description ? `${featureTypeLabel(f.featureType)} — ${f.description}` : featureTypeLabel(f.featureType)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <input value={form.featureName} onChange={e => setForm((f: any) => ({ ...f, featureName: e.target.value }))}
+                  placeholder="Feature name or description"
+                  style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.375rem 0.75rem", fontSize: "0.875rem" }} />
+              )}
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <Label>Description of work carried out</Label>
+              <Textarea value={form.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f: any) => ({ ...f, description: e.target.value }))}
+                placeholder="e.g. North boundary hedge trimmed to 1.5m height on both sides, arisings left on field side" rows={2} />
+            </div>
+
+            {/* Operator / Contractor */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div className="space-y-1.5">
+                <Label>Carried out by</Label>
+                <input value={form.operator} onChange={e => setForm((f: any) => ({ ...f, operator: e.target.value }))}
+                  placeholder="Operator name"
+                  style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.375rem 0.75rem", fontSize: "0.875rem" }} />
+              </div>
+              <div className="space-y-1.5">
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", fontWeight: 500, cursor: "pointer", marginTop: "1.4rem" }}>
+                  <input type="checkbox" checked={form.contractorUsed}
+                    onChange={e => setForm((f: any) => ({ ...f, contractorUsed: e.target.checked }))} style={{ width: 16, height: 16 }} />
+                  Carried out by contractor
+                </label>
+                {form.contractorUsed && (
+                  <input value={form.contractorName} onChange={e => setForm((f: any) => ({ ...f, contractorName: e.target.value }))}
+                    placeholder="Contractor name / company"
+                    style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.375rem 0.75rem", fontSize: "0.875rem" }} />
+                )}
+              </div>
+            </div>
+
+            {/* Scheme obligation */}
+            <div className="space-y-1.5">
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", fontWeight: 500, cursor: "pointer" }}>
+                <input type="checkbox" checked={form.fulfilsSchemeObligation}
+                  onChange={e => setForm((f: any) => ({ ...f, fulfilsSchemeObligation: e.target.checked }))} style={{ width: 16, height: 16 }} />
+                This event fulfils an agri-environment scheme obligation
+              </label>
+              {form.fulfilsSchemeObligation && schemes.length > 0 && (
+                <Select value={form.schemeId || "__none__"} onValueChange={handleSchemeSelect}>
+                  <SelectTrigger><SelectValue placeholder="Link to scheme…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— No specific scheme —</SelectItem>
+                    {schemes.filter((s: any) => s.status === "active").map((s: any) => (
+                      <SelectItem key={s.id} value={s.id.toString()}>{s.schemeName}{s.agreementNumber ? ` (${s.agreementNumber})` : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <Label>Notes</Label>
+              <Textarea value={form.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f: any) => ({ ...f, notes: e.target.value }))}
+                placeholder="Soil / weather conditions, observations, follow-up actions needed…" rows={2} />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); }}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={createMut.isPending || updateMut.isPending}>
+              {editRecord ? "Save Changes" : "Log Event"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm */}
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader><DialogTitle>Delete Event</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Delete this management event record? This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function EnvironmentalPageFull() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("features");
@@ -719,20 +1121,29 @@ export default function EnvironmentalPageFull() {
     select: (d) => d.records ?? [],
   });
 
+  const featuresQ = useQuery({
+    queryKey: ["environmental-features", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/environmental-features`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d) => d.records ?? [],
+  });
+
   return (
     <AppLayout title="Environmental Management">
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <p className="text-sm text-gray-500 mb-4">
-          Record environmental features for Red Tractor compliance, manage agri-environment scheme agreements, and log assessor inspection visits.
+          Record environmental features, manage agri-environment scheme agreements, log assessor visits, and maintain a dated evidence trail of all management activities.
         </p>
         <TabBar className="mb-6">
           <TabButton active={tab === "features"} onClick={() => setTab("features")}>Environmental Features</TabButton>
           <TabButton active={tab === "schemes"} onClick={() => setTab("schemes")}>Agri-Env Schemes</TabButton>
           <TabButton active={tab === "assessments"} onClick={() => setTab("assessments")}>Assessment Records</TabButton>
+          <TabButton active={tab === "events"} onClick={() => setTab("events")}>Management Events</TabButton>
         </TabBar>
         {farmId && tab === "features" && <EnvironmentalFeaturesTab farmId={farmId} schemes={schemesQ.data ?? []} />}
         {farmId && tab === "schemes" && <AgriEnvSchemesTab farmId={farmId} />}
         {farmId && tab === "assessments" && <AssessmentsTab farmId={farmId} />}
+        {farmId && tab === "events" && <ManagementEventsTab farmId={farmId} features={featuresQ.data ?? []} schemes={schemesQ.data ?? []} />}
       </div>
     </AppLayout>
   );
