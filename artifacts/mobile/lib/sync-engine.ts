@@ -277,6 +277,7 @@ function getSyncEndpoint(recordType: string, farmId: string): string | null {
     bde_mortality_records: `/farms/${farmId}/mortality-records`,
     bde_feed_records: `/farms/${farmId}/feed-records`,
     bde_water_quality_records: `/farms/${farmId}/water-records`,
+    bde_environmental_events: `/farms/${farmId}/environmental-management-events`,
   };
   return typeMap[recordType] || null;
 }

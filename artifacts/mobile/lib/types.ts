@@ -470,6 +470,21 @@ export interface WaterQualityRecord {
   synced: boolean;
 }
 
+export interface EnvironmentalEvent {
+  id: string;
+  farmId: string;
+  eventDate: string;
+  eventType: string;
+  featureName: string;
+  description: string;
+  operator: string;
+  contractorUsed: boolean;
+  contractorName: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface SyncQueueItem {
   id: string;
   type: string;

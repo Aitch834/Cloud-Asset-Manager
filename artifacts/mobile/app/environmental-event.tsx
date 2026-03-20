@@ -20,7 +20,9 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
-import { getApiUrl } from "@/lib/api";
+import { useSync } from "@/lib/context/SyncContext";
+import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import type { EnvironmentalEvent } from "@/lib/types";
 
 const EVENT_TYPES: { value: string; label: string }[] = [
   { value: "hedge_trimming",        label: "Hedge Trimming / Laying" },
@@ -42,6 +44,7 @@ const EVENT_TYPES: { value: string; label: string }[] = [
 export default function EnvironmentalEventScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
+  const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -71,33 +74,28 @@ export default function EnvironmentalEventScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    try {
-      const url = getApiUrl(`/api/farms/${currentFarm.id}/environmental-management-events`);
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventDate: new Date(eventDate).toISOString(),
-          eventType,
-          featureName: featureName.trim() || null,
-          description: description.trim() || null,
-          operator: contractorUsed ? null : (operator.trim() || null),
-          contractorUsed,
-          contractorName: contractorUsed ? contractorName.trim() || null : null,
-          notes: notes.trim() || null,
-        }),
-      });
+    const record: EnvironmentalEvent = {
+      id: generateId(),
+      farmId: currentFarm?.id || "",
+      eventDate: new Date(eventDate).toISOString(),
+      eventType,
+      featureName: featureName.trim(),
+      description: description.trim(),
+      operator: contractorUsed ? "" : operator.trim(),
+      contractorUsed,
+      contractorName: contractorUsed ? contractorName.trim() : "",
+      notes: notes.trim(),
+      createdAt: new Date().toISOString(),
+      synced: false,
+    };
 
-      if (!res.ok) throw new Error("Server error");
+    await appendToList(STORAGE_KEYS.ENVIRONMENTAL_EVENTS, record);
+    await refreshPendingCount();
+    setSaving(false);
 
-      Alert.alert("Saved", "Management event logged successfully.", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
-    } catch {
-      Alert.alert("Error", "Could not save. The record will be retried when connected.");
-    } finally {
-      setSaving(false);
-    }
+    Alert.alert("Saved", "Environmental management event logged successfully.", [
+      { text: "OK", onPress: () => router.back() },
+    ]);
   };
 
   return (
