@@ -2925,6 +2925,45 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
 <p>If a test returns a fail result, you must take immediate action to prevent animal welfare issues. Typical remedial steps include switching to an alternative water source, installing UV or chlorination treatment, and arranging a follow-up test. Document all steps taken in the Notes field. Red Tractor assessors will look for evidence that failed tests were followed up promptly and that corrective action was effective before the source was returned to use.</p>`,
     },
     {
+      id: 31,
+      title: "Environmental Management — Features, Schemes & Management Events",
+      category: "Environmental",
+      content: `<img src="/api/help-images/field-register.png" alt="Environmental Management" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Environmental Management module in BDE Farm Trac brings together four connected record-keeping areas under a single section: your <strong>Environmental Features</strong> register, your <strong>Agri-environment Schemes</strong>, your <strong>Assessments</strong>, and now a dedicated <strong>Management Events</strong> log. Together, these four tabs give you a complete audit trail of your environmental stewardship — ready for Red Tractor inspections and Natural England / RPA scheme reviews alike.</p>
+
+<h3>Tab 1 — Environmental Features</h3>
+<p>Your features register is a catalogue of all the environmentally significant land features on your holding. For each feature, record the type (hedgerow, field margin, woodland, pond, ditch, grass strip, stone wall, or other), its area or length, and any notes about condition or management history. Features can be linked to specific fields in your field register, giving you a joined-up view of your land and its environmental assets.</p>
+<p>Red Tractor Combinable Crops and other sector standards require evidence that you know where your environmentally sensitive features are and that you are managing them appropriately. The features register satisfies this by providing a searchable, datestamped list that can be exported for an inspector or shared with an agri-environment scheme adviser.</p>
+
+<h3>Tab 2 — Agri-environment Schemes</h3>
+<p>Record all current and historical agri-environment scheme agreements here — Sustainable Farming Incentive (SFI) actions, Countryside Stewardship (CS) agreements, Higher Tier agreements, and any legacy Environmental Stewardship or Entry Level Stewardship agreements. For each scheme, log the scheme name, agreement reference, start and end date, annual payment value, and the land or actions covered. This record is the reference point that the Management Events tab links to when you flag an event as fulfilling a scheme obligation.</p>
+
+<h3>Tab 3 — Assessments</h3>
+<p>Environmental assessments record formal surveys, reviews, or audits carried out on your land. Examples include farm environment plans, whole-farm assessments carried out with an agri-environment adviser, hedgerow surveys, or SSSI condition assessments. Record the date, assessment type, assessor name, findings, and any follow-up actions required. These records demonstrate a proactive approach to environmental management — increasingly valued by Red Tractor and required by many agri-environment scheme conditions.</p>
+
+<h3>Tab 4 — Management Events</h3>
+<p>The Management Events log is a chronological record of all physical management activities carried out on environmental features. This is the evidence that your features are being actively managed — not just mapped. For each event, record:</p>
+<ul>
+<li><strong>Date</strong> — when the management work was carried out</li>
+<li><strong>Event type</strong> — choose from 14 types: Hedge Trimming, Pond Clearance, Mowing, Scrub Clearance, Ditch Clearance, Vegetation Management, Tree Work, Grazing, Spraying (e.g. invasive species), Cultivation, Planting, Water Management, Pest &amp; Invasive Species Control, or Other</li>
+<li><strong>Feature</strong> — link the event to a specific feature from your features register, or enter a location description if the feature is not yet registered</li>
+<li><strong>Description</strong> — what was done, how, and any relevant observations</li>
+<li><strong>Operator or Contractor</strong> — who carried out the work. If a contractor was used, enter their name</li>
+<li><strong>Scheme obligation</strong> — tick if this event was carried out to fulfil an agri-environment scheme requirement, and select the relevant scheme from your schemes list. This links the management event directly to your scheme record</li>
+<li><strong>Notes</strong> — any additional context, weather conditions, machinery used, or follow-up actions required</li>
+</ul>
+
+<h3>Logging a Management Event — Mobile App</h3>
+<p>Tap <strong>Record</strong> on the bottom navigation bar and select <strong>Environmental Management Event</strong>. The mobile form includes all the same fields. Log the event in the field as soon as the work is done — this is particularly important for inspection evidence, as records logged on the day carry more weight than retrospective entries.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Under Red Tractor's Combinable Crops standard, farms must demonstrate that they are managing in-field and boundary environmental features appropriately. A Management Events log — showing that hedge trimming was carried out at the right time of year, that pond margins were cleared, or that ditch maintenance was completed — is direct evidence of active stewardship. For farms in agri-environment schemes, the obligation-linking feature means you can show inspectors exactly which scheme action each management event satisfies, reducing the risk of a non-conformance finding.</p>
+
+<h3>NVZ and Timing Rules</h3>
+<p>Some management activities are subject to seasonal restrictions. Hedge trimming, for example, must not take place between 1 March and 31 August under the Wildlife &amp; Countryside Act 1981 (with limited exceptions). Ditch management may be restricted in or near SSSIs or under agri-environment scheme conditions. BDE Farm Trac does not automatically validate management dates against legal restrictions, so it remains your responsibility to check the applicable rules before carrying out management work. Record the actual date the work was done — do not backdate entries.</p>`,
+    },
+    {
       id: 26,
       title: "Understanding Business Reports",
       category: "Finance & Business",

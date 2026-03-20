@@ -69,10 +69,10 @@ export default function Features() {
       features: ["Inspection records", "Non-conformance logging", "Corrective actions", "Print-ready audit summaries"]
     },
     {
-      title: "Environmental Features",
+      title: "Environmental Management",
       icon: Leaf,
       color: "bg-green-50 text-green-600 border-green-100",
-      features: ["Environmental feature mapping", "Agri-environment scheme records", "Stewardship agreement logging", "Habitat & hedgerow records"]
+      features: ["Environmental feature mapping", "Agri-environment scheme records", "Stewardship agreement logging", "Habitat & hedgerow records", "Management events log (hedge trimming, pond clearance, mowing & more)", "Scheme obligation tracking per event"]
     },
     {
       title: "Transport & Haulage",
