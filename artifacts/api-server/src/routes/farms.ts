@@ -1257,6 +1257,59 @@ router.post("/farms/:farmId/water-records", requireAuth, requireTenant, requireM
   res.status(201).json({ record });
 });
 
+// ─── Water Record Lab Certificate Attachments ──────
+router.get("/farms/:farmId/water-records/:recordId/attachments", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const docs = await db.select().from(documentRecordsTable).where(
+    and(
+      eq(documentRecordsTable.farmId, farmId),
+      eq(documentRecordsTable.linkedRecordType, "water_quality"),
+      eq(documentRecordsTable.linkedRecordId, recordId),
+    )
+  ).orderBy(desc(documentRecordsTable.createdAt));
+  res.json({ attachments: docs });
+});
+
+router.post("/farms/:farmId/water-records/:recordId/attachments", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { title, filePath, mimeType, fileSize, referenceNumber, notes } = req.body as { title: string; filePath: string; mimeType?: string; fileSize?: number; referenceNumber?: string; notes?: string };
+  if (!title || !filePath) { res.status(400).json({ error: "title and filePath are required" }); return; }
+  const [doc] = await db.insert(documentRecordsTable).values({
+    farmId,
+    title,
+    documentType: "lab_certificate",
+    linkedRecordType: "water_quality",
+    linkedRecordId: recordId,
+    referenceNumber: referenceNumber || null,
+    filePath,
+    mimeType,
+    fileSize,
+    notes: notes || null,
+  }).returning();
+  res.status(201).json({ attachment: doc });
+});
+
+router.delete("/farms/:farmId/water-records/:recordId/attachments/:docId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const docId = parseInt(req.params.docId, 10);
+  if (isNaN(docId)) { res.status(400).json({ error: "Invalid document ID" }); return; }
+  await db.delete(documentRecordsTable).where(
+    and(
+      eq(documentRecordsTable.id, docId),
+      eq(documentRecordsTable.farmId, farmId),
+      eq(documentRecordsTable.linkedRecordType, "water_quality"),
+    )
+  );
+  res.json({ success: true });
+});
+
 // ─── Visitor Log ───────────────────────────────────
 router.get("/farms/:farmId/visitors", requireAuth, requireTenant, requireModuleByKey("biosecurity", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);

@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle } from "lucide-react";
+import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle, FileText, Upload, Paperclip } from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { printHtml } from "@/lib/utils";
@@ -1285,6 +1286,194 @@ const EMPTY_WATER = {
   testResult: "", testPass: "true", notes: "",
 };
 
+interface WaterAttachment {
+  id: number;
+  title: string;
+  referenceNumber: string | null;
+  filePath: string | null;
+  mimeType: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+function WaterCertificatesDialog({
+  farmId,
+  record,
+  onClose,
+}: {
+  farmId: number;
+  record: WaterRecord;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [labRef, setLabRef] = useState("");
+  const [certTitle, setCertTitle] = useState("");
+
+  const qKey = ["water-attachments", record.id];
+  const { data, isLoading } = useQuery({
+    queryKey: qKey,
+    queryFn: async () => {
+      const res = await fetch(`/api/farms/${farmId}/water-records/${record.id}/attachments`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json() as Promise<{ attachments: WaterAttachment[] }>;
+    },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: async (docId: number) => {
+      await fetch(`/api/farms/${farmId}/water-records/${record.id}/attachments/${docId}`, { method: "DELETE" });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: qKey }),
+  });
+
+  const { uploadFile, isUploading, progress } = useUpload({
+    onSuccess: async (response) => {
+      const title = certTitle.trim() || (labRef.trim() ? `Lab Certificate — ${labRef.trim()}` : "Lab Certificate");
+      await fetch(`/api/farms/${farmId}/water-records/${record.id}/attachments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          filePath: response.objectPath,
+          referenceNumber: labRef.trim() || null,
+          notes: null,
+        }),
+      });
+      qc.invalidateQueries({ queryKey: qKey });
+      setLabRef("");
+      setCertTitle("");
+    },
+  });
+
+  const attachments = data?.attachments ?? [];
+  const sourceLabel = WATER_SOURCE_LABELS[record.waterSource] ?? record.waterSource;
+  const testDateStr = record.testDate ? new Date(record.testDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent style={{ maxWidth: "42rem" }} className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Paperclip className="h-4 w-4 text-blue-600" />
+            Lab Certificates
+          </DialogTitle>
+          <DialogDescription>
+            {sourceLabel} · {testDateStr}
+            {record.testResult ? ` · ${record.testResult}` : ""}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-1">
+          {/* Attached certificates */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Attached Certificates</p>
+            {isLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+              </div>
+            ) : attachments.length === 0 ? (
+              <div className="text-sm text-muted-foreground italic py-2 border border-dashed rounded-lg px-3">
+                No certificates attached yet. Upload the lab report below to link it to this test record.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {attachments.map((att) => (
+                  <div key={att.id} className="flex items-start justify-between bg-muted/40 rounded-lg px-3 py-2.5 gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <FileText className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                      <div className="min-w-0">
+                        <a
+                          href={att.filePath ? `/api/storage${att.filePath}` : "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-blue-700 hover:underline block truncate"
+                        >
+                          {att.title}
+                        </a>
+                        {att.referenceNumber && (
+                          <p className="text-xs text-muted-foreground">Ref: {att.referenceNumber}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Added {new Date(att.createdAt).toLocaleDateString("en-GB")}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0 text-destructive hover:text-destructive hover:bg-red-50 h-7 px-2"
+                      onClick={() => deleteMut.mutate(att.id)}
+                      disabled={deleteMut.isPending}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Upload form */}
+          <div className="border border-dashed rounded-lg p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attach Lab Certificate</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+              <div>
+                <Label className="text-xs">Lab Reference Number</Label>
+                <Input
+                  placeholder="e.g. WA-2026-00291"
+                  value={labRef}
+                  onChange={(e) => setLabRef(e.target.value)}
+                  className="h-8 text-xs mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Certificate Title</Label>
+                <Input
+                  placeholder="e.g. Annual water test — Borehole"
+                  value={certTitle}
+                  onChange={(e) => setCertTitle(e.target.value)}
+                  className="h-8 text-xs mt-1"
+                />
+              </div>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadFile(file);
+                  e.target.value = "";
+                }}
+                disabled={isUploading}
+              />
+              <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" disabled={isUploading} asChild>
+                <span>
+                  {isUploading ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading {progress}%</>
+                  ) : (
+                    <><Upload className="h-3.5 w-3.5" /> Choose File</>
+                  )}
+                </span>
+              </Button>
+              <span className="text-xs text-muted-foreground">PDF, JPG, PNG accepted</span>
+            </label>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Uploaded certificates are stored securely and linked to this specific water quality test record. They will appear in audit exports.
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function WaterSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const base = `/api/farms/${farmId}/water-records`;
@@ -1299,6 +1488,7 @@ function WaterSection({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<WaterRecord | null>(null);
   const [form, setForm] = useState(EMPTY_WATER);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [certRecord, setCertRecord] = useState<WaterRecord | null>(null);
 
   function setField(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -1347,8 +1537,12 @@ function WaterSection({ farmId }: { farmId: number }) {
         </Button>
       </div>
 
-      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-        <strong>Annual testing required</strong> for pigs and poultry, and for all species where the water source is not mains supply. Retain lab certificates for audit.
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex items-start gap-2">
+        <Paperclip className="h-4 w-4 shrink-0 mt-0.5" />
+        <span>
+          <strong>Annual testing required</strong> for pigs and poultry, and for all species where the water source is not mains supply.
+          Use the <strong>Lab Certs</strong> button on each record to attach your lab certificate — certificates are stored against the specific test and included in audit exports.
+        </span>
       </div>
 
       {isLoading ? (
@@ -1386,6 +1580,15 @@ function WaterSection({ farmId }: { farmId: number }) {
                   <td className="px-4 py-3 text-xs text-muted-foreground max-w-[200px] truncate">{r.notes || "—"}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 gap-1 text-blue-700 border-blue-200 hover:bg-blue-50"
+                        onClick={() => setCertRecord(r)}
+                        title="Attach or view lab certificates"
+                      >
+                        <Paperclip className="h-3 w-3" /> Lab Certs
+                      </Button>
                       <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
                     </div>
@@ -1450,6 +1653,14 @@ function WaterSection({ farmId }: { farmId: number }) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {certRecord && (
+        <WaterCertificatesDialog
+          farmId={farmId}
+          record={certRecord}
+          onClose={() => setCertRecord(null)}
+        />
       )}
     </>
   );
