@@ -4,6 +4,7 @@ import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -23,6 +24,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiHerds } from "@/lib/hooks/useApiHerds";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { WaterQualityRecord } from "@/lib/types";
 
@@ -95,7 +97,12 @@ export default function WaterQualityScreen() {
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
 
-  const [herdName, setHerdName] = useState("");
+  const { herds, loading: herdsLoading } = useApiHerds(currentFarm?.id);
+
+  const [selectedHerdId, setSelectedHerdId] = useState<number | null>(null);
+  const [selectedHerdName, setSelectedHerdName] = useState("");
+  const [customHerdName, setCustomHerdName] = useState("");
+
   const [waterSource, setWaterSource] = useState("");
   const [customWaterSource, setCustomWaterSource] = useState("");
   const [testDate, setTestDate] = useState(new Date().toISOString().split("T")[0]);
@@ -104,6 +111,23 @@ export default function WaterQualityScreen() {
   const [notes, setNotes] = useState("");
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [gpsStatus, setGpsStatus] = useState<"idle" | "capturing" | "captured" | "denied">("idle");
+
+  const hasRegisteredHerds = !herdsLoading && herds.length > 0;
+  const usesFreeText = !hasRegisteredHerds;
+
+  const resolvedHerdName = hasRegisteredHerds
+    ? selectedHerdName
+    : customHerdName.trim();
+
+  const handleHerdSelect = (herd: { id: number; name: string }) => {
+    if (selectedHerdId === herd.id) {
+      setSelectedHerdId(null);
+      setSelectedHerdName("");
+    } else {
+      setSelectedHerdId(herd.id);
+      setSelectedHerdName(herd.name);
+    }
+  };
 
   const handleTogglePass = (value: boolean) => {
     if (!value) {
@@ -148,10 +172,12 @@ export default function WaterQualityScreen() {
 
   const handleSave = async () => {
     const resolvedSource = waterSource === "other" ? customWaterSource.trim() : waterSource;
-    if (!herdName.trim() || !resolvedSource) {
+    if (!resolvedHerdName || !resolvedSource) {
       Alert.alert(
         "Required Fields",
-        "Please enter the herd/flock name and select the water source.",
+        hasRegisteredHerds
+          ? "Please select a herd or flock and choose the water source."
+          : "Please enter the herd or flock name and select the water source.",
       );
       return;
     }
@@ -164,7 +190,8 @@ export default function WaterQualityScreen() {
     const record: WaterQualityRecord = {
       id: generateId(),
       farmId: currentFarm?.id || "",
-      herdName: herdName.trim(),
+      herdId: selectedHerdId ?? undefined,
+      herdName: resolvedHerdName,
       waterSource: resolvedSource,
       testDate,
       testResult: testResult || "not-tested",
@@ -215,7 +242,7 @@ export default function WaterQualityScreen() {
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Water Quality Record</Text>
-          <Text style={styles.headerSub}>Livestock water source & test log</Text>
+          <Text style={styles.headerSub}>Livestock water source &amp; test log</Text>
         </View>
         <View style={styles.blueBadge}>
           <Feather name="droplet" size={14} color="#1e40af" />
@@ -236,13 +263,63 @@ export default function WaterQualityScreen() {
           </Text>
         </View>
 
-        <Section title="Herd / Flock">
-          <Text style={styles.label}>Herd or Flock Name *</Text>
-          <Input
-            placeholder="e.g. Pig finishing unit, Dairy herd"
-            value={herdName}
-            onChangeText={setHerdName}
-          />
+        <Section title="Herd / Flock *">
+          {herdsLoading ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color={colors.info} />
+              <Text style={styles.loadingText}>Loading registered herds…</Text>
+            </View>
+          ) : hasRegisteredHerds ? (
+            <>
+              <View style={styles.optionGrid}>
+                {herds.map((h) => {
+                  const selected = selectedHerdId === h.id;
+                  return (
+                    <Pressable
+                      key={h.id}
+                      style={[
+                        styles.herdChip,
+                        selected && { backgroundColor: colors.info, borderColor: colors.info },
+                      ]}
+                      onPress={() => handleHerdSelect(h)}
+                    >
+                      <Text
+                        style={[styles.herdChipName, selected && { color: "#fff" }]}
+                        numberOfLines={1}
+                      >
+                        {h.name}
+                      </Text>
+                      {h.type ? (
+                        <Text style={[styles.herdChipType, selected && { color: "rgba(255,255,255,0.75)" }]}>
+                          {h.type}
+                          {h.herdNumber ? ` · ${h.herdNumber}` : ""}
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.herdHint}>
+                <Feather name="info" size={11} color={colors.textTertiary} /> Herds are managed in the
+                Herd &amp; Flock Register on the dashboard.
+              </Text>
+            </>
+          ) : (
+            <>
+              <View style={styles.noHerdsNote}>
+                <Feather name="alert-circle" size={14} color={colors.warning} />
+                <Text style={styles.noHerdsText}>
+                  No herds registered for this farm. Enter a name below, or add herds via the
+                  dashboard to enable the lookup.
+                </Text>
+              </View>
+              <Input
+                placeholder="e.g. Dairy herd, Pig finishing unit, Layer flock"
+                value={customHerdName}
+                onChangeText={setCustomHerdName}
+              />
+            </>
+          )}
         </Section>
 
         <Section title="Water Source *">
@@ -321,9 +398,17 @@ export default function WaterQualityScreen() {
           <Feather
             name={gpsStatus === "captured" ? "check-circle" : "map-pin"}
             size={13}
-            color={gpsStatus === "captured" ? colors.success : gpsStatus === "denied" ? colors.error : colors.textTertiary}
+            color={
+              gpsStatus === "captured"
+                ? colors.success
+                : gpsStatus === "denied"
+                ? colors.error
+                : colors.textTertiary
+            }
           />
-          <Text style={[styles.gpsNoteText, gpsStatus === "captured" && { color: colors.success }]}>
+          <Text
+            style={[styles.gpsNoteText, gpsStatus === "captured" && { color: colors.success }]}
+          >
             {gpsStatus === "captured" && gpsCoords
               ? `GPS captured: ${gpsCoords.lat.toFixed(5)}, ${gpsCoords.lon.toFixed(5)}`
               : gpsStatus === "denied"
@@ -456,6 +541,60 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.xs,
     color: colors.textSecondary,
+  },
+  herdChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radius.md,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    minWidth: 100,
+  },
+  herdChipName: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.textPrimary,
+  },
+  herdChipType: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  herdHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textTertiary,
+    marginTop: spacing.xs,
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  loadingText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  noHerdsNote: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "flex-start",
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  noHerdsText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#78350f",
+    lineHeight: 18,
   },
   toggleRow: {
     flexDirection: "row",

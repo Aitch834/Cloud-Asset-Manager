@@ -458,6 +458,7 @@ export interface FeedRecord {
 export interface WaterQualityRecord {
   id: string;
   farmId: string;
+  herdId?: number;
   herdName: string;
   waterSource: string;
   testDate: string;
