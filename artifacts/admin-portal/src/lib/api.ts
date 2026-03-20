@@ -192,6 +192,21 @@ export interface AdminEmailSent {
   sentAt: string;
 }
 
+export interface Lead {
+  id: number;
+  businessName: string;
+  contactName: string;
+  email: string;
+  phone?: string | null;
+  farmCount: number;
+  modulesInterested: string[];
+  message?: string | null;
+  status: string;
+  notes?: string | null;
+  lastContactedAt?: string | null;
+  createdAt: string;
+}
+
 export const api = {
   verifySecret: (secret: string) =>
     get<{ stats: Stats }>("/admin/stats", secret),
@@ -274,4 +289,10 @@ export const api = {
 
   deleteEmailTemplate: (id: number, secret: string) =>
     del<{ deleted: boolean }>(`/admin/email-templates/${id}`, secret),
+
+  getLeads: (secret: string) =>
+    get<{ leads: Lead[] }>("/admin/leads", secret),
+
+  updateLead: (id: number, data: { status?: string; notes?: string }, secret: string) =>
+    patch<{ lead: Lead }>(`/admin/leads/${id}`, data, secret),
 };

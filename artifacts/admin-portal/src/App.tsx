@@ -7,6 +7,7 @@ import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Customers from "@/pages/Customers";
 import CustomerDetail from "@/pages/CustomerDetail";
+import Leads from "@/pages/Leads";
 import SupportTickets from "@/pages/SupportTickets";
 import Email from "@/pages/Email";
 import Database from "@/pages/Database";
@@ -22,6 +23,7 @@ function PortalRouter() {
         <Route path="/" component={Dashboard} />
         <Route path="/customers" component={Customers} />
         <Route path="/customers/:id" component={CustomerDetail} />
+        <Route path="/leads" component={Leads} />
         <Route path="/support" component={SupportTickets} />
         <Route path="/email" component={Email} />
         <Route path="/database" component={Database} />

@@ -1,10 +1,11 @@
 import { Link, useLocation } from "wouter";
 import { clearSecret } from "@/lib/auth";
-import { LayoutDashboard, Users, MessageSquare, LogOut, ShieldCheck, Database, Mail } from "lucide-react";
+import { LayoutDashboard, Users, MessageSquare, LogOut, ShieldCheck, Database, Mail, TrendingUp } from "lucide-react";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/customers", label: "Customers", icon: Users },
+  { href: "/leads", label: "Leads Pipeline", icon: TrendingUp },
   { href: "/support", label: "Support Tickets", icon: MessageSquare },
   { href: "/email", label: "Email", icon: Mail },
   { href: "/database", label: "SQL Console", icon: Database },

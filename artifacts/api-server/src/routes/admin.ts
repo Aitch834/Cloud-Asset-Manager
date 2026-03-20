@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable } from "@workspace/db";
+import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable } from "@workspace/db";
 import { eq, and, count, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
@@ -648,6 +648,39 @@ router.delete("/admin/email-templates/:id", requireAuth, async (req: Request, re
 
   if (!deleted) { res.status(404).json({ error: "Template not found" }); return; }
   res.json({ deleted: true });
+});
+
+// ─── Leads / Pipeline ──────────────────────────────────────────────────────
+
+router.get("/admin/leads", async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const leads = await db.select().from(leadsTable).orderBy(desc(leadsTable.createdAt));
+  res.json({ leads });
+});
+
+router.patch("/admin/leads/:id", async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid lead ID" }); return; }
+
+  const { status, notes } = req.body as { status?: string; notes?: string };
+  const allowed = ["new", "contacted", "demo-booked", "signed-up", "not-interested"];
+  if (status && !allowed.includes(status)) {
+    res.status(400).json({ error: "Invalid status" });
+    return;
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (status !== undefined) {
+    updates.status = status;
+    if (status !== "new") updates.lastContactedAt = new Date();
+  }
+  if (notes !== undefined) updates.notes = notes;
+
+  const [updated] = await db.update(leadsTable).set(updates).where(eq(leadsTable.id, id)).returning();
+  if (!updated) { res.status(404).json({ error: "Lead not found" }); return; }
+  res.json({ lead: updated });
 });
 
 export default router;
