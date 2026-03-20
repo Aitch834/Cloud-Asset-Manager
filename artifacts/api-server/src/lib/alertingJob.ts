@@ -80,6 +80,38 @@ async function upsertNotification(data: {
   }
 }
 
+export async function createFieldActionNotification(params: {
+  tenantId: number;
+  farmId: number;
+  inspectionId: number;
+  fieldName: string;
+  action: string;
+  observations: string;
+  inspector: string;
+}) {
+  const severity = params.action === "urgent" ? "critical" : "warning";
+  const title = params.action === "urgent"
+    ? `Urgent Field Action Required — ${params.fieldName}`
+    : `Treatment Required — ${params.fieldName}`;
+  const message = `${params.inspector} has flagged ${params.fieldName} during a field inspection. Action: ${params.action === "urgent" ? "URGENT" : "treat"}. ${params.observations ? `Observations: ${params.observations.slice(0, 120)}` : ""}`.trim();
+
+  await upsertNotification({
+    tenantId: params.tenantId,
+    farmId: params.farmId,
+    type: params.action === "urgent" ? "field_action_urgent" : "field_action_treatment",
+    severity,
+    title,
+    message,
+    relatedModule: "field-crop-management",
+    relatedId: params.inspectionId,
+    dedupeKey: `field-action-${params.inspectionId}`,
+  });
+
+  if (params.action === "urgent") {
+    await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+  }
+}
+
 export async function createNonconformanceNotification(params: {
   tenantId: number;
   farmId: number;

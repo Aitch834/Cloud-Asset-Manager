@@ -165,6 +165,28 @@ export const fieldOperationsTable = pgTable("field_operations", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+export const fieldInspectionsTable = pgTable("field_inspections", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  mobileId: text("mobile_id"),
+  fieldName: text("field_name").notNull(),
+  inspectionDate: timestamp("inspection_date", { withTimezone: true }).notNull(),
+  cropType: text("crop_type"),
+  growthStage: text("growth_stage"),
+  pestDiseaseObservations: text("pest_disease_observations"),
+  actionRequired: text("action_required").notNull().default("none"),
+  recommendedAction: text("recommended_action"),
+  inspector: text("inspector"),
+  notes: text("notes"),
+  latitude: numeric("latitude", { precision: 10, scale: 7 }),
+  longitude: numeric("longitude", { precision: 10, scale: 7 }),
+  isResolved: boolean("is_resolved").notNull().default(false),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  resolvedBy: text("resolved_by"),
+  resolutionNotes: text("resolution_notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const nvzRiskAssessmentsTable = pgTable("nvz_risk_assessments", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

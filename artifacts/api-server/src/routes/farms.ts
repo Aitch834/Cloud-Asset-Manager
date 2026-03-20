@@ -65,13 +65,14 @@ import {
   storageLocationsTable,
   biosecurityPlansTable,
   nvzRiskAssessmentsTable,
+  fieldInspectionsTable,
   fieldOperationsTable,
   farmAdvisorsTable,
   farmInspectionSessionsTable,
   externalAccessLogTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte } from "drizzle-orm";
-import { createNonconformanceNotification } from "../lib/alertingJob";
+import { createNonconformanceNotification, createFieldActionNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 
@@ -3581,6 +3582,82 @@ router.delete("/farms/:farmId/nvz-risk-assessments/:recordId", requireAuth, requ
   const recordId = parseInt(req.params.recordId);
   await db.delete(nvzRiskAssessmentsTable).where(and(eq(nvzRiskAssessmentsTable.id, recordId), eq(nvzRiskAssessmentsTable.farmId, farmId)));
   res.json({ ok: true });
+});
+
+// ─── Field Inspections ───────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/field-inspections", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const unresolvedOnly = req.query.unresolved === "true";
+  let query = db.select().from(fieldInspectionsTable).where(
+    unresolvedOnly
+      ? and(eq(fieldInspectionsTable.farmId, farmId), eq(fieldInspectionsTable.isResolved, false))
+      : eq(fieldInspectionsTable.farmId, farmId)
+  ).$dynamic();
+  const records = await query.orderBy(desc(fieldInspectionsTable.inspectionDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/field-inspections", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const { mobileId, fieldName, inspectionDate, cropType, growthStage, pestDiseaseObservations, actionRequired, recommendedAction, inspector, notes, latitude, longitude } = req.body;
+
+  if (mobileId) {
+    const [existing] = await db.select({ id: fieldInspectionsTable.id }).from(fieldInspectionsTable)
+      .where(and(eq(fieldInspectionsTable.farmId, farmId), eq(fieldInspectionsTable.mobileId, mobileId))).limit(1);
+    if (existing) { res.json({ record: existing, duplicate: true }); return; }
+  }
+
+  const [record] = await db.insert(fieldInspectionsTable).values({
+    farmId,
+    mobileId: mobileId || null,
+    fieldName: fieldName || "Unknown Field",
+    inspectionDate: inspectionDate ? new Date(inspectionDate) : new Date(),
+    cropType: cropType || null,
+    growthStage: growthStage || null,
+    pestDiseaseObservations: pestDiseaseObservations || null,
+    actionRequired: actionRequired || "none",
+    recommendedAction: recommendedAction || null,
+    inspector: inspector || null,
+    notes: notes || null,
+    latitude: latitude ? String(latitude) : null,
+    longitude: longitude ? String(longitude) : null,
+  }).returning();
+
+  if (actionRequired === "treat" || actionRequired === "urgent") {
+    const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+    if (farm) {
+      await createFieldActionNotification({
+        tenantId: farm.tenantId,
+        farmId,
+        inspectionId: record.id,
+        fieldName: record.fieldName,
+        action: actionRequired,
+        observations: pestDiseaseObservations || recommendedAction || "",
+        inspector: inspector || "Mobile user",
+      });
+    }
+  }
+
+  res.json({ record });
+});
+
+router.patch("/farms/:farmId/field-inspections/:recordId/resolve", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const { resolvedBy, resolutionNotes } = req.body;
+  const [record] = await db.update(fieldInspectionsTable).set({
+    isResolved: true,
+    resolvedAt: new Date(),
+    resolvedBy: resolvedBy || null,
+    resolutionNotes: resolutionNotes || null,
+  }).where(and(eq(fieldInspectionsTable.id, recordId), eq(fieldInspectionsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
 });
 
 // ─── Advisors & Access ────────────────────────────────────────────────────────

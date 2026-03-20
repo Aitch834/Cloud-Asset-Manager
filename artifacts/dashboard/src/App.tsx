@@ -30,6 +30,7 @@ import SoilDashboard from "@/pages/SoilDashboard";
 import FleetDashboard from "@/pages/FleetDashboard";
 import BusinessReportsPage from "@/pages/BusinessReportsPage";
 import FieldOperationsPage from "@/pages/FieldOperationsPage";
+import FieldInspectionsPage from "@/pages/FieldInspectionsPage";
 import FarmSettingsPage from "@/pages/FarmSettings";
 import AppSettingsPage from "@/pages/SettingsPage";
 import StaffPage from "@/pages/Staff";
@@ -194,6 +195,7 @@ function Router() {
       <Route path="/financial" component={FinancialPage} />
       <Route path="/business-reports" component={BusinessReportsPage} />
       <Route path="/field-operations" component={FieldOperationsPage} />
+      <Route path="/field-inspections" component={FieldInspectionsPage} />
       <Route path="/environmental" component={EnvironmentalPage} />
       <Route path="/haulage" component={HaulagePage} />
       <Route path="/documents" component={DocumentsPageCustom} />
