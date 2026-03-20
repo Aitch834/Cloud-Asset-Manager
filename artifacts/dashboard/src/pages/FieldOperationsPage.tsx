@@ -229,9 +229,10 @@ export default function FieldOperationsPage() {
 
   function openEdit(r: any) {
     setEditId(r.id);
+    const hasDbField = r.fieldId && r.fieldId.toString() !== "" && r.fieldId.toString() !== "0";
     setForm({
       fieldName: r.fieldName ?? "",
-      fieldId: r.fieldId?.toString() ?? "",
+      fieldId: hasDbField ? r.fieldId.toString() : (r.fieldName ? "__manual__" : ""),
       operationDate: r.operationDate ? new Date(r.operationDate).toISOString().slice(0, 10) : "",
       operationType: r.operationType ?? "",
       implement: r.implement ?? "",
@@ -247,8 +248,8 @@ export default function FieldOperationsPage() {
   }
 
   function handleFieldSelect(fid: string) {
-    if (fid === "__none__") {
-      setForm((f) => ({ ...f, fieldId: "", fieldName: "" }));
+    if (fid === "__manual__") {
+      setForm((f) => ({ ...f, fieldId: "__manual__", fieldName: "" }));
       return;
     }
     const field = (fieldsQ.data ?? []).find((f: any) => f.id.toString() === fid);
@@ -274,10 +275,14 @@ export default function FieldOperationsPage() {
       toast({ title: "Please fill in all required fields", variant: "destructive" });
       return;
     }
+    const payload = {
+      ...form,
+      fieldId: form.fieldId === "__manual__" || form.fieldId === "__select__" ? "" : form.fieldId,
+    };
     if (editId !== null) {
-      updateMut.mutate({ id: editId, data: form });
+      updateMut.mutate({ id: editId, data: payload });
     } else {
-      createMut.mutate(form);
+      createMut.mutate(payload);
     }
   }
 
@@ -494,19 +499,20 @@ export default function FieldOperationsPage() {
               <div className="space-y-1.5">
                 <Label>Field <span className="text-red-500">*</span></Label>
                 {(fieldsQ.data ?? []).length > 0 ? (
-                  <Select value={form.fieldId || "__none__"} onValueChange={handleFieldSelect}>
+                  <Select value={form.fieldId || "__select__"} onValueChange={handleFieldSelect}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select field…" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__">— Enter manually —</SelectItem>
+                      <SelectItem value="__select__" disabled>Select field…</SelectItem>
+                      <SelectItem value="__manual__">— Enter name manually —</SelectItem>
                       {(fieldsQ.data ?? []).map((f: any) => (
                         <SelectItem key={f.id} value={f.id.toString()}>{f.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 ) : null}
-                {(!form.fieldId || (fieldsQ.data ?? []).length === 0) && (
+                {(form.fieldId === "__manual__" || (fieldsQ.data ?? []).length === 0) && (
                   <Input
                     placeholder="Field name"
                     value={form.fieldName}
