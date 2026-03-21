@@ -18,7 +18,7 @@ export default function Features() {
       title: "Field & Crop Management",
       icon: Map,
       color: "bg-brand-pale text-brand-forest border-brand-light/30",
-      features: ["GPS boundary mapping", "Crop rotation history", "Harvest audit trail — transport, storage & yield", "Planned vs. actual harvest cross-referencing", "Field operations log — cultivation, tillage, lime & more", "20 operation types with depth, passes & quantity tracking", "Field inspection logging with action flags — Monitor, Treat, Urgent", "Instant SMS alerts for urgent crop actions", "Resolution tracking with audit trail per inspection"]
+      features: ["GPS boundary mapping", "Crop rotation history", "Seed drilling records — crop variety, seed lot, rate & treatment", "Harvest audit trail — transport, storage & yield", "Planned vs. actual harvest cross-referencing", "Field operations log — cultivation, tillage, lime & more", "20 operation types with depth, passes & quantity tracking", "Field inspection logging with action flags — Monitor, Treat, Urgent", "Instant SMS alerts for urgent crop actions", "Resolution tracking with audit trail per inspection"]
     },
     {
       title: "Sprays & Inputs",
