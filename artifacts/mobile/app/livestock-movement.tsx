@@ -47,6 +47,7 @@ export default function LivestockMovementScreen() {
   const [herdName, setHerdName] = useState("");
   const [species, setSpecies] = useState("");
   const [animalCount, setAnimalCount] = useState("");
+  const [earTagNumbers, setEarTagNumbers] = useState("");
   const [movementType, setMovementType] = useState<MovType>("off");
   const [fromLocation, setFromLocation] = useState("");
   const [toLocation, setToLocation] = useState("");
@@ -83,6 +84,7 @@ export default function LivestockMovementScreen() {
       herdName: herdName.trim(),
       species,
       animalCount: animalCount.trim(),
+      earTagNumbers: earTagNumbers.trim(),
       movementType,
       fromLocation: fromLocation.trim(),
       toLocation: toLocation.trim(),
@@ -182,6 +184,26 @@ export default function LivestockMovementScreen() {
             onChangeText={setAnimalCount}
             keyboardType="number-pad"
             required
+          />
+          <Input
+            label={
+              species === "Cattle"
+                ? "Ear Tag Numbers (required for BCMS)"
+                : ["Sheep", "Goats", "Deer"].includes(species)
+                ? "Ear Tag / EID Numbers"
+                : "Ear Tag / ID Numbers (optional)"
+            }
+            placeholder={
+              species === "Cattle"
+                ? "e.g. UK123456 789012, UK123456 789013 — one per line or comma-separated"
+                : species === "Pigs"
+                ? "e.g. Herd mark tattooed — AB1234"
+                : "e.g. UK1234 56789, one per line or comma-separated"
+            }
+            value={earTagNumbers}
+            onChangeText={setEarTagNumbers}
+            multiline
+            numberOfLines={3}
           />
 
           <View style={styles.sectionLabel}>

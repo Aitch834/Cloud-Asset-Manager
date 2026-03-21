@@ -116,6 +116,24 @@ interface WaterRecord {
   createdAt: string;
 }
 
+interface Animal {
+  id: number;
+  farmId: number;
+  herdId: number | null;
+  tagNumber: string | null;
+  earTagNumber: string | null;
+  eidNumber: string | null;
+  species: string;
+  breed: string | null;
+  sex: string | null;
+  dateOfBirth: string | null;
+  acquisitionDate: string | null;
+  acquisitionSource: string | null;
+  status: string;
+  notes: string | null;
+  createdAt: string;
+}
+
 const EMPTY_HERD = { name: "", type: "", breed: "", herdNumber: "", notes: "" };
 const EMPTY_PLAN = {
   planYear: new Date().getFullYear(),
@@ -131,6 +149,21 @@ const EMPTY_PLAN = {
   wormingProtocol: "",
   flukeTreatment: "",
   mastitisPrevention: "",
+  notes: "",
+};
+
+const EMPTY_ANIMAL = {
+  herdId: "",
+  earTagNumber: "",
+  eidNumber: "",
+  tagNumber: "",
+  species: "",
+  breed: "",
+  sex: "",
+  dateOfBirth: "",
+  acquisitionDate: "",
+  acquisitionSource: "",
+  status: "active",
   notes: "",
 };
 
@@ -1666,16 +1699,282 @@ function WaterSection({ farmId }: { farmId: number }) {
   );
 }
 
+const ANIMAL_SPECIES = ["Cattle", "Sheep", "Pigs", "Goats", "Deer", "Horses", "Poultry", "Other"];
+const ANIMAL_STATUS_LABELS: Record<string, string> = {
+  active: "On Farm", sold: "Sold / Moved Off", dead: "Deceased", removed: "Removed",
+};
+
+function AnimalsSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}/animals`;
+
+  const { data: animalsData, isLoading } = useQuery<{ records: Animal[] }>({
+    queryKey: ["animals", farmId],
+    queryFn: () => fetch(base).then(r => r.json()),
+  });
+  const { data: herdsData } = useQuery<{ records: Herd[] }>({
+    queryKey: ["herds", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()),
+  });
+  const animals = animalsData?.records ?? [];
+  const herds = herdsData?.records ?? [];
+
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Animal | null>(null);
+  const [form, setForm] = useState(EMPTY_ANIMAL);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  function setField(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof EMPTY_ANIMAL) => {
+      const payload = { ...body, herdId: body.herdId ? Number(body.herdId) : null };
+      return fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["animals", farmId] }); setShowForm(false); setForm(EMPTY_ANIMAL); },
+  });
+  const updateMut = useMutation({
+    mutationFn: (body: typeof EMPTY_ANIMAL & { id: number }) => {
+      const payload = { ...body, herdId: body.herdId ? Number(body.herdId) : null };
+      return fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["animals", farmId] }); setEditing(null); setShowForm(false); setForm(EMPTY_ANIMAL); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["animals", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(a: Animal) {
+    setEditing(a);
+    setForm({
+      herdId: a.herdId ? String(a.herdId) : "",
+      earTagNumber: a.earTagNumber ?? "",
+      eidNumber: a.eidNumber ?? "",
+      tagNumber: a.tagNumber ?? "",
+      species: a.species,
+      breed: a.breed ?? "",
+      sex: a.sex ?? "",
+      dateOfBirth: a.dateOfBirth?.slice(0, 10) ?? "",
+      acquisitionDate: a.acquisitionDate?.slice(0, 10) ?? "",
+      acquisitionSource: a.acquisitionSource ?? "",
+      status: a.status,
+      notes: a.notes ?? "",
+    });
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (editing) updateMut.mutate({ ...form, id: editing.id });
+    else createMut.mutate(form);
+  }
+
+  const filtered = animals.filter(a =>
+    !search ||
+    (a.earTagNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (a.eidNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (a.tagNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    a.species.toLowerCase().includes(search.toLowerCase()) ||
+    (a.breed ?? "").toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const herdName = (herdId: number | null) => herds.find(h => h.id === herdId)?.name ?? "—";
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4 gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search by ear tag, EID, species or breed…" className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Button onClick={() => { setEditing(null); setForm(EMPTY_ANIMAL); setShowForm(true); }}>
+          <Plus className="h-4 w-4 mr-1" /> Register Animal
+        </Button>
+      </div>
+
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+        Register individual animals with their ear tag, EID transponder, and key details. For cattle, each animal must have a UK ear tag matching the BCMS cattle passport. For sheep, the EID (electronic transponder) number is required for flocks of 10 or more under retained UK law.
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+      ) : filtered.length === 0 ? (
+        <Card><CardContent className="py-12 text-center text-muted-foreground">
+          {search ? "No animals match your search." : "No individual animals registered yet. Click 'Register Animal' to add the first record."}
+        </CardContent></Card>
+      ) : (
+        <div className="rounded-lg border border-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-xs text-muted-foreground uppercase tracking-wide">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium">Ear Tag (UK)</th>
+                <th className="text-left px-4 py-3 font-medium">EID Number</th>
+                <th className="text-left px-4 py-3 font-medium">Alt. ID</th>
+                <th className="text-left px-4 py-3 font-medium">Species</th>
+                <th className="text-left px-4 py-3 font-medium">Breed</th>
+                <th className="text-left px-4 py-3 font-medium">Sex</th>
+                <th className="text-left px-4 py-3 font-medium">Date of Birth</th>
+                <th className="text-left px-4 py-3 font-medium">Herd / Flock</th>
+                <th className="text-left px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {filtered.map(a => (
+                <tr key={a.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3 font-mono text-xs font-semibold">{a.earTagNumber || "—"}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{a.eidNumber || "—"}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{a.tagNumber || "—"}</td>
+                  <td className="px-4 py-3 capitalize">{a.species}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{a.breed || "—"}</td>
+                  <td className="px-4 py-3 capitalize text-muted-foreground">{a.sex || "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{formatDate(a.dateOfBirth)}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{herdName(a.herdId)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      a.status === "active" ? "bg-green-50 text-green-700" :
+                      a.status === "sold" ? "bg-amber-50 text-amber-700" :
+                      a.status === "dead" ? "bg-red-50 text-red-700" :
+                      "bg-gray-50 text-gray-600"
+                    }`}>{ANIMAL_STATUS_LABELS[a.status] ?? a.status}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(a)}><Pencil className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteId(a.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent style={{ maxWidth: "48rem" }} className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Edit Animal Record" : "Register Individual Animal"}</DialogTitle>
+              <DialogDescription>Record the individual identifier, species, and key details for this animal.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>UK Ear Tag Number</Label>
+                  <Input value={form.earTagNumber} onChange={e => setField("earTagNumber", e.target.value)} placeholder="e.g. UK123456 789012" className="font-mono" />
+                  <p className="text-xs text-muted-foreground mt-1">BCMS format for cattle. For sheep, use the holding number + individual number printed on the visual tag.</p>
+                </div>
+                <div>
+                  <Label>EID Transponder Number</Label>
+                  <Input value={form.eidNumber} onChange={e => setField("eidNumber", e.target.value)} placeholder="e.g. 826 00123456789" className="font-mono" />
+                  <p className="text-xs text-muted-foreground mt-1">15-digit electronic ID (ISO 11784). Required for sheep in flocks ≥ 10. Also used for cattle electronic tags.</p>
+                </div>
+                <div>
+                  <Label>Alternative / Internal ID</Label>
+                  <Input value={form.tagNumber} onChange={e => setField("tagNumber", e.target.value)} placeholder="e.g. breed society number, dam/sire ref" />
+                </div>
+                <div>
+                  <Label>Species <span className="text-red-500">*</span></Label>
+                  <Select value={form.species} onValueChange={v => setField("species", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
+                    <SelectContent>{ANIMAL_SPECIES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Breed</Label>
+                  <Input value={form.breed} onChange={e => setField("breed", e.target.value)} placeholder="e.g. Holstein Friesian, Texel" />
+                </div>
+                <div>
+                  <Label>Sex</Label>
+                  <Select value={form.sex} onValueChange={v => setField("sex", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select sex" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male (entire)</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="castrated">Castrated / Spayed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Date of Birth</Label>
+                  <Input type="date" value={form.dateOfBirth} onChange={e => setField("dateOfBirth", e.target.value)} />
+                </div>
+                <div>
+                  <Label>Herd / Flock</Label>
+                  <Select value={form.herdId} onValueChange={v => setField("herdId", v)}>
+                    <SelectTrigger><SelectValue placeholder="Assign to herd (optional)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">— Unassigned —</SelectItem>
+                      {herds.map(h => <SelectItem key={h.id} value={String(h.id)}>{h.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Acquisition Date</Label>
+                  <Input type="date" value={form.acquisitionDate} onChange={e => setField("acquisitionDate", e.target.value)} />
+                </div>
+                <div>
+                  <Label>Acquired From</Label>
+                  <Input value={form.acquisitionSource} onChange={e => setField("acquisitionSource", e.target.value)} placeholder="e.g. Supplier name / CPH / auction market" />
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={form.status} onValueChange={v => setField("status", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(ANIMAL_STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Notes</Label>
+                <Input value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Any additional notes" />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
+                  {(createMut.isPending || updateMut.isPending) ? <><Loader2 className="animate-spin h-4 w-4 mr-1" /> Saving…</> : editing ? "Update" : "Register Animal"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteId !== null && (
+        <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Remove Animal Record?</DialogTitle><DialogDescription>This will mark the record as removed. It cannot be undone.</DialogDescription></DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>
+                {deleteMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Remove"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
 export default function LivestockPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "feed" | "water">("herds");
+  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "feed" | "water" | "animals">("herds");
 
   if (!farmId) return <Redirect href="/select" />;
 
   return (
     <AppLayout title="Herds & Animals">
       <TabBar className="mb-6">
-        <TabButton active={tab === "herds"} onClick={() => setTab("herds")}>Herds & Animals</TabButton>
+        <TabButton active={tab === "herds"} onClick={() => setTab("herds")}>Herds & Flocks</TabButton>
+        <TabButton active={tab === "animals"} onClick={() => setTab("animals")}>
+          <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5" /> Individual Animals</span>
+        </TabButton>
         <TabButton active={tab === "vet-plans"} onClick={() => setTab("vet-plans")}>Vet Health Plans</TabButton>
         <TabButton active={tab === "mortality"} onClick={() => setTab("mortality")}>
           <span className="flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> Mortality</span>
@@ -1688,6 +1987,7 @@ export default function LivestockPage() {
         </TabButton>
       </TabBar>
       {tab === "herds" && <HerdsSection farmId={farmId} />}
+      {tab === "animals" && <AnimalsSection farmId={farmId} />}
       {tab === "vet-plans" && <VetHealthPlansSection farmId={farmId} />}
       {tab === "mortality" && <MortalitySection farmId={farmId} />}
       {tab === "feed" && <FeedSection farmId={farmId} />}

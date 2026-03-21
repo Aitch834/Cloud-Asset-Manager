@@ -106,6 +106,7 @@ export function livestockMovementHtml(record: LivestockMovement, farm: Farm | nu
       <tr><td class="label">Species</td><td>${fmt(record.species)}</td></tr>
       <tr><td class="label">Number of Animals</td><td><strong>${fmt(record.animalCount)}</strong></td></tr>
       <tr><td class="label">Herd / Flock Name</td><td>${fmt(record.herdName)}</td></tr>
+      ${record.earTagNumbers ? `<tr><td class="label">Ear Tag / ID Numbers</td><td style="font-family:monospace;white-space:pre-wrap">${fmt(record.earTagNumbers)}</td></tr>` : ""}
       <tr><td class="label">Movement Date</td><td>${fmtDate(record.movementDate)}</td></tr>
       <tr><td class="label">Movement Reference</td><td>${ref}</td></tr>
     </table>

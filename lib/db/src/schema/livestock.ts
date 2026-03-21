@@ -20,6 +20,7 @@ export const livestockAnimalsTable = pgTable("livestock_animals", {
   herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
   tagNumber: text("tag_number"),
   earTagNumber: text("ear_tag_number"),
+  eidNumber: text("eid_number"),
   species: text("species").notNull(),
   breed: text("breed"),
   sex: text("sex"),

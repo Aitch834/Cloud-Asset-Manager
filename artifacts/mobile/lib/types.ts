@@ -232,6 +232,7 @@ export interface LivestockMovement {
   toLocation: string;
   movementDate: string;
   movementRef: string;
+  earTagNumbers: string;
   transporterName: string;
   vehicleReg: string;
   notes: string;
