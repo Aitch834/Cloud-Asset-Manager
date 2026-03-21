@@ -51,6 +51,10 @@ export default function Features() {
         "Scan-to-action — quick-log defects, crop events, medicine treatments, or stock movements straight from the scan result",
         "Awaiting-parts workflow — pause job cards mid-repair and resume when parts arrive",
         "Asset onboarding / offboarding — retirement, sale, and disposal records",
+        "PAT testing log — record annual portable appliance tests with tester details, certificate numbers, pass / fail / advisory result, and next-due-date alerts",
+        "Fire extinguisher register — track type (CO₂, dry powder, foam, water, wet chemical), capacity, serial number, engineer, and annual service dates with overdue warnings",
+        "Workshop risk assessments — pre-loaded hazard library covering welding, grinding, lifting, compressed air, and flammable liquids with control measures and review date tracking",
+        "Workshop COSHH assessments — substance library for engine oils, fuels, solvents, and welding gases with PPE requirements and emergency procedure records",
       ]
     },
     {

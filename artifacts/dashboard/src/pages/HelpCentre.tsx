@@ -32,6 +32,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Dashboards": "bg-fuchsia-50 text-fuchsia-700",
   "Nutrient Management": "bg-yellow-50 text-yellow-700",
   "Account & Settings": "bg-slate-50 text-slate-700",
+  "Workshop": "bg-teal-50 text-teal-700",
 };
 
 // Categories that are always shown regardless of module subscriptions
@@ -59,6 +60,7 @@ const CATEGORY_TO_MODULE: Record<string, string> = {
   "Biofuel / RTFO": "biofuel-rtfo",
   "Nutrient Management": "soil-management",
   "Dairy": "dairy-management",
+  "Workshop": "workshop-management",
 };
 
 function categoryColor(cat: string) {

@@ -3685,12 +3685,16 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <p>The <strong>Workshop &amp; Asset Management</strong> module gives farm managers a complete maintenance control centre for all machinery, vehicles, and fixed assets. It is designed around the reality of modern farm workshops — reactive repairs, planned servicing, and the need to prove to Red Tractor assessors that equipment is kept in safe working order.</p>
 
-<h3>The Four Workshop Tabs</h3>
+<h3>The Eight Workshop Tabs</h3>
 <ul>
-<li><strong>Fleet Overview</strong> — A live summary of every registered asset: status (Operational, Broken Down, In Service, Retired, Sold), hours or odometer reading, and current location. Assets with overdue maintenance are highlighted automatically.</li>
+<li><strong>Assets & QR Codes</strong> — Register every piece of equipment with a unique <strong>EQ-XXXX</strong> code. Generate and print a scannable QR label for instant mobile access from the field or workshop.</li>
 <li><strong>Job Cards</strong> — Raise a job card for any repair, scheduled service, inspection, or investigation. Set the priority (Low, Medium, High, Critical) and track progress through Open → In Progress → Awaiting Parts → Completed. Record labour time, parts used, root cause analysis, and total cost per job.</li>
 <li><strong>Service Schedule</strong> — Log every maintenance event against an asset and set the next-due date. The system automatically flags assets as <em>Overdue</em> (red), <em>Due Soon</em> (amber), or <em>OK</em> (green) based on today's date.</li>
-<li><strong>QR Code Labels</strong> — Generate a unique <strong>EQ-XXXX</strong> code and scannable QR label for any asset. Print it, attach it to the machine, and field workers can scan it instantly with the BDE Farm Trac mobile app to raise defect reports without needing to type the asset name.</li>
+<li><strong>Fleet Overview</strong> — A live summary of every registered asset: status (Operational, Broken Down, In Service, Retired, Sold), hours or odometer reading, and current location. Assets with overdue maintenance are highlighted automatically.</li>
+<li><strong>PAT Testing</strong> — Log annual portable appliance tests for all workshop electrical equipment. Records the tester, certificate number, pass / fail / advisory result, and next test due date, with automatic overdue alerts.</li>
+<li><strong>Fire Safety</strong> — Register all fire extinguishers on the holding. Track type, capacity, serial number, engineer details, and annual service dates. The system warns you when a service is overdue or due within 60 days.</li>
+<li><strong>Risk Assessments</strong> — Document and maintain workshop-specific risk assessments for welding, grinding, lifting, compressed air use, and other significant hazards, with control measures and review date tracking.</li>
+<li><strong>COSHH</strong> — Record COSHH assessments for every hazardous substance used or stored in the workshop — oils, fuels, solvents, welding gases, and more — including PPE requirements and emergency procedures.</li>
 </ul>
 
 <h3>Raising a Job Card</h3>
@@ -3799,6 +3803,104 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li>Laminate outdoor labels or use weatherproof label stock for gate posts and buildings.</li>
 <li>Keep a spare copy of each label in the associated record folder in case the original becomes unreadable.</li>
 </ul>`,
+    },
+    {
+      id: 45,
+      title: "PAT Testing & Fire Extinguisher Records",
+      category: "Workshop",
+      summary: "How to use the PAT Testing and Fire Safety tabs to meet Red Tractor electrical safety and fire safety requirements.",
+      content: `<img src="/api/help-images/field-register.png" alt="PAT Testing and Fire Safety" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Two of Red Tractor's workshop health and safety requirements are often overlooked until an inspection: <strong>portable appliance testing (PAT)</strong> for electrical equipment, and annual <strong>fire extinguisher servicing</strong>. BDE Farm Trac gives each its own dedicated tab within the Workshop module so that evidence is immediately at hand when an assessor asks for it.</p>
+
+<h3>PAT Testing</h3>
+<p>Portable appliances — angle grinders, extension leads, welders, power drills, inspection lights — must be tested by a competent person at appropriate intervals. The frequency depends on the environment and level of use; in a working farm workshop, annual testing is standard best practice. Records must show the item tested, the result, and the name of the tester.</p>
+
+<h4>Adding a PAT Test Record</h4>
+<ol>
+<li>Go to <strong>Workshop</strong> and click the <strong>PAT Testing</strong> tab.</li>
+<li>Click <strong>Log PAT Test</strong>.</li>
+<li>Enter the item or appliance name (e.g. "Angle Grinder — Makita 9558HN"), the location in the workshop, and the test date.</li>
+<li>Set the result: <em>Pass</em>, <em>Fail</em>, or <em>Advisory</em>. A <em>Fail</em> means the appliance must be taken out of service immediately. An <em>Advisory</em> means it can continue in use but remedial action is recommended.</li>
+<li>Enter the tester's name, company, and certificate number.</li>
+<li>Set the <em>Next Test Due</em> date. The system will mark this record as overdue once that date passes.</li>
+</ol>
+<p>Failed appliances should be labelled "DO NOT USE" and either repaired or disposed of before being returned to service. Record any remedial action in the Notes field.</p>
+
+<h3>Fire Extinguisher Register</h3>
+<p>All fire extinguishers must be serviced annually by a competent person and discharge-tested at intervals specified by the manufacturer (typically every 5 years for CO₂ and every 5 years for dry powder). Red Tractor assessors will ask to see evidence that extinguishers on the holding are maintained and appropriately sited.</p>
+
+<h4>Extinguisher Types and Their Uses</h4>
+<table style="width:100%;border-collapse:collapse;font-size:0.9em;margin:12px 0;">
+<thead><tr style="background:#f0fdf4;"><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Type</th><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Label Colour</th><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Suitable For</th><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Not Suitable For</th></tr></thead>
+<tbody>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;">CO₂</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Black band</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Electrical, flammable liquids</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Cooking oils, metals</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;">Dry Powder</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Blue band</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">General-purpose, electrical, flammable liquids</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Cooking oils, enclosed spaces</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;">Foam</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Cream band</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Paper, wood, flammable liquids</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Electrical (unless AFFF rated)</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;">Water</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Red (no band)</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Paper, wood, textiles</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Electrical, flammable liquids</td></tr>
+</tbody>
+</table>
+
+<h4>Adding an Extinguisher Record</h4>
+<ol>
+<li>Click the <strong>Fire Safety</strong> tab and select <strong>Add Extinguisher</strong>.</li>
+<li>Enter the location (e.g. "Main workshop entrance — left of roller door"), the type, and the capacity in kg.</li>
+<li>Record the serial number from the extinguisher label, the last service date, and the engineer and company who carried out the service.</li>
+<li>Set the <em>Next Service Due</em> date. The system will warn you 60 days in advance and mark it as overdue if the date passes without an update.</li>
+</ol>
+
+<h3>Red Tractor Context</h3>
+<p>During an inspection, assessors may ask to physically view extinguishers and check service labels. Having the digital register available with engineer name, service date, and certificate number demonstrates that you have a managed, documented approach to fire safety — not just extinguishers that happen to be on the wall.</p>`,
+    },
+    {
+      id: 46,
+      title: "Workshop Risk Assessments & COSHH",
+      category: "Workshop",
+      summary: "How to use the Risk Assessments and COSHH tabs to document workshop hazards and meet legal health and safety obligations.",
+      content: `<img src="/api/help-images/field-register.png" alt="Workshop Risk Assessments and COSHH" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>UK law requires that employers and self-employed people carry out <strong>suitable and sufficient risk assessments</strong> for all significant workplace hazards (Management of Health and Safety at Work Regulations 1999). Separately, the <strong>Control of Substances Hazardous to Health Regulations 2002 (COSHH)</strong> require that you assess the risk from every hazardous substance used at work and put appropriate controls in place. Both sets of records are required during Red Tractor inspections covering the workshop area.</p>
+
+<h3>Workshop Risk Assessments</h3>
+<p>Risk assessments must identify the hazard, describe who could be harmed and how, and set out the control measures in place. They must be reviewed at least annually, or whenever there is a significant change — new equipment, new personnel, or a near-miss incident.</p>
+
+<h4>Common Workshop Hazards to Assess</h4>
+<ul>
+<li><strong>Welding</strong> — UV radiation, fumes, fire risk, electrical hazard</li>
+<li><strong>Grinding and cutting</strong> — sparks, flying particles, noise, vibration</li>
+<li><strong>Vehicle jacking and lifting operations</strong> — collapse risk, crush injuries</li>
+<li><strong>Compressed air use</strong> — injection injuries, ejected particles, burst hose</li>
+<li><strong>Flammable liquids (fuels, solvents)</strong> — fire, vapour inhalation, skin contact</li>
+<li><strong>Power tools</strong> — entanglement, contact, vibration white finger (HAVS)</li>
+<li><strong>Manual handling</strong> — musculoskeletal injury from lifting heavy components</li>
+</ul>
+
+<h4>Adding a Risk Assessment</h4>
+<ol>
+<li>Go to <strong>Workshop</strong> and click the <strong>Risk Assessments</strong> tab.</li>
+<li>Click <strong>Add Assessment</strong> and select the activity or hazard from the dropdown. All records in this tab are automatically filed under the <em>Workshop</em> area.</li>
+<li>Set the risk level: Low, Medium, High, or Critical — based on the likelihood and severity of harm <em>before</em> controls are applied.</li>
+<li>Describe who could be harmed (e.g. "Workshop operative, visiting contractors") and the nature of the harm.</li>
+<li>Record your control measures — engineering controls (guards, LEV ventilation), administrative controls (safe working procedures, training), and PPE.</li>
+<li>Set the assessment date and the next review date (typically 12 months from today, or sooner if conditions change).</li>
+</ol>
+<p>When a review date passes, the record is highlighted as overdue. Update the controls if required, then save the record with a new review date to clear the alert.</p>
+
+<h3>COSHH Assessments</h3>
+<p>Under COSHH, you must assess the health risks from all hazardous substances — including oils, fuels, degreasers, welding gases, battery acid, and aerosol lubricants — and ensure that exposure is prevented or adequately controlled. COSHH assessments must reference the Safety Data Sheet (SDS) for each substance.</p>
+
+<h4>Adding a COSHH Assessment</h4>
+<ol>
+<li>Click the <strong>COSHH</strong> tab in Workshop and select <strong>Add COSHH Assessment</strong>.</li>
+<li>Choose the substance from the dropdown (e.g. "Diesel / fuel", "Engine oil / gear oil", "Welding gas"). All records in this tab are automatically filed under the <em>Workshop</em> usage area.</li>
+<li>Enter the manufacturer or supplier and the hazard classification from the SDS (e.g. "Flammable liquid, Category 3 — H226").</li>
+<li>Record the storage location (e.g. "Locked metal cabinet — marked FLAMMABLE") and the control measures in place (e.g. "Store in ventilated metal cabinet away from ignition sources").</li>
+<li>List the PPE required — nitrile gloves, eye protection, RPE for organic vapours, etc.</li>
+<li>Record emergency procedures for spills and first aid steps from the SDS.</li>
+</ol>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor assessors covering the workshop area will look for evidence that you have identified the significant risks, put controls in place, and reviewed assessments regularly. Assessments do not need to be lengthy — a clear, honest description of the hazard and the steps taken to control it is more useful than a lengthy document that is not acted upon. The BDE Farm Trac records provide an immediately accessible, dated evidence trail without requiring paper files.</p>`,
     },
   ];
 
