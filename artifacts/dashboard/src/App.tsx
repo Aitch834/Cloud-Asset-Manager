@@ -52,6 +52,7 @@ import RiskAssessmentsPage from "@/pages/RiskAssessmentsPage";
 import WasteDisposalPage from "@/pages/WasteDisposalPage";
 import FarmLocationsPage from "@/pages/FarmLocationsPage";
 import FarmMapPage from "@/pages/FarmMapPage";
+import WeekAheadPage from "@/pages/WeekAheadPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -149,6 +150,7 @@ function Router() {
       <Route path="/" component={Login} />
       <Route path="/select" component={SelectContext} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/week-ahead" component={WeekAheadPage} />
       <Route path="/fields" component={FieldsPage} />
       <Route path="/harvest" component={HarvestPage} />
       <Route path="/storage-locations" component={StorageLocationsPage} />

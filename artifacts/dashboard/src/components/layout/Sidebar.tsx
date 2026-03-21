@@ -35,6 +35,7 @@ import {
   Smartphone,
   Shovel,
   Map,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -51,6 +52,7 @@ interface NavItem {
 
 const coreNav: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Week Ahead", href: "/week-ahead", icon: CalendarDays },
   { name: "Fields & Crops", href: "/fields", icon: Sprout, moduleKeys: ["field-crop-management"] },
   { name: "Harvest Records", href: "/harvest", icon: Wheat, moduleKeys: ["field-crop-management"] },
   { name: "Field Operations", href: "/field-operations", icon: Shovel, moduleKeys: ["field-crop-management"] },

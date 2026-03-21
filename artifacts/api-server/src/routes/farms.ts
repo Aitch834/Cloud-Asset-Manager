@@ -72,7 +72,7 @@ import {
   externalAccessLogTable,
   farmLocationsTable,
 } from "@workspace/db";
-import { eq, and, desc, sql, lt, gte } from "drizzle-orm";
+import { eq, and, desc, sql, lt, gte, isNotNull, lte } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
@@ -4122,6 +4122,121 @@ router.get("/farms/:farmId/access-log", requireAuth, requireTenant, async (req: 
     .orderBy(desc(externalAccessLogTable.accessedAt))
     .limit(200);
   res.json({ records });
+});
+
+// ─── Week Ahead ───────────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  if (isNaN(farmId)) { res.status(400).json({ error: "Invalid farmId" }); return; }
+
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(now);
+  weekEnd.setDate(weekEnd.getDate() + 8);
+  const overdueStart = new Date(now);
+  overdueStart.setDate(overdueStart.getDate() - 60);
+
+  type TaskItem = {
+    id: string; type: string; title: string; description: string;
+    dueDate: string; module: string; href: string; colour: string;
+  };
+
+  const tasks: TaskItem[] = [];
+
+  const [
+    pestRows, cleaningRows, biosecPlanRows,
+    certRows, trainingRows, inspectionRows,
+    correctiveRows, riskRows,
+    maintRows, calibRows,
+  ] = await Promise.all([
+    db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
+      .from(pestControlRecordsTable)
+      .where(and(eq(pestControlRecordsTable.farmId, farmId), isNotNull(pestControlRecordsTable.followUpDate), gte(pestControlRecordsTable.followUpDate, overdueStart), lt(pestControlRecordsTable.followUpDate, weekEnd))),
+
+    db.select({ id: cleaningDisinfectionRecordsTable.id, area: cleaningDisinfectionRecordsTable.area, cleaningType: cleaningDisinfectionRecordsTable.cleaningType, nextDueDate: cleaningDisinfectionRecordsTable.nextDueDate })
+      .from(cleaningDisinfectionRecordsTable)
+      .where(and(eq(cleaningDisinfectionRecordsTable.farmId, farmId), isNotNull(cleaningDisinfectionRecordsTable.nextDueDate), gte(cleaningDisinfectionRecordsTable.nextDueDate, overdueStart), lt(cleaningDisinfectionRecordsTable.nextDueDate, weekEnd))),
+
+    db.select({ id: biosecurityPlansTable.id, nextReviewDate: biosecurityPlansTable.nextReviewDate })
+      .from(biosecurityPlansTable)
+      .where(and(eq(biosecurityPlansTable.farmId, farmId), isNotNull(biosecurityPlansTable.nextReviewDate), gte(biosecurityPlansTable.nextReviewDate, overdueStart), lt(biosecurityPlansTable.nextReviewDate, weekEnd))),
+
+    db.select({ id: staffCertificatesTable.id, certificateType: staffCertificatesTable.certificateType, certificateNumber: staffCertificatesTable.certificateNumber, expiryDate: staffCertificatesTable.expiryDate })
+      .from(staffCertificatesTable)
+      .where(and(eq(staffCertificatesTable.farmId, farmId), isNotNull(staffCertificatesTable.expiryDate), gte(staffCertificatesTable.expiryDate, overdueStart), lt(staffCertificatesTable.expiryDate, weekEnd))),
+
+    db.select({ id: staffTrainingRecordsTable.id, trainingType: staffTrainingRecordsTable.trainingType, expiryDate: staffTrainingRecordsTable.expiryDate })
+      .from(staffTrainingRecordsTable)
+      .where(and(eq(staffTrainingRecordsTable.farmId, farmId), isNotNull(staffTrainingRecordsTable.expiryDate), gte(staffTrainingRecordsTable.expiryDate, overdueStart), lt(staffTrainingRecordsTable.expiryDate, weekEnd))),
+
+    db.select({ id: inspectionRecordsTable.id, inspectionType: inspectionRecordsTable.inspectionType, nextInspectionDue: inspectionRecordsTable.nextInspectionDue })
+      .from(inspectionRecordsTable)
+      .where(and(eq(inspectionRecordsTable.farmId, farmId), isNotNull(inspectionRecordsTable.nextInspectionDue), gte(inspectionRecordsTable.nextInspectionDue, overdueStart), lt(inspectionRecordsTable.nextInspectionDue, weekEnd))),
+
+    db.select({ id: correctiveActionsTable.id, title: correctiveActionsTable.title, dueDate: correctiveActionsTable.dueDate, status: correctiveActionsTable.status })
+      .from(correctiveActionsTable)
+      .where(and(eq(correctiveActionsTable.farmId, farmId), isNotNull(correctiveActionsTable.dueDate), gte(correctiveActionsTable.dueDate, overdueStart), lt(correctiveActionsTable.dueDate, weekEnd))),
+
+    db.select({ id: riskAssessmentsTable.id, title: riskAssessmentsTable.title, riskLevel: riskAssessmentsTable.riskLevel, reviewDate: riskAssessmentsTable.reviewDate, status: riskAssessmentsTable.status })
+      .from(riskAssessmentsTable)
+      .where(and(eq(riskAssessmentsTable.farmId, farmId), isNotNull(riskAssessmentsTable.reviewDate), gte(riskAssessmentsTable.reviewDate, overdueStart), lt(riskAssessmentsTable.reviewDate, weekEnd))),
+
+    db.select({ id: equipmentMaintenanceLogsTable.id, maintenanceType: equipmentMaintenanceLogsTable.maintenanceType, equipmentId: equipmentMaintenanceLogsTable.equipmentId, nextDueDate: equipmentMaintenanceLogsTable.nextDueDate })
+      .from(equipmentMaintenanceLogsTable)
+      .where(and(eq(equipmentMaintenanceLogsTable.farmId, farmId), isNotNull(equipmentMaintenanceLogsTable.nextDueDate), gte(equipmentMaintenanceLogsTable.nextDueDate, overdueStart), lt(equipmentMaintenanceLogsTable.nextDueDate, weekEnd))),
+
+    db.select({ id: equipmentCalibrationRecordsTable.id, calibrationType: equipmentCalibrationRecordsTable.calibrationType, equipmentId: equipmentCalibrationRecordsTable.equipmentId, nextDueDate: equipmentCalibrationRecordsTable.nextDueDate })
+      .from(equipmentCalibrationRecordsTable)
+      .where(and(eq(equipmentCalibrationRecordsTable.farmId, farmId), isNotNull(equipmentCalibrationRecordsTable.nextDueDate), gte(equipmentCalibrationRecordsTable.nextDueDate, overdueStart), lt(equipmentCalibrationRecordsTable.nextDueDate, weekEnd))),
+  ]);
+
+  for (const r of pestRows) {
+    if (!r.followUpDate) continue;
+    tasks.push({ id: `pest-${r.id}`, type: "pest_control", title: `Pest Control Follow-Up${r.location ? ` — ${r.location}` : ""}`, description: `${r.pestType} follow-up visit required${r.location ? ` at ${r.location}` : ""}`, dueDate: r.followUpDate.toISOString(), module: "Biosecurity", href: "/pest-control", colour: "red" });
+  }
+  for (const r of cleaningRows) {
+    if (!r.nextDueDate) continue;
+    tasks.push({ id: `clean-${r.id}`, type: "cleaning", title: `Cleaning & Disinfection Due — ${r.area}`, description: `${r.cleaningType || "Cleaning"} scheduled for ${r.area}`, dueDate: r.nextDueDate.toISOString(), module: "Biosecurity", href: "/cleaning", colour: "red" });
+  }
+  for (const r of biosecPlanRows) {
+    if (!r.nextReviewDate) continue;
+    tasks.push({ id: `biosecplan-${r.id}`, type: "biosecurity_plan_review", title: "Biosecurity Plan Review Due", description: "Your farm biosecurity plan is due for review. Update and re-approve in Biosecurity → Biosecurity Plan.", dueDate: r.nextReviewDate.toISOString(), module: "Biosecurity", href: "/visitors", colour: "red" });
+  }
+  for (const r of certRows) {
+    if (!r.expiryDate) continue;
+    const label = r.certificateType || "Certificate";
+    tasks.push({ id: `cert-${r.id}`, type: "certificate_expiry", title: `${label} Expiring${r.certificateNumber ? ` (${r.certificateNumber})` : ""}`, description: `Staff certificate '${label}' is due to expire. Arrange renewal to remain compliant.`, dueDate: r.expiryDate.toISOString(), module: "Staff & Training", href: "/training", colour: "indigo" });
+  }
+  for (const r of trainingRows) {
+    if (!r.expiryDate) continue;
+    const label = r.trainingType || "Training record";
+    tasks.push({ id: `train-${r.id}`, type: "training_expiry", title: `${label} Expiring`, description: `Training record '${label}' is approaching expiry. Renew or refresh before the expiry date.`, dueDate: r.expiryDate.toISOString(), module: "Staff & Training", href: "/training", colour: "indigo" });
+  }
+  for (const r of inspectionRows) {
+    if (!r.nextInspectionDue) continue;
+    tasks.push({ id: `insp-${r.id}`, type: "inspection_due", title: `Inspection Due — ${r.inspectionType || "General"}`, description: `A ${r.inspectionType || "farm inspection"} is scheduled. Log the outcome in Inspections & Audits.`, dueDate: r.nextInspectionDue.toISOString(), module: "Inspections & Audits", href: "/inspections", colour: "violet" });
+  }
+  for (const r of correctiveRows) {
+    if (!r.dueDate || r.status === "completed" || r.status === "closed") continue;
+    tasks.push({ id: `ca-${r.id}`, type: "corrective_action", title: `Corrective Action Due — ${r.title || "Unnamed"}`, description: `A corrective action '${r.title || "Unnamed"}' must be completed by this date to close the non-conformance.`, dueDate: r.dueDate.toISOString(), module: "Inspections & Audits", href: "/inspections", colour: "violet" });
+  }
+  for (const r of riskRows) {
+    if (!r.reviewDate || r.status === "archived") continue;
+    tasks.push({ id: `risk-${r.id}`, type: "risk_review", title: `Risk Assessment Review — ${r.title || "Unnamed"}`, description: `The ${r.riskLevel ? r.riskLevel + "-risk " : ""}risk assessment '${r.title || "Unnamed"}' is due for review.`, dueDate: r.reviewDate.toISOString(), module: "Risk & Waste", href: "/risks", colour: "amber" });
+  }
+  for (const r of maintRows) {
+    if (!r.nextDueDate) continue;
+    tasks.push({ id: `maint-${r.id}`, type: "equipment_maintenance", title: `Equipment Maintenance Due`, description: `${r.maintenanceType || "Scheduled maintenance"} is due for a piece of equipment. Log in Equipment → Maintenance.`, dueDate: r.nextDueDate.toISOString(), module: "Equipment & Vehicles", href: "/equipment", colour: "orange" });
+  }
+  for (const r of calibRows) {
+    if (!r.nextDueDate) continue;
+    tasks.push({ id: `calib-${r.id}`, type: "equipment_calibration", title: `Equipment Calibration Due`, description: `${r.calibrationType || "Calibration"} is due for a piece of equipment. Log in Equipment → Calibration.`, dueDate: r.nextDueDate.toISOString(), module: "Equipment & Vehicles", href: "/equipment", colour: "orange" });
+  }
+
+  tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+  res.json({ tasks, rangeStart: now.toISOString(), rangeEnd: weekEnd.toISOString() });
 });
 
 // ─── Public token validation (no auth required) ───────────────────────────────
