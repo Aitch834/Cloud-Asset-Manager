@@ -244,6 +244,21 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
   });
 });
 
+router.get("/farms/:farmId/modules", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const subs = await db
+    .select({ moduleKey: modulesTable.key })
+    .from(subscriptionsTable)
+    .innerJoin(modulesTable, eq(subscriptionsTable.moduleId, modulesTable.id))
+    .where(and(
+      eq(subscriptionsTable.farmId, farmId),
+      eq(subscriptionsTable.tenantId, req.tenantId!),
+      eq(subscriptionsTable.status, "active")
+    ));
+  res.json({ activeModuleKeys: subs.map((s) => s.moduleKey) });
+});
+
 router.get("/farms/:farmId/activity", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;

@@ -3,7 +3,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ChevronDown, ChevronUp, BookOpen, Loader2 } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, BookOpen, Loader2, Info } from "lucide-react";
+import { useAppStore } from "@/hooks/use-app-store";
 
 interface HelpArticle {
   id: number;
@@ -30,15 +31,51 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Mobile App": "bg-purple-50 text-purple-700",
   "Dashboards": "bg-fuchsia-50 text-fuchsia-700",
   "Nutrient Management": "bg-yellow-50 text-yellow-700",
+  "Account & Settings": "bg-slate-50 text-slate-700",
+};
+
+// Categories that are always shown regardless of module subscriptions
+const ALWAYS_SHOW_CATEGORIES = new Set([
+  "Getting Started",
+  "Mobile App",
+  "Dashboards",
+  "Account & Settings",
+]);
+
+// Maps article category → module key required to see it
+const CATEGORY_TO_MODULE: Record<string, string> = {
+  "Sprays & Inputs": "sprays-inputs",
+  "Fields & Crops": "field-crop-management",
+  "Equipment": "equipment-management",
+  "Livestock": "livestock-management",
+  "Inspections": "inspections",
+  "Compliance": "red-tractor-compliance",
+  "Biosecurity": "biosecurity",
+  "Staff & Training": "staff-training",
+  "Risk & Waste": "risk-waste",
+  "Financial": "financial-records",
+  "Weather": "weather-tracking",
+  "Documents": "document-management",
+  "Biofuel / RTFO": "biofuel-rtfo",
+  "Nutrient Management": "soil-management",
 };
 
 function categoryColor(cat: string) {
   return CATEGORY_COLORS[cat] ?? "bg-gray-100 text-gray-600";
 }
 
+function isArticleVisible(category: string, activeModuleKeys: string[] | null): boolean {
+  if (!activeModuleKeys) return true; // show all if modules not loaded yet
+  if (ALWAYS_SHOW_CATEGORIES.has(category)) return true;
+  const requiredModule = CATEGORY_TO_MODULE[category];
+  if (!requiredModule) return true; // unknown category → show by default
+  return activeModuleKeys.includes(requiredModule);
+}
+
 export default function HelpCentre() {
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<number | null>(null);
+  const { farmId } = useAppStore();
 
   const { data, isLoading, isError } = useQuery<{ records: HelpArticle[] }>({
     queryKey: ["help-articles"],
@@ -49,9 +86,21 @@ export default function HelpCentre() {
     },
   });
 
+  const { data: modulesData } = useQuery<{ activeModuleKeys: string[] }>({
+    queryKey: ["farm-modules", farmId],
+    queryFn: async () => {
+      const res = await fetch(`/api/farms/${farmId}/modules`);
+      if (!res.ok) throw new Error("Failed to load modules");
+      return res.json();
+    },
+    enabled: !!farmId,
+  });
+
+  const activeModuleKeys = modulesData?.activeModuleKeys ?? null;
   const articles = data?.records ?? [];
 
   const filtered = articles.filter((a) => {
+    if (!isArticleVisible(a.category, activeModuleKeys)) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return (
@@ -68,6 +117,10 @@ export default function HelpCentre() {
 
   const toggle = (id: number) => setOpenId((prev) => (prev === id ? null : id));
 
+  const hiddenCount = activeModuleKeys
+    ? articles.filter((a) => !isArticleVisible(a.category, activeModuleKeys)).length
+    : 0;
+
   return (
     <AppLayout title="Help Centre">
       <div className="max-w-3xl mx-auto space-y-6">
@@ -80,6 +133,15 @@ export default function HelpCentre() {
             className="pl-10 bg-white h-12 text-base"
           />
         </div>
+
+        {hiddenCount > 0 && (
+          <div className="flex items-start gap-2.5 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            <Info className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>
+              Showing articles for your active modules. {hiddenCount} article{hiddenCount !== 1 ? "s" : ""} for modules not in your subscription are hidden.
+            </span>
+          </div>
+        )}
 
         {isLoading && (
           <div className="flex justify-center py-16">
