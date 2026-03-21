@@ -185,6 +185,15 @@ const recordOptions: RecordOption[] = [
     route: "/cleaning-record",
   },
   {
+    id: "seed-drilling",
+    title: "Seed Drilling Record",
+    description: "Record crop drilling — field, crop variety, seed lot, seed rate, treatment and area drilled",
+    icon: "wind",
+    color: colors.fieldGreen,
+    bgColor: colors.successBg,
+    route: "/seed-drilling",
+  },
+  {
     id: "field-operation",
     title: "Field Operation",
     description: "Log cultivation, tillage, lime spreading, rolling, cover crops and drainage — with depth, passes and implement",

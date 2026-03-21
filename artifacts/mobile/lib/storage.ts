@@ -136,4 +136,5 @@ export const STORAGE_KEYS = {
   FEED_RECORDS: "bde_feed_records",
   WATER_QUALITY_RECORDS: "bde_water_quality_records",
   ENVIRONMENTAL_EVENTS: "bde_environmental_events",
+  SEED_DRILLING_RECORDS: "bde_seed_drilling_records",
 } as const;

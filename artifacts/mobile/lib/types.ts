@@ -271,6 +271,28 @@ export interface HarvestRecord {
   synced: boolean;
 }
 
+export interface SeedDrillingRecord {
+  id: string;
+  farmId: string;
+  fieldId?: number | null;
+  fieldName?: string;
+  drillingDate: string;
+  cropName: string;
+  variety: string;
+  seedLotNumber: string;
+  seedRate: string;
+  seedRateUnit: string;
+  isTreated: boolean;
+  treatmentProduct: string;
+  operator: string;
+  areaSeededHa: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface NvzApplication {
   id: string;
   farmId: string;
