@@ -46,8 +46,7 @@ const EMPTY_FORM = {
 };
 
 export default function FarmLocationsPage() {
-  const { currentFarmId } = useAppStore();
-  const farmId = currentFarmId;
+  const { farmId } = useAppStore();
   const qc = useQueryClient();
 
   const [search, setSearch] = useState("");
