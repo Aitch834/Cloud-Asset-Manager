@@ -59,13 +59,13 @@ function BcsBadge({ v }: { v?: string | null }) {
 type Tab = "milk" | "mastitis" | "calving" | "bcs" | "mobility" | "tank" | "dct";
 
 export default function DairyPage() {
-  const { selectedFarmId } = useAppStore();
+  const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("milk");
 
-  if (!selectedFarmId) return <Redirect to="/select" />;
+  if (!farmId) return <Redirect to="/select" />;
 
   return (
-    <AppLayout>
+    <AppLayout title="Dairy Records">
       <div className="p-6 max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Dairy Records</h1>
@@ -83,13 +83,13 @@ export default function DairyPage() {
         </TabBar>
 
         <div className="mt-6">
-          {tab === "milk" && <MilkRecordsTab farmId={selectedFarmId} />}
-          {tab === "mastitis" && <MastitisTab farmId={selectedFarmId} />}
-          {tab === "calving" && <CalvingTab farmId={selectedFarmId} />}
-          {tab === "bcs" && <BcsTab farmId={selectedFarmId} />}
-          {tab === "mobility" && <MobilityTab farmId={selectedFarmId} />}
-          {tab === "tank" && <BulkTankTab farmId={selectedFarmId} />}
-          {tab === "dct" && <DctTab farmId={selectedFarmId} />}
+          {tab === "milk" && <MilkRecordsTab farmId={farmId} />}
+          {tab === "mastitis" && <MastitisTab farmId={farmId} />}
+          {tab === "calving" && <CalvingTab farmId={farmId} />}
+          {tab === "bcs" && <BcsTab farmId={farmId} />}
+          {tab === "mobility" && <MobilityTab farmId={farmId} />}
+          {tab === "tank" && <BulkTankTab farmId={farmId} />}
+          {tab === "dct" && <DctTab farmId={farmId} />}
         </div>
       </div>
     </AppLayout>
