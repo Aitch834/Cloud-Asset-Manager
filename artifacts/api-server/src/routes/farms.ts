@@ -2770,17 +2770,24 @@ Red Tractor requires that all sprayers and other application equipment are kept 
 <li><strong>Northern Ireland:</strong> Cattle → NIFAIS. Sheep &amp; pigs → APHIS. Contact DAERA to register.</li>
 </ul>
 
-<h3>Recording a Movement</h3>
-<p>Set your farm’s Country in <strong>Farm Settings</strong> so that the Movements page shows the correct portal links. Navigate to <strong>Livestock Movements</strong> and click <strong>Add Movement</strong>. Enter:</p>
+<h3>Recording a Movement — Dashboard</h3>
+<p>Set your farm’s Country in <strong>Farm Settings</strong> so that the Movements page shows the correct portal links. Navigate to <strong>Livestock Movements</strong> and click <strong>Add Movement</strong>. The form collects:</p>
 <ul>
-<li>Date of movement and direction (On or Off holding)</li>
-<li>Species and number of animals</li>
+<li>Movement type (On to Farm, Off Farm, or Between Holdings), date, species, and number of animals</li>
 <li>Source or destination CPH number</li>
-<li>Individual ear tag numbers (cattle) or flock mark and total count (sheep/pigs)</li>
+<li><strong>Ear Tag / ID Numbers</strong> — a dedicated multi-line field for entering individual ear tag numbers, one per line or comma-separated. For cattle the form shows a BCMS requirement notice; for sheep, goats, and deer it is labelled “Ear Tag / EID Numbers” and is optional for batch movements but aids traceability. For pigs, guidance prompts you to enter the herd mark tattooed or slap-marked on the animals.</li>
+<li>Movement licence or AML reference number, transporter name and vehicle registration</li>
 </ul>
+<p>Ear tag numbers appear in printed movement certificates in monospace format, matching the layout inspectors expect to see.</p>
+
+<h3>Recording a Movement — Mobile App</h3>
+<p>Tap <strong>Record</strong> on the bottom navigation bar and select <strong>Livestock Movement</strong>. The mobile form includes the same <strong>Ear Tag / ID Numbers</strong> field positioned directly below the head count. The label adapts based on the species selected — cattle get a BCMS requirement prompt, sheep and goats get “Ear Tag / EID Numbers”, and pigs are prompted for the herd mark or tattoo. The movement is saved offline immediately and synced when a connection is available. When you choose to print or save a PDF at the end of the form, the ear tag numbers are included in the movement certificate.</p>
+
+<h3>Animal Identification and the Individual Animal Register</h3>
+<p>For cattle herds and sheep flocks where you want to track individual animals over time, use the <strong>Individual Animals</strong> tab on the Livestock page to register each animal with its full identifier set — UK ear tag, EID transponder number, breed, sex, and date of birth. Once registered, individual animals can be cross-referenced when recording movements, medicine treatments, and mortality events. See the separate Help Centre article <em>Individual Animal Register and Electronic Identification (EID)</em> for full details.</p>
 
 <h3>Cattle Passports</h3>
-<p>For cattle purchases, record the date the animal passport was received and cross-reference the passport number against the ear tag. Red Tractor inspectors check that passports are present for all cattle on the holding. When recording movements off the holding — to a market, abattoir, or another farm — retain a copy of the movement document (AML1 or AML2) and attach it to the movement record in Documents. Records must be kept for at least three years.</p>`,
+<p>For cattle purchases, record the date the animal passport was received. The cattle passport number matches the UK ear tag number (BCMS format: UK + herd number + individual number). Red Tractor inspectors check that passports are present for all cattle on the holding. When recording movements off the holding — to a market, abattoir, or another farm — retain a copy of the movement document (AML1 or AML2) and attach it to the movement record in Documents. Records must be kept for at least three years.</p>`,
     },
     {
       id: 6,
@@ -3057,6 +3064,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h3>Disposal Documentation</h3>
 <p>You must retain the collection certificate or consignment note from your fallen stock collector. For on-farm burial you must hold a valid burial licence issued by the Environment Agency (England) or equivalent devolved body. Link these documents to the mortality record using the document attachment function.</p>
+
+<h3>Linking to the Individual Animal Register</h3>
+<p>If the animal that died is already registered in the <strong>Individual Animals</strong> tab on the Livestock page, the ear tag, EID transponder number, breed, and date of birth are already on record. Cross-reference the mortality entry with the individual animal record and update the animal’s status to “Deceased” so that the Individual Animals register remains accurate. See the Help Centre article <em>Individual Animal Register and Electronic Identification (EID)</em> for guidance on registering animals.</p>
 
 <h3>Red Tractor Context</h3>
 <p>Red Tractor Livestock Standards require that mortality records are maintained and available for inspection. The BDE Farm Trac Mortality tab is structured around the information checklist used by Red Tractor assessors, so completing a record in the system means your paper trail is ready for audit without separate filing.</p>`,
@@ -3449,6 +3459,51 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h3>Relationship with SMS Alerts</h3>
 <p>The Week Ahead is a visual planning tool — it does not replace the SMS alert system. Critical overdue biosecurity items (pest control follow-ups and cleaning schedules) will also trigger SMS text notifications to designated farm managers and opted-in users when the SMS Text Alerts add-on is active. The Week Ahead shows all upcoming and overdue tasks, whereas SMS alerts fire only when a date is breached and only for critical categories.</p>`,
+    },
+    {
+      id: 37,
+      title: "Individual Animal Register and Electronic Identification (EID)",
+      category: "Livestock",
+      modules: ["livestock-management"],
+      content: `<img src="/api/help-images/livestock.png" alt="Individual Animals" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The <strong>Individual Animals</strong> tab on the Livestock page lets you maintain a register of every animal on your holding by its unique identifier. This is a requirement for BCMS cattle records, strongly recommended for UK sheep flocks of 10 or more animals under the EID regulations, and useful for any species where traceability of individual animals matters for medicine records, breeding, or Red Tractor audit evidence.</p>
+
+<h3>UK Identification Requirements</h3>
+<p>Different livestock species have different legal identification requirements:</p>
+<ul>
+<li><strong>Cattle:</strong> Every bovine must carry two approved ear tags within 20 days of birth (or before it leaves the holding of birth, whichever is earlier). The ear tag number is the basis of the cattle passport and must be reported to BCMS for all movements and at death. Format: UK followed by the 6-digit herd number and a 6-digit individual number (e.g. UK123456 000001).</li>
+<li><strong>Sheep (flocks of 10 or more in England &amp; Wales):</strong> Under the Sheep and Goats (Records, Identification and Movement) (England) Regulations, all sheep born from January 2010 must carry electronic identification (EID) in the form of an approved electronic bolus or ear tag conforming to ISO 11784/11785. The EID transponder number is a 15-digit code (e.g. 826 000123456789). Older animals carry a flock mark tag showing your county parish holding (CPH) prefix.</li>
+<li><strong>Pigs:</strong> Must carry a slap mark or ear tag showing the herd mark number before leaving the holding. Individual EID is not currently required for pigs in the UK but the herd mark must be recorded on movement documents.</li>
+<li><strong>Goats and Deer:</strong> Broadly follow sheep rules. All goats born after 2010 require electronic identification.</li>
+</ul>
+
+<h3>Using the Individual Animals Tab</h3>
+<p>Go to <strong>Livestock</strong> in the left-hand sidebar and click the <strong>Individual Animals</strong> tab. Click <strong>Add Animal</strong> to open the registration form. The form collects:</p>
+<ul>
+<li><strong>Ear Tag Number</strong> — the primary official identifier (BCMS format for cattle; flock mark for sheep; herd mark for pigs)</li>
+<li><strong>EID Transponder Number</strong> — the 15-digit ISO 11784 electronic identifier. Required for sheep in flocks ≥10 animals; optional for other species. Format example: 826 000123456789</li>
+<li><strong>Alternative / Internal ID</strong> — a house name or management number used on your farm (e.g. “Bessie” or “42”)</li>
+<li><strong>Species, Breed, Sex, and Date of Birth</strong></li>
+<li><strong>Herd / Flock assignment</strong> — links the animal to an existing herd or flock on the same farm</li>
+<li><strong>Acquisition details</strong> — date acquired, source (born on farm, purchased, or transferred in), and source CPH number</li>
+<li><strong>Status</strong> — Active, Sold, Deceased, or Transferred Out</li>
+<li><strong>Notes</strong> — any additional management information</li>
+</ul>
+
+<h3>EID Format Reference</h3>
+<p>The ISO 11784 EID number printed on the ear tag or bolus is a 15-digit code structured as a 3-digit country code followed by a 12-digit animal number. For UK animals the country code is <strong>826</strong>. The full number (with or without the leading country code) is what the reader device will show when you scan the animal. Enter the number exactly as it appears — either as 15 continuous digits or space-separated (826 000123456789).</p>
+
+<h3>Linking Individual Animals to Other Records</h3>
+<p>Once an animal is registered in the Individual Animals tab, its identifier can be cross-referenced in other parts of the system:</p>
+<ul>
+<li><strong>Movements:</strong> When recording a livestock movement, enter the registered ear tag numbers in the Ear Tag / ID Numbers field of the movement form. The movement record and the individual animal record are then linked by tag number.</li>
+<li><strong>Medicine Records:</strong> Record medicine treatments against the herd or flock, and note individual ear tag numbers in the treatment record when the medicine is administered to specific animals.</li>
+<li><strong>Mortality Records:</strong> When an animal dies, add a Mortality Record and update the animal’s Status to “Deceased” in the Individual Animals tab. This keeps your register accurate and makes it easy to show inspectors that all animals on your starting count are accounted for.</li>
+</ul>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor assessors will check that individual cattle are properly identified and that passports are present. For sheep, they will check that EID ear tags are in place and that your register is current. Maintaining the Individual Animals register in BDE Farm Trac gives you an auditable, timestamped record of every animal on the holding that you can print or export ahead of an inspection.</p>`,
     },
   ];
 
