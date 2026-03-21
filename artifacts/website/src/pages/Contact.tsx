@@ -31,18 +31,22 @@ const AVAILABLE_MODULES = [
   { id: "sprays-inputs", label: "Sprays & Inputs" },
   { id: "soil-management", label: "Soil Management" },
   { id: "equipment-management", label: "Equipment & Vehicles" },
+  { id: "workshop-management", label: "Workshop & Asset Management" },
   { id: "livestock-management", label: "Livestock Management" },
   { id: "biosecurity", label: "Biosecurity & Visitors" },
   { id: "staff-training", label: "Staff & Training" },
   { id: "risk-waste", label: "Risk & Waste Management" },
   { id: "inspections", label: "Inspections & Audits" },
-  { id: "environmental", label: "Environmental Features" },
+  { id: "environmental", label: "Environmental Management" },
   { id: "haulage-transport", label: "Transport & Haulage" },
   { id: "stock-suppliers", label: "Stock & Suppliers" },
   { id: "financial-records", label: "Financial Records" },
   { id: "document-management", label: "Document Management" },
   { id: "weather-tracking", label: "Weather Tracking" },
   { id: "biofuel-rtfo", label: "Biofuel / RTFO Compliance" },
+  { id: "external-access", label: "Advisor & Inspector Access" },
+  { id: "business-reports", label: "Business Reports" },
+  { id: "sms-alerts", label: "SMS Text Alerts" },
 ];
 
 export default function Contact() {
