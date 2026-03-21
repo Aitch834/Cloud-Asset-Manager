@@ -177,53 +177,69 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
         </div>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "42rem" }}>
+        <DialogContent style={{ maxWidth: "56rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Milk Record" : "Add Milk Record"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
-            <div><Label>Date *</Label><Input type="date" value={form.recordDate || ""} onChange={e => set("recordDate", e.target.value)} /></div>
-            <div>
-              <Label>Record Type *</Label>
-              <Select value={form.recordType || "bulk-tank"} onValueChange={v => set("recordType", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bulk-tank">Bulk Tank Collection</SelectItem>
-                  <SelectItem value="individual-cow">Individual Cow</SelectItem>
-                  <SelectItem value="herd-total">Herd Total</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="flex gap-6 py-2">
+            {/* ── Left column ── */}
+            <div className="flex-1 flex flex-col gap-3">
+              <div><Label>Date *</Label><Input type="date" value={form.recordDate || ""} onChange={e => set("recordDate", e.target.value)} /></div>
+              <div>
+                <Label>Record Type *</Label>
+                <Select value={form.recordType || "bulk-tank"} onValueChange={v => set("recordType", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bulk-tank">Bulk Tank Collection</SelectItem>
+                    <SelectItem value="individual-cow">Individual Cow</SelectItem>
+                    <SelectItem value="herd-total">Herd Total</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Milking Session</Label>
+                <Select value={form.sessionType || ""} onValueChange={v => set("sessionType", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="morning">Morning</SelectItem>
+                    <SelectItem value="afternoon">Afternoon</SelectItem>
+                    <SelectItem value="evening">Evening</SelectItem>
+                    <SelectItem value="daily-total">Daily Total</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Yield (litres)</Label><Input type="number" step="0.1" value={form.yieldLitres || ""} onChange={e => set("yieldLitres", e.target.value)} /></div>
+              <div>
+                <Label>SCC (thousands/mL)</Label>
+                <Input type="number" value={form.sccThousands || ""} onChange={e => set("sccThousands", e.target.value ? parseInt(e.target.value) : undefined)} placeholder="e.g. 185 = 185,000 cells/mL" />
+                <p className="text-xs text-gray-400 mt-0.5">Legal limit: 400 (400,000 cells/mL)</p>
+              </div>
+              <div><Label>TBC (cfu/mL)</Label><Input type="number" value={form.tbcCfuMl || ""} onChange={e => set("tbcCfuMl", e.target.value ? parseInt(e.target.value) : undefined)} placeholder="Total bacterial count" /></div>
             </div>
-            <div>
-              <Label>Milking Session</Label>
-              <Select value={form.sessionType || ""} onValueChange={v => set("sessionType", v)}>
-                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="morning">Morning</SelectItem>
-                  <SelectItem value="afternoon">Afternoon</SelectItem>
-                  <SelectItem value="evening">Evening</SelectItem>
-                  <SelectItem value="daily-total">Daily Total</SelectItem>
-                </SelectContent>
-              </Select>
+
+            {/* ── Divider ── */}
+            <div className="w-px bg-gray-200 self-stretch" />
+
+            {/* ── Right column ── */}
+            <div className="flex-1 flex flex-col gap-3">
+              <div className="grid grid-cols-3 gap-2">
+                <div><Label>Fat (%)</Label><Input type="number" step="0.01" value={form.fatPercent || ""} onChange={e => set("fatPercent", e.target.value)} /></div>
+                <div><Label>Protein (%)</Label><Input type="number" step="0.01" value={form.proteinPercent || ""} onChange={e => set("proteinPercent", e.target.value)} /></div>
+                <div><Label>Lactose (%)</Label><Input type="number" step="0.01" value={form.lactosePercent || ""} onChange={e => set("lactosePercent", e.target.value)} /></div>
+              </div>
+              <div><Label>Milk Temperature (°C)</Label><Input type="number" step="0.1" value={form.milkTemperatureCelsius || ""} onChange={e => set("milkTemperatureCelsius", e.target.value)} /></div>
+              <div>
+                <Label>Antibiotic Residue Test</Label>
+                <Select value={form.antibioticResidueTestResult || ""} onValueChange={v => set("antibioticResidueTestResult", v)}>
+                  <SelectTrigger><SelectValue placeholder="Not tested" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="negative">Negative (safe to supply)</SelectItem>
+                    <SelectItem value="positive">Positive (milk discarded)</SelectItem>
+                    <SelectItem value="inconclusive">Inconclusive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Collector / Tanker Reference</Label><Input value={form.collectorReference || ""} onChange={e => set("collectorReference", e.target.value)} /></div>
+              <div><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={4} /></div>
             </div>
-            <div><Label>Yield (litres)</Label><Input type="number" step="0.1" value={form.yieldLitres || ""} onChange={e => set("yieldLitres", e.target.value)} /></div>
-            <div><Label>SCC (thousands/mL)</Label><Input type="number" value={form.sccThousands || ""} onChange={e => set("sccThousands", e.target.value ? parseInt(e.target.value) : undefined)} placeholder="e.g. 185 = 185,000 cells/mL" /><p className="text-xs text-gray-400 mt-0.5">Legal limit: 400 (400,000 cells/mL)</p></div>
-            <div><Label>TBC (cfu/mL)</Label><Input type="number" value={form.tbcCfuMl || ""} onChange={e => set("tbcCfuMl", e.target.value ? parseInt(e.target.value) : undefined)} placeholder="Total bacterial count" /></div>
-            <div><Label>Fat (%)</Label><Input type="number" step="0.01" value={form.fatPercent || ""} onChange={e => set("fatPercent", e.target.value)} /></div>
-            <div><Label>Protein (%)</Label><Input type="number" step="0.01" value={form.proteinPercent || ""} onChange={e => set("proteinPercent", e.target.value)} /></div>
-            <div><Label>Lactose (%)</Label><Input type="number" step="0.01" value={form.lactosePercent || ""} onChange={e => set("lactosePercent", e.target.value)} /></div>
-            <div><Label>Milk Temperature (°C)</Label><Input type="number" step="0.1" value={form.milkTemperatureCelsius || ""} onChange={e => set("milkTemperatureCelsius", e.target.value)} /></div>
-            <div>
-              <Label>Antibiotic Residue Test</Label>
-              <Select value={form.antibioticResidueTestResult || ""} onValueChange={v => set("antibioticResidueTestResult", v)}>
-                <SelectTrigger><SelectValue placeholder="Not tested" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="negative">Negative (safe to supply)</SelectItem>
-                  <SelectItem value="positive">Positive (milk discarded)</SelectItem>
-                  <SelectItem value="inconclusive">Inconclusive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Collector / Tanker Reference</Label><Input value={form.collectorReference || ""} onChange={e => set("collectorReference", e.target.value)} /></div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
@@ -310,66 +326,86 @@ function MastitisTab({ farmId }: { farmId: number }) {
         </div>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "46rem" }}>
+        <DialogContent style={{ maxWidth: "58rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Mastitis Record" : "Add Mastitis Record"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
-            <div><Label>Onset Date *</Label><Input type="date" value={form.onsetDate?.slice(0, 10) || ""} onChange={e => set("onsetDate", e.target.value)} /></div>
-            <div><Label>Cow Ear Tag</Label><Input value={form.earTagNumber || ""} onChange={e => set("earTagNumber", e.target.value)} placeholder="e.g. UK123456 000001" /></div>
-            <div>
-              <Label>Quarters Affected</Label>
-              <Select value={form.quartersAffected || ""} onValueChange={v => set("quartersAffected", v)}>
-                <SelectTrigger><SelectValue placeholder="Select quarters..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LF">Left Front (LF)</SelectItem>
-                  <SelectItem value="RF">Right Front (RF)</SelectItem>
-                  <SelectItem value="LR">Left Rear (LR)</SelectItem>
-                  <SelectItem value="RR">Right Rear (RR)</SelectItem>
-                  <SelectItem value="LF, RF">Both Fronts (LF + RF)</SelectItem>
-                  <SelectItem value="LR, RR">Both Rears (LR + RR)</SelectItem>
-                  <SelectItem value="LF, LR">Left Side (LF + LR)</SelectItem>
-                  <SelectItem value="RF, RR">Right Side (RF + RR)</SelectItem>
-                  <SelectItem value="All quarters">All Four Quarters</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="flex gap-6 py-2">
+            {/* ── Left column: case details ── */}
+            <div className="flex-1 flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Onset Date *</Label><Input type="date" value={form.onsetDate?.slice(0, 10) || ""} onChange={e => set("onsetDate", e.target.value)} /></div>
+                <div><Label>Cow Ear Tag</Label><Input value={form.earTagNumber || ""} onChange={e => set("earTagNumber", e.target.value)} placeholder="e.g. UK123456 000001" /></div>
+              </div>
+              <div>
+                <Label>Quarters Affected</Label>
+                <Select value={form.quartersAffected || ""} onValueChange={v => set("quartersAffected", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select quarters..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LF">Left Front (LF)</SelectItem>
+                    <SelectItem value="RF">Right Front (RF)</SelectItem>
+                    <SelectItem value="LR">Left Rear (LR)</SelectItem>
+                    <SelectItem value="RR">Right Rear (RR)</SelectItem>
+                    <SelectItem value="LF, RF">Both Fronts (LF + RF)</SelectItem>
+                    <SelectItem value="LR, RR">Both Rears (LR + RR)</SelectItem>
+                    <SelectItem value="LF, LR">Left Side (LF + LR)</SelectItem>
+                    <SelectItem value="RF, RR">Right Side (RF + RR)</SelectItem>
+                    <SelectItem value="All quarters">All Four Quarters</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Clinical Grade</Label>
+                <Select value={form.clinicalGrade || ""} onValueChange={v => set("clinicalGrade", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select grade..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Subclinical">Subclinical (high SCC, no visible signs)</SelectItem>
+                    <SelectItem value="Mild">Mild (clots in milk, slight swelling)</SelectItem>
+                    <SelectItem value="Moderate">Moderate (swollen quarter, cow lame/off-feed)</SelectItem>
+                    <SelectItem value="Severe">Severe (toxic cow, systemic signs)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>SCC at Onset (k/mL)</Label><Input type="number" value={form.sccAtOnset || ""} onChange={e => set("sccAtOnset", e.target.value ? parseInt(e.target.value) : undefined)} /></div>
+              <div><Label>Bacterial Culture Result</Label><Input value={form.bacterialCultureResult || ""} onChange={e => set("bacterialCultureResult", e.target.value)} placeholder="e.g. Staph. aureus, E. coli, Strep. uberis" /></div>
             </div>
-            <div>
-              <Label>Clinical Grade</Label>
-              <Select value={form.clinicalGrade || ""} onValueChange={v => set("clinicalGrade", v)}>
-                <SelectTrigger><SelectValue placeholder="Select grade..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Subclinical">Subclinical (high SCC, no visible signs)</SelectItem>
-                  <SelectItem value="Mild">Mild (clots in milk, slight swelling)</SelectItem>
-                  <SelectItem value="Moderate">Moderate (swollen quarter, cow lame/off-feed)</SelectItem>
-                  <SelectItem value="Severe">Severe (toxic cow, systemic signs)</SelectItem>
-                </SelectContent>
-              </Select>
+
+            {/* ── Divider ── */}
+            <div className="w-px bg-gray-200 self-stretch" />
+
+            {/* ── Right column: treatment & outcome ── */}
+            <div className="flex-1 flex flex-col gap-3">
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Treatment</p>
+                <div><Label>Product</Label><Input value={form.treatmentProduct || ""} onChange={e => set("treatmentProduct", e.target.value)} placeholder="e.g. Ubrolexin intramammary" /></div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label>Start Date</Label><Input type="date" value={form.treatmentStartDate || ""} onChange={e => set("treatmentStartDate", e.target.value)} /></div>
+                  <div><Label>Duration (days)</Label><Input type="number" value={form.treatmentDurationDays || ""} onChange={e => set("treatmentDurationDays", e.target.value ? parseInt(e.target.value) : undefined)} /></div>
+                </div>
+                <div><Label>Milk Withdrawal End Date</Label><Input type="date" value={form.withdrawalEndDate || ""} onChange={e => set("withdrawalEndDate", e.target.value)} /></div>
+              </div>
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Outcome &amp; Vet</p>
+                <div>
+                  <Label>Outcome</Label>
+                  <Select value={form.outcome || ""} onValueChange={v => set("outcome", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select outcome..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ongoing">Ongoing (still treating)</SelectItem>
+                      <SelectItem value="cured">Cured</SelectItem>
+                      <SelectItem value="chronic">Chronic (no cure achieved)</SelectItem>
+                      <SelectItem value="dried-off">Quarter/Cow Dried Off</SelectItem>
+                      <SelectItem value="culled">Culled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Outcome Date</Label><Input type="date" value={form.outcomeDate || ""} onChange={e => set("outcomeDate", e.target.value)} /></div>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="vc" checked={!!form.vetConsulted} onChange={e => set("vetConsulted", e.target.checked)} className="rounded" />
+                  <Label htmlFor="vc">Vet consulted</Label>
+                </div>
+                <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>
+              </div>
+              <div><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={3} /></div>
             </div>
-            <div><Label>SCC at Onset (k/mL)</Label><Input type="number" value={form.sccAtOnset || ""} onChange={e => set("sccAtOnset", e.target.value ? parseInt(e.target.value) : undefined)} /></div>
-            <div><Label>Bacterial Culture Result</Label><Input value={form.bacterialCultureResult || ""} onChange={e => set("bacterialCultureResult", e.target.value)} placeholder="e.g. Staph. aureus, E. coli, Strep. uberis" /></div>
-            <div><Label>Treatment Product</Label><Input value={form.treatmentProduct || ""} onChange={e => set("treatmentProduct", e.target.value)} placeholder="e.g. Ubrolexin intramammary" /></div>
-            <div><Label>Treatment Start Date</Label><Input type="date" value={form.treatmentStartDate || ""} onChange={e => set("treatmentStartDate", e.target.value)} /></div>
-            <div><Label>Treatment Duration (days)</Label><Input type="number" value={form.treatmentDurationDays || ""} onChange={e => set("treatmentDurationDays", e.target.value ? parseInt(e.target.value) : undefined)} /></div>
-            <div><Label>Milk Withdrawal End Date</Label><Input type="date" value={form.withdrawalEndDate || ""} onChange={e => set("withdrawalEndDate", e.target.value)} /></div>
-            <div>
-              <Label>Outcome</Label>
-              <Select value={form.outcome || ""} onValueChange={v => set("outcome", v)}>
-                <SelectTrigger><SelectValue placeholder="Select outcome..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ongoing">Ongoing (still treating)</SelectItem>
-                  <SelectItem value="cured">Cured</SelectItem>
-                  <SelectItem value="chronic">Chronic (no cure achieved)</SelectItem>
-                  <SelectItem value="dried-off">Quarter/Cow Dried Off</SelectItem>
-                  <SelectItem value="culled">Culled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Outcome Date</Label><Input type="date" value={form.outcomeDate || ""} onChange={e => set("outcomeDate", e.target.value)} /></div>
-            <div className="flex items-center gap-2 pt-5">
-              <input type="checkbox" id="vc" checked={!!form.vetConsulted} onChange={e => set("vetConsulted", e.target.checked)} className="rounded" />
-              <Label htmlFor="vc">Vet consulted</Label>
-            </div>
-            <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
@@ -465,106 +501,130 @@ function CalvingTab({ farmId }: { farmId: number }) {
         </div>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "52rem" }}>
+        <DialogContent style={{ maxWidth: "62rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Calving Record" : "Add Calving Record"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2 max-h-[65vh] overflow-y-auto pr-2">
-            <div className="col-span-2 border-b pb-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cow Details</p></div>
-            <div><Label>Calving Date *</Label><Input type="date" value={form.calvingDate?.slice(0, 10) || ""} onChange={e => set("calvingDate", e.target.value)} /></div>
-            <div><Label>Dam Ear Tag</Label><Input value={form.cowEarTag || ""} onChange={e => set("cowEarTag", e.target.value)} placeholder="Cow's BCMS ear tag" /></div>
-            <div>
-              <Label>Calving Ease Score *</Label>
-              <Select value={String(form.calvingEaseScore || "")} onValueChange={v => set("calvingEaseScore", v ? parseInt(v) : null)}>
-                <SelectTrigger><SelectValue placeholder="Select score..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 — Unassisted</SelectItem>
-                  <SelectItem value="2">2 — Minor assistance (1 person)</SelectItem>
-                  <SelectItem value="3">3 — Major assistance (calving aid)</SelectItem>
-                  <SelectItem value="4">4 — Vet/caesarean required</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Cow Complications</Label>
-              <Input value={form.cowComplications || ""} onChange={e => set("cowComplications", e.target.value)} placeholder="e.g. retained placenta, hypocalcaemia" />
-            </div>
-            <div className="flex items-center gap-2 pt-5">
-              <input type="checkbox" id="ar" checked={!!form.assistanceRequired} onChange={e => set("assistanceRequired", e.target.checked)} className="rounded" />
-              <Label htmlFor="ar">Assistance required</Label>
-            </div>
-            <div className="flex items-center gap-2 pt-5">
-              <input type="checkbox" id="va" checked={!!form.vetAttended} onChange={e => set("vetAttended", e.target.checked)} className="rounded" />
-              <Label htmlFor="va">Vet attended</Label>
-            </div>
-            {form.vetAttended && <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>}
+          <div className="flex gap-6 py-2">
+            {/* ── Left column: cow + calf ── */}
+            <div className="flex-1 flex flex-col gap-3">
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cow Details</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label>Calving Date *</Label><Input type="date" value={form.calvingDate?.slice(0, 10) || ""} onChange={e => set("calvingDate", e.target.value)} /></div>
+                  <div><Label>Dam Ear Tag</Label><Input value={form.cowEarTag || ""} onChange={e => set("cowEarTag", e.target.value)} placeholder="Cow's BCMS ear tag" /></div>
+                </div>
+                <div>
+                  <Label>Calving Ease Score *</Label>
+                  <Select value={String(form.calvingEaseScore || "")} onValueChange={v => set("calvingEaseScore", v ? parseInt(v) : null)}>
+                    <SelectTrigger><SelectValue placeholder="Select score..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 — Unassisted</SelectItem>
+                      <SelectItem value="2">2 — Minor assistance (1 person)</SelectItem>
+                      <SelectItem value="3">3 — Major assistance (calving aid)</SelectItem>
+                      <SelectItem value="4">4 — Vet/caesarean required</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Cow Complications</Label><Input value={form.cowComplications || ""} onChange={e => set("cowComplications", e.target.value)} placeholder="e.g. retained placenta, hypocalcaemia" /></div>
+                <div className="flex gap-4">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="ar" checked={!!form.assistanceRequired} onChange={e => set("assistanceRequired", e.target.checked)} className="rounded" />
+                    <Label htmlFor="ar">Assistance required</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="va" checked={!!form.vetAttended} onChange={e => set("vetAttended", e.target.checked)} className="rounded" />
+                    <Label htmlFor="va">Vet attended</Label>
+                  </div>
+                </div>
+                {form.vetAttended && <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>}
+              </div>
 
-            <div className="col-span-2 border-b pb-2 pt-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Calf Details</p></div>
-            <div><Label>Number of Calves</Label><Input type="number" min="1" max="4" value={form.numberOfCalves || 1} onChange={e => set("numberOfCalves", parseInt(e.target.value))} /></div>
-            <div>
-              <Label>Calf Outcome</Label>
-              <Select value={form.calfOutcome || ""} onValueChange={v => set("calfOutcome", v)}>
-                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="live">Live</SelectItem>
-                  <SelectItem value="stillborn">Stillborn</SelectItem>
-                  <SelectItem value="died-within-24h">Died within 24 hours</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Calf Sex</Label>
-              <Select value={form.calfSex || ""} onValueChange={v => set("calfSex", v)}>
-                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="female">Heifer (Female)</SelectItem>
-                  <SelectItem value="male">Bull Calf (Male)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Calf Ear Tag (if applied)</Label><Input value={form.calfEarTag || ""} onChange={e => set("calfEarTag", e.target.value)} placeholder="BCMS tag applied at birth" /></div>
-            <div><Label>Sire Breed</Label><Input value={form.sireBreed || ""} onChange={e => set("sireBreed", e.target.value)} /></div>
-            <div><Label>Calf Birth Weight (kg)</Label><Input type="number" step="0.1" value={form.calfBirthWeightKg || ""} onChange={e => set("calfBirthWeightKg", e.target.value)} /></div>
-            <div>
-              <Label>Calf Disposition</Label>
-              <Select value={form.calfDisposition || ""} onValueChange={v => set("calfDisposition", v)}>
-                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="retained">Retained on farm (rear)</SelectItem>
-                  <SelectItem value="sold">Sold</SelectItem>
-                  <SelectItem value="market">To market</SelectItem>
-                  <SelectItem value="died">Died</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2 pt-5">
-              <input type="checkbox" id="bpp" checked={!!form.bcmsPassportApplied} onChange={e => set("bcmsPassportApplied", e.target.checked)} className="rounded" />
-              <Label htmlFor="bpp">BCMS passport applied</Label>
-            </div>
-
-            <div className="col-span-2 border-b pb-2 pt-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Colostrum Management</p></div>
-            <div className="flex items-center gap-2 pt-5">
-              <input type="checkbox" id="c2h" checked={!!form.colostrumGivenWithin2Hours} onChange={e => set("colostrumGivenWithin2Hours", e.target.checked)} className="rounded" />
-              <Label htmlFor="c2h">Colostrum given within 2 hours</Label>
-            </div>
-            <div className="flex items-center gap-2 pt-5">
-              <input type="checkbox" id="c6h" checked={!!form.colostrumGivenWithin6Hours} onChange={e => set("colostrumGivenWithin6Hours", e.target.checked)} className="rounded" />
-              <Label htmlFor="c6h">Colostrum given within 6 hours</Label>
-            </div>
-            <div><Label>First Feed Volume (litres)</Label><Input type="number" step="0.1" value={form.colostrumVolumeFirstFeedLitres || ""} onChange={e => set("colostrumVolumeFirstFeedLitres", e.target.value)} /></div>
-            <div><Label>Brix Quality Reading (%)</Label><Input type="number" step="0.1" value={form.colostrumQualityBrix || ""} onChange={e => set("colostrumQualityBrix", e.target.value)} placeholder="≥22% = good quality" /></div>
-            <div>
-              <Label>Colostrum Source</Label>
-              <Select value={form.colostrumSource || ""} onValueChange={v => set("colostrumSource", v)}>
-                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="own-dam">Own dam</SelectItem>
-                  <SelectItem value="other-cow">Other cow on farm</SelectItem>
-                  <SelectItem value="frozen-stored">Frozen/stored colostrum</SelectItem>
-                  <SelectItem value="colostrum-supplement">Commercial colostrum supplement</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Calf Details</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label>Number of Calves</Label><Input type="number" min="1" max="4" value={form.numberOfCalves || 1} onChange={e => set("numberOfCalves", parseInt(e.target.value))} /></div>
+                  <div>
+                    <Label>Calf Outcome</Label>
+                    <Select value={form.calfOutcome || ""} onValueChange={v => set("calfOutcome", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="live">Live</SelectItem>
+                        <SelectItem value="stillborn">Stillborn</SelectItem>
+                        <SelectItem value="died-within-24h">Died within 24 hours</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Calf Sex</Label>
+                    <Select value={form.calfSex || ""} onValueChange={v => set("calfSex", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="female">Heifer (Female)</SelectItem>
+                        <SelectItem value="male">Bull Calf (Male)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Calf Ear Tag</Label><Input value={form.calfEarTag || ""} onChange={e => set("calfEarTag", e.target.value)} placeholder="BCMS tag applied at birth" /></div>
+                  <div><Label>Sire Breed</Label><Input value={form.sireBreed || ""} onChange={e => set("sireBreed", e.target.value)} /></div>
+                  <div><Label>Birth Weight (kg)</Label><Input type="number" step="0.1" value={form.calfBirthWeightKg || ""} onChange={e => set("calfBirthWeightKg", e.target.value)} /></div>
+                </div>
+                <div>
+                  <Label>Calf Disposition</Label>
+                  <Select value={form.calfDisposition || ""} onValueChange={v => set("calfDisposition", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="retained">Retained on farm (rear)</SelectItem>
+                      <SelectItem value="sold">Sold</SelectItem>
+                      <SelectItem value="market">To market</SelectItem>
+                      <SelectItem value="died">Died</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="bpp" checked={!!form.bcmsPassportApplied} onChange={e => set("bcmsPassportApplied", e.target.checked)} className="rounded" />
+                  <Label htmlFor="bpp">BCMS passport applied</Label>
+                </div>
+              </div>
             </div>
 
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
+            {/* ── Divider ── */}
+            <div className="w-px bg-gray-200 self-stretch" />
+
+            {/* ── Right column: colostrum + notes ── */}
+            <div className="flex-1 flex flex-col gap-3">
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Colostrum Management</p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="c2h" checked={!!form.colostrumGivenWithin2Hours} onChange={e => set("colostrumGivenWithin2Hours", e.target.checked)} className="rounded" />
+                    <Label htmlFor="c2h">Colostrum given within 2 hours</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="c6h" checked={!!form.colostrumGivenWithin6Hours} onChange={e => set("colostrumGivenWithin6Hours", e.target.checked)} className="rounded" />
+                    <Label htmlFor="c6h">Colostrum given within 6 hours</Label>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label>First Feed Volume (L)</Label><Input type="number" step="0.1" value={form.colostrumVolumeFirstFeedLitres || ""} onChange={e => set("colostrumVolumeFirstFeedLitres", e.target.value)} /></div>
+                  <div><Label>Brix Quality (%)</Label><Input type="number" step="0.1" value={form.colostrumQualityBrix || ""} onChange={e => set("colostrumQualityBrix", e.target.value)} placeholder="≥22% = good" /></div>
+                </div>
+                <div>
+                  <Label>Colostrum Source</Label>
+                  <Select value={form.colostrumSource || ""} onValueChange={v => set("colostrumSource", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="own-dam">Own dam</SelectItem>
+                      <SelectItem value="other-cow">Other cow on farm</SelectItem>
+                      <SelectItem value="frozen-stored">Frozen/stored colostrum</SelectItem>
+                      <SelectItem value="colostrum-supplement">Commercial colostrum supplement</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Notes</Label>
+                <Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={5} />
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
