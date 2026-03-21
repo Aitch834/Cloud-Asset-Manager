@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, numeric, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 
 export const equipmentTable = pgTable("equipment", {
@@ -117,6 +117,61 @@ export const workshopFireExtinguishersTable = pgTable("workshop_fire_extinguishe
   engineerName: text("engineer_name"),
   engineerCompany: text("engineer_company"),
   nextServiceDue: timestamp("next_service_due", { withTimezone: true }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const grainStorageBinsTable = pgTable("grain_storage_bins", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  binName: text("bin_name").notNull(),
+  binType: text("bin_type").notNull(),
+  capacityTonnes: numeric("capacity_tonnes", { precision: 8, scale: 1 }),
+  dryingSystem: text("drying_system"),
+  aerationSystem: boolean("aeration_system").default(false),
+  temperatureMonitoring: boolean("temperature_monitoring").default(false),
+  sensorCount: integer("sensor_count"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const grainQualityTestsTable = pgTable("grain_quality_tests", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  binId: integer("bin_id").references(() => grainStorageBinsTable.id),
+  testDate: date("test_date").notNull(),
+  cropType: text("crop_type").notNull(),
+  variety: text("variety"),
+  harvestYear: integer("harvest_year"),
+  moisturePercent: numeric("moisture_percent", { precision: 5, scale: 2 }),
+  specificWeightKgHl: numeric("specific_weight_kg_hl", { precision: 5, scale: 1 }),
+  proteinPercent: numeric("protein_percent", { precision: 5, scale: 2 }),
+  hagbergFallingNumber: integer("hagberg_falling_number"),
+  screeningsPercent: numeric("screenings_percent", { precision: 5, scale: 2 }),
+  mycotoxinDonPpb: numeric("mycotoxin_don_ppb", { precision: 8, scale: 1 }),
+  mycotoxinZonPpb: numeric("mycotoxin_zon_ppb", { precision: 8, scale: 1 }),
+  pestResidueTest: boolean("pest_residue_test").default(false),
+  pestResidueResult: text("pest_residue_result"),
+  testingLab: text("testing_lab"),
+  certificateReference: text("certificate_reference"),
+  overallGrade: text("overall_grade"),
+  customer: text("customer"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const grainTemperatureLogsTable = pgTable("grain_temperature_logs", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  binId: integer("bin_id").notNull().references(() => grainStorageBinsTable.id),
+  logDate: date("log_date").notNull(),
+  logTime: text("log_time"),
+  temperatureC: numeric("temperature_c", { precision: 5, scale: 1 }).notNull(),
+  sensorPosition: text("sensor_position"),
+  moisturePercent: numeric("moisture_percent", { precision: 5, scale: 2 }),
+  aerationRunning: boolean("aeration_running").default(false),
+  dryingRunning: boolean("drying_running").default(false),
+  recordedBy: text("recorded_by"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

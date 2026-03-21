@@ -14,7 +14,7 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil } from "lucide-react";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 
-type Tab = "features" | "schemes" | "assessments" | "events";
+type Tab = "features" | "schemes" | "assessments" | "events" | "sfi" | "slurry";
 interface LatLng { lat: number; lng: number; }
 
 const fmt = (d: string | null | undefined) => {
@@ -1110,6 +1110,293 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
   );
 }
 
+// ─── SFI Actions Tab ────────────────────────────────────────────────────────────
+function SFIActionsTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+
+  const { data: agreements = [], isLoading } = useQuery({
+    queryKey: ["sfi-agreements", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/sfi-agreements`, { credentials: "include" }).then(r => r.json()),
+    select: (d: any) => d.records ?? [],
+  });
+
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editing ? `/api/farms/${farmId}/sfi-agreements/${editing.id}` : `/api/farms/${farmId}/sfi-agreements`;
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sfi-agreements", farmId] }); setOpen(false); setForm({}); setEditing(null); toast({ title: "Agreement saved" }); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/sfi-agreements/${id}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sfi-agreements", farmId] }),
+  });
+
+  const rows = agreements as Record<string, unknown>[];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold">SFI / ELMs Actions & Agreements</h3>
+          <p className="text-sm text-muted-foreground">Record Sustainable Farming Incentive agreements, action codes, areas applied, and annual payments.</p>
+        </div>
+        <Button onClick={() => { setEditing(null); setForm({ status: "Active" }); setOpen(true); }}>
+          <Plus className="w-4 h-4 mr-2" /> Add Agreement
+        </Button>
+      </div>
+      {isLoading ? <div className="py-8 text-center text-muted-foreground text-sm">Loading…</div> : (
+        <div className="bg-white rounded-2xl border border-border/50 overflow-hidden shadow-sm">
+          {rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic py-8 text-center">No SFI agreements recorded yet. Add your first agreement above.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-black/5 border-b">
+                  <tr>{["Agreement No.", "Start Date", "End Date", "Status", "Application Ref", "Annual Payment", ""].map(h => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y">{rows.map((r, i) => (
+                  <tr key={i} className="hover:bg-black/5">
+                    <td className="px-4 py-3 font-mono text-xs">{String(r.agreementNumber ?? "—")}</td>
+                    <td className="px-4 py-3">{r.startDate ? new Date(r.startDate as string).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="px-4 py-3">{r.endDate ? new Date(r.endDate as string).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${(r.status as string) === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>{String(r.status ?? "—")}</span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs">{String(r.applicationReference ?? "—")}</td>
+                    <td className="px-4 py-3">{r.totalAnnualPayment ? `£${Number(r.totalAnnualPayment).toFixed(2)}` : "—"}</td>
+                    <td className="px-4 py-3 text-right space-x-1">
+                      <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete this agreement?")) del.mutate(r.id as number); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "40rem" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit SFI Agreement" : "Add SFI / ELMs Agreement"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Agreement Number *</Label><Input value={form.agreementNumber ?? ""} onChange={e => setForm(f => ({ ...f, agreementNumber: e.target.value }))} /></div>
+            <div><Label>Application Reference</Label><Input value={form.applicationReference ?? ""} onChange={e => setForm(f => ({ ...f, applicationReference: e.target.value }))} /></div>
+            <div><Label>Start Date *</Label><Input type="date" value={form.startDate ?? ""} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} /></div>
+            <div><Label>End Date</Label><Input type="date" value={form.endDate ?? ""} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></div>
+            <div><Label>Status *</Label>
+              <Select value={form.status ?? "Active"} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["Active", "Applied", "Withdrawn", "Expired", "Under Query"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Total Annual Payment (£)</Label><Input type="number" step="0.01" value={form.totalAnnualPayment ?? ""} onChange={e => setForm(f => ({ ...f, totalAnnualPayment: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Slurry & Manure Management Tab ─────────────────────────────────────────────
+function SlurryTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [storeOpen, setStoreOpen] = useState(false);
+  const [spreadOpen, setSpreadOpen] = useState(false);
+  const [editingStore, setEditingStore] = useState<Record<string, unknown> | null>(null);
+  const [storeForm, setStoreForm] = useState<Record<string, string>>({});
+  const [spreadForm, setSpreadForm] = useState<Record<string, string>>({});
+
+  const storesQ = useQuery({
+    queryKey: ["slurry-stores", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/slurry-stores`, { credentials: "include" }).then(r => r.json()),
+    select: (d: any) => d.records ?? [],
+  });
+
+  const spreadQ = useQuery({
+    queryKey: ["slurry-spreading", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/slurry-spreading`, { credentials: "include" }).then(r => r.json()),
+    select: (d: any) => d.records ?? [],
+  });
+
+  const saveStore = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editingStore ? `/api/farms/${farmId}/slurry-stores/${editingStore.id}` : `/api/farms/${farmId}/slurry-stores`;
+      return fetch(url, { method: editingStore ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["slurry-stores", farmId] }); setStoreOpen(false); setStoreForm({}); setEditingStore(null); toast({ title: "Store saved" }); },
+    onError: () => toast({ title: "Failed", variant: "destructive" }),
+  });
+
+  const saveSpread = useMutation({
+    mutationFn: (body: Record<string, unknown>) => fetch(`/api/farms/${farmId}/slurry-spreading`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["slurry-spreading", farmId] }); setSpreadOpen(false); setSpreadForm({}); toast({ title: "Spreading record saved" }); },
+    onError: () => toast({ title: "Failed", variant: "destructive" }),
+  });
+
+  const stores = (storesQ.data ?? []) as Record<string, unknown>[];
+  const spreadings = (spreadQ.data ?? []) as Record<string, unknown>[];
+
+  return (
+    <div className="space-y-6">
+      {/* Stores */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="font-semibold">Slurry & Manure Stores</h3>
+          <Button size="sm" onClick={() => { setEditingStore(null); setStoreForm({ status: "Compliant" }); setStoreOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2" /> Add Store
+          </Button>
+        </div>
+        {storesQ.isLoading ? <div className="text-sm text-muted-foreground">Loading…</div> : (
+          <div className="bg-white rounded-xl border border-border/50 shadow-sm overflow-x-auto">
+            {stores.length === 0 ? <p className="text-sm text-muted-foreground italic py-6 text-center">No slurry stores recorded.</p> : (
+              <table className="w-full text-sm">
+                <thead className="bg-black/5 border-b">
+                  <tr>{["Store Name", "Type", "Capacity (m³)", "Material", "Next Inspection", "Status", ""].map(h => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y">{stores.map((r, i) => (
+                  <tr key={i} className="hover:bg-black/5">
+                    <td className="px-4 py-3 font-medium">{String(r.storeName ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.storeType ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.capacityM3 ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.material ?? "—")}</td>
+                    <td className="px-4 py-3">{r.nextInspectionDate ? new Date(r.nextInspectionDate as string).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${(r.status as string) === "Compliant" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>{String(r.status ?? "—")}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button size="icon" variant="ghost" onClick={() => { setEditingStore(r); setStoreForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))); setStoreOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Spreading Records */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="font-semibold">Spreading Records</h3>
+          <Button size="sm" onClick={() => { setSpreadForm({}); setSpreadOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2" /> Log Spreading
+          </Button>
+        </div>
+        {spreadQ.isLoading ? <div className="text-sm text-muted-foreground">Loading…</div> : (
+          <div className="bg-white rounded-xl border border-border/50 shadow-sm overflow-x-auto">
+            {spreadings.length === 0 ? <p className="text-sm text-muted-foreground italic py-6 text-center">No spreading records yet.</p> : (
+              <table className="w-full text-sm">
+                <thead className="bg-black/5 border-b">
+                  <tr>{["Date", "Field", "Area (ha)", "Material", "Volume/Tonnes", "Method", "Operator"].map(h => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y">{spreadings.map((r, i) => (
+                  <tr key={i} className="hover:bg-black/5">
+                    <td className="px-4 py-3">{r.spreadingDate ? new Date(r.spreadingDate as string).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="px-4 py-3">{String(r.fieldName ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.fieldAreaHa ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.materialType ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.volumeOrTonnesApplied ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.applicationMethod ?? "—")}</td>
+                    <td className="px-4 py-3">{String(r.operatorName ?? "—")}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Store dialog */}
+      <Dialog open={storeOpen} onOpenChange={setStoreOpen}>
+        <DialogContent style={{ maxWidth: "40rem" }}>
+          <DialogHeader><DialogTitle>{editingStore ? "Edit Store" : "Add Slurry / Manure Store"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Store Name *</Label><Input value={storeForm.storeName ?? ""} onChange={e => setStoreForm(f => ({ ...f, storeName: e.target.value }))} /></div>
+            <div><Label>Store Type *</Label>
+              <Select value={storeForm.storeType ?? ""} onValueChange={v => setStoreForm(f => ({ ...f, storeType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["Slurry Lagoon", "Slurry Tank", "Reception Pit", "Silage Clamp", "Dung Pad", "Manure Store", "Earth Bank Store"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Capacity (m³)</Label><Input type="number" value={storeForm.capacityM3 ?? ""} onChange={e => setStoreForm(f => ({ ...f, capacityM3: e.target.value }))} /></div>
+            <div><Label>Material</Label>
+              <Select value={storeForm.material ?? ""} onValueChange={v => setStoreForm(f => ({ ...f, material: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["Cattle Slurry", "Pig Slurry", "Poultry Slurry", "FYM (Cattle)", "FYM (Pig)", "FYM (Poultry)", "Digestate", "Mixed"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Design Standard</Label><Input value={storeForm.designStandard ?? ""} onChange={e => setStoreForm(f => ({ ...f, designStandard: e.target.value }))} placeholder="e.g. CIRIA 126" /></div>
+            <div><Label>Required Storage (months)</Label><Input type="number" value={storeForm.requiredStorage ?? ""} onChange={e => setStoreForm(f => ({ ...f, requiredStorage: e.target.value }))} /></div>
+            <div><Label>Next Inspection Date</Label><Input type="date" value={storeForm.nextInspectionDate ?? ""} onChange={e => setStoreForm(f => ({ ...f, nextInspectionDate: e.target.value }))} /></div>
+            <div><Label>Status</Label>
+              <Select value={storeForm.status ?? "Compliant"} onValueChange={v => setStoreForm(f => ({ ...f, status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["Compliant", "Non-Compliant", "Under Repair", "Decommissioned"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2"><Label>Deficiencies / Notes</Label><Textarea value={storeForm.deficiencies ?? ""} onChange={e => setStoreForm(f => ({ ...f, deficiencies: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStoreOpen(false)}>Cancel</Button>
+            <Button onClick={() => saveStore.mutate(storeForm)} disabled={saveStore.isPending}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Spreading dialog */}
+      <Dialog open={spreadOpen} onOpenChange={setSpreadOpen}>
+        <DialogContent style={{ maxWidth: "40rem" }}>
+          <DialogHeader><DialogTitle>Log Slurry / Manure Spreading</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Spreading Date *</Label><Input type="date" value={spreadForm.spreadingDate ?? ""} onChange={e => setSpreadForm(f => ({ ...f, spreadingDate: e.target.value }))} /></div>
+            <div><Label>Field Name *</Label><Input value={spreadForm.fieldName ?? ""} onChange={e => setSpreadForm(f => ({ ...f, fieldName: e.target.value }))} /></div>
+            <div><Label>Field Area (ha)</Label><Input type="number" step="0.01" value={spreadForm.fieldAreaHa ?? ""} onChange={e => setSpreadForm(f => ({ ...f, fieldAreaHa: e.target.value }))} /></div>
+            <div><Label>Material Type *</Label>
+              <Select value={spreadForm.materialType ?? ""} onValueChange={v => setSpreadForm(f => ({ ...f, materialType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["Cattle Slurry", "Pig Slurry", "Poultry Slurry", "FYM (Cattle)", "FYM (Pig)", "FYM (Poultry)", "Digestate"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Volume / Tonnes Applied</Label><Input type="number" step="0.1" value={spreadForm.volumeOrTonnesApplied ?? ""} onChange={e => setSpreadForm(f => ({ ...f, volumeOrTonnesApplied: e.target.value }))} /></div>
+            <div><Label>Application Method</Label>
+              <Select value={spreadForm.applicationMethod ?? ""} onValueChange={v => setSpreadForm(f => ({ ...f, applicationMethod: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["Broadcast", "Trailing shoe", "Shallow injection", "Deep injection", "Band spread", "Splash plate"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Incorporation Method</Label>
+              <Select value={spreadForm.incorporationMethod ?? ""} onValueChange={v => setSpreadForm(f => ({ ...f, incorporationMethod: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["Not applicable", "Ploughed in (6 hrs)", "Cultivated (12 hrs)", "Applied to bare soil"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Operator Name</Label><Input value={spreadForm.operatorName ?? ""} onChange={e => setSpreadForm(f => ({ ...f, operatorName: e.target.value }))} /></div>
+            <div><Label>Soil Temperature (°C)</Label><Input type="number" step="0.1" value={spreadForm.soilTemperature ?? ""} onChange={e => setSpreadForm(f => ({ ...f, soilTemperature: e.target.value }))} /></div>
+            <div><Label>Weather Conditions</Label><Input value={spreadForm.weatherConditions ?? ""} onChange={e => setSpreadForm(f => ({ ...f, weatherConditions: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={spreadForm.notes ?? ""} onChange={e => setSpreadForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSpreadOpen(false)}>Cancel</Button>
+            <Button onClick={() => saveSpread.mutate(spreadForm)} disabled={saveSpread.isPending}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function EnvironmentalPageFull() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("features");
@@ -1139,11 +1426,15 @@ export default function EnvironmentalPageFull() {
           <TabButton active={tab === "schemes"} onClick={() => setTab("schemes")}>Agri-Env Schemes</TabButton>
           <TabButton active={tab === "assessments"} onClick={() => setTab("assessments")}>Assessment Records</TabButton>
           <TabButton active={tab === "events"} onClick={() => setTab("events")}>Management Events</TabButton>
+          <TabButton active={tab === "sfi"} onClick={() => setTab("sfi")}>SFI / ELMs Actions</TabButton>
+          <TabButton active={tab === "slurry"} onClick={() => setTab("slurry")}>Slurry & Manure</TabButton>
         </TabBar>
         {farmId && tab === "features" && <EnvironmentalFeaturesTab farmId={farmId} schemes={schemesQ.data ?? []} />}
         {farmId && tab === "schemes" && <AgriEnvSchemesTab farmId={farmId} />}
         {farmId && tab === "assessments" && <AssessmentsTab farmId={farmId} />}
         {farmId && tab === "events" && <ManagementEventsTab farmId={farmId} features={featuresQ.data ?? []} schemes={schemesQ.data ?? []} />}
+        {farmId && tab === "sfi" && <SFIActionsTab farmId={farmId} />}
+        {farmId && tab === "slurry" && <SlurryTab farmId={farmId} />}
       </div>
     </AppLayout>
   );

@@ -2011,9 +2011,248 @@ function AnimalsSection({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── AI / Reproduction Section ─────────────────────────────────────────────────
+function AIReproductionSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string | boolean>>({});
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["ai-reproduction", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/ai-reproduction-records`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editing ? `/api/farms/${farmId}/ai-reproduction-records/${editing.id}` : `/api/farms/${farmId}/ai-reproduction-records`;
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ai-reproduction", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/ai-reproduction-records/${id}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-reproduction", farmId] }),
+  });
+
+  const rows = (records as Record<string, unknown>[]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold">AI & Reproduction Records</h3>
+          <p className="text-sm text-muted-foreground">Log AI, natural service, RVI confirmation and expected calving / lambing dates.</p>
+        </div>
+        <Button onClick={() => { setEditing(null); setForm({ servicingMethod: "AI", conceptionConfirmed: false }); setOpen(true); }}>
+          <Plus className="w-4 h-4 mr-2" /> Add Record
+        </Button>
+      </div>
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <Card><CardContent className="pt-4">
+          {rows.length === 0 ? <p className="text-sm text-muted-foreground italic py-4 text-center">No AI/reproduction records yet.</p> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b">
+                  {["Event Date", "Animal Tag", "Herd", "Type", "Method", "Sire", "Conception", "Expected Due"].map(h => <th key={h} className="text-left py-2 pr-4 font-medium text-muted-foreground">{h}</th>)}
+                  <th />
+                </tr></thead>
+                <tbody>{rows.map((r, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-2 pr-4">{r.eventDate ? new Date(r.eventDate as string).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="py-2 pr-4">{String(r.animalTag ?? "—")}</td>
+                    <td className="py-2 pr-4">{String(r.herdName ?? "—")}</td>
+                    <td className="py-2 pr-4">{String(r.recordType ?? "—")}</td>
+                    <td className="py-2 pr-4">{String(r.servicingMethod ?? "—")}</td>
+                    <td className="py-2 pr-4">{String(r.sireName ?? r.sireId ?? "—")}</td>
+                    <td className="py-2 pr-4">{r.conceptionConfirmed ? "Yes" : "No"}</td>
+                    <td className="py-2 pr-4">{r.expectedDueDate ? new Date(r.expectedDueDate as string).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="py-2 text-right space-x-1">
+                      <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""]))); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(r.id as number); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </CardContent></Card>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "44rem" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit Record" : "Add AI / Reproduction Record"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Event Date *</Label><Input type="date" value={String(form.eventDate ?? "")} onChange={e => setForm(f => ({ ...f, eventDate: e.target.value }))} /></div>
+            <div><Label>Record Type *</Label>
+              <Select value={String(form.recordType ?? "")} onValueChange={v => setForm(f => ({ ...f, recordType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>{["AI Service", "Natural Service", "Pregnancy Diagnosis", "Calving / Kidding / Lambing", "Embryo Transfer"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Animal Tag *</Label><Input value={String(form.animalTag ?? "")} onChange={e => setForm(f => ({ ...f, animalTag: e.target.value }))} /></div>
+            <div><Label>Herd / Flock Name</Label><Input value={String(form.herdName ?? "")} onChange={e => setForm(f => ({ ...f, herdName: e.target.value }))} /></div>
+            <div><Label>Servicing Method *</Label>
+              <Select value={String(form.servicingMethod ?? "AI")} onValueChange={v => setForm(f => ({ ...f, servicingMethod: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["AI", "Natural Service", "Embryo Transfer", "N/A"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Inseminator / Technician</Label><Input value={String(form.inseminatorName ?? "")} onChange={e => setForm(f => ({ ...f, inseminatorName: e.target.value }))} /></div>
+            <div><Label>Straw / Batch Ref</Label><Input value={String(form.strawBatchRef ?? "")} onChange={e => setForm(f => ({ ...f, strawBatchRef: e.target.value }))} /></div>
+            <div><Label>Sire Name</Label><Input value={String(form.sireName ?? "")} onChange={e => setForm(f => ({ ...f, sireName: e.target.value }))} /></div>
+            <div><Label>Sire Breed</Label><Input value={String(form.sireBreed ?? "")} onChange={e => setForm(f => ({ ...f, sireBreed: e.target.value }))} /></div>
+            <div><Label>Expected Due Date</Label><Input type="date" value={String(form.expectedDueDate ?? "")} onChange={e => setForm(f => ({ ...f, expectedDueDate: e.target.value }))} /></div>
+            <div className="flex items-center gap-2 mt-4">
+              <input type="checkbox" id="conceptionConfirmed" checked={Boolean(form.conceptionConfirmed)} onChange={e => setForm(f => ({ ...f, conceptionConfirmed: e.target.checked }))} className="w-4 h-4" />
+              <Label htmlFor="conceptionConfirmed">Conception confirmed?</Label>
+            </div>
+            <div><Label>Confirmation Method</Label>
+              <Select value={String(form.confirmationMethod ?? "")} onValueChange={v => setForm(f => ({ ...f, confirmationMethod: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["RVI Scanning", "Blood Test", "Milk Progesterone", "Return to Service not observed", "Visual Assessment"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Confirmation Date</Label><Input type="date" value={String(form.confirmationDate ?? "")} onChange={e => setForm(f => ({ ...f, confirmationDate: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Vet Prescriptions Section ──────────────────────────────────────────────────
+function VetPrescriptionsSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string | boolean>>({});
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["vet-prescriptions", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/vet-prescriptions`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editing ? `/api/farms/${farmId}/vet-prescriptions/${editing.id}` : `/api/farms/${farmId}/vet-prescriptions`;
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["vet-prescriptions", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/vet-prescriptions/${id}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vet-prescriptions", farmId] }),
+  });
+
+  const rows = (records as Record<string, unknown>[]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold">Veterinary Prescriptions</h3>
+          <p className="text-sm text-muted-foreground">Record all veterinary prescriptions and dispensed medicines for audit compliance.</p>
+        </div>
+        <Button onClick={() => { setEditing(null); setForm({ signedByVet: true, farmRegistered: true }); setOpen(true); }}>
+          <Plus className="w-4 h-4 mr-2" /> Add Prescription
+        </Button>
+      </div>
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <Card><CardContent className="pt-4">
+          {rows.length === 0 ? <p className="text-sm text-muted-foreground italic py-4 text-center">No prescriptions recorded yet.</p> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b">
+                  {["Date", "Ref", "Vet / Practice", "Product", "Species/Group", "Qty Rx", "Withdrawal Meat", "Withdrawal Milk", "Valid Until"].map(h => <th key={h} className="text-left py-2 pr-4 font-medium text-muted-foreground">{h}</th>)}
+                  <th />
+                </tr></thead>
+                <tbody>{rows.map((r, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-2 pr-4">{r.prescriptionDate ? new Date(r.prescriptionDate as string).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="py-2 pr-4 font-mono text-xs">{String(r.prescriptionRef ?? "—")}</td>
+                    <td className="py-2 pr-4">{String(r.vetName ?? "—")}</td>
+                    <td className="py-2 pr-4">{String(r.productName ?? "—")}</td>
+                    <td className="py-2 pr-4">{String(r.speciesAndBreed ?? r.animalGroupDescription ?? "—")}</td>
+                    <td className="py-2 pr-4">{String(r.quantityPrescribed ?? "—")}</td>
+                    <td className="py-2 pr-4">{r.withdrawalPeriodMeat ? `${r.withdrawalPeriodMeat} days` : "—"}</td>
+                    <td className="py-2 pr-4">{r.withdrawalPeriodMilk ? `${r.withdrawalPeriodMilk} days` : "—"}</td>
+                    <td className="py-2 pr-4">{r.prescriptionValidUntil ? new Date(r.prescriptionValidUntil as string).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="py-2 text-right space-x-1">
+                      <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""]))); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(r.id as number); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </CardContent></Card>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "48rem" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit Prescription" : "Add Veterinary Prescription"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 max-h-[70vh] overflow-y-auto pr-1">
+            <div><Label>Prescription Date *</Label><Input type="date" value={String(form.prescriptionDate ?? "")} onChange={e => setForm(f => ({ ...f, prescriptionDate: e.target.value }))} /></div>
+            <div><Label>Prescription Reference</Label><Input value={String(form.prescriptionRef ?? "")} onChange={e => setForm(f => ({ ...f, prescriptionRef: e.target.value }))} /></div>
+            <div><Label>Vet Name *</Label><Input value={String(form.vetName ?? "")} onChange={e => setForm(f => ({ ...f, vetName: e.target.value }))} /></div>
+            <div><Label>Vet Practice *</Label><Input value={String(form.vetPractice ?? "")} onChange={e => setForm(f => ({ ...f, vetPractice: e.target.value }))} /></div>
+            <div><Label>Vet RCVS Number</Label><Input value={String(form.vetRcvsNumber ?? "")} onChange={e => setForm(f => ({ ...f, vetRcvsNumber: e.target.value }))} /></div>
+            <div><Label>Product Name *</Label><Input value={String(form.productName ?? "")} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} /></div>
+            <div><Label>Active Ingredient</Label><Input value={String(form.activeIngredient ?? "")} onChange={e => setForm(f => ({ ...f, activeIngredient: e.target.value }))} /></div>
+            <div><Label>Species & Breed</Label><Input value={String(form.speciesAndBreed ?? "")} onChange={e => setForm(f => ({ ...f, speciesAndBreed: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Animal Group Description</Label><Input value={String(form.animalGroupDescription ?? "")} onChange={e => setForm(f => ({ ...f, animalGroupDescription: e.target.value }))} /></div>
+            <div><Label>Route *</Label>
+              <Select value={String(form.routeOfAdministration ?? "")} onValueChange={v => setForm(f => ({ ...f, routeOfAdministration: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["Oral", "Injection (IM)", "Injection (SC)", "Injection (IV)", "Topical", "Pour-on", "Intramammary", "Intrauterine", "In-water", "In-feed"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Dose</Label><Input value={String(form.dose ?? "")} onChange={e => setForm(f => ({ ...f, dose: e.target.value }))} /></div>
+            <div><Label>Frequency</Label><Input value={String(form.frequency ?? "")} onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))} /></div>
+            <div><Label>Treatment Duration</Label><Input value={String(form.treatmentDuration ?? "")} onChange={e => setForm(f => ({ ...f, treatmentDuration: e.target.value }))} /></div>
+            <div><Label>Quantity Prescribed</Label><Input value={String(form.quantityPrescribed ?? "")} onChange={e => setForm(f => ({ ...f, quantityPrescribed: e.target.value }))} /></div>
+            <div><Label>Quantity Dispensed</Label><Input value={String(form.quantityDispensed ?? "")} onChange={e => setForm(f => ({ ...f, quantityDispensed: e.target.value }))} /></div>
+            <div><Label>Batch Number</Label><Input value={String(form.batchNumber ?? "")} onChange={e => setForm(f => ({ ...f, batchNumber: e.target.value }))} /></div>
+            <div><Label>Expiry Date</Label><Input type="date" value={String(form.expiryDate ?? "")} onChange={e => setForm(f => ({ ...f, expiryDate: e.target.value }))} /></div>
+            <div><Label>Withdrawal — Meat (days)</Label><Input type="number" value={String(form.withdrawalPeriodMeat ?? "")} onChange={e => setForm(f => ({ ...f, withdrawalPeriodMeat: e.target.value }))} /></div>
+            <div><Label>Withdrawal — Milk (days)</Label><Input type="number" value={String(form.withdrawalPeriodMilk ?? "")} onChange={e => setForm(f => ({ ...f, withdrawalPeriodMilk: e.target.value }))} /></div>
+            <div><Label>Withdrawal — Eggs (days)</Label><Input type="number" value={String(form.withdrawalPeriodEggs ?? "")} onChange={e => setForm(f => ({ ...f, withdrawalPeriodEggs: e.target.value }))} /></div>
+            <div><Label>Prescription Valid Until</Label><Input type="date" value={String(form.prescriptionValidUntil ?? "")} onChange={e => setForm(f => ({ ...f, prescriptionValidUntil: e.target.value }))} /></div>
+            <div className="col-span-2 space-y-2">
+              {([["signedByVet", "Signed by vet?"], ["farmRegistered", "Farm registered for prescribing?"]] as [string, string][]).map(([k, l]) => (
+                <div key={k} className="flex items-center gap-2">
+                  <input type="checkbox" id={k} checked={Boolean(form[k])} onChange={e => setForm(f => ({ ...f, [k]: e.target.checked }))} className="w-4 h-4" />
+                  <Label htmlFor={k}>{l}</Label>
+                </div>
+              ))}
+            </div>
+            <div className="col-span-2"><Label>Reason for Prescribing</Label><Textarea value={String(form.reasonForPrescribing ?? "")} onChange={e => setForm(f => ({ ...f, reasonForPrescribing: e.target.value }))} rows={2} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function LivestockPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "feed" | "water" | "animals">("herds");
+  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx">("herds");
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -2034,6 +2273,12 @@ export default function LivestockPage() {
         <TabButton active={tab === "water"} onClick={() => setTab("water")}>
           <span className="flex items-center gap-1"><Droplets className="h-3.5 w-3.5" /> Water Quality</span>
         </TabButton>
+        <TabButton active={tab === "ai-repro"} onClick={() => setTab("ai-repro")}>
+          <span className="flex items-center gap-1"><Stethoscope className="h-3.5 w-3.5" /> AI & Reproduction</span>
+        </TabButton>
+        <TabButton active={tab === "vet-rx"} onClick={() => setTab("vet-rx")}>
+          <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Vet Prescriptions</span>
+        </TabButton>
       </TabBar>
       {tab === "herds" && <HerdsSection farmId={farmId} />}
       {tab === "animals" && <AnimalsSection farmId={farmId} />}
@@ -2041,6 +2286,8 @@ export default function LivestockPage() {
       {tab === "mortality" && <MortalitySection farmId={farmId} />}
       {tab === "feed" && <FeedSection farmId={farmId} />}
       {tab === "water" && <WaterSection farmId={farmId} />}
+      {tab === "ai-repro" && <AIReproductionSection farmId={farmId} />}
+      {tab === "vet-rx" && <VetPrescriptionsSection farmId={farmId} />}
     </AppLayout>
   );
 }

@@ -42,6 +42,12 @@ const MODULE_LABELS: Record<string, string> = {
   nvz: "NVZ Records",
   risk_assessments: "Risk Assessments & COSHH",
   environmental: "Environmental Records",
+  pig_production: "Pig Production",
+  poultry_production: "Poultry Production",
+  horticulture: "Horticulture & Fresh Produce",
+  carbon_sustainability: "Carbon & Sustainability",
+  farm_diversification: "Farm Diversification",
+  water_irrigation: "Water & Irrigation Management",
 };
 
 function fmt(val: unknown): string {
@@ -379,6 +385,171 @@ function SectionCard({ moduleKey, data }: { moduleKey: string; data: unknown }) 
           { key: "managementAgreement", label: "Agreement" },
           { key: "lastReviewDate", label: "Last Review" },
         ]} />;
+      }
+      case "pig_production": {
+        const d = data as { herds?: Record<string, unknown>[]; healthRecords?: Record<string, unknown>[]; medicineRecords?: Record<string, unknown>[] };
+        return (
+          <div className="space-y-5">
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Pig Herds</h4>
+              <RecordTable records={d.herds ?? []} columns={[
+                { key: "herdName", label: "Herd Name" },
+                { key: "breedType", label: "Breed" },
+                { key: "currentCount", label: "Count" },
+                { key: "productionSystem", label: "System" },
+                { key: "locationBuilding", label: "Building" },
+              ]} />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Health Records</h4>
+              <RecordTable records={d.healthRecords ?? []} columns={[
+                { key: "eventDate", label: "Date" },
+                { key: "eventType", label: "Type" },
+                { key: "description", label: "Description" },
+                { key: "outcome", label: "Outcome" },
+                { key: "vetName", label: "Vet" },
+              ]} />
+            </div>
+          </div>
+        );
+      }
+      case "poultry_production": {
+        const d = data as { flocks?: Record<string, unknown>[]; mortalityRecords?: Record<string, unknown>[] };
+        return (
+          <div className="space-y-5">
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Poultry Flocks</h4>
+              <RecordTable records={d.flocks ?? []} columns={[
+                { key: "flockId", label: "Flock ID" },
+                { key: "species", label: "Species" },
+                { key: "breed", label: "Breed" },
+                { key: "placementDate", label: "Placement" },
+                { key: "currentCount", label: "Count" },
+                { key: "productionType", label: "Type" },
+                { key: "houseId", label: "House" },
+              ]} />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Mortality Records</h4>
+              <RecordTable records={d.mortalityRecords ?? []} columns={[
+                { key: "recordDate", label: "Date" },
+                { key: "count", label: "Count" },
+                { key: "cause", label: "Cause" },
+                { key: "action", label: "Action" },
+              ]} />
+            </div>
+          </div>
+        );
+      }
+      case "horticulture": {
+        const d = data as { crops?: Record<string, unknown>[]; harvestRecords?: Record<string, unknown>[] };
+        return (
+          <div className="space-y-5">
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Horticultural Crops</h4>
+              <RecordTable records={d.crops ?? []} columns={[
+                { key: "cropName", label: "Crop" },
+                { key: "variety", label: "Variety" },
+                { key: "fieldOrBlock", label: "Field / Block" },
+                { key: "plantingDate", label: "Planted" },
+                { key: "expectedHarvestDate", label: "Exp. Harvest" },
+                { key: "areaHa", label: "Area (ha)" },
+                { key: "certificationScheme", label: "Certification" },
+              ]} />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Harvest Records</h4>
+              <RecordTable records={d.harvestRecords ?? []} columns={[
+                { key: "harvestDate", label: "Date" },
+                { key: "cropName", label: "Crop" },
+                { key: "quantityKg", label: "Quantity (kg)" },
+                { key: "grade", label: "Grade" },
+                { key: "destination", label: "Destination" },
+              ]} />
+            </div>
+          </div>
+        );
+      }
+      case "carbon_sustainability": {
+        const d = data as { footprints?: Record<string, unknown>[]; actions?: Record<string, unknown>[] };
+        return (
+          <div className="space-y-5">
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Carbon Footprint Assessments</h4>
+              <RecordTable records={d.footprints ?? []} columns={[
+                { key: "assessmentYear", label: "Year" },
+                { key: "totalEmissionsTco2e", label: "Total (tCO₂e)" },
+                { key: "emissionsPerHa", label: "Per ha" },
+                { key: "assessmentMethod", label: "Method" },
+                { key: "assessorName", label: "Assessor" },
+              ]} />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Sustainability Actions</h4>
+              <RecordTable records={d.actions ?? []} columns={[
+                { key: "actionDate", label: "Date" },
+                { key: "category", label: "Category" },
+                { key: "description", label: "Action" },
+                { key: "status", label: "Status" },
+                { key: "estimatedReductionTco2e", label: "Est. Saving (tCO₂e)" },
+              ]} />
+            </div>
+          </div>
+        );
+      }
+      case "farm_diversification": {
+        const d = data as { enterprises?: Record<string, unknown>[]; incomeRecords?: Record<string, unknown>[] };
+        return (
+          <div className="space-y-5">
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Diversification Enterprises</h4>
+              <RecordTable records={d.enterprises ?? []} columns={[
+                { key: "enterpriseName", label: "Enterprise" },
+                { key: "enterpriseType", label: "Type" },
+                { key: "startDate", label: "Start Date" },
+                { key: "planningPermission", label: "Planning Permission" },
+                { key: "status", label: "Status" },
+              ]} />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Income Records</h4>
+              <RecordTable records={d.incomeRecords ?? []} columns={[
+                { key: "incomeDate", label: "Date" },
+                { key: "enterpriseName", label: "Enterprise" },
+                { key: "incomeType", label: "Type" },
+                { key: "amount", label: "Amount (£)" },
+                { key: "payerName", label: "Payer" },
+              ]} />
+            </div>
+          </div>
+        );
+      }
+      case "water_irrigation": {
+        const d = data as { sources?: Record<string, unknown>[]; usageRecords?: Record<string, unknown>[] };
+        return (
+          <div className="space-y-5">
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Water Sources & Abstraction Licences</h4>
+              <RecordTable records={d.sources ?? []} columns={[
+                { key: "sourceName", label: "Source" },
+                { key: "sourceType", label: "Type" },
+                { key: "abstractionLicenceNumber", label: "Licence No." },
+                { key: "annualAllocatedM3", label: "Annual Allocation (m³)" },
+                { key: "licenceExpiryDate", label: "Expiry" },
+              ]} />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Irrigation Usage Records</h4>
+              <RecordTable records={d.usageRecords ?? []} columns={[
+                { key: "irrigationDate", label: "Date" },
+                { key: "fieldName", label: "Field" },
+                { key: "volumeUsedM3", label: "Volume (m³)" },
+                { key: "method", label: "Method" },
+                { key: "cropName", label: "Crop" },
+              ]} />
+            </div>
+          </div>
+        );
       }
       default:
         return <p className="text-sm text-muted-foreground italic">Data available</p>;

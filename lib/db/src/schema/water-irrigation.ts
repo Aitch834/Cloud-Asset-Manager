@@ -1,0 +1,91 @@
+import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
+import { farmsTable } from "./core";
+
+export const waterAbstractionLicencesTable = pgTable("water_abstraction_licences", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  licenceNumber: text("licence_number").notNull(),
+  issuingAuthority: text("issuing_authority").notNull().default("Environment Agency"),
+  waterSource: text("water_source").notNull(),
+  abstractionPointDescription: text("abstraction_point_description"),
+  purposeOfUse: text("purpose_of_use").notNull(),
+  annualLicencedVolumeM3: numeric("annual_licenced_volume_m3", { precision: 10, scale: 0 }),
+  dailyLicencedVolumeM3: numeric("daily_licenced_volume_m3", { precision: 8, scale: 0 }),
+  flowRateLitresPerSec: numeric("flow_rate_litres_per_sec", { precision: 8, scale: 2 }),
+  licenceStartDate: date("licence_start_date"),
+  licenceExpiryDate: date("licence_expiry_date"),
+  meterRequired: boolean("meter_required").default(true),
+  meterSerialNumber: text("meter_serial_number"),
+  returnRequired: boolean("return_required").default(true),
+  returnDeadline: text("return_deadline"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const waterMeterReadingsTable = pgTable("water_meter_readings", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  licenceId: integer("licence_id").notNull().references(() => waterAbstractionLicencesTable.id),
+  readingDate: date("reading_date").notNull(),
+  meterReading: numeric("meter_reading", { precision: 12, scale: 2 }).notNull(),
+  volumeAbstractedM3: numeric("volume_abstracted_m3", { precision: 10, scale: 2 }),
+  cumulativeYtdM3: numeric("cumulative_ytd_m3", { precision: 10, scale: 2 }),
+  percentOfAnnualAllocation: numeric("percent_of_annual_allocation", { precision: 5, scale: 1 }),
+  readBy: text("read_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const boreholeTestsTable = pgTable("borehole_tests", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  licenceId: integer("licence_id").references(() => waterAbstractionLicencesTable.id),
+  testDate: date("test_date").notNull(),
+  testingCompany: text("testing_company"),
+  staticWaterLevelM: numeric("static_water_level_m", { precision: 8, scale: 2 }),
+  pumpingWaterLevelM: numeric("pumping_water_level_m", { precision: 8, scale: 2 }),
+  specificCapacityLps: numeric("specific_capacity_lps", { precision: 8, scale: 3 }),
+  bacteriologicalResult: text("bacteriological_result"),
+  chemicalResult: text("chemical_result"),
+  overallResult: text("overall_result").notNull(),
+  reportReference: text("report_reference"),
+  correctiveAction: text("corrective_action"),
+  nextTestDueDate: date("next_test_due_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const irrigationRecordsTable = pgTable("irrigation_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  licenceId: integer("licence_id").references(() => waterAbstractionLicencesTable.id),
+  irrigationDate: date("irrigation_date").notNull(),
+  fieldOrBlockDescription: text("field_or_block_description").notNull(),
+  areaIrrigatedHa: numeric("area_irrigated_ha", { precision: 8, scale: 3 }),
+  cropType: text("crop_type"),
+  growthStage: text("growth_stage"),
+  irrigationMethod: text("irrigation_method").notNull(),
+  applicationDepthMm: numeric("application_depth_mm", { precision: 6, scale: 1 }),
+  volumeAppliedM3: numeric("volume_applied_m3", { precision: 10, scale: 2 }),
+  soilMoistureDeficitMm: numeric("soil_moisture_deficit_mm", { precision: 6, scale: 1 }),
+  rainfallLast7DaysMm: numeric("rainfall_last_7_days_mm", { precision: 6, scale: 1 }),
+  operatorName: text("operator_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const irrigationEquipmentTable = pgTable("irrigation_equipment", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  equipmentName: text("equipment_name").notNull(),
+  equipmentType: text("equipment_type").notNull(),
+  manufacturer: text("manufacturer"),
+  serialNumber: text("serial_number"),
+  applicationRateLph: numeric("application_rate_lph", { precision: 10, scale: 1 }),
+  uniformityCoefficient: numeric("uniformity_coefficient", { precision: 5, scale: 1 }),
+  lastCalibrationDate: date("last_calibration_date"),
+  nextCalibrationDue: date("next_calibration_due"),
+  status: text("status").notNull().default("active"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

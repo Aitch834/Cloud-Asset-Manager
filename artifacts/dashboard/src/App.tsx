@@ -55,6 +55,12 @@ import FarmMapPage from "@/pages/FarmMapPage";
 import WeekAheadPage from "@/pages/WeekAheadPage";
 import DairyPage from "@/pages/DairyPage";
 import WorkshopPage from "@/pages/WorkshopPage";
+import PigProductionPage from "@/pages/PigProductionPage";
+import PoultryProductionPage from "@/pages/PoultryProductionPage";
+import HorticulturePage from "@/pages/HorticulturePage";
+import CarbonPage from "@/pages/CarbonPage";
+import DiversificationPage from "@/pages/DiversificationPage";
+import WaterIrrigationPage from "@/pages/WaterIrrigationPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -198,6 +204,12 @@ function Router() {
       <Route path="/dairy" component={DairyPage} />
       <Route path="/workshop" component={WorkshopPage} />
       <Route path="/biofuel" component={BiofuelPage} />
+      <Route path="/pig-production" component={PigProductionPage} />
+      <Route path="/poultry-production" component={PoultryProductionPage} />
+      <Route path="/horticulture" component={HorticulturePage} />
+      <Route path="/carbon" component={CarbonPage} />
+      <Route path="/diversification" component={DiversificationPage} />
+      <Route path="/water-irrigation" component={WaterIrrigationPage} />
       <Route path="/inspect/:token" component={InspectionViewPage} />
       <Route component={NotFound} />
     </Switch>

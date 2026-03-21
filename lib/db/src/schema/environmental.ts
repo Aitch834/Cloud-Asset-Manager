@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, numeric, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { fieldsTable } from "./fields-crops";
 
@@ -61,6 +61,80 @@ export const environmentalManagementEventsTable = pgTable("environmental_managem
   schemeId: integer("scheme_id").references(() => agriEnvironmentSchemeRecordsTable.id, { onDelete: "set null" }),
   schemeName: text("scheme_name"),
   fulfilsSchemeObligation: boolean("fulfils_scheme_obligation").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const sfiAgreementsTable = pgTable("sfi_agreements", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  agreementNumber: text("agreement_number").notNull(),
+  schemeName: text("scheme_name").notNull(),
+  agreementStartDate: date("agreement_start_date").notNull(),
+  agreementEndDate: date("agreement_end_date").notNull(),
+  totalAnnualPayment: numeric("total_annual_payment", { precision: 10, scale: 2 }),
+  managingBody: text("managing_body"),
+  agentOrAdvisorName: text("agent_or_advisor_name"),
+  status: text("status").notNull().default("active"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const sfiActionsTable = pgTable("sfi_actions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  agreementId: integer("agreement_id").references(() => sfiAgreementsTable.id),
+  actionCode: text("action_code").notNull(),
+  actionTitle: text("action_title").notNull(),
+  landParcelReference: text("land_parcel_reference"),
+  eligibleAreaHa: numeric("eligible_area_ha", { precision: 8, scale: 3 }),
+  annualPaymentPerHa: numeric("annual_payment_per_ha", { precision: 8, scale: 2 }),
+  annualPaymentAmount: numeric("annual_payment_amount", { precision: 10, scale: 2 }),
+  evidenceRequired: text("evidence_required"),
+  lastEvidenceDate: date("last_evidence_date"),
+  nextEvidenceDate: date("next_evidence_date"),
+  complianceStatus: text("compliance_status").notNull().default("compliant"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const slurryStoresTable = pgTable("slurry_stores", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  storeName: text("store_name").notNull(),
+  storeType: text("store_type").notNull(),
+  capacityM3: numeric("capacity_m3", { precision: 8, scale: 1 }),
+  freeboard: text("freeboard"),
+  liningType: text("lining_type"),
+  constructionYear: integer("construction_year"),
+  lastInspectionDate: date("last_inspection_date"),
+  nextInspectionDue: date("next_inspection_due"),
+  agencyRegistrationNumber: text("agency_registration_number"),
+  leakDetectionSystem: boolean("leak_detection_system").default(false),
+  coverType: text("cover_type"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const slurrySpreadingRecordsTable = pgTable("slurry_spreading_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  storeId: integer("store_id").references(() => slurryStoresTable.id),
+  spreadingDate: date("spreading_date").notNull(),
+  fieldDescription: text("field_description").notNull(),
+  fieldAreaHa: numeric("field_area_ha", { precision: 8, scale: 3 }),
+  manureType: text("manure_type").notNull(),
+  applicationMethod: text("application_method").notNull(),
+  volumeAppliedM3: numeric("volume_applied_m3", { precision: 10, scale: 2 }),
+  nitrogenAppliedKgHa: numeric("nitrogen_applied_kg_ha", { precision: 8, scale: 2 }),
+  soilTemp: numeric("soil_temp_c", { precision: 5, scale: 1 }),
+  groundConditions: text("ground_conditions"),
+  windSpeed: text("wind_speed"),
+  rainInLast24h: boolean("rain_in_last_24h").default(false),
+  rainForecast48h: boolean("rain_forecast_48h").default(false),
+  bufferFromWaterM: numeric("buffer_from_water_m", { precision: 6, scale: 0 }),
+  withinNvzClosedPeriod: boolean("within_nvz_closed_period").default(false),
+  operatorName: text("operator_name"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -1,0 +1,107 @@
+import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
+import { farmsTable } from "./core";
+
+export const pigFlocksTable = pgTable("pig_flocks", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockName: text("flock_name").notNull(),
+  productionType: text("production_type").notNull(),
+  breed: text("breed"),
+  cphNumber: text("cph_number"),
+  herdNumber: text("herd_number"),
+  currentCount: integer("current_count").notNull().default(0),
+  location: text("location"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const pigMovementsTable = pgTable("pig_movements", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  movementDate: date("movement_date").notNull(),
+  movementType: text("movement_type").notNull(),
+  fromLocation: text("from_location").notNull(),
+  toLocation: text("to_location").notNull(),
+  fromCph: text("from_cph"),
+  toCph: text("to_cph"),
+  numberOfAnimals: integer("number_of_animals").notNull(),
+  eaml2Reference: text("eaml2_reference"),
+  transporterName: text("transporter_name"),
+  vehicleRegistration: text("vehicle_registration"),
+  cleaningDeclaration: boolean("cleaning_declaration").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const pigFciDocumentsTable = pgTable("pig_fci_documents", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  movementId: integer("movement_id").references(() => pigMovementsTable.id),
+  documentDate: date("document_date").notNull(),
+  batchReference: text("batch_reference"),
+  destinationAbattoir: text("destination_abattoir"),
+  numberOfPigs: integer("number_of_pigs").notNull(),
+  veterinaryMedicinesLast60Days: boolean("veterinary_medicines_last_60_days").default(false),
+  medicineDetails: text("medicine_details"),
+  withdrawalPeriodClear: boolean("withdrawal_period_clear").default(true),
+  feedWithdrawalHours: integer("feed_withdrawal_hours"),
+  lambnessCasualtyStatus: text("lamness_casualty_status"),
+  signedByFarmer: boolean("signed_by_farmer").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const pigFeedRecordsTable = pgTable("pig_feed_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  deliveryDate: date("delivery_date").notNull(),
+  supplierName: text("supplier_name").notNull(),
+  supplierApprovalNumber: text("supplier_approval_number"),
+  feedType: text("feed_type").notNull(),
+  compoundFeedName: text("compound_feed_name"),
+  quantityTonnes: numeric("quantity_tonnes", { precision: 8, scale: 2 }).notNull(),
+  batchLotNumber: text("batch_lot_number"),
+  deliveryNoteNumber: text("delivery_note_number"),
+  appliedToFlockId: integer("applied_to_flock_id").references(() => pigFlocksTable.id),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const pigVetAssessmentsTable = pgTable("pig_vet_assessments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  assessmentDate: date("assessment_date").notNull(),
+  vetName: text("vet_name").notNull(),
+  practiceName: text("practice_name"),
+  flockId: integer("flock_id").references(() => pigFlocksTable.id),
+  bodyConditionScore: numeric("body_condition_score", { precision: 3, scale: 1 }),
+  lameness: text("lameness"),
+  respiratoryHealth: text("respiratory_health"),
+  skinCondition: text("skin_condition"),
+  tailBiting: text("tail_biting"),
+  mortalityRate: numeric("mortality_rate", { precision: 5, scale: 2 }),
+  findings: text("findings"),
+  recommendations: text("recommendations"),
+  nextReviewDate: date("next_review_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const pigStockmanshipChecksTable = pgTable("pig_stockmanship_checks", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  checkDate: date("check_date").notNull(),
+  checkedBy: text("checked_by").notNull(),
+  flockId: integer("flock_id").references(() => pigFlocksTable.id),
+  mortalitiesFound: integer("mortalities_found").default(0),
+  injuredFound: integer("injured_found").default(0),
+  waterSystemOk: boolean("water_system_ok").default(true),
+  feedSystemOk: boolean("feed_system_ok").default(true),
+  ventilationOk: boolean("ventilation_ok").default(true),
+  temperatureOk: boolean("temperature_ok").default(true),
+  lightingOk: boolean("lighting_ok").default(true),
+  beddingOk: boolean("bedding_ok").default(true),
+  overallWelfare: text("overall_welfare"),
+  actionsRequired: text("actions_required"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

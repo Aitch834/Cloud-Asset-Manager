@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, numeric, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric, boolean, jsonb, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 
 export const herdFlockRegisterTable = pgTable("herd_flock_register", {
@@ -297,4 +297,56 @@ export const dairyDctRecordsTable = pgTable("dairy_dct_records", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const aiReproductionRecordsTable = pgTable("ai_reproduction_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  animalId: integer("animal_id"),
+  earTag: text("ear_tag").notNull(),
+  serviceDate: date("service_date").notNull(),
+  serviceType: text("service_type").notNull(),
+  bullOrSireName: text("bull_or_sire_name"),
+  sireStuNumber: text("sire_stu_number"),
+  sireBreed: text("sire_breed"),
+  strawBatchNumber: text("straw_batch_number"),
+  aiTechnicianName: text("ai_technician_name"),
+  bullingObservedDate: date("bulling_observed_date"),
+  expectedCalvingDate: date("expected_calving_date"),
+  pregnancyDiagnosisDate: date("pregnancy_diagnosis_date"),
+  pregnancyResult: text("pregnancy_result"),
+  veterinarianName: text("veterinarian_name"),
+  returnToServiceDate: date("return_to_service_date"),
+  actualCalvingDate: date("actual_calving_date"),
+  calvingOutcome: text("calving_outcome"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const vetPrescriptionRecordsTable = pgTable("vet_prescription_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  prescriptionDate: date("prescription_date").notNull(),
+  vetName: text("vet_name").notNull(),
+  vrcPracticeName: text("vrc_practice_name"),
+  rcvsPracticeNumber: text("rcvs_practice_number"),
+  productName: text("product_name").notNull(),
+  activeIngredient: text("active_ingredient"),
+  vmtNumber: text("vmt_number"),
+  dosageAndFrequency: text("dosage_and_frequency").notNull(),
+  routeOfAdministration: text("route_of_administration").notNull(),
+  quantityAuthorised: text("quantity_authorised").notNull(),
+  validityDays: integer("validity_days"),
+  expiryDate: date("expiry_date"),
+  targetSpecies: text("target_species").notNull(),
+  indicationOrDiagnosis: text("indication_or_diagnosis").notNull(),
+  cascadeJustification: text("cascade_justification"),
+  isCascade: boolean("is_cascade").default(false),
+  withdrawalPeriodMeat: integer("withdrawal_period_meat_days"),
+  withdrawalPeriodMilk: integer("withdrawal_period_milk_days"),
+  withdrawalPeriodEggs: integer("withdrawal_period_eggs_days"),
+  dispensedQuantity: text("dispensed_quantity"),
+  dispensedDate: date("dispensed_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });

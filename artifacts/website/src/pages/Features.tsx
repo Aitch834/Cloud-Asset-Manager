@@ -3,7 +3,8 @@ import { motion } from "framer-motion";
 import { 
   ClipboardCheck, Map, Package, Tractor, FileText, LineChart, 
   CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
-  Droplets, AlertTriangle, ClipboardList, Leaf, Truck, Fuel, Share2, BarChart3, Wrench
+  Droplets, AlertTriangle, ClipboardList, Leaf, Truck, Fuel, Share2, BarChart3, Wrench,
+  Ham, Bird, Flower2, Flame, Store, Waves
 } from "lucide-react";
 
 export default function Features() {
@@ -139,7 +140,43 @@ export default function Features() {
       title: "Advisor & Inspector Access",
       icon: Share2,
       color: "bg-indigo-50 text-indigo-700 border-indigo-100",
-      features: ["Permanent advisor accounts (agronomists, vets, FACTS advisers)", "Time-limited inspection sessions for Red Tractor CBs", "15-module scope selector — share only what you choose", "Full access log with timestamp and accessor name"]
+      features: ["Permanent advisor accounts (agronomists, vets, FACTS advisers)", "Time-limited inspection sessions for Red Tractor CBs", "21-module scope selector — share only what you choose", "Full access log with timestamp and accessor name"]
+    },
+    {
+      title: "Pig Production",
+      icon: Ham,
+      color: "bg-pink-50 text-pink-700 border-pink-100",
+      features: ["Pig herd register with breed, age and production system", "Farrowing & weaning records — litter size, piglet weights and survival", "Health & medicine records with withdrawal tracking", "Movements — Eartag Scotland / APHA compliant", "Feed consumption & FCR records per house", "Mortality records — cause, disposal and APHA reporting", "Veterinary health plan integration", "Red Tractor Pigs scheme readiness checklist"]
+    },
+    {
+      title: "Poultry Production",
+      icon: Bird,
+      color: "bg-amber-50 text-amber-700 border-amber-100",
+      features: ["Flock register — broiler, layer, turkey, duck and speciality species", "Placement & depletion records with hatchery traceability", "Daily mortality log — cumulative count & cause analysis", "Feed & water consumption per flock / house", "Egg production records — lay rate, grading and packing", "Medicine & vaccine records with batch numbers", "Biosecurity checklist with down-time between placements", "Red Tractor Poultry & Lion Quality scheme records"]
+    },
+    {
+      title: "Horticulture & Fresh Produce",
+      icon: Flower2,
+      color: "bg-green-50 text-green-700 border-green-100",
+      features: ["Crop & variety register with field / block assignment", "Planting, transplanting & harvesting records", "Spray & irrigation records — operator, product and dose", "Harvest grade & quality records — packed weights and rejection rates", "Cold store temperature logs", "Allergen & traceability chain records", "Red Tractor Fresh Produce, LEAF and GlobalG.A.P. readiness", "Assured Produce / BRCGS-ready audit evidence trail"]
+    },
+    {
+      title: "Carbon & Sustainability",
+      icon: Flame,
+      color: "bg-emerald-50 text-emerald-700 border-emerald-100",
+      features: ["Farm carbon footprint calculator — Agrecalc / Cool Farm compatible inputs", "Emissions by category: enteric fermentation, manure, fuel, fertiliser, imported feed", "Year-on-year baseline comparison and trend charts", "Sustainability action plan — log actions, estimate savings, track progress", "Renewable energy production logging — solar, wind and AD", "Biodiversity net gain tracking — habitat creation and baseline scoring", "Supply chain sustainability declarations for retailer assurance schemes"]
+    },
+    {
+      title: "Farm Diversification",
+      icon: Store,
+      color: "bg-violet-50 text-violet-700 border-violet-100",
+      features: ["Diversification enterprise register — glamping, tourism, B&B, farm shop, events", "Planning permission and consent tracking", "Booking & occupancy records for accommodation and events", "Income records by enterprise with monthly summaries", "Public liability and insurance document storage", "Food hygiene ratings and inspections log", "Visitor management — check-in / check-out and visitor waivers", "Business rates and tax liability notes"]
+    },
+    {
+      title: "Water & Irrigation Management",
+      icon: Waves,
+      color: "bg-sky-50 text-sky-700 border-sky-100",
+      features: ["Water source register — bore holes, rivers, reservoirs and mains", "Abstraction licence tracking with annual allocation and usage", "Daily / weekly meter readings and volumetric usage logs", "Irrigation event records — field, crop, volume and method", "Soil moisture monitoring integration", "Pump maintenance records — service dates and calibration", "EA compliance check — CAMS reporting and licence conditions", "Drought management planning and restriction alerts"]
     },
   ];
 

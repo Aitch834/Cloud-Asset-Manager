@@ -81,6 +81,52 @@ import {
   farmInspectionSessionsTable,
   externalAccessLogTable,
   farmLocationsTable,
+  grainStorageBinsTable,
+  grainQualityTestsTable,
+  grainTemperatureLogsTable,
+  aiReproductionRecordsTable,
+  vetPrescriptionRecordsTable,
+  sfiAgreementsTable,
+  sfiActionsTable,
+  slurryStoresTable,
+  slurrySpreadingRecordsTable,
+  pigFlocksTable,
+  pigMovementsTable,
+  pigFciDocumentsTable,
+  pigFeedRecordsTable,
+  pigVetAssessmentsTable,
+  pigStockmanshipChecksTable,
+  poultryHousesTable,
+  poultryFlocksTable,
+  poultryDailyMortalityTable,
+  poultryTreatmentsTable,
+  poultryHouseCleanoutsTable,
+  poultryEnvironmentalLogsTable,
+  poultryFciDocumentsTable,
+  horticultureBlocksTable,
+  horticultureCropsTable,
+  horticultureWaterTestsTable,
+  horticultureHarvestRecordsTable,
+  horticulturePackhouseRecordsTable,
+  allergenManagementRecordsTable,
+  carbonAuditsTable,
+  carbonEmissionsRecordsTable,
+  carbonSequestrationTable,
+  carbonReductionActionsTable,
+  sustainabilityReportsTable,
+  diversificationActivitiesTable,
+  farmShopProductsTable,
+  farmShopHygieneInspectionsTable,
+  equineRecordsTable,
+  equineHealthEventsTable,
+  renewableEnergyInstallationsTable,
+  renewableEnergyMeterReadingsTable,
+  shootingAndGameRecordsTable,
+  waterAbstractionLicencesTable,
+  waterMeterReadingsTable,
+  boreholeTestsTable,
+  irrigationRecordsTable,
+  irrigationEquipmentTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte, isNotNull, lte } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
@@ -3902,6 +3948,260 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Red Tractor Context</h3>
 <p>Red Tractor assessors covering the workshop area will look for evidence that you have identified the significant risks, put controls in place, and reviewed assessments regularly. Assessments do not need to be lengthy — a clear, honest description of the hazard and the steps taken to control it is more useful than a lengthy document that is not acted upon. The BDE Farm Trac records provide an immediately accessible, dated evidence trail without requiring paper files.</p>`,
     },
+    {
+      id: 47,
+      title: "Getting Started with Pig Production Records",
+      category: "Pig Production",
+      content: `<p>The Pig Production module provides a complete compliance record system for UK pig enterprises covered by Red Tractor Pigs, BPEX Quality Assured Pigs, and the Pig Industry Code of Practice (PICOP). Whether you run a breeding herd, a finishing unit, or a farrow-to-finish system, this module captures the records required at an inspection.</p>
+
+<h3>Module Tabs</h3>
+<ul>
+<li><strong>Medicine Records</strong> — record all medicines, vaccines, and treatments including withdrawal periods; the system flags animals under withdrawal so they cannot be cleared for slaughter until the period has elapsed.</li>
+<li><strong>Medication Book</strong> — a running log of all purchased veterinary medicines, their batch numbers, quantities, storage conditions, and use dates, as required by the Veterinary Medicines Regulations 2013.</li>
+<li><strong>Feed & Nutrition</strong> — log all feed deliveries, feed compositions, and any medicated feed consignments. Note any permitted additives and cross-reference with medicine withdrawal records.</li>
+<li><strong>Mortality Records</strong> — record each mortality event with cause (where known), the fate of the carcass, and any post-mortem findings. This feeds into the mortality dashboard which highlights patterns for investigation.</li>
+<li><strong>Slaughter Records</strong> — enter liveweight, kill-out data, grading, and any condemnation remarks. Upload copies of kill sheets from your abattoir where possible.</li>
+<li><strong>Vet Visits</strong> — log all veterinary consultations, including the date, vet name, animals examined, diagnoses, treatment plans, and any prescriptions written. Red Tractor requires evidence of a regular vet-farm relationship.</li>
+</ul>
+
+<h3>Medicine Withdrawal Periods</h3>
+<p>Pigs treated with prescription-only medicines must not be sent for slaughter until the relevant withdrawal period has elapsed. The system automatically calculates the withdrawal clearance date when you record a treatment and shows a banner on the animal's record until it is clear. Always verify against the product Summary of Product Characteristics (SPC) — do not rely solely on the system.</p>
+
+<h3>Legal Framework</h3>
+<p>Relevant legislation includes the Animal Welfare (Kept Animals) Act provisions, Pig Veterinary Medicines Regulations 2013, Welfare of Farmed Animals (England) Regulations 2007, and the Pigs (Records, Identification and Movement) Order 2011. Records must be kept for a minimum of five years for medicines.</p>`,
+    },
+    {
+      id: 48,
+      title: "Pig Movement and Identification",
+      category: "Pig Production",
+      content: `<p>All pig movements on and off your holding must be reported through the appropriate government portal within the specified timeframe. Which portal you use depends on where your holding is located in the UK.</p>
+
+<h3>Movement Portals by Country</h3>
+<ul>
+<li><strong>England &amp; Wales:</strong> eAML2 (eaml2.org.uk) — movements must be reported within three days of the move.</li>
+<li><strong>Scotland:</strong> ScotEID (scoteid.com) — movements reported within three days. Pigs also require APHIS notification in some cases; check with ScotEID.</li>
+<li><strong>Northern Ireland:</strong> APHIS (DAERA) — contact your local DAERA office to register your herd and set up online access.</li>
+</ul>
+
+<h3>Identification Requirements</h3>
+<p>Every pig leaving your holding must be identified with either a slap mark tattoo or an ear tag showing your herd mark. Replacement pigs brought onto the holding must already be marked with the holding of origin's mark. Breeding pigs moved between holdings require permanent identification. Pigs moved direct to slaughter may use a temporary eartag in addition to the slap mark.</p>
+
+<h3>Recording in BDE Farm Trac</h3>
+<p>Go to <strong>Pig Production</strong> and click the <strong>Movements</strong> tab. Click <strong>Add Movement</strong> and enter the movement date, direction (on or off holding), the number and category of pigs (weaners, stores, finishers, or breeding), the destination or source CPH, transporter name, and vehicle registration. A movement licence or AML reference should also be recorded once obtained from eAML2 or your regional portal.</p>
+
+<h3>Standstill Rules</h3>
+<p>Pigs that have been on a holding with pigs from another holding are subject to a 20-day standstill before they can be moved to another farm. Only movements direct to slaughter are exempt. The system will warn you if a pending movement appears to fall within a standstill period — always verify with your regional office if in doubt.</p>`,
+    },
+    {
+      id: 49,
+      title: "Getting Started with Poultry Production Records",
+      category: "Poultry Production",
+      content: `<p>The Poultry Production module covers compliance record-keeping for broiler, layer, turkey, duck, and other poultry enterprises under Red Tractor Poultry standards, Lion Code, and UK welfare legislation. It is structured around the key inspection areas: flock registers, welfare daily checks, medicines, mortality, and hatchery data.</p>
+
+<h3>Module Tabs</h3>
+<ul>
+<li><strong>Flock Register</strong> — create a record for each house or flock placement: breed/strain, chick source hatchery, date placed, initial numbers, and target slaughter date. Each flock record becomes the parent for all associated records — checks, treatments, mortalities, and thinnings.</li>
+<li><strong>Daily Welfare Checks</strong> — record the daily house visit observations required by the Welfare of Farmed Animals (England) Regulations: feed and water availability, ventilation and temperature, lighting, litter condition, bird health observations, and any abnormal behaviour. The system timestamps each entry and flags overdue checks.</li>
+<li><strong>Medicine Records</strong> — log all in-water and in-feed medications, vaccines administered (with batch number and vaccination team details), and any individual treatments. Withdrawal periods are auto-calculated.</li>
+<li><strong>Mortality Records</strong> — daily mortality counts for each house with cause classifications. Red Tractor requires a mortality trigger level to be set; the system will alert you when a single day's mortality exceeds your threshold so a formal investigation can be initiated.</li>
+<li><strong>Thinning &amp; Depletion</strong> — record each thinning event with the number of birds removed, live weight, and destination (abattoir or lairage). Final depletion records include final house numbers, slaughter date, and meat hygiene feedback where available.</li>
+<li><strong>Litter &amp; Environment</strong> — log litter change events, footpad dermatitis (FPD) scores from abattoir feedback, and dust/ammonia monitoring readings if taken.</li>
+</ul>
+
+<h3>Stocking Density Limits</h3>
+<p>Under the Welfare of Farmed Animals Regulations and Red Tractor Broiler standards, stocking density is capped at 33 kg/m² for standard production (up to 39 kg/m² where a higher density licence is held). The module calculates live weight density based on your entered live weight estimates and house floor area and warns you if limits are approached.</p>`,
+    },
+    {
+      id: 50,
+      title: "Salmonella, Biosecurity and Poultry Health Plans",
+      category: "Poultry Production",
+      content: `<p>UK National Control Programmes (NCPs) require commercial poultry flocks to be tested for Salmonella at defined points in the production cycle. Red Tractor Poultry additionally requires a written health plan agreed with your vet. BDE Farm Trac supports both requirements within the Poultry Production module.</p>
+
+<h3>Salmonella NCP Testing</h3>
+<p>For broiler flocks, official Salmonella sampling must be carried out 2–3 weeks before slaughter. For laying hens, sampling is required at 24–26 weeks of age and every 15 weeks thereafter. Results from approved laboratories must be retained and made available to inspectors. Use the <strong>Lab Tests</strong> tab within the Poultry Production module to log each sample submission: sample date, sample type (boot swabs, dusty swabs, or tissue), laboratory name and reference, and the result. Positive results trigger mandatory notifications; the system surfaces a compliance flag until you confirm the regulatory notification has been made.</p>
+
+<h3>Flock Health Plan</h3>
+<p>Red Tractor requires a written flock health plan signed by the attending vet and reviewed at least annually. The health plan must cover: disease risks relevant to your species and production system, vaccination protocols, biosecurity measures, parasite management, mortality trigger levels and response plans, and pain-relief protocols. Go to the <strong>Health Plan</strong> tab within the Poultry Production module and complete each section. The system stores a version history so you can demonstrate that the plan has been regularly reviewed.</p>
+
+<h3>Biosecurity for Poultry</h3>
+<p>Avian Influenza (AI) risk means that biosecurity requirements for poultry holdings can change rapidly — during a Housing Order, free-range flocks must be kept inside under strict biosecurity. The module includes a biosecurity checklist tab where you can record daily checks during enhanced biosecurity periods: perimeter security, visitor controls, vehicle disinfection, feed and water security, and wild bird deterrent measures.</p>`,
+    },
+    {
+      id: 51,
+      title: "Getting Started with Horticulture Records",
+      category: "Horticulture",
+      content: `<p>The Horticulture module provides compliance record-keeping for fresh produce growers working under Red Tractor Fresh Produce, LEAF Marque, GlobalG.A.P., or other assured scheme requirements. It covers crops grown in the open, under protection (poly-tunnels, glasshouses), and in substrate systems.</p>
+
+<h3>Module Tabs</h3>
+<ul>
+<li><strong>Crop Records</strong> — register each crop with its variety, planting date, growing area (hectares or m²), and target harvest window. Assign each crop to a field or glasshouse bay so that spray records, soil tests, and water use records are automatically linked.</li>
+<li><strong>Spray Records</strong> — a dedicated spray record form compliant with Plant Protection Products Regulations 2011. Includes MAPP number validation, pre-harvest interval (PHI) calculation, and buffer zone reminders. PHI alerts appear on the crop record once a spray application has been logged, preventing premature harvest.</li>
+<li><strong>Soil & Substrate Records</strong> — log soil analysis results (pH, P, K, Mg, organic matter), substrate test results for soilless systems, and irrigation water quality tests. Crop-specific nutrient recommendations can be added based on analysis results.</li>
+<li><strong>Harvest Records</strong> — record actual harvest dates, weights, grades, and any downgraded or rejected product. For export crops, record phytosanitary inspection dates and certificate references.</li>
+<li><strong>Worker Welfare</strong> — log accommodation, welfare facility, and pay records for seasonal and permanent workers. This supports compliance with the Gangmasters and Labour Abuse Authority (GLAA) licensing requirements and assured scheme audits.</li>
+<li><strong>Traceability</strong> — link harvest batches to spray records, water use, and soil tests, creating a full traceability chain from seed to despatch that can be presented to a retailer or scheme auditor.</li>
+</ul>
+
+<h3>Assured Scheme Flexibility</h3>
+<p>The module is not tied to a single assured scheme. Whether you are certificated under Red Tractor, LEAF Marque, GlobalG.A.P., Tesco Nurture, or another scheme, the records captured are the same — only the audit questions differ. BDE Farm Trac stores the data; how you present it depends on your scheme's audit process.</p>`,
+    },
+    {
+      id: 52,
+      title: "Pre-Harvest Intervals, MRLs and Residue Testing",
+      category: "Horticulture",
+      content: `<p>Maximum Residue Levels (MRLs) are the maximum legal concentrations of pesticide residues permitted in or on food products. Retailers, assured schemes, and UK law (UK Regulation 396/2005 retained in UK law) impose strict MRL compliance obligations on growers. BDE Farm Trac helps you manage MRL risk through pre-harvest interval (PHI) management and residue testing records.</p>
+
+<h3>Pre-Harvest Intervals (PHI)</h3>
+<p>Every approved pesticide label specifies a PHI — the minimum number of days that must elapse between the last application and harvest. The Horticulture module automatically calculates the earliest permitted harvest date when you record a spray application. The crop record displays a green "Clear to harvest" status once all PHI periods have elapsed, or an amber "PHI in progress" warning with the days remaining. This prevents accidental early harvest of treated crops.</p>
+
+<h3>SEER Database Limits</h3>
+<p>For export crops and retailer-supplied crops, individual retailers may impose limits below the statutory MRL (sometimes called "action limits" or "marketing limits"). These vary by retailer and product. You can add retailer-specific limits to individual spray records as notes so that your agronomist and team are aware of tighter constraints on specific crops.</p>
+
+<h3>Residue Testing Records</h3>
+<p>If you commission or receive the results of residue tests — from a retailer, scheme, or your own programme — record them in the <strong>Lab Tests</strong> tab of the Horticulture module. Log the crop, the sample date and harvest batch, the laboratory name and reference, the analytes tested, and the results. Any exceedance of an MRL generates a compliance flag that must be acknowledged before it can be cleared, creating an audit trail of your response to non-conformances.</p>`,
+    },
+    {
+      id: 53,
+      title: "Carbon & Sustainability Records",
+      category: "Carbon & Sustainability",
+      content: `<p>The Carbon &amp; Sustainability module supports UK farmers participating in the Sustainable Farming Incentive (SFI), the Farming in Protected Landscapes (FiPL) programme, or voluntary carbon markets. It also provides the data structure needed to run a farm carbon footprint assessment and track year-on-year emissions reduction.</p>
+
+<h3>Module Tabs</h3>
+<ul>
+<li><strong>Carbon Footprint</strong> — enter annual data inputs for a Scope 1, 2, and 3 farm carbon footprint: fertiliser use and type (kg N, nitrous oxide emission factor), livestock numbers and species (enteric fermentation, manure), fuel consumption (diesel, petrol, LPG), electricity use (grid and renewable), bought-in feed quantities, and land use change. The module provides a summary in tonnes CO₂e per year and per tonne of product.</li>
+<li><strong>Renewable Energy</strong> — log solar PV, wind turbine, biomass boiler, or anaerobic digester (AD) capacity and annual generation. Feed-in-Tariff (FiT) and Smart Export Guarantee (SEG) receipt records can be attached for reference.</li>
+<li><strong>Biodiversity Actions</strong> — record habitat management actions: hedge laying, tree planting, buffer strip establishment, in-field flower margins, beetle banks, and pond restoration. These records support Biodiversity Net Gain (BNG) documentation and agri-environment scheme monitoring visits.</li>
+<li><strong>Soil Carbon</strong> — enter soil organic matter (SOM) or soil organic carbon (SOC) results from sequential sampling plots. Tracking SOM over time demonstrates carbon sequestration and supports claims under voluntary carbon standard frameworks.</li>
+<li><strong>Sustainability Goals</strong> — set and track bespoke farm sustainability targets: percentage renewable energy by a target year, hectares of habitat created, nitrogen use efficiency, or water consumption per unit of output. The goals dashboard shows progress against each target.</li>
+</ul>
+
+<h3>Regulatory Context</h3>
+<p>While there is currently no legal obligation to complete a farm carbon footprint in England, several supply chains now require it as a condition of supply. The NFU has a target of net-zero UK agriculture by 2040. Recording your baseline data now means you have a verifiable starting point for your improvement journey.</p>`,
+    },
+    {
+      id: 54,
+      title: "Farm Diversification Records",
+      category: "Farm Diversification",
+      content: `<p>The Farm Diversification module helps you manage compliance and financial records across the range of activities many UK farms now operate alongside their core agricultural enterprise. It covers farm shops, holiday accommodation, equine businesses, renewable energy, field sports, and countryside recreation.</p>
+
+<h3>Module Tabs</h3>
+<ul>
+<li><strong>Activities Register</strong> — list each diversification enterprise with its type, start date, and current status (active, seasonal, or closed). This provides a quick overview of all non-agricultural income streams and their associated compliance requirements.</li>
+<li><strong>Farm Shop</strong> — record product lines, provenance details, allergen declarations, pricing, and sales data. For Red Tractor farm shops, products derived from assured farm produce should be identified and labelled accordingly. Date and lot coding records support traceability requirements under EU/UK food hygiene legislation (Retained Regulation 852/2004).</li>
+<li><strong>Hygiene Inspections</strong> — log food hygiene inspection dates, inspecting authority (local authority EHO or private auditor), rating awarded, and any non-conformances raised. A five-star Food Hygiene Rating Scheme (FHRS) rating requires evidence of good management controls, good hygiene practice, and satisfactory structural condition.</li>
+<li><strong>Equine Register</strong> — maintain a register of all equines (horses, ponies, donkeys, mules) kept at the holding with their passport details, microchip numbers, freeze marks, and UELN numbers. Horse passports are a legal requirement in the UK. Record vaccinations, dental treatments, and farrier visits in the equine health log.</li>
+<li><strong>Renewables</strong> — see Carbon &amp; Sustainability module for detailed renewable energy records. The Diversification module provides a financial summary of renewable energy income.</li>
+<li><strong>Shooting</strong> — log all game and rough shooting events with dates, land areas used, bag records, and any game dealer certificates. Lead ammunition restrictions apply in England and Scotland from 2025; record ammunition type used.</li>
+</ul>`,
+    },
+    {
+      id: 55,
+      title: "Water & Irrigation Management",
+      category: "Water & Irrigation",
+      content: `<p>The Water &amp; Irrigation module helps UK farmers record abstraction, irrigation use, and water quality data in compliance with the Environment Agency (or Natural Resources Wales / SEPA / DAERA) abstraction licensing requirements and Red Tractor or assured scheme expectations.</p>
+
+<h3>Module Tabs</h3>
+<ul>
+<li><strong>Water Sources</strong> — register each water source on the holding: borehole, surface water abstraction, reservoir, mains supply, or rainwater harvesting. For licensed abstractions, enter the licence number, permitted daily and annual volumes, and the licence holder details. The Environment Agency requires abstraction records to be kept and submitted as returns for licences above the exempt threshold.</li>
+<li><strong>Abstraction Log</strong> — record daily or weekly meter readings for each licensed abstraction point. The module auto-calculates cumulative usage against your licence limit and warns you when you are approaching it. This supports the annual abstraction return to the Environment Agency.</li>
+<li><strong>Irrigation Events</strong> — log each irrigation event by field, crop, date, system type (trickle, overhead, rain gun), and volume applied in m³. Linking irrigation events to weather data and crop water demand records demonstrates efficient irrigation scheduling — a requirement of some retailer assurance schemes.</li>
+<li><strong>Water Quality Tests</strong> — record bacteriological (E. coli, total coliforms), chemical (pH, nitrates, pesticides), and physical (turbidity) test results for irrigation water sources. Red Tractor Fresh Produce requires regular microbiological testing of irrigation water used on crops consumed raw. Log the laboratory name, test date, parameters, and results. Non-conforming results generate a compliance flag.</li>
+<li><strong>Infrastructure</strong> — maintain a register of irrigation infrastructure: pump sets, filter stations, main lines, lateral lines, emitters, and storage reservoirs. Log service and maintenance events with dates and engineer details.</li>
+</ul>
+
+<h3>Abstraction Licensing</h3>
+<p>Any abstraction of more than 20 m³/day in England and Wales requires a licence from the Environment Agency unless it is specifically exempt (e.g. for domestic use or firefighting). Non-compliance with abstraction licence conditions is a criminal offence. Ensure your licence reference and permitted volumes are accurately recorded in the system before logging abstraction events.</p>`,
+    },
+    {
+      id: 56,
+      title: "AI & Reproduction Records for Livestock",
+      category: "Livestock",
+      content: `<p>The AI &amp; Reproduction tab within the Livestock module helps UK cattle, sheep, pig, and goat producers maintain accurate breeding records as required by Red Tractor and for herd or flock genetic improvement programmes.</p>
+
+<h3>Artificial Insemination (AI) Records</h3>
+<p>For each AI event, record: the female animal's tag or identifier, the date of insemination, the breed and sire name (or AI code), the semen batch number, the technician's name, and whether the insemination was preceded by heat detection or a synchronisation protocol. This creates a complete service record that links forward to pregnancy scanning results and subsequent calvings or lambings.</p>
+
+<h3>Heat Detection &amp; Oestrus Records</h3>
+<p>Log observed heat events including the detection method used (visual observation, activity monitors, tail paint/chalk, or a teaser animal). Recording heats that result in service and those that do not allows calving interval and submission rate to be calculated — key performance indicators for breeding efficiency.</p>
+
+<h3>Scanning &amp; Pregnancy Diagnoses</h3>
+<p>After service, record pregnancy scanning events: scan date, scanner/vet name, animal identifier, pregnancy status (confirmed in calf / in-lamb / empty), and approximate foetal age. For multiple births (twins/triplets in sheep and goats), record the number detected so that appropriate pre-lambing nutrition can be planned.</p>
+
+<h3>Calving, Lambing &amp; Farrowing Records</h3>
+<p>Calving and lambing records in the AI &amp; Reproduction tab capture: dam identifier, sire, date and time of birth, ease of calving/lambing (1–5 scale), intervention required, and outcome (live, stillborn, died within 24 hours). Red Tractor Dairy and Beef standards require calving ease to be recorded and used in management decisions. The data feeds into a calving index and reproductive efficiency summary on the breeding dashboard.</p>`,
+    },
+    {
+      id: 57,
+      title: "Veterinary Prescriptions &amp; Medicine Book",
+      category: "Livestock",
+      content: `<p>The Veterinary Prescriptions tab within the Livestock module provides a compliant record of all written and repeated prescriptions issued by your attending vet, alongside the Medication Book that records all medicine purchases, stock, and usage.</p>
+
+<h3>Prescription Records</h3>
+<p>Under the Veterinary Medicines Regulations 2013 (VMR), prescription-only medicines (POM-V and POM-VPS) may only be supplied against a valid written prescription. Records of prescriptions received must be kept for five years. For each prescription, record: the date issued, the issuing vet name and practice, the product name and active ingredient, the quantity and pack size supplied, the animals or groups covered (species, number, identifier if individual), the dose and treatment duration, and the withdrawal period stated on the prescription.</p>
+
+<h3>Medication Book</h3>
+<p>The VMR also requires that you maintain a medicine book (or electronic equivalent) recording all medicines used on your holding. The BDE Farm Trac Medication Book captures: purchase date, supplier, product name, MAPP/VMR authorisation number, batch number, quantity received, quantity used, quantity disposed of, and the name of the person who administered each treatment. Stock reconciliation — quantity received minus quantity used and disposed — must account for all medicines held on the farm.</p>
+
+<h3>Cascade Prescriptions</h3>
+<p>Where a licensed medicine is not available or is not appropriate, a vet may prescribe under the cascade (using a medicine outside its licensed indications). Cascade prescriptions carry an extended withdrawal period set by the prescribing vet — typically at least 28 days for edible tissues. Cascade prescriptions must be clearly identified in your records and the extended withdrawal period applied.</p>
+
+<h3>Antimicrobial Stewardship</h3>
+<p>Red Tractor and many retailer standards now require evidence of antimicrobial stewardship — a planned, responsible approach to antibiotic use. Record your herd or flock antibiotic use in mg/PCU (milligrams per population correction unit) using the AHDB data or your vet practice benchmarking service. Targets set under the UK AMR Action Plan include reducing use of critically important antibiotics (CIAs) to near-zero.</p>`,
+    },
+    {
+      id: 58,
+      title: "SFI & Agri-Environment Actions",
+      category: "Environmental",
+      content: `<p>The SFI Actions tab within the Environmental module helps you plan, record, and evidence the management actions required under the Sustainable Farming Incentive (SFI), Countryside Stewardship (CS), and Agri-Environment schemes in all four nations of the UK. Having a complete record of agreed actions and payment evidence is important both for compliance visits and for your own planning.</p>
+
+<h3>Sustainable Farming Incentive (SFI)</h3>
+<p>SFI is England's main agri-environment payment scheme, replacing BPS from 2024. It rewards actions across soil, farmland wildlife, hedgerows, integrated pest management, moorland, and other land management categories. For each SFI action you are paid for, create a record in the SFI Actions tab: the action code and description (e.g. CSAM1 — assess and record soil condition), the agreement start and end date, the land parcel reference, the area or length enrolled, and the payment rate per unit.</p>
+
+<h3>Recording Completed Actions</h3>
+<p>Many SFI and CS actions require evidence that the management activity has been carried out — for example, soil sampling results, cover crop establishment photos, or hedge-cutting records within permitted windows. Use the Action Log sub-section to record each action completion event: the date, the staff member who carried it out, and any relevant notes or photo attachments. This creates an audit trail to support compliance visits from the Rural Payments Agency.</p>
+
+<h3>Countryside Stewardship &amp; Other Schemes</h3>
+<p>The module is not limited to SFI. If you have a Higher Tier CS agreement, a Farming in Protected Landscapes (FiPL) project, or a Woodland Creation or Peatland Restoration agreement, you can record those agreements and their associated management requirements in the same way. Welsh Farming Connect, SRDP (Scotland), and CAFRE agri-environment (NI) agreements can also be managed here.</p>`,
+    },
+    {
+      id: 59,
+      title: "Slurry & Manure Management Records",
+      category: "Environmental",
+      content: `<p>The Slurry &amp; Manure Management tab within the Environmental module provides the compliance records required under the Silage, Slurry and Agricultural Fuel Oil (SSAFO) Regulations 2010 (England and Wales), the Water Resources (Control of Pollution) (Silage, Slurry and Agricultural Fuel Oil) (Wales) Regulations 2010, and the equivalent Scottish and Northern Irish regulations. It also supports Nitrate Vulnerable Zone (NVZ) closed-period compliance.</p>
+
+<h3>Storage Infrastructure Register</h3>
+<p>Record all slurry storage infrastructure on your holding: stores, lagoons, and reception pits. For each structure, log the capacity in m³, the construction type, the date of last structural inspection, the name of the inspecting engineer, and the outcome of the inspection. SSAFO requires slurry stores to be inspected by a competent person at defined intervals; evidence of inspection must be available.</p>
+
+<h3>Slurry Spreading Records</h3>
+<p>For each slurry spreading event, record: the date, field or parcel, volume applied in m³, application method (tanker, trailing shoe, injection), crop at the time, soil condition, and operator name. The system checks whether the spreading date falls within the NVZ closed period for your holding location and displays a warning if it does. In NVZs, slurry spreading on tillage land is prohibited between 1 October and 31 January; on grassland between 15 October and 15 January (England — dates differ by devolved nation).</p>
+
+<h3>Nutrient Value of Manure</h3>
+<p>Log slurry analysis results (total nitrogen, ammonium nitrogen, phosphate, potash content per m³) so that the nutrient value of your slurry can be credited against bought-in fertiliser requirements. The module can estimate available nitrogen from slurry based on application method and incorporation timing using RB209 guidance factors.</p>
+
+<h3>Manure Management Plan</h3>
+<p>NVZ regulations require farms in designated zones to have a written manure management plan. The tab includes a plan template where you record your total manure production, storage capacity, planned spreading dates and fields, and how you will stay within the 170 kg N/ha/year total nitrogen limit from livestock manures.</p>`,
+    },
+    {
+      id: 60,
+      title: "Grain Storage Quality Records",
+      category: "Equipment",
+      content: `<p>The Grain Storage Quality tab within the Equipment module provides a compliance record system for on-farm grain stores operating under the AHDB Grain Storage Guide recommendations, TASCC (Trade Assurance Scheme for Combinable Crops) certification, or Red Tractor Combinable Crops and Sugar Beet standards.</p>
+
+<h3>Store Register</h3>
+<p>Register each grain store on your holding with its name or reference, construction type (flat floor, walled store, underground pit, grain bins), total capacity in tonnes, aeration or ventilation system details, and the commodities typically stored. For TASCC-certificated stores, note the certificate number and renewal date.</p>
+
+<h3>Grain Intake Records</h3>
+<p>For each intake batch, record: the date received, the crop variety, the grower or merchant name, the tonnage, the moisture content at intake (%), the specific weight (kg/hl), and any initial screenings or impurities noted. Where samples are taken for testing, record the sample reference and forward test results to the relevant sub-record.</p>
+
+<h3>Quality Testing Results</h3>
+<p>Log the results of all quality tests carried out on stored grain: moisture content checks taken at regular intervals during storage, specific weight, protein (for milling wheat), Hagberg Falling Number (HFN), mycotoxin screening (DON, ZEA, fumonisins, aflatoxins), and any pesticide residue tests commissioned. Red Tractor requires that grain stores have a written grain storage plan and that quality test records are retained for at least three years.</p>
+
+<h3>Pest Monitoring &amp; Fumigation</h3>
+<p>Record all insect trap inspections (frequency, trap positions, species and counts), any pesticide treatment of empty stores pre-harvest (approved active substance, dose, operator), and any fumigation events (phosphine or alternative product, fumigator company, licence reference, dosage, gas monitoring results, and clearance certificate). Fumigation must be carried out by a licensed contractor and full records retained as a legal requirement.</p>
+
+<h3>Store Condition Log</h3>
+<p>After every significant inspection or cleaning event, create a store condition log entry: date, person inspecting, observations on the roof, walls, floor, ventilation ducts, and any pest or mould activity. A clean, well-maintained store with documented inspection records demonstrates the management commitment that TASCC and Red Tractor assessors look for.</p>`,
+    },
   ];
 
   const { search, category } = _req.query;
@@ -5068,6 +5368,40 @@ const ACCESS_MODULE_QUERIES: Record<string, (farmId: number) => Promise<unknown>
     patTests: await db.select().from(workshopPatTestsTable).where(eq(workshopPatTestsTable.farmId, farmId)).orderBy(desc(workshopPatTestsTable.testDate)).limit(100),
     fireExtinguishers: await db.select().from(workshopFireExtinguishersTable).where(eq(workshopFireExtinguishersTable.farmId, farmId)).orderBy(workshopFireExtinguishersTable.nextServiceDue).limit(100),
   }),
+  pig_production: async (farmId) => ({
+    flocks: await db.select().from(pigFlocksTable).where(eq(pigFlocksTable.farmId, farmId)).limit(100),
+    movements: await db.select().from(pigMovementsTable).where(eq(pigMovementsTable.farmId, farmId)).orderBy(desc(pigMovementsTable.movementDate)).limit(100),
+    fciDocuments: await db.select().from(pigFciDocumentsTable).where(eq(pigFciDocumentsTable.farmId, farmId)).orderBy(desc(pigFciDocumentsTable.documentDate)).limit(100),
+    stockmanshipChecks: await db.select().from(pigStockmanshipChecksTable).where(eq(pigStockmanshipChecksTable.farmId, farmId)).orderBy(desc(pigStockmanshipChecksTable.checkDate)).limit(50),
+  }),
+  poultry_production: async (farmId) => ({
+    houses: await db.select().from(poultryHousesTable).where(eq(poultryHousesTable.farmId, farmId)).limit(50),
+    flocks: await db.select().from(poultryFlocksTable).where(eq(poultryFlocksTable.farmId, farmId)).orderBy(desc(poultryFlocksTable.placementDate)).limit(100),
+    treatments: await db.select().from(poultryTreatmentsTable).where(eq(poultryTreatmentsTable.farmId, farmId)).orderBy(desc(poultryTreatmentsTable.treatmentDate)).limit(100),
+    fciDocuments: await db.select().from(poultryFciDocumentsTable).where(eq(poultryFciDocumentsTable.farmId, farmId)).orderBy(desc(poultryFciDocumentsTable.documentDate)).limit(100),
+  }),
+  horticulture: async (farmId) => ({
+    blocks: await db.select().from(horticultureBlocksTable).where(eq(horticultureBlocksTable.farmId, farmId)).limit(100),
+    crops: await db.select().from(horticultureCropsTable).where(eq(horticultureCropsTable.farmId, farmId)).limit(100),
+    waterTests: await db.select().from(horticultureWaterTestsTable).where(eq(horticultureWaterTestsTable.farmId, farmId)).orderBy(desc(horticultureWaterTestsTable.testDate)).limit(50),
+    harvestRecords: await db.select().from(horticultureHarvestRecordsTable).where(eq(horticultureHarvestRecordsTable.farmId, farmId)).orderBy(desc(horticultureHarvestRecordsTable.harvestDate)).limit(100),
+  }),
+  carbon_sustainability: async (farmId) => ({
+    audits: await db.select().from(carbonAuditsTable).where(eq(carbonAuditsTable.farmId, farmId)).orderBy(desc(carbonAuditsTable.auditYear)).limit(10),
+    reductionActions: await db.select().from(carbonReductionActionsTable).where(eq(carbonReductionActionsTable.farmId, farmId)).limit(50),
+    sustainabilityReports: await db.select().from(sustainabilityReportsTable).where(eq(sustainabilityReportsTable.farmId, farmId)).orderBy(desc(sustainabilityReportsTable.reportYear)).limit(20),
+  }),
+  farm_diversification: async (farmId) => ({
+    activities: await db.select().from(diversificationActivitiesTable).where(eq(diversificationActivitiesTable.farmId, farmId)).limit(50),
+    farmShopProducts: await db.select().from(farmShopProductsTable).where(eq(farmShopProductsTable.farmId, farmId)).limit(100),
+    equine: await db.select().from(equineRecordsTable).where(eq(equineRecordsTable.farmId, farmId)).limit(100),
+    renewableInstallations: await db.select().from(renewableEnergyInstallationsTable).where(eq(renewableEnergyInstallationsTable.farmId, farmId)).limit(50),
+  }),
+  water_irrigation: async (farmId) => ({
+    licences: await db.select().from(waterAbstractionLicencesTable).where(eq(waterAbstractionLicencesTable.farmId, farmId)).limit(20),
+    meterReadings: await db.select().from(waterMeterReadingsTable).where(eq(waterMeterReadingsTable.farmId, farmId)).orderBy(desc(waterMeterReadingsTable.readingDate)).limit(100),
+    irrigationRecords: await db.select().from(irrigationRecordsTable).where(eq(irrigationRecordsTable.farmId, farmId)).orderBy(desc(irrigationRecordsTable.irrigationDate)).limit(100),
+  }),
 };
 
 router.get("/access-token/:token", async (req: Request, res: Response): Promise<void> => {
@@ -5399,6 +5733,1097 @@ router.delete("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, req
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(workshopFireExtinguishersTable).where(and(eq(workshopFireExtinguishersTable.id, id), eq(workshopFireExtinguishersTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// PIG PRODUCTION
+// ============================================================
+router.get("/farms/:farmId/pig-flocks", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(pigFlocksTable).where(eq(pigFlocksTable.farmId, farmId)).orderBy(pigFlocksTable.flockName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/pig-flocks", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(pigFlocksTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/pig-flocks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(pigFlocksTable).set(req.body).where(and(eq(pigFlocksTable.id, id), eq(pigFlocksTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/pig-flocks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(pigFlocksTable).where(and(eq(pigFlocksTable.id, id), eq(pigFlocksTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/pig-movements", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(pigMovementsTable).where(eq(pigMovementsTable.farmId, farmId)).orderBy(desc(pigMovementsTable.movementDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/pig-movements", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(pigMovementsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/pig-movements/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(pigMovementsTable).set(req.body).where(and(eq(pigMovementsTable.id, id), eq(pigMovementsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/pig-movements/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(pigMovementsTable).where(and(eq(pigMovementsTable.id, id), eq(pigMovementsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/pig-fci-documents", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(pigFciDocumentsTable).where(eq(pigFciDocumentsTable.farmId, farmId)).orderBy(desc(pigFciDocumentsTable.documentDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/pig-fci-documents", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(pigFciDocumentsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/pig-fci-documents/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(pigFciDocumentsTable).set(req.body).where(and(eq(pigFciDocumentsTable.id, id), eq(pigFciDocumentsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/pig-fci-documents/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(pigFciDocumentsTable).where(and(eq(pigFciDocumentsTable.id, id), eq(pigFciDocumentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/pig-feed-records", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(pigFeedRecordsTable).where(eq(pigFeedRecordsTable.farmId, farmId)).orderBy(desc(pigFeedRecordsTable.deliveryDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/pig-feed-records", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(pigFeedRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/pig-feed-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(pigFeedRecordsTable).set(req.body).where(and(eq(pigFeedRecordsTable.id, id), eq(pigFeedRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/pig-feed-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(pigFeedRecordsTable).where(and(eq(pigFeedRecordsTable.id, id), eq(pigFeedRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/pig-vet-assessments", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(pigVetAssessmentsTable).where(eq(pigVetAssessmentsTable.farmId, farmId)).orderBy(desc(pigVetAssessmentsTable.assessmentDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/pig-vet-assessments", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(pigVetAssessmentsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/pig-vet-assessments/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(pigVetAssessmentsTable).set(req.body).where(and(eq(pigVetAssessmentsTable.id, id), eq(pigVetAssessmentsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/pig-vet-assessments/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(pigVetAssessmentsTable).where(and(eq(pigVetAssessmentsTable.id, id), eq(pigVetAssessmentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/pig-stockmanship-checks", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(pigStockmanshipChecksTable).where(eq(pigStockmanshipChecksTable.farmId, farmId)).orderBy(desc(pigStockmanshipChecksTable.checkDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/pig-stockmanship-checks", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(pigStockmanshipChecksTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/pig-stockmanship-checks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(pigStockmanshipChecksTable).set(req.body).where(and(eq(pigStockmanshipChecksTable.id, id), eq(pigStockmanshipChecksTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/pig-stockmanship-checks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(pigStockmanshipChecksTable).where(and(eq(pigStockmanshipChecksTable.id, id), eq(pigStockmanshipChecksTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// POULTRY PRODUCTION
+// ============================================================
+router.get("/farms/:farmId/poultry-houses", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(poultryHousesTable).where(eq(poultryHousesTable.farmId, farmId)).orderBy(poultryHousesTable.houseName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/poultry-houses", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(poultryHousesTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/poultry-houses/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(poultryHousesTable).set(req.body).where(and(eq(poultryHousesTable.id, id), eq(poultryHousesTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/poultry-houses/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(poultryHousesTable).where(and(eq(poultryHousesTable.id, id), eq(poultryHousesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/poultry-flocks", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select({ flock: poultryFlocksTable, houseName: poultryHousesTable.houseName }).from(poultryFlocksTable).leftJoin(poultryHousesTable, eq(poultryFlocksTable.houseId, poultryHousesTable.id)).where(eq(poultryFlocksTable.farmId, farmId)).orderBy(desc(poultryFlocksTable.placementDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/poultry-flocks", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(poultryFlocksTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/poultry-flocks/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(poultryFlocksTable).set(req.body).where(and(eq(poultryFlocksTable.id, id), eq(poultryFlocksTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/poultry-flocks/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(poultryFlocksTable).where(and(eq(poultryFlocksTable.id, id), eq(poultryFlocksTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/poultry-daily-mortality", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(poultryDailyMortalityTable).where(eq(poultryDailyMortalityTable.farmId, farmId)).orderBy(desc(poultryDailyMortalityTable.recordDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/poultry-daily-mortality", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(poultryDailyMortalityTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/poultry-daily-mortality/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(poultryDailyMortalityTable).set(req.body).where(and(eq(poultryDailyMortalityTable.id, id), eq(poultryDailyMortalityTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/poultry-daily-mortality/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(poultryDailyMortalityTable).where(and(eq(poultryDailyMortalityTable.id, id), eq(poultryDailyMortalityTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/poultry-treatments", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(poultryTreatmentsTable).where(eq(poultryTreatmentsTable.farmId, farmId)).orderBy(desc(poultryTreatmentsTable.treatmentDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/poultry-treatments", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(poultryTreatmentsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/poultry-treatments/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(poultryTreatmentsTable).set(req.body).where(and(eq(poultryTreatmentsTable.id, id), eq(poultryTreatmentsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/poultry-treatments/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(poultryTreatmentsTable).where(and(eq(poultryTreatmentsTable.id, id), eq(poultryTreatmentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/poultry-house-cleanouts", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(poultryHouseCleanoutsTable).where(eq(poultryHouseCleanoutsTable.farmId, farmId)).orderBy(desc(poultryHouseCleanoutsTable.cleanoutStartDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/poultry-house-cleanouts", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(poultryHouseCleanoutsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/poultry-house-cleanouts/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(poultryHouseCleanoutsTable).set(req.body).where(and(eq(poultryHouseCleanoutsTable.id, id), eq(poultryHouseCleanoutsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/poultry-house-cleanouts/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(poultryHouseCleanoutsTable).where(and(eq(poultryHouseCleanoutsTable.id, id), eq(poultryHouseCleanoutsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/poultry-environmental-logs", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(poultryEnvironmentalLogsTable).where(eq(poultryEnvironmentalLogsTable.farmId, farmId)).orderBy(desc(poultryEnvironmentalLogsTable.logDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/poultry-environmental-logs", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(poultryEnvironmentalLogsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/poultry-environmental-logs/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(poultryEnvironmentalLogsTable).set(req.body).where(and(eq(poultryEnvironmentalLogsTable.id, id), eq(poultryEnvironmentalLogsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/poultry-environmental-logs/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(poultryEnvironmentalLogsTable).where(and(eq(poultryEnvironmentalLogsTable.id, id), eq(poultryEnvironmentalLogsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/poultry-fci-documents", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(poultryFciDocumentsTable).where(eq(poultryFciDocumentsTable.farmId, farmId)).orderBy(desc(poultryFciDocumentsTable.documentDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/poultry-fci-documents", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(poultryFciDocumentsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/poultry-fci-documents/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(poultryFciDocumentsTable).set(req.body).where(and(eq(poultryFciDocumentsTable.id, id), eq(poultryFciDocumentsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/poultry-fci-documents/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(poultryFciDocumentsTable).where(and(eq(poultryFciDocumentsTable.id, id), eq(poultryFciDocumentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// HORTICULTURE & FRESH PRODUCE
+// ============================================================
+router.get("/farms/:farmId/horticulture-blocks", requireAuth, requireTenant, requireModuleByKey("horticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(horticultureBlocksTable).where(eq(horticultureBlocksTable.farmId, farmId)).orderBy(horticultureBlocksTable.blockName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/horticulture-blocks", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(horticultureBlocksTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/horticulture-blocks/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(horticultureBlocksTable).set(req.body).where(and(eq(horticultureBlocksTable.id, id), eq(horticultureBlocksTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/horticulture-blocks/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(horticultureBlocksTable).where(and(eq(horticultureBlocksTable.id, id), eq(horticultureBlocksTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/horticulture-crops", requireAuth, requireTenant, requireModuleByKey("horticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(horticultureCropsTable).where(eq(horticultureCropsTable.farmId, farmId)).orderBy(horticultureCropsTable.cropName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/horticulture-crops", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(horticultureCropsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/horticulture-crops/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(horticultureCropsTable).set(req.body).where(and(eq(horticultureCropsTable.id, id), eq(horticultureCropsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/horticulture-crops/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(horticultureCropsTable).where(and(eq(horticultureCropsTable.id, id), eq(horticultureCropsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/horticulture-water-tests", requireAuth, requireTenant, requireModuleByKey("horticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(horticultureWaterTestsTable).where(eq(horticultureWaterTestsTable.farmId, farmId)).orderBy(desc(horticultureWaterTestsTable.testDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/horticulture-water-tests", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(horticultureWaterTestsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/horticulture-water-tests/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(horticultureWaterTestsTable).set(req.body).where(and(eq(horticultureWaterTestsTable.id, id), eq(horticultureWaterTestsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/horticulture-water-tests/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(horticultureWaterTestsTable).where(and(eq(horticultureWaterTestsTable.id, id), eq(horticultureWaterTestsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/horticulture-harvest-records", requireAuth, requireTenant, requireModuleByKey("horticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(horticultureHarvestRecordsTable).where(eq(horticultureHarvestRecordsTable.farmId, farmId)).orderBy(desc(horticultureHarvestRecordsTable.harvestDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/horticulture-harvest-records", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(horticultureHarvestRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/horticulture-harvest-records/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(horticultureHarvestRecordsTable).set(req.body).where(and(eq(horticultureHarvestRecordsTable.id, id), eq(horticultureHarvestRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/horticulture-harvest-records/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(horticultureHarvestRecordsTable).where(and(eq(horticultureHarvestRecordsTable.id, id), eq(horticultureHarvestRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/horticulture-packhouse-records", requireAuth, requireTenant, requireModuleByKey("horticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(horticulturePackhouseRecordsTable).where(eq(horticulturePackhouseRecordsTable.farmId, farmId)).orderBy(desc(horticulturePackhouseRecordsTable.packingDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/horticulture-packhouse-records", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(horticulturePackhouseRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/horticulture-packhouse-records/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(horticulturePackhouseRecordsTable).set(req.body).where(and(eq(horticulturePackhouseRecordsTable.id, id), eq(horticulturePackhouseRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/horticulture-packhouse-records/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(horticulturePackhouseRecordsTable).where(and(eq(horticulturePackhouseRecordsTable.id, id), eq(horticulturePackhouseRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/allergen-management", requireAuth, requireTenant, requireModuleByKey("horticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(allergenManagementRecordsTable).where(eq(allergenManagementRecordsTable.farmId, farmId)).orderBy(desc(allergenManagementRecordsTable.reviewDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/allergen-management", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(allergenManagementRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/allergen-management/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(allergenManagementRecordsTable).set(req.body).where(and(eq(allergenManagementRecordsTable.id, id), eq(allergenManagementRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/allergen-management/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(allergenManagementRecordsTable).where(and(eq(allergenManagementRecordsTable.id, id), eq(allergenManagementRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// CARBON & SUSTAINABILITY
+// ============================================================
+router.get("/farms/:farmId/carbon-audits", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(carbonAuditsTable).where(eq(carbonAuditsTable.farmId, farmId)).orderBy(desc(carbonAuditsTable.auditYear));
+  res.json(rows);
+});
+router.post("/farms/:farmId/carbon-audits", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(carbonAuditsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/carbon-audits/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(carbonAuditsTable).set(req.body).where(and(eq(carbonAuditsTable.id, id), eq(carbonAuditsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/carbon-audits/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(carbonAuditsTable).where(and(eq(carbonAuditsTable.id, id), eq(carbonAuditsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/carbon-emissions", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(carbonEmissionsRecordsTable).where(eq(carbonEmissionsRecordsTable.farmId, farmId)).orderBy(desc(carbonEmissionsRecordsTable.emissionYear));
+  res.json(rows);
+});
+router.post("/farms/:farmId/carbon-emissions", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(carbonEmissionsRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/carbon-emissions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(carbonEmissionsRecordsTable).set(req.body).where(and(eq(carbonEmissionsRecordsTable.id, id), eq(carbonEmissionsRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/carbon-emissions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(carbonEmissionsRecordsTable).where(and(eq(carbonEmissionsRecordsTable.id, id), eq(carbonEmissionsRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/carbon-sequestration", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(carbonSequestrationTable).where(eq(carbonSequestrationTable.farmId, farmId)).orderBy(desc(carbonSequestrationTable.sequestrationYear));
+  res.json(rows);
+});
+router.post("/farms/:farmId/carbon-sequestration", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(carbonSequestrationTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/carbon-sequestration/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(carbonSequestrationTable).set(req.body).where(and(eq(carbonSequestrationTable.id, id), eq(carbonSequestrationTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/carbon-sequestration/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(carbonSequestrationTable).where(and(eq(carbonSequestrationTable.id, id), eq(carbonSequestrationTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/carbon-reduction-actions", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(carbonReductionActionsTable).where(eq(carbonReductionActionsTable.farmId, farmId)).orderBy(desc(carbonReductionActionsTable.plannedStartDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/carbon-reduction-actions", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(carbonReductionActionsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/carbon-reduction-actions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(carbonReductionActionsTable).set(req.body).where(and(eq(carbonReductionActionsTable.id, id), eq(carbonReductionActionsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/carbon-reduction-actions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(carbonReductionActionsTable).where(and(eq(carbonReductionActionsTable.id, id), eq(carbonReductionActionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sustainability-reports", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(sustainabilityReportsTable).where(eq(sustainabilityReportsTable.farmId, farmId)).orderBy(desc(sustainabilityReportsTable.reportYear));
+  res.json(rows);
+});
+router.post("/farms/:farmId/sustainability-reports", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(sustainabilityReportsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/sustainability-reports/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(sustainabilityReportsTable).set(req.body).where(and(eq(sustainabilityReportsTable.id, id), eq(sustainabilityReportsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/sustainability-reports/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(sustainabilityReportsTable).where(and(eq(sustainabilityReportsTable.id, id), eq(sustainabilityReportsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// FARM DIVERSIFICATION
+// ============================================================
+router.get("/farms/:farmId/diversification-activities", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(diversificationActivitiesTable).where(eq(diversificationActivitiesTable.farmId, farmId)).orderBy(diversificationActivitiesTable.activityName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/diversification-activities", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(diversificationActivitiesTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/diversification-activities/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(diversificationActivitiesTable).set(req.body).where(and(eq(diversificationActivitiesTable.id, id), eq(diversificationActivitiesTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/diversification-activities/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(diversificationActivitiesTable).where(and(eq(diversificationActivitiesTable.id, id), eq(diversificationActivitiesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/farm-shop-products", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(farmShopProductsTable).where(eq(farmShopProductsTable.farmId, farmId)).orderBy(farmShopProductsTable.productName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/farm-shop-products", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(farmShopProductsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/farm-shop-products/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(farmShopProductsTable).set(req.body).where(and(eq(farmShopProductsTable.id, id), eq(farmShopProductsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/farm-shop-products/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(farmShopProductsTable).where(and(eq(farmShopProductsTable.id, id), eq(farmShopProductsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/farm-shop-hygiene-inspections", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(farmShopHygieneInspectionsTable).where(eq(farmShopHygieneInspectionsTable.farmId, farmId)).orderBy(desc(farmShopHygieneInspectionsTable.inspectionDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/farm-shop-hygiene-inspections", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(farmShopHygieneInspectionsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/farm-shop-hygiene-inspections/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(farmShopHygieneInspectionsTable).set(req.body).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/farm-shop-hygiene-inspections/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(farmShopHygieneInspectionsTable).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/equine-records", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(equineRecordsTable).where(eq(equineRecordsTable.farmId, farmId)).orderBy(equineRecordsTable.horseName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/equine-records", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(equineRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/equine-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(equineRecordsTable).set(req.body).where(and(eq(equineRecordsTable.id, id), eq(equineRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/equine-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(equineRecordsTable).where(and(eq(equineRecordsTable.id, id), eq(equineRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/equine-health-events", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(equineHealthEventsTable).where(eq(equineHealthEventsTable.farmId, farmId)).orderBy(desc(equineHealthEventsTable.eventDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/equine-health-events", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(equineHealthEventsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/equine-health-events/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(equineHealthEventsTable).set(req.body).where(and(eq(equineHealthEventsTable.id, id), eq(equineHealthEventsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/equine-health-events/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(equineHealthEventsTable).where(and(eq(equineHealthEventsTable.id, id), eq(equineHealthEventsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/renewable-installations", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(renewableEnergyInstallationsTable).where(eq(renewableEnergyInstallationsTable.farmId, farmId)).orderBy(renewableEnergyInstallationsTable.installationName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/renewable-installations", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(renewableEnergyInstallationsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/renewable-installations/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(renewableEnergyInstallationsTable).set(req.body).where(and(eq(renewableEnergyInstallationsTable.id, id), eq(renewableEnergyInstallationsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/renewable-installations/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(renewableEnergyInstallationsTable).where(and(eq(renewableEnergyInstallationsTable.id, id), eq(renewableEnergyInstallationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/renewable-meter-readings", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(renewableEnergyMeterReadingsTable).where(eq(renewableEnergyMeterReadingsTable.farmId, farmId)).orderBy(desc(renewableEnergyMeterReadingsTable.readingDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/renewable-meter-readings", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(renewableEnergyMeterReadingsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/renewable-meter-readings/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(renewableEnergyMeterReadingsTable).set(req.body).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/renewable-meter-readings/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(renewableEnergyMeterReadingsTable).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/shooting-game-records", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(shootingAndGameRecordsTable).where(eq(shootingAndGameRecordsTable.farmId, farmId)).orderBy(desc(shootingAndGameRecordsTable.shootDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/shooting-game-records", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(shootingAndGameRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/shooting-game-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(shootingAndGameRecordsTable).set(req.body).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/shooting-game-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(shootingAndGameRecordsTable).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// WATER & IRRIGATION MANAGEMENT
+// ============================================================
+router.get("/farms/:farmId/water-abstraction-licences", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(waterAbstractionLicencesTable).where(eq(waterAbstractionLicencesTable.farmId, farmId)).orderBy(waterAbstractionLicencesTable.licenceNumber);
+  res.json(rows);
+});
+router.post("/farms/:farmId/water-abstraction-licences", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(waterAbstractionLicencesTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/water-abstraction-licences/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(waterAbstractionLicencesTable).set(req.body).where(and(eq(waterAbstractionLicencesTable.id, id), eq(waterAbstractionLicencesTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/water-abstraction-licences/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(waterAbstractionLicencesTable).where(and(eq(waterAbstractionLicencesTable.id, id), eq(waterAbstractionLicencesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/water-meter-readings", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(waterMeterReadingsTable).where(eq(waterMeterReadingsTable.farmId, farmId)).orderBy(desc(waterMeterReadingsTable.readingDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/water-meter-readings", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(waterMeterReadingsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/water-meter-readings/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(waterMeterReadingsTable).set(req.body).where(and(eq(waterMeterReadingsTable.id, id), eq(waterMeterReadingsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/water-meter-readings/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(waterMeterReadingsTable).where(and(eq(waterMeterReadingsTable.id, id), eq(waterMeterReadingsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/borehole-tests", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(boreholeTestsTable).where(eq(boreholeTestsTable.farmId, farmId)).orderBy(desc(boreholeTestsTable.testDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/borehole-tests", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(boreholeTestsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/borehole-tests/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(boreholeTestsTable).set(req.body).where(and(eq(boreholeTestsTable.id, id), eq(boreholeTestsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/borehole-tests/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(boreholeTestsTable).where(and(eq(boreholeTestsTable.id, id), eq(boreholeTestsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/irrigation-records", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(irrigationRecordsTable).where(eq(irrigationRecordsTable.farmId, farmId)).orderBy(desc(irrigationRecordsTable.irrigationDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/irrigation-records", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(irrigationRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/irrigation-records/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(irrigationRecordsTable).set(req.body).where(and(eq(irrigationRecordsTable.id, id), eq(irrigationRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/irrigation-records/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(irrigationRecordsTable).where(and(eq(irrigationRecordsTable.id, id), eq(irrigationRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/irrigation-equipment", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(irrigationEquipmentTable).where(eq(irrigationEquipmentTable.farmId, farmId)).orderBy(irrigationEquipmentTable.equipmentName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/irrigation-equipment", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(irrigationEquipmentTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/irrigation-equipment/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(irrigationEquipmentTable).set(req.body).where(and(eq(irrigationEquipmentTable.id, id), eq(irrigationEquipmentTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/irrigation-equipment/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(irrigationEquipmentTable).where(and(eq(irrigationEquipmentTable.id, id), eq(irrigationEquipmentTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// GRAIN STORAGE QUALITY (sub-tabs on Equipment module)
+// ============================================================
+router.get("/farms/:farmId/grain-storage-bins", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(grainStorageBinsTable).where(eq(grainStorageBinsTable.farmId, farmId)).orderBy(grainStorageBinsTable.binName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/grain-storage-bins", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(grainStorageBinsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/grain-storage-bins/:id", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(grainStorageBinsTable).set(req.body).where(and(eq(grainStorageBinsTable.id, id), eq(grainStorageBinsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/grain-storage-bins/:id", requireAuth, requireTenant, requireModuleByKey("equipment-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(grainStorageBinsTable).where(and(eq(grainStorageBinsTable.id, id), eq(grainStorageBinsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/grain-quality-tests", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(grainQualityTestsTable).where(eq(grainQualityTestsTable.farmId, farmId)).orderBy(desc(grainQualityTestsTable.testDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/grain-quality-tests", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(grainQualityTestsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/grain-quality-tests/:id", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(grainQualityTestsTable).set(req.body).where(and(eq(grainQualityTestsTable.id, id), eq(grainQualityTestsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/grain-quality-tests/:id", requireAuth, requireTenant, requireModuleByKey("equipment-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(grainQualityTestsTable).where(and(eq(grainQualityTestsTable.id, id), eq(grainQualityTestsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/grain-temperature-logs", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(grainTemperatureLogsTable).where(eq(grainTemperatureLogsTable.farmId, farmId)).orderBy(desc(grainTemperatureLogsTable.logDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/grain-temperature-logs", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(grainTemperatureLogsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/grain-temperature-logs/:id", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(grainTemperatureLogsTable).set(req.body).where(and(eq(grainTemperatureLogsTable.id, id), eq(grainTemperatureLogsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/grain-temperature-logs/:id", requireAuth, requireTenant, requireModuleByKey("equipment-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(grainTemperatureLogsTable).where(and(eq(grainTemperatureLogsTable.id, id), eq(grainTemperatureLogsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// AI & REPRODUCTION (sub-tabs on Livestock module)
+// ============================================================
+router.get("/farms/:farmId/ai-reproduction-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(aiReproductionRecordsTable).where(eq(aiReproductionRecordsTable.farmId, farmId)).orderBy(desc(aiReproductionRecordsTable.serviceDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/ai-reproduction-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(aiReproductionRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/ai-reproduction-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(aiReproductionRecordsTable).set(req.body).where(and(eq(aiReproductionRecordsTable.id, id), eq(aiReproductionRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/ai-reproduction-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(aiReproductionRecordsTable).where(and(eq(aiReproductionRecordsTable.id, id), eq(aiReproductionRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// VET PRESCRIPTIONS (sub-tab on Livestock module)
+// ============================================================
+router.get("/farms/:farmId/vet-prescriptions", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(vetPrescriptionRecordsTable).where(eq(vetPrescriptionRecordsTable.farmId, farmId)).orderBy(desc(vetPrescriptionRecordsTable.prescriptionDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/vet-prescriptions", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(vetPrescriptionRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/vet-prescriptions/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(vetPrescriptionRecordsTable).set(req.body).where(and(eq(vetPrescriptionRecordsTable.id, id), eq(vetPrescriptionRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/vet-prescriptions/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(vetPrescriptionRecordsTable).where(and(eq(vetPrescriptionRecordsTable.id, id), eq(vetPrescriptionRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// SFI / ELMS ACTIONS (sub-tabs on Environmental module)
+// ============================================================
+router.get("/farms/:farmId/sfi-agreements", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(sfiAgreementsTable).where(eq(sfiAgreementsTable.farmId, farmId)).orderBy(desc(sfiAgreementsTable.agreementStartDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/sfi-agreements", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(sfiAgreementsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/sfi-agreements/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(sfiAgreementsTable).set(req.body).where(and(eq(sfiAgreementsTable.id, id), eq(sfiAgreementsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/sfi-agreements/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(sfiAgreementsTable).where(and(eq(sfiAgreementsTable.id, id), eq(sfiAgreementsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/sfi-actions", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(sfiActionsTable).where(eq(sfiActionsTable.farmId, farmId)).orderBy(sfiActionsTable.actionCode);
+  res.json(rows);
+});
+router.post("/farms/:farmId/sfi-actions", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(sfiActionsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/sfi-actions/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(sfiActionsTable).set(req.body).where(and(eq(sfiActionsTable.id, id), eq(sfiActionsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/sfi-actions/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(sfiActionsTable).where(and(eq(sfiActionsTable.id, id), eq(sfiActionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// SLURRY & MANURE MANAGEMENT (sub-tabs on Environmental module)
+// ============================================================
+router.get("/farms/:farmId/slurry-stores", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(slurryStoresTable).where(eq(slurryStoresTable.farmId, farmId)).orderBy(slurryStoresTable.storeName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/slurry-stores", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(slurryStoresTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/slurry-stores/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(slurryStoresTable).set(req.body).where(and(eq(slurryStoresTable.id, id), eq(slurryStoresTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/slurry-stores/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(slurryStoresTable).where(and(eq(slurryStoresTable.id, id), eq(slurryStoresTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/slurry-spreading-records", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(slurrySpreadingRecordsTable).where(eq(slurrySpreadingRecordsTable.farmId, farmId)).orderBy(desc(slurrySpreadingRecordsTable.spreadingDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/slurry-spreading-records", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(slurrySpreadingRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/slurry-spreading-records/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(slurrySpreadingRecordsTable).set(req.body).where(and(eq(slurrySpreadingRecordsTable.id, id), eq(slurrySpreadingRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/slurry-spreading-records/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(slurrySpreadingRecordsTable).where(and(eq(slurrySpreadingRecordsTable.id, id), eq(slurrySpreadingRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

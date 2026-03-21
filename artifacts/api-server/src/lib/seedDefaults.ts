@@ -31,6 +31,12 @@ const MODULES = [
   { key: "workshop-management", name: "Workshop & Asset Management", description: "Unique asset numbers, QR code labels, job cards for repairs and servicing, service schedules, downtime tracking and fleet overview", monthlyPricePence: 2000 },
   { key: "sms-alerts", name: "SMS Text Alerts", description: "Receive critical compliance alerts by text message — unnotified livestock movements, expired staff certificates, water quality failures, and overdue non-conformances", monthlyPricePence: 400 },
   { key: "business-reports", name: "Business Reports", description: "Gross margin analysis, P&L statement, input cost breakdown, grain position, subsidy summary, year-on-year comparison and asset register with depreciation", monthlyPricePence: 500 },
+  { key: "pig_production", name: "Pig Production", description: "Medicine records, medication book, feed & nutrition, mortality, slaughter records, movements and vet visits for pig enterprises", monthlyPricePence: 2500 },
+  { key: "poultry_production", name: "Poultry Production", description: "Flock register, daily welfare checks, medicine records, mortality, thinning & depletion, litter & environment and Salmonella NCP testing", monthlyPricePence: 2500 },
+  { key: "horticulture", name: "Horticulture & Fresh Produce", description: "Crop records, spray records with PHI, soil & substrate, harvest records, worker welfare and traceability for fresh produce growers", monthlyPricePence: 2000 },
+  { key: "carbon_sustainability", name: "Carbon & Sustainability", description: "Farm carbon footprint, renewable energy, biodiversity actions, soil carbon and sustainability goals tracking", monthlyPricePence: 1000 },
+  { key: "farm_diversification", name: "Farm Diversification", description: "Activities register, farm shop, hygiene inspections, equine register, renewables income and shooting records", monthlyPricePence: 1500 },
+  { key: "water_irrigation", name: "Water & Irrigation Management", description: "Water source register, abstraction log, irrigation events, water quality testing and infrastructure maintenance", monthlyPricePence: 1000 },
 ];
 
 export async function seedDefaults() {
@@ -209,7 +215,7 @@ async function seedFieldOperations(farmId: number) {
   const yr = new Date().getFullYear();
   const prevYr = yr - 1;
 
-  const fieldRows = await db.select({ id: fieldsTable.id, name: fieldsTable.name, areaHa: fieldsTable.areaHa }).from(fieldsTable).where(eq(fieldsTable.farmId, farmId)).limit(8);
+  const fieldRows = await db.select({ id: fieldsTable.id, name: fieldsTable.name, areaHa: fieldsTable.areaHectares }).from(fieldsTable).where(eq(fieldsTable.farmId, farmId)).limit(8);
 
   const getField = (name: string) => fieldRows.find((f) => f.name?.toLowerCase().includes(name.toLowerCase())) ?? fieldRows[0];
 

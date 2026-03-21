@@ -33,6 +33,13 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Nutrient Management": "bg-yellow-50 text-yellow-700",
   "Account & Settings": "bg-slate-50 text-slate-700",
   "Workshop": "bg-teal-50 text-teal-700",
+  "Pig Production": "bg-pink-50 text-pink-700",
+  "Poultry Production": "bg-yellow-50 text-yellow-800",
+  "Horticulture": "bg-green-50 text-green-800",
+  "Carbon & Sustainability": "bg-emerald-50 text-emerald-800",
+  "Farm Diversification": "bg-indigo-50 text-indigo-800",
+  "Water & Irrigation": "bg-sky-50 text-sky-800",
+  "Environmental": "bg-teal-50 text-teal-800",
 };
 
 // Categories that are always shown regardless of module subscriptions
@@ -61,6 +68,13 @@ const CATEGORY_TO_MODULE: Record<string, string> = {
   "Nutrient Management": "soil-management",
   "Dairy": "dairy-management",
   "Workshop": "workshop-management",
+  "Pig Production": "pig_production",
+  "Poultry Production": "poultry_production",
+  "Horticulture": "horticulture",
+  "Carbon & Sustainability": "carbon_sustainability",
+  "Farm Diversification": "farm_diversification",
+  "Water & Irrigation": "water_irrigation",
+  "Environmental": "soil-management",
 };
 
 function categoryColor(cat: string) {
