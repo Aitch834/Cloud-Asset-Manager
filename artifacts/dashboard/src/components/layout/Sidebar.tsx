@@ -64,6 +64,7 @@ const coreNav: NavItem[] = [
   { name: "NVZ Compliance", href: "/nvz", icon: FlaskConical, moduleKeys: ["sprays-inputs"] },
   { name: "Soil Tests", href: "/soil", icon: TestTube, moduleKeys: ["soil-management"] },
   { name: "Equipment", href: "/equipment", icon: Tractor, moduleKeys: ["equipment-management"] },
+  { name: "Workshop", href: "/workshop", icon: Wrench, moduleKeys: ["workshop-management"] },
 ];
 
 const complianceNav: NavItem[] = [

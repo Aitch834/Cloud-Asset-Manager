@@ -23,6 +23,7 @@ import {
   soilTestResultsTable,
   equipmentTable,
   equipmentMaintenanceLogsTable,
+  workshopJobsTable,
   equipmentCalibrationRecordsTable,
   herdFlockRegisterTable,
   livestockAnimalsTable,
@@ -5018,6 +5019,61 @@ router.get("/:farmId/reports/assets", requireAuth, requireModuleByKey("business-
     .where(sql`equipment_id IN (SELECT id FROM equipment WHERE farm_id = ${farmId})`);
 
   res.json({ equipment, maintenanceCosts });
+});
+
+// ─── Workshop & Asset Management ───────────────────────────────────────────────
+
+router.get("/farms/:farmId/equipment/by-asset/:assetNumber", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { assetNumber } = req.params;
+  const [equip] = await db.select().from(equipmentTable).where(and(eq(equipmentTable.farmId, farmId), eq(equipmentTable.assetNumber, assetNumber))).limit(1);
+  if (!equip) { res.status(404).json({ error: "Asset not found" }); return; }
+  res.json(equip);
+});
+
+router.get("/farms/:farmId/workshop/jobs", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const jobs = await db
+    .select({ job: workshopJobsTable, equipmentName: equipmentTable.name, assetNumber: equipmentTable.assetNumber })
+    .from(workshopJobsTable)
+    .leftJoin(equipmentTable, eq(workshopJobsTable.equipmentId, equipmentTable.id))
+    .where(eq(workshopJobsTable.farmId, farmId))
+    .orderBy(desc(workshopJobsTable.createdAt));
+  res.json({ jobs });
+});
+
+router.post("/farms/:farmId/workshop/jobs", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const count = await db.select({ c: sql<number>`count(*)` }).from(workshopJobsTable).where(eq(workshopJobsTable.farmId, farmId));
+  const jobNumber = `JOB-${String(Number(count[0].c) + 1).padStart(4, "0")}`;
+  const [record] = await db.insert(workshopJobsTable).values({ ...req.body, farmId, jobNumber }).returning();
+  res.json(record);
+});
+
+router.put("/farms/:farmId/workshop/jobs/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  const { id: _id, farmId: _f, jobNumber: _jn, createdAt: _c, ...rest } = req.body;
+  const [record] = await db.update(workshopJobsTable).set(rest).where(and(eq(workshopJobsTable.id, id), eq(workshopJobsTable.farmId, farmId))).returning();
+  res.json(record);
+});
+
+router.delete("/farms/:farmId/workshop/jobs/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const id = parseInt(req.params.id);
+  await db.delete(workshopJobsTable).where(and(eq(workshopJobsTable.id, id), eq(workshopJobsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/workshop/schedule", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const services = await db
+    .select({ log: equipmentMaintenanceLogsTable, equipmentName: equipmentTable.name, assetNumber: equipmentTable.assetNumber, equipmentType: equipmentTable.type })
+    .from(equipmentMaintenanceLogsTable)
+    .innerJoin(equipmentTable, eq(equipmentMaintenanceLogsTable.equipmentId, equipmentTable.id))
+    .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentMaintenanceLogsTable.nextDueDate)))
+    .orderBy(equipmentMaintenanceLogsTable.nextDueDate);
+  res.json({ services });
 });
 
 export default router;

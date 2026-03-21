@@ -54,6 +54,7 @@ import FarmLocationsPage from "@/pages/FarmLocationsPage";
 import FarmMapPage from "@/pages/FarmMapPage";
 import WeekAheadPage from "@/pages/WeekAheadPage";
 import DairyPage from "@/pages/DairyPage";
+import WorkshopPage from "@/pages/WorkshopPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -195,6 +196,7 @@ function Router() {
       <Route path="/settings" component={SettingsPage} />
       <Route path="/account" component={AccountSettings} />
       <Route path="/dairy" component={DairyPage} />
+      <Route path="/workshop" component={WorkshopPage} />
       <Route path="/biofuel" component={BiofuelPage} />
       <Route path="/inspect/:token" component={InspectionViewPage} />
       <Route component={NotFound} />

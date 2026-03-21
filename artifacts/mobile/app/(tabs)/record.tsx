@@ -212,6 +212,15 @@ const recordOptions: RecordOption[] = [
     route: "/equipment-defect",
   },
   {
+    id: "scan-asset",
+    title: "Scan Asset QR Code",
+    description: "Scan a Workshop QR label to pull up equipment details and log defects instantly",
+    icon: "maximize",
+    color: "#0f766e",
+    bgColor: "#CCFBF1",
+    route: "/scan-asset",
+  },
+  {
     id: "pest-control",
     title: "Pest Control Visit",
     description: "Log bait stations, trap checks, pest activity and control actions",

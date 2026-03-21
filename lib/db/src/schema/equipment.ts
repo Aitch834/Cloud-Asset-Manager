@@ -1,9 +1,10 @@
-import { pgTable, text, serial, integer, timestamp, numeric, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 
 export const equipmentTable = pgTable("equipment", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  assetNumber: text("asset_number"),
   name: text("name").notNull(),
   type: text("type").notNull(),
   make: text("make"),
@@ -14,6 +15,8 @@ export const equipmentTable = pgTable("equipment", {
   purchaseDate: timestamp("purchase_date", { withTimezone: true }),
   purchasePricePence: integer("purchase_price_pence"),
   currentValuePence: integer("current_value_pence"),
+  currentHours: integer("current_hours"),
+  odometerKm: integer("odometer_km"),
   status: text("status").notNull().default("active"),
   location: text("location"),
   notes: text("notes"),
@@ -60,4 +63,29 @@ export const equipmentOffboardingRecordsTable = pgTable("equipment_offboarding_r
   buyerDetails: text("buyer_details"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const workshopJobsTable = pgTable("workshop_jobs", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  equipmentId: integer("equipment_id").references(() => equipmentTable.id),
+  jobNumber: text("job_number"),
+  jobType: text("job_type").notNull().default("repair"),
+  title: text("title").notNull(),
+  description: text("description"),
+  priority: text("priority").notNull().default("medium"),
+  status: text("status").notNull().default("open"),
+  reportedBy: text("reported_by"),
+  assignedTo: text("assigned_to"),
+  openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+  estimatedCompletionDate: timestamp("estimated_completion_date", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  labourHours: integer("labour_hours"),
+  labourCostPence: integer("labour_cost_pence"),
+  partsCostPence: integer("parts_cost_pence"),
+  partsUsed: text("parts_used"),
+  rootCause: text("root_cause"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
