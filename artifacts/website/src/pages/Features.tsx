@@ -48,7 +48,7 @@ export default function Features() {
       title: "Biosecurity & Visitors",
       icon: ShieldAlert,
       color: "bg-red-50 text-red-600 border-red-100",
-      features: ["Farm Buildings & Areas registry", "Visitor & Contractor logs", "Pest control records", "Cleaning & Disinfection logs", "COSHH assessments"]
+      features: ["Farm Buildings & Areas registry", "GPS map pins — place each building on the Farm Map for visual location tracking", "Farm Map — interactive satellite view of all registered buildings and areas with colour-coded type markers", "Mobile location registration — add new buildings on site with one-tap GPS capture, saves live to the dashboard", "Visitor & Contractor logs", "Pest control records", "Cleaning & Disinfection logs", "COSHH assessments"]
     },
     {
       title: "Staff & Training",
