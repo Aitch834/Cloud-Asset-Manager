@@ -1071,45 +1071,79 @@ function DctTab({ farmId }: { farmId: number }) {
         </div>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "50rem" }}>
+        <DialogContent style={{ maxWidth: "60rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit DCT Record" : "Add Dry Cow Therapy Record"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2 max-h-[65vh] overflow-y-auto pr-2">
-            <div><Label>Dry-Off Date *</Label><Input type="date" value={form.dryOffDate?.slice(0, 10) || ""} onChange={e => set("dryOffDate", e.target.value)} /></div>
-            <div><Label>Cow Ear Tag</Label><Input value={form.cowEarTag || ""} onChange={e => set("cowEarTag", e.target.value)} /></div>
-            <div className="col-span-2">
-              <Label>DCT Protocol *</Label>
-              <Select value={form.protocol || "selective"} onValueChange={v => set("protocol", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{PROTOCOLS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
-              </Select>
+          <div className="flex gap-6 py-2">
+            {/* ── Left column ── */}
+            <div className="flex-1 flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Cow Ear Tag</Label><Input value={form.cowEarTag || ""} onChange={e => set("cowEarTag", e.target.value)} placeholder="e.g. UK123456 78901" /></div>
+                <div><Label>Dry-Off Date *</Label><Input type="date" value={form.dryOffDate?.slice(0, 10) || ""} onChange={e => set("dryOffDate", e.target.value)} /></div>
+              </div>
+
+              <div>
+                <Label>DCT Protocol *</Label>
+                <Select value={form.protocol || "selective"} onValueChange={v => set("protocol", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{PROTOCOLS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+
+              {form.protocol !== "teat-sealant-only" && (
+                <div className="rounded-md border p-3 space-y-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Antibiotic Tube</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label>Product Name</Label><Input value={form.antibioticTubeProduct || ""} onChange={e => set("antibioticTubeProduct", e.target.value)} /></div>
+                    <div><Label>Batch Number</Label><Input value={form.antibioticTubeBatch || ""} onChange={e => set("antibioticTubeBatch", e.target.value)} /></div>
+                    <div><Label>Milk Withdrawal (days)</Label><Input type="number" value={form.antibioticTubeWithdrawalMilkDays || ""} onChange={e => set("antibioticTubeWithdrawalMilkDays", e.target.value ? parseInt(e.target.value) : null)} /></div>
+                    <div><Label>Meat Withdrawal (days)</Label><Input type="number" value={form.antibioticTubeWithdrawalMeatDays || ""} onChange={e => set("antibioticTubeWithdrawalMeatDays", e.target.value ? parseInt(e.target.value) : null)} /></div>
+                  </div>
+                </div>
+              )}
+
+              {form.protocol?.includes("sealant") && (
+                <div className="rounded-md border p-3 space-y-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Teat Sealant</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label>Product</Label><Input value={form.teatSealantProduct || ""} onChange={e => set("teatSealantProduct", e.target.value)} /></div>
+                    <div><Label>Batch Number</Label><Input value={form.teatSealantBatch || ""} onChange={e => set("teatSealantBatch", e.target.value)} /></div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {(form.protocol !== "teat-sealant-only") && <>
-              <div className="col-span-2 border-b pb-1 pt-1"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Antibiotic Tube Details</p></div>
-              <div><Label>Product Name</Label><Input value={form.antibioticTubeProduct || ""} onChange={e => set("antibioticTubeProduct", e.target.value)} /></div>
-              <div><Label>Batch Number</Label><Input value={form.antibioticTubeBatch || ""} onChange={e => set("antibioticTubeBatch", e.target.value)} /></div>
-              <div><Label>Milk Withdrawal (days)</Label><Input type="number" value={form.antibioticTubeWithdrawalMilkDays || ""} onChange={e => set("antibioticTubeWithdrawalMilkDays", e.target.value ? parseInt(e.target.value) : null)} /></div>
-              <div><Label>Meat Withdrawal (days)</Label><Input type="number" value={form.antibioticTubeWithdrawalMeatDays || ""} onChange={e => set("antibioticTubeWithdrawalMeatDays", e.target.value ? parseInt(e.target.value) : null)} /></div>
-            </>}
+            {/* ── Divider ── */}
+            <div className="w-px bg-gray-200 self-stretch" />
 
-            {(form.protocol?.includes("sealant")) && <>
-              <div className="col-span-2 border-b pb-1 pt-1"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Teat Sealant Details</p></div>
-              <div><Label>Sealant Product</Label><Input value={form.teatSealantProduct || ""} onChange={e => set("teatSealantProduct", e.target.value)} /></div>
-              <div><Label>Sealant Batch Number</Label><Input value={form.teatSealantBatch || ""} onChange={e => set("teatSealantBatch", e.target.value)} /></div>
-            </>}
+            {/* ── Right column ── */}
+            <div className="flex-1 flex flex-col gap-3">
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Antibiotic Stewardship</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label>SCC at Dry-Off (k/mL)</Label><Input type="number" value={form.sccAtDryOff || ""} onChange={e => set("sccAtDryOff", e.target.value ? parseInt(e.target.value) : null)} /></div>
+                  <div><Label>Mastitis Episodes (12 mo)</Label><Input type="number" value={form.mastitisEpisodes12Months ?? ""} onChange={e => set("mastitisEpisodes12Months", e.target.value ? parseInt(e.target.value) : null)} /></div>
+                </div>
+                <div><Label>Treatment Justification</Label><Textarea value={form.treatmentJustification || ""} onChange={e => set("treatmentJustification", e.target.value)} placeholder="e.g. SCC consistently above 200k, 2 mastitis episodes in last lactation" rows={2} /></div>
+              </div>
 
-            <div className="col-span-2 border-b pb-1 pt-1"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Antibiotic Stewardship</p></div>
-            <div><Label>SCC at Dry-Off (k/mL)</Label><Input type="number" value={form.sccAtDryOff || ""} onChange={e => set("sccAtDryOff", e.target.value ? parseInt(e.target.value) : null)} /></div>
-            <div><Label>Mastitis Episodes (last 12 months)</Label><Input type="number" value={form.mastitisEpisodes12Months ?? ""} onChange={e => set("mastitisEpisodes12Months", e.target.value ? parseInt(e.target.value) : null)} /></div>
-            <div className="col-span-2"><Label>Treatment Justification</Label><Textarea value={form.treatmentJustification || ""} onChange={e => set("treatmentJustification", e.target.value)} placeholder="e.g. SCC consistently above 200k, 2 mastitis episodes in last lactation" rows={2} /></div>
-            <div className="flex items-center gap-2 pt-5">
-              <input type="checkbox" id="vetauth" checked={!!form.vetAuthorisation} onChange={e => set("vetAuthorisation", e.target.checked)} className="rounded" />
-              <Label htmlFor="vetauth">Vet written authorisation obtained</Label>
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vet &amp; Administration</p>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="vetauth" checked={!!form.vetAuthorisation} onChange={e => set("vetAuthorisation", e.target.checked)} className="rounded" />
+                  <Label htmlFor="vetauth">Written vet authorisation obtained</Label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>
+                  <div><Label>Administered By</Label><Input value={form.administeredBy || ""} onChange={e => set("administeredBy", e.target.value)} /></div>
+                </div>
+                <div><Label>Expected Calving Date</Label><Input type="date" value={form.expectedCalvingDate || ""} onChange={e => set("expectedCalvingDate", e.target.value)} /></div>
+              </div>
+
+              <div>
+                <Label>Notes</Label>
+                <Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={3} />
+              </div>
             </div>
-            <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>
-            <div><Label>Administered By</Label><Input value={form.administeredBy || ""} onChange={e => set("administeredBy", e.target.value)} /></div>
-            <div><Label>Expected Calving Date</Label><Input type="date" value={form.expectedCalvingDate || ""} onChange={e => set("expectedCalvingDate", e.target.value)} /></div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
