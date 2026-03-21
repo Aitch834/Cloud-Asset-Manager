@@ -271,6 +271,22 @@ export interface HarvestRecord {
   synced: boolean;
 }
 
+export interface WasteDisposalRecord {
+  id: string;
+  farmId: string;
+  wasteType: string;
+  quantity: string;
+  disposalMethod: string;
+  disposalDate: string;
+  carrierName: string;
+  carrierLicence: string;
+  destinationSite: string;
+  wasteTransferNote: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface SeedDrillingRecord {
   id: string;
   farmId: string;

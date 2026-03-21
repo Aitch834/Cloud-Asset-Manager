@@ -158,6 +158,15 @@ const recordOptions: RecordOption[] = [
     route: "/nvz-application",
   },
   {
+    id: "waste-disposal",
+    title: "Waste Disposal Record",
+    description: "Log farm waste collections — waste type, carrier licence, transfer note number and disposal site",
+    icon: "trash-2",
+    color: "#7C3AED",
+    bgColor: "#EDE9FE",
+    route: "/waste-disposal",
+  },
+  {
     id: "equipment-defect",
     title: "Equipment Defect Report",
     description: "Report machinery faults, flag unsafe equipment and record corrective actions",
