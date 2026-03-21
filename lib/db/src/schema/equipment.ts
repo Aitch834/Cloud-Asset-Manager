@@ -89,3 +89,34 @@ export const workshopJobsTable = pgTable("workshop_jobs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
+
+export const workshopPatTestsTable = pgTable("workshop_pat_tests", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  itemName: text("item_name").notNull(),
+  equipmentId: integer("equipment_id").references(() => equipmentTable.id),
+  location: text("location"),
+  testDate: timestamp("test_date", { withTimezone: true }),
+  testerName: text("tester_name"),
+  testerCompany: text("tester_company"),
+  certificateNumber: text("certificate_number"),
+  result: text("result").notNull().default("pass"),
+  nextDueDate: timestamp("next_due_date", { withTimezone: true }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const workshopFireExtinguishersTable = pgTable("workshop_fire_extinguishers", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  location: text("location").notNull(),
+  type: text("type").notNull(),
+  capacityKg: text("capacity_kg"),
+  serialNumber: text("serial_number"),
+  lastServiceDate: timestamp("last_service_date", { withTimezone: true }),
+  engineerName: text("engineer_name"),
+  engineerCompany: text("engineer_company"),
+  nextServiceDue: timestamp("next_service_due", { withTimezone: true }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

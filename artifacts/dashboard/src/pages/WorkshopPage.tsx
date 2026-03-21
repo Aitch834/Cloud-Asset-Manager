@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown } from "lucide-react";
+import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Zap, Flame, ShieldAlert, FlaskConical } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -563,9 +563,652 @@ function FleetOverviewTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── PAT Testing tab ──────────────────────────────────────────────────────────
+
+interface PatTest {
+  id: number; farmId: number; itemName: string; equipmentId: number | null;
+  location: string | null; testDate: string | null; testerName: string | null;
+  testerCompany: string | null; certificateNumber: string | null;
+  result: string; nextDueDate: string | null; notes: string | null; createdAt: string;
+}
+
+const PAT_RESULT: Record<string, { label: string; colour: string }> = {
+  pass:     { label: "Pass",     colour: "bg-green-100 text-green-700" },
+  fail:     { label: "Fail",     colour: "bg-red-100 text-red-700" },
+  advisory: { label: "Advisory", colour: "bg-amber-100 text-amber-700" },
+};
+
+const EMPTY_PAT = { itemName: "", location: "", testDate: "", testerName: "", testerCompany: "", certificateNumber: "", result: "pass", nextDueDate: "", notes: "" };
+
+function PatTestingTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<PatTest | null>(null);
+  const [form, setForm] = useState(EMPTY_PAT);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery<{ records: PatTest[] }>({
+    queryKey: ["workshop-pat", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/pat-tests`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(api(`farms/${farmId}/workshop/pat-tests`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-pat", farmId] }); setShowForm(false); setForm(EMPTY_PAT); },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(api(`farms/${farmId}/workshop/pat-tests/${editing!.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-pat", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_PAT); },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/pat-tests/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-pat", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(r: PatTest) {
+    setEditing(r);
+    setForm({ itemName: r.itemName, location: r.location ?? "", testDate: r.testDate ? r.testDate.slice(0, 10) : "", testerName: r.testerName ?? "", testerCompany: r.testerCompany ?? "", certificateNumber: r.certificateNumber ?? "", result: r.result, nextDueDate: r.nextDueDate ? r.nextDueDate.slice(0, 10) : "", notes: r.notes ?? "" });
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    editing ? updateMut.mutate(form) : createMut.mutate(form);
+  }
+
+  const today = new Date();
+  const records = data?.records ?? [];
+  const overdue = records.filter(r => r.nextDueDate && new Date(r.nextDueDate) < today).length;
+
+  if (isLoading) return <div className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500">Track annual Portable Appliance Testing for all workshop electrical equipment. Red Tractor requires evidence that portable appliances are maintained safely.</p>
+          {overdue > 0 && <p className="text-xs text-red-600 font-medium mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {overdue} item{overdue !== 1 ? "s" : ""} overdue for testing</p>}
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_PAT); setShowForm(true); }} className="gap-1"><Plus className="h-4 w-4" />Log PAT Test</Button>
+      </div>
+
+      {records.length === 0 ? (
+        <Card><CardContent className="py-10 text-center text-gray-400 text-sm">No PAT test records yet. Log the first test to start tracking compliance.</CardContent></Card>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border bg-white">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 border-b text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                {["Item / Appliance", "Location", "Test Date", "Tester", "Cert No.", "Result", "Next Due", ""].map(h => <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map(r => {
+                const due = r.nextDueDate ? new Date(r.nextDueDate) : null;
+                const isOverdue = due && due < today;
+                return (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium">{r.itemName}</td>
+                    <td className="px-4 py-3 text-gray-500">{r.location || "—"}</td>
+                    <td className="px-4 py-3 text-gray-500">{r.testDate ? new Date(r.testDate).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="px-4 py-3 text-gray-500">{[r.testerName, r.testerCompany].filter(Boolean).join(", ") || "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.certificateNumber || "—"}</td>
+                    <td className="px-4 py-3"><StatusBadge value={r.result} map={PAT_RESULT} /></td>
+                    <td className="px-4 py-3">
+                      {due ? (
+                        <span className={cn("text-xs font-medium", isOverdue ? "text-red-600" : "text-gray-500")}>
+                          {isOverdue && <AlertTriangle className="h-3 w-3 inline mr-1" />}
+                          {due.toLocaleDateString("en-GB")}
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent style={{ maxWidth: "40rem" }} aria-describedby={undefined}>
+            <DialogHeader><DialogTitle>{editing ? "Edit PAT Test" : "Log PAT Test"}</DialogTitle></DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2"><Label>Item / Appliance Name *</Label><Input required value={form.itemName} onChange={e => setForm(f => ({ ...f, itemName: e.target.value }))} placeholder="e.g. Angle Grinder, Extension Lead, Welder" /></div>
+                <div><Label>Location in Workshop</Label><Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop, Store room" /></div>
+                <div>
+                  <Label>Result</Label>
+                  <Select value={form.result} onValueChange={v => setForm(f => ({ ...f, result: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="pass">Pass</SelectItem><SelectItem value="fail">Fail</SelectItem><SelectItem value="advisory">Advisory</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Test Date</Label><Input type="date" value={form.testDate} onChange={e => setForm(f => ({ ...f, testDate: e.target.value }))} /></div>
+                <div><Label>Next Test Due</Label><Input type="date" value={form.nextDueDate} onChange={e => setForm(f => ({ ...f, nextDueDate: e.target.value }))} /></div>
+                <div><Label>Tester Name</Label><Input value={form.testerName} onChange={e => setForm(f => ({ ...f, testerName: e.target.value }))} /></div>
+                <div><Label>Tester Company</Label><Input value={form.testerCompany} onChange={e => setForm(f => ({ ...f, testerCompany: e.target.value }))} /></div>
+                <div className="col-span-2"><Label>Certificate Number</Label><Input value={form.certificateNumber} onChange={e => setForm(f => ({ ...f, certificateNumber: e.target.value }))} className="font-mono" /></div>
+                <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? "Save" : "Add Record"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Delete PAT Record?</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-500">This will permanently remove the PAT test record. This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Fire Safety tab ───────────────────────────────────────────────────────────
+
+interface FireExtinguisher {
+  id: number; farmId: number; location: string; type: string;
+  capacityKg: string | null; serialNumber: string | null;
+  lastServiceDate: string | null; engineerName: string | null;
+  engineerCompany: string | null; nextServiceDue: string | null; notes: string | null; createdAt: string;
+}
+
+const FIRE_TYPES: { value: string; label: string }[] = [
+  { value: "co2",          label: "CO₂ (Red/Black) — electrical fires" },
+  { value: "dry_powder",   label: "Dry Powder (Red/Blue) — general purpose" },
+  { value: "water",        label: "Water (Red) — paper/wood fires" },
+  { value: "foam",         label: "Foam (Red/Cream) — liquid fires" },
+  { value: "wet_chemical", label: "Wet Chemical (Red/Yellow) — cooking oils" },
+];
+
+const FIRE_TYPE_LABEL: Record<string, string> = { co2: "CO₂", dry_powder: "Dry Powder", water: "Water", foam: "Foam", wet_chemical: "Wet Chemical" };
+
+const EMPTY_FIRE = { location: "", type: "co2", capacityKg: "", serialNumber: "", lastServiceDate: "", engineerName: "", engineerCompany: "", nextServiceDue: "", notes: "" };
+
+function FireSafetyTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<FireExtinguisher | null>(null);
+  const [form, setForm] = useState(EMPTY_FIRE);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery<{ records: FireExtinguisher[] }>({
+    queryKey: ["workshop-fire", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/fire-extinguishers`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(api(`farms/${farmId}/workshop/fire-extinguishers`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-fire", farmId] }); setShowForm(false); setForm(EMPTY_FIRE); },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(api(`farms/${farmId}/workshop/fire-extinguishers/${editing!.id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-fire", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_FIRE); },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/fire-extinguishers/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-fire", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(r: FireExtinguisher) {
+    setEditing(r);
+    setForm({ location: r.location, type: r.type, capacityKg: r.capacityKg ?? "", serialNumber: r.serialNumber ?? "", lastServiceDate: r.lastServiceDate ? r.lastServiceDate.slice(0, 10) : "", engineerName: r.engineerName ?? "", engineerCompany: r.engineerCompany ?? "", nextServiceDue: r.nextServiceDue ? r.nextServiceDue.slice(0, 10) : "", notes: r.notes ?? "" });
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    editing ? updateMut.mutate(form) : createMut.mutate(form);
+  }
+
+  const today = new Date();
+  const records = data?.records ?? [];
+  const overdue = records.filter(r => r.nextServiceDue && new Date(r.nextServiceDue) < today).length;
+  const dueSoon = records.filter(r => { if (!r.nextServiceDue) return false; const d = new Date(r.nextServiceDue); const diff = Math.ceil((d.getTime() - today.getTime()) / 86400000); return diff >= 0 && diff <= 60; }).length;
+
+  if (isLoading) return <div className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500">Register all fire extinguishers on the holding. Red Tractor expects extinguishers to be serviced annually by a competent person.</p>
+          {overdue > 0 && <p className="text-xs text-red-600 font-medium mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {overdue} extinguisher{overdue !== 1 ? "s" : ""} overdue for service</p>}
+          {overdue === 0 && dueSoon > 0 && <p className="text-xs text-amber-600 font-medium mt-1 flex items-center gap-1"><Clock className="h-3 w-3" /> {dueSoon} extinguisher{dueSoon !== 1 ? "s" : ""} due for service within 60 days</p>}
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_FIRE); setShowForm(true); }} className="gap-1"><Plus className="h-4 w-4" />Add Extinguisher</Button>
+      </div>
+
+      {records.length === 0 ? (
+        <Card><CardContent className="py-10 text-center text-gray-400 text-sm">No extinguishers registered yet. Add each extinguisher on the holding to track annual service dates.</CardContent></Card>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border bg-white">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 border-b text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                {["Location", "Type", "Capacity", "Serial No.", "Last Service", "Engineer", "Next Service Due", ""].map(h => <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map(r => {
+                const due = r.nextServiceDue ? new Date(r.nextServiceDue) : null;
+                const isOverdue = due && due < today;
+                const diff = due ? Math.ceil((due.getTime() - today.getTime()) / 86400000) : null;
+                const isSoon = diff !== null && diff >= 0 && diff <= 60;
+                return (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium">{r.location}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", r.type === "co2" ? "bg-gray-100 text-gray-700" : r.type === "dry_powder" ? "bg-blue-100 text-blue-700" : r.type === "foam" ? "bg-yellow-100 text-yellow-700" : r.type === "wet_chemical" ? "bg-orange-100 text-orange-700" : "bg-red-50 text-red-700")}>
+                        {FIRE_TYPE_LABEL[r.type] ?? r.type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">{r.capacityKg ? `${r.capacityKg} kg` : "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.serialNumber || "—"}</td>
+                    <td className="px-4 py-3 text-gray-500">{r.lastServiceDate ? new Date(r.lastServiceDate).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="px-4 py-3 text-gray-500">{[r.engineerName, r.engineerCompany].filter(Boolean).join(", ") || "—"}</td>
+                    <td className="px-4 py-3">
+                      {due ? (
+                        <span className={cn("text-xs font-medium flex items-center gap-1", isOverdue ? "text-red-600" : isSoon ? "text-amber-600" : "text-gray-500")}>
+                          {isOverdue && <AlertTriangle className="h-3 w-3" />}
+                          {isSoon && !isOverdue && <Clock className="h-3 w-3" />}
+                          {due.toLocaleDateString("en-GB")}
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent style={{ maxWidth: "40rem" }} aria-describedby={undefined}>
+            <DialogHeader><DialogTitle>{editing ? "Edit Fire Extinguisher" : "Add Fire Extinguisher"}</DialogTitle></DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2"><Label>Location *</Label><Input required value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop entrance, Grain store, Chemical store" /></div>
+                <div>
+                  <Label>Type *</Label>
+                  <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{FIRE_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Capacity (kg)</Label><Input value={form.capacityKg} onChange={e => setForm(f => ({ ...f, capacityKg: e.target.value }))} placeholder="e.g. 2, 6" /></div>
+                <div><Label>Serial Number</Label><Input value={form.serialNumber} onChange={e => setForm(f => ({ ...f, serialNumber: e.target.value }))} className="font-mono" /></div>
+                <div><Label>Last Service Date</Label><Input type="date" value={form.lastServiceDate} onChange={e => setForm(f => ({ ...f, lastServiceDate: e.target.value }))} /></div>
+                <div><Label>Next Service Due</Label><Input type="date" value={form.nextServiceDue} onChange={e => setForm(f => ({ ...f, nextServiceDue: e.target.value }))} /></div>
+                <div><Label>Engineer Name</Label><Input value={form.engineerName} onChange={e => setForm(f => ({ ...f, engineerName: e.target.value }))} /></div>
+                <div><Label>Engineer Company</Label><Input value={form.engineerCompany} onChange={e => setForm(f => ({ ...f, engineerCompany: e.target.value }))} /></div>
+                <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? "Save" : "Add Extinguisher"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Remove Extinguisher?</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-500">This will permanently remove the extinguisher record. This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Remove</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Workshop Risk Assessments tab ────────────────────────────────────────────
+
+interface RiskAssessment {
+  id: number; farmId: number; title: string; area: string | null;
+  hazardDescription: string | null; riskLevel: string; controlMeasures: string | null;
+  assessedBy: string | null; assessmentDate: string | null; reviewDate: string | null; status: string;
+}
+
+const RISK_LEVEL: Record<string, { label: string; colour: string }> = {
+  low:      { label: "Low",      colour: "bg-green-100 text-green-700" },
+  medium:   { label: "Medium",   colour: "bg-amber-100 text-amber-700" },
+  high:     { label: "High",     colour: "bg-orange-100 text-orange-700" },
+  critical: { label: "Critical", colour: "bg-red-100 text-red-700" },
+};
+
+const WORKSHOP_ACTIVITIES = ["Welding", "Grinding & cutting", "Working under vehicles (jacking)", "Compressed air use", "Hydraulic work", "Lifting operations (crane, forklift)", "Electrical work", "Flammable liquids (fuels, solvents)", "Power tools", "Manual handling", "Chemical storage", "Other"];
+
+const EMPTY_RISK = { title: "", area: "Workshop", hazardDescription: "", riskLevel: "medium", controlMeasures: "", assessedBy: "", assessmentDate: "", reviewDate: "", status: "active" };
+
+function WorkshopRisksTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<RiskAssessment | null>(null);
+  const [form, setForm] = useState(EMPTY_RISK);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery<{ records: RiskAssessment[] }>({
+    queryKey: ["risk-assessments", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/risk-assessments`, { credentials: "include" }).then(r => r.json()),
+    select: d => ({ records: (d.records ?? []).filter((r: RiskAssessment) => r.area === "Workshop") }),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/risk-assessments`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["risk-assessments", farmId] }); setShowForm(false); setForm(EMPTY_RISK); },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/risk-assessments/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["risk-assessments", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_RISK); },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/risk-assessments/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["risk-assessments", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(r: RiskAssessment) {
+    setEditing(r);
+    setForm({ title: r.title, area: r.area ?? "Workshop", hazardDescription: r.hazardDescription ?? "", riskLevel: r.riskLevel, controlMeasures: r.controlMeasures ?? "", assessedBy: r.assessedBy ?? "", assessmentDate: r.assessmentDate ? r.assessmentDate.slice(0, 10) : "", reviewDate: r.reviewDate ? r.reviewDate.slice(0, 10) : "", status: r.status });
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    editing ? updateMut.mutate({ ...form, area: "Workshop" }) : createMut.mutate({ ...form, area: "Workshop" });
+  }
+
+  const today = new Date();
+  const records = data?.records ?? [];
+  const overdueReview = records.filter(r => r.reviewDate && new Date(r.reviewDate) < today && r.status === "active").length;
+
+  if (isLoading) return <div className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500">Workshop-specific risk assessments for hazardous activities — welding, grinding, lifting, compressed air and more. Red Tractor requires documented risk assessments for all significant workshop hazards.</p>
+          {overdueReview > 0 && <p className="text-xs text-red-600 font-medium mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {overdueReview} assessment{overdueReview !== 1 ? "s" : ""} overdue for review</p>}
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_RISK); setShowForm(true); }} className="gap-1"><Plus className="h-4 w-4" />Add Assessment</Button>
+      </div>
+
+      {records.length === 0 ? (
+        <Card><CardContent className="py-10 text-center text-gray-400 text-sm">No workshop risk assessments yet. Add one for each significant hazard in your workshop.</CardContent></Card>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border bg-white">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 border-b text-xs uppercase tracking-wide text-gray-500">
+              <tr>{["Activity / Hazard", "Risk Level", "Assessed By", "Assessment Date", "Review Due", "Status", ""].map(h => <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map(r => {
+                const due = r.reviewDate ? new Date(r.reviewDate) : null;
+                const isOverdue = due && due < today && r.status === "active";
+                return (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium">{r.title}</td>
+                    <td className="px-4 py-3"><StatusBadge value={r.riskLevel} map={RISK_LEVEL} /></td>
+                    <td className="px-4 py-3 text-gray-500">{r.assessedBy || "—"}</td>
+                    <td className="px-4 py-3 text-gray-500">{r.assessmentDate ? new Date(r.assessmentDate).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="px-4 py-3">
+                      {due ? (
+                        <span className={cn("text-xs font-medium flex items-center gap-1", isOverdue ? "text-red-600" : "text-gray-500")}>
+                          {isOverdue && <AlertTriangle className="h-3 w-3" />}
+                          {due.toLocaleDateString("en-GB")}
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td className="px-4 py-3"><span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", r.status === "active" ? "bg-green-100 text-green-700" : r.status === "under-review" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500")}>{r.status === "under-review" ? "Under Review" : r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span></td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent style={{ maxWidth: "44rem" }} className="max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+            <DialogHeader><DialogTitle>{editing ? "Edit Risk Assessment" : "Add Workshop Risk Assessment"}</DialogTitle></DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Activity / Hazard *</Label>
+                  <Select value={form.title} onValueChange={v => setForm(f => ({ ...f, title: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select activity…" /></SelectTrigger>
+                    <SelectContent>{WORKSHOP_ACTIVITIES.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Risk Level</Label>
+                  <Select value={form.riskLevel} onValueChange={v => setForm(f => ({ ...f, riskLevel: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem><SelectItem value="critical">Critical</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2"><Label>Hazard Description (who/what could be harmed)</Label><Textarea value={form.hazardDescription} onChange={e => setForm(f => ({ ...f, hazardDescription: e.target.value }))} rows={2} /></div>
+                <div className="col-span-2"><Label>Control Measures (PPE, training, engineering controls)</Label><Textarea value={form.controlMeasures} onChange={e => setForm(f => ({ ...f, controlMeasures: e.target.value }))} rows={2} /></div>
+                <div><Label>Assessed By</Label><Input value={form.assessedBy} onChange={e => setForm(f => ({ ...f, assessedBy: e.target.value }))} /></div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="under-review">Under Review</SelectItem><SelectItem value="archived">Archived</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Assessment Date</Label><Input type="date" value={form.assessmentDate} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
+                <div><Label>Review Date</Label><Input type="date" value={form.reviewDate} onChange={e => setForm(f => ({ ...f, reviewDate: e.target.value }))} /></div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? "Save" : "Add Assessment"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Delete Assessment?</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-500">This will permanently delete this risk assessment.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Workshop COSHH tab ────────────────────────────────────────────────────────
+
+interface CoshhRecord {
+  id: number; farmId: number; substanceName: string; manufacturer: string | null;
+  hazardClassification: string | null; usageArea: string | null; storageLocation: string | null;
+  controlMeasures: string | null; ppe: string | null; emergencyProcedures: string | null;
+  assessedBy: string | null; assessmentDate: string | null; reviewDate: string | null;
+}
+
+const WORKSHOP_SUBSTANCES = ["Engine oil / gear oil", "Diesel / fuel", "Brake fluid", "Antifreeze / coolant", "Battery acid", "Welding gas (acetylene, propane, argon)", "Aerosol lubricant (WD-40 etc.)", "Paint / primer", "Solvent / degreaser", "Hydraulic fluid", "Grease / penetrating oil", "Other"];
+
+const EMPTY_COSHH = { substanceName: "", manufacturer: "", hazardClassification: "", usageArea: "Workshop", storageLocation: "", controlMeasures: "", ppe: "", emergencyProcedures: "", assessedBy: "", assessmentDate: "", reviewDate: "" };
+
+function WorkshopCoshhTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<CoshhRecord | null>(null);
+  const [form, setForm] = useState(EMPTY_COSHH);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery<{ records: CoshhRecord[] }>({
+    queryKey: ["coshh", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/coshh`, { credentials: "include" }).then(r => r.json()),
+    select: d => ({ records: (d.records ?? []).filter((r: CoshhRecord) => r.usageArea === "Workshop") }),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/coshh`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["coshh", farmId] }); setShowForm(false); setForm(EMPTY_COSHH); },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/coshh/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["coshh", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_COSHH); },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/coshh/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["coshh", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(r: CoshhRecord) {
+    setEditing(r);
+    setForm({ substanceName: r.substanceName, manufacturer: r.manufacturer ?? "", hazardClassification: r.hazardClassification ?? "", usageArea: "Workshop", storageLocation: r.storageLocation ?? "", controlMeasures: r.controlMeasures ?? "", ppe: r.ppe ?? "", emergencyProcedures: r.emergencyProcedures ?? "", assessedBy: r.assessedBy ?? "", assessmentDate: r.assessmentDate ? r.assessmentDate.slice(0, 10) : "", reviewDate: r.reviewDate ? r.reviewDate.slice(0, 10) : "" });
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    editing ? updateMut.mutate({ ...form, usageArea: "Workshop" }) : createMut.mutate({ ...form, usageArea: "Workshop" });
+  }
+
+  const records = data?.records ?? [];
+
+  if (isLoading) return <div className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">COSHH assessments for oils, fuels, solvents, welding gases and other hazardous substances used in the workshop. Required under the Control of Substances Hazardous to Health Regulations 2002.</p>
+        <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_COSHH); setShowForm(true); }} className="gap-1"><Plus className="h-4 w-4" />Add COSHH Assessment</Button>
+      </div>
+
+      {records.length === 0 ? (
+        <Card><CardContent className="py-10 text-center text-gray-400 text-sm">No workshop COSHH assessments yet. Add one for each hazardous substance used or stored in your workshop.</CardContent></Card>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border bg-white">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 border-b text-xs uppercase tracking-wide text-gray-500">
+              <tr>{["Substance", "Manufacturer", "Hazard Class", "Storage", "PPE Required", "Assessed By", ""].map(h => <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map(r => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{r.substanceName}</td>
+                  <td className="px-4 py-3 text-gray-500">{r.manufacturer || "—"}</td>
+                  <td className="px-4 py-3">{r.hazardClassification ? <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-700">{r.hazardClassification}</span> : "—"}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{r.storageLocation || "—"}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs max-w-[160px] truncate">{r.ppe || "—"}</td>
+                  <td className="px-4 py-3 text-gray-500">{r.assessedBy || "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent style={{ maxWidth: "44rem" }} className="max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+            <DialogHeader><DialogTitle>{editing ? "Edit COSHH Assessment" : "Add Workshop COSHH Assessment"}</DialogTitle></DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Substance / Product *</Label>
+                  <Select value={form.substanceName} onValueChange={v => setForm(f => ({ ...f, substanceName: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select substance…" /></SelectTrigger>
+                    <SelectContent>{WORKSHOP_SUBSTANCES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Manufacturer / Supplier</Label><Input value={form.manufacturer} onChange={e => setForm(f => ({ ...f, manufacturer: e.target.value }))} /></div>
+                <div><Label>Hazard Classification</Label><Input value={form.hazardClassification} onChange={e => setForm(f => ({ ...f, hazardClassification: e.target.value }))} placeholder="e.g. Flammable, Irritant, Harmful" /></div>
+                <div><Label>Storage Location</Label><Input value={form.storageLocation} onChange={e => setForm(f => ({ ...f, storageLocation: e.target.value }))} placeholder="e.g. Locked metal cabinet, fuel store" /></div>
+                <div className="col-span-2"><Label>Control Measures</Label><Textarea value={form.controlMeasures} onChange={e => setForm(f => ({ ...f, controlMeasures: e.target.value }))} rows={2} placeholder="Engineering controls, ventilation, substitution…" /></div>
+                <div className="col-span-2"><Label>PPE Required</Label><Textarea value={form.ppe} onChange={e => setForm(f => ({ ...f, ppe: e.target.value }))} rows={2} placeholder="e.g. Nitrile gloves, eye protection, respirator…" /></div>
+                <div className="col-span-2"><Label>Emergency Procedures (spill, first aid)</Label><Textarea value={form.emergencyProcedures} onChange={e => setForm(f => ({ ...f, emergencyProcedures: e.target.value }))} rows={2} /></div>
+                <div><Label>Assessed By</Label><Input value={form.assessedBy} onChange={e => setForm(f => ({ ...f, assessedBy: e.target.value }))} /></div>
+                <div><Label>Assessment Date</Label><Input type="date" value={form.assessmentDate} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
+                <div><Label>Review Date</Label><Input type="date" value={form.reviewDate} onChange={e => setForm(f => ({ ...f, reviewDate: e.target.value }))} /></div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? "Save" : "Add Assessment"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Delete COSHH Assessment?</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-500">This will permanently delete this COSHH assessment record.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Page shell ───────────────────────────────────────────────────────────────
 
-type Tab = "assets" | "jobs" | "schedule" | "overview";
+type Tab = "assets" | "jobs" | "schedule" | "overview" | "pat" | "fire" | "risks" | "coshh";
 
 export default function WorkshopPage() {
   const { farmId } = useAppStore();
@@ -578,14 +1221,18 @@ export default function WorkshopPage() {
       <div className="p-6 max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Workshop & Asset Management</h1>
-          <p className="text-gray-500 text-sm mt-1">Unique asset numbers, QR code labels, job cards, service schedules and fleet overview.</p>
+          <p className="text-gray-500 text-sm mt-1">Asset numbers, QR labels, job cards, service schedules, PAT testing, fire safety, risk assessments and COSHH.</p>
         </div>
 
         <TabBar>
-          <TabButton active={tab === "assets"} onClick={() => setTab("assets")}>Assets & QR Codes</TabButton>
+          <TabButton active={tab === "assets"} onClick={() => setTab("assets")}><Wrench className="h-3.5 w-3.5 mr-1 inline-block" />Assets & QR Codes</TabButton>
           <TabButton active={tab === "jobs"} onClick={() => setTab("jobs")}>Job Cards</TabButton>
           <TabButton active={tab === "schedule"} onClick={() => setTab("schedule")}>Service Schedule</TabButton>
           <TabButton active={tab === "overview"} onClick={() => setTab("overview")}>Fleet Overview</TabButton>
+          <TabButton active={tab === "pat"} onClick={() => setTab("pat")}><Zap className="h-3.5 w-3.5 mr-1 inline-block" />PAT Testing</TabButton>
+          <TabButton active={tab === "fire"} onClick={() => setTab("fire")}><Flame className="h-3.5 w-3.5 mr-1 inline-block" />Fire Safety</TabButton>
+          <TabButton active={tab === "risks"} onClick={() => setTab("risks")}><ShieldAlert className="h-3.5 w-3.5 mr-1 inline-block" />Risk Assessments</TabButton>
+          <TabButton active={tab === "coshh"} onClick={() => setTab("coshh")}><FlaskConical className="h-3.5 w-3.5 mr-1 inline-block" />COSHH</TabButton>
         </TabBar>
 
         <div className="mt-6">
@@ -593,6 +1240,10 @@ export default function WorkshopPage() {
           {tab === "jobs" && <JobCardsTab farmId={farmId} />}
           {tab === "schedule" && <ServiceScheduleTab farmId={farmId} />}
           {tab === "overview" && <FleetOverviewTab farmId={farmId} />}
+          {tab === "pat" && <PatTestingTab farmId={farmId} />}
+          {tab === "fire" && <FireSafetyTab farmId={farmId} />}
+          {tab === "risks" && <WorkshopRisksTab farmId={farmId} />}
+          {tab === "coshh" && <WorkshopCoshhTab farmId={farmId} />}
         </div>
       </div>
     </AppLayout>
