@@ -12,6 +12,7 @@ const MODULES = [
   { id: "sprays-inputs", name: "Sprays & Inputs", price: 15 },
   { id: "soil-management", name: "Soil Management", price: 10 },
   { id: "equipment-management", name: "Equipment & Vehicles", price: 15 },
+  { id: "workshop-management", name: "Workshop & Asset Management", price: 20 },
   { id: "livestock-management", name: "Livestock Management", price: 30 },
   { id: "biosecurity", name: "Biosecurity & Visitors", price: 10 },
   { id: "staff-training", name: "Staff & Training", price: 10 },

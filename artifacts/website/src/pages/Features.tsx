@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { 
   ClipboardCheck, Map, Package, Tractor, FileText, LineChart, 
   CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
-  Droplets, AlertTriangle, ClipboardList, Leaf, Truck, Fuel, Share2, BarChart3
+  Droplets, AlertTriangle, ClipboardList, Leaf, Truck, Fuel, Share2, BarChart3, Wrench
 } from "lucide-react";
 
 export default function Features() {
@@ -37,6 +37,21 @@ export default function Features() {
       icon: Tractor,
       color: "bg-orange-50 text-orange-600 border-orange-100",
       features: ["Equipment register", "Maintenance logs", "Sprayer calibration tracking", "Asset onboarding/offboarding"]
+    },
+    {
+      title: "Workshop & Asset Management",
+      icon: Wrench,
+      color: "bg-teal-50 text-teal-700 border-teal-100",
+      features: [
+        "Job cards — log repairs, scheduled services, inspections & modifications with priority and status tracking",
+        "Costing per job — labour hours, labour cost, parts cost & root cause analysis",
+        "Service schedule — maintenance intervals, next-due-date tracking with Overdue / Due Soon / OK indicators",
+        "QR code labels — generate and print unique EQ- codes for every piece of equipment",
+        "Universal mobile QR scanner — scan any BDE Farm Trac label (fields, animals, equipment, storage) to instantly pull up the record",
+        "Scan-to-action — quick-log defects, crop events, medicine treatments, or stock movements straight from the scan result",
+        "Awaiting-parts workflow — pause job cards mid-repair and resume when parts arrive",
+        "Asset onboarding / offboarding — retirement, sale, and disposal records",
+      ]
     },
     {
       title: "Livestock Management",

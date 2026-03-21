@@ -3674,6 +3674,130 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Red Tractor Context</h3>
 <p>Red Tractor dairy standards require full records of all DCT treatments including the product used, the prescribing vet, and the treatment justification for selective DCT. Assessors will check that antibiotic usage is being minimised, that prescriptions are held on file, and that withdrawal periods are being observed. The DCT Records tab in BDE Farm Trac gives you a complete, date-ordered log that satisfies these requirements.</p>`,
     },
+    {
+      id: 42,
+      title: "Workshop & Asset Management — Overview",
+      category: "Workshop",
+      summary: "How to use the Workshop module to manage job cards, service schedules, and QR code labels for your farm equipment.",
+      content: `<img src="/api/help-images/field-register.png" alt="Workshop Overview" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The <strong>Workshop &amp; Asset Management</strong> module gives farm managers a complete maintenance control centre for all machinery, vehicles, and fixed assets. It is designed around the reality of modern farm workshops — reactive repairs, planned servicing, and the need to prove to Red Tractor assessors that equipment is kept in safe working order.</p>
+
+<h3>The Four Workshop Tabs</h3>
+<ul>
+<li><strong>Fleet Overview</strong> — A live summary of every registered asset: status (Operational, Broken Down, In Service, Retired, Sold), hours or odometer reading, and current location. Assets with overdue maintenance are highlighted automatically.</li>
+<li><strong>Job Cards</strong> — Raise a job card for any repair, scheduled service, inspection, or investigation. Set the priority (Low, Medium, High, Critical) and track progress through Open → In Progress → Awaiting Parts → Completed. Record labour time, parts used, root cause analysis, and total cost per job.</li>
+<li><strong>Service Schedule</strong> — Log every maintenance event against an asset and set the next-due date. The system automatically flags assets as <em>Overdue</em> (red), <em>Due Soon</em> (amber), or <em>OK</em> (green) based on today's date.</li>
+<li><strong>QR Code Labels</strong> — Generate a unique <strong>EQ-XXXX</strong> code and scannable QR label for any asset. Print it, attach it to the machine, and field workers can scan it instantly with the BDE Farm Trac mobile app to raise defect reports without needing to type the asset name.</li>
+</ul>
+
+<h3>Raising a Job Card</h3>
+<p>Go to <strong>Workshop</strong> in the left-hand sidebar and click the <strong>Job Cards</strong> tab. Select <strong>Raise Job Card</strong>. Choose the asset, the job type (Repair, Scheduled Service, Inspection, Commissioning, Investigation, or Modification), and set the priority. Add a description of the fault or work required. Assign to a person if relevant. Save — the card status is set to <strong>Open</strong> automatically.</p>
+<p>As work progresses, update the status to <em>In Progress</em>. If parts need to be ordered, set it to <em>Awaiting Parts</em> — this pauses the job without closing it. When work is complete, switch to <em>Completed</em> and enter the labour hours, labour cost, and parts cost. The system calculates the total job cost for you.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor standards require that equipment — particularly sprayers — is maintained in good working order and serviced at appropriate intervals. A complete service history in the Workshop module provides the audit evidence required during a Red Tractor assessment, supplementing the NSTS calibration certificates held in the Equipment module.</p>`,
+    },
+    {
+      id: 43,
+      title: "Scanning QR Codes with the Mobile App",
+      category: "Workshop",
+      summary: "How to use the universal QR scanner on your phone to look up fields, animals, storage locations, and equipment in seconds.",
+      content: `<img src="/api/help-images/field-register.png" alt="Mobile QR Scanning" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The BDE Farm Trac mobile app includes a <strong>universal QR code scanner</strong> that works across all entity types. Whether you scan a label stuck to a field sign, a paddock gate, a grain store door, or a tractor cab — the app instantly pulls up the right record and offers relevant quick actions without any typing.</p>
+
+<h3>Opening the Scanner</h3>
+<p>On the <strong>Record</strong> tab of the mobile app, tap <strong>Scan QR Code</strong> at the top of the action list. The camera viewfinder opens with corner guides to help you frame the label. Hold the phone steady and point it at the QR label — it scans automatically the moment it reads the code.</p>
+
+<h3>What Each Code Prefix Means</h3>
+<table style="width:100%;border-collapse:collapse;font-size:0.9em;margin:12px 0;">
+<thead><tr style="background:#f0fdf4;"><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Prefix</th><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Entity Type</th><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Where Generated</th></tr></thead>
+<tbody>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-family:monospace;font-weight:bold;color:#0f766e;">FLD-XXXX</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Field</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Fields &amp; Crops page → field card menu → Generate QR Label</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-family:monospace;font-weight:bold;color:#0f766e;">ANM-XXXX</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Individual Animal</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Livestock page → Animals tab → QR icon in the animal row</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-family:monospace;font-weight:bold;color:#0f766e;">STG-XXXX</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Storage Location</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Storage Locations page → QR icon in the location row</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-family:monospace;font-weight:bold;color:#0f766e;">EQ-XXXX</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Equipment Asset</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Workshop page → QR Code Labels tab → Generate Label</td></tr>
+</tbody>
+</table>
+
+<h3>What Happens After a Successful Scan</h3>
+<p>The app looks up the scanned code and displays a <strong>result card</strong> showing the entity name, type, and current status. Below the card, a set of <strong>Quick Actions</strong> are displayed — these are the most common tasks for that entity type:</p>
+<ul>
+<li><strong>Fields (FLD-):</strong> Log Crop Event, Record Spray Application, Log Soil Sample, Field Inspection</li>
+<li><strong>Animals (ANM-):</strong> Log Medicine / Treatment, Mobility Score, Calving Record</li>
+<li><strong>Storage (STG-):</strong> Log Biofuel Delivery, Log Feed Record</li>
+<li><strong>Equipment (EQ-):</strong> Report Defect / Fault</li>
+</ul>
+<p>Tap a quick action to open the relevant form, pre-filled with the entity name and ID. Complete the form and save — the record is stored immediately and syncs to the cloud dashboard.</p>
+
+<h3>Unrecognised Codes</h3>
+<p>If the app cannot match a code, it shows an error message explaining the issue. This can happen if you scan a QR code from a different system, or if the label was generated for a different farm. Make sure you are scanning a BDE Farm Trac label starting with one of the four recognised prefixes.</p>
+
+<h3>Tips for Getting the Best Results</h3>
+<ul>
+<li>Use weather-proof label pouches when attaching QR labels to outdoor signs — UV and rain will degrade printed labels over time.</li>
+<li>For animals, stick the QR label to the inside of the animal's record folder rather than to the animal itself.</li>
+<li>For grain stores and buildings, laminate the label and fix it at eye height next to the entrance door.</li>
+<li>If the camera struggles to focus, try moving slightly further away (30–50 cm is usually ideal for QR codes).</li>
+</ul>`,
+    },
+    {
+      id: 44,
+      title: "Generating QR Labels for Fields, Animals, and Storage",
+      category: "Workshop",
+      summary: "Step-by-step guide to creating and printing QR code labels for fields, individual animals, and storage locations from the dashboard.",
+      content: `<img src="/api/help-images/field-register.png" alt="QR Label Generation" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>BDE Farm Trac uses a consistent <strong>QR code labelling system</strong> across four entity types: fields, individual animals, storage locations, and workshop equipment. Once a label is generated and printed, any mobile device running BDE Farm Trac can scan it to instantly retrieve the record and log activity — no typing required.</p>
+
+<h3>Generating a QR Label for a Field</h3>
+<ol>
+<li>Go to <strong>Fields &amp; Crops</strong> in the left-hand sidebar.</li>
+<li>Find the field you want to label. Click the three-dot menu (⋮) on the field card.</li>
+<li>Select <strong>Generate QR Label</strong>. If no code has been assigned yet, click <em>Generate QR Code</em> — the system assigns the next available <strong>FLD-XXXX</strong> code and displays the scannable QR image immediately.</li>
+<li>If a code already exists, the QR image is shown straight away. Click <strong>Print Label</strong> to send to your printer.</li>
+</ol>
+<p>Attach the printed label to the field's gatepost, boundary sign, or management folder.</p>
+
+<h3>Generating a QR Label for an Individual Animal</h3>
+<ol>
+<li>Go to <strong>Livestock</strong> in the left-hand sidebar and click the <strong>Animals</strong> tab.</li>
+<li>Find the animal in the table. Click the teal QR icon (<span style="color:#0f766e;">&#9726;</span>) in the actions column of that row.</li>
+<li>In the dialog, click <em>Generate QR Code</em> to assign the next available <strong>ANM-XXXX</strong> code. The QR image appears immediately.</li>
+<li>Click <strong>Print Label</strong>. Attach the label to the animal's individual record folder or management area — not to the animal itself.</li>
+</ol>
+
+<h3>Generating a QR Label for a Storage Location</h3>
+<ol>
+<li>Go to <strong>Storage Locations</strong> (found under the Field &amp; Crop Management section of the sidebar).</li>
+<li>Find the store in the table. Click the teal QR icon in the actions column of that row.</li>
+<li>In the dialog, click <em>Generate QR Code</em> to assign the next available <strong>STG-XXXX</strong> code.</li>
+<li>Click <strong>Print Label</strong>. Fix the label to the store entrance so that delivery drivers and field workers can scan on arrival.</li>
+</ol>
+
+<h3>Generating a QR Label for Equipment (Workshop)</h3>
+<ol>
+<li>Go to <strong>Workshop</strong> in the left-hand sidebar and click the <strong>QR Code Labels</strong> tab.</li>
+<li>Click the QR icon next to any piece of equipment. Click <em>Generate QR Label</em> to assign an <strong>EQ-XXXX</strong> code.</li>
+<li>Click <strong>Print Label</strong> and affix the label to the machine — ideally in a prominent, weather-protected spot such as the inside of a cab door or instrument panel.</li>
+</ol>
+
+<h3>Why Use QR Labels?</h3>
+<ul>
+<li><strong>Speed:</strong> Field workers can log spray applications, defect reports, or medicine treatments without walking back to an office or searching through a dropdown.</li>
+<li><strong>Accuracy:</strong> Scanning eliminates the risk of selecting the wrong field or animal from a list.</li>
+<li><strong>Audit trail:</strong> Every scan-to-action record is timestamped and linked to the correct entity, building a reliable compliance evidence trail.</li>
+<li><strong>Red Tractor inspections:</strong> Being able to demonstrate that records are captured at the point of activity — in the field, not retrospectively — is viewed favourably by assessors.</li>
+</ul>
+
+<h3>Label Printing Tips</h3>
+<ul>
+<li>Print on plain A4 and trim to size, or use a dedicated label printer (e.g. Brother QL series) for adhesive-backed labels.</li>
+<li>Laminate outdoor labels or use weatherproof label stock for gate posts and buildings.</li>
+<li>Keep a spare copy of each label in the associated record folder in case the original becomes unreadable.</li>
+</ul>`,
+    },
   ];
 
   const { search, category } = _req.query;
