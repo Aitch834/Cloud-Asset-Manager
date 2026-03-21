@@ -12,7 +12,7 @@ export default function Features() {
       title: "Red Tractor Compliance",
       icon: ClipboardCheck,
       color: "bg-blue-50 text-blue-600 border-blue-100",
-      features: ["Official template matching", "Automated gap analysis", "Audit history log", "One-click print-ready compliance reports"]
+      features: ["Official template matching", "Automated gap analysis", "Audit history log", "One-click print-ready compliance reports", "Week Ahead planner — 7-day view of all scheduled tasks, due dates & overdue items across every active module"]
     },
     {
       title: "Field & Crop Management",

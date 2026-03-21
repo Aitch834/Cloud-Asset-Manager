@@ -3340,6 +3340,53 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
 <li>Waste disposal records in BDE Farm Trac match the paper WTNs held on file</li>
 </ul>`,
     },
+    {
+      id: 36,
+      title: "Week Ahead — Your 7-Day Compliance Planner",
+      category: "Getting Started",
+      content: `<p>The <strong>Week Ahead</strong> page gives you a single, consolidated view of every scheduled task, upcoming due date, and overdue item across all of your active modules — covering the next seven days plus anything that has already passed its due date. It is designed to be the first thing a farm manager or agronomist checks at the start of the week to make sure nothing slips through before an audit or inspection.</p>
+
+<h3>Accessing the Week Ahead</h3>
+<p>Click <strong>Week Ahead</strong> in the sidebar — it sits just below the main Dashboard link so it is always within one click from anywhere in the system. The page header shows the date range currently displayed (e.g. "21 Mar – 27 Mar 2026") and a count of how many tasks are in view.</p>
+
+<h3>What It Shows</h3>
+<p>The Week Ahead pulls scheduled dates from all of the following record types automatically — you do not need to configure anything:</p>
+<ul>
+<li><strong>Pest Control</strong> — follow-up visit dates set when logging a pest control record</li>
+<li><strong>Cleaning &amp; Disinfection</strong> — "next due" dates set when logging a cleaning event</li>
+<li><strong>Biosecurity Plan</strong> — plan review dates set in the Biosecurity Plan section</li>
+<li><strong>Staff Certificates</strong> — certificate expiry dates (e.g. PA1, PA6, first aid, sprayer operator)</li>
+<li><strong>Training Records</strong> — course expiry dates for any logged training</li>
+<li><strong>Inspections &amp; Audits</strong> — next inspection due dates and corrective action due dates</li>
+<li><strong>Risk Assessments</strong> — scheduled review dates for active risk assessments</li>
+<li><strong>Equipment Maintenance</strong> — next maintenance due dates from maintenance logs</li>
+<li><strong>Equipment Calibration</strong> — next calibration due dates from calibration records</li>
+</ul>
+<p>Only records belonging to your currently selected farm are shown. If a module is not active on your subscription, dates from that module will not appear.</p>
+
+<h3>How Tasks Are Grouped</h3>
+<p>Tasks are displayed in chronological order and grouped into day buckets:</p>
+<ul>
+<li><strong>Overdue</strong> — tasks whose due date has already passed (shown at the very top in red). The system looks back up to 60 days so that anything missed in the past two months is still surfaced.</li>
+<li><strong>Today</strong> — tasks due on today's date</li>
+<li><strong>Tomorrow</strong> — tasks due the following day</li>
+<li><strong>Named weekdays</strong> — remaining days of the 7-day window (e.g. "Wednesday 25 Mar")</li>
+</ul>
+<p>Each task card shows the task name, a short description of what needs to be done, the module it belongs to (shown as a colour-coded badge), and a days-overdue indicator where relevant. Clicking any card takes you directly to the relevant module page so you can log the completed action immediately.</p>
+
+<h3>How to Use It Effectively</h3>
+<p>The Week Ahead works best when you set due dates consistently as you log records. For example:</p>
+<ul>
+<li>When logging a pest control visit, always set the <strong>Follow-up date</strong> based on the frequency required for that area (monthly for active grain stores, quarterly for lower-risk areas)</li>
+<li>When logging a cleaning event, always enter the <strong>Next due date</strong> based on your cleaning schedule</li>
+<li>When adding a risk assessment, set the <strong>Review date</strong> to match your assessment cycle (typically annual for standard assessments)</li>
+<li>When adding staff certificates, ensure the <strong>Expiry date</strong> is entered accurately — the Week Ahead will surface it in the week before expiry</li>
+</ul>
+<p>If a task appears in the Overdue section, click through to the relevant module, complete and log the action, then ensure the next due date is set in the new record. The old overdue item will disappear from the Week Ahead once it is no longer the most recent record for that building or area.</p>
+
+<h3>Relationship with SMS Alerts</h3>
+<p>The Week Ahead is a visual planning tool — it does not replace the SMS alert system. Critical overdue biosecurity items (pest control follow-ups and cleaning schedules) will also trigger SMS text notifications to designated farm managers and opted-in users when the SMS Text Alerts add-on is active. The Week Ahead shows all upcoming and overdue tasks, whereas SMS alerts fire only when a date is breached and only for critical categories.</p>`,
+    },
   ];
 
   const { search, category } = _req.query;
