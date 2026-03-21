@@ -3268,8 +3268,10 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
 <li><strong>Water quality failure</strong> — a water quality test has been logged with a fail result, indicating the water source may be unsuitable for livestock</li>
 <li><strong>Expired staff certificate</strong> — a mandatory training certificate (e.g. PA1/PA6, first aid, sprayer operator) has passed its expiry date</li>
 <li><strong>Overdue non-conformance</strong> — a non-conformance or corrective action has escalated beyond 7 days without resolution</li>
+<li><strong>Overdue pest control follow-up</strong> — a pest control record has a follow-up date set and that date has passed without a subsequent visit being logged. The alert fires once the date is breached and repeats weekly until a new record is added for that area</li>
+<li><strong>Overdue cleaning &amp; disinfection schedule</strong> — a cleaning &amp; disinfection record has a "next due" date set and that date has passed without a new cleaning record being logged. The alert fires on the due date and repeats weekly until a new clean is recorded for that building or area</li>
 </ul>
-<p>Warning-level notifications (e.g. field inspection "treat" flags, upcoming expiries) appear only in the in-app notification panel — they do not trigger a text message.</p>
+<p>Warning-level notifications (e.g. field inspection "treat" flags, upcoming certificate expiries) appear only in the in-app notification panel — they do not trigger a text message.</p>
 
 <h3>Who Receives SMS Alerts</h3>
 <p>The system sends critical alerts to two groups of users:</p>

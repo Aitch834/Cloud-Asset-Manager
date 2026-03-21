@@ -1,12 +1,12 @@
 import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable } from "@workspace/db";
 import { usersTable, userTenantsTable } from "@workspace/db/schema";
-import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable } from "@workspace/db/schema";
+import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
 import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull } from "drizzle-orm";
 import { sendSms } from "./sms";
 
 const ESCALATION_DAYS = 7;
 
-const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail"]);
+const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue"]);
 
 async function tenantHasSmsModule(tenantId: number): Promise<boolean> {
   const [smsModule] = await db
@@ -506,6 +506,105 @@ async function checkOverdueRiskReviews() {
   }
 }
 
+async function checkOverduePestControl() {
+  const now = new Date();
+
+  const overdueRecords = await db
+    .select({
+      id: pestControlRecordsTable.id,
+      farmId: pestControlRecordsTable.farmId,
+      pestType: pestControlRecordsTable.pestType,
+      location: pestControlRecordsTable.location,
+      followUpDate: pestControlRecordsTable.followUpDate,
+    })
+    .from(pestControlRecordsTable)
+    .where(
+      and(
+        isNotNull(pestControlRecordsTable.followUpDate),
+        lt(pestControlRecordsTable.followUpDate, now),
+      ),
+    );
+
+  for (const record of overdueRecords) {
+    if (!record.followUpDate) continue;
+
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, record.farmId))
+      .limit(1);
+
+    if (!farm) continue;
+
+    const dueDateStr = new Date(record.followUpDate).toLocaleDateString("en-GB");
+    const daysSince = Math.floor((now.getTime() - new Date(record.followUpDate).getTime()) / 86400000);
+    const locationStr = record.location ? ` at ${record.location}` : "";
+    const weekNum = Math.floor(daysSince / 7);
+
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: record.farmId,
+      type: "pest_control_overdue",
+      severity: "critical",
+      title: `Pest Control Follow-Up Overdue${locationStr}`,
+      message: `A pest control follow-up visit${locationStr} (${record.pestType}) was due on ${dueDateStr} — ${daysSince} day${daysSince !== 1 ? "s" : ""} ago. Log the next visit in Biosecurity → Pest Control to maintain your Red Tractor biosecurity record.`,
+      relatedModule: "biosecurity",
+      relatedId: record.id,
+      dedupeKey: `pest-control-overdue-${record.id}-week${weekNum}`,
+    });
+  }
+}
+
+async function checkOverdueCleaningSchedules() {
+  const now = new Date();
+
+  const overdueRecords = await db
+    .select({
+      id: cleaningDisinfectionRecordsTable.id,
+      farmId: cleaningDisinfectionRecordsTable.farmId,
+      area: cleaningDisinfectionRecordsTable.area,
+      cleaningType: cleaningDisinfectionRecordsTable.cleaningType,
+      nextDueDate: cleaningDisinfectionRecordsTable.nextDueDate,
+    })
+    .from(cleaningDisinfectionRecordsTable)
+    .where(
+      and(
+        isNotNull(cleaningDisinfectionRecordsTable.nextDueDate),
+        lt(cleaningDisinfectionRecordsTable.nextDueDate, now),
+      ),
+    );
+
+  for (const record of overdueRecords) {
+    if (!record.nextDueDate) continue;
+
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, record.farmId))
+      .limit(1);
+
+    if (!farm) continue;
+
+    const dueDateStr = new Date(record.nextDueDate).toLocaleDateString("en-GB");
+    const daysSince = Math.floor((now.getTime() - new Date(record.nextDueDate).getTime()) / 86400000);
+    const weekNum = Math.floor(daysSince / 7);
+    const areaLabel = record.area || "building/area";
+    const typeLabel = record.cleaningType ? ` (${record.cleaningType})` : "";
+
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: record.farmId,
+      type: "cleaning_overdue",
+      severity: "critical",
+      title: `Cleaning & Disinfection Overdue — ${areaLabel}`,
+      message: `A cleaning & disinfection schedule${typeLabel} for ${areaLabel} was due on ${dueDateStr} — ${daysSince} day${daysSince !== 1 ? "s" : ""} ago. Log the next clean in Biosecurity → Cleaning & Disinfection to satisfy Red Tractor requirements.`,
+      relatedModule: "biosecurity",
+      relatedId: record.id,
+      dedupeKey: `cleaning-overdue-${record.id}-week${weekNum}`,
+    });
+  }
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
@@ -514,6 +613,8 @@ export async function runAlertingJob() {
     await checkCertificateExpiry();
     await checkWithholdingPeriods();
     await checkOverdueRiskReviews();
+    await checkOverduePestControl();
+    await checkOverdueCleaningSchedules();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {
     console.error("[ALERTS] Alerting job error:", err);
