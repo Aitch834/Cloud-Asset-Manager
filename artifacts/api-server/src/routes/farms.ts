@@ -316,6 +316,15 @@ router.post("/farms/:farmId/fields", requireAuth, requireTenant, requireModuleBy
   res.status(201).json({ record });
 });
 
+router.get("/farms/:farmId/fields/by-code/:fieldCode", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { fieldCode } = req.params;
+  const [record] = await db.select().from(fieldsTable).where(and(eq(fieldsTable.farmId, farmId), eq(fieldsTable.fieldCode, fieldCode)));
+  if (!record) { res.status(404).json({ error: "No field found for this code" }); return; }
+  res.json(record);
+});
+
 router.get("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -1176,6 +1185,15 @@ router.get("/farms/:farmId/animals", requireAuth, requireTenant, requireModuleBy
   if (!farmId) return;
   const records = await db.select().from(livestockAnimalsTable).where(eq(livestockAnimalsTable.farmId, farmId)).orderBy(desc(livestockAnimalsTable.createdAt));
   res.json({ records });
+});
+
+router.get("/farms/:farmId/animals/by-code/:animalCode", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { animalCode } = req.params;
+  const [record] = await db.select().from(livestockAnimalsTable).where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.animalCode, animalCode)));
+  if (!record) { res.status(404).json({ error: "No animal found for this code" }); return; }
+  res.json(record);
 });
 
 router.post("/farms/:farmId/animals", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -2497,6 +2515,15 @@ router.get("/farms/:farmId/storage-locations", requireAuth, requireTenant, requi
   if (!farmId) return;
   const records = await db.select().from(storageLocationsTable).where(eq(storageLocationsTable.farmId, farmId)).orderBy(storageLocationsTable.name);
   res.json({ records });
+});
+
+router.get("/farms/:farmId/storage-locations/by-code/:storageCode", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { storageCode } = req.params;
+  const [record] = await db.select().from(storageLocationsTable).where(and(eq(storageLocationsTable.farmId, farmId), eq(storageLocationsTable.storageCode, storageCode)));
+  if (!record) { res.status(404).json({ error: "No storage location found for this code" }); return; }
+  res.json(record);
 });
 
 router.post("/farms/:farmId/storage-locations", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {

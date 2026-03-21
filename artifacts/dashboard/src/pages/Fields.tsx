@@ -17,8 +17,9 @@ import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
 import {
   Plus, Search, Map, MoreVertical, Pencil, Trash2, AlertTriangle,
-  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2,
+  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { FieldBoundaryMapDialog } from "@/components/fields/FieldBoundaryMapDialog";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
@@ -227,9 +228,29 @@ function FieldCardMenu({
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [boundaryOpen, setBoundaryOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [isSavingCode, setIsSavingCode] = useState(false);
 
+  const queryClient = useQueryClient();
   const { mutate: updateField, isPending: isUpdating } = useUpdateField(farmId);
   const { mutate: deleteField, isPending: isDeleting } = useDeleteField(farmId);
+
+  const autoCode = `FLD-${String(field.id).padStart(4, "0")}`;
+  const displayCode = (field as any).fieldCode || null;
+
+  const saveFieldCode = async (code: string) => {
+    setIsSavingCode(true);
+    try {
+      await fetch(`/api/farms/${farmId}/fields/${field.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fieldCode: code }),
+      });
+      queryClient.invalidateQueries({ queryKey: ["farms", farmId, "fields"] });
+    } finally {
+      setIsSavingCode(false);
+    }
+  };
 
   const { register, handleSubmit, reset } = useForm<FieldFormData>({
     defaultValues: { name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "" },
@@ -263,6 +284,10 @@ function FieldCardMenu({
             <Map className="w-4 h-4 text-blue-600" />
             Draw boundary on map
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setQrOpen(true)}>
+            <QrCode className="w-4 h-4 text-teal-600" />
+            {displayCode ? "View QR label" : "Generate QR label"}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => { setEditOpen(true); reset({ name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "" }); }}>
             <Pencil className="w-4 h-4 text-foreground/50" />
@@ -277,6 +302,35 @@ function FieldCardMenu({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><QrCode className="w-4 h-4 text-teal-600" /> Field QR Label</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-2">
+            {displayCode ? (
+              <>
+                <span className="font-mono text-lg font-bold tracking-widest text-teal-700">{displayCode}</span>
+                <QRCodeSVG value={displayCode} size={180} bgColor="#ffffff" fgColor="#0f766e" level="M" />
+                <p className="text-xs text-muted-foreground text-center">Print and fix to a gate post or field boundary marker so field workers can scan it on the mobile app.</p>
+                <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2"><Printer className="w-3.5 h-3.5" /> Print Label</Button>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-center w-[180px] h-[180px] border-2 border-dashed border-muted-foreground/30 rounded-lg">
+                  <QrCode className="w-16 h-16 text-muted-foreground/30" />
+                </div>
+                <p className="text-sm text-muted-foreground text-center">No QR code generated yet. Click below to assign code <strong className="font-mono">{autoCode}</strong> to this field.</p>
+                <Button onClick={() => saveFieldCode(autoCode)} disabled={isSavingCode} className="gap-2">
+                  {isSavingCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+                  Generate QR Code
+                </Button>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>

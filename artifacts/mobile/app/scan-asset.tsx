@@ -4,7 +4,6 @@ import { router } from "expo-router";
 import React, { useState, useRef } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -47,37 +46,109 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
-interface EquipmentResult {
-  id: number;
-  assetNumber: string | null;
-  name: string;
-  type: string;
-  make: string | null;
-  model: string | null;
-  serialNumber: string | null;
-  registrationNumber: string | null;
-  yearOfManufacture: number | null;
-  currentHours: number | null;
-  status: string;
-  location: string | null;
-  notes: string | null;
+type EntityType = "equipment" | "field" | "animal" | "storage";
+
+interface ScanResult {
+  type: EntityType;
+  code: string;
+  data: Record<string, unknown>;
 }
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  active:       { label: "Operational",  color: "#16a34a" },
-  broken:       { label: "Broken Down",  color: "#dc2626" },
-  "in-service": { label: "In Service",   color: "#d97706" },
-  retired:      { label: "Retired",      color: "#6b7280" },
-  sold:         { label: "Sold",         color: "#6b7280" },
+const ENTITY_META: Record<EntityType, { label: string; colour: string; icon: keyof typeof Feather.glyphMap }> = {
+  equipment: { label: "Equipment Asset",     colour: "#0f766e", icon: "tool" },
+  field:     { label: "Field",               colour: "#15803d", icon: "map" },
+  animal:    { label: "Animal",              colour: "#b45309", icon: "feather" },
+  storage:   { label: "Storage Location",   colour: "#1d4ed8", icon: "archive" },
 };
 
-export default function ScanAssetScreen() {
+const QUICK_ACTIONS: Record<EntityType, { label: string; sub: string; icon: keyof typeof Feather.glyphMap; colour: string; bg: string; route: string; paramKey: string; nameKey?: string }[]> = {
+  equipment: [
+    { label: "Report Defect / Fault",      sub: "Log a breakdown, fault or safety concern",    icon: "alert-triangle", colour: "#dc2626", bg: "#FEE2E2", route: "/equipment-defect",  paramKey: "assetId",   nameKey: "assetName" },
+  ],
+  field: [
+    { label: "Log Crop Event",             sub: "Record drilling, spraying or harvest activity", icon: "feather",       colour: "#15803d", bg: "#DCFCE7", route: "/crop-event",        paramKey: "fieldId",   nameKey: "fieldName" },
+    { label: "Record Spray Application",   sub: "Log chemical application for this field",       icon: "droplet",       colour: "#0369a1", bg: "#DBEAFE", route: "/spray-record",      paramKey: "fieldId",   nameKey: "fieldName" },
+    { label: "Log Soil Sample",            sub: "Record soil testing for this field",             icon: "layers",        colour: "#92400e", bg: "#FEF3C7", route: "/soil-sample",       paramKey: "fieldId",   nameKey: "fieldName" },
+    { label: "Field Inspection",           sub: "Complete a field walkover inspection",           icon: "search",        colour: "#6d28d9", bg: "#EDE9FE", route: "/field-inspection",  paramKey: "fieldId",   nameKey: "fieldName" },
+  ],
+  animal: [
+    { label: "Log Medicine / Treatment",   sub: "Record a medicine withdrawal or treatment",      icon: "activity",      colour: "#be123c", bg: "#FFE4E6", route: "/medicine-record",   paramKey: "animalId",  nameKey: "animalName" },
+    { label: "Mobility Score",             sub: "Complete a mobility assessment",                 icon: "trending-up",   colour: "#0369a1", bg: "#DBEAFE", route: "/mobility-scoring",  paramKey: "animalId",  nameKey: "animalName" },
+    { label: "Calving Record",             sub: "Record a calving event",                        icon: "heart",         colour: "#d97706", bg: "#FEF3C7", route: "/calving-record",    paramKey: "animalId",  nameKey: "animalName" },
+  ],
+  storage: [
+    { label: "Log Biofuel Delivery",       sub: "Record fuel delivered to this store",            icon: "truck",         colour: "#0f766e", bg: "#CCFBF1", route: "/biofuel-delivery",  paramKey: "storeId",   nameKey: "storeName" },
+    { label: "Log Feed Record",            sub: "Record feed stock movement",                     icon: "package",       colour: "#92400e", bg: "#FEF3C7", route: "/feed-record",       paramKey: "storeId",   nameKey: "storeName" },
+  ],
+};
+
+function detectEntityType(code: string): EntityType | null {
+  if (code.startsWith("EQ-"))  return "equipment";
+  if (code.startsWith("FLD-")) return "field";
+  if (code.startsWith("ANM-")) return "animal";
+  if (code.startsWith("STG-")) return "storage";
+  return null;
+}
+
+async function lookupEntity(code: string, type: EntityType, farmId: number, headers: Record<string, string>): Promise<Record<string, unknown> | null> {
+  const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+  const base = `https://${apiDomain}/api/farms/${farmId}`;
+  const endpoints: Record<EntityType, string> = {
+    equipment: `${base}/equipment/by-asset/${code}`,
+    field:     `${base}/fields/by-code/${code}`,
+    animal:    `${base}/animals/by-code/${code}`,
+    storage:   `${base}/storage-locations/by-code/${code}`,
+  };
+  const res = await fetch(endpoints[type], { headers });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+function entityDisplayName(type: EntityType, data: Record<string, unknown>): string {
+  switch (type) {
+    case "equipment": return (data.name as string) || `Asset #${data.id}`;
+    case "field":     return (data.name as string) || `Field #${data.id}`;
+    case "animal":    return (data.earTagNumber as string) || (data.tagNumber as string) || `Animal #${data.id}`;
+    case "storage":   return (data.name as string) || `Store #${data.id}`;
+  }
+}
+
+function entitySubtitle(type: EntityType, data: Record<string, unknown>): string | null {
+  switch (type) {
+    case "equipment": return [(data.make as string), (data.model as string)].filter(Boolean).join(" ") || (data.type as string) || null;
+    case "field":     return (data.fieldReference as string) ? `Ref: ${data.fieldReference}` : (data.soilType as string) || null;
+    case "animal":    return [(data.species as string), (data.breed as string)].filter(Boolean).join(" · ") || null;
+    case "storage":   return (data.type as string) ? `${data.type}`.replace(/_/g, " ") : null;
+  }
+}
+
+function entityStatus(type: EntityType, data: Record<string, unknown>): { label: string; colour: string } | null {
+  const STATUS_EQ: Record<string, { label: string; colour: string }> = {
+    active:       { label: "Operational",  colour: "#16a34a" },
+    broken:       { label: "Broken Down",  colour: "#dc2626" },
+    "in-service": { label: "In Service",   colour: "#d97706" },
+    retired:      { label: "Retired",      colour: "#6b7280" },
+    sold:         { label: "Sold",         colour: "#6b7280" },
+  };
+  const STATUS_ANI: Record<string, { label: string; colour: string }> = {
+    active:      { label: "Active",     colour: "#16a34a" },
+    sold:        { label: "Sold",       colour: "#d97706" },
+    dead:        { label: "Deceased",   colour: "#dc2626" },
+    transferred: { label: "Moved",      colour: "#6b7280" },
+  };
+  if (type === "equipment") return STATUS_EQ[data.status as string] ?? { label: data.status as string, colour: "#6b7280" };
+  if (type === "animal")    return STATUS_ANI[data.status as string] ?? { label: data.status as string, colour: "#6b7280" };
+  if (type === "storage")   return data.isActive ? { label: "Active", colour: "#16a34a" } : { label: "Inactive", colour: "#6b7280" };
+  return null;
+}
+
+export default function ScanQRScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanning, setScanning] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [equipment, setEquipment] = useState<EquipmentResult | null>(null);
+  const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastScan = useRef<string>("");
 
@@ -87,39 +158,24 @@ export default function ScanAssetScreen() {
     setScanning(false);
     setLoading(true);
     setError(null);
-    setEquipment(null);
+    setResult(null);
 
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    const type = detectEntityType(data);
+    if (!type) {
+      setError(`Unrecognised code "${data}". Make sure you're scanning a BDE Farm Trac QR label (EQ-, FLD-, ANM-, or STG- prefix).`);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
       const headers = await getAuthHeaders();
-
-      let result: EquipmentResult | null = null;
-
-      if (data.match(/^EQ-\d{4}$/)) {
-        const res = await fetch(
-          `https://${apiDomain}/api/farms/${currentFarm.id}/equipment/by-asset/${data}`,
-          { headers }
-        );
-        if (res.ok) result = await res.json();
-      }
-
-      if (!result) {
-        const parsed = parseInt(data.replace(/^EQ-0*/, ""), 10);
-        if (!isNaN(parsed)) {
-          const res = await fetch(
-            `https://${apiDomain}/api/farms/${currentFarm.id}/equipment/${parsed}`,
-            { headers }
-          );
-          if (res.ok) result = await res.json();
-        }
-      }
-
-      if (result) {
-        setEquipment(result);
+      const entityData = await lookupEntity(data, type, currentFarm.id, headers);
+      if (entityData) {
+        setResult({ type, code: data, data: entityData });
       } else {
-        setError(`No asset found for "${data}". Make sure you scanned a BDE Farm Trac asset label.`);
+        setError(`No record found for "${data}". Make sure you scanned a label generated in BDE Farm Trac.`);
       }
     } catch {
       setError("Could not reach the server. Check your internet connection and try again.");
@@ -130,7 +186,7 @@ export default function ScanAssetScreen() {
 
   function reset() {
     lastScan.current = "";
-    setEquipment(null);
+    setResult(null);
     setError(null);
     setScanning(true);
   }
@@ -144,7 +200,7 @@ export default function ScanAssetScreen() {
       <View style={[styles.centered, { paddingTop: insets.top, paddingBottom: insets.bottom, paddingHorizontal: spacing.lg }]}>
         <Feather name="camera-off" size={48} color={colors.textSecondary} style={{ marginBottom: spacing.md }} />
         <Text style={styles.permTitle}>Camera Access Required</Text>
-        <Text style={styles.permSub}>BDE Farm Trac needs camera access to scan asset QR codes.</Text>
+        <Text style={styles.permSub}>BDE Farm Trac needs camera access to scan QR labels.</Text>
         <Button title="Grant Camera Access" onPress={requestPermission} style={{ marginTop: spacing.lg }} />
         <Pressable onPress={() => router.back()} style={{ marginTop: spacing.md }}>
           <Text style={styles.backLink}>Go back</Text>
@@ -153,11 +209,12 @@ export default function ScanAssetScreen() {
     );
   }
 
-  const statusInfo = equipment ? (STATUS_LABELS[equipment.status] ?? { label: equipment.status, color: "#6b7280" }) : null;
+  const meta = result ? ENTITY_META[result.type] : null;
+  const status = result ? entityStatus(result.type, result.data) : null;
+  const actions = result ? QUICK_ACTIONS[result.type] : [];
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* ── Header ── */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={20} color="#fff" />
@@ -166,8 +223,7 @@ export default function ScanAssetScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      {/* ── Scanner or result ── */}
-      {scanning && !loading && !equipment && !error ? (
+      {scanning && !loading && !result && !error ? (
         <View style={styles.cameraContainer}>
           <CameraView
             style={StyleSheet.absoluteFillObject}
@@ -182,7 +238,8 @@ export default function ScanAssetScreen() {
               <View style={[styles.corner, styles.bl]} />
               <View style={[styles.corner, styles.br]} />
             </View>
-            <Text style={styles.scanHint}>Point at an asset QR label</Text>
+            <Text style={styles.scanHint}>Point at a BDE Farm Trac QR label</Text>
+            <Text style={styles.scanSub}>Fields · Animals · Equipment · Storage</Text>
           </View>
         </View>
       ) : (
@@ -193,75 +250,72 @@ export default function ScanAssetScreen() {
           {loading && (
             <View style={styles.loadingBox}>
               <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.loadingText}>Looking up asset…</Text>
+              <Text style={styles.loadingText}>Looking up record…</Text>
             </View>
           )}
 
           {error && !loading && (
             <View style={styles.errorBox}>
               <Feather name="alert-circle" size={32} color="#dc2626" style={{ marginBottom: spacing.sm }} />
-              <Text style={styles.errorTitle}>Asset Not Found</Text>
+              <Text style={styles.errorTitle}>Not Recognised</Text>
               <Text style={styles.errorSub}>{error}</Text>
               <Button title="Scan Again" onPress={reset} style={{ marginTop: spacing.lg }} />
             </View>
           )}
 
-          {equipment && !loading && (
+          {result && !loading && meta && (
             <>
-              <View style={styles.assetCard}>
-                <Text style={styles.assetNumber}>{equipment.assetNumber || `EQ-${String(equipment.id).padStart(4, "0")}`}</Text>
-                <Text style={styles.assetName}>{equipment.name}</Text>
-                <Text style={styles.assetType}>{equipment.type}</Text>
-                {(equipment.make || equipment.model) && (
-                  <Text style={styles.assetMeta}>{[equipment.make, equipment.model].filter(Boolean).join(" ")}</Text>
-                )}
-
-                <View style={[styles.statusPill, { backgroundColor: statusInfo!.color + "20" }]}>
-                  <View style={[styles.statusDot, { backgroundColor: statusInfo!.color }]} />
-                  <Text style={[styles.statusText, { color: statusInfo!.color }]}>{statusInfo!.label}</Text>
+              <View style={[styles.entityCard, { borderTopColor: meta.colour, borderTopWidth: 3 }]}>
+                <View style={[styles.entityIconBox, { backgroundColor: meta.colour + "18" }]}>
+                  <Feather name={meta.icon} size={22} color={meta.colour} />
                 </View>
-              </View>
-
-              <View style={styles.detailsCard}>
-                {equipment.serialNumber && <DetailRow label="Serial No." value={equipment.serialNumber} />}
-                {equipment.registrationNumber && <DetailRow label="Reg. No." value={equipment.registrationNumber} />}
-                {equipment.yearOfManufacture && <DetailRow label="Year" value={String(equipment.yearOfManufacture)} />}
-                {equipment.currentHours != null && <DetailRow label="Hours" value={`${equipment.currentHours} hrs`} />}
-                {equipment.location && <DetailRow label="Location" value={equipment.location} />}
-                {equipment.notes && <DetailRow label="Notes" value={equipment.notes} />}
-              </View>
-
-              <View style={styles.actionsCard}>
-                <Text style={styles.actionsTitle}>Quick Actions</Text>
-                <Pressable
-                  style={styles.actionRow}
-                  onPress={() => router.push({ pathname: "/equipment-defect", params: { assetId: equipment.id, assetName: equipment.name, assetNumber: equipment.assetNumber ?? `EQ-${String(equipment.id).padStart(4, "0")}` } })}
-                >
-                  <View style={[styles.actionIcon, { backgroundColor: "#FEE2E2" }]}>
-                    <Feather name="alert-triangle" size={18} color="#dc2626" />
+                <Text style={[styles.entityTypeLabel, { color: meta.colour }]}>{meta.label}</Text>
+                <Text style={[styles.entityCode, { color: meta.colour }]}>{result.code}</Text>
+                <Text style={styles.entityName}>{entityDisplayName(result.type, result.data)}</Text>
+                {entitySubtitle(result.type, result.data) && (
+                  <Text style={styles.entitySub}>{entitySubtitle(result.type, result.data)}</Text>
+                )}
+                {status && (
+                  <View style={[styles.statusPill, { backgroundColor: status.colour + "20" }]}>
+                    <View style={[styles.statusDot, { backgroundColor: status.colour }]} />
+                    <Text style={[styles.statusText, { color: status.colour }]}>{status.label}</Text>
                   </View>
-                  <View style={styles.actionText}>
-                    <Text style={styles.actionTitle}>Report Defect / Fault</Text>
-                    <Text style={styles.actionSub}>Log a breakdown, fault or safety concern</Text>
-                  </View>
-                  <Feather name="chevron-right" size={16} color={colors.textSecondary} />
-                </Pressable>
+                )}
               </View>
 
-              <Button title="Scan Another Asset" onPress={reset} variant="outline" style={{ marginHorizontal: spacing.lg, marginTop: spacing.sm }} />
+              {actions.length > 0 && (
+                <View style={styles.actionsCard}>
+                  <Text style={styles.actionsTitle}>Quick Actions</Text>
+                  {actions.map(action => (
+                    <Pressable
+                      key={action.route}
+                      style={styles.actionRow}
+                      onPress={() => router.push({
+                        pathname: action.route as never,
+                        params: {
+                          [action.paramKey]: result.data.id,
+                          ...(action.nameKey ? { [action.nameKey]: entityDisplayName(result.type, result.data) } : {}),
+                        },
+                      })}
+                    >
+                      <View style={[styles.actionIcon, { backgroundColor: action.bg }]}>
+                        <Feather name={action.icon} size={18} color={action.colour} />
+                      </View>
+                      <View style={styles.actionTextBlock}>
+                        <Text style={styles.actionTitle}>{action.label}</Text>
+                        <Text style={styles.actionSub}>{action.sub}</Text>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
+              <Button title="Scan Another" onPress={reset} variant="outline" style={{ marginHorizontal: spacing.lg, marginTop: spacing.sm }} />
             </>
           )}
         </ScrollView>
       )}
-    </View>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={styles.detailValue}>{value}</Text>
     </View>
   );
 }
@@ -273,7 +327,7 @@ const FRAME_SIZE = 220;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: "rgba(0,0,0,0.7)" },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: "rgba(0,0,0,0.8)" },
   backBtn: { padding: spacing.xs, borderRadius: radius.sm },
   headerTitle: { color: "#fff", fontSize: fontSize.md, fontFamily: fonts.semiBold },
 
@@ -285,7 +339,8 @@ const styles = StyleSheet.create({
   tr: { top: 0, right: 0, borderTopWidth: CORNER_THICKNESS, borderRightWidth: CORNER_THICKNESS },
   bl: { bottom: 0, left: 0, borderBottomWidth: CORNER_THICKNESS, borderLeftWidth: CORNER_THICKNESS },
   br: { bottom: 0, right: 0, borderBottomWidth: CORNER_THICKNESS, borderRightWidth: CORNER_THICKNESS },
-  scanHint: { color: "#fff", marginTop: spacing.lg, fontSize: fontSize.sm, fontFamily: fonts.regular, opacity: 0.8 },
+  scanHint: { color: "#fff", marginTop: spacing.lg, fontSize: fontSize.sm, fontFamily: fonts.regular, opacity: 0.9 },
+  scanSub: { color: "#fff", marginTop: 4, fontSize: fontSize.xs, fontFamily: fonts.regular, opacity: 0.6 },
 
   resultContent: { padding: spacing.lg, backgroundColor: "#f8fafc", flexGrow: 1 },
 
@@ -296,25 +351,21 @@ const styles = StyleSheet.create({
   errorTitle: { fontSize: fontSize.lg, fontFamily: fonts.semiBold, color: "#dc2626", marginBottom: spacing.xs },
   errorSub: { fontSize: fontSize.sm, fontFamily: fonts.regular, color: colors.textSecondary, textAlign: "center" },
 
-  assetCard: { backgroundColor: "#fff", borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  assetNumber: { fontSize: 28, fontFamily: fonts.bold, color: colors.primary, letterSpacing: 2, marginBottom: spacing.xs },
-  assetName: { fontSize: fontSize.lg, fontFamily: fonts.semiBold, color: colors.textPrimary, textAlign: "center" },
-  assetType: { fontSize: fontSize.sm, fontFamily: fonts.regular, color: colors.textSecondary, marginTop: 2 },
-  assetMeta: { fontSize: fontSize.sm, fontFamily: fonts.regular, color: colors.textSecondary },
+  entityCard: { backgroundColor: "#fff", borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  entityIconBox: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm },
+  entityTypeLabel: { fontSize: fontSize.xs, fontFamily: fonts.semiBold, textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 },
+  entityCode: { fontSize: 24, fontFamily: fonts.bold, letterSpacing: 2, marginBottom: spacing.xs },
+  entityName: { fontSize: fontSize.lg, fontFamily: fonts.semiBold, color: colors.textPrimary, textAlign: "center" },
+  entitySub: { fontSize: fontSize.sm, fontFamily: fonts.regular, color: colors.textSecondary, textTransform: "capitalize" },
   statusPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, marginTop: spacing.sm },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: fontSize.sm, fontFamily: fonts.medium },
 
-  detailsCard: { backgroundColor: "#fff", borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  detailRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#f1f5f9" },
-  detailLabel: { fontSize: fontSize.sm, fontFamily: fonts.medium, color: colors.textSecondary },
-  detailValue: { fontSize: fontSize.sm, fontFamily: fonts.regular, color: colors.textPrimary, maxWidth: "60%", textAlign: "right" },
-
   actionsCard: { backgroundColor: "#fff", borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   actionsTitle: { fontSize: fontSize.xs, fontFamily: fonts.semiBold, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 1, marginBottom: spacing.sm },
-  actionRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },
+  actionRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#f1f5f9" },
   actionIcon: { width: 40, height: 40, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
-  actionText: { flex: 1 },
+  actionTextBlock: { flex: 1 },
   actionTitle: { fontSize: fontSize.sm, fontFamily: fonts.medium, color: colors.textPrimary },
   actionSub: { fontSize: fontSize.xs, fontFamily: fonts.regular, color: colors.textSecondary },
 

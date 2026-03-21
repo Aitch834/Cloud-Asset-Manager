@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Warehouse, Plus, Pencil, Trash2, CheckCircle, XCircle, MapPin } from "lucide-react";
+import { Warehouse, Plus, Pencil, Trash2, CheckCircle, XCircle, MapPin, QrCode, Loader2, Printer } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ interface StorageLocation {
   latitude?: string | null;
   longitude?: string | null;
   notes?: string | null;
+  storageCode?: string | null;
   isActive: boolean;
   createdAt: string;
 }
@@ -74,6 +76,8 @@ export default function StorageLocationsPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm());
+  const [qrLocation, setQrLocation] = useState<StorageLocation | null>(null);
+  const [isSavingStorageCode, setIsSavingStorageCode] = useState(false);
 
   const locationsQ = useQuery({
     queryKey: ["storage-locations", farmId],
@@ -249,6 +253,9 @@ export default function StorageLocationsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2 justify-end">
+                          <Button variant="ghost" size="icon" title="QR Code" onClick={() => setQrLocation(loc)}>
+                            <QrCode className="h-4 w-4 text-teal-600" />
+                          </Button>
                           <Button variant="ghost" size="icon" onClick={() => openEdit(loc)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -264,6 +271,50 @@ export default function StorageLocationsPage() {
             </table>
           </div>
         )}
+
+        {qrLocation && (() => {
+          const autoCode = `STG-${String(qrLocation.id).padStart(4, "0")}`;
+          const displayCode = qrLocation.storageCode || null;
+          const saveStorageCode = async (code: string) => {
+            setIsSavingStorageCode(true);
+            try {
+              await fetch(`/api/farms/${farmId}/storage-locations/${qrLocation.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ storageCode: code }) });
+              qc.invalidateQueries({ queryKey: ["storage-locations", farmId] });
+              setQrLocation(prev => prev ? { ...prev, storageCode: code } : null);
+            } finally { setIsSavingStorageCode(false); }
+          };
+          return (
+            <Dialog open onOpenChange={o => { if (!o) setQrLocation(null); }}>
+              <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2"><QrCode className="w-4 h-4 text-teal-600" /> Storage Location QR Label</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col items-center gap-4 py-2">
+                  <p className="text-xs text-muted-foreground font-medium">{qrLocation.name}</p>
+                  {displayCode ? (
+                    <>
+                      <span className="font-mono text-lg font-bold tracking-widest text-teal-700">{displayCode}</span>
+                      <QRCodeSVG value={displayCode} size={180} bgColor="#ffffff" fgColor="#0f766e" level="M" />
+                      <p className="text-xs text-muted-foreground text-center">Fix to the store entrance so field workers can scan on arrival to log deliveries and stock movements.</p>
+                      <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2"><Printer className="w-3.5 h-3.5" /> Print Label</Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-center w-[180px] h-[180px] border-2 border-dashed border-muted-foreground/30 rounded-lg">
+                        <QrCode className="w-16 h-16 text-muted-foreground/30" />
+                      </div>
+                      <p className="text-sm text-muted-foreground text-center">No QR code yet. Assign code <strong className="font-mono">{autoCode}</strong> to this location.</p>
+                      <Button onClick={() => saveStorageCode(autoCode)} disabled={isSavingStorageCode} className="gap-2">
+                        {isSavingStorageCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+                        Generate QR Code
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          );
+        })()}
 
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); setForm(emptyForm()); } }}>
           <DialogContent style={{ maxWidth: 620 }} className="max-h-[90vh] overflow-y-auto">

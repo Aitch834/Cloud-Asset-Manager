@@ -13,6 +13,7 @@ export const fieldsTable = pgTable("fields", {
   isNvz: boolean("is_nvz").notNull().default(false),
   nvzLandType: text("nvz_land_type"),
   notes: text("notes"),
+  fieldCode: text("field_code"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -112,6 +113,7 @@ export const storageLocationsTable = pgTable("storage_locations", {
   latitude: numeric("latitude", { precision: 10, scale: 7 }),
   longitude: numeric("longitude", { precision: 10, scale: 7 }),
   notes: text("notes"),
+  storageCode: text("storage_code"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

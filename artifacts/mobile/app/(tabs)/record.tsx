@@ -213,8 +213,8 @@ const recordOptions: RecordOption[] = [
   },
   {
     id: "scan-asset",
-    title: "Scan Asset QR Code",
-    description: "Scan a Workshop QR label to pull up equipment details and log defects instantly",
+    title: "Scan QR Code",
+    description: "Scan any BDE Farm Trac QR label — fields, animals, equipment or storage — to pull up the record and log quickly",
     icon: "maximize",
     color: "#0f766e",
     bgColor: "#CCFBF1",
