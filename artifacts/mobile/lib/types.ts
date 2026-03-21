@@ -526,6 +526,86 @@ export interface EnvironmentalEvent {
   synced: boolean;
 }
 
+
+export interface DairyCalvingRecord {
+  id: string;
+  farmId: string;
+  cowEarTag: string;
+  calvingDate: string;
+  calvingEaseScore: string;
+  numberOfCalves: number;
+  calfOutcome: string;
+  calfSex: string;
+  calfEarTag: string;
+  assistanceRequired: boolean;
+  vetAttended: boolean;
+  vetName: string;
+  colostrumGivenWithin2Hours: boolean;
+  colostrumGivenWithin6Hours: boolean;
+  colostrumVolumeFirstFeedLitres: string;
+  colostrumSource: string;
+  cowComplications: string;
+  calfDisposition: string;
+  bcmsPassportApplied: boolean;
+  notes: string;
+  latitude: number | null;
+  longitude: number | null;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface DairyMastitisRecord {
+  id: string;
+  farmId: string;
+  cowEarTag: string;
+  onsetDate: string;
+  quartersAffected: string;
+  clinicalGrade: string;
+  treatmentProduct: string;
+  treatmentStartDate: string;
+  treatmentDurationDays: string;
+  vetConsulted: boolean;
+  vetName: string;
+  notes: string;
+  latitude: number | null;
+  longitude: number | null;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface DairyBcsRecord {
+  id: string;
+  farmId: string;
+  cowEarTag: string;
+  assessmentDate: string;
+  lifeStage: string;
+  bcsScore: string;
+  assessedBy: string;
+  targetScore: string;
+  actionRequired: boolean;
+  actionTaken: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface DairyMobilityScoring {
+  id: string;
+  farmId: string;
+  assessmentDate: string;
+  assessedBy: string;
+  totalCowsScored: number;
+  score0Count: number;
+  score1Count: number;
+  score2Count: number;
+  score3Count: number;
+  actionTaken: string;
+  nextAssessmentDue: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface SyncQueueItem {
   id: string;
   type: string;

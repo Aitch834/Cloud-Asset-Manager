@@ -36,6 +36,7 @@ import {
   Shovel,
   Map,
   CalendarDays,
+  Milk,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -85,6 +86,7 @@ const livestockNav: NavItem[] = [
   { name: "Movements", href: "/movements", icon: Truck, moduleKeys: ["livestock-management"], requiresLivestock: true },
   { name: "Medicine", href: "/medicine", icon: HeartPulse, moduleKeys: ["livestock-management"], requiresLivestock: true },
   { name: "Health Dashboard", href: "/livestock-health", icon: BarChart3, moduleKeys: ["livestock-management"], requiresLivestock: true },
+  { name: "Dairy Records", href: "/dairy", icon: Milk, moduleKeys: ["dairy-management"], requiresLivestock: true },
 ];
 
 const biofuelNav: NavItem[] = [

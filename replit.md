@@ -87,7 +87,9 @@ The monorepo is structured with `pnpm workspaces`, using Node.js 24 and TypeScri
 4. Farm Staff: Limited module-based access.
 
 ### Modules
-The platform supports 16 core compliance modules, each with monthly pricing, covering: Field & Crop Management, Sprays & Inputs, Soil Management, Equipment & Vehicle Management, Livestock Management, Biosecurity & Visitors, Staff & Training, Risk & Waste Management, Inspections & Audits, Environmental Features, Transport & Haulage, Stock & Supplier Tracking, Financial Records, Document Management, and Weather Tracking.
+The platform supports 17 core compliance modules, each with monthly pricing, covering: Field & Crop Management, Sprays & Inputs, Soil Management, Equipment & Vehicle Management, Livestock Management, Biosecurity & Visitors, Staff & Training, Risk & Waste Management, Inspections & Audits, Environmental Features, Transport & Haulage, Stock & Supplier Tracking, Financial Records, Document Management, Weather Tracking, and Dairy Management.
+
+**Dairy Management module** (`dairy-management`, £25/month): Full dairy farm compliance tracking — 7 DB tables, 28 API routes, and a 7-tab dashboard page at `/dairy`. Covers: Milk Records (SCC, TBC, fat/protein %, yield by cow), Mastitis Records (quarters, clinical grade 1–3, treatment, vet consultation), Calving Records (ease score, calf outcome/sex, BCMS passport, colostrum protocol with 2h/6h tracking), Body Condition Scoring (1–5 scale per cow or group with life stage), Mobility Scoring (AHDB 0–3 herd-wide assessment with lameness prevalence auto-calculation), Bulk Tank Records (tanker dip data), and Dry Cow Therapy (antibiotic DCT with prescribing vet, SCC history, selective vs blanket). Mobile app forms: calving-record.tsx, mastitis-record.tsx, body-condition-score.tsx, mobility-scoring.tsx (all in `/app/` with offline-first AsyncStorage saving via `STORAGE_KEYS.DAIRY_*`). Help Centre articles 38–41 cover: Milk Recording, Mastitis Records, Calving Records, Dry Cow Therapy. "Dairy" category added to HelpCentre `CATEGORY_TO_MODULE` map.
 
 ## External Dependencies
 

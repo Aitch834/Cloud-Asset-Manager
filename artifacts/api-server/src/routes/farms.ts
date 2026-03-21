@@ -32,6 +32,13 @@ import {
   livestockWaterRecordsTable,
   livestockMortalityTable,
   vetHealthPlansTable,
+  dairyMilkRecordsTable,
+  dairyMastitisRecordsTable,
+  dairyCalvingRecordsTable,
+  dairyBcsRecordsTable,
+  dairyMobilityScoringsTable,
+  dairyBulkTankRecordsTable,
+  dairyDctRecordsTable,
   seedDrillingRecordsTable,
   visitorContractorLogTable,
   pestControlRecordsTable,
@@ -3505,6 +3512,140 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Red Tractor Context</h3>
 <p>Red Tractor assessors will check that individual cattle are properly identified and that passports are present. For sheep, they will check that EID ear tags are in place and that your register is current. Maintaining the Individual Animals register in BDE Farm Trac gives you an auditable, timestamped record of every animal on the holding that you can print or export ahead of an inspection.</p>`,
     },
+    {
+      id: 38,
+      title: "Milk Recording and Milk Records",
+      category: "Dairy",
+      summary: "How to log individual cow and herd milk yield, somatic cell count, and total bacterial count in the Dairy module.",
+      content: `<img src="/api/help-images/livestock.png" alt="Dairy Milk Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<h3>What is a Milk Record?</h3>
+<p>A milk record in BDE Farm Trac captures the key quality and yield data measured at each official recording visit or bulk tank dip. The data you record is used to monitor herd performance, identify cows whose milk quality is declining, and provide an auditable trail for Red Tractor dairy assessment.</p>
+
+<h3>Key Fields Explained</h3>
+<ul>
+<li><strong>Recording Date:</strong> The date of the official milk recording visit or the bulk tank reading.</li>
+<li><strong>Cow Ear Tag:</strong> The individual cow's UK ear tag, or leave as "Herd" for bulk tank records. If the cow is registered in the Individual Animals tab on the Livestock page, enter the same tag number to create a cross-reference.</li>
+<li><strong>Yield (litres):</strong> Total milk yield for the session (morning + evening or 24-hour total depending on your recording method).</li>
+<li><strong>Somatic Cell Count (SCC):</strong> Measured in thousands of cells per millilitre. Red Tractor and EU regulations require bulk tank SCC to remain below 400,000 cells/ml on average. Individual cow SCC over 200,000 may indicate mastitis.</li>
+<li><strong>Total Bacterial Count (TBC):</strong> Measured in thousands of colony-forming units per millilitre. The UK statutory limit is 100,000 cfu/ml. Persistently elevated TBC indicates a hygiene or cooling problem.</li>
+<li><strong>Fat % and Protein %:</strong> Compositional data from the recording visit. Protein percentage is used to calculate payment from most milk purchasers.</li>
+<li><strong>Lactation Number:</strong> Which lactation the cow is currently in. First-lactation heifers typically have different benchmarks to mature cows.</li>
+<li><strong>Recorder / Method:</strong> The name of the milk recording organisation (e.g. AHDB, NMR) or "farm recording" if done in-house.</li>
+</ul>
+
+<h3>Bulk Tank Records</h3>
+<p>Use the <strong>Bulk Tank</strong> tab in the Dairy page for whole-herd readings taken from the bulk milk tanker dip results sheet. These are separate from individual cow records and represent the pooled quality of all milk delivered. Enter the collection date, volume collected (litres), fat %, protein %, SCC, and TBC as printed on the tanker sheet from your milk buyer.</p>
+
+<h3>Mobile App</h3>
+<p>Milk records are primarily managed on the dashboard Dairy page. For field or parlour recording, use the dashboard directly on a tablet, or record yields on paper and enter them into the system within 24 hours of the recording session.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor dairy standards require records of individual cow milk quality and yield to be retained and available for inspection. SCC trends, TBC trends, and bulk tank records are key audit evidence. BDE Farm Trac's Dairy module stores all records with date-stamped entries that you can export to CSV or print ahead of an inspection visit.</p>`,
+    },
+    {
+      id: 39,
+      title: "Mastitis Records and Treatment Logging",
+      category: "Dairy",
+      summary: "Recording clinical mastitis cases in BDE Farm Trac — quarters, clinical grade, treatment product, and withdrawal periods.",
+      content: `<img src="/api/help-images/livestock.png" alt="Mastitis Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<h3>Why Record Mastitis?</h3>
+<p>Mastitis is the most costly disease in UK dairy herds. Red Tractor dairy standards require you to keep records of clinical mastitis cases including the animal affected, the clinical grade, the treatment used, and who prescribed it. These records demonstrate that you are managing mastitis systematically and observing medicine withdrawal periods before returning milk to the bulk tank.</p>
+
+<h3>Recording a Case</h3>
+<p>Open the <strong>Dairy</strong> page from the sidebar and select the <strong>Mastitis</strong> tab. Click <em>Add Mastitis Record</em>. You will need:</p>
+<ul>
+<li><strong>Cow Ear Tag:</strong> The UK ear tag of the affected cow. On the mobile app, enter the tag directly.</li>
+<li><strong>Date of Onset:</strong> The date the case was first identified — not the treatment date.</li>
+<li><strong>Quarters Affected:</strong> Select one or more quarters (left fore, right fore, left hind, right hind). You may select multiple.</li>
+<li><strong>Clinical Grade:</strong> Grade 1 (mild — clots/abnormal milk only), Grade 2 (moderate — swelling, cow off-colour), Grade 3 (severe — cow systemically ill, off food, fever). Grade 3 cases require vet attendance.</li>
+<li><strong>Treatment Product:</strong> The intramammary tube or systemic antibiotic used, including number of tubes/doses.</li>
+<li><strong>Treatment Duration:</strong> Number of days the treatment course runs.</li>
+<li><strong>Vet Consulted:</strong> Tick if a vet was consulted. For Grade 3 cases this is a Red Tractor requirement.</li>
+</ul>
+
+<h3>Withdrawal Periods</h3>
+<p>Every intramammary product has a milk withdrawal period. Milk from treated quarters must not enter the bulk tank until the withdrawal period has elapsed from the last treatment. BDE Farm Trac stores the treatment start date and duration but does not automatically calculate withdrawal periods — always refer to the product data sheet or your vet. Record the actual date milk was returned to tank in the notes field.</p>
+
+<h3>Mobile App</h3>
+<p>Mastitis cases are often identified during or immediately after milking. Use the <strong>Mastitis Record</strong> option in the Record tab of the mobile app to capture the case immediately in the parlour. The record saves locally and syncs to the server when you are back in signal range. The dashboard Mastitis tab will show all synced records.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor requires you to record every clinical mastitis case, demonstrate that you have a mastitis management plan, and show that milk withdrawal periods are observed. The Mastitis tab on the Dairy page provides a complete, date-ordered log that you can filter by cow or date range and print for an inspector.</p>`,
+    },
+    {
+      id: 40,
+      title: "Calving Records and Colostrum Management",
+      category: "Dairy",
+      summary: "Logging calvings in BDE Farm Trac — ease scores, calf outcome, BCMS passport, and colostrum protocol compliance.",
+      content: `<img src="/api/help-images/livestock.png" alt="Calving Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<h3>Why Record Calving Events?</h3>
+<p>Calving records provide the foundation for your herd's reproductive performance data, your BCMS compliance evidence, and your Red Tractor animal welfare documentation. Every calving — including stillbirths and assisted births — must be recorded. The calving record in BDE Farm Trac captures the full event including calving ease, calf outcome, colostrum management, and BCMS passport status.</p>
+
+<h3>Recording a Calving Event</h3>
+<p>Open the <strong>Dairy</strong> page from the sidebar and select the <strong>Calving Records</strong> tab. Click <em>Add Calving Record</em>. Complete the following:</p>
+<ul>
+<li><strong>Cow Ear Tag:</strong> The dam's UK ear tag number.</li>
+<li><strong>Calving Date:</strong> The actual date of birth — not the date you entered the record.</li>
+<li><strong>Calving Ease Score:</strong> Select from Unassisted, Easy Pull, Hard Pull, Mechanical Assistance, or C-Section. This score is used to monitor calving difficulty trends across the herd.</li>
+<li><strong>Number of Calves:</strong> Usually 1. Record twins where applicable.</li>
+<li><strong>Calf Outcome:</strong> Live, Stillbirth, Weak — survived, or Weak — died. Stillbirths must still be reported to BCMS if the calf died within 24 hours of birth.</li>
+<li><strong>Calf Sex and Ear Tag:</strong> The calf's sex and its newly applied UK ear tag. For bull calves destined for sale, the ear tag is the key BCMS reference.</li>
+<li><strong>Assistance and Vet Attendance:</strong> Record whether assistance was required and whether a vet attended.</li>
+</ul>
+
+<h3>Colostrum Management</h3>
+<p>Colostrum management is a critical welfare and compliance area. Best practice — and Red Tractor requirement — is for calves to receive colostrum within 2 hours of birth, and a full feed within 6 hours. On the calving form, record:</p>
+<ul>
+<li><strong>Colostrum given within 2 hours:</strong> Tick if the calf received its first feed within 2 hours of birth.</li>
+<li><strong>Colostrum given within 6 hours:</strong> Tick if the full feed protocol was completed within 6 hours.</li>
+<li><strong>Volume of first feed:</strong> Typically 2–3 litres. Record the actual volume given.</li>
+<li><strong>Colostrum source:</strong> Dam, frozen colostrum bank, powder supplement, or pooled colostrum. Using the dam's own colostrum is preferred.</li>
+</ul>
+
+<h3>BCMS Passport</h3>
+<p>For cattle born on your holding, you must apply to BCMS for a cattle passport within 27 days of birth. Mark the <em>BCMS Passport Application Submitted</em> field once you have applied. The calf's ear tag number and date of birth on the calving record match what you will submit to BCMS.</p>
+
+<h3>Mobile App</h3>
+<p>The <strong>Calving Record</strong> form in the mobile app's Record tab allows you to capture all calving data at the calving pen immediately after birth. The record saves offline and syncs when you are in range.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor dairy assessors review calving records to confirm that calving ease is being monitored, that colostrum protocols are in place and being followed, and that BCMS obligations are being met. BDE Farm Trac's calving records give you a timestamped, auditable log of every birth with colostrum management evidence attached.</p>`,
+    },
+    {
+      id: 41,
+      title: "Dry Cow Therapy (DCT) Records",
+      category: "Dairy",
+      summary: "Recording selective and blanket dry cow therapy in BDE Farm Trac — product, dose, SCC history, and withdrawal period tracking.",
+      content: `<img src="/api/help-images/livestock.png" alt="Dry Cow Therapy" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<h3>What is Dry Cow Therapy?</h3>
+<p>Dry cow therapy (DCT) is the antibiotic (or non-antibiotic teat sealant) treatment given to cows at drying off to prevent new intramammary infections during the dry period. Since 2022, veterinary prescription is required for all antibiotic DCT products in the UK. BDE Farm Trac's DCT Records tab allows you to maintain a complete log of every cow treated at drying off, the product used, and the prescribing vet — a Red Tractor and regulatory requirement.</p>
+
+<h3>Selective vs Blanket DCT</h3>
+<p>UK government guidance now recommends <strong>selective dry cow therapy</strong> — treating only cows with a history of mastitis or elevated SCC, rather than blanket treatment of all cows. BDE Farm Trac allows you to record the treatment approach (selective or blanket) and the clinical justification (SCC history, mastitis history, or vet recommendation). The SCC data held in Milk Records can be used to support the clinical decision and should be referenced in the DCT record.</p>
+
+<h3>Recording a DCT Event</h3>
+<p>Open the <strong>Dairy</strong> page from the sidebar and select the <strong>Dry Cow Therapy</strong> tab. Click <em>Add DCT Record</em>. Complete the following:</p>
+<ul>
+<li><strong>Cow Ear Tag:</strong> The treated cow's UK ear tag.</li>
+<li><strong>Drying Off Date:</strong> The date the cow was dried off and treatment was administered.</li>
+<li><strong>DCT Product:</strong> The full product name and formulation (e.g. Orbenin Extra Dry Cow, 3g cloxacillin). Include teat sealant if used alongside antibiotic (e.g. Orbeseal).</li>
+<li><strong>Prescribing Vet:</strong> The name of the prescribing vet and their practice. Required for antibiotic DCT products.</li>
+<li><strong>Prescription Reference:</strong> The prescription number or date — traceable back to your vet's records.</li>
+<li><strong>Quarters Treated:</strong> Record which quarters were treated (all four for blanket, specific quarters for selective).</li>
+<li><strong>SCC at Last Recording:</strong> Enter the cow's SCC at her most recent milk recording visit to document the clinical basis for treatment.</li>
+<li><strong>Expected Calving Date:</strong> Used to calculate the anticipated milk withdrawal date (calving date + statutory withdrawal period).</li>
+</ul>
+
+<h3>Withdrawal Periods</h3>
+<p>Antibiotic DCT products have a mandatory milk withdrawal period that begins from the point of calving. You must not include milk from treated cows in the bulk tank until the withdrawal period has elapsed after calving. BDE Farm Trac records the drying off date and expected calving date; always check the product data sheet for the exact withdrawal period and record the actual date milk was cleared for the tank in the notes field.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor dairy standards require full records of all DCT treatments including the product used, the prescribing vet, and the treatment justification for selective DCT. Assessors will check that antibiotic usage is being minimised, that prescriptions are held on file, and that withdrawal periods are being observed. The DCT Records tab in BDE Farm Trac gives you a complete, date-ordered log that satisfies these requirements.</p>`,
+    },
   ];
 
   const { search, category } = _req.query;
@@ -4048,6 +4189,235 @@ router.get("/farms/:farmId/biofuel/ghg-summary", requireAuth, requireTenant, req
     biofuelDeliveryCount: deliveries[0]?.count ?? 0,
     totalBiofuelTonnes: deliveries[0]?.totalTonnes ?? "0",
   });
+});
+
+// ─── Dairy Management ─────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/dairy/milk-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(dairyMilkRecordsTable).where(eq(dairyMilkRecordsTable.farmId, farmId)).orderBy(desc(dairyMilkRecordsTable.recordDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/dairy/milk-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { recordDate, recordType, sessionType, yieldLitres, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, milkTemperatureCelsius, antibioticResidueTestResult, collectorReference, herdId, notes } = req.body;
+  const [record] = await db.insert(dairyMilkRecordsTable).values({ farmId, recordDate: new Date(recordDate), recordType: recordType || "bulk-tank", sessionType, yieldLitres, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, milkTemperatureCelsius, antibioticResidueTestResult, collectorReference, herdId: herdId || null, notes }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/dairy/milk-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const { recordDate, recordType, sessionType, yieldLitres, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, milkTemperatureCelsius, antibioticResidueTestResult, collectorReference, herdId, notes } = req.body;
+  const [record] = await db.update(dairyMilkRecordsTable).set({ recordDate: recordDate ? new Date(recordDate) : undefined, recordType, sessionType, yieldLitres, sccThousands, tbcCfuMl, fatPercent, proteinPercent, lactosePercent, milkTemperatureCelsius, antibioticResidueTestResult, collectorReference, herdId: herdId || null, notes }).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/dairy/milk-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(dairyMilkRecordsTable).where(and(eq(dairyMilkRecordsTable.id, recordId), eq(dairyMilkRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/dairy/mastitis-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(dairyMastitisRecordsTable).where(eq(dairyMastitisRecordsTable.farmId, farmId)).orderBy(desc(dairyMastitisRecordsTable.onsetDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/dairy/mastitis-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { herdId, animalId, earTagNumber, onsetDate, quartersAffected, clinicalGrade, bacterialCultureResult, treatmentProduct, treatmentStartDate, treatmentDurationDays, withdrawalEndDate, outcome, outcomeDate, vetConsulted, vetName, sccAtOnset, notes } = req.body;
+  const [record] = await db.insert(dairyMastitisRecordsTable).values({ farmId, herdId: herdId || null, animalId: animalId || null, earTagNumber, onsetDate: new Date(onsetDate), quartersAffected, clinicalGrade, bacterialCultureResult, treatmentProduct, treatmentStartDate: treatmentStartDate ? new Date(treatmentStartDate) : null, treatmentDurationDays, withdrawalEndDate: withdrawalEndDate ? new Date(withdrawalEndDate) : null, outcome, outcomeDate: outcomeDate ? new Date(outcomeDate) : null, vetConsulted: !!vetConsulted, vetName, sccAtOnset, notes }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/dairy/mastitis-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const { herdId, animalId, earTagNumber, onsetDate, quartersAffected, clinicalGrade, bacterialCultureResult, treatmentProduct, treatmentStartDate, treatmentDurationDays, withdrawalEndDate, outcome, outcomeDate, vetConsulted, vetName, sccAtOnset, notes } = req.body;
+  const [record] = await db.update(dairyMastitisRecordsTable).set({ herdId: herdId || null, animalId: animalId || null, earTagNumber, onsetDate: onsetDate ? new Date(onsetDate) : undefined, quartersAffected, clinicalGrade, bacterialCultureResult, treatmentProduct, treatmentStartDate: treatmentStartDate ? new Date(treatmentStartDate) : null, treatmentDurationDays, withdrawalEndDate: withdrawalEndDate ? new Date(withdrawalEndDate) : null, outcome, outcomeDate: outcomeDate ? new Date(outcomeDate) : null, vetConsulted: !!vetConsulted, vetName, sccAtOnset, notes }).where(and(eq(dairyMastitisRecordsTable.id, recordId), eq(dairyMastitisRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/dairy/mastitis-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(dairyMastitisRecordsTable).where(and(eq(dairyMastitisRecordsTable.id, recordId), eq(dairyMastitisRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/dairy/calving-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(dairyCalvingRecordsTable).where(eq(dairyCalvingRecordsTable.farmId, farmId)).orderBy(desc(dairyCalvingRecordsTable.calvingDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/dairy/calving-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { herdId, cowAnimalId, cowEarTag, calvingDate, calvingEaseScore, numberOfCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, colostrumGivenWithin2Hours, colostrumGivenWithin6Hours, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired, vetAttended, vetName, calfDisposition, bcmsPassportApplied, notes } = req.body;
+  const [record] = await db.insert(dairyCalvingRecordsTable).values({ farmId, herdId: herdId || null, cowAnimalId: cowAnimalId || null, cowEarTag, calvingDate: new Date(calvingDate), calvingEaseScore, numberOfCalves: numberOfCalves || 1, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, colostrumGivenWithin2Hours: !!colostrumGivenWithin2Hours, colostrumGivenWithin6Hours: !!colostrumGivenWithin6Hours, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired: !!assistanceRequired, vetAttended: !!vetAttended, vetName, calfDisposition, bcmsPassportApplied: !!bcmsPassportApplied, notes }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/dairy/calving-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const { herdId, cowAnimalId, cowEarTag, calvingDate, calvingEaseScore, numberOfCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, colostrumGivenWithin2Hours, colostrumGivenWithin6Hours, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired, vetAttended, vetName, calfDisposition, bcmsPassportApplied, notes } = req.body;
+  const [record] = await db.update(dairyCalvingRecordsTable).set({ herdId: herdId || null, cowAnimalId: cowAnimalId || null, cowEarTag, calvingDate: calvingDate ? new Date(calvingDate) : undefined, calvingEaseScore, numberOfCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, colostrumGivenWithin2Hours: colostrumGivenWithin2Hours !== undefined ? !!colostrumGivenWithin2Hours : undefined, colostrumGivenWithin6Hours: colostrumGivenWithin6Hours !== undefined ? !!colostrumGivenWithin6Hours : undefined, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired: assistanceRequired !== undefined ? !!assistanceRequired : undefined, vetAttended: vetAttended !== undefined ? !!vetAttended : undefined, vetName, calfDisposition, bcmsPassportApplied: bcmsPassportApplied !== undefined ? !!bcmsPassportApplied : undefined, notes }).where(and(eq(dairyCalvingRecordsTable.id, recordId), eq(dairyCalvingRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/dairy/calving-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(dairyCalvingRecordsTable).where(and(eq(dairyCalvingRecordsTable.id, recordId), eq(dairyCalvingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/dairy/bcs-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(dairyBcsRecordsTable).where(eq(dairyBcsRecordsTable.farmId, farmId)).orderBy(desc(dairyBcsRecordsTable.assessmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/dairy/bcs-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { herdId, animalId, earTagNumber, assessmentDate, lifeStage, bcsScore, assessedBy, targetScore, actionRequired, actionTaken, notes } = req.body;
+  const [record] = await db.insert(dairyBcsRecordsTable).values({ farmId, herdId: herdId || null, animalId: animalId || null, earTagNumber, assessmentDate: new Date(assessmentDate), lifeStage, bcsScore, assessedBy, targetScore, actionRequired: !!actionRequired, actionTaken, notes }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/dairy/bcs-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const { herdId, animalId, earTagNumber, assessmentDate, lifeStage, bcsScore, assessedBy, targetScore, actionRequired, actionTaken, notes } = req.body;
+  const [record] = await db.update(dairyBcsRecordsTable).set({ herdId: herdId || null, animalId: animalId || null, earTagNumber, assessmentDate: assessmentDate ? new Date(assessmentDate) : undefined, lifeStage, bcsScore, assessedBy, targetScore, actionRequired: actionRequired !== undefined ? !!actionRequired : undefined, actionTaken, notes }).where(and(eq(dairyBcsRecordsTable.id, recordId), eq(dairyBcsRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/dairy/bcs-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(dairyBcsRecordsTable).where(and(eq(dairyBcsRecordsTable.id, recordId), eq(dairyBcsRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/dairy/mobility-scorings", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(dairyMobilityScoringsTable).where(eq(dairyMobilityScoringsTable.farmId, farmId)).orderBy(desc(dairyMobilityScoringsTable.assessmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/dairy/mobility-scorings", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { herdId, assessmentDate, assessedBy, totalCowsScored, score0Count, score1Count, score2Count, score3Count, lamenessPrevalencePercent, actionTaken, nextAssessmentDue, notes } = req.body;
+  const total = parseInt(totalCowsScored) || 0;
+  const s3 = parseInt(score3Count) || 0;
+  const prevalence = total > 0 ? ((s3 / total) * 100).toFixed(1) : lamenessPrevalencePercent;
+  const [record] = await db.insert(dairyMobilityScoringsTable).values({ farmId, herdId: herdId || null, assessmentDate: new Date(assessmentDate), assessedBy, totalCowsScored: total, score0Count: parseInt(score0Count) || 0, score1Count: parseInt(score1Count) || 0, score2Count: parseInt(score2Count) || 0, score3Count: s3, lamenessPrevalencePercent: prevalence as unknown as string, actionTaken, nextAssessmentDue: nextAssessmentDue ? new Date(nextAssessmentDue) : null, notes }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/dairy/mobility-scorings/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const { herdId, assessmentDate, assessedBy, totalCowsScored, score0Count, score1Count, score2Count, score3Count, lamenessPrevalencePercent, actionTaken, nextAssessmentDue, notes } = req.body;
+  const [record] = await db.update(dairyMobilityScoringsTable).set({ herdId: herdId || null, assessmentDate: assessmentDate ? new Date(assessmentDate) : undefined, assessedBy, totalCowsScored, score0Count, score1Count, score2Count, score3Count, lamenessPrevalencePercent, actionTaken, nextAssessmentDue: nextAssessmentDue ? new Date(nextAssessmentDue) : null, notes }).where(and(eq(dairyMobilityScoringsTable.id, recordId), eq(dairyMobilityScoringsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/dairy/mobility-scorings/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(dairyMobilityScoringsTable).where(and(eq(dairyMobilityScoringsTable.id, recordId), eq(dairyMobilityScoringsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/dairy/bulk-tank-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(dairyBulkTankRecordsTable).where(eq(dairyBulkTankRecordsTable.farmId, farmId)).orderBy(desc(dairyBulkTankRecordsTable.recordDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/dairy/bulk-tank-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { recordDate, recordType, tankTemperatureCelsius, tankCleaned, cleaningProductUsed, cleaningProductBatch, antibioticResidueTestRef, antibioticResidueResult, tankerDriverName, collectionRef, notes } = req.body;
+  const [record] = await db.insert(dairyBulkTankRecordsTable).values({ farmId, recordDate: new Date(recordDate), recordType, tankTemperatureCelsius, tankCleaned: !!tankCleaned, cleaningProductUsed, cleaningProductBatch, antibioticResidueTestRef, antibioticResidueResult, tankerDriverName, collectionRef, notes }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/dairy/bulk-tank-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const { recordDate, recordType, tankTemperatureCelsius, tankCleaned, cleaningProductUsed, cleaningProductBatch, antibioticResidueTestRef, antibioticResidueResult, tankerDriverName, collectionRef, notes } = req.body;
+  const [record] = await db.update(dairyBulkTankRecordsTable).set({ recordDate: recordDate ? new Date(recordDate) : undefined, recordType, tankTemperatureCelsius, tankCleaned: tankCleaned !== undefined ? !!tankCleaned : undefined, cleaningProductUsed, cleaningProductBatch, antibioticResidueTestRef, antibioticResidueResult, tankerDriverName, collectionRef, notes }).where(and(eq(dairyBulkTankRecordsTable.id, recordId), eq(dairyBulkTankRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/dairy/bulk-tank-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(dairyBulkTankRecordsTable).where(and(eq(dairyBulkTankRecordsTable.id, recordId), eq(dairyBulkTankRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/dairy/dct-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(dairyDctRecordsTable).where(eq(dairyDctRecordsTable.farmId, farmId)).orderBy(desc(dairyDctRecordsTable.dryOffDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/dairy/dct-records", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { herdId, animalId, cowEarTag, dryOffDate, protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation, vetName, expectedCalvingDate, notes } = req.body;
+  const [record] = await db.insert(dairyDctRecordsTable).values({ farmId, herdId: herdId || null, animalId: animalId || null, cowEarTag, dryOffDate: new Date(dryOffDate), protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation: !!vetAuthorisation, vetName, expectedCalvingDate: expectedCalvingDate ? new Date(expectedCalvingDate) : null, notes }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/dairy/dct-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const { herdId, animalId, cowEarTag, dryOffDate, protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation, vetName, expectedCalvingDate, notes } = req.body;
+  const [record] = await db.update(dairyDctRecordsTable).set({ herdId: herdId || null, animalId: animalId || null, cowEarTag, dryOffDate: dryOffDate ? new Date(dryOffDate) : undefined, protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation: vetAuthorisation !== undefined ? !!vetAuthorisation : undefined, vetName, expectedCalvingDate: expectedCalvingDate ? new Date(expectedCalvingDate) : null, notes }).where(and(eq(dairyDctRecordsTable.id, recordId), eq(dairyDctRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/dairy/dct-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  await db.delete(dairyDctRecordsTable).where(and(eq(dairyDctRecordsTable.id, recordId), eq(dairyDctRecordsTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 // ─── Biosecurity Plan (one per farm, upsert) ──────────────────────────────────

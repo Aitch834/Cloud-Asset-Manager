@@ -27,6 +27,7 @@ const MODULES = [
   { key: "document-management", name: "Document Management", description: "Document storage, linked records, object storage", monthlyPricePence: 1000 },
   { key: "weather-tracking", name: "Weather Tracking", description: "Weather stations, automated readings, field-level data", monthlyPricePence: 1500 },
   { key: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", description: "RTFO sustainability declarations, field eligibility, GHG traceability, and audit pack generation for farms supplying biofuel feedstocks", monthlyPricePence: 3000 },
+  { key: "dairy-management", name: "Dairy Management", description: "Milk recording (SCC, yield, TBC), mastitis records, calving records with colostrum management, body condition scoring, mobility scoring, bulk tank records, and dry cow therapy documentation", monthlyPricePence: 2500 },
   { key: "sms-alerts", name: "SMS Text Alerts", description: "Receive critical compliance alerts by text message — unnotified livestock movements, expired staff certificates, water quality failures, and overdue non-conformances", monthlyPricePence: 400 },
   { key: "business-reports", name: "Business Reports", description: "Gross margin analysis, P&L statement, input cost breakdown, grain position, subsidy summary, year-on-year comparison and asset register with depreciation", monthlyPricePence: 500 },
 ];

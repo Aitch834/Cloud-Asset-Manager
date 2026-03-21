@@ -58,6 +58,7 @@ const CATEGORY_TO_MODULE: Record<string, string> = {
   "Documents": "document-management",
   "Biofuel / RTFO": "biofuel-rtfo",
   "Nutrient Management": "soil-management",
+  "Dairy": "dairy-management",
 };
 
 function categoryColor(cat: string) {
