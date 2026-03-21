@@ -139,7 +139,7 @@ export default function Features() {
       title: "Advisor & Inspector Access",
       icon: Share2,
       color: "bg-indigo-50 text-indigo-700 border-indigo-100",
-      features: ["Permanent advisor accounts (agronomists, vets, FACTS advisers)", "Time-limited inspection sessions for Red Tractor CBs", "14-module scope selector — share only what you choose", "Full access log with timestamp and accessor name"]
+      features: ["Permanent advisor accounts (agronomists, vets, FACTS advisers)", "Time-limited inspection sessions for Red Tractor CBs", "15-module scope selector — share only what you choose", "Full access log with timestamp and accessor name"]
     },
   ];
 

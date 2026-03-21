@@ -32,6 +32,7 @@ const MODULE_LABELS: Record<string, string> = {
   soil_tests: "Soil Tests",
   harvest: "Harvest Records",
   equipment: "Equipment & Calibration",
+  workshop: "Workshop — Job Cards, PAT Testing & Fire Safety",
   livestock: "Livestock Records",
   medicines: "Medicine Records",
   movements: "Livestock Movements",
@@ -316,6 +317,54 @@ function SectionCard({ moduleKey, data }: { moduleKey: string; data: unknown }) 
                 { key: "reviewDate", label: "Review" },
                 { key: "hazardDescription", label: "Hazard" },
                 { key: "ppe", label: "PPE Required" },
+              ]} />
+            </div>
+          </div>
+        );
+      }
+      case "workshop": {
+        const d = data as {
+          jobCards: { job: Record<string, unknown>; equipmentName: string | null }[];
+          patTests: Record<string, unknown>[];
+          fireExtinguishers: Record<string, unknown>[];
+        };
+        const flatJobs = (d.jobCards ?? []).map(({ job, equipmentName }) => ({ ...job, equipmentName }));
+        return (
+          <div className="space-y-5">
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Job Cards</h4>
+              <RecordTable records={flatJobs} columns={[
+                { key: "jobNumber", label: "Job No." },
+                { key: "equipmentName", label: "Equipment" },
+                { key: "jobType", label: "Type" },
+                { key: "priority", label: "Priority" },
+                { key: "status", label: "Status" },
+                { key: "description", label: "Description" },
+                { key: "createdAt", label: "Raised" },
+              ]} />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">PAT Testing</h4>
+              <RecordTable records={d.patTests ?? []} columns={[
+                { key: "itemName", label: "Appliance" },
+                { key: "location", label: "Location" },
+                { key: "testDate", label: "Test Date" },
+                { key: "result", label: "Result" },
+                { key: "testerName", label: "Tester" },
+                { key: "certificateNumber", label: "Cert No." },
+                { key: "nextDueDate", label: "Next Due" },
+              ]} />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Fire Extinguishers</h4>
+              <RecordTable records={d.fireExtinguishers ?? []} columns={[
+                { key: "location", label: "Location" },
+                { key: "type", label: "Type" },
+                { key: "capacityKg", label: "Capacity (kg)" },
+                { key: "serialNumber", label: "Serial No." },
+                { key: "lastServiceDate", label: "Last Service" },
+                { key: "engineerName", label: "Engineer" },
+                { key: "nextServiceDue", label: "Next Service Due" },
               ]} />
             </div>
           </div>

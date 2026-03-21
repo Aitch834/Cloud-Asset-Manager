@@ -55,6 +55,7 @@ const ALL_MODULES = [
   { key: "soil_tests", label: "Soil Tests" },
   { key: "harvest", label: "Harvest Records" },
   { key: "equipment", label: "Equipment & Calibration" },
+  { key: "workshop", label: "Workshop — Job Cards, PAT Testing & Fire Safety" },
   { key: "livestock", label: "Livestock Records" },
   { key: "medicines", label: "Medicine Records" },
   { key: "movements", label: "Livestock Movements" },
