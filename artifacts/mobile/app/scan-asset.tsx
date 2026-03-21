@@ -162,7 +162,7 @@ export default function ScanAssetScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={20} color="#fff" />
         </Pressable>
-        <Text style={styles.headerTitle}>Scan Asset</Text>
+        <Text style={styles.headerTitle}>Workshop — Scan QR Code</Text>
         <View style={{ width: 36 }} />
       </View>
 
