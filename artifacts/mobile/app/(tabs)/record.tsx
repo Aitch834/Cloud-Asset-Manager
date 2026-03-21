@@ -247,6 +247,15 @@ const recordOptions: RecordOption[] = [
     bgColor: "#dcfce7",
     route: "/environmental-event",
   },
+  {
+    id: "add-farm-location",
+    title: "Add Farm Location",
+    description: "Register a new building or storage area on site — GPS coordinates captured automatically for the Farm Map",
+    icon: "map-pin",
+    color: "#0284c7",
+    bgColor: "#e0f2fe",
+    route: "/add-farm-location",
+  },
 ];
 
 export default function RecordScreen() {
