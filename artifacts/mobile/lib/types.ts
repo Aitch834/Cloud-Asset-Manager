@@ -614,6 +614,57 @@ export interface SyncQueueItem {
   createdAt: string;
 }
 
+export interface PoultryWelfareCheck {
+  id: string;
+  farmId: string;
+  houseName: string;
+  flockId: string;
+  checkedBy: string;
+  checkDate: string;
+  ambientTempC: string;
+  ventilationOk: boolean;
+  lightingOk: boolean;
+  feedOk: boolean;
+  waterOk: boolean;
+  litterCondition: "good" | "fair" | "poor" | "action-needed";
+  birdBehaviour: "normal" | "dull" | "distressed";
+  dailyMortalities: string;
+  sickInjuredCount: string;
+  ammoniaLevel: "none" | "low" | "moderate" | "high";
+  overallWelfare: "pass" | "advisory" | "fail";
+  actionTaken: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PigWelfareCheck {
+  id: string;
+  farmId: string;
+  groupName: string;
+  pigsInGroup: string;
+  checkedBy: string;
+  checkDate: string;
+  behaviour: "normal" | "lethargic" | "distressed";
+  ventilationOk: boolean;
+  feedOk: boolean;
+  waterOk: boolean;
+  beddingCondition: "clean" | "damp" | "wet" | "fouled";
+  tailBitingObserved: boolean;
+  aggression: boolean;
+  sickInjuredCount: string;
+  mortalityCount: string;
+  overallWelfare: "pass" | "advisory" | "fail";
+  actionTaken: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface AuthState {
   isAuthenticated: boolean;
   token: string | null;

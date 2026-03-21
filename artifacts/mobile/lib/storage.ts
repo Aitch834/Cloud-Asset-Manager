@@ -142,4 +142,6 @@ export const STORAGE_KEYS = {
   ENVIRONMENTAL_EVENTS: "bde_environmental_events",
   SEED_DRILLING_RECORDS: "bde_seed_drilling_records",
   WASTE_DISPOSAL_RECORDS: "bde_waste_disposal_records",
+  POULTRY_WELFARE_CHECKS: "bde_poultry_welfare_checks",
+  PIG_WELFARE_CHECKS: "bde_pig_welfare_checks",
 } as const;

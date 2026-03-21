@@ -7,6 +7,8 @@ import type {
   MedicineRecord,
   NvzApplication,
   PestControlVisit,
+  PigWelfareCheck,
+  PoultryWelfareCheck,
   SprayRecord,
   VisitorLogEntry,
 } from "@/lib/types";
@@ -516,6 +518,116 @@ export function pestControlHtml(record: PestControlVisit, farm: Farm | null): st
     </div>
 
     ${docFooter("Pest Control Visit Record")}`;
+
+  return wrap(body);
+}
+
+export function poultryWelfareCheckHtml(record: PoultryWelfareCheck, farm: Farm | null): string {
+  const ref = `PWT-${record.id.slice(-6).toUpperCase()}`;
+  const welfareColour = record.overallWelfare === "pass" ? "#1a5c1a" : record.overallWelfare === "advisory" ? "#b7950b" : "#c0392b";
+  const litterColour = record.litterCondition === "good" ? "#1a5c1a" : record.litterCondition === "fair" ? "#b7950b" : "#c0392b";
+  const ammoniaColour = record.ammoniaLevel === "none" || record.ammoniaLevel === "low" ? "#1a5c1a" : record.ammoniaLevel === "moderate" ? "#b7950b" : "#c0392b";
+
+  const body = `
+    ${docHeader(fmt(farm?.name, "Unknown Farm"), "Poultry Daily Welfare Check", ref, fmtDate(record.checkDate))}
+    <div class="warning-box" style="background:#fff8e1;border-color:#f9a825;color:#5d4037;">
+      &#x26A0; Red Tractor Poultry Standard — daily welfare inspections must be completed and retained for a minimum of 3 years.
+    </div>
+
+    <div class="section-heading">House &amp; Flock Details</div>
+    <table>
+      <tr><td class="label">House / Unit Name</td><td><strong>${fmt(record.houseName)}</strong></td></tr>
+      <tr><td class="label">Flock / Batch ID</td><td>${fmt(record.flockId)}</td></tr>
+      <tr><td class="label">Check Date &amp; Time</td><td>${fmtDateTime(record.checkDate)}</td></tr>
+      <tr><td class="label">Checked By</td><td>${fmt(record.checkedBy)}</td></tr>
+    </table>
+
+    <div class="section-heading">Environment</div>
+    <table>
+      <tr><td class="label">Ambient Temperature</td><td>${record.ambientTempC ? `${record.ambientTempC} °C` : "—"}</td></tr>
+      <tr><td class="label">Ventilation / Airflow OK</td><td>${yesNo(record.ventilationOk)}</td></tr>
+      <tr><td class="label">Lighting Adequate</td><td>${yesNo(record.lightingOk)}</td></tr>
+      <tr><td class="label">Ammonia Level</td><td><strong style="color:${ammoniaColour};text-transform:capitalize">${fmt(record.ammoniaLevel)}</strong></td></tr>
+    </table>
+
+    <div class="section-heading">Welfare Observations</div>
+    <table>
+      <tr><td class="label">Feed Available</td><td>${yesNo(record.feedOk)}</td></tr>
+      <tr><td class="label">Fresh Water Available</td><td>${yesNo(record.waterOk)}</td></tr>
+      <tr><td class="label">Litter Condition</td><td><strong style="color:${litterColour};text-transform:capitalize">${fmt(record.litterCondition)}</strong></td></tr>
+      <tr><td class="label">Bird Behaviour</td><td style="text-transform:capitalize">${fmt(record.birdBehaviour)}</td></tr>
+    </table>
+
+    <div class="section-heading">Mortality &amp; Health</div>
+    <table>
+      <tr><td class="label">Daily Mortalities</td><td>${record.dailyMortalities || "0"}</td></tr>
+      <tr><td class="label">Sick / Injured Birds</td><td>${record.sickInjuredCount || "0"}</td></tr>
+      <tr><td class="label">Overall Welfare Outcome</td><td><strong style="color:${welfareColour};text-transform:uppercase">${fmt(record.overallWelfare)}</strong></td></tr>
+    </table>
+
+    ${record.actionTaken ? `<div class="section-heading">Actions Taken</div><table><tr><td>${fmt(record.actionTaken)}</td></tr></table>` : ""}
+    ${record.notes ? `<div class="section-heading">Notes</div><table><tr><td>${fmt(record.notes)}</td></tr></table>` : ""}
+
+    <div class="sig-row">
+      <div class="sig-box">
+        <div class="sig-label">Stockperson Signature</div>
+        <div class="sig-line">Name &amp; Date:</div>
+      </div>
+    </div>
+
+    ${docFooter("Poultry Daily Welfare Check")}`;
+
+  return wrap(body);
+}
+
+export function pigWelfareCheckHtml(record: PigWelfareCheck, farm: Farm | null): string {
+  const ref = `PIG-${record.id.slice(-6).toUpperCase()}`;
+  const welfareColour = record.overallWelfare === "pass" ? "#1a5c1a" : record.overallWelfare === "advisory" ? "#b7950b" : "#c0392b";
+  const beddingColour = record.beddingCondition === "clean" ? "#1a5c1a" : record.beddingCondition === "damp" ? "#b7950b" : "#c0392b";
+
+  const body = `
+    ${docHeader(fmt(farm?.name, "Unknown Farm"), "Pig Daily Welfare Check", ref, fmtDate(record.checkDate))}
+    <div class="warning-box" style="background:#fff8e1;border-color:#f9a825;color:#5d4037;">
+      &#x26A0; Red Tractor Pigs Standard — pigs must be inspected at least once per day and all observations recorded.
+    </div>
+
+    <div class="section-heading">Group / Pen Details</div>
+    <table>
+      <tr><td class="label">Group / Pen Name</td><td><strong>${fmt(record.groupName)}</strong></td></tr>
+      <tr><td class="label">Pigs in Group</td><td>${record.pigsInGroup || "—"}</td></tr>
+      <tr><td class="label">Check Date &amp; Time</td><td>${fmtDateTime(record.checkDate)}</td></tr>
+      <tr><td class="label">Checked By</td><td>${fmt(record.checkedBy)}</td></tr>
+    </table>
+
+    <div class="section-heading">Behaviour &amp; Environment</div>
+    <table>
+      <tr><td class="label">Pig Behaviour</td><td style="text-transform:capitalize">${fmt(record.behaviour)}</td></tr>
+      <tr><td class="label">Ventilation / Temperature OK</td><td>${yesNo(record.ventilationOk)}</td></tr>
+      <tr><td class="label">Feed Adequate</td><td>${yesNo(record.feedOk)}</td></tr>
+      <tr><td class="label">Fresh Water Available</td><td>${yesNo(record.waterOk)}</td></tr>
+      <tr><td class="label">Bedding / Floor Condition</td><td><strong style="color:${beddingColour};text-transform:capitalize">${fmt(record.beddingCondition)}</strong></td></tr>
+    </table>
+
+    <div class="section-heading">Welfare Concerns</div>
+    <table>
+      <tr><td class="label">Tail Biting Observed</td><td>${yesNo(record.tailBitingObserved)}</td></tr>
+      <tr><td class="label">Fighting / Aggression</td><td>${yesNo(record.aggression)}</td></tr>
+      <tr><td class="label">Sick / Injured Pigs</td><td>${record.sickInjuredCount || "0"}</td></tr>
+      <tr><td class="label">Mortalities</td><td>${record.mortalityCount || "0"}</td></tr>
+      <tr><td class="label">Overall Welfare Outcome</td><td><strong style="color:${welfareColour};text-transform:uppercase">${fmt(record.overallWelfare)}</strong></td></tr>
+    </table>
+
+    ${record.actionTaken ? `<div class="section-heading">Actions Taken</div><table><tr><td>${fmt(record.actionTaken)}</td></tr></table>` : ""}
+    ${record.notes ? `<div class="section-heading">Notes</div><table><tr><td>${fmt(record.notes)}</td></tr></table>` : ""}
+
+    <div class="sig-row">
+      <div class="sig-box">
+        <div class="sig-label">Stockperson Signature</div>
+        <div class="sig-line">Name &amp; Date:</div>
+      </div>
+    </div>
+
+    ${docFooter("Pig Daily Welfare Check")}`;
 
   return wrap(body);
 }
