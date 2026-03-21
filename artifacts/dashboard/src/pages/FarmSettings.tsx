@@ -27,11 +27,16 @@ import { Loader2, Save } from "lucide-react";
 
 const SECTORS = [
   { key: "sectorArable", label: "Arable" },
-  { key: "sectorBeef", label: "Beef" },
+  { key: "sectorBeef", label: "Beef Cattle" },
+  { key: "sectorSheep", label: "Sheep / Lamb" },
   { key: "sectorDairy", label: "Dairy" },
   { key: "sectorPigs", label: "Pigs" },
-  { key: "sectorPoultry", label: "Poultry" },
+  { key: "sectorPoultry", label: "Poultry (Broilers / Turkeys)" },
+  { key: "sectorEggs", label: "Eggs (Laying Flocks)" },
+  { key: "sectorGoats", label: "Goats" },
+  { key: "sectorEquine", label: "Equine" },
   { key: "sectorHorticulture", label: "Horticulture" },
+  { key: "sectorViticulture", label: "Viticulture" },
 ] as const;
 
 const HOLDING_TYPES = [
@@ -103,10 +108,15 @@ function farmToFormData(farm: Farm & {
     sectors: {
       sectorArable: !!farm.sectorArable,
       sectorBeef: !!farm.sectorBeef,
+      sectorSheep: !!(farm as any).sectorSheep,
       sectorDairy: !!farm.sectorDairy,
       sectorPigs: !!farm.sectorPigs,
       sectorPoultry: !!farm.sectorPoultry,
+      sectorEggs: !!(farm as any).sectorEggs,
+      sectorGoats: !!(farm as any).sectorGoats,
+      sectorEquine: !!(farm as any).sectorEquine,
       sectorHorticulture: !!farm.sectorHorticulture,
+      sectorViticulture: !!(farm as any).sectorViticulture,
     },
     country: (farm as any).country || "england",
     eaml2Email: (farm as any).eaml2Email || "",

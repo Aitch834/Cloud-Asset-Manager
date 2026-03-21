@@ -19,11 +19,16 @@ import { useToast } from "@/hooks/use-toast";
 
 const SECTORS = [
   { key: "sectorArable", label: "Arable" },
-  { key: "sectorBeef", label: "Beef" },
+  { key: "sectorBeef", label: "Beef Cattle" },
+  { key: "sectorSheep", label: "Sheep / Lamb" },
   { key: "sectorDairy", label: "Dairy" },
   { key: "sectorPigs", label: "Pigs" },
-  { key: "sectorPoultry", label: "Poultry" },
+  { key: "sectorPoultry", label: "Poultry (Broilers / Turkeys)" },
+  { key: "sectorEggs", label: "Eggs (Laying Flocks)" },
+  { key: "sectorGoats", label: "Goats" },
+  { key: "sectorEquine", label: "Equine" },
   { key: "sectorHorticulture", label: "Horticulture" },
+  { key: "sectorViticulture", label: "Viticulture" },
 ] as const;
 
 type SectorKey = typeof SECTORS[number]["key"];
@@ -48,10 +53,15 @@ const emptyFormData: FarmFormData = {
   sectors: {
     sectorArable: false,
     sectorBeef: false,
+    sectorSheep: false,
     sectorDairy: false,
     sectorPigs: false,
     sectorPoultry: false,
+    sectorEggs: false,
+    sectorGoats: false,
+    sectorEquine: false,
     sectorHorticulture: false,
+    sectorViticulture: false,
   },
 };
 
