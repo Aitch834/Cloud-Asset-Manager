@@ -34,6 +34,7 @@ import {
   Warehouse,
   Smartphone,
   Shovel,
+  Map,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -69,6 +70,7 @@ const complianceNav: NavItem[] = [
 ];
 
 const biosecurityNav: NavItem[] = [
+  { name: "Farm Map", href: "/farm-map", icon: Map, moduleKeys: ["biosecurity"] },
   { name: "Farm Locations", href: "/farm-locations", icon: MapPin, moduleKeys: ["biosecurity"] },
   { name: "Visitor Log", href: "/visitors", icon: Users, moduleKeys: ["biosecurity"] },
   { name: "Pest Control", href: "/pest-control", icon: Bug, moduleKeys: ["biosecurity"] },

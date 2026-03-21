@@ -1375,7 +1375,7 @@ router.get("/farms/:farmId/farm-locations", requireAuth, requireTenant, async (r
 router.post("/farms/:farmId/farm-locations", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { name, locationType, description, notes, isActive } = req.body;
+  const { name, locationType, description, notes, isActive, latitude, longitude } = req.body;
   const [location] = await db.insert(farmLocationsTable).values({
     farmId,
     name,
@@ -1383,6 +1383,8 @@ router.post("/farms/:farmId/farm-locations", requireAuth, requireTenant, require
     description: description || null,
     notes: notes || null,
     isActive: isActive !== false,
+    latitude: latitude != null ? Number(latitude) : null,
+    longitude: longitude != null ? Number(longitude) : null,
   }).returning();
   res.status(201).json(location);
 });
@@ -1391,9 +1393,17 @@ router.put("/farms/:farmId/farm-locations/:locationId", requireAuth, requireTena
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const locationId = parseInt(req.params.locationId);
-  const { name, locationType, description, notes, isActive } = req.body;
+  const { name, locationType, description, notes, isActive, latitude, longitude } = req.body;
   const [location] = await db.update(farmLocationsTable)
-    .set({ name, locationType, description: description || null, notes: notes || null, isActive: isActive !== false })
+    .set({
+      name,
+      locationType,
+      description: description || null,
+      notes: notes || null,
+      isActive: isActive !== false,
+      latitude: latitude != null ? Number(latitude) : null,
+      longitude: longitude != null ? Number(longitude) : null,
+    })
     .where(and(eq(farmLocationsTable.id, locationId), eq(farmLocationsTable.farmId, farmId)))
     .returning();
   if (!location) { res.status(404).json({ error: "Not found" }); return; }

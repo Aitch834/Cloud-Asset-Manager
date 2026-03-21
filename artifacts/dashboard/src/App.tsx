@@ -51,6 +51,7 @@ import InspectionViewPage from "@/pages/InspectionViewPage";
 import RiskAssessmentsPage from "@/pages/RiskAssessmentsPage";
 import WasteDisposalPage from "@/pages/WasteDisposalPage";
 import FarmLocationsPage from "@/pages/FarmLocationsPage";
+import FarmMapPage from "@/pages/FarmMapPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -164,6 +165,7 @@ function Router() {
       <Route path="/cleaning" component={CleaningPage} />
       <Route path="/coshh" component={CoshhPage} />
       <Route path="/farm-locations" component={FarmLocationsPage} />
+      <Route path="/farm-map" component={FarmMapPage} />
       <Route path="/livestock" component={LivestockPage} />
       <Route path="/movements" component={MovementsPage} />
       <Route path="/medicine" component={MedicinePage} />

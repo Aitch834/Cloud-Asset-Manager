@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 
 export const farmLocationsTable = pgTable("farm_locations", {
@@ -9,6 +9,8 @@ export const farmLocationsTable = pgTable("farm_locations", {
   description: text("description"),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

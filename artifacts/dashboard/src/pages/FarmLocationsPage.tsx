@@ -10,9 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 import {
-  MapPin, Plus, Pencil, Trash2, Search, Building2, Warehouse, FlaskConical, Tractor, TreePine, Users, LayoutGrid,
+  MapPin, Plus, Pencil, Trash2, Search, Building2, Warehouse, FlaskConical, Tractor, TreePine, Users, LayoutGrid, Map,
 } from "lucide-react";
+import { Link } from "wouter";
 
 interface FarmLocation {
   id: number;
@@ -22,6 +24,8 @@ interface FarmLocation {
   description: string | null;
   notes: string | null;
   isActive: boolean;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 const LOCATION_TYPES = [
@@ -37,12 +41,15 @@ const LOCATION_TYPES = [
 
 const typeMap = Object.fromEntries(LOCATION_TYPES.map(t => [t.value, t]));
 
+interface LatLng { lat: number; lng: number }
+
 const EMPTY_FORM = {
   name: "",
   locationType: "",
   description: "",
   notes: "",
   isActive: true,
+  pin: null as LatLng | null,
 };
 
 export default function FarmLocationsPage() {
@@ -56,6 +63,7 @@ export default function FarmLocationsPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [editing, setEditing] = useState<FarmLocation | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [showMap, setShowMap] = useState(false);
 
   const { data: locations = [], isLoading } = useQuery<FarmLocation[]>({
     queryKey: ["farm-locations", farmId],
@@ -68,7 +76,15 @@ export default function FarmLocationsPage() {
       fetch(`/api/farms/${farmId}/farm-locations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          name: body.name,
+          locationType: body.locationType,
+          description: body.description,
+          notes: body.notes,
+          isActive: body.isActive,
+          latitude: body.pin?.lat ?? null,
+          longitude: body.pin?.lng ?? null,
+        }),
       }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["farm-locations", farmId] });
@@ -81,7 +97,15 @@ export default function FarmLocationsPage() {
       fetch(`/api/farms/${farmId}/farm-locations/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          name: body.name,
+          locationType: body.locationType,
+          description: body.description,
+          notes: body.notes,
+          isActive: body.isActive,
+          latitude: body.pin?.lat ?? null,
+          longitude: body.pin?.lng ?? null,
+        }),
       }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["farm-locations", farmId] });
@@ -101,6 +125,7 @@ export default function FarmLocationsPage() {
   function openAdd() {
     setEditing(null);
     setForm(EMPTY_FORM);
+    setShowMap(false);
     setDialogOpen(true);
   }
 
@@ -112,7 +137,11 @@ export default function FarmLocationsPage() {
       description: loc.description ?? "",
       notes: loc.notes ?? "",
       isActive: loc.isActive,
+      pin: loc.latitude != null && loc.longitude != null
+        ? { lat: loc.latitude, lng: loc.longitude }
+        : null,
     });
+    setShowMap(loc.latitude != null && loc.longitude != null);
     setDialogOpen(true);
   }
 
@@ -120,6 +149,7 @@ export default function FarmLocationsPage() {
     setDialogOpen(false);
     setEditing(null);
     setForm(EMPTY_FORM);
+    setShowMap(false);
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -142,6 +172,7 @@ export default function FarmLocationsPage() {
   });
 
   const activeCount = locations.filter(l => l.isActive).length;
+  const pinnedCount = locations.filter(l => l.latitude != null).length;
   const byType = LOCATION_TYPES.map(t => ({
     ...t,
     count: locations.filter(l => l.locationType === t.value && l.isActive).length,
@@ -168,9 +199,18 @@ export default function FarmLocationsPage() {
               Define the buildings, yards, and areas on your farm. These are used across Cleaning, Pest Control, Risk Assessments, and COSHH to build a complete location history.
             </p>
           </div>
-          <Button onClick={openAdd} className="gap-2">
-            <Plus className="w-4 h-4" /> Add Location
-          </Button>
+          <div className="flex gap-2">
+            {pinnedCount > 0 && (
+              <Link href="/farm-map">
+                <Button variant="outline" className="gap-2">
+                  <Map className="w-4 h-4" /> View Map
+                </Button>
+              </Link>
+            )}
+            <Button onClick={openAdd} className="gap-2">
+              <Plus className="w-4 h-4" /> Add Location
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -178,7 +218,11 @@ export default function FarmLocationsPage() {
             <div className="text-2xl font-bold text-foreground">{activeCount}</div>
             <div className="text-sm text-foreground/60">Active Locations</div>
           </Card>
-          {byType.slice(0, 3).map(t => (
+          <Card className="p-4">
+            <div className="text-2xl font-bold text-foreground">{pinnedCount}</div>
+            <div className="text-sm text-foreground/60">Map Pins Set</div>
+          </Card>
+          {byType.slice(0, 2).map(t => (
             <Card key={t.value} className="p-4">
               <div className="text-2xl font-bold text-foreground">{t.count}</div>
               <div className="text-sm text-foreground/60">{t.label}</div>
@@ -231,6 +275,7 @@ export default function FarmLocationsPage() {
               {filtered.map(loc => {
                 const t = typeMap[loc.locationType];
                 const Icon = t?.icon ?? MapPin;
+                const hasPIn = loc.latitude != null;
                 return (
                   <div key={loc.id} className="p-4 flex items-start gap-4 hover:bg-muted/20 transition-colors">
                     <div className={`p-2 rounded-lg ${t?.colour ?? "bg-gray-100"} flex-shrink-0`}>
@@ -240,10 +285,20 @@ export default function FarmLocationsPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-foreground">{loc.name}</span>
                         <Badge variant="outline" className="text-xs">{t?.label ?? loc.locationType}</Badge>
+                        {hasPIn && (
+                          <Badge variant="secondary" className="text-xs gap-1">
+                            <MapPin className="w-3 h-3" /> Pinned
+                          </Badge>
+                        )}
                         {!loc.isActive && <Badge variant="secondary" className="text-xs">Inactive</Badge>}
                       </div>
                       {loc.description && (
                         <p className="text-sm text-foreground/60 mt-0.5 truncate">{loc.description}</p>
+                      )}
+                      {hasPIn && (
+                        <p className="text-xs text-foreground/40 mt-0.5">
+                          {loc.latitude!.toFixed(5)}, {loc.longitude!.toFixed(5)}
+                        </p>
                       )}
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
@@ -262,8 +317,9 @@ export default function FarmLocationsPage() {
         </Card>
       </div>
 
+      {/* Add / Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={o => { if (!o) closeDialog(); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MapPin className="w-5 h-5 text-primary" />
@@ -318,6 +374,39 @@ export default function FarmLocationsPage() {
                 onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               />
             </div>
+
+            {/* Map pin section */}
+            <div className="border rounded-lg overflow-hidden">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between px-3 py-2.5 bg-muted/40 hover:bg-muted/60 transition-colors text-sm font-medium text-foreground/70"
+                onClick={() => setShowMap(v => !v)}
+              >
+                <span className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Map pin (optional)
+                  {form.pin && (
+                    <span className="text-xs text-primary font-normal">
+                      — {form.pin.lat.toFixed(5)}, {form.pin.lng.toFixed(5)}
+                    </span>
+                  )}
+                </span>
+                <span className="text-foreground/40 text-xs">{showMap ? "▲ Hide" : "▼ Show"}</span>
+              </button>
+              {showMap && (
+                <div className="p-3">
+                  <p className="text-xs text-foreground/50 mb-2">
+                    Click on the map to drop a pin. Drag the pin to adjust its position. Use the locate button to jump to your current GPS position.
+                  </p>
+                  <StorageLocationMapPicker
+                    value={form.pin}
+                    onChange={pin => setForm(f => ({ ...f, pin }))}
+                    mapHeight={260}
+                  />
+                </div>
+              )}
+            </div>
+
             {editing && (
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input
@@ -339,6 +428,7 @@ export default function FarmLocationsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete confirmation */}
       <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
