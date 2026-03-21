@@ -3952,7 +3952,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 47,
       title: "Getting Started with Pig Production Records",
       category: "Pig Production",
-      content: `<p>The Pig Production module provides a complete compliance record system for UK pig enterprises covered by Red Tractor Pigs, BPEX Quality Assured Pigs, and the Pig Industry Code of Practice (PICOP). Whether you run a breeding herd, a finishing unit, or a farrow-to-finish system, this module captures the records required at an inspection.</p>
+      content: `<img src="/api/help-images/livestock.png" alt="Pig Production Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Pig Production module provides a complete compliance record system for UK pig enterprises covered by Red Tractor Pigs, BPEX Quality Assured Pigs, and the Pig Industry Code of Practice (PICOP). Whether you run a breeding herd, a finishing unit, or a farrow-to-finish system, this module captures the records required at an inspection.</p>
 
 <h3>Module Tabs</h3>
 <ul>
@@ -3974,7 +3976,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 48,
       title: "Pig Movement and Identification",
       category: "Pig Production",
-      content: `<p>All pig movements on and off your holding must be reported through the appropriate government portal within the specified timeframe. Which portal you use depends on where your holding is located in the UK.</p>
+      content: `<img src="/api/help-images/livestock-movements.png" alt="Pig Movement Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>All pig movements on and off your holding must be reported through the appropriate government portal within the specified timeframe. Which portal you use depends on where your holding is located in the UK.</p>
 
 <h3>Movement Portals by Country</h3>
 <ul>
@@ -3996,7 +4000,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 49,
       title: "Getting Started with Poultry Production Records",
       category: "Poultry Production",
-      content: `<p>The Poultry Production module covers compliance record-keeping for broiler, layer, turkey, duck, and other poultry enterprises under Red Tractor Poultry standards, Lion Code, and UK welfare legislation. It is structured around the key inspection areas: flock registers, welfare daily checks, medicines, mortality, and hatchery data.</p>
+      content: `<img src="/api/help-images/livestock.png" alt="Poultry Production Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Poultry Production module covers compliance record-keeping for broiler, layer, turkey, duck, and other poultry enterprises under Red Tractor Poultry standards, Lion Code, and UK welfare legislation. It is structured around the key inspection areas: flock registers, welfare daily checks, medicines, mortality, and hatchery data.</p>
 
 <h3>Module Tabs</h3>
 <ul>
@@ -4015,7 +4021,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 50,
       title: "Salmonella, Biosecurity and Poultry Health Plans",
       category: "Poultry Production",
-      content: `<p>UK National Control Programmes (NCPs) require commercial poultry flocks to be tested for Salmonella at defined points in the production cycle. Red Tractor Poultry additionally requires a written health plan agreed with your vet. BDE Farm Trac supports both requirements within the Poultry Production module.</p>
+      content: `<img src="/api/help-images/medicine-records.png" alt="Poultry Health and Salmonella" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>UK National Control Programmes (NCPs) require commercial poultry flocks to be tested for Salmonella at defined points in the production cycle. Red Tractor Poultry additionally requires a written health plan agreed with your vet. BDE Farm Trac supports both requirements within the Poultry Production module.</p>
 
 <h3>Salmonella NCP Testing</h3>
 <p>For broiler flocks, official Salmonella sampling must be carried out 2–3 weeks before slaughter. For laying hens, sampling is required at 24–26 weeks of age and every 15 weeks thereafter. Results from approved laboratories must be retained and made available to inspectors. Use the <strong>Lab Tests</strong> tab within the Poultry Production module to log each sample submission: sample date, sample type (boot swabs, dusty swabs, or tissue), laboratory name and reference, and the result. Positive results trigger mandatory notifications; the system surfaces a compliance flag until you confirm the regulatory notification has been made.</p>
@@ -4030,7 +4038,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 51,
       title: "Getting Started with Horticulture Records",
       category: "Horticulture",
-      content: `<p>The Horticulture module provides compliance record-keeping for fresh produce growers working under Red Tractor Fresh Produce, LEAF Marque, GlobalG.A.P., or other assured scheme requirements. It covers crops grown in the open, under protection (poly-tunnels, glasshouses), and in substrate systems.</p>
+      content: `<img src="/api/help-images/field-register.png" alt="Horticulture Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Horticulture module provides compliance record-keeping for fresh produce growers working under Red Tractor Fresh Produce, LEAF Marque, GlobalG.A.P., or other assured scheme requirements. It covers crops grown in the open, under protection (poly-tunnels, glasshouses), and in substrate systems.</p>
 
 <h3>Module Tabs</h3>
 <ul>
@@ -4049,7 +4059,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 52,
       title: "Pre-Harvest Intervals, MRLs and Residue Testing",
       category: "Horticulture",
-      content: `<p>Maximum Residue Levels (MRLs) are the maximum legal concentrations of pesticide residues permitted in or on food products. Retailers, assured schemes, and UK law (UK Regulation 396/2005 retained in UK law) impose strict MRL compliance obligations on growers. BDE Farm Trac helps you manage MRL risk through pre-harvest interval (PHI) management and residue testing records.</p>
+      content: `<img src="/api/help-images/spray-records.png" alt="Pre-Harvest Intervals and MRL Compliance" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Maximum Residue Levels (MRLs) are the maximum legal concentrations of pesticide residues permitted in or on food products. Retailers, assured schemes, and UK law (UK Regulation 396/2005 retained in UK law) impose strict MRL compliance obligations on growers. BDE Farm Trac helps you manage MRL risk through pre-harvest interval (PHI) management and residue testing records.</p>
 
 <h3>Pre-Harvest Intervals (PHI)</h3>
 <p>Every approved pesticide label specifies a PHI — the minimum number of days that must elapse between the last application and harvest. The Horticulture module automatically calculates the earliest permitted harvest date when you record a spray application. The crop record displays a green "Clear to harvest" status once all PHI periods have elapsed, or an amber "PHI in progress" warning with the days remaining. This prevents accidental early harvest of treated crops.</p>
@@ -4064,7 +4076,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 53,
       title: "Carbon & Sustainability Records",
       category: "Carbon & Sustainability",
-      content: `<p>The Carbon &amp; Sustainability module supports UK farmers participating in the Sustainable Farming Incentive (SFI), the Farming in Protected Landscapes (FiPL) programme, or voluntary carbon markets. It also provides the data structure needed to run a farm carbon footprint assessment and track year-on-year emissions reduction.</p>
+      content: `<img src="/api/help-images/dashboard-overview.png" alt="Carbon and Sustainability Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Carbon &amp; Sustainability module supports UK farmers participating in the Sustainable Farming Incentive (SFI), the Farming in Protected Landscapes (FiPL) programme, or voluntary carbon markets. It also provides the data structure needed to run a farm carbon footprint assessment and track year-on-year emissions reduction.</p>
 
 <h3>Module Tabs</h3>
 <ul>
@@ -4082,7 +4096,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 54,
       title: "Farm Diversification Records",
       category: "Farm Diversification",
-      content: `<p>The Farm Diversification module helps you manage compliance and financial records across the range of activities many UK farms now operate alongside their core agricultural enterprise. It covers farm shops, holiday accommodation, equine businesses, renewable energy, field sports, and countryside recreation.</p>
+      content: `<img src="/api/help-images/help-centre.png" alt="Farm Diversification Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Farm Diversification module helps you manage compliance and financial records across the range of activities many UK farms now operate alongside their core agricultural enterprise. It covers farm shops, holiday accommodation, equine businesses, renewable energy, field sports, and countryside recreation.</p>
 
 <h3>Module Tabs</h3>
 <ul>
@@ -4098,7 +4114,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 55,
       title: "Water & Irrigation Management",
       category: "Water & Irrigation",
-      content: `<p>The Water &amp; Irrigation module helps UK farmers record abstraction, irrigation use, and water quality data in compliance with the Environment Agency (or Natural Resources Wales / SEPA / DAERA) abstraction licensing requirements and Red Tractor or assured scheme expectations.</p>
+      content: `<img src="/api/help-images/field-register.png" alt="Water and Irrigation Management" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Water &amp; Irrigation module helps UK farmers record abstraction, irrigation use, and water quality data in compliance with the Environment Agency (or Natural Resources Wales / SEPA / DAERA) abstraction licensing requirements and Red Tractor or assured scheme expectations.</p>
 
 <h3>Module Tabs</h3>
 <ul>
@@ -4116,7 +4134,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 56,
       title: "AI & Reproduction Records for Livestock",
       category: "Livestock",
-      content: `<p>The AI &amp; Reproduction tab within the Livestock module helps UK cattle, sheep, pig, and goat producers maintain accurate breeding records as required by Red Tractor and for herd or flock genetic improvement programmes.</p>
+      content: `<img src="/api/help-images/livestock.png" alt="AI and Reproduction Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The AI &amp; Reproduction tab within the Livestock module helps UK cattle, sheep, pig, and goat producers maintain accurate breeding records as required by Red Tractor and for herd or flock genetic improvement programmes.</p>
 
 <h3>Artificial Insemination (AI) Records</h3>
 <p>For each AI event, record: the female animal's tag or identifier, the date of insemination, the breed and sire name (or AI code), the semen batch number, the technician's name, and whether the insemination was preceded by heat detection or a synchronisation protocol. This creates a complete service record that links forward to pregnancy scanning results and subsequent calvings or lambings.</p>
@@ -4134,7 +4154,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 57,
       title: "Veterinary Prescriptions &amp; Medicine Book",
       category: "Livestock",
-      content: `<p>The Veterinary Prescriptions tab within the Livestock module provides a compliant record of all written and repeated prescriptions issued by your attending vet, alongside the Medication Book that records all medicine purchases, stock, and usage.</p>
+      content: `<img src="/api/help-images/medicine-records.png" alt="Veterinary Prescriptions and Medicine Book" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Veterinary Prescriptions tab within the Livestock module provides a compliant record of all written and repeated prescriptions issued by your attending vet, alongside the Medication Book that records all medicine purchases, stock, and usage.</p>
 
 <h3>Prescription Records</h3>
 <p>Under the Veterinary Medicines Regulations 2013 (VMR), prescription-only medicines (POM-V and POM-VPS) may only be supplied against a valid written prescription. Records of prescriptions received must be kept for five years. For each prescription, record: the date issued, the issuing vet name and practice, the product name and active ingredient, the quantity and pack size supplied, the animals or groups covered (species, number, identifier if individual), the dose and treatment duration, and the withdrawal period stated on the prescription.</p>
@@ -4152,7 +4174,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 58,
       title: "SFI & Agri-Environment Actions",
       category: "Environmental",
-      content: `<p>The SFI Actions tab within the Environmental module helps you plan, record, and evidence the management actions required under the Sustainable Farming Incentive (SFI), Countryside Stewardship (CS), and Agri-Environment schemes in all four nations of the UK. Having a complete record of agreed actions and payment evidence is important both for compliance visits and for your own planning.</p>
+      content: `<img src="/api/help-images/field-register.png" alt="SFI and Agri-Environment Actions" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The SFI Actions tab within the Environmental module helps you plan, record, and evidence the management actions required under the Sustainable Farming Incentive (SFI), Countryside Stewardship (CS), and Agri-Environment schemes in all four nations of the UK. Having a complete record of agreed actions and payment evidence is important both for compliance visits and for your own planning.</p>
 
 <h3>Sustainable Farming Incentive (SFI)</h3>
 <p>SFI is England's main agri-environment payment scheme, replacing BPS from 2024. It rewards actions across soil, farmland wildlife, hedgerows, integrated pest management, moorland, and other land management categories. For each SFI action you are paid for, create a record in the SFI Actions tab: the action code and description (e.g. CSAM1 — assess and record soil condition), the agreement start and end date, the land parcel reference, the area or length enrolled, and the payment rate per unit.</p>
@@ -4167,7 +4191,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 59,
       title: "Slurry & Manure Management Records",
       category: "Environmental",
-      content: `<p>The Slurry &amp; Manure Management tab within the Environmental module provides the compliance records required under the Silage, Slurry and Agricultural Fuel Oil (SSAFO) Regulations 2010 (England and Wales), the Water Resources (Control of Pollution) (Silage, Slurry and Agricultural Fuel Oil) (Wales) Regulations 2010, and the equivalent Scottish and Northern Irish regulations. It also supports Nitrate Vulnerable Zone (NVZ) closed-period compliance.</p>
+      content: `<img src="/api/help-images/field-register.png" alt="Slurry and Manure Management" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Slurry &amp; Manure Management tab within the Environmental module provides the compliance records required under the Silage, Slurry and Agricultural Fuel Oil (SSAFO) Regulations 2010 (England and Wales), the Water Resources (Control of Pollution) (Silage, Slurry and Agricultural Fuel Oil) (Wales) Regulations 2010, and the equivalent Scottish and Northern Irish regulations. It also supports Nitrate Vulnerable Zone (NVZ) closed-period compliance.</p>
 
 <h3>Storage Infrastructure Register</h3>
 <p>Record all slurry storage infrastructure on your holding: stores, lagoons, and reception pits. For each structure, log the capacity in m³, the construction type, the date of last structural inspection, the name of the inspecting engineer, and the outcome of the inspection. SSAFO requires slurry stores to be inspected by a competent person at defined intervals; evidence of inspection must be available.</p>
@@ -4185,7 +4211,9 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 60,
       title: "Grain Storage Quality Records",
       category: "Equipment",
-      content: `<p>The Grain Storage Quality tab within the Equipment module provides a compliance record system for on-farm grain stores operating under the AHDB Grain Storage Guide recommendations, TASCC (Trade Assurance Scheme for Combinable Crops) certification, or Red Tractor Combinable Crops and Sugar Beet standards.</p>
+      content: `<img src="/api/help-images/field-register.png" alt="Grain Storage Quality Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Grain Storage Quality tab within the Equipment module provides a compliance record system for on-farm grain stores operating under the AHDB Grain Storage Guide recommendations, TASCC (Trade Assurance Scheme for Combinable Crops) certification, or Red Tractor Combinable Crops and Sugar Beet standards.</p>
 
 <h3>Store Register</h3>
 <p>Register each grain store on your holding with its name or reference, construction type (flat floor, walled store, underground pit, grain bins), total capacity in tonnes, aeration or ventilation system details, and the commodities typically stored. For TASCC-certificated stores, note the certificate number and renewal date.</p>
