@@ -379,6 +379,9 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
   const [formData, setFormData] = useState<typeof EMPTY_SEED>(EMPTY_SEED);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
+  const { data: cropsRegData } = useCrops(farmId);
+  const cropsRegister = (cropsRegData?.records ?? []) as CropRecord[];
+
   const baseUrl = `/api/farms/${farmId}/seed-drilling`;
 
   const { data, isLoading } = useQuery({
@@ -425,6 +428,15 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
 
   function setField(key: keyof typeof EMPTY_SEED, val: string | boolean) {
     setFormData(f => ({ ...f, [key]: val }));
+  }
+
+  function handleCropSelect(name: string) {
+    const match = cropsRegister.find(c => c.name.toLowerCase() === name.toLowerCase());
+    setFormData(f => ({
+      ...f,
+      cropName: name,
+      variety: match?.variety ? match.variety : f.variety,
+    }));
   }
 
   function openEdit(r: SeedRecord) {
@@ -503,7 +515,22 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Crop <span className="text-red-500">*</span></label>
-                  <Input placeholder="e.g. Winter Wheat, OSR, Barley" value={formData.cropName} onChange={e => setField("cropName", e.target.value)} required />
+                  <input
+                    list="seed-crop-datalist"
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    placeholder={cropsRegister.length > 0 ? "Select from Crops Register or type…" : "e.g. Winter Wheat, OSR, Barley"}
+                    value={formData.cropName}
+                    onChange={e => handleCropSelect(e.target.value)}
+                    required
+                  />
+                  <datalist id="seed-crop-datalist">
+                    {cropsRegister.map(c => (
+                      <option key={c.id} value={c.name}>{c.variety ? `${c.name} — ${c.variety}` : c.name}</option>
+                    ))}
+                  </datalist>
+                  {cropsRegister.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground mt-1">No crops in your Crops Register yet — type the crop name manually.</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Variety</label>
