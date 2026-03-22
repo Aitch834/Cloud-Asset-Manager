@@ -160,6 +160,32 @@ export const userInvitationsTable = pgTable("user_invitations", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const invoicesTable = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  tenantId: integer("tenant_id").notNull().references(() => tenantsTable.id),
+  invoiceNumber: text("invoice_number").notNull().unique(),
+  status: text("status").notNull().default("draft"),
+  billingPeriodStart: timestamp("billing_period_start", { withTimezone: true }).notNull(),
+  billingPeriodEnd: timestamp("billing_period_end", { withTimezone: true }).notNull(),
+  invoiceDate: timestamp("invoice_date", { withTimezone: true }).notNull(),
+  dueDate: timestamp("due_date", { withTimezone: true }).notNull(),
+  billingName: text("billing_name").notNull(),
+  billingAddress: text("billing_address"),
+  billingEmail: text("billing_email").notNull(),
+  lineItems: jsonb("line_items").notNull().default([]),
+  netAmountPence: integer("net_amount_pence").notNull(),
+  vatRatePct: integer("vat_rate_pct").notNull().default(20),
+  vatAmountPence: integer("vat_amount_pence").notNull(),
+  grossAmountPence: integer("gross_amount_pence").notNull(),
+  notes: text("notes"),
+  paymentMethod: text("payment_method"),
+  paymentReference: text("payment_reference"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const farmMembersTable = pgTable("farm_members", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

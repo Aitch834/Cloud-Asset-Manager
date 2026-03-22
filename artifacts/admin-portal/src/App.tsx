@@ -11,6 +11,7 @@ import Leads from "@/pages/Leads";
 import SupportTickets from "@/pages/SupportTickets";
 import Email from "@/pages/Email";
 import Database from "@/pages/Database";
+import Invoices from "@/pages/Invoices";
 import NotFound from "@/pages/not-found";
 import { getSecret } from "@/lib/auth";
 
@@ -25,6 +26,7 @@ function PortalRouter() {
         <Route path="/customers/:id" component={CustomerDetail} />
         <Route path="/leads" component={Leads} />
         <Route path="/support" component={SupportTickets} />
+        <Route path="/invoices" component={Invoices} />
         <Route path="/email" component={Email} />
         <Route path="/database" component={Database} />
         <Route component={NotFound} />

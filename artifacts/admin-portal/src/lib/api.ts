@@ -194,6 +194,40 @@ export interface AdminEmailSent {
   sentAt: string;
 }
 
+export interface InvoiceLineItem {
+  description: string;
+  quantity: number;
+  unitPricePence: number;
+  netPence: number;
+}
+
+export interface Invoice {
+  id: number;
+  tenantId: number;
+  invoiceNumber: string;
+  status: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  invoiceDate: string;
+  dueDate: string;
+  billingName: string;
+  billingAddress?: string | null;
+  billingEmail: string;
+  lineItems: InvoiceLineItem[];
+  netAmountPence: number;
+  vatRatePct: number;
+  vatAmountPence: number;
+  grossAmountPence: number;
+  notes?: string | null;
+  paymentMethod?: string | null;
+  paymentReference?: string | null;
+  sentAt?: string | null;
+  paidAt?: string | null;
+  createdAt: string;
+  tenantName?: string;
+  tenantSlug?: string;
+}
+
 export interface Lead {
   id: number;
   businessName: string;
@@ -300,4 +334,24 @@ export const api = {
 
   updateLead: (id: number, data: { status?: string; notes?: string }, secret: string) =>
     patch<{ lead: Lead }>(`/admin/leads/${id}`, data, secret),
+
+  listInvoices: (status: string | undefined, tenantId: number | undefined, secret: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (tenantId) params.set("tenantId", String(tenantId));
+    const qs = params.toString();
+    return get<{ invoices: Invoice[] }>(`/admin/invoices${qs ? "?" + qs : ""}`, secret);
+  },
+
+  getInvoice: (id: number, secret: string) =>
+    get<{ invoice: Invoice }>(`/admin/invoices/${id}`, secret),
+
+  generateInvoice: (tenantId: number, body: { billingPeriodStart: string; billingPeriodEnd: string; vatRatePct: number; notes: string }, secret: string) =>
+    post<{ invoice: Invoice }>(`/admin/invoices/generate/${tenantId}`, body, secret),
+
+  updateInvoice: (id: number, updates: Record<string, unknown>, secret: string) =>
+    patch<{ invoice: Invoice }>(`/admin/invoices/${id}`, updates, secret),
+
+  deleteInvoice: (id: number, secret: string) =>
+    del<{ success: boolean }>(`/admin/invoices/${id}`, secret),
 };

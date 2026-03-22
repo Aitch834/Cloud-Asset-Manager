@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable } from "@workspace/db";
-import { eq, and, count, desc, sql } from "drizzle-orm";
+import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable } from "@workspace/db";
+import { eq, and, count, desc, sql, asc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
 import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../lib/mailer";
@@ -703,6 +703,175 @@ router.patch("/admin/leads/:id", async (req: Request, res: Response): Promise<vo
   const [updated] = await db.update(leadsTable).set(updates).where(eq(leadsTable.id, id)).returning();
   if (!updated) { res.status(404).json({ error: "Lead not found" }); return; }
   res.json({ lead: updated });
+});
+
+// ─── Invoices ────────────────────────────────────────────────────────────────
+
+async function nextInvoiceNumber(): Promise<string> {
+  const year = new Date().getFullYear();
+  const existing = await db
+    .select({ num: invoicesTable.invoiceNumber })
+    .from(invoicesTable)
+    .where(sql`invoice_number LIKE ${"BDE-" + year + "-%"}`)
+    .orderBy(desc(invoicesTable.invoiceNumber))
+    .limit(1);
+  let seq = 1;
+  if (existing.length > 0) {
+    const parts = existing[0].num.split("-");
+    seq = parseInt(parts[parts.length - 1], 10) + 1;
+  }
+  return `BDE-${year}-${String(seq).padStart(4, "0")}`;
+}
+
+const BASE_FEE_PENCE = 1500;
+
+router.get("/admin/invoices", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { tenantId, status } = req.query;
+  let q = db
+    .select({
+      invoice: invoicesTable,
+      tenantName: tenantsTable.name,
+      tenantSlug: tenantsTable.slug,
+    })
+    .from(invoicesTable)
+    .innerJoin(tenantsTable, eq(invoicesTable.tenantId, tenantsTable.id))
+    .$dynamic();
+  const filters = [];
+  if (tenantId) filters.push(eq(invoicesTable.tenantId, parseInt(tenantId as string, 10)));
+  if (status) filters.push(eq(invoicesTable.status, status as string));
+  if (filters.length) q = q.where(and(...filters)) as typeof q;
+  const rows = await q.orderBy(desc(invoicesTable.invoiceDate));
+  res.json({ invoices: rows.map(r => ({ ...r.invoice, tenantName: r.tenantName, tenantSlug: r.tenantSlug })) });
+});
+
+router.get("/admin/invoices/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const id = parseInt(req.params.id as string, 10);
+  const [row] = await db
+    .select({ invoice: invoicesTable, tenantName: tenantsTable.name, tenantSlug: tenantsTable.slug })
+    .from(invoicesTable)
+    .innerJoin(tenantsTable, eq(invoicesTable.tenantId, tenantsTable.id))
+    .where(eq(invoicesTable.id, id))
+    .limit(1);
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ invoice: { ...row.invoice, tenantName: row.tenantName, tenantSlug: row.tenantSlug } });
+});
+
+router.post("/admin/invoices/generate/:tenantId", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const tenantId = parseInt(req.params.tenantId as string, 10);
+  const { billingPeriodStart, billingPeriodEnd, vatRatePct = 20, notes } = req.body;
+
+  const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
+  if (!tenant) { res.status(404).json({ error: "Tenant not found" }); return; }
+
+  const subs = await db
+    .select({ moduleName: modulesTable.name, pricePence: modulesTable.monthlyPricePence, farmId: subscriptionsTable.farmId, farmName: farmsTable.name })
+    .from(subscriptionsTable)
+    .innerJoin(modulesTable, eq(subscriptionsTable.moduleId, modulesTable.id))
+    .innerJoin(farmsTable, eq(subscriptionsTable.farmId, farmsTable.id))
+    .where(and(eq(subscriptionsTable.tenantId, tenantId), eq(subscriptionsTable.status, "active")));
+
+  const periodLabel = billingPeriodStart
+    ? new Date(billingPeriodStart).toLocaleDateString("en-GB", { month: "long", year: "numeric" })
+    : new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+
+  const lineItems: { description: string; quantity: number; unitPricePence: number; netPence: number }[] = [
+    { description: `Platform base fee — ${periodLabel}`, quantity: 1, unitPricePence: BASE_FEE_PENCE, netPence: BASE_FEE_PENCE },
+  ];
+  for (const sub of subs) {
+    lineItems.push({
+      description: `${sub.moduleName} — ${sub.farmName} (${periodLabel})`,
+      quantity: 1,
+      unitPricePence: sub.pricePence,
+      netPence: sub.pricePence,
+    });
+  }
+  const netAmountPence = lineItems.reduce((a, i) => a + i.netPence, 0);
+  const vatAmountPence = Math.round(netAmountPence * (vatRatePct / 100));
+  const grossAmountPence = netAmountPence + vatAmountPence;
+
+  const invoiceDate = new Date();
+  const dueDate = new Date(invoiceDate);
+  dueDate.setDate(dueDate.getDate() + 14);
+
+  const invoiceNumber = await nextInvoiceNumber();
+
+  const [invoice] = await db.insert(invoicesTable).values({
+    tenantId,
+    invoiceNumber,
+    status: "draft",
+    billingPeriodStart: billingPeriodStart ? new Date(billingPeriodStart) : new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    billingPeriodEnd: billingPeriodEnd ? new Date(billingPeriodEnd) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0),
+    invoiceDate,
+    dueDate,
+    billingName: tenant.name,
+    billingAddress: (tenant as any).address ?? null,
+    billingEmail: tenant.contactEmail,
+    lineItems,
+    netAmountPence,
+    vatRatePct: vatRatePct as number,
+    vatAmountPence,
+    grossAmountPence,
+    notes: notes ?? null,
+  }).returning();
+  res.status(201).json({ invoice });
+});
+
+router.post("/admin/invoices", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { tenantId, billingPeriodStart, billingPeriodEnd, lineItems, vatRatePct = 20, notes, billingName, billingEmail, billingAddress } = req.body;
+  if (!tenantId || !lineItems?.length) { res.status(400).json({ error: "tenantId and lineItems required" }); return; }
+
+  const netAmountPence = (lineItems as { netPence: number }[]).reduce((a, i) => a + i.netPence, 0);
+  const vatAmountPence = Math.round(netAmountPence * (vatRatePct / 100));
+  const grossAmountPence = netAmountPence + vatAmountPence;
+  const invoiceNumber = await nextInvoiceNumber();
+  const invoiceDate = new Date();
+  const dueDate = new Date(invoiceDate);
+  dueDate.setDate(dueDate.getDate() + 14);
+
+  const [invoice] = await db.insert(invoicesTable).values({
+    tenantId, invoiceNumber, status: "draft",
+    billingPeriodStart: new Date(billingPeriodStart),
+    billingPeriodEnd: new Date(billingPeriodEnd),
+    invoiceDate, dueDate,
+    billingName, billingEmail, billingAddress: billingAddress ?? null,
+    lineItems, netAmountPence, vatRatePct, vatAmountPence, grossAmountPence,
+    notes: notes ?? null,
+  }).returning();
+  res.status(201).json({ invoice });
+});
+
+router.patch("/admin/invoices/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const id = parseInt(req.params.id as string, 10);
+  const { status, paymentMethod, paymentReference, notes, paidAt, sentAt } = req.body;
+  const updates: Partial<typeof invoicesTable.$inferInsert> = {};
+  if (status !== undefined) updates.status = status;
+  if (paymentMethod !== undefined) updates.paymentMethod = paymentMethod;
+  if (paymentReference !== undefined) updates.paymentReference = paymentReference;
+  if (notes !== undefined) updates.notes = notes;
+  if (paidAt !== undefined) updates.paidAt = paidAt ? new Date(paidAt) : null;
+  if (sentAt !== undefined) updates.sentAt = sentAt ? new Date(sentAt) : null;
+  if (status === "paid" && !paidAt) updates.paidAt = new Date();
+  if (status === "sent" && !sentAt) updates.sentAt = new Date();
+  const [invoice] = await db.update(invoicesTable).set(updates).where(eq(invoicesTable.id, id)).returning();
+  if (!invoice) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ invoice });
+});
+
+router.delete("/admin/invoices/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const id = parseInt(req.params.id as string, 10);
+  const [inv] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, id)).limit(1);
+  if (!inv) { res.status(404).json({ error: "Not found" }); return; }
+  if (inv.status !== "draft" && inv.status !== "void") {
+    res.status(400).json({ error: "Only draft or void invoices can be deleted" }); return;
+  }
+  await db.delete(invoicesTable).where(eq(invoicesTable.id, id));
+  res.json({ success: true });
 });
 
 export default router;
