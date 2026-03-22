@@ -776,6 +776,7 @@ export default function Movements() {
   const [printRecord, setPrintRecord] = useState<Movement | null>(null);
   const [expandedAttachments, setExpandedAttachments] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"movements" | "mortality">("movements");
+  const [bcmsFilter, setBcmsFilter] = useState<"all" | "pending" | "submitted">("all");
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -853,7 +854,16 @@ export default function Movements() {
     return !exempt && !r.legalNotificationSubmitted && daysSince(r.movementDate) > 3;
   });
 
-  const filtered = records.filter((r) => {
+  const requiresBcms = (r: Movement) => r.movementType !== "birth" && r.movementType !== "between";
+
+  const bcmsFiltered = records.filter(r => {
+    if (bcmsFilter === "all") return true;
+    if (bcmsFilter === "pending") return requiresBcms(r) && !r.legalNotificationSubmitted;
+    if (bcmsFilter === "submitted") return r.legalNotificationSubmitted;
+    return true;
+  });
+
+  const filtered = bcmsFiltered.filter((r) => {
     if (!search) return true;
     const s = search.toLowerCase();
     return (
@@ -866,6 +876,9 @@ export default function Movements() {
       r.transporterDetails?.toLowerCase().includes(s)
     );
   });
+
+  const pendingCount = records.filter(r => requiresBcms(r) && !r.legalNotificationSubmitted).length;
+  const submittedCount = records.filter(r => r.legalNotificationSubmitted).length;
 
   const openAdd = () => {
     setEditingRecord(null);
@@ -966,6 +979,17 @@ export default function Movements() {
       </TabBar>
 
       {activeTab === "movements" && (<>
+      <TabBar className="mb-5">
+        <TabButton active={bcmsFilter === "all"} onClick={() => setBcmsFilter("all")}>
+          All <span className="ml-1 text-xs opacity-60">({records.length})</span>
+        </TabButton>
+        <TabButton active={bcmsFilter === "pending"} onClick={() => setBcmsFilter("pending")}>
+          BCMS Pending <span className="ml-1 text-xs opacity-60">({pendingCount})</span>
+        </TabButton>
+        <TabButton active={bcmsFilter === "submitted"} onClick={() => setBcmsFilter("submitted")}>
+          BCMS Submitted <span className="ml-1 text-xs opacity-60">({submittedCount})</span>
+        </TabButton>
+      </TabBar>
       {/* Overdue compliance alert */}
       {overdueMovements.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-900 flex gap-3 items-start">

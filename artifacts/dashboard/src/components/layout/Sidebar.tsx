@@ -37,6 +37,12 @@ import {
   Map,
   CalendarDays,
   Milk,
+  PiggyBank,
+  Bird,
+  Recycle,
+  Building2,
+  Waves,
+  TreePine,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -94,6 +100,15 @@ const livestockNav: NavItem[] = [
 
 const biofuelNav: NavItem[] = [
   { name: "Biofuel / RTFO", href: "/biofuel", icon: Fuel, moduleKeys: ["biofuel-rtfo"] },
+];
+
+const specialistNav: NavItem[] = [
+  { name: "Pig Production", href: "/pig-production", icon: PiggyBank, moduleKeys: ["pig-production"] },
+  { name: "Poultry Production", href: "/poultry-production", icon: Bird, moduleKeys: ["poultry-production"] },
+  { name: "Horticulture", href: "/horticulture", icon: TreePine, moduleKeys: ["horticulture"] },
+  { name: "Carbon & Sustainability", href: "/carbon", icon: Recycle, moduleKeys: ["carbon-sustainability"] },
+  { name: "Farm Diversification", href: "/diversification", icon: Building2, moduleKeys: ["farm-diversification"] },
+  { name: "Water & Irrigation", href: "/water-irrigation", icon: Waves, moduleKeys: ["water-irrigation"] },
 ];
 
 const otherNav: NavItem[] = [
@@ -166,7 +181,7 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTractorId, filteredCoreNav, filteredComplianceNav, filteredBiosecurityNav, filteredLivestockNav, filteredBiofuelNav, filteredOtherNav, filteredBottomNav }: {
+function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTractorId, filteredCoreNav, filteredComplianceNav, filteredBiosecurityNav, filteredLivestockNav, filteredBiofuelNav, filteredSpecialistNav, filteredOtherNav, filteredBottomNav }: {
   onNavClick?: () => void;
   onLogout: () => void;
   currentFarmName?: string;
@@ -176,6 +191,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
   filteredBiosecurityNav: NavItem[];
   filteredLivestockNav: NavItem[];
   filteredBiofuelNav: NavItem[];
+  filteredSpecialistNav: NavItem[];
   filteredOtherNav: NavItem[];
   filteredBottomNav: NavItem[];
 }) {
@@ -215,6 +231,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
         <NavSection title="Biosecurity" items={filteredBiosecurityNav} onNavClick={onNavClick} />
         <NavSection title="Livestock" items={filteredLivestockNav} onNavClick={onNavClick} />
         <NavSection title="Biofuel / RTFO" items={filteredBiofuelNav} onNavClick={onNavClick} />
+        <NavSection title="Specialist Modules" items={filteredSpecialistNav} onNavClick={onNavClick} />
         <NavSection title="Management" items={filteredOtherNav} onNavClick={onNavClick} />
       </nav>
 
@@ -276,6 +293,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const filteredBiosecurityNav = subscriptionsLoaded ? filterNavItems(biosecurityNav, activeModuleKeys, farmSectors, userRole) : biosecurityNav;
   const filteredLivestockNav = subscriptionsLoaded ? filterNavItems(livestockNav, activeModuleKeys, farmSectors, userRole) : livestockNav;
   const filteredBiofuelNav = filterNavItems(biofuelNav, activeModuleKeys, farmSectors, userRole);
+  const filteredSpecialistNav = subscriptionsLoaded ? filterNavItems(specialistNav, activeModuleKeys, farmSectors, userRole) : [];
   const filteredOtherNav = subscriptionsLoaded ? filterNavItems(otherNav, activeModuleKeys, farmSectors, userRole) : otherNav;
   const filteredBottomNav = filterNavItems(bottomNav, new Set(), { hasLivestock: true }, userRole);
 
@@ -295,6 +313,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     filteredBiosecurityNav,
     filteredLivestockNav,
     filteredBiofuelNav,
+    filteredSpecialistNav,
     filteredOtherNav,
     filteredBottomNav,
   };

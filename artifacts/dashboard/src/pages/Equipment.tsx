@@ -9,11 +9,12 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
   DialogFooter, DialogTrigger
 } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useEquipment, useAddEquipment } from "@/hooks/use-equipment";
-import { Plus, Search, Tractor, Calendar, Camera, X, Pencil, Loader2, Printer, Trash2, Thermometer, FlaskConical } from "lucide-react";
+import { Plus, Search, Tractor, Calendar, Camera, X, Pencil, Loader2, Printer, Trash2, Thermometer, FlaskConical, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -393,9 +394,214 @@ function GrainStorageSection({ farmId }: { farmId: number }) {
 
 interface FarmRecord { name?: string; address?: string; postcode?: string; cphNumber?: string; }
 
+interface DefectReport {
+  id: number; defectRef: string | null; farmId: number; equipmentId: number | null;
+  description: string; severity: string | null; status: string;
+  reportedDate: string | null; reportedBy: string | null;
+  resolvedDate: string | null; notes: string | null; mobileId: string | null;
+}
+
+const DEFECT_EMPTY = { equipmentId: "", description: "", severity: "medium", reportedDate: new Date().toISOString().slice(0, 10), reportedBy: "", notes: "" };
+const SEVERITY_COLORS: Record<string, string> = {
+  low: "text-blue-700 bg-blue-50 border-blue-200",
+  medium: "text-amber-700 bg-amber-50 border-amber-200",
+  high: "text-orange-700 bg-orange-50 border-orange-200",
+  critical: "text-red-700 bg-red-50 border-red-200",
+};
+
+function EquipmentDefectsSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "in_progress" | "resolved">("all");
+  const [formOpen, setFormOpen] = useState(false);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [form, setForm] = useState<typeof DEFECT_EMPTY>(DEFECT_EMPTY);
+
+  const equipQ = useQuery<{ records: EquipmentRecord[] }>({
+    queryKey: ["equipment-for-defects", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/equipment`, { credentials: "include" }).then(r => r.json()),
+  });
+  const defectQ = useQuery<{ records: DefectReport[] }>({
+    queryKey: ["equipment-defects", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/equipment-defect-reports`, { credentials: "include" }).then(r => r.json()),
+  });
+  const equipList: EquipmentRecord[] = equipQ.data?.records ?? [];
+  const allDefects: DefectReport[] = defectQ.data?.records ?? [];
+
+  const createM = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      fetch(`/api/farms/${farmId}/equipment-defect-reports`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["equipment-defects", farmId] }); setFormOpen(false); setForm(DEFECT_EMPTY); toast({ title: "Defect report created" }); },
+  });
+  const patchM = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) =>
+      fetch(`/api/farms/${farmId}/equipment-defect-reports/${id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ status }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["equipment-defects", farmId] }); setUpdatingId(null); toast({ title: "Status updated" }); },
+  });
+
+  const openCount = allDefects.filter(d => d.status === "open").length;
+  const inProgressCount = allDefects.filter(d => d.status === "in_progress").length;
+  const resolvedCount = allDefects.filter(d => d.status === "resolved").length;
+  const criticalCount = allDefects.filter(d => d.severity === "critical" && d.status !== "resolved").length;
+
+  const filtered = allDefects.filter(d => statusFilter === "all" || d.status === statusFilter);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    createM.mutate({
+      equipmentId: form.equipmentId ? Number(form.equipmentId) : null,
+      description: form.description,
+      severity: form.severity || "medium",
+      status: "open",
+      reportedDate: form.reportedDate ? new Date(form.reportedDate).toISOString() : null,
+      reportedBy: form.reportedBy || null,
+      notes: form.notes || null,
+    });
+  }
+
+  const statusLabel = (s: string) => ({ open: "Open", in_progress: "In Progress", resolved: "Resolved" }[s] ?? s);
+  const statusClass = (s: string) => ({ open: "text-red-700 bg-red-50 border-red-200", in_progress: "text-amber-700 bg-amber-50 border-amber-200", resolved: "text-green-700 bg-green-50 border-green-200" }[s] ?? "text-foreground/60 bg-foreground/5 border-border");
+
+  return (
+    <>
+      {criticalCount > 0 && (
+        <div className="mb-5 border border-red-200 bg-red-50 rounded-xl px-4 py-3 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-red-800">{criticalCount} critical defect{criticalCount !== 1 ? "s" : ""} outstanding — equipment may be unsafe to operate</p>
+            <p className="text-xs text-red-700 mt-0.5">Critical defects must be resolved before the equipment is used. Tag equipment out of service until repaired.</p>
+          </div>
+        </div>
+      )}
+
+      <TabBar className="mb-5">
+        <TabButton active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>All <span className="ml-1 text-xs opacity-60">({allDefects.length})</span></TabButton>
+        <TabButton active={statusFilter === "open"} onClick={() => setStatusFilter("open")}>Open <span className="ml-1 text-xs opacity-60">({openCount})</span></TabButton>
+        <TabButton active={statusFilter === "in_progress"} onClick={() => setStatusFilter("in_progress")}>In Progress <span className="ml-1 text-xs opacity-60">({inProgressCount})</span></TabButton>
+        <TabButton active={statusFilter === "resolved"} onClick={() => setStatusFilter("resolved")}>Resolved <span className="ml-1 text-xs opacity-60">({resolvedCount})</span></TabButton>
+      </TabBar>
+
+      <div className="flex justify-end mb-4">
+        <Button size="sm" onClick={() => { setForm(DEFECT_EMPTY); setFormOpen(true); }} className="gap-2">
+          <Plus className="w-4 h-4" /> Report Defect
+        </Button>
+      </div>
+
+      {defectQ.isLoading ? (
+        <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-16 px-6">
+            <div className="w-14 h-14 mx-auto rounded-full bg-green-50 flex items-center justify-center mb-4">
+              <CheckCircle2 className="w-7 h-7 text-green-500" />
+            </div>
+            <h3 className="text-base font-semibold text-foreground/80 mb-1">
+              {statusFilter === "all" ? "No defect reports" : `No ${statusLabel(statusFilter).toLowerCase()} defects`}
+            </h3>
+            <p className="text-foreground/50 text-sm">{statusFilter === "all" ? "Report equipment faults here. Unresolved defects must be tracked until repaired." : `No defects in this status category.`}</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(d => {
+            const equip = equipList.find(e => e.id === d.equipmentId);
+            return (
+              <div key={d.id} className={`bg-white border rounded-xl p-4 shadow-sm border-l-4 ${d.status === "resolved" ? "border-l-green-400" : d.severity === "critical" ? "border-l-red-400" : d.severity === "high" ? "border-l-orange-400" : "border-l-amber-400"}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      {d.defectRef && <span className="font-mono text-xs text-foreground/40 bg-foreground/5 px-1.5 py-0.5 rounded">{d.defectRef}</span>}
+                      <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${statusClass(d.status)}`}>{statusLabel(d.status)}</span>
+                      {d.severity && <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border capitalize ${SEVERITY_COLORS[d.severity] ?? "text-foreground/60 bg-foreground/5 border-border"}`}>{d.severity}</span>}
+                    </div>
+                    <p className="text-sm font-medium text-foreground">{d.description}</p>
+                    <div className="flex items-center gap-3 flex-wrap mt-1 text-xs text-foreground/50">
+                      {equip && <span>{equip.name}</span>}
+                      {d.reportedDate && <span>· Reported {new Date(d.reportedDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>}
+                      {d.reportedBy && <span>· by {d.reportedBy}</span>}
+                      {d.resolvedDate && <span className="text-green-600">· Resolved {new Date(d.resolvedDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>}
+                    </div>
+                  </div>
+                  {d.status !== "resolved" && (
+                    <div className="flex-shrink-0">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" disabled={updatingId === d.id} className="gap-1 text-xs">
+                            {updatingId === d.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronDown className="w-3 h-3" />}
+                            Update
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {d.status === "open" && <DropdownMenuItem onClick={() => { setUpdatingId(d.id); patchM.mutate({ id: d.id, status: "in_progress" }); }}>Mark In Progress</DropdownMenuItem>}
+                          <DropdownMenuItem onClick={() => { setUpdatingId(d.id); patchM.mutate({ id: d.id, status: "resolved" }); }}>Mark Resolved</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={formOpen} onOpenChange={o => { if (!o) { setFormOpen(false); setForm(DEFECT_EMPTY); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Wrench className="w-5 h-5 text-primary" />Report Equipment Defect</DialogTitle>
+            <DialogDescription>Log a fault or defect. Critical and high severity defects must be resolved before the equipment is used.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Equipment (optional)</label>
+                <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.equipmentId} onChange={e => setForm(f => ({ ...f, equipmentId: e.target.value }))}>
+                  <option value="">General / unspecified equipment</option>
+                  {equipList.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Description of Defect <span className="text-red-500">*</span></label>
+                <Textarea placeholder="Describe the fault or defect observed..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} required className="min-h-[80px]" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Severity</label>
+                <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}>
+                  <option value="low">Low — monitor, no immediate action needed</option>
+                  <option value="medium">Medium — repair soon</option>
+                  <option value="high">High — repair before next use</option>
+                  <option value="critical">Critical — equipment out of service NOW</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Date Reported</label>
+                <Input type="date" value={form.reportedDate} onChange={e => setForm(f => ({ ...f, reportedDate: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Reported By</label>
+                <Input placeholder="Name of person reporting" value={form.reportedBy} onChange={e => setForm(f => ({ ...f, reportedBy: e.target.value }))} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
+                <Textarea placeholder="Additional notes, repair instructions, contractor details..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className="min-h-[60px]" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setForm(DEFECT_EMPTY); }}>Cancel</Button>
+              <Button type="submit" disabled={createM.isPending}>
+                {createM.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Submit Report
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export default function EquipmentPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"equipment" | "grain-storage">("equipment");
+  const [tab, setTab] = useState<"equipment" | "grain-storage" | "defects">("equipment");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [managingItem, setManagingItem] = useState<EquipmentRecord | null>(null);
   const [addPhotos, setAddPhotos] = useState<string[]>([]);
@@ -516,11 +722,15 @@ export default function EquipmentPage() {
       `}</style>
       <TabBar className="mb-6">
         <TabButton active={tab === "equipment"} onClick={() => setTab("equipment")}>Equipment Register</TabButton>
+        <TabButton active={tab === "defects"} onClick={() => setTab("defects")}>
+          <span className="flex items-center gap-1"><Wrench className="h-3.5 w-3.5" /> Defect Reports</span>
+        </TabButton>
         <TabButton active={tab === "grain-storage"} onClick={() => setTab("grain-storage")}>
           <span className="flex items-center gap-1"><FlaskConical className="h-3.5 w-3.5" /> Grain Storage Quality</span>
         </TabButton>
       </TabBar>
       {tab === "grain-storage" && farmId && <GrainStorageSection farmId={farmId} />}
+      {tab === "defects" && farmId && <EquipmentDefectsSection farmId={farmId} />}
       {tab === "equipment" && <>
       <div className="flex flex-col sm:flex-row justify-between mb-6 gap-4">
         <div className="relative w-full sm:w-96">

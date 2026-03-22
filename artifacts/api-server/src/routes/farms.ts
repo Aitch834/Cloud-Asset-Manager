@@ -34,6 +34,7 @@ import {
   livestockFeedRecordsTable,
   livestockWaterRecordsTable,
   livestockMortalityTable,
+  livestockDailyChecksTable,
   vetHealthPlansTable,
   dairyMilkRecordsTable,
   dairyMastitisRecordsTable,
@@ -83,6 +84,7 @@ import {
   externalAccessLogTable,
   farmLocationsTable,
   grainStorageBinsTable,
+  equipmentDefectReportsTable,
   grainQualityTestsTable,
   grainTemperatureLogsTable,
   aiReproductionRecordsTable,
@@ -1388,7 +1390,12 @@ router.get("/farms/:farmId/medicine-records", requireAuth, requireTenant, requir
 router.post("/farms/:farmId/medicine-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(livestockMedicineRecordsTable).values({ ...req.body, farmId }).returning();
+  const year = new Date().getFullYear();
+  const [countRow] = await db.select({ count: db.$count(livestockMedicineRecordsTable.id) }).from(livestockMedicineRecordsTable).where(and(eq(livestockMedicineRecordsTable.farmId, farmId)));
+  const seq = (Number(countRow?.count ?? 0) + 1).toString().padStart(4, "0");
+  const medicineRef = req.body.medicineRef || `MED-${year}-${seq}`;
+  const administeredDate = req.body.administeredDate ? new Date(req.body.administeredDate) : new Date();
+  const [record] = await db.insert(livestockMedicineRecordsTable).values({ ...req.body, farmId, medicineRef, administeredDate }).returning();
   res.status(201).json({ record });
 });
 
@@ -4595,6 +4602,226 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Using the Tab</h3>
 <p>Navigate to <strong>Poultry Production → Thinning</strong> and click <strong>Log Thinning</strong>. Complete all required fields at the time of each thinning event. After final depletion, the full thinning history for the flock provides a complete production audit trail.</p>`,
     },
+    {
+      id: 10007,
+      title: "Soil Sample Register — Understanding References and Status",
+      category: "Environmental",
+      content: `<img src="/api/help-images/field-operations.png" alt="Soil Sample Register" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Soil Sample Register in BDE Farm Trac records all soil sampling events in a structured, auditable format that satisfies Red Tractor Cross-Compliance requirements. Each record is automatically assigned a unique reference number in the format <strong>SS-YYYY-NNNN</strong> (e.g. SS-2025-0012), which provides a traceable identifier for every sample taken.</p>
+
+<h3>Status System</h3>
+<p>Each soil sample record has one of three statuses: <strong>Pending</strong> (sample taken but lab results not yet received), <strong>Results Received</strong> (laboratory report received and data entered), or <strong>Action Required</strong> (results indicate pH, phosphorus, potassium, or magnesium index is outside target range and a management response is needed).</p>
+
+<h3>Status Tabs</h3>
+<p>The register uses a tab bar to filter records by status. Use the <strong>Action Required</strong> tab to quickly identify fields that need corrective action before the next growing season. The <strong>Pending</strong> tab shows samples awaiting lab results. You can update the status of any record using the dropdown menu on each card.</p>
+
+<h3>Print Register</h3>
+<p>The <strong>Print Register</strong> button generates a printable report of your current filtered records. Print the full register annually or ahead of a Red Tractor audit. The printed register shows all reference numbers, sampling dates, field names, nutrient indices, and pH values in a standard tabular format.</p>
+
+<h3>Sampling Frequency</h3>
+<p>Under Red Tractor standards, arable, horticultural, and intensive grassland fields should be sampled at least once every four years. Fields receiving regular applications of slurry, manure, or other organic materials should be sampled more frequently. The dashboard will surface a reminder when any field exceeds the recommended sampling interval.</p>`,
+    },
+    {
+      id: 10008,
+      title: "AI & Reproduction Records — Cattle and Livestock",
+      category: "Livestock",
+      content: `<img src="/api/help-images/livestock.png" alt="AI and Reproduction Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The <strong>AI & Reproduction</strong> tab in the Livestock section allows you to record all artificial insemination events, natural service matings, and pregnancy diagnostic results for your cattle, sheep, and pig herds. These records are not a formal Red Tractor requirement in isolation, but they feed directly into calving, lambing, and farrowing records, which are assessed at audit.</p>
+
+<h3>What to Record for AI Events</h3>
+<p>For each AI event, record: the herd or individual animal (use the ear tag or herd group), the date of insemination, the sire/bull name and registration number (from the semen straw), the AI technician name, the synchronisation protocol used (if any), and any oestrus detection method employed (visual, tail paint, electronic). Recording the sire registration number provides traceability for any subsequent calves with health or performance concerns.</p>
+
+<h3>Pregnancy Diagnosis (PD) Results</h3>
+<p>Record pregnancy diagnosis results — whether by rectal palpation, ultrasound, or progesterone test — against each served animal. Include the PD date, method, the vet or technician who performed the PD, and the outcome (confirmed pregnant, empty, or re-serve). For cattle, this data is used to calculate expected calving dates, which flow into your calving records.</p>
+
+<h3>Natural Service</h3>
+<p>Record bull or ram service events alongside AI records using the same tab. Include the service date, which bull or ram was used (with registration or ear tag), and the number of females served in that group. This is important for calculating expected calving/lambing windows and managing bull fertility records as required under some veterinary health plan frameworks.</p>
+
+<h3>Using the Tab</h3>
+<p>Navigate to <strong>Livestock → AI & Reproduction</strong>. Click <strong>Add Record</strong> and complete the form. Pregnancy outcomes can be added retrospectively once the PD result is known. Use the filter to show records by outcome status (served / confirmed pregnant / empty).</p>`,
+    },
+    {
+      id: 10009,
+      title: "Vet Prescriptions — Storing and Tracking Written Authorisations",
+      category: "Livestock",
+      content: `<img src="/api/help-images/medicine-records.png" alt="Vet Prescriptions" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Under the Veterinary Medicines Regulations 2013 (as amended), certain medicines — including all prescription-only veterinary medicines (POM-V and POM-VPS) — may only be administered under the authority of a Written Authority (WA) or Veterinary Written Authorisation (VWA) issued by a Veterinary Surgeon. The <strong>Vet Prescriptions</strong> tab provides a dedicated record for these authorisations, separate from the administration records in the Medicine Register.</p>
+
+<h3>What to Record</h3>
+<p>For each prescription or written authorisation, record: the prescribing vet's name and practice, the date of issue, the medicine name and the maximum dose authorised, the species and group of animals covered, the authorisation expiry date, and the prescription or authorisation reference number. Attach a scanned copy of the original document where possible.</p>
+
+<h3>Why Separate Records?</h3>
+<p>The medicine record (in the Medicine Register) records each administration event — a specific animal or group, on a specific date, with a specific dose. The prescription record is the legal authority that permits those administrations to occur. Keeping these as linked but separate records mirrors the structure required by the Veterinary Medicines Regulations and provides a clean audit trail: the prescription shows the authority; the medicine record shows the use.</p>
+
+<h3>Expiry Alerts</h3>
+<p>Prescriptions and written authorisations have a maximum validity period (typically six months for repeat prescriptions, though this varies). The system will show an amber warning badge when an authorisation is within 28 days of expiry, and a red badge once expired. An expired authorisation means you are no longer authorised to purchase or administer the medicine under that WA. Contact your vet to renew before the expiry date.</p>
+
+<h3>Red Tractor and Inspection Evidence</h3>
+<p>Red Tractor inspectors and your Veterinary Health Plan (VHP) vet will check that all prescription-only medicines in your medicine records are covered by a current, valid written authorisation. Having these stored digitally in the system — with expiry tracking — ensures you can produce the evidence quickly during an audit visit.</p>`,
+    },
+    {
+      id: 10010,
+      title: "SFI / ELMS Agreements — Recording and Tracking Agri-Environment Schemes",
+      category: "Environmental",
+      content: `<img src="/api/help-images/field-operations.png" alt="SFI and ELMS Agreements" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The <strong>SFI / ELMS</strong> tab in the Environmental section provides a central record for all Sustainable Farming Incentive (SFI), Countryside Stewardship (CS), and other agri-environment agreements your farm holds. This includes actions, options, and their associated payment rates, management prescriptions, and agreement end dates.</p>
+
+<h3>What to Record</h3>
+<p>For each agreement or agreement option, record: the scheme name (SFI 2023/2024, CS Mid-Tier, CS Higher Tier, etc.), the agreement reference number (from Natural England or the Rural Payments Agency), the start and end dates, the annual payment rate, the land parcels or field blocks covered, and the management requirements (e.g. "AB8 Flower-rich margins — 6m buffer, no fertiliser, cut and remove August–September").</p>
+
+<h3>Compliance Evidence</h3>
+<p>Each agreement option has specific management requirements that must be evidenced at inspection. Use the notes field to record any field-level management actions relevant to the option — for example, confirming that in-field trees in an agroforestry option have been maintained, or that overwintered stubble has been left in accordance with the CS option conditions.</p>
+
+<h3>Payment Tracking</h3>
+<p>Record each payment received against its agreement, including the payment date, the amount, and the claim reference. This provides a complete financial record of agri-environment income, which is useful for farm business accounting and for demonstrating scheme compliance over time.</p>
+
+<h3>Integration with Soil Sampling and Field Records</h3>
+<p>Many SFI and CS options have requirements that link directly to other BDE Farm Trac records — such as soil sampling frequency, fertiliser application restrictions, and cover cropping. Cross-reference your agreement conditions against your field operation records to ensure alignment.</p>`,
+    },
+    {
+      id: 10011,
+      title: "Slurry & Manure Management — Records and Closed Period Compliance",
+      category: "Environmental",
+      content: `<img src="/api/help-images/field-operations.png" alt="Slurry and Manure Management" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Slurry and manure management records are a mandatory requirement under the Nitrate Vulnerable Zones (NVZ) Action Programme in England, and equivalent regulations apply in Wales, Scotland, and Northern Ireland. If your farm is within an NVZ, you must maintain records of all slurry and manure applications, storage capacity calculations, and spreading events.</p>
+
+<h3>NVZ Closed Periods</h3>
+<p>Applications of slurry, poultry manure, and nitrogen-rich organic materials are prohibited during the closed period. For arable land in England, the closed period for slurry runs from 1 October to 31 January (inclusive). For grassland, the period is 15 October to 31 January. The system will warn you if you attempt to log a spreading event that falls within the closed period for your land type.</p>
+
+<h3>What to Record for Each Application</h3>
+<p>For every slurry or manure application, record: the date of application, the field or land parcel, the type of material (cattle slurry, pig slurry, FYM, poultry litter, digestate, etc.), the volume or quantity applied (m³ or tonnes), the application method (tanker injector, trailing shoe, splash plate, solid spreader), and the crop at time of application. If the application is on behalf of a contractor, record the contractor's name.</p>
+
+<h3>Storage Capacity</h3>
+<p>Under NVZ rules, slurry stores must have sufficient capacity to hold all slurry produced during the closed period. Use the Slurry tab to calculate your required storage volume based on your livestock type, numbers, and housing period. If storage capacity is insufficient, you must have a plan in place — this is assessed at NVZ inspection.</p>
+
+<h3>Nutrient Management</h3>
+<p>Slurry and manure applications must be factored into your farm's nutrient management plan (NMP). The nitrogen, phosphorus, and potassium content of each application should be estimated using standard values from the Nutrient Management Guide (RB209) and deducted from your crop nitrogen budget. Cross-reference with your soil sample results to avoid over-application.</p>`,
+    },
+    {
+      id: 10012,
+      title: "Grain Storage Quality — Monitoring and Record Keeping",
+      category: "Equipment & Machinery",
+      content: `<img src="/api/help-images/field-operations.png" alt="Grain Storage Quality" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The <strong>Grain Storage Quality</strong> tab allows you to register your grain stores (bins, flat stores, silos) and log quality tests and temperature monitoring records for each store. These records are required under Red Tractor Combinable Crops standards and are essential for demonstrating traceability of your stored grain from harvest through to sale.</p>
+
+<h3>Registering Stores</h3>
+<p>Begin by registering each grain store on the farm — flat stores, bins, and silos should each have their own record. Specify the store type, capacity (tonnes), the crop currently in storage, variety, and harvest year. This creates the foundation for all quality and temperature records attached to that store.</p>
+
+<h3>Quality Testing</h3>
+<p>For each quality test, record: the test date, moisture content (%), specific weight (kg/hl), screenings (%), Hagberg Falling Number (for wheat intended for milling), and the result of any mycotoxin test. Each test is linked to a specific store and crop. Failing results trigger an action required flag — record the management response (turning grain, increasing aeration, blending) in the notes.</p>
+
+<h3>Temperature Monitoring</h3>
+<p>Temperature monitoring is critical during the first weeks after harvest when grain is at risk of heating. Log temperature readings from each probe or monitoring point, including the probe location and the trend direction (rising, stable, falling). A rising temperature is a key indicator of fungal activity or insect infestation and requires immediate action.</p>
+
+<h3>Fumigation and Treatment Records</h3>
+<p>If grain is treated with a stored grain insecticide or subjected to phosphine fumigation, this must be recorded separately using the medicine/chemical application record and cross-referenced to the affected store. The active ingredient, dose, application date, and the minimum safe re-entry period must all be documented.</p>`,
+    },
+    {
+      id: 10013,
+      title: "Horticulture Module — Crop Records, Sprays, and Assurance",
+      category: "Horticulture",
+      content: `<img src="/api/help-images/field-operations.png" alt="Horticulture Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Horticulture module supports growers producing vegetables, salads, soft fruit, top fruit, and ornamental crops under Red Tractor Fresh Produce or GLOBALG.A.P. assurance schemes. It provides a dedicated record-keeping framework for crop planting records, protected structure management, pesticide applications, and harvest logs.</p>
+
+<h3>Crop Records</h3>
+<p>Register each crop or growing lot with the variety, planting or sowing date, field or structure reference, and the target harvest date. For protected crops (glasshouse, polytunnel), record the structure ID and the crop cycle number. Each crop record provides the link between inputs applied and outputs harvested — the key traceability chain required under GLOBALG.A.P.</p>
+
+<h3>Pesticide Applications</h3>
+<p>Under Red Tractor Fresh Produce standards, all pesticide applications must be recorded within 48 hours of application. Record the product name, authorisation number (MAPP or HBN), crop and growth stage, target pest or disease, dose applied (per hectare or per litre of water), application date and time, operator name (including BASIS qualification reference for anyone giving advice), and weather conditions at time of application. If the product has a pre-harvest interval (PHI) or Maximum Residue Level (MRL) consideration, note the re-entry date and any harvest restriction.</p>
+
+<h3>Harvest Records</h3>
+<p>Log each harvest event against the crop record: harvest date, quantity harvested (kg or units), quality grade (Class I, Class II, etc.), destination (packer, direct retail, wholesale market), and any quality issues noted. For multi-pick crops (salads, herbs, strawberries), each pick is recorded as a separate harvest event under the same crop record.</p>
+
+<h3>Worker Welfare</h3>
+<p>The Horticulture module includes accommodation and worker welfare records for farms housing seasonal workers. These records are assessed under Red Tractor Fresh Produce and GLOBALG.A.P. social responsibility requirements. Record housing capacity, facilities inspections, and any welfare concerns raised and resolved.</p>`,
+    },
+    {
+      id: 10014,
+      title: "Carbon & Sustainability — Measuring and Recording Your Farm's Footprint",
+      category: "Carbon & Sustainability",
+      content: `<img src="/api/help-images/field-operations.png" alt="Carbon and Sustainability" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Carbon & Sustainability module provides a framework for measuring, recording, and improving your farm's carbon footprint and sustainability metrics. While carbon reporting is not currently a formal Red Tractor requirement, it is increasingly a condition of major retailer supply contracts, and a detailed carbon baseline will be required for most Sustainable Farming Incentive (SFI) "whole farm" actions.</p>
+
+<h3>Carbon Footprint Assessments</h3>
+<p>Record the results of carbon footprint assessments carried out using tools such as Farm Carbon Toolkit, Agrecalc, Cool Farm Tool, or a tool specified by your assurance scheme or retailer. For each assessment, record: the assessment date, the tool used, the total farm emissions (tCO₂e), the emissions intensity (tCO₂e per tonne of product or per hectare), and the boundary of the assessment (what is and is not included).</p>
+
+<h3>Biodiversity Net Gain and Habitat Records</h3>
+<p>Record habitat enhancement actions taken on the farm — hedgerow planting lengths (metres), woodland creation (hectares), wildflower meadow establishment, and pond creation or restoration. These actions contribute to your Biodiversity Net Gain (BNG) position and are required evidence for certain SFI and CS option payments.</p>
+
+<h3>Energy and Water Use</h3>
+<p>Log monthly electricity, gas, and fuel consumption to track energy intensity trends over time. Record any renewable energy generation (solar, wind, AD) and any energy efficiency improvements made. This data feeds directly into your carbon footprint calculations and may be required for retailer or scheme sustainability questionnaires.</p>
+
+<h3>Sustainability Action Plan</h3>
+<p>Use the Sustainability module to record and track progress against a farm sustainability action plan. Each action should have a target date, a responsible person, and a measurable outcome. Progress is tracked as Not Started / In Progress / Completed, with the option to add evidence notes and links to supporting records in other parts of the system.</p>`,
+    },
+    {
+      id: 10015,
+      title: "Farm Diversification — Recording Non-Agricultural Activities",
+      category: "Diversification",
+      content: `<img src="/api/help-images/field-operations.png" alt="Farm Diversification" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Farm Diversification module provides a record-keeping framework for non-agricultural business activities operating from a farming enterprise — including farm shops, holiday accommodation, event hosting, equestrian services, renewable energy, processing, and direct retail. These activities have their own compliance requirements and must be managed separately from core agricultural records.</p>
+
+<h3>Activity Register</h3>
+<p>Register each diversification activity with its type, start date, planning permission reference (if applicable), and the primary contact or manager responsible. Activities that require specific licences or permits — such as a premises licence for alcohol sales, a licence to operate an abattoir, or planning consent for a change of use — should have their licence details and expiry dates recorded here.</p>
+
+<h3>Insurance and Liability</h3>
+<p>Record insurance policy details for each diversification activity. Public liability cover is typically required at a higher level for visitor-facing activities (farm shops, pick-your-own, open farms, holiday lets). Log the policy number, insurer, cover level, and renewal date. The system will surface renewal reminders 60 days before expiry.</p>
+
+<h3>Food Hygiene and Safety (Farm Shops and Processing)</h3>
+<p>If you sell or process food directly to consumers, you must be registered with your local authority Environmental Health department. Record your food business registration reference, your food hygiene rating, the date of your last EH inspection, and the name of your Food Hygiene Champion or designated food safety manager. HACCP and allergen management documentation should be referenced here.</p>
+
+<h3>Holiday Accommodation</h3>
+<p>Record holiday let, glamping, or campsite accommodation units with their capacity, booking platform references, fire risk assessment dates, and EPC certificates. Accommodation used for workers (e.g. seasonal agricultural labour) should be recorded in the Staff module rather than here.</p>`,
+    },
+    {
+      id: 10016,
+      title: "Water & Irrigation — Abstraction, Usage, and Compliance Records",
+      category: "Water & Irrigation",
+      content: `<img src="/api/help-images/field-operations.png" alt="Water and Irrigation" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The Water & Irrigation module provides a dedicated record for water abstraction licences, irrigation events, water quality monitoring, and infrastructure maintenance. These records are required under the Water Framework Directive as implemented in UK law, and are a growing requirement under sustainability due diligence frameworks for horticultural and fresh produce supply chains.</p>
+
+<h3>Abstraction Licences</h3>
+<p>If you abstract water from a watercourse, borehole, or other source above the threshold volume (currently 20 m³/day), you require an abstraction licence from the Environment Agency (or equivalent body in devolved nations). Record each licence with its reference number, the abstraction source, the permitted annual volume (m³), the licence condition period, and expiry date. The system will surface renewal reminders ahead of expiry.</p>
+
+<h3>Meter Readings and Usage Logs</h3>
+<p>Log meter readings at a frequency appropriate to your licence conditions — typically monthly as a minimum, or more frequently during peak irrigation periods. Record the reading date, meter identifier, and the cumulative meter reading. The system calculates usage between readings and plots this against your annual licence volume, so you can see at a glance if you are approaching your permitted abstraction limit.</p>
+
+<h3>Irrigation Events</h3>
+<p>For each irrigation event, record: the date, the field or crop irrigated, the volume applied (m³ or mm), the irrigation system used (trickle/drip, sprinkler, surface flood, boom), and the water source. This information is required under some assurance schemes and is useful for demonstrating water-use efficiency improvements over time.</p>
+
+<h3>Water Quality Monitoring</h3>
+<p>If irrigation water is applied to crops for human consumption, water quality monitoring may be required. Record each water quality test with the date, source, testing laboratory, parameters tested (E. coli, turbidity, pH, nitrate), and results. Failing results require immediate action — record the remedial steps taken, including any disinfection treatment applied.</p>`,
+    },
+    {
+      id: 10017,
+      title: "Equipment Defect Reports — Tracking Faults and Repairs",
+      category: "Equipment & Machinery",
+      content: `<img src="/api/help-images/field-operations.png" alt="Equipment Defect Reports" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The <strong>Defect Reports</strong> tab in the Equipment section provides a register of all reported faults, defects, and maintenance issues. Maintaining a defect log is a requirement under Red Tractor standards for equipment used in food production, chemical application, and livestock handling — and is a legal obligation under health and safety legislation where defects could create a risk of injury.</p>
+
+<h3>Severity Levels</h3>
+<p>Each defect is assigned a severity level: <strong>Low</strong> (monitor — no immediate action required, repair at next service), <strong>Medium</strong> (repair within a defined timeframe before next use), <strong>High</strong> (equipment must not be used until repaired — tag out of service), or <strong>Critical</strong> (immediate safety risk — equipment is taken out of service immediately and the defect reported to management). The severity level determines how the record is displayed and what alerts are generated.</p>
+
+<h3>Status Workflow</h3>
+<p>Defect reports follow a three-stage workflow: <strong>Open</strong> (reported, not yet actioned), <strong>In Progress</strong> (repair works have started or been commissioned), and <strong>Resolved</strong> (repair complete and equipment returned to service). Use the dropdown menu on each defect card to advance the status. Resolution date is automatically recorded when the status is set to Resolved.</p>
+
+<h3>Auto-References</h3>
+<p>Each defect report is assigned a reference in the format <strong>ED-YYYY-NNNN</strong> (e.g. ED-2025-0031). This reference allows you to cross-reference the defect in any external repair invoices, maintenance records, or insurance documents.</p>
+
+<h3>Spray Equipment</h3>
+<p>Defects on crop protection equipment (sprayers, nozzles, pressure gauges) are particularly important — a spray equipment defect can lead to pesticide under-dose (agronomic failure) or over-dose (MRL exceedance and environmental risk). All spray equipment faults must be resolved before the next application, and the resolution should be cross-referenced to the sprayer calibration check record.</p>`,
+    },
   ];
 
   const { search, category } = _req.query;
@@ -4767,6 +4994,59 @@ router.delete("/farms/:farmId/mortality-records/:recordId", requireAuth, require
   const farmId = Number(req.params.farmId);
   const recordId = Number(req.params.recordId);
   await db.delete(livestockMortalityTable).where(and(eq(livestockMortalityTable.id, recordId), eq(livestockMortalityTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Livestock Daily Checks Register ────────────────
+router.get("/farms/:farmId/livestock-checks", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(livestockDailyChecksTable).where(eq(livestockDailyChecksTable.farmId, farmId)).orderBy(desc(livestockDailyChecksTable.checkDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/livestock-checks", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { mobileId } = req.body;
+  if (mobileId) {
+    const [existing] = await db.select({ id: livestockDailyChecksTable.id }).from(livestockDailyChecksTable).where(and(eq(livestockDailyChecksTable.farmId, farmId), eq(livestockDailyChecksTable.mobileId, mobileId))).limit(1);
+    if (existing) { res.json({ record: existing, duplicate: true }); return; }
+  }
+  const year = new Date().getFullYear();
+  const [countRow] = await db.select({ count: db.$count(livestockDailyChecksTable.id) }).from(livestockDailyChecksTable).where(and(eq(livestockDailyChecksTable.farmId, farmId)));
+  const seq = (Number(countRow?.count ?? 0) + 1).toString().padStart(4, "0");
+  const checkRef = req.body.checkRef || `LC-${year}-${seq}`;
+  const checkDate = req.body.checkDate || req.body.checkDate || new Date().toISOString();
+  const [record] = await db.insert(livestockDailyChecksTable).values({ ...req.body, farmId, checkRef, checkDate: new Date(checkDate), sickCount: Number(req.body.sickCount ?? 0), mortalityCount: Number(req.body.mortalityCount ?? 0) }).returning();
+  res.status(201).json({ record });
+});
+
+router.patch("/farms/:farmId/livestock-checks/:recordId/status", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { status } = req.body;
+  const [record] = await db.update(livestockDailyChecksTable).set({ status }).where(and(eq(livestockDailyChecksTable.id, recordId), eq(livestockDailyChecksTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/livestock-checks/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(livestockDailyChecksTable).set(req.body).where(and(eq(livestockDailyChecksTable.id, recordId), eq(livestockDailyChecksTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/livestock-checks/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(livestockDailyChecksTable).where(and(eq(livestockDailyChecksTable.id, recordId), eq(livestockDailyChecksTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -7113,6 +7393,63 @@ router.delete("/farms/:farmId/grain-storage-bins/:id", requireAuth, requireTenan
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(grainStorageBinsTable).where(and(eq(grainStorageBinsTable.id, id), eq(grainStorageBinsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Equipment Defect Reports Register ───────────────
+router.get("/farms/:farmId/equipment-defect-reports", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(equipmentDefectReportsTable).where(eq(equipmentDefectReportsTable.farmId, farmId)).orderBy(desc(equipmentDefectReportsTable.reportedDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/equipment-defect-reports", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { mobileId } = req.body;
+  if (mobileId) {
+    const [existing] = await db.select({ id: equipmentDefectReportsTable.id }).from(equipmentDefectReportsTable).where(and(eq(equipmentDefectReportsTable.farmId, farmId), eq(equipmentDefectReportsTable.mobileId, mobileId))).limit(1);
+    if (existing) { res.json({ record: existing, duplicate: true }); return; }
+  }
+  const year = new Date().getFullYear();
+  const [countRow] = await db.select({ count: db.$count(equipmentDefectReportsTable.id) }).from(equipmentDefectReportsTable).where(and(eq(equipmentDefectReportsTable.farmId, farmId)));
+  const seq = (Number(countRow?.count ?? 0) + 1).toString().padStart(4, "0");
+  const defectRef = req.body.defectRef || `ED-${year}-${seq}`;
+  const reportedDate = req.body.reportedDate || req.body.reportedDate || new Date().toISOString();
+  const equipmentName = req.body.equipmentName || req.body.equipmentName || "Unknown";
+  const defectDescription = req.body.defectDescription || req.body.defectDescription || "";
+  const [record] = await db.insert(equipmentDefectReportsTable).values({ ...req.body, farmId, defectRef, reportedDate: new Date(reportedDate), equipmentName, defectDescription }).returning();
+  res.status(201).json({ record });
+});
+
+router.patch("/farms/:farmId/equipment-defect-reports/:recordId/status", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { status, resolvedBy } = req.body;
+  const updates: Record<string, unknown> = { status };
+  if (status === "resolved" || status === "closed") { updates.resolvedDate = new Date(); if (resolvedBy) updates.resolvedBy = resolvedBy; }
+  const [record] = await db.update(equipmentDefectReportsTable).set(updates).where(and(eq(equipmentDefectReportsTable.id, recordId), eq(equipmentDefectReportsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/equipment-defect-reports/:recordId", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(equipmentDefectReportsTable).set(req.body).where(and(eq(equipmentDefectReportsTable.id, recordId), eq(equipmentDefectReportsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/equipment-defect-reports/:recordId", requireAuth, requireTenant, requireModuleByKey("equipment-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(equipmentDefectReportsTable).where(and(eq(equipmentDefectReportsTable.id, recordId), eq(equipmentDefectReportsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

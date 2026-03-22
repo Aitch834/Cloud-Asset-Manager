@@ -175,3 +175,24 @@ export const grainTemperatureLogsTable = pgTable("grain_temperature_logs", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const equipmentDefectReportsTable = pgTable("equipment_defect_reports", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  defectRef: text("defect_ref"),
+  equipmentId: integer("equipment_id").references(() => equipmentTable.id),
+  equipmentName: text("equipment_name").notNull(),
+  reportedDate: timestamp("reported_date", { withTimezone: true }).notNull(),
+  reportedBy: text("reported_by"),
+  defectDescription: text("defect_description").notNull(),
+  severity: text("severity").notNull().default("minor"),
+  status: text("status").notNull().default("reported"),
+  actionTaken: text("action_taken"),
+  resolvedDate: timestamp("resolved_date", { withTimezone: true }),
+  resolvedBy: text("resolved_by"),
+  notes: text("notes"),
+  latitude: text("latitude"),
+  longitude: text("longitude"),
+  mobileId: text("mobile_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

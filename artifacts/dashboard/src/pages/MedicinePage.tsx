@@ -6,15 +6,18 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, HeartPulse, Printer,
-  AlertTriangle, Clock, CheckCircle2,
+  AlertTriangle, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
 
-type TabKey = "records" | "print";
+type StatusFilter = "all" | "in_withdrawal" | "cleared" | "no_withdrawal";
 
 function formatDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -42,10 +45,16 @@ function isInWithdrawal(endDate: string | null | undefined): boolean {
   if (!endDate) return false;
   return daysUntil(endDate) !== null && daysUntil(endDate)! >= 0;
 }
+function getRecordStatus(r: MedicineRecord): "in_withdrawal" | "cleared" | "no_withdrawal" {
+  if (!r.withdrawalPeriodDays) return "no_withdrawal";
+  if (isInWithdrawal(r.withdrawalEndDate)) return "in_withdrawal";
+  return "cleared";
+}
 
 interface Herd { id: number; name: string; type: string; }
 interface MedicineRecord {
   id: number; farmId: number; animalId: number | null; herdId: number | null;
+  medicineRef: string | null;
   medicineName: string; batchNumber: string | null; dosage: string | null;
   administrationRoute: string | null; administeredBy: string | null;
   administeredDate: string; withdrawalPeriodDays: number | null;
@@ -62,54 +71,224 @@ const EMPTY_FORM = {
 
 const ADMIN_ROUTES = ["Oral", "Subcutaneous injection", "Intramuscular injection", "Intravenous injection", "Intramammary", "Topical / Pour-on", "Intrauterine", "Ocular", "Nasal", "Other"];
 
-function RecordsTab({ farmId }: { farmId: number }) {
+function StatusBadge({ record }: { record: MedicineRecord }) {
+  const status = getRecordStatus(record);
+  const days = daysUntil(record.withdrawalEndDate);
+  if (status === "in_withdrawal") return (
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+      <Clock className="w-3 h-3" />{days}d left
+    </span>
+  );
+  if (status === "cleared") return (
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+      <CheckCircle2 className="w-3 h-3" />Cleared
+    </span>
+  );
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+      <XCircle className="w-3 h-3" />No W/D
+    </span>
+  );
+}
+
+function RecordCard({ record, herds, onEdit, onDelete }: { record: MedicineRecord; herds: Herd[]; onEdit: (r: MedicineRecord) => void; onDelete: (id: number) => void; }) {
+  const [expanded, setExpanded] = useState(false);
+  const herdName = herds.find(h => h.id === record.herdId)?.name ?? (record.herdId ? `Herd #${record.herdId}` : "—");
+  const status = getRecordStatus(record);
+  const borderColor = status === "in_withdrawal" ? "border-l-amber-400" : status === "cleared" ? "border-l-green-400" : "border-l-blue-400";
+  const days = daysUntil(record.withdrawalEndDate);
+
+  return (
+    <div className={`bg-white border border-border rounded-xl border-l-4 ${borderColor} p-4 shadow-sm`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            {record.medicineRef && (
+              <span className="font-mono text-xs text-foreground/40 bg-foreground/5 px-1.5 py-0.5 rounded">{record.medicineRef}</span>
+            )}
+            <StatusBadge record={record} />
+            {status === "in_withdrawal" && (
+              <span className="text-xs text-amber-700 font-medium">Withdrawal ends {formatDate(record.withdrawalEndDate)}</span>
+            )}
+          </div>
+          <h3 className="font-semibold text-foreground text-sm">{record.medicineName}</h3>
+          <div className="flex items-center gap-3 flex-wrap mt-1 text-xs text-foreground/60">
+            <span>{formatDate(record.administeredDate)}</span>
+            {herdName !== "—" && <span>· {herdName}</span>}
+            {record.administeredBy && <span>· by {record.administeredBy}</span>}
+            {record.withdrawalPeriodDays && <span>· {record.withdrawalPeriodDays}d W/D</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button onClick={() => onEdit(record)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/30 hover:text-primary">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => onDelete(record.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/30 hover:text-red-500">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => setExpanded(e => !e)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/30">
+            {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div className="mt-3 pt-3 border-t border-border/50 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-xs">
+          {[
+            { label: "Dosage", value: record.dosage },
+            { label: "Route", value: record.administrationRoute },
+            { label: "Batch No.", value: record.batchNumber },
+            { label: "Vet", value: record.vetName },
+            { label: "Reason", value: record.reason },
+            { label: "Notes", value: record.notes },
+          ].filter(f => f.value).map(f => (
+            <div key={f.label}>
+              <p className="text-foreground/40 uppercase tracking-wide font-semibold text-[10px]">{f.label}</p>
+              <p className="text-foreground/80 font-medium">{f.value}</p>
+            </div>
+          ))}
+          <div>
+            <p className="text-foreground/40 uppercase tracking-wide font-semibold text-[10px]">Timeline</p>
+            <p className="text-foreground/80 font-medium">Administered {formatDate(record.administeredDate)}</p>
+            {record.withdrawalEndDate && (
+              <p className="text-foreground/80 font-medium">Withdrawal ends {formatDate(record.withdrawalEndDate)}</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function buildPrintHtml(records: MedicineRecord[], herds: Herd[], farm: Farm, filterLabel: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Medicine Register</title><style>
+body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
+.hdr{display:flex;justify-content:space-between;border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
+.hdr h1{font-size:14px;font-weight:700;margin:0 0 2px}.hdr p{font-size:9px;color:#555;margin:1px 0}
+.hdr-r{text-align:right;font-size:9px;color:#666}.hdr-r b{display:block;font-size:12px;font-weight:700;color:#000}
+table{width:100%;border-collapse:collapse;font-size:9px;margin-bottom:10px}
+th{background:#f0fdf4;font-weight:700;text-align:left;border:1px solid #d1d5db;padding:5px 7px}
+td{border:1px solid #d1d5db;padding:5px 7px}
+tr:nth-child(even) td{background:#fafafa}
+.badge-wd{background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:99px;font-weight:600}
+.badge-ok{background:#dcfce7;color:#166534;padding:1px 5px;border-radius:99px;font-weight:600}
+.badge-na{background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:99px;font-weight:600}
+.footer{font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:6px;font-style:italic}
+@media print{@page{margin:1.5cm}}
+</style></head><body>
+<div class="hdr">
+  <div>
+    <h1>Medicine Register</h1>
+    <p>${farm.name}</p>
+    ${farm.cphNumber ? `<p>CPH: ${farm.cphNumber}</p>` : ""}
+    ${farm.redTractorId ? `<p>Red Tractor ID: ${farm.redTractorId}</p>` : ""}
+    <p>Filter: ${filterLabel}</p>
+  </div>
+  <div class="hdr-r">
+    <b>BDE Farm Trac</b>
+    <span>Printed: ${new Date().toLocaleDateString("en-GB")}</span>
+  </div>
+</div>
+<table>
+  <thead><tr>
+    <th>Reference</th><th>Medicine</th><th>Batch No.</th><th>Herd / Group</th><th>Administered</th>
+    <th>Dosage / Route</th><th>W/D Days</th><th>W/D Ends</th><th>Status</th><th>Vet</th><th>Reason</th>
+  </tr></thead>
+  <tbody>${records.map(r => {
+    const status = getRecordStatus(r);
+    const herdName = herds.find(h => h.id === r.herdId)?.name ?? "—";
+    const days = daysUntil(r.withdrawalEndDate);
+    const badge = status === "in_withdrawal" ? `<span class="badge-wd">${days}d left</span>` : status === "cleared" ? `<span class="badge-ok">Cleared</span>` : `<span class="badge-na">No W/D</span>`;
+    return `<tr>
+      <td style="font-family:monospace">${r.medicineRef ?? "—"}</td>
+      <td><b>${r.medicineName}</b></td>
+      <td style="font-family:monospace">${r.batchNumber ?? "—"}</td>
+      <td>${herdName}</td>
+      <td>${formatDateLong(r.administeredDate)}</td>
+      <td>${[r.dosage, r.administrationRoute].filter(Boolean).join(" · ") || "—"}</td>
+      <td>${r.withdrawalPeriodDays ?? "—"}</td>
+      <td>${r.withdrawalEndDate ? formatDateLong(r.withdrawalEndDate) : "—"}</td>
+      <td>${badge}</td>
+      <td>${r.vetName ?? "—"}</td>
+      <td>${r.reason ?? "—"}</td>
+    </tr>`;
+  }).join("")}</tbody>
+</table>
+<p class="footer">This register is a legally required document under the Veterinary Medicines Regulations 2013 and must be retained for at least 5 years. Ensure withdrawal periods are observed before slaughter, milk sale, or egg collection.</p>
+</body></html>`;
+}
+
+export default function MedicinePageDedicated() {
+  const { farmId } = useAppStore();
+  if (!farmId) return <Redirect to="/select" />;
+  return (
+    <AppLayout title="Medicine Register">
+      <MedicineRegisterContent farmId={farmId} />
+    </AppLayout>
+  );
+}
+
+function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MedicineRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
+  const farmQ = useQuery<Farm>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" }).then(r => r.json()),
+  });
   const herdsQ = useQuery<{ records: Herd[] }>({
     queryKey: ["herds", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()),
+    queryFn: () => fetch(`/api/farms/${farmId}/herds`, { credentials: "include" }).then(r => r.json()),
   });
   const medicineQ = useQuery<{ records: MedicineRecord[] }>({
     queryKey: ["medicine-records", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/medicine-records`).then(r => r.json()),
+    queryFn: () => fetch(`/api/farms/${farmId}/medicine-records`, { credentials: "include" }).then(r => r.json()),
   });
 
+  const farm: Farm = farmQ.data ?? { id: farmId, name: "Farm", address: null, postcode: null, cphNumber: null, redTractorId: null };
   const herds: Herd[] = herdsQ.data?.records ?? [];
-  const records: MedicineRecord[] = medicineQ.data?.records ?? [];
+  const allRecords: MedicineRecord[] = medicineQ.data?.records ?? [];
 
   const createM = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      fetch(`/api/farms/${farmId}/medicine-records`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_FORM); },
+      fetch(`/api/farms/${farmId}/medicine-records`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_FORM); toast({ title: "Medicine record saved" }); },
   });
   const updateM = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
-      fetch(`/api/farms/${farmId}/medicine-records/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_FORM); },
+      fetch(`/api/farms/${farmId}/medicine-records/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_FORM); toast({ title: "Record updated" }); },
   });
   const deleteM = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/medicine-records/${id}`, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setDeleteId(null); },
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/medicine-records/${id}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
   });
 
-  const activeWithdrawals = records.filter(r => isInWithdrawal(r.withdrawalEndDate));
+  const inWithdrawal = allRecords.filter(r => getRecordStatus(r) === "in_withdrawal");
+  const cleared = allRecords.filter(r => getRecordStatus(r) === "cleared");
+  const noWithdrawal = allRecords.filter(r => getRecordStatus(r) === "no_withdrawal");
 
-  const filtered = records.filter(r => !search
+  const tabCounts = { all: allRecords.length, in_withdrawal: inWithdrawal.length, cleared: cleared.length, no_withdrawal: noWithdrawal.length };
+
+  const baseFiltered = statusFilter === "all" ? allRecords
+    : statusFilter === "in_withdrawal" ? inWithdrawal
+    : statusFilter === "cleared" ? cleared
+    : noWithdrawal;
+
+  const filtered = baseFiltered.filter(r => !search
     || r.medicineName.toLowerCase().includes(search.toLowerCase())
+    || r.medicineRef?.toLowerCase().includes(search.toLowerCase())
     || r.vetName?.toLowerCase().includes(search.toLowerCase())
     || r.reason?.toLowerCase().includes(search.toLowerCase())
     || herds.find(h => h.id === r.herdId)?.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const calcWithdrawalEnd = (date: string, days: string) => {
-    if (!date || !days) return "";
-    return addDays(date, Number(days));
-  };
+  const filterLabel = statusFilter === "all" ? "All records" : statusFilter === "in_withdrawal" ? "In Withdrawal" : statusFilter === "cleared" ? "Cleared" : "No Withdrawal Required";
 
   function openEdit(r: MedicineRecord) {
     setEditing(r);
@@ -123,6 +302,7 @@ function RecordsTab({ farmId }: { farmId: number }) {
     });
     setFormOpen(true);
   }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const wdDays = form.withdrawalPeriodDays ? Number(form.withdrawalPeriodDays) : null;
@@ -138,116 +318,75 @@ function RecordsTab({ farmId }: { farmId: number }) {
     };
     if (editing) { updateM.mutate({ id: editing.id, body }); } else { createM.mutate(body); }
   }
+
   const isSubmitting = createM.isPending || updateM.isPending;
-  const previewWithdrawalEnd = calcWithdrawalEnd(form.administeredDate, form.withdrawalPeriodDays);
+  const previewWdEnd = form.withdrawalPeriodDays && form.administeredDate ? addDays(form.administeredDate, Number(form.withdrawalPeriodDays)) : null;
 
   return (
     <>
-      {/* Active withdrawal alert */}
-      {activeWithdrawals.length > 0 && (
+      {inWithdrawal.length > 0 && (
         <div className="mb-6 border border-amber-200 bg-amber-50 rounded-xl px-4 py-3 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-amber-800">
-              {activeWithdrawals.length} active withdrawal period{activeWithdrawals.length !== 1 ? "s" : ""}
-            </p>
+            <p className="text-sm font-semibold text-amber-800">{inWithdrawal.length} active withdrawal period{inWithdrawal.length !== 1 ? "s" : ""} — check before selling or slaughtering</p>
             <p className="text-xs text-amber-700 mt-0.5">
-              {activeWithdrawals.map(r => {
+              {inWithdrawal.slice(0, 3).map(r => {
                 const days = daysUntil(r.withdrawalEndDate);
-                return `${r.medicineName} — ${days} day${days !== 1 ? "s" : ""} remaining (ends ${formatDate(r.withdrawalEndDate)})`;
-              }).join(" · ")}
+                return `${r.medicineName} — ${days} day${days !== 1 ? "s" : ""} remaining`;
+              }).join(" · ")}{inWithdrawal.length > 3 ? ` · +${inWithdrawal.length - 3} more` : ""}
             </p>
           </div>
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div className="relative w-full sm:w-80">
+      <TabBar className="mb-5">
+        <TabButton active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>
+          All <span className="ml-1 text-xs opacity-60">({tabCounts.all})</span>
+        </TabButton>
+        <TabButton active={statusFilter === "in_withdrawal"} onClick={() => setStatusFilter("in_withdrawal")}>
+          In Withdrawal <span className="ml-1 text-xs opacity-60">({tabCounts.in_withdrawal})</span>
+        </TabButton>
+        <TabButton active={statusFilter === "cleared"} onClick={() => setStatusFilter("cleared")}>
+          Cleared <span className="ml-1 text-xs opacity-60">({tabCounts.cleared})</span>
+        </TabButton>
+        <TabButton active={statusFilter === "no_withdrawal"} onClick={() => setStatusFilter("no_withdrawal")}>
+          No W/D Required <span className="ml-1 text-xs opacity-60">({tabCounts.no_withdrawal})</span>
+        </TabButton>
+      </TabBar>
+
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
+        <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-          <Input placeholder="Search medicine, herd, reason..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search medicine, ref, reason..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button onClick={() => { setEditing(null); setForm(EMPTY_FORM); setFormOpen(true); }} className="gap-2 shrink-0">
-          <Plus className="w-4 h-4" /> Add Record
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => printHtml(buildPrintHtml(filtered, herds, farm, filterLabel))} className="gap-2">
+            <Printer className="w-4 h-4" /> Print Register
+          </Button>
+          <Button onClick={() => { setEditing(null); setForm(EMPTY_FORM); setFormOpen(true); }} className="gap-2" size="sm">
+            <Plus className="w-4 h-4" /> Add Record
+          </Button>
+        </div>
       </div>
 
       {medicineQ.isLoading ? (
         <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
       ) : filtered.length === 0 ? (
         <Card>
-          <div className="text-center py-16 px-6">
+          <CardContent className="text-center py-16 px-6">
             <div className="w-16 h-16 mx-auto rounded-full bg-primary/5 flex items-center justify-center mb-4">
               <HeartPulse className="w-8 h-8 text-primary/40" />
             </div>
             <h3 className="text-lg font-semibold text-foreground/80 mb-1">No medicine records</h3>
-            <p className="text-foreground/50 text-sm">{search ? "No records match your search." : "Record all veterinary medicines administered to your livestock."}</p>
-          </div>
+            <p className="text-foreground/50 text-sm">{search ? "No records match your search." : statusFilter === "all" ? "Record all veterinary medicines administered to your livestock." : `No records in the "${filterLabel}" category.`}</p>
+          </CardContent>
         </Card>
       ) : (
-        <Card>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border">
-                  {["Medicine", "Herd / Group", "Date", "Dosage / Route", "Withdrawal Period", "Withdrawal Ends", "Vet", ""].map(h => (
-                    <th key={h} className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(r => {
-                  const inWd = isInWithdrawal(r.withdrawalEndDate);
-                  const wdDays = r.withdrawalEndDate ? daysUntil(r.withdrawalEndDate) : null;
-                  const herdName = herds.find(h => h.id === r.herdId)?.name ?? (r.herdId ? `Herd #${r.herdId}` : "—");
-                  return (
-                    <tr key={r.id} className={`border-b border-border/50 hover:bg-black/[0.02] transition-colors ${inWd ? "bg-amber-50/40" : ""}`}>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          {inWd && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />}
-                          <span className="text-sm font-medium">{r.medicineName}</span>
-                        </div>
-                        {r.batchNumber && <p className="text-xs text-foreground/40 font-mono mt-0.5">Batch: {r.batchNumber}</p>}
-                      </td>
-                      <td className="p-4 text-sm text-foreground/70">{herdName}</td>
-                      <td className="p-4 text-sm text-foreground/70 whitespace-nowrap">{formatDate(r.administeredDate)}</td>
-                      <td className="p-4 text-sm text-foreground/70">
-                        {r.dosage && <span>{r.dosage}</span>}
-                        {r.administrationRoute && <span className="text-foreground/50"> · {r.administrationRoute}</span>}
-                        {!r.dosage && !r.administrationRoute && "—"}
-                      </td>
-                      <td className="p-4 text-sm text-foreground/70">
-                        {r.withdrawalPeriodDays ? `${r.withdrawalPeriodDays} days` : "None"}
-                      </td>
-                      <td className="p-4 text-sm">
-                        {r.withdrawalEndDate ? (
-                          <div className="flex flex-col gap-1">
-                            <span className="text-foreground/70 whitespace-nowrap">{formatDate(r.withdrawalEndDate)}</span>
-                            {inWd ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-200">
-                                <Clock className="w-3 h-3" />{wdDays}d remaining
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-200">
-                                <CheckCircle2 className="w-3 h-3" />Cleared
-                              </span>
-                            )}
-                          </div>
-                        ) : "—"}
-                      </td>
-                      <td className="p-4 text-sm text-foreground/70">{r.vetName || "—"}</td>
-                      <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => openEdit(r)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-primary"><Pencil className="w-4 h-4" /></button>
-                          <button onClick={() => setDeleteId(r.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/40 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+        <div className="space-y-3">
+          {filtered.map(r => (
+            <RecordCard key={r.id} record={r} herds={herds} onEdit={openEdit} onDelete={setDeleteId} />
+          ))}
+        </div>
       )}
 
       <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_FORM); } }}>
@@ -258,7 +397,8 @@ function RecordsTab({ farmId }: { farmId: number }) {
               {editing ? "Edit Medicine Record" : "Add Medicine Record"}
             </DialogTitle>
             <DialogDescription>
-              Record veterinary medicines administered — required under Red Tractor Livestock Standards. Ensure withdrawal periods are observed before slaughter or milk sale.
+              {editing?.medicineRef && <span className="font-mono text-xs text-foreground/50 mr-2">Ref: {editing.medicineRef}</span>}
+              Record all veterinary medicines — required under Red Tractor Livestock Standards and the Veterinary Medicines Regulations 2013. Ensure withdrawal periods are observed.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
@@ -279,12 +419,12 @@ function RecordsTab({ farmId }: { farmId: number }) {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Date Administered <span className="text-red-500">*</span></label>
-                <Input type="date" value={form.administeredDate} onChange={e => setForm(f => ({ ...f, administeredDate: e.target.value }))} required />
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Administered By</label>
+                <Input placeholder="Name of person administering" value={form.administeredBy} onChange={e => setForm(f => ({ ...f, administeredBy: e.target.value }))} />
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Dosage</label>
-                <Input placeholder="e.g. 5ml/100kg, 10ml per animal" value={form.dosage} onChange={e => setForm(f => ({ ...f, dosage: e.target.value }))} />
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Date Administered <span className="text-red-500">*</span></label>
+                <Input type="date" value={form.administeredDate} onChange={e => setForm(f => ({ ...f, administeredDate: e.target.value }))} required />
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Administration Route</label>
@@ -294,179 +434,56 @@ function RecordsTab({ farmId }: { farmId: number }) {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Administered By</label>
-                <Input placeholder="Name or 'Attending vet'" value={form.administeredBy} onChange={e => setForm(f => ({ ...f, administeredBy: e.target.value }))} />
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Dosage</label>
+                <Input placeholder="e.g. 5ml/100kg" value={form.dosage} onChange={e => setForm(f => ({ ...f, dosage: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Withdrawal Period (days)</label>
+                <Input type="number" min="0" placeholder="e.g. 7 — leave blank if none" value={form.withdrawalPeriodDays} onChange={e => setForm(f => ({ ...f, withdrawalPeriodDays: e.target.value }))} />
+                {previewWdEnd && (
+                  <p className="text-xs text-amber-700 mt-1 font-medium">
+                    ⚠ Withdrawal ends: {formatDate(previewWdEnd)}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Prescribing Vet</label>
                 <Input placeholder="Vet name / practice" value={form.vetName} onChange={e => setForm(f => ({ ...f, vetName: e.target.value }))} />
               </div>
-            </div>
-
-            <div className="border-t border-border pt-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-foreground/40 mb-3">Withdrawal Period</p>
-              <div className="grid grid-cols-2 gap-4 items-end">
-                <div>
-                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Withdrawal Period (days)</label>
-                  <Input type="number" min="0" max="999" placeholder="e.g. 21" value={form.withdrawalPeriodDays} onChange={e => setForm(f => ({ ...f, withdrawalPeriodDays: e.target.value }))} />
-                </div>
-                <div className="pb-1">
-                  {previewWithdrawalEnd ? (
-                    <div className="flex items-center gap-2 text-sm">
-                      <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                      <div>
-                        <p className="text-foreground/60 text-xs">Withdrawal ends</p>
-                        <p className="font-semibold text-amber-700">{formatDate(previewWithdrawalEnd)}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-foreground/40 italic">Withdrawal end date calculated automatically</p>
-                  )}
-                </div>
+              <div>
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Reason / Indication</label>
+                <Input placeholder="e.g. Mastitis, lameness, respiratory" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} />
               </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-foreground/70 mb-1 block">Reason for Treatment</label>
-              <Input placeholder="e.g. Respiratory infection, Mastitis treatment, Preventive" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
-              <Input placeholder="Additional notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
+                <textarea className="w-full min-h-[72px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-y" placeholder="Any additional information..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); setForm(EMPTY_FORM); }}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                {editing ? "Update Record" : "Save Record"}
+                {editing ? "Save Changes" : "Add to Register"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Delete Medicine Record</DialogTitle></DialogHeader>
-          <p className="text-foreground/70 text-sm">Are you sure? This action cannot be undone.</p>
+      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <DialogContent style={{ maxWidth: "28rem" }}>
+          <DialogHeader>
+            <DialogTitle>Delete Medicine Record</DialogTitle>
+            <DialogDescription>This will permanently remove the record from the medicine register. This action cannot be undone.</DialogDescription>
+          </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteM.mutate(deleteId)} disabled={deleteM.isPending}>
-              {deleteM.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Delete
+              {deleteM.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Delete
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-function PrintTab({ farmId }: { farmId: number }) {
-  const medicineQ = useQuery<{ records: MedicineRecord[] }>({ queryKey: ["medicine-records", farmId], queryFn: () => fetch(`/api/farms/${farmId}/medicine-records`).then(r => r.json()) });
-  const herdsQ = useQuery<{ records: Herd[] }>({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()) });
-  const farmQ = useQuery<{ record: Farm }>({ queryKey: ["farm", farmId], queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()) });
-
-  const records: MedicineRecord[] = medicineQ.data?.records ?? [];
-  const herds: Herd[] = herdsQ.data?.records ?? [];
-  const farm = farmQ.data?.record;
-  const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-
-  const handlePrint = () => {
-    const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-    const farmLine = farm
-      ? `<div style="display:flex;justify-content:space-between;border-bottom:2px solid #16a34a;padding-bottom:12px;margin-bottom:20px"><div><h2 style="font-size:14px;margin:0 0 2px;font-weight:700">${farm.name ?? ""}</h2>${farm.address ? `<p style="font-size:10px;color:#6b7280;margin:1px 0">${farm.address}${farm.postcode ? `, ${farm.postcode}` : ""}</p>` : ""}${farm.cphNumber ? `<p style="font-size:10px;color:#6b7280;margin:1px 0">CPH: ${farm.cphNumber}</p>` : ""}</div><div style="text-align:right"><p style="font-size:13px;font-weight:700;margin:0">Medicine Register</p><p style="font-size:10px;color:#6b7280;margin:2px 0">Printed: ${today}</p></div></div>`
-      : `<div style="border-bottom:2px solid #16a34a;padding-bottom:12px;margin-bottom:20px"><p style="font-size:13px;font-weight:700;margin:0">Medicine Register</p><p style="font-size:10px;color:#6b7280;margin:2px 0">Printed: ${today}</p></div>`;
-    const colStyle = "border:1px solid #e5e7eb;padding:5px 8px";
-    const rows = records.map((r, i) => {
-      const herdName = herds.find(h => h.id === r.herdId)?.name ?? "—";
-      const inWd = isInWithdrawal(r.withdrawalEndDate);
-      const bg = inWd ? "#fffbeb" : i % 2 ? "#f9fafb" : "#fff";
-      return `<tr style="background:${bg}"><td style="${colStyle};font-weight:600">${r.medicineName}</td><td style="${colStyle}">${herdName}</td><td style="${colStyle};white-space:nowrap">${formatDateLong(r.administeredDate)}</td><td style="${colStyle}">${r.dosage ?? "—"}</td><td style="${colStyle}">${r.administrationRoute ?? "—"}</td><td style="${colStyle};font-family:monospace">${r.batchNumber ?? "—"}</td><td style="${colStyle}">${r.withdrawalPeriodDays ? `${r.withdrawalPeriodDays} days` : "None"}</td><td style="${colStyle};white-space:nowrap;${inWd ? "color:#b45309;font-weight:700" : ""}">${r.withdrawalEndDate ? formatDateLong(r.withdrawalEndDate) : "—"}${inWd ? " ⚠" : ""}</td><td style="${colStyle}">${r.vetName ?? "—"}</td><td style="${colStyle}">${r.reason ?? "—"}</td></tr>`;
-    }).join("");
-    const thStyle = "border:1px solid #e5e7eb;padding:5px 8px;text-align:left;font-size:9px;text-transform:uppercase;color:#6b7280;background:#f0fdf4";
-    const table = records.length > 0
-      ? `<table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr><th style="${thStyle}">Medicine</th><th style="${thStyle}">Herd / Group</th><th style="${thStyle}">Date Admin.</th><th style="${thStyle}">Dosage</th><th style="${thStyle}">Route</th><th style="${thStyle}">Batch No.</th><th style="${thStyle}">W/D Period</th><th style="${thStyle}">W/D Ends</th><th style="${thStyle}">Vet / Auth.</th><th style="${thStyle}">Reason</th></tr></thead><tbody>${rows}</tbody></table>`
-      : `<p style="color:#9ca3af;font-style:italic;text-align:center;padding:2rem 0">No medicine records to display.</p>`;
-    printHtml(`<html><head><title>Medicine Register</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:2cm}h2{margin:0}</style></head><body>${farmLine}${table}<div style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:24px;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af"><span>Medicine register required by Red Tractor Livestock Standards. Retain for minimum 5 years. Withdrawal periods must be observed before slaughter, milk sale or egg collection.</span><span>BDE Farm Trac · ${today}</span></div></body></html>`);
-  };
-
-  return (
-    <div>
-      <div className="flex justify-end mb-6">
-        <Button onClick={handlePrint} className="gap-2">
-          <Printer className="w-4 h-4" /> Print / Export PDF
-        </Button>
-      </div>
-      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "2rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #16a34a", paddingBottom: "1rem", marginBottom: "1.5rem" }}>
-          <div>
-            <p style={{ fontWeight: 700, fontSize: "1rem", margin: 0 }}>{farm?.name ?? "Farm"}</p>
-            {farm?.address && <p style={{ fontSize: "0.75rem", color: "#6b7280", margin: "2px 0 0" }}>{farm.address}{farm.postcode ? `, ${farm.postcode}` : ""}</p>}
-            {farm?.cphNumber && <p style={{ fontSize: "0.75rem", color: "#6b7280", margin: "1px 0 0" }}>CPH: {farm.cphNumber}</p>}
-          </div>
-          <div style={{ textAlign: "right", fontSize: "0.75rem", color: "#6b7280" }}>
-            <p style={{ fontWeight: 700, fontSize: "0.875rem", color: "#111", margin: 0 }}>Medicine Register</p>
-            <p style={{ margin: "2px 0 0" }}>Printed: {printedDate}</p>
-          </div>
-        </div>
-
-        {records.length === 0 ? (
-          <p style={{ color: "#9ca3af", fontStyle: "italic", textAlign: "center", padding: "2rem 0" }}>No medicine records to display.</p>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem" }}>
-            <thead>
-              <tr style={{ background: "#f0fdf4" }}>
-                {["Medicine", "Herd / Group", "Date Admin.", "Dosage", "Route", "Batch No.", "Withdrawal Period", "Withdrawal Ends", "Vet / Auth.", "Reason"].map(h => (
-                  <th key={h} style={{ border: "1px solid #e5e7eb", padding: "5px 8px", textAlign: "left", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", fontSize: "0.65rem" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((r, i) => {
-                const herdName = herds.find(h => h.id === r.herdId)?.name ?? "—";
-                const inWd = isInWithdrawal(r.withdrawalEndDate);
-                return (
-                  <tr key={r.id} style={{ background: inWd ? "#fffbeb" : i % 2 === 0 ? "#fff" : "#f9fafb" }}>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "5px 8px", fontWeight: 600 }}>{r.medicineName}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "5px 8px" }}>{herdName}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "5px 8px", whiteSpace: "nowrap" }}>{formatDateLong(r.administeredDate)}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "5px 8px" }}>{r.dosage ?? "—"}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "5px 8px" }}>{r.administrationRoute ?? "—"}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "5px 8px", fontFamily: "monospace" }}>{r.batchNumber ?? "—"}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "5px 8px" }}>{r.withdrawalPeriodDays ? `${r.withdrawalPeriodDays} days` : "None"}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "5px 8px", whiteSpace: "nowrap", color: inWd ? "#b45309" : "#374151", fontWeight: inWd ? 700 : 400 }}>
-                      {r.withdrawalEndDate ? formatDateLong(r.withdrawalEndDate) : "—"}
-                      {inWd && " ⚠"}
-                    </td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "5px 8px" }}>{r.vetName ?? "—"}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "5px 8px" }}>{r.reason ?? "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-        <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "0.75rem", marginTop: "1.5rem", display: "flex", justifyContent: "space-between", fontSize: "0.65rem", color: "#9ca3af" }}>
-          <span style={{ fontStyle: "italic" }}>Medicine register required by Red Tractor Livestock Standards. Retain for minimum 5 years. Withdrawal periods must be observed before slaughter, milk sale or egg collection.</span>
-          <span>BDE Farm Trac · {printedDate}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function MedicinePage() {
-  const { farmId } = useAppStore();
-  const [tab, setTab] = useState<TabKey>("records");
-  if (!farmId) return <Redirect href="/select" />;
-  return (
-    <AppLayout title="Medicine Records">
-      <TabBar className="mb-6">
-        <TabButton active={tab === "records"} onClick={() => setTab("records")}>Records</TabButton>
-        <TabButton active={tab === "print"} onClick={() => setTab("print")}>Print / Export</TabButton>
-      </TabBar>
-      {tab === "records" && <RecordsTab farmId={farmId} />}
-      {tab === "print" && <PrintTab farmId={farmId} />}
-    </AppLayout>
   );
 }
