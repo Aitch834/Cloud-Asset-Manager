@@ -161,8 +161,8 @@ export default function SoilSampleScreen() {
               containerStyle={styles.flex}
             />
             <Input
-              label="Lab Submitted To"
-              placeholder="e.g. NRM Laboratories"
+              label="Testing Laboratory"
+              placeholder="e.g. NRM, ADAS (link in dashboard)"
               value={labName}
               onChangeText={setLabName}
               containerStyle={styles.flex}

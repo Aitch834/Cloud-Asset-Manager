@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, boolean, numeric, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { suppliersTable } from "./stock-suppliers";
 
 export const equipmentTable = pgTable("equipment", {
   id: serial("id").primaryKey(),
@@ -153,6 +154,7 @@ export const grainQualityTestsTable = pgTable("grain_quality_tests", {
   pestResidueTest: boolean("pest_residue_test").default(false),
   pestResidueResult: text("pest_residue_result"),
   testingLab: text("testing_lab"),
+  labSupplierId: integer("lab_supplier_id").references(() => suppliersTable.id),
   certificateReference: text("certificate_reference"),
   overallGrade: text("overall_grade"),
   customer: text("customer"),

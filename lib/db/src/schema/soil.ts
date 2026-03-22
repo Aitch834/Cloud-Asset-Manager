@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, numeric } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { fieldsTable } from "./fields-crops";
+import { suppliersTable } from "./stock-suppliers";
 
 export const soilTestRecordsTable = pgTable("soil_test_records", {
   id: serial("id").primaryKey(),
@@ -10,6 +11,7 @@ export const soilTestRecordsTable = pgTable("soil_test_records", {
   sampleReference: text("sample_reference"),
   status: text("status").notNull().default("sampled"),
   laboratory: text("laboratory"),
+  labSupplierId: integer("lab_supplier_id").references(() => suppliersTable.id),
   sentToLabDate: timestamp("sent_to_lab_date", { withTimezone: true }),
   resultsReceivedDate: timestamp("results_received_date", { withTimezone: true }),
   sampleDepthCm: integer("sample_depth_cm"),

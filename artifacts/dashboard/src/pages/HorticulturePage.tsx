@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { LabSelector } from "@/components/ui/LabSelector";
 import { Plus, Pencil, Trash2, Loader2, LayoutGrid, Leaf, Droplets, Package, Warehouse, AlertTriangle } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -115,20 +116,31 @@ function WaterTestsTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [labSupplierId, setLabSupplierId] = useState<number | null>(null);
   const { data: tests = [], isLoading } = useQuery({ queryKey: ["horti-water", farmId], queryFn: () => fetch(api(`farms/${farmId}/horticulture-water-tests`), { credentials: "include" }).then(r => r.json()) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/horticulture-water-tests/${editing.id}`) : api(`farms/${farmId}/horticulture-water-tests`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["horti-water", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/horticulture-water-tests/${editing.id}`) : api(`farms/${farmId}/horticulture-water-tests`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["horti-water", farmId] }); setOpen(false); setForm({}); setEditing(null); setLabSupplierId(null); },
+  });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/horticulture-water-tests/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["horti-water", farmId] }) });
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Irrigation Water Quality Tests</h3><Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Test</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "testDate", label: "Date", fmt: r => fmtDate(r.testDate) }, { key: "waterSource", label: "Source" }, { key: "testingLab", label: "Lab" }, { key: "ecoli", label: "E.coli" }, { key: "totalColiform", label: "Coliform" }, { key: "overallResult", label: "Result" }, { key: "nextTestDueDate", label: "Next Due", fmt: r => fmtDate(r.nextTestDueDate) }]} rows={tests as Record<string, unknown>[]} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }} />}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Irrigation Water Quality Tests</h3><Button size="sm" onClick={() => { setEditing(null); setForm({}); setLabSupplierId(null); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Test</Button></div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "testDate", label: "Date", fmt: r => fmtDate(r.testDate) }, { key: "waterSource", label: "Source" }, { key: "testingLab", label: "Lab" }, { key: "ecoli", label: "E.coli" }, { key: "totalColiform", label: "Coliform" }, { key: "overallResult", label: "Result" }, { key: "nextTestDueDate", label: "Next Due", fmt: r => fmtDate(r.nextTestDueDate) }]} rows={tests as Record<string, unknown>[]} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setLabSupplierId((r.labSupplierId as number | null) ?? null); setOpen(true); }} onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }} />}
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setLabSupplierId(null); } }}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Water Test Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Test Date *</Label><Input type="date" value={form.testDate ?? ""} onChange={e => setForm(f => ({ ...f, testDate: e.target.value }))} /></div>
             <div><Label>Water Source *</Label><Input value={form.waterSource ?? ""} onChange={e => setForm(f => ({ ...f, waterSource: e.target.value }))} /></div>
-            <div><Label>Testing Laboratory</Label><Input value={form.testingLab ?? ""} onChange={e => setForm(f => ({ ...f, testingLab: e.target.value }))} /></div>
+            <div className="col-span-2">
+              <LabSelector
+                farmId={farmId}
+                value={labSupplierId}
+                labName={form.testingLab ?? null}
+                onChange={(id, name) => { setLabSupplierId(id); setForm(f => ({ ...f, testingLab: name ?? "" })); }}
+              />
+            </div>
             <div><Label>Sample Reference</Label><Input value={form.sampleReference ?? ""} onChange={e => setForm(f => ({ ...f, sampleReference: e.target.value }))} /></div>
             {[["ecoli", "E.coli Result"], ["totalColiform", "Total Coliform"], ["salmonella", "Salmonella"], ["cryptosporidium", "Cryptosporidium"]].map(([k, l]) => <div key={k}><Label>{l}</Label><Input value={form[k] ?? ""} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} /></div>)}
             <div><Label>pH</Label><Input type="number" step="0.1" value={form.ph ?? ""} onChange={e => setForm(f => ({ ...f, ph: e.target.value }))} /></div>
@@ -142,7 +154,7 @@ function WaterTestsTab({ farmId }: { farmId: number }) {
             <div><Label>Next Test Due</Label><Input type="date" value={form.nextTestDueDate ?? ""} onChange={e => setForm(f => ({ ...f, nextTestDueDate: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Corrective Action</Label><Textarea value={form.correctiveAction ?? ""} onChange={e => setForm(f => ({ ...f, correctiveAction: e.target.value }))} rows={2} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => { setOpen(false); setLabSupplierId(null); }}>Cancel</Button><Button onClick={() => save.mutate({ ...form, labSupplierId: labSupplierId ?? null })} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

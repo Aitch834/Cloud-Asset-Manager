@@ -6,6 +6,7 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LabSelector } from "@/components/ui/LabSelector";
 import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, ChevronDown, ChevronUp,
@@ -93,6 +94,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
   const [editTest, setEditTest] = useState<SoilTestRecord | null>(null);
   const [deleteTestId, setDeleteTestId] = useState<number | null>(null);
   const [testForm, setTestForm] = useState<typeof EMPTY_TEST>(EMPTY_TEST);
+  const [labSupplierId, setLabSupplierId] = useState<number | null>(null);
   const [addResultFor, setAddResultFor] = useState<number | null>(null);
   const [resultForm, setResultForm] = useState<typeof EMPTY_RESULT>(EMPTY_RESULT);
   const [deleteResultInfo, setDeleteResultInfo] = useState<{ testId: number; resultId: number } | null>(null);
@@ -174,10 +176,11 @@ function RegisterTab({ farmId }: { farmId: number }) {
   const counts: Record<string, number> = { all: allTests.length };
   for (const t of allTests) { counts[t.status] = (counts[t.status] ?? 0) + 1; }
 
-  function openAddTest() { setEditTest(null); setTestForm(EMPTY_TEST); setAddTestOpen(true); }
+  function openAddTest() { setEditTest(null); setTestForm(EMPTY_TEST); setLabSupplierId(null); setAddTestOpen(true); }
   function openEditTest(t: SoilTestRecord) {
     setEditTest(t);
     setTestForm({ fieldId: String(t.fieldId), sampleDate: t.sampleDate?.slice(0, 10) ?? "", laboratory: t.laboratory ?? "", sampleReference: t.sampleReference ?? "", sampleDepthCm: String(t.sampleDepthCm ?? ""), sampledBy: t.sampledBy ?? "", notes: t.notes ?? "" });
+    setLabSupplierId((t as unknown as { labSupplierId?: number | null }).labSupplierId ?? null);
     setAddTestOpen(true);
   }
   function handleTestSubmit(e: React.FormEvent) {
@@ -189,6 +192,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
       sampleDepthCm: testForm.sampleDepthCm ? Number(testForm.sampleDepthCm) : null,
       sampledBy: testForm.sampledBy || null,
       sampleReference: testForm.sampleReference || null,
+      labSupplierId: labSupplierId ?? null,
     };
     if (editTest) { updateTest.mutate({ id: editTest.id, body }); }
     else { createTest.mutate(body); }
@@ -486,11 +490,15 @@ function RegisterTab({ farmId }: { farmId: number }) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Laboratory</label>
-                <Input placeholder="e.g. ADAS, NRM" value={testForm.laboratory} onChange={e => setTestForm(f => ({ ...f, laboratory: e.target.value }))} />
+              <div className="col-span-2">
+                <LabSelector
+                  farmId={farmId}
+                  value={labSupplierId}
+                  labName={testForm.laboratory || null}
+                  onChange={(id, name) => { setLabSupplierId(id); setTestForm(f => ({ ...f, laboratory: name ?? "" })); }}
+                />
               </div>
-              <div>
+              <div className="col-span-2">
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
                 <Input placeholder="Any additional notes" value={testForm.notes} onChange={e => setTestForm(f => ({ ...f, notes: e.target.value }))} />
               </div>

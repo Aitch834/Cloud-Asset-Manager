@@ -2108,6 +2108,31 @@ router.delete("/farms/:farmId/suppliers/:recordId", requireAuth, requireTenant, 
   res.json({ success: true });
 });
 
+// ─── Labs ─────────────────────────────────────────────────────────────────────
+// Labs are a category of supplier ("laboratory") — accessible to all modules that use lab testing.
+router.get("/farms/:farmId/labs", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(suppliersTable)
+    .where(and(eq(suppliersTable.farmId, farmId), eq(suppliersTable.category, "laboratory")))
+    .orderBy(suppliersTable.name);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/labs", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { name, contactName, email, phone, address, ukasAccreditationNumber, notes } = req.body;
+  if (!name) { res.status(400).json({ error: "name required" }); return; }
+  const [record] = await db.insert(suppliersTable).values({
+    farmId, name, contactName, email, phone, address, notes,
+    category: "laboratory",
+    accountNumber: ukasAccreditationNumber ?? null,
+    isApproved: true,
+  }).returning();
+  res.status(201).json({ record });
+});
+
 // ─── Stock Items ────────────────────────────────────
 router.get("/farms/:farmId/stock-items", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);

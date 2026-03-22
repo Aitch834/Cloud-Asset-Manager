@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useEquipment, useAddEquipment } from "@/hooks/use-equipment";
 import { Plus, Search, Tractor, Calendar, Camera, X, Pencil, Loader2, Printer, Trash2, Thermometer, FlaskConical, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown } from "lucide-react";
+import { LabSelector } from "@/components/ui/LabSelector";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -134,6 +135,7 @@ function GrainStorageSection({ farmId }: { farmId: number }) {
   const [editingBin, setEditingBin] = useState<Record<string, unknown> | null>(null);
   const [binForm, setBinForm] = useState<Record<string, string>>({});
   const [testForm, setTestForm] = useState<Record<string, string>>({});
+  const [testLabSupplierId, setTestLabSupplierId] = useState<number | null>(null);
   const [tempForm, setTempForm] = useState<Record<string, string>>({});
   const [selectedBinId, setSelectedBinId] = useState<number | null>(null);
 
@@ -166,7 +168,7 @@ function GrainStorageSection({ farmId }: { farmId: number }) {
 
   const saveTest = useMutation({
     mutationFn: (body: Record<string, unknown>) => fetch(`/api/farms/${farmId}/grain-storage-quality-tests`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-quality-tests", farmId, selectedBinId] }); setTestOpen(false); setTestForm({}); toast({ title: "Quality test saved" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-quality-tests", farmId, selectedBinId] }); setTestOpen(false); setTestForm({}); setTestLabSupplierId(null); toast({ title: "Quality test saved" }); },
     onError: () => toast({ title: "Failed", variant: "destructive" }),
   });
 
@@ -329,7 +331,14 @@ function GrainStorageSection({ farmId }: { farmId: number }) {
               </Select>
             </div>
             <div><Label>Test Date *</Label><Input type="date" value={testForm.testDate ?? ""} onChange={e => setTestForm(f => ({ ...f, testDate: e.target.value }))} /></div>
-            <div><Label>Laboratory</Label><Input value={testForm.laboratory ?? ""} onChange={e => setTestForm(f => ({ ...f, laboratory: e.target.value }))} /></div>
+            <div className="col-span-2">
+              <LabSelector
+                farmId={farmId}
+                value={testLabSupplierId}
+                labName={testForm.laboratory ?? null}
+                onChange={(id, name) => { setTestLabSupplierId(id); setTestForm(f => ({ ...f, laboratory: name ?? "" })); }}
+              />
+            </div>
             <div><Label>Moisture %</Label><Input type="number" step="0.1" value={testForm.moisture ?? ""} onChange={e => setTestForm(f => ({ ...f, moisture: e.target.value }))} /></div>
             <div><Label>Specific Weight (kg/hl)</Label><Input type="number" step="0.1" value={testForm.specificWeight ?? ""} onChange={e => setTestForm(f => ({ ...f, specificWeight: e.target.value }))} /></div>
             <div><Label>Protein %</Label><Input type="number" step="0.1" value={testForm.protein ?? ""} onChange={e => setTestForm(f => ({ ...f, protein: e.target.value }))} /></div>
@@ -345,7 +354,7 @@ function GrainStorageSection({ farmId }: { farmId: number }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTestOpen(false)}>Cancel</Button>
-            <Button onClick={() => saveTest.mutate(testForm)} disabled={saveTest.isPending}>Save</Button>
+            <Button onClick={() => saveTest.mutate({ ...testForm, labSupplierId: testLabSupplierId ?? null })} disabled={saveTest.isPending}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
