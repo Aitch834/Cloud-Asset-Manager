@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -53,23 +53,125 @@ interface CertificateRecord {
   notes: string | null;
 }
 
-const CERT_TYPES = [
-  "PA1 — Safe use of pesticides",
-  "PA2 — Ground crop sprayers",
-  "PA3 — Hand-held applicators",
-  "PA4 — Broadcast air-assisted applicators",
-  "PA6 — Aerial application",
-  "PA6AW — Aerial application (UAV/drone)",
-  "BASIS Certificate in Agronomy",
-  "FACTS — Fertiliser Adviser",
-  "City & Guilds Level 2 Agriculture",
-  "City & Guilds Level 3 Agriculture",
-  "Safe use of rodenticides",
-  "Tractor & Machinery Safety",
-  "First Aid at Work",
-  "Food Hygiene Certificate",
-  "Manual Handling",
-  "Other",
+const CERT_GROUPS: { group: string; certs: string[] }[] = [
+  {
+    group: "Pesticide Application (NPTC/Lantra)",
+    certs: [
+      "PA1 — Safe use of pesticides",
+      "PA2 — Ground crop sprayers",
+      "PA3 — Hand-held applicators",
+      "PA4 — Broadcast air-assisted applicators",
+      "PA6 — Amenity & hard surfaces",
+      "PA6AW — Aerial application (UAV/drone)",
+      "Safe use of rodenticides",
+    ],
+  },
+  {
+    group: "Livestock Welfare & Husbandry",
+    certs: [
+      "WASK/WATOK — On-farm Emergency Slaughter Certificate of Competence",
+      "Cattle Disbudding & Dehorning (NPTC/Lantra)",
+      "Cattle Castration (NPTC/Lantra)",
+      "Sheep Castration & Tail Docking (NPTC/Lantra)",
+      "Pig Castration & Tail Docking (NPTC/Lantra)",
+      "Bovine Artificial Insemination (AI) Certificate",
+      "Poultry Emergency Culling Competence",
+      "Poultry Catching & Handling (Lantra)",
+    ],
+  },
+  {
+    group: "Animal Transport",
+    certs: [
+      "Animal Transport Certificate — Category 1 (journeys under 8 hours)",
+      "Animal Transport Certificate — Category 2 (long journeys, over 8 hours)",
+      "Certificate of Competence — Livestock Vehicle Driver",
+    ],
+  },
+  {
+    group: "Machinery & Equipment (NPORS/Lantra/RTITB)",
+    certs: [
+      "Tractor & Machinery Safety",
+      "Telehandler Operator (NPORS/Lantra/RTITB)",
+      "Counterbalance Fork Lift Truck (FLT)",
+      "Reach Fork Lift Truck (FLT)",
+      "ATV / Quad Bike Safety Certificate (Lantra)",
+      "ROLO — Reversing Operations & Lifting Operations (Banks Person)",
+      "Combine Harvester Operation (NPTC/Lantra)",
+      "Grain Dryer Operation",
+    ],
+  },
+  {
+    group: "Chainsaw (NPTC/Lantra)",
+    certs: [
+      "CS30 — Chainsaw crosscutting & maintenance",
+      "CS31 — Felling small trees",
+      "CS32 — Felling medium trees",
+      "CS38 — Chainsaw from rope & harness",
+    ],
+  },
+  {
+    group: "Health & Safety",
+    certs: [
+      "First Aid at Work (FAW) — 3 year",
+      "Emergency First Aid at Work (EFAW) — 1 year",
+      "Fire Warden / Fire Marshal",
+      "Manual Handling",
+      "Working at Height",
+      "Confined Space Entry",
+      "Asbestos Awareness",
+      "COSHH Awareness",
+    ],
+  },
+  {
+    group: "Agronomy & Advisory",
+    certs: [
+      "BASIS Certificate in Agronomy",
+      "BASIS Certificate in Crop Protection",
+      "FACTS — Fertiliser Adviser",
+      "NRoSO — National Register of Spray Operators (CPD)",
+    ],
+  },
+  {
+    group: "Veterinary & Medicines",
+    certs: [
+      "AMTRA SQP — Suitably Qualified Person (veterinary medicines)",
+      "Responsible for Medicines (named person)",
+      "BVetMed / MRCVS — Veterinary Surgeon",
+    ],
+  },
+  {
+    group: "Food, Hygiene & Environment",
+    certs: [
+      "Food Hygiene — Level 2 Award",
+      "Food Hygiene — Level 3 Award",
+      "Food Safety in Manufacturing (Level 3)",
+      "Water Hygiene Awareness",
+    ],
+  },
+  {
+    group: "Formal Qualifications",
+    certs: [
+      "City & Guilds Level 2 Agriculture",
+      "City & Guilds Level 3 Agriculture",
+      "BTEC Level 3 Agriculture",
+      "HND Agriculture",
+      "BSc Agriculture / Land Management",
+      "NVQ Level 2 / 3 Agriculture",
+    ],
+  },
+  {
+    group: "Other",
+    certs: ["Other — see notes"],
+  },
+];
+
+const ALL_CERT_TYPES = CERT_GROUPS.flatMap(g => g.certs);
+
+const COMPLIANCE_FLAGS: { label: string; match: string; detail: string; severity: "error" | "warning" }[] = [
+  { label: "WASK/WATOK (Emergency Slaughter)", match: "WASK/WATOK", detail: "Legally required — any farm with livestock must have at least one person holding a Certificate of Competence for on-farm emergency slaughter.", severity: "error" },
+  { label: "Animal Transport Certificate Cat. 1", match: "Animal Transport Certificate — Category 1", detail: "Required by law for anyone transporting live animals on journeys over 65km.", severity: "error" },
+  { label: "First Aid at Work or EFAW", match: "First Aid", detail: "First aid coverage is required under the Health & Safety (First-Aid) Regulations 1981 for any farm with employees.", severity: "warning" },
+  { label: "PA1 — Safe use of pesticides", match: "PA1 —", detail: "Any person using or supervising the use of professional pesticide products must hold at minimum a PA1 certificate.", severity: "warning" },
 ];
 
 function TrainingTab({ farmId }: { farmId: number }) {
@@ -295,13 +397,32 @@ function CertificatesTab({ farmId }: { farmId: number }) {
         </Button>
       </div>
 
+      {!q.isLoading && (() => {
+        const missingFlags = COMPLIANCE_FLAGS.filter(f => !records.some(r => r.certificateType.includes(f.match)));
+        if (missingFlags.length === 0) return null;
+        return (
+          <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+            <p style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#6b7280", marginBottom: 2 }}>Compliance Gaps Detected</p>
+            {missingFlags.map(f => (
+              <div key={f.label} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 12px", borderRadius: 8, background: f.severity === "error" ? "#fef2f2" : "#fffbeb", border: `1px solid ${f.severity === "error" ? "#fecaca" : "#fde68a"}` }}>
+                <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1, color: f.severity === "error" ? "#dc2626" : "#d97706" }} />
+                <div>
+                  <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: f.severity === "error" ? "#991b1b" : "#92400e", marginBottom: 2 }}>{f.label} — no record on file</p>
+                  <p style={{ fontSize: "0.75rem", color: f.severity === "error" ? "#b91c1c" : "#b45309" }}>{f.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {q.isLoading ? (
         <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>Loading…</p>
       ) : records.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#9ca3af" }}>
           <Award size={32} style={{ margin: "0 auto 8px", opacity: 0.4 }} />
           <p style={{ fontWeight: 600, color: "#374151" }}>No certificates recorded</p>
-          <p style={{ fontSize: "0.875rem" }}>Record PA1, PA2, PA6, BASIS, FACTS, and other professional certificates here. Inspectors will ask to see these.</p>
+          <p style={{ fontSize: "0.875rem" }}>Record operator certificates, professional qualifications and welfare competencies here. Inspectors will ask to see these.</p>
         </div>
       ) : (
         <div style={{ overflowX: "auto" }}>
@@ -347,9 +468,17 @@ function CertificatesTab({ farmId }: { farmId: number }) {
             <div>
               <Label>Certificate Type *</Label>
               <Select value={form.certificateType} onValueChange={v => setForm(f => ({ ...f, certificateType: v }))}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Select type…" /></SelectTrigger>
-                <SelectContent>
-                  {CERT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select category then type…" /></SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {CERT_GROUPS.map((g, gi) => (
+                    <React.Fragment key={g.group}>
+                      {gi > 0 && <SelectSeparator />}
+                      <SelectGroup>
+                        <SelectLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-2 py-1">{g.group}</SelectLabel>
+                        {g.certs.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectGroup>
+                    </React.Fragment>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
