@@ -319,6 +319,42 @@ const recordOptions: RecordOption[] = [
     bgColor: "#e0f2fe",
     route: "/add-farm-location",
   },
+  {
+    id: "right-to-work",
+    title: "Right to Work Check",
+    description: "Record a pre-employment RTW check — document type, reference, expiry and who carried out the check",
+    icon: "user-check",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+    route: "/right-to-work",
+  },
+  {
+    id: "irrigation-meter",
+    title: "Irrigation Meter Reading",
+    description: "Log abstraction meter readings with usage calculation, pump condition check and GPS location",
+    icon: "droplet",
+    color: "#0891b2",
+    bgColor: "#cffafe",
+    route: "/irrigation-meter",
+  },
+  {
+    id: "pig-farrowing",
+    title: "Pig Farrowing Record",
+    description: "Record litter size, born alive, stillborn, mummified, birth weights, farrowing ease and colostrum management",
+    icon: "heart",
+    color: "#db2777",
+    bgColor: "#fce7f3",
+    route: "/pig-farrowing",
+  },
+  {
+    id: "poultry-thinning",
+    title: "Poultry Thinning Record",
+    description: "Log thinning event — birds removed, live weights, catching times, vehicle reg and DOAs at loading",
+    icon: "feather",
+    color: "#d97706",
+    bgColor: "#fef3c7",
+    route: "/poultry-thinning",
+  },
 ];
 
 export default function RecordScreen() {

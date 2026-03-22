@@ -665,6 +665,81 @@ export interface PigWelfareCheck {
   synced: boolean;
 }
 
+export interface RightToWorkCheck {
+  id: string;
+  farmId: string;
+  workerName: string;
+  documentList: "A" | "B";
+  documentType: string;
+  documentReference: string;
+  checkDate: string;
+  checkedBy: string;
+  expiryDate: string;
+  followUpDate: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface IrrigationMeterReading {
+  id: string;
+  farmId: string;
+  sourceName: string;
+  meterReference: string;
+  readingDate: string;
+  readingM3: string;
+  previousReadingM3: string;
+  usageSinceLast: string;
+  recordedBy: string;
+  pumpCondition: "ok" | "advisory" | "fault";
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PigFarrowingRecord {
+  id: string;
+  farmId: string;
+  sowId: string;
+  farrowingDate: string;
+  totalBorn: string;
+  bornAlive: string;
+  stillborn: string;
+  mummified: string;
+  averageBirthWeightKg: string;
+  farrowingEase: "easy" | "assisted" | "difficult" | "caesarean";
+  colostrum: boolean;
+  sowConditionScore: "1" | "2" | "3" | "4" | "5";
+  attendedBy: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PoultryThinningRecord {
+  id: string;
+  farmId: string;
+  flockReference: string;
+  thinningNumber: "1st" | "2nd" | "3rd" | "Final depletion";
+  thinningDate: string;
+  birdsRemoved: string;
+  targetWeightKg: string;
+  actualAvgWeightKg: string;
+  destinationAbattoir: string;
+  catchingContractor: string;
+  catchingStartTime: string;
+  catchingEndTime: string;
+  vehicleReg: string;
+  doaAtLoading: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface AuthState {
   isAuthenticated: boolean;
   token: string | null;
