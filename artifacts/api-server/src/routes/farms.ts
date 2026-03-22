@@ -48,6 +48,7 @@ import {
   cleaningDisinfectionRecordsTable,
   staffTrainingRecordsTable,
   staffCertificatesTable,
+  staffRightToWorkTable,
   riskAssessmentsTable,
   coshhRecordsTable,
   wasteDisposalRecordsTable,
@@ -1556,6 +1557,39 @@ router.delete("/farms/:farmId/certificates/:recordId", requireAuth, requireTenan
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(staffCertificatesTable).where(and(eq(staffCertificatesTable.id, recordId), eq(staffCertificatesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Right to Work ──────────────────────────────────
+router.get("/farms/:farmId/right-to-work", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(staffRightToWorkTable).where(eq(staffRightToWorkTable.farmId, farmId)).orderBy(desc(staffRightToWorkTable.checkDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/right-to-work", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(staffRightToWorkTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/right-to-work/:recordId", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(staffRightToWorkTable).set(req.body).where(and(eq(staffRightToWorkTable.id, recordId), eq(staffRightToWorkTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/right-to-work/:recordId", requireAuth, requireTenant, requireModuleByKey("staff-training", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(staffRightToWorkTable).where(and(eq(staffRightToWorkTable.id, recordId), eq(staffRightToWorkTable.farmId, farmId)));
   res.json({ success: true });
 });
 

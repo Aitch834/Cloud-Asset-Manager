@@ -55,6 +55,34 @@ function useCerts(farmId: number | null) {
   });
 }
 
+interface RtwRecord { id: number; staffName: string; expiryDate: string | null; }
+function useRtw(farmId: number | null) {
+  return useQuery<{ records: RtwRecord[] }>({
+    queryKey: ["staff-rtw", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/right-to-work`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+}
+
+function RtwBadge({ name, records }: { name: string; records: RtwRecord[] }) {
+  const mine = records.filter(r => r.staffName === name);
+  if (mine.length === 0) return (
+    <span className="text-xs font-medium text-red-600 flex items-center gap-1">
+      <AlertTriangle className="w-3 h-3" />Not checked
+    </span>
+  );
+  const now = new Date();
+  const expired = mine.some(r => r.expiryDate && new Date(r.expiryDate) < now);
+  const urgent = mine.some(r => {
+    if (!r.expiryDate) return false;
+    const d = Math.floor((new Date(r.expiryDate).getTime() - now.getTime()) / 86400000);
+    return d >= 0 && d <= 28;
+  });
+  if (expired) return <span className="text-xs font-medium text-red-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />Expired</span>;
+  if (urgent) return <span className="text-xs font-medium text-amber-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />Expiring soon</span>;
+  return <span className="text-xs font-medium text-green-600 flex items-center gap-1"><UserCheck className="w-3 h-3" />Checked</span>;
+}
+
 function fullName(u: StaffUser) {
   return (u.firstName || u.lastName) ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() : u.email;
 }
@@ -174,11 +202,12 @@ function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void })
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-2">
                 <p className="text-sm font-semibold text-amber-900 flex items-center gap-2">
                   <Award className="w-4 h-4" />
-                  Don't forget their certifications
+                  Two things to do before they start
                 </p>
-                <p className="text-xs text-amber-800">
-                  Red Tractor and UK legislation require operator certificates to be recorded — WASK, Animal Transport, PA1, machinery operator licences, and more. Add them now while the person is fresh in mind.
-                </p>
+                <ul className="text-xs text-amber-800 space-y-1 list-none">
+                  <li className="flex items-start gap-2"><span className="mt-0.5 shrink-0">①</span><span><strong>Right to Work check</strong> — required by law before employment begins. Record the document type, reference, and date checked.</span></li>
+                  <li className="flex items-start gap-2"><span className="mt-0.5 shrink-0">②</span><span><strong>Operator certificates</strong> — Red Tractor and UK law require WASK, Animal Transport, PA1, machinery licences, etc. Record them in the Certificates tab.</span></li>
+                </ul>
               </div>
             </div>
             <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -203,9 +232,11 @@ export default function StaffPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const { data, isLoading, isError, refetch } = useStaffUsers();
   const { data: certData } = useCerts(farmId);
+  const { data: rtwData } = useRtw(farmId);
   const [, navigate] = useLocation();
 
   const allCerts = certData?.records ?? [];
+  const allRtw = rtwData?.records ?? [];
 
   const users = (data?.users ?? []).filter(u => {
     const q = search.toLowerCase();
@@ -272,7 +303,8 @@ export default function StaffPage() {
                   <th className="text-left px-6 py-3 font-semibold text-foreground/60">Role</th>
                   <th className="text-left px-6 py-3 font-semibold text-foreground/60">Status</th>
                   <th className="text-left px-6 py-3 font-semibold text-foreground/60">Certificates</th>
-                  <th className="w-28" />
+                  <th className="text-left px-6 py-3 font-semibold text-foreground/60">Right to Work</th>
+                  <th className="w-40" />
                 </tr>
               </thead>
               <tbody>
@@ -302,14 +334,27 @@ export default function StaffPage() {
                         <CertBadge name={name} certs={allCerts} />
                       </td>
                       <td className="px-6 py-4">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs h-7"
-                          onClick={() => navigate(`/training?member=${encodeURIComponent(name)}&tab=certificates`)}
-                        >
-                          <Award className="w-3 h-3 mr-1" />Certs
-                        </Button>
+                        <RtwBadge name={name} records={allRtw} />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs h-7"
+                            onClick={() => navigate(`/training?member=${encodeURIComponent(name)}&tab=certificates`)}
+                          >
+                            <Award className="w-3 h-3 mr-1" />Certs
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs h-7"
+                            onClick={() => navigate(`/training?member=${encodeURIComponent(name)}&tab=rtw`)}
+                          >
+                            RTW
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );

@@ -38,7 +38,7 @@ function StaffSelect({ value, onChange, staffNames }: { value: string; onChange:
   );
 }
 
-type Tab = "training" | "certificates";
+type Tab = "training" | "certificates" | "rtw";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -547,6 +547,252 @@ function CertificatesTab({ farmId, staffNames, defaultMember }: { farmId: number
   );
 }
 
+const RTW_DOCUMENT_TYPES = [
+  { group: "List A — Unrestricted Right to Work (no expiry)", docs: [
+    "UK or Irish Passport / Passport Card",
+    "UK Biometric Residence Permit — settled status",
+    "Certificate of Naturalisation or Registration as a British Citizen",
+    "UK Birth or Adoption Certificate + NI evidence",
+    "Letter from Home Office — indefinite leave",
+  ]},
+  { group: "List B — Time-Limited Right to Work (expiry date required)", docs: [
+    "UK Biometric Residence Permit — pre-settled status",
+    "UK Biometric Residence Permit — limited leave",
+    "Online Share Code — Home Office Employer Checking Service",
+    "Passport with vignette / entry clearance sticker",
+    "Seasonal Worker visa (Defra/GLAA approved)",
+    "Student visa — evidence of study",
+    "Other immigration status document",
+  ]},
+];
+
+interface RtwRecord {
+  id: number;
+  staffName: string;
+  documentType: string;
+  documentReference: string | null;
+  checkDate: string;
+  checkedBy: string | null;
+  expiryDate: string | null;
+  followUpDate: string | null;
+  notes: string | null;
+}
+
+function rtwStatusBadge(expiryDate: string | null | undefined) {
+  if (!expiryDate) return <Badge style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}>Valid — No Expiry</Badge>;
+  const now = new Date();
+  const exp = new Date(expiryDate);
+  const days = Math.floor((exp.getTime() - now.getTime()) / 86400000);
+  if (days < 0) return <Badge style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}>EXPIRED — Re-check required</Badge>;
+  if (days <= 28) return <Badge style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}>Expires {fmt(expiryDate)} — urgent</Badge>;
+  if (days <= 90) return <Badge style={{ background: "#fffbeb", color: "#d97706", border: "1px solid #fde68a" }}>Expires {fmt(expiryDate)}</Badge>;
+  return <Badge style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}>Valid · {fmt(expiryDate)}</Badge>;
+}
+
+function RightToWorkTab({ farmId, staffNames, defaultMember }: { farmId: number; staffNames: string[]; defaultMember?: string }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [addOpen, setAddOpen] = useState(false);
+  const [editItem, setEditItem] = useState<RtwRecord | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [search, setSearch] = useState(defaultMember ?? "");
+
+  const emptyForm = { staffName: defaultMember ?? "", documentType: "", documentReference: "", checkDate: "", checkedBy: "", expiryDate: "", followUpDate: "", notes: "" };
+  const [form, setForm] = useState({ ...emptyForm });
+
+  useEffect(() => {
+    if (defaultMember) {
+      setForm(f => ({ ...f, staffName: defaultMember }));
+      setAddOpen(true);
+    }
+  }, [defaultMember]);
+
+  const q = useQuery<{ records: RtwRecord[] }>({
+    queryKey: ["staff-rtw", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/right-to-work`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/right-to-work`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "RTW check recorded" }); qc.invalidateQueries({ queryKey: ["staff-rtw", farmId] }); setAddOpen(false); setForm({ ...emptyForm }); },
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/right-to-work/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "RTW record updated" }); qc.invalidateQueries({ queryKey: ["staff-rtw", farmId] }); setEditItem(null); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/right-to-work/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Record deleted" }); qc.invalidateQueries({ queryKey: ["staff-rtw", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(r: RtwRecord) {
+    setEditItem(r);
+    setForm({
+      staffName: r.staffName,
+      documentType: r.documentType,
+      documentReference: r.documentReference ?? "",
+      checkDate: r.checkDate ? r.checkDate.slice(0, 10) : "",
+      checkedBy: r.checkedBy ?? "",
+      expiryDate: r.expiryDate ? r.expiryDate.slice(0, 10) : "",
+      followUpDate: r.followUpDate ? r.followUpDate.slice(0, 10) : "",
+      notes: r.notes ?? "",
+    });
+  }
+
+  const records = (q.data?.records ?? []).filter(r =>
+    !search || r.staffName.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const now = new Date();
+  const expired = records.filter(r => r.expiryDate && new Date(r.expiryDate) < now).length;
+  const urgent = records.filter(r => {
+    if (!r.expiryDate) return false;
+    const d = Math.floor((new Date(r.expiryDate).getTime() - now.getTime()) / 86400000);
+    return d >= 0 && d <= 28;
+  }).length;
+
+  const checkedNames = new Set((q.data?.records ?? []).map(r => r.staffName));
+  const uncheckedStaff = staffNames.filter(n => !checkedNames.has(n));
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
+        <Input placeholder="Filter by staff member…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 260 }} />
+        <div style={{ flex: 1 }} />
+        {expired > 0 && <Badge style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", display: "flex", alignItems: "center", gap: 4 }}><AlertTriangle size={13} /> {expired} expired</Badge>}
+        {urgent > 0 && <Badge style={{ background: "#fffbeb", color: "#d97706", border: "1px solid #fde68a" }}>{urgent} expiring &lt;28 days</Badge>}
+        <Button size="sm" onClick={() => { setForm({ ...emptyForm }); setAddOpen(true); }}>
+          <Plus size={14} className="mr-1" /> Record RTW Check
+        </Button>
+      </div>
+
+      {!q.isLoading && uncheckedStaff.length > 0 && (
+        <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca" }}>
+          <p style={{ fontWeight: 600, fontSize: "0.8125rem", color: "#991b1b", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+            <AlertTriangle size={14} /> No RTW check recorded for: {uncheckedStaff.join(", ")}
+          </p>
+          <p style={{ fontSize: "0.75rem", color: "#b91c1c" }}>
+            UK law requires a Right to Work check before employment begins. Civil penalties of up to £45,000 per worker apply if checks are not completed. Record a check for each person above.
+          </p>
+        </div>
+      )}
+
+      {!q.isLoading && expired > 0 && (
+        <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca" }}>
+          <p style={{ fontWeight: 600, fontSize: "0.8125rem", color: "#991b1b", display: "flex", alignItems: "center", gap: 6 }}>
+            <AlertTriangle size={14} /> {expired} time-limited RTW check{expired !== 1 ? "s have" : " has"} expired — repeat checks must be completed immediately.
+          </p>
+        </div>
+      )}
+
+      {q.isLoading ? (
+        <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>Loading…</p>
+      ) : records.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#9ca3af" }}>
+          <Award size={32} style={{ margin: "0 auto 8px", opacity: 0.4 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>No Right to Work checks recorded</p>
+          <p style={{ fontSize: "0.875rem", maxWidth: 420, margin: "0 auto" }}>
+            Record documentary evidence of each staff member's right to work in the UK. Required under the Immigration, Asylum and Nationality Act 2006 before employment starts.
+          </p>
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
+                {(["Staff Member", "Document Type", "Reference / Share Code", "Check Date", "Checked By", "Status / Expiry", ""].map((h, i) => (
+                  <th key={i} style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600, fontSize: "0.75rem", textTransform: "uppercase", color: "#6b7280", letterSpacing: "0.05em" }}>{h}</th>
+                )))}
+              </tr>
+            </thead>
+            <tbody>
+              {records.map(r => (
+                <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.staffName}</td>
+                  <td style={{ padding: "0.625rem 0.75rem" }}>{r.documentType}</td>
+                  <td style={{ padding: "0.625rem 0.75rem", fontFamily: "monospace", fontSize: "0.8125rem", color: "#374151" }}>{r.documentReference || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{fmt(r.checkDate)}</td>
+                  <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.checkedBy || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.75rem" }}>{rtwStatusBadge(r.expiryDate)}</td>
+                  <td style={{ padding: "0.625rem 0.75rem" }}>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => openEdit(r)}>Edit</Button>
+                      <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setDeleteId(r.id)}>Del</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); } }}>
+        <DialogContent style={{ maxWidth: 540 }}>
+          <DialogHeader><DialogTitle>{editItem ? "Edit RTW Record" : "Record Right to Work Check"}</DialogTitle></DialogHeader>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div><Label>Staff Member *</Label><StaffSelect value={form.staffName} onChange={v => setForm(f => ({ ...f, staffName: v }))} staffNames={staffNames} /></div>
+            <div>
+              <Label>Document Type *</Label>
+              <Select value={form.documentType} onValueChange={v => setForm(f => ({ ...f, documentType: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select document type…" /></SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {RTW_DOCUMENT_TYPES.map((g, gi) => (
+                    <React.Fragment key={g.group}>
+                      {gi > 0 && <SelectSeparator />}
+                      <SelectGroup>
+                        <SelectLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-2 py-1">{g.group}</SelectLabel>
+                        {g.docs.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                      </SelectGroup>
+                    </React.Fragment>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Document Reference / Share Code</Label><Input className="mt-1" value={form.documentReference} onChange={e => setForm(f => ({ ...f, documentReference: e.target.value }))} placeholder="e.g. 4HB8YR or passport number" /></div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><Label>Date Check Carried Out *</Label><Input type="date" className="mt-1" value={form.checkDate} onChange={e => setForm(f => ({ ...f, checkDate: e.target.value }))} /></div>
+              <div><Label>Checked By</Label><Input className="mt-1" value={form.checkedBy} onChange={e => setForm(f => ({ ...f, checkedBy: e.target.value }))} placeholder="e.g. Farm Manager" /></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <Label>Document Expiry Date</Label>
+                <Input type="date" className="mt-1" value={form.expiryDate} onChange={e => setForm(f => ({ ...f, expiryDate: e.target.value }))} />
+                <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 3 }}>Leave blank for List A (indefinite)</p>
+              </div>
+              <div>
+                <Label>Follow-Up / Repeat Check Due</Label>
+                <Input type="date" className="mt-1" value={form.followUpDate} onChange={e => setForm(f => ({ ...f, followUpDate: e.target.value }))} />
+              </div>
+            </div>
+            <div><Label>Notes</Label><Textarea className="mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); }}>Cancel</Button>
+            <Button onClick={() => {
+              const body = { ...form };
+              if (editItem) updateMut.mutate({ id: editItem.id, body });
+              else createMut.mutate(body);
+            }} disabled={!form.staffName || !form.documentType || !form.checkDate}>Save Record</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={open => { if (!open) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader><DialogTitle>Delete RTW Record</DialogTitle></DialogHeader>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Are you sure? This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function printTrainingRegister(
   trainingRecords: TrainingRecord[],
   certificates: CertificateRecord[],
@@ -666,14 +912,19 @@ export default function StaffTrainingPage() {
           <TabButton active={tab === "certificates"} onClick={() => setTab("certificates")}>
             Certificates &amp; Qualifications {certificates.length > 0 && `(${certificates.length})`}
           </TabButton>
+          <TabButton active={tab === "rtw"} onClick={() => setTab("rtw")}>
+            Right to Work
+          </TabButton>
         </TabBar>
 
         {!farmId ? (
           <div style={{ padding: "3rem", textAlign: "center", color: "#9ca3af" }}>Please select a farm to view training records.</div>
         ) : tab === "training" ? (
           <TrainingTab farmId={farmId} staffNames={staffNames} defaultMember={tab === "training" ? urlMember : undefined} />
-        ) : (
+        ) : tab === "certificates" ? (
           <CertificatesTab farmId={farmId} staffNames={staffNames} defaultMember={tab === "certificates" ? urlMember : undefined} />
+        ) : (
+          <RightToWorkTab farmId={farmId} staffNames={staffNames} defaultMember={tab === "rtw" ? urlMember : undefined} />
         )}
       </div>
     </AppLayout>
