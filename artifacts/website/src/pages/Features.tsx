@@ -37,7 +37,7 @@ export default function Features() {
       title: "Equipment & Vehicles",
       icon: Tractor,
       color: "bg-orange-50 text-orange-600 border-orange-100",
-      features: ["Equipment register", "Maintenance logs", "Sprayer calibration tracking", "Asset onboarding/offboarding"]
+      features: ["Equipment register", "Maintenance logs", "Sprayer calibration tracking", "Asset onboarding/offboarding", "Grain Storage Quality — bin register with capacity and type, grain quality test records (moisture, protein, specific weight, Hagberg falling number), and temperature log with automatic alerts for rising or out-of-spec readings"]
     },
     {
       title: "Workshop & Asset Management",
@@ -62,7 +62,7 @@ export default function Features() {
       title: "Livestock Management",
       icon: PawPrint,
       color: "bg-rose-50 text-rose-600 border-rose-100",
-      features: ["Herd & flock register", "Movement records (eAML2 / ScotEID / EIDCymru)", "Medicine records & withdrawal tracking", "Animal mortality records — cause, disposal & BCMS", "Feed records with supplier & batch traceability", "Annual water quality testing — herd-linked records, lab certificate storage & automated welfare alerts", "Daily welfare checks with condition scoring", "Annual vet health plans (signed, printable)"]
+      features: ["Herd & flock register", "Movement records (eAML2 / ScotEID / EIDCymru)", "Medicine records & withdrawal tracking", "Animal mortality records — cause, disposal & BCMS", "Feed records with supplier & batch traceability", "Annual water quality testing — herd-linked records, lab certificate storage & automated welfare alerts", "Daily welfare checks with condition scoring", "Annual vet health plans (signed, printable)", "AI & Reproduction records — service date, sire/bull ID, breed, method, and confirmation of pregnancy", "Veterinary prescriptions — log vet-written prescriptions with drug, dose, withdrawal period, and dispensing vet details for full medicine audit trail"]
     },
     {
       title: "Biosecurity & Visitors",
@@ -75,7 +75,10 @@ export default function Features() {
       icon: GraduationCap,
       color: "bg-indigo-50 text-indigo-600 border-indigo-100",
       features: [
-        "Staff directory — invite team members and manage roles and access levels",
+        "Staff directory — create records for every team member; records-only entries for compliance tracking (no login required) or invite staff to the system with a secure 7-day email link they use to set their own password",
+        "Four access types per user — No System Access (records only), Mobile App Only, Web Dashboard Only, or Full Access (both platforms) — set independently for each staff member",
+        "Four permission levels — Operator (field record entry), Senior / Foreman (all farm records + team oversight), Farm Manager (full operational access including financials), Owner (unrestricted including billing); navigation and sensitive pages are automatically hidden based on each user's level",
+        "Multi-farm support — one login can hold different roles on multiple farm holdings within the same group; each association carries its own independent access type and permission level",
         "Right to Work register — record document type, reference, check date and examiner; track expiry for time-limited visas with urgent alerts within 28 days; automatic flag for any staff member with no check on file",
         "Certificate register — 50+ certificate types across 10 groups: Pesticide Application (PA1–PA6AW), Livestock Welfare (WASK/WATOK, disbudding, AI), Animal Transport (Cat 1 & 2), Machinery (telehandler, FLT, ATV, combine), Chainsaw (CS30–CS38), Health & Safety (FAW, EFAW, COSHH, confined space), Agronomy (BASIS, FACTS, NRoSO), Veterinary & Medicines (AMTRA SQP), Food & Hygiene (Level 2 & 3), and Formal Qualifications",
         "Training records — log in-house and external training with provider, assessor, date and competency achieved",
@@ -102,7 +105,7 @@ export default function Features() {
       title: "Environmental Management",
       icon: Leaf,
       color: "bg-green-50 text-green-600 border-green-100",
-      features: ["Environmental feature mapping", "Agri-environment scheme records", "Stewardship agreement logging", "Habitat & hedgerow records", "Management events log (hedge trimming, pond clearance, mowing & more)", "Scheme obligation tracking per event"]
+      features: ["Environmental feature mapping", "Agri-environment scheme records", "Stewardship agreement logging", "Habitat & hedgerow records", "Management events log (hedge trimming, pond clearance, mowing & more)", "Scheme obligation tracking per event", "SFI / ELMs Actions — log Sustainable Farming Incentive and Environmental Land Management agreements with action codes, payment rates, area, and annual review tracking", "Slurry & Manure Management — store capacity and type records, spreading event logs with application rate, field, date and contractor, and NVZ closed-period compliance notes"]
     },
     {
       title: "Transport & Haulage",
