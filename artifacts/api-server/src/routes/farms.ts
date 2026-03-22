@@ -2924,7 +2924,49 @@ Biosecurity is a core requirement of Red Tractor across all sectors. The Biosecu
       category: "Staff & Training",
       content: `<img src="/api/help-images/medicine-records.png" alt="Staff Training and Certificates" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
-Red Tractor requires all staff carrying out regulated activities — particularly spraying operations, livestock handling, and machinery use — to hold valid certificates of competence. It is the farm manager's responsibility to ensure that certificates are current and that staff are not undertaking tasks for which they are not certificated.\n\nIn BDE Farm Trac, navigate to Staff & Training. The module has two tabs: Training Records and Certificates & Qualifications.\n\nThe Training Records tab is where you log all in-house and externally-delivered training events. For each record, enter the staff member's name, the training course or competency achieved, the training provider, the date, and the assessor name. Training records show colour-coded expiry badges: green (current), amber (expiring within 60 days), and red (expired). Where staff complete in-house training — manual handling, fire safety, biosecurity inductions — log these here with the trainer name and topics covered.\n\nThe Certificates & Qualifications tab is where formal industry certificates are recorded. The certificate type dropdown includes: PA1 (Safe Use of Pesticides), PA2 (Ground Crop Sprayers), PA3 (Broadcast Air-Assisted Sprayers), PA6 (Handheld Applicators), PA6AW (Aquatic Weed Control), BASIS Crop Protection, FACTS Nutrient Management, City & Guilds awards, First Aid, Forklift RTITB/ITSSAR, and other competencies. For each certificate, record the certificate number, issuing body, date of issue, and expiry date. The same amber and red expiry badge system applies so nothing slips past its renewal date unnoticed.\n\nThe Print Register button at the top of the page generates a formatted A4 document containing both the training records and certificates tables, plus sign-off blocks for the farm manager and assessor. This document is suitable for presenting to a Red Tractor inspector who asks to see your training evidence.`,
+<p>Red Tractor requires all staff carrying out regulated activities — spraying, livestock handling, machinery operation — to hold valid certificates of competence. It is the farm manager's responsibility to ensure certificates are current before staff perform regulated tasks.</p>
+
+<p>Navigate to <strong>Staff &amp; Training</strong> in the sidebar. The module has three tabs: <strong>Training Records</strong>, <strong>Certificates &amp; Qualifications</strong>, and <strong>Right to Work</strong>.</p>
+
+<h3>Selecting a Staff Member</h3>
+<p>When adding a training record or certificate, the <strong>Staff Member</strong> field is a dropdown populated from your real staff list (the people you have invited via the Staff page). This ensures records are properly linked to a specific person rather than a typed name that might vary. If no staff have been invited yet, the field falls back to free text so you can still record data.</p>
+
+<h3>Training Records Tab</h3>
+<p>Log all in-house and externally-delivered training: course or competency title, training provider, date, expiry date, and assessor name. Use this tab for manual handling briefings, fire safety, biosecurity inductions, and any other formal or informal training. Records show colour-coded expiry badges: green (current), amber (expiring within 60 days), red (expired).</p>
+
+<h3>Certificates &amp; Qualifications Tab</h3>
+<p>Record formal industry certificates using the grouped dropdown — over 50 certificate types are organised into 10 categories:</p>
+<ul>
+<li><strong>Pesticide Application (NPTC/Lantra)</strong> — PA1, PA2, PA3, PA4, PA6, PA6AW, rodenticides</li>
+<li><strong>Livestock Welfare &amp; Husbandry</strong> — WASK/WATOK emergency slaughter, cattle disbudding/castration, sheep castration, pig castration, bovine AI, poultry culling and handling</li>
+<li><strong>Animal Transport</strong> — Category 1 (under 8 hours), Category 2 (long journeys), livestock vehicle driver CoC</li>
+<li><strong>Machinery &amp; Equipment</strong> — telehandler, counterbalance FLT, reach FLT, ATV/quad bike, ROLO, combine harvester, grain dryer</li>
+<li><strong>Chainsaw (NPTC/Lantra)</strong> — CS30, CS31, CS32, CS38</li>
+<li><strong>Health &amp; Safety</strong> — FAW, EFAW, fire warden, working at height, confined space, asbestos, COSHH</li>
+<li><strong>Agronomy &amp; Advisory</strong> — BASIS Agronomy, BASIS Crop Protection, FACTS, NRoSO CPD</li>
+<li><strong>Veterinary &amp; Medicines</strong> — AMTRA SQP, responsible for medicines, BVetMed/MRCVS</li>
+<li><strong>Food, Hygiene &amp; Environment</strong> — food hygiene Level 2 &amp; 3, food safety in manufacturing, water hygiene</li>
+<li><strong>Formal Qualifications</strong> — City &amp; Guilds, BTEC, HND, BSc, NVQ Level 2 &amp; 3</li>
+</ul>
+<p>For each certificate record the certificate number, issuing body, issue date, and expiry date.</p>
+
+<h3>Compliance Gap Panel</h3>
+<p>At the top of the Certificates tab, if any of the following critical certificates are missing from the farm's records, a red or amber banner appears automatically:</p>
+<ul>
+<li><strong>WASK/WATOK</strong> (red) — legally required for any farm with livestock that may need emergency slaughter</li>
+<li><strong>Animal Transport Category 1</strong> (red) — required before anyone moves animals</li>
+<li><strong>First Aid at Work or EFAW</strong> (amber) — required under the Health &amp; Safety (First-Aid) Regulations 1981</li>
+<li><strong>PA1</strong> (amber) — required for any person supervising or using professional pesticide products</li>
+</ul>
+<p>Each banner disappears as soon as a matching certificate is recorded.</p>
+
+<h3>Certificates Status on the Staff Page</h3>
+<p>The <strong>Staff</strong> page shows a certificate summary for each person — green (all valid), amber (expiring soon), red (expired), or "None recorded". Click the <strong>Certs</strong> button on any row to go directly to that person's certificate records.</p>
+
+<h3>Print Register</h3>
+<p>The <strong>Print Register</strong> button at the top of the page generates a formatted A4 document with both training records and certificate tables, plus sign-off blocks for the farm manager and Red Tractor assessor. This is the document to present when an inspector asks to see your training evidence.</p>
+
+<p>For guidance on Right to Work checks — a separate legal obligation that must be completed before employment begins — see the article <em>Right to Work Checks for Farm Employers</em>.</p>`,
     },
     {
       id: 8,
@@ -4332,6 +4374,62 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h3>Recording BWI Assessments</h3>
 <p>Go to <strong>Poultry Production → Broiler Welfare</strong> and click <strong>Add Assessment</strong>. Enter the flock reference, assessment date, assessor name, bird age and sample size, and complete each indicator. Select the overall outcome (Pass / Advisory / Fail). If the outcome is Advisory or Fail, document the corrective actions taken — this is the evidence that Red Tractor inspectors will review at your next audit.</p>`,
+    },
+    {
+      id: 10005,
+      title: "Right to Work Checks for Farm Employers",
+      category: "Staff & Training",
+      content: `<img src="/api/help-images/medicine-records.png" alt="Right to Work Checks" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>As a UK employer, you are legally required to carry out a Right to Work check on <strong>every person before they start work</strong> — including seasonal workers, family members employed on the farm, and casual labour. Failure to do so can result in a civil penalty of up to <strong>£60,000 per illegal worker</strong>, and knowingly employing someone without the right to work can lead to criminal prosecution and an unlimited fine.</p>
+
+<p>The check must be carried out in person (or via the Home Office online service), with original documents. A photocopy or photograph of a document is not sufficient. You must also retain a clear copy of the document(s) checked.</p>
+
+<h3>List A and List B Documents</h3>
+<p>Right to Work documents are split into two lists.</p>
+
+<p><strong>List A — Indefinite Right to Work</strong> (no repeat check required):</p>
+<ul>
+<li>UK passport (current or expired)</li>
+<li>Irish passport or passport card</li>
+<li>UK birth or adoption certificate + NI evidence (P45, NI card, HMRC letter)</li>
+<li>Certificate of registration or naturalisation as a British citizen</li>
+<li>Indefinite Leave to Enter or Remain — biometric residence permit</li>
+<li>EU Settlement Scheme — settled status (confirmed via Home Office online check)</li>
+</ul>
+
+<p><strong>List B — Time-Limited Right to Work</strong> (repeat check required before expiry):</p>
+<ul>
+<li>Current passport with time-limited leave vignette or endorsement</li>
+<li>Biometric Residence Permit with a limited leave period</li>
+<li>EU Settlement Scheme — pre-settled status (must be rechecked at expiry)</li>
+<li>Home Office Positive Verification Notice or Certificate of Application</li>
+<li>Any other document showing a time-limited right to work in the UK</li>
+</ul>
+
+<h3>Using the Home Office Online Service</h3>
+<p>For EU/EEA nationals who have status under the EU Settlement Scheme, and for holders of a Biometric Residence Permit, you must use the <strong>Home Office online right to work checking service</strong> (gov.uk/view-right-to-work). The worker provides a share code valid for 90 days; you enter the share code and their date of birth. Print or save the results page as evidence.</p>
+
+<h3>Recording Checks in BDE Farm Trac</h3>
+<p>Navigate to <strong>Staff &amp; Training → Right to Work</strong>. For each person, click <strong>Add RTW Check</strong> and complete:</p>
+<ul>
+<li><strong>Staff Member</strong> — selected from the staff dropdown</li>
+<li><strong>Document Type</strong> — choose from the grouped List A / List B dropdown</li>
+<li><strong>Document Reference / Share Code</strong> — the document number or Home Office share code</li>
+<li><strong>Check Date</strong> — the date you examined the original document or ran the online check</li>
+<li><strong>Checked By</strong> — the name of the person who carried out the check</li>
+<li><strong>Expiry Date</strong> — for List B documents only; leave blank for List A</li>
+<li><strong>Follow-up / Repeat Check Date</strong> — if required; the system will surface this as a reminder</li>
+</ul>
+
+<h3>Compliance Alerts</h3>
+<p>The Right to Work tab shows a red compliance banner if any current staff member has no check on file — this is a legal gap that should be closed immediately. A separate red banner appears for any check that has expired. Records within 28 days of expiry are shown with an amber "Expiring soon" badge. Each person's RTW status is also visible on the main Staff page, with a direct link to their records.</p>
+
+<h3>Seasonal and Temporary Workers</h3>
+<p>The same rules apply to seasonal workers as to permanent employees. For workers sourced through a licensed gangmaster or labour provider, you should retain confirmation that the agency holds a Gangmasters and Labour Abuse Authority (GLAA) licence and that the labour provider has confirmed they have completed Right to Work checks on your behalf. Record this in the Notes field of the RTW record.</p>
+
+<h3>Record Retention</h3>
+<p>You must retain evidence of the check for the duration of employment and for a further <strong>two years</strong> after the employee leaves. Records in BDE Farm Trac are retained indefinitely unless you manually delete them. If you retain physical copies of documents, keep them securely filed and cross-reference the filing location in the Notes field.</p>`,
     },
     {
       id: 10004,

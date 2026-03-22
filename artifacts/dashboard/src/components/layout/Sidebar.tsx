@@ -212,7 +212,11 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
         <NavSection title="Management" items={filteredOtherNav} onNavClick={onNavClick} />
       </nav>
 
-      <div className="p-3 border-t border-sidebar-border space-y-0 flex-shrink-0">
+      <div className="mx-3 my-1 flex-shrink-0">
+        <div className="h-px bg-white/10 rounded-full" />
+      </div>
+
+      <div className="p-3 space-y-0 flex-shrink-0">
         {bottomNav.map((item) => (
           <Link key={item.name} href={item.href} className="block" onClick={onNavClick}>
             <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sidebar-foreground/80 hover:bg-white/5 hover:text-white transition-colors cursor-pointer text-sm">

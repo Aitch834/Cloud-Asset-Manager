@@ -74,7 +74,17 @@ export default function Features() {
       title: "Staff & Training",
       icon: GraduationCap,
       color: "bg-indigo-50 text-indigo-600 border-indigo-100",
-      features: ["Certificate tracking", "Expiry alerts (PA1/PA6)", "Role-based permissions", "Farm assignments"]
+      features: [
+        "Staff directory — invite team members and manage roles and access levels",
+        "Right to Work register — record document type, reference, check date and examiner; track expiry for time-limited visas with urgent alerts within 28 days; automatic flag for any staff member with no check on file",
+        "Certificate register — 50+ certificate types across 10 groups: Pesticide Application (PA1–PA6AW), Livestock Welfare (WASK/WATOK, disbudding, AI), Animal Transport (Cat 1 & 2), Machinery (telehandler, FLT, ATV, combine), Chainsaw (CS30–CS38), Health & Safety (FAW, EFAW, COSHH, confined space), Agronomy (BASIS, FACTS, NRoSO), Veterinary & Medicines (AMTRA SQP), Food & Hygiene (Level 2 & 3), and Formal Qualifications",
+        "Training records — log in-house and external training with provider, assessor, date and competency achieved",
+        "Expiry alerts — colour-coded badges (green / amber / red) on every cert and training record; per-person summary visible on the staff list",
+        "Compliance gap panel — automatic red/amber banners surface missing critical certs (WASK, Animal Transport, PA1, First Aid) that clear once the cert is recorded",
+        "Staff-linked records — cert and training forms use a real-user dropdown so records are tied to the correct person, not a typed name",
+        "Post-invite RTW prompt — after inviting a new team member, the system reminds you to carry out a Right to Work check and record their certificates before they start",
+        "Print Register — generates a formatted A4 document with training and certificate tables plus sign-off blocks, suitable for presenting to a Red Tractor inspector"
+      ]
     },
     {
       title: "Risk & Waste Management",
