@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -12,6 +12,31 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Printer, GraduationCap, Award, AlertTriangle } from "lucide-react";
+
+interface StaffUser { id: number; email: string; firstName: string | null; lastName: string | null; }
+function staffFullName(u: StaffUser) {
+  return (u.firstName || u.lastName) ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() : u.email;
+}
+function useStaffList() {
+  return useQuery<{ users: StaffUser[] }>({
+    queryKey: ["staff-users"],
+    queryFn: () => fetch("/api/tenants/current/users").then(r => r.json()),
+  });
+}
+
+function StaffSelect({ value, onChange, staffNames }: { value: string; onChange: (v: string) => void; staffNames: string[] }) {
+  if (staffNames.length === 0) {
+    return <Input className="mt-1" value={value} onChange={e => onChange(e.target.value)} placeholder="e.g. John Smith" />;
+  }
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="mt-1"><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+      <SelectContent>
+        {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}
 
 type Tab = "training" | "certificates";
 
@@ -174,13 +199,13 @@ const COMPLIANCE_FLAGS: { label: string; match: string; detail: string; severity
   { label: "PA1 — Safe use of pesticides", match: "PA1 —", detail: "Any person using or supervising the use of professional pesticide products must hold at minimum a PA1 certificate.", severity: "warning" },
 ];
 
-function TrainingTab({ farmId }: { farmId: number }) {
+function TrainingTab({ farmId, staffNames, defaultMember }: { farmId: number; staffNames: string[]; defaultMember?: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<TrainingRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(defaultMember ?? "");
 
   const empty = { userId: "", trainingTitle: "", trainingProvider: "", trainingDate: "", expiryDate: "", competencyAchieved: "", assessorName: "", notes: "" };
   const [form, setForm] = useState({ ...empty });
@@ -294,7 +319,7 @@ function TrainingTab({ farmId }: { farmId: number }) {
           <DialogContent style={{ maxWidth: 520 }}>
             <DialogHeader><DialogTitle>{editItem ? "Edit Training Record" : "Add Training Record"}</DialogTitle></DialogHeader>
             <div style={{ display: "grid", gap: 12 }}>
-              <div><Label>Staff Name / ID *</Label><Input className="mt-1" value={form.userId} onChange={e => setForm(f => ({ ...f, userId: e.target.value }))} placeholder="e.g. John Smith" /></div>
+              <div><Label>Staff Member *</Label><StaffSelect value={form.userId} onChange={v => setForm(f => ({ ...f, userId: v }))} staffNames={staffNames} /></div>
               <div><Label>Training Title *</Label><Input className="mt-1" value={form.trainingTitle} onChange={e => setForm(f => ({ ...f, trainingTitle: e.target.value }))} placeholder="e.g. PA1 Safe Use of Pesticides" /></div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div><Label>Training Date *</Label><Input type="date" className="mt-1" value={form.trainingDate} onChange={e => setForm(f => ({ ...f, trainingDate: e.target.value }))} /></div>
@@ -327,7 +352,7 @@ function TrainingTab({ farmId }: { farmId: number }) {
   );
 }
 
-function CertificatesTab({ farmId }: { farmId: number }) {
+function CertificatesTab({ farmId, staffNames, defaultMember }: { farmId: number; staffNames: string[]; defaultMember?: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
@@ -335,7 +360,14 @@ function CertificatesTab({ farmId }: { farmId: number }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const empty = { userId: "", certificateType: "", certificateNumber: "", issuer: "", issueDate: "", expiryDate: "", notes: "" };
-  const [form, setForm] = useState({ ...empty });
+  const [form, setForm] = useState({ ...empty, userId: defaultMember ?? "" });
+
+  useEffect(() => {
+    if (defaultMember) {
+      setForm(f => ({ ...f, userId: defaultMember }));
+      setAddOpen(true);
+    }
+  }, [defaultMember]);
 
   const q = useQuery<{ records: CertificateRecord[] }>({
     queryKey: ["staff-certificates", farmId],
@@ -464,7 +496,7 @@ function CertificatesTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>{editItem ? "Edit Certificate" : "Add Certificate"}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12 }}>
-            <div><Label>Staff Name / ID *</Label><Input className="mt-1" value={form.userId} onChange={e => setForm(f => ({ ...f, userId: e.target.value }))} placeholder="e.g. John Smith" /></div>
+            <div><Label>Staff Member *</Label><StaffSelect value={form.userId} onChange={v => setForm(f => ({ ...f, userId: v }))} staffNames={staffNames} /></div>
             <div>
               <Label>Certificate Type *</Label>
               <Select value={form.certificateType} onValueChange={v => setForm(f => ({ ...f, certificateType: v }))}>
@@ -580,7 +612,15 @@ ${certificates.length === 0
 export default function StaffTrainingPage() {
   const { currentFarm } = useAppStore();
   const farmId = currentFarm?.id;
-  const [tab, setTab] = useState<Tab>("training");
+  const params = new URLSearchParams(
+    typeof window !== "undefined" ? window.location.search : ""
+  );
+  const urlMember = params.get("member") ?? undefined;
+  const urlTab = (params.get("tab") as Tab | null) ?? "training";
+
+  const [tab, setTab] = useState<Tab>(urlTab);
+  const staffQ = useStaffList();
+  const staffNames = (staffQ.data?.users ?? []).map(staffFullName);
 
   const trainingQ = useQuery<{ records: TrainingRecord[] }>({
     queryKey: ["training-records", farmId],
@@ -631,9 +671,9 @@ export default function StaffTrainingPage() {
         {!farmId ? (
           <div style={{ padding: "3rem", textAlign: "center", color: "#9ca3af" }}>Please select a farm to view training records.</div>
         ) : tab === "training" ? (
-          <TrainingTab farmId={farmId} />
+          <TrainingTab farmId={farmId} staffNames={staffNames} defaultMember={tab === "training" ? urlMember : undefined} />
         ) : (
-          <CertificatesTab farmId={farmId} />
+          <CertificatesTab farmId={farmId} staffNames={staffNames} defaultMember={tab === "certificates" ? urlMember : undefined} />
         )}
       </div>
     </AppLayout>

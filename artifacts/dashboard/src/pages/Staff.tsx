@@ -8,8 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Search, Mail, UserCheck, UserX, RefreshCw } from "lucide-react";
+import { Users, Plus, Search, Mail, UserCheck, UserX, RefreshCw, Award, AlertTriangle, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 const DEV_BYPASS = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
 const DEV_TOKEN = import.meta.env.VITE_DEV_BYPASS_TOKEN;
@@ -28,6 +29,13 @@ interface StaffUser {
   role: string;
 }
 
+interface CertRecord {
+  id: number;
+  userId: string;
+  certificateType: string;
+  expiryDate: string | null;
+}
+
 function useStaffUsers() {
   return useQuery<{ users: StaffUser[] }>({
     queryKey: ["staff-users"],
@@ -39,12 +47,62 @@ function useStaffUsers() {
   });
 }
 
+function useCerts(farmId: number | null) {
+  return useQuery<{ records: CertRecord[] }>({
+    queryKey: ["staff-certificates", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/certificates`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+}
+
+function fullName(u: StaffUser) {
+  return (u.firstName || u.lastName) ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() : u.email;
+}
+
+function CertBadge({ name, certs }: { name: string; certs: CertRecord[] }) {
+  const mine = certs.filter(c => c.userId === name);
+  if (mine.length === 0) return (
+    <span className="text-xs text-muted-foreground italic">None recorded</span>
+  );
+  const now = new Date();
+  const expired = mine.filter(c => c.expiryDate && new Date(c.expiryDate) < now).length;
+  const expiring = mine.filter(c => {
+    if (!c.expiryDate) return false;
+    const days = Math.floor((new Date(c.expiryDate).getTime() - now.getTime()) / 86400000);
+    return days >= 0 && days <= 60;
+  }).length;
+  if (expired > 0) return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600">
+      <AlertTriangle className="w-3 h-3" />{mine.length} cert{mine.length !== 1 ? "s" : ""} · {expired} expired
+    </span>
+  );
+  if (expiring > 0) return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600">
+      <AlertTriangle className="w-3 h-3" />{mine.length} cert{mine.length !== 1 ? "s" : ""} · {expiring} expiring
+    </span>
+  );
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600">
+      <Award className="w-3 h-3" />{mine.length} cert{mine.length !== 1 ? "s" : ""}
+    </span>
+  );
+}
+
 function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [step, setStep] = useState<"form" | "success">("form");
+  const [invitedName, setInvitedName] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
+
+  function handleClose() {
+    setStep("form");
+    setEmail(""); setFirstName(""); setLastName(""); setInvitedName("");
+    onClose();
+  }
 
   const invite = useMutation({
     mutationFn: async () => {
@@ -58,9 +116,9 @@ function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-users"] });
-      toast({ title: "Invitation sent", description: `An invite was sent to ${email}.` });
-      setEmail(""); setFirstName(""); setLastName("");
-      onClose();
+      const name = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : email;
+      setInvitedName(name);
+      setStep("success");
     },
     onError: () => {
       toast({ title: "Failed to send invite", variant: "destructive" });
@@ -68,36 +126,72 @@ function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void })
   });
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+    <Dialog open={open} onOpenChange={v => !v && handleClose()}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Invite Staff Member</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div>
-            <Label>Email Address *</Label>
-            <Input type="email" placeholder="name@farm.co.uk" value={email} onChange={e => setEmail(e.target.value)} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>First Name</Label>
-              <Input placeholder="Jane" value={firstName} onChange={e => setFirstName(e.target.value)} />
+        {step === "form" ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Invite Staff Member</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div>
+                <Label>Email Address *</Label>
+                <Input type="email" placeholder="name@farm.co.uk" value={email} onChange={e => setEmail(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>First Name</Label>
+                  <Input placeholder="Jane" value={firstName} onChange={e => setFirstName(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Last Name</Label>
+                  <Input placeholder="Smith" value={lastName} onChange={e => setLastName(e.target.value)} />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                They will receive an email to set their password and access your farm records.
+              </p>
             </div>
-            <div>
-              <Label>Last Name</Label>
-              <Input placeholder="Smith" value={lastName} onChange={e => setLastName(e.target.value)} />
+            <DialogFooter>
+              <Button variant="outline" onClick={handleClose}>Cancel</Button>
+              <Button onClick={() => invite.mutate()} disabled={!email.trim() || invite.isPending}>
+                {invite.isPending ? "Sending…" : "Send Invite"}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                Invite sent
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-muted-foreground">
+                <strong className="text-foreground">{invitedName}</strong> will receive an email to set up their account.
+              </p>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-2">
+                <p className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+                  <Award className="w-4 h-4" />
+                  Don't forget their certifications
+                </p>
+                <p className="text-xs text-amber-800">
+                  Red Tractor and UK legislation require operator certificates to be recorded — WASK, Animal Transport, PA1, machinery operator licences, and more. Add them now while the person is fresh in mind.
+                </p>
+              </div>
             </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            They will receive an email to set their password and access your farm records.
-          </p>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => invite.mutate()} disabled={!email.trim() || invite.isPending}>
-            {invite.isPending ? "Sending…" : "Send Invite"}
-          </Button>
-        </DialogFooter>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={handleClose}>Done</Button>
+              <Button onClick={() => {
+                handleClose();
+                navigate(`/training?member=${encodeURIComponent(invitedName)}&tab=certificates`);
+              }}>
+                Add certificates <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -108,6 +202,10 @@ export default function StaffPage() {
   const [search, setSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const { data, isLoading, isError, refetch } = useStaffUsers();
+  const { data: certData } = useCerts(farmId);
+  const [, navigate] = useLocation();
+
+  const allCerts = certData?.records ?? [];
 
   const users = (data?.users ?? []).filter(u => {
     const q = search.toLowerCase();
@@ -173,29 +271,49 @@ export default function StaffPage() {
                   <th className="text-left px-6 py-3 font-semibold text-foreground/60">Email</th>
                   <th className="text-left px-6 py-3 font-semibold text-foreground/60">Role</th>
                   <th className="text-left px-6 py-3 font-semibold text-foreground/60">Status</th>
+                  <th className="text-left px-6 py-3 font-semibold text-foreground/60">Certificates</th>
+                  <th className="w-28" />
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
-                  <tr key={u.id} className="border-b border-border/30 last:border-0 hover:bg-black/[0.02] transition-colors">
-                    <td className="px-6 py-4 font-medium">
-                      {u.firstName || u.lastName
-                        ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim()
-                        : <span className="text-muted-foreground italic">Not set</span>}
-                    </td>
-                    <td className="px-6 py-4 text-muted-foreground flex items-center gap-2">
-                      <Mail className="w-3.5 h-3.5" />{u.email}
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge variant="outline" className="capitalize">{u.role ?? "member"}</Badge>
-                    </td>
-                    <td className="px-6 py-4">
-                      {u.isActive
-                        ? <span className="flex items-center gap-1.5 text-green-600 text-xs font-medium"><UserCheck className="w-3.5 h-3.5" />Active</span>
-                        : <span className="flex items-center gap-1.5 text-muted-foreground text-xs font-medium"><UserX className="w-3.5 h-3.5" />Inactive</span>}
-                    </td>
-                  </tr>
-                ))}
+                {users.map(u => {
+                  const name = fullName(u);
+                  return (
+                    <tr key={u.id} className="border-b border-border/30 last:border-0 hover:bg-black/[0.02] transition-colors">
+                      <td className="px-6 py-4 font-medium">
+                        {u.firstName || u.lastName
+                          ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim()
+                          : <span className="text-muted-foreground italic">Not set</span>}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground">
+                        <span className="flex items-center gap-2">
+                          <Mail className="w-3.5 h-3.5 shrink-0" />{u.email}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge variant="outline" className="capitalize">{u.role ?? "member"}</Badge>
+                      </td>
+                      <td className="px-6 py-4">
+                        {u.isActive
+                          ? <span className="flex items-center gap-1.5 text-green-600 text-xs font-medium"><UserCheck className="w-3.5 h-3.5" />Active</span>
+                          : <span className="flex items-center gap-1.5 text-muted-foreground text-xs font-medium"><UserX className="w-3.5 h-3.5" />Inactive</span>}
+                      </td>
+                      <td className="px-6 py-4">
+                        <CertBadge name={name} certs={allCerts} />
+                      </td>
+                      <td className="px-6 py-4">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-7"
+                          onClick={() => navigate(`/training?member=${encodeURIComponent(name)}&tab=certificates`)}
+                        >
+                          <Award className="w-3 h-3 mr-1" />Certs
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
