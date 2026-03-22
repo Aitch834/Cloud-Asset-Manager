@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useListFarms, useGetFarmDashboard } from "@workspace/api-client-react/src/generated/api";
 import { useMemo } from "react";
+import { useUserRole, type FarmRole } from "@/hooks/use-user-role";
 
 interface NavItem {
   name: string;
@@ -49,6 +50,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   moduleKeys?: string[];
   requiresLivestock?: boolean;
+  minRole?: FarmRole;
 }
 
 const coreNav: NavItem[] = [
@@ -95,11 +97,11 @@ const biofuelNav: NavItem[] = [
 ];
 
 const otherNav: NavItem[] = [
-  { name: "Staff", href: "/staff", icon: Users },
+  { name: "Staff", href: "/staff", icon: Users, minRole: "senior" },
   { name: "Training", href: "/training", icon: GraduationCap, moduleKeys: ["staff-training"] },
   { name: "Suppliers & Stock", href: "/stock", icon: Package, moduleKeys: ["stock-suppliers"] },
-  { name: "Financial", href: "/financial", icon: PoundSterling, moduleKeys: ["financial-records"] },
-  { name: "Business Reports", href: "/business-reports", icon: BarChart3, moduleKeys: ["business-reports"] },
+  { name: "Financial", href: "/financial", icon: PoundSterling, moduleKeys: ["financial-records"], minRole: "manager" },
+  { name: "Business Reports", href: "/business-reports", icon: BarChart3, moduleKeys: ["business-reports"], minRole: "manager" },
   { name: "Environmental", href: "/environmental", icon: Leaf, moduleKeys: ["environmental"] },
   { name: "Haulage", href: "/haulage", icon: Truck, moduleKeys: ["haulage-transport"] },
   { name: "Documents", href: "/documents", icon: FileText, moduleKeys: ["document-management"] },
@@ -110,21 +112,24 @@ const otherNav: NavItem[] = [
   { name: "Fleet Status", href: "/fleet-dashboard", icon: Wrench, moduleKeys: ["equipment-management"] },
 ];
 
+const ROLE_RANK: Record<FarmRole, number> = { operator: 0, senior: 1, manager: 2, owner: 3 };
+
 const bottomNav: NavItem[] = [
   { name: "Help Centre", href: "/help", icon: HelpCircle },
   { name: "Support", href: "/support", icon: LifeBuoy },
-  { name: "Farm Settings", href: "/settings/farm", icon: MapPin },
+  { name: "Farm Settings", href: "/settings/farm", icon: MapPin, minRole: "manager" },
   { name: "Account & Notifications", href: "/account", icon: Smartphone },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Settings", href: "/settings", icon: Settings, minRole: "manager" },
 ];
 
 interface FarmSectors {
   hasLivestock: boolean;
 }
 
-function filterNavItems(items: NavItem[], activeModuleKeys: Set<string>, sectors: FarmSectors): NavItem[] {
+function filterNavItems(items: NavItem[], activeModuleKeys: Set<string>, sectors: FarmSectors, userRole: FarmRole = "owner"): NavItem[] {
   return items.filter((item) => {
     if (item.requiresLivestock && !sectors.hasLivestock) return false;
+    if (item.minRole && ROLE_RANK[userRole] < ROLE_RANK[item.minRole]) return false;
     if (!item.moduleKeys || item.moduleKeys.length === 0) return true;
     return item.moduleKeys.some((key) => activeModuleKeys.has(key));
   });
@@ -161,7 +166,7 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTractorId, filteredCoreNav, filteredComplianceNav, filteredBiosecurityNav, filteredLivestockNav, filteredBiofuelNav, filteredOtherNav }: {
+function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTractorId, filteredCoreNav, filteredComplianceNav, filteredBiosecurityNav, filteredLivestockNav, filteredBiofuelNav, filteredOtherNav, filteredBottomNav }: {
   onNavClick?: () => void;
   onLogout: () => void;
   currentFarmName?: string;
@@ -172,6 +177,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
   filteredLivestockNav: NavItem[];
   filteredBiofuelNav: NavItem[];
   filteredOtherNav: NavItem[];
+  filteredBottomNav: NavItem[];
 }) {
   return (
     <>
@@ -217,7 +223,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
       </div>
 
       <div className="p-3 space-y-0 flex-shrink-0">
-        {bottomNav.map((item) => (
+        {filteredBottomNav.map((item) => (
           <Link key={item.name} href={item.href} className="block" onClick={onNavClick}>
             <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sidebar-foreground/80 hover:bg-white/5 hover:text-white transition-colors cursor-pointer text-sm">
               <item.icon className="w-4 h-4 text-sidebar-foreground/50" />
@@ -242,6 +248,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const { data: farmsData } = useListFarms({ query: { enabled: true } });
   const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } });
   const currentFarm = farmsData?.farms?.find(f => f.id === farmId);
+  const { role: userRole } = useUserRole();
 
   const subscriptionsLoaded = !!dashboardData;
 
@@ -264,12 +271,13 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     return { hasLivestock };
   }, [dashboardData?.farm]);
 
-  const filteredCoreNav = subscriptionsLoaded ? filterNavItems(coreNav, activeModuleKeys, farmSectors) : coreNav;
-  const filteredComplianceNav = subscriptionsLoaded ? filterNavItems(complianceNav, activeModuleKeys, farmSectors) : complianceNav;
-  const filteredBiosecurityNav = subscriptionsLoaded ? filterNavItems(biosecurityNav, activeModuleKeys, farmSectors) : biosecurityNav;
-  const filteredLivestockNav = subscriptionsLoaded ? filterNavItems(livestockNav, activeModuleKeys, farmSectors) : livestockNav;
-  const filteredBiofuelNav = filterNavItems(biofuelNav, activeModuleKeys, farmSectors);
-  const filteredOtherNav = subscriptionsLoaded ? filterNavItems(otherNav, activeModuleKeys, farmSectors) : otherNav;
+  const filteredCoreNav = subscriptionsLoaded ? filterNavItems(coreNav, activeModuleKeys, farmSectors, userRole) : coreNav;
+  const filteredComplianceNav = subscriptionsLoaded ? filterNavItems(complianceNav, activeModuleKeys, farmSectors, userRole) : complianceNav;
+  const filteredBiosecurityNav = subscriptionsLoaded ? filterNavItems(biosecurityNav, activeModuleKeys, farmSectors, userRole) : biosecurityNav;
+  const filteredLivestockNav = subscriptionsLoaded ? filterNavItems(livestockNav, activeModuleKeys, farmSectors, userRole) : livestockNav;
+  const filteredBiofuelNav = filterNavItems(biofuelNav, activeModuleKeys, farmSectors, userRole);
+  const filteredOtherNav = subscriptionsLoaded ? filterNavItems(otherNav, activeModuleKeys, farmSectors, userRole) : otherNav;
+  const filteredBottomNav = filterNavItems(bottomNav, new Set(), { hasLivestock: true }, userRole);
 
   const handleLogout = () => {
     clearState();
@@ -288,6 +296,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     filteredLivestockNav,
     filteredBiofuelNav,
     filteredOtherNav,
+    filteredBottomNav,
   };
 
   return (

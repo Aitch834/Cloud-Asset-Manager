@@ -132,6 +132,11 @@ import {
   boreholeTestsTable,
   irrigationRecordsTable,
   irrigationEquipmentTable,
+  farmMembersTable,
+  userInvitationsTable,
+  staffFarmAssignmentsTable,
+  usersTable,
+  rolesTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte, isNotNull, lte } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
@@ -7166,6 +7171,155 @@ router.delete("/farms/:farmId/slurry-spreading-records/:id", requireAuth, requir
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(slurrySpreadingRecordsTable).where(and(eq(slurrySpreadingRecordsTable.id, id), eq(slurrySpreadingRecordsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Farm Members (Staff Records + System Access) ─────────────────────────────
+
+// List all farm members (staff records) for a farm
+router.get("/farms/:farmId/members", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const members = await db.select().from(farmMembersTable)
+    .where(eq(farmMembersTable.farmId, farmId))
+    .orderBy(farmMembersTable.lastName, farmMembersTable.firstName);
+  res.json({ members });
+});
+
+// Create a staff record (no system access by default)
+router.post("/farms/:farmId/members", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const tenantId = (req as any).tenantId as number;
+  const { firstName, lastName, email, phone, jobTitle, farmRole, employedFrom, employedTo, notes } = req.body;
+  if (!firstName || !lastName) { res.status(400).json({ error: "First name and last name are required" }); return; }
+  const [member] = await db.insert(farmMembersTable).values({
+    farmId,
+    tenantId,
+    firstName,
+    lastName,
+    email: email ?? null,
+    phone: phone ?? null,
+    jobTitle: jobTitle ?? null,
+    farmRole: farmRole ?? "operator",
+    accessType: "none",
+    invitationStatus: "not_invited",
+    employedFrom: employedFrom ? new Date(employedFrom) : null,
+    employedTo: employedTo ? new Date(employedTo) : null,
+    notes: notes ?? null,
+  }).returning();
+  res.status(201).json({ member });
+});
+
+// Update a farm member record
+router.put("/farms/:farmId/members/:memberId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const memberId = parseInt(req.params.memberId);
+  const { firstName, lastName, email, phone, jobTitle, farmRole, accessType, employedFrom, employedTo, isActive, notes } = req.body;
+  const [member] = await db.update(farmMembersTable).set({
+    ...(firstName !== undefined && { firstName }),
+    ...(lastName !== undefined && { lastName }),
+    ...(email !== undefined && { email }),
+    ...(phone !== undefined && { phone }),
+    ...(jobTitle !== undefined && { jobTitle }),
+    ...(farmRole !== undefined && { farmRole }),
+    ...(accessType !== undefined && { accessType }),
+    ...(employedFrom !== undefined && { employedFrom: employedFrom ? new Date(employedFrom) : null }),
+    ...(employedTo !== undefined && { employedTo: employedTo ? new Date(employedTo) : null }),
+    ...(isActive !== undefined && { isActive }),
+    ...(notes !== undefined && { notes }),
+  }).where(and(eq(farmMembersTable.id, memberId), eq(farmMembersTable.farmId, farmId))).returning();
+  if (!member) { res.status(404).json({ error: "Member not found" }); return; }
+  res.json({ member });
+});
+
+// Soft-delete (deactivate) a farm member
+router.delete("/farms/:farmId/members/:memberId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const memberId = parseInt(req.params.memberId);
+  await db.update(farmMembersTable).set({ isActive: false })
+    .where(and(eq(farmMembersTable.id, memberId), eq(farmMembersTable.farmId, farmId)));
+  res.json({ ok: true });
+});
+
+// Invite a farm member to create a system account
+router.post("/farms/:farmId/members/:memberId/invite", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
+  const tenantId = (req as any).tenantId as number;
+  const memberId = parseInt(req.params.memberId);
+  const [member] = await db.select().from(farmMembersTable)
+    .where(and(eq(farmMembersTable.id, memberId), eq(farmMembersTable.farmId, farmId)));
+  if (!member) { res.status(404).json({ error: "Member not found" }); return; }
+  if (!member.email) { res.status(400).json({ error: "Member has no email address — add one before inviting" }); return; }
+  const { accessType, farmRole } = req.body;
+
+  // Find or create a default role for the tenant
+  const [defaultRole] = await db.select().from(rolesTable)
+    .where(and(eq(rolesTable.tenantId, tenantId), eq(rolesTable.name, "member")));
+  const roleId = defaultRole?.id;
+  if (!roleId) { res.status(500).json({ error: "Default role not found — contact support" }); return; }
+
+  const { randomBytes } = require("crypto") as typeof import("crypto");
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+  const [invitation] = await db.insert(userInvitationsTable).values({
+    tenantId,
+    farmId,
+    email: member.email,
+    firstName: member.firstName,
+    lastName: member.lastName,
+    roleId,
+    farmRole: farmRole ?? member.farmRole,
+    accessType: accessType ?? member.accessType ?? "full",
+    token,
+    invitedBy: userId,
+    staffMemberId: memberId,
+    expiresAt,
+  }).returning();
+
+  // Update member invitation status
+  await db.update(farmMembersTable).set({
+    invitationStatus: "pending",
+    accessType: accessType ?? member.accessType ?? "full",
+    farmRole: farmRole ?? member.farmRole,
+  }).where(eq(farmMembersTable.id, memberId));
+
+  res.status(201).json({ invitation, inviteLink: `/accept-invite/${token}` });
+});
+
+// Get current user's role/access level on a specific farm
+router.get("/farms/:farmId/my-access", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
+  const [assignment] = await db.select().from(staffFarmAssignmentsTable)
+    .where(and(eq(staffFarmAssignmentsTable.userId, userId), eq(staffFarmAssignmentsTable.farmId, farmId)));
+  if (!assignment) {
+    // Farm owner / tenant admin - full owner access
+    res.json({ farmRole: "owner", accessType: "full" });
+    return;
+  }
+  res.json({ farmRole: assignment.farmRole, accessType: assignment.accessType });
+});
+
+// Update a farm user's access type or farm role
+router.patch("/farms/:farmId/users/:targetUserId/access", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const targetUserId = req.params.targetUserId;
+  const { farmRole, accessType } = req.body;
+  const [assignment] = await db.update(staffFarmAssignmentsTable).set({
+    ...(farmRole !== undefined && { farmRole }),
+    ...(accessType !== undefined && { accessType }),
+  }).where(and(eq(staffFarmAssignmentsTable.userId, targetUserId), eq(staffFarmAssignmentsTable.farmId, farmId))).returning();
+  if (!assignment) { res.status(404).json({ error: "User not found on this farm" }); return; }
+  res.json({ assignment });
 });
 
 export default router;
