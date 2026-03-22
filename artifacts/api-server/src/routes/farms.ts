@@ -4437,6 +4437,62 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>You must retain evidence of the check for the duration of employment and for a further <strong>two years</strong> after the employee leaves. Records in BDE Farm Trac are retained indefinitely unless you manually delete them. If you retain physical copies of documents, keep them securely filed and cross-reference the filing location in the Notes field.</p>`,
     },
     {
+      id: 10006,
+      title: "Staff Management & System Access",
+      category: "Staff & Training",
+      content: `<img src="/api/help-images/staff.png" alt="Staff & Access Management" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>BDE Farm Trac separates two distinct concepts: a <strong>staff record</strong> (a person who works on your farm) and a <strong>system account</strong> (the ability to log in and use BDE Farm Trac). Every person on your payroll or working on your holding should have a staff record for compliance purposes — but not everyone needs a login. The system is designed to give you precise control over who can access what.</p>
+
+<h3>The Two Types of Staff Entry</h3>
+<p>When you navigate to <strong>Staff</strong> in the sidebar, you will see two sections:</p>
+<ul>
+<li><strong>System Users</strong> — people who have been invited and have accepted access to BDE Farm Trac (or whose invitation is still pending). These individuals appear at the top of the page with a badge showing their access level and current invitation status.</li>
+<li><strong>Records Only</strong> — staff members who exist in the system purely for compliance tracking. They appear in your Right to Work records, training records, and certificate lists, but they cannot log in. This is appropriate for seasonal workers, volunteers, labour agency staff, and anyone else you need to keep records for without granting system access.</li>
+</ul>
+
+<h3>Adding a Staff Member (No Login)</h3>
+<p>Click <strong>Add Staff Member</strong> to create a records-only entry. Enter their name, job title, email address (optional), phone number, and employment start date. Once saved, they appear in the Records Only section and can be associated with RTW checks, certificates, spray operator records, and training logs. No invitation is sent and no login is created.</p>
+
+<h3>Inviting Someone to Use the System</h3>
+<p>To give a staff member access to BDE Farm Trac, click <strong>Invite</strong> on their record. A dialog appears where you choose two things:</p>
+<ul>
+<li><strong>Access Type</strong> — which platforms they can use (see below)</li>
+<li><strong>Permission Level</strong> — what they can see and do within those platforms (see below)</li>
+</ul>
+<p>Once you click Send Invitation, an email is sent to the address on their staff record. The link in that email is valid for seven days. When they follow the link, they set their own password securely — you never see or set it on their behalf. Once accepted, their record moves to the System Users section and their invitation status changes to Accepted.</p>
+
+<h3>Access Types — Which Platforms</h3>
+<p>Each invited user is assigned one of four access types that determine which parts of BDE Farm Trac they can reach:</p>
+<ul>
+<li><strong>No System Access</strong> — a records-only staff member. Useful if you later decide they do not need a login after all, without losing their staff record.</li>
+<li><strong>Mobile App Only</strong> — the user can log into the BDE Farm Trac mobile app on their phone or tablet to log records in the field, but they cannot access the web dashboard. This is the recommended setting for field operators who need to capture records on the go.</li>
+<li><strong>Web Dashboard Only</strong> — the user can log into the full web dashboard but not the mobile app. Suitable for office-based managers or agronomists who work from a desktop or laptop.</li>
+<li><strong>Full Access</strong> — the user can use both the web dashboard and the mobile app. Appropriate for farm managers and senior staff who need flexibility across platforms.</li>
+</ul>
+
+<h3>Permission Levels — What They Can See and Do</h3>
+<p>Within whichever platform(s) they can access, each user is assigned a permission level that controls which sections of the system are visible to them:</p>
+<ul>
+<li><strong>Operator</strong> — the standard field-worker level. Operators can log records (sprays, livestock movements, equipment checks, etc.) and view their own submissions. They cannot see financial data, staff records, business reports, or system settings.</li>
+<li><strong>Senior / Foreman</strong> — can view all farm records and manage the team's record submissions. Seniors can also access the Staff section to view team members and their training status. They cannot access financial or business report pages.</li>
+<li><strong>Farm Manager</strong> — full operational access including financial records, business reports, and farm settings. Managers can invite new users and update access levels for existing staff. They cannot access billing or subscription settings.</li>
+<li><strong>Owner</strong> — unrestricted access to every part of the system including billing, subscription management, and all farm settings. The Owner level is typically reserved for the account holder or business principal.</li>
+</ul>
+
+<h3>Changing Access After Invitation</h3>
+<p>You can change any user's access type or permission level at any time. Find their record in the System Users section and click <strong>Edit</strong>. Changes take effect the next time they load the application — there is no need to re-invite them or for them to take any action.</p>
+
+<h3>Multi-Farm Access</h3>
+<p>BDE Farm Trac supports holding groups and consultants who need access to more than one farm. A single login can be associated with multiple farm holdings, and each association carries its own independent access type and permission level. A farm manager at one holding might be an operator-level user at another farm in the same group — the system tracks both separately. Users with access to multiple farms see a farm selector after they log in.</p>
+
+<h3>Staff Who Leave</h3>
+<p>When a staff member leaves your employment, you should update their record to reflect their leaving date. If they had system access, edit their access type to <strong>No System Access</strong> — this immediately prevents them from logging in while preserving their historical records for compliance purposes. Staff records and their associated RTW checks, certificates, and training logs must be retained for a minimum of two years after employment ends.</p>
+
+<h3>A Note on Shared Devices</h3>
+<p>BDE Farm Trac does not support shared device accounts. Each staff member who needs to log records should have their own login — this ensures a full and auditable trail of who entered each record, which is a requirement under Red Tractor assurance schemes. Mobile devices are ubiquitous and inexpensive; providing each field operator with their own login via the mobile app is strongly recommended over sharing a single device account between multiple workers.</p>`,
+    },
+    {
       id: 10004,
       title: "Thinning Records — Poultry Production",
       category: "Poultry Production",
