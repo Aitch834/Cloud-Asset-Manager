@@ -31,7 +31,7 @@ export default function Features() {
       title: "Soil Management",
       icon: Sprout,
       color: "bg-lime-50 text-lime-600 border-lime-100",
-      features: ["Soil test records", "Nutrient Management Plans", "RB209 compliance", "NVZ Nitrate Vulnerable Zone records"]
+      features: ["Soil test records linked to accredited testing laboratories — lab selected from picker, UKAS number stored with every sample", "Nutrient Management Plans", "RB209 compliance", "NVZ Nitrate Vulnerable Zone records"]
     },
     {
       title: "Equipment & Vehicles",
@@ -117,7 +117,7 @@ export default function Features() {
       title: "Stock & Suppliers",
       icon: Package,
       color: "bg-earth-cream text-earth-brown border-earth-tan/30",
-      features: ["Supplier directory", "Delivery receipt logging", "Live inventory tracking", "Batch number trace"]
+      features: ["Supplier directory", "Delivery receipt logging", "Live inventory tracking", "Batch number trace", "Testing laboratory register — add UKAS-accredited labs as a supplier subtype; labs are linked by picker when recording soil samples, grain quality tests, and water quality tests so every analytical result traces to the accredited laboratory that produced it"]
     },
     {
       title: "Financial Records",

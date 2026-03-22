@@ -4847,6 +4847,55 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Spray Equipment</h3>
 <p>Defects on crop protection equipment (sprayers, nozzles, pressure gauges) are particularly important — a spray equipment defect can lead to pesticide under-dose (agronomic failure) or over-dose (MRL exceedance and environmental risk). All spray equipment faults must be resolved before the next application, and the resolution should be cross-referenced to the sprayer calibration check record.</p>`,
     },
+    {
+      id: 10018,
+      title: "Testing Laboratories — Registering Labs and Linking Test Results",
+      category: "Nutrient Management",
+      content: `<img src="/api/help-images/field-register.png" alt="Testing Laboratory Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>BDE Farm Trac allows you to register the testing laboratories you use as part of your supplier directory and then link them directly to individual test records — soil samples, grain quality tests, and water quality tests. This creates a traceable audit trail showing exactly which UKAS-accredited laboratory produced each set of results, as required by Red Tractor and most assured scheme auditors.</p>
+
+<h3>Why Link Labs to Test Records?</h3>
+<p>Assured schemes require that analytical tests used for compliance purposes — soil pH for fertiliser planning, grain mycotoxin screens, or irrigation water bacteriological results — are carried out by an accredited laboratory. Simply noting "Lab X" in a free text field is not enough; the laboratory needs to be registered with its credentials so that an auditor can verify accreditation. BDE Farm Trac stores the lab's UKAS number alongside every linked test record.</p>
+
+<h3>Registering a Testing Laboratory</h3>
+<p>Labs are added within the <strong>Stock &amp; Suppliers</strong> section. Click <strong>Add Supplier</strong>, set the category to <strong>Laboratory</strong>, and complete the name, contact details, and UKAS accreditation number. The laboratory is now available for selection across all modules that record analytical test results.</p>
+
+<h3>Linking a Lab to a Soil Sample</h3>
+<p>When adding a soil sample record (under <strong>Soil Management → Soil Tests</strong> or via the mobile app), a <strong>Testing Laboratory</strong> picker appears. Tap or click to select the accredited lab that will be analysing the sample. The lab name and UKAS number are recorded against the sample and carried through to printed reports.</p>
+
+<h3>Linking a Lab to a Grain Quality Test</h3>
+<p>In <strong>Equipment → Grain Storage</strong>, each quality test record (moisture, protein, Hagberg, mycotoxin) includes a laboratory selector. Select the lab that issued the certificate. The lab reference is stored so that you can cross-reference against the certificate you received.</p>
+
+<h3>Linking a Lab to a Water Quality Test</h3>
+<p>Water quality tests — whether in the Livestock module (herd drinking water) or the Water &amp; Irrigation module (irrigation source) — include a laboratory selector. For Red Tractor Fresh Produce, irrigation water microbiological tests must be carried out by a UKAS-accredited laboratory; linking the lab to the test record provides the required audit evidence.</p>
+
+<h3>If No Labs Are Registered Yet</h3>
+<p>If you have not yet added any laboratories, the picker will show an empty list with a prompt to add a lab in Stock &amp; Suppliers first. The lab field is optional on individual records — you can complete the test data and add the lab link later once it has been registered — but for audit purposes it is best practice to link the lab before submitting the record.</p>`,
+    },
+    {
+      id: 10019,
+      title: "Mobile App — Offline Data and How Reference Pickers Work",
+      category: "Mobile App",
+      content: `<img src="/api/help-images/help-centre.png" alt="Mobile App Offline Data" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The BDE Farm Trac mobile app is designed to work reliably on farm — where mobile signal is patchy and internet connectivity can drop at any moment. This article explains how reference data (field lists, herd lists, laboratory lists) is handled offline, and what the indicators you see in the app mean.</p>
+
+<h3>How the App Stores Reference Lists</h3>
+<p>Every time the app connects to the internet, it automatically refreshes and saves a copy of your reference lists — your registered fields, your herd / flock names, and your testing laboratories — to the device's local storage. This happens silently in the background with no action required from you. The stored copy remains on the device until the next refresh, so it is available even when there is no signal.</p>
+
+<h3>What Happens When You're Offline</h3>
+<p>When you open a form that requires you to select a field, herd, or laboratory and the device is offline, the app will load the list from its local cache instead of fetching from the server. You will see a small indicator message below the field — for example, <em>"Offline — showing cached fields list"</em> — confirming that the data is being served from the saved copy. You can continue selecting and saving records exactly as normal; they will be queued and synced to the server the next time connectivity is restored.</p>
+
+<h3>Why There Is No Longer a "Type Manually" Option</h3>
+<p>Earlier versions of the app allowed you to type a field name, herd name, or laboratory name as free text if the picker list was empty. This was removed because typed text cannot be linked to the actual database record — a small typo (e.g. "Main Dairy Herd" vs "Main Dairy herd") would store an unlinked value that would never resolve in reports, compliance registers, or audit exports. The cached picker approach means you always select from real registered records, maintaining full data integrity even when offline.</p>
+
+<h3>If the Cached List Is Empty</h3>
+<p>If no cache exists (for example on first use before the app has connected, or after clearing app data) and the device is offline, the picker will show an empty list with a message explaining the situation. In this case: connect to Wi-Fi or a mobile data signal, open the app, and wait a few seconds for the lists to load and be saved. Once cached, they will be available for future offline use.</p>
+
+<h3>Sync Queue</h3>
+<p>Records saved offline are held in a sync queue and uploaded automatically once connectivity is restored. You can check the sync queue status from the home screen. Partial or failed syncs are shown with a warning badge — tap to see which records are pending. Do not uninstall or log out of the app while records are pending sync as this will clear the queue.</p>`,
+    },
   ];
 
   const { search, category } = _req.query;
