@@ -47,8 +47,8 @@ export default function SoilSampleScreen() {
   const [notes, setNotes] = useState("");
 
   const handleSave = async () => {
-    if (!fieldName.trim() || !sampleReference.trim()) {
-      Alert.alert("Required", "Please select a field and enter the sample reference.");
+    if (!fieldName.trim()) {
+      Alert.alert("Required", "Please select a field before saving.");
       return;
     }
 
@@ -137,12 +137,11 @@ export default function SoilSampleScreen() {
           />
           <View style={styles.row}>
             <Input
-              label="Sample Reference"
-              placeholder="e.g. SS-001"
+              label="Sample Reference (optional)"
+              placeholder="Auto-generated if blank"
               value={sampleReference}
               onChangeText={setSampleReference}
               containerStyle={styles.flex}
-              required
             />
             <Input
               label="Depth (cm)"

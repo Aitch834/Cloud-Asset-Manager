@@ -1063,19 +1063,35 @@ router.post("/farms/:farmId/soil-tests", requireAuth, requireTenant, requireModu
   // Map mobile field names → DB column names
   const sampleDate = body.sampleDate || body.dateTaken || new Date().toISOString();
   const laboratory = body.laboratory ?? body.labName ?? null;
-  const sampleReference = body.sampleReference ?? null;
   const rawDepth = body.sampleDepthCm ?? body.depth ?? null;
   const sampleDepthCm = rawDepth ? parseInt(String(rawDepth), 10) || null : null;
-
-  // Build notes — include sampledBy and GPS from mobile if present
+  const sampledBy = body.sampledBy ? String(body.sampledBy).trim() : null;
   const noteParts: string[] = [];
-  if (body.sampledBy) noteParts.push(`Sampled by: ${body.sampledBy}`);
   if (body.notes) noteParts.push(body.notes);
   if (body.latitude != null && body.longitude != null) noteParts.push(`GPS: ${body.latitude}, ${body.longitude}`);
   const notes = noteParts.length > 0 ? noteParts.join(" | ") : null;
 
+  // Auto-generate reference: SS-YYYY-NNNN per farm per year if none provided
+  let sampleReference = body.sampleReference ? String(body.sampleReference).trim() : null;
+  if (!sampleReference) {
+    const year = new Date(sampleDate).getFullYear();
+    const yearStart = new Date(`${year}-01-01T00:00:00Z`).toISOString();
+    const yearEnd = new Date(`${year + 1}-01-01T00:00:00Z`).toISOString();
+    const existing = await db.select({ ref: soilTestRecordsTable.sampleReference })
+      .from(soilTestRecordsTable)
+      .where(and(
+        eq(soilTestRecordsTable.farmId, farmId),
+        sql`${soilTestRecordsTable.createdAt} >= ${yearStart}`,
+        sql`${soilTestRecordsTable.createdAt} < ${yearEnd}`,
+        sql`${soilTestRecordsTable.sampleReference} LIKE ${"SS-" + year + "-%"}`,
+      ));
+    const nextNum = existing.length + 1;
+    sampleReference = `SS-${year}-${String(nextNum).padStart(4, "0")}`;
+  }
+
   const [record] = await db.insert(soilTestRecordsTable).values({
-    farmId, fieldId, sampleDate: new Date(sampleDate).toISOString(), laboratory, sampleReference, sampleDepthCm, notes,
+    farmId, fieldId, sampleDate: new Date(sampleDate).toISOString(),
+    sampleReference, status: "sampled", laboratory, sampleDepthCm, sampledBy, notes,
   }).returning();
 
   // Accept explicit results array (dashboard) or build from mobile nutrient fields
@@ -1118,7 +1134,31 @@ router.put("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, re
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(soilTestRecordsTable).set(req.body).where(and(eq(soilTestRecordsTable.id, recordId), eq(soilTestRecordsTable.farmId, farmId))).returning();
+  const { fieldId, sampleDate, laboratory, sampleReference, sampleDepthCm, sampledBy, notes } = req.body;
+  const updates: Record<string, unknown> = {};
+  if (fieldId !== undefined) updates.fieldId = Number(fieldId);
+  if (sampleDate !== undefined) updates.sampleDate = new Date(sampleDate).toISOString();
+  if (laboratory !== undefined) updates.laboratory = laboratory;
+  if (sampleReference !== undefined) updates.sampleReference = sampleReference;
+  if (sampleDepthCm !== undefined) updates.sampleDepthCm = sampleDepthCm ? parseInt(String(sampleDepthCm), 10) : null;
+  if (sampledBy !== undefined) updates.sampledBy = sampledBy;
+  if (notes !== undefined) updates.notes = notes;
+  const [record] = await db.update(soilTestRecordsTable).set(updates).where(and(eq(soilTestRecordsTable.id, recordId), eq(soilTestRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.patch("/farms/:farmId/soil-tests/:recordId/status", requireAuth, requireTenant, requireModuleByKey("soil-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { status } = req.body;
+  const valid = ["sampled", "sent_to_lab", "results_received", "archived"];
+  if (!valid.includes(status)) { res.status(400).json({ error: "Invalid status" }); return; }
+  const updates: Record<string, unknown> = { status };
+  if (status === "sent_to_lab") updates.sentToLabDate = new Date().toISOString();
+  if (status === "results_received") updates.resultsReceivedDate = new Date().toISOString();
+  const [record] = await db.update(soilTestRecordsTable).set(updates).where(and(eq(soilTestRecordsTable.id, recordId), eq(soilTestRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
