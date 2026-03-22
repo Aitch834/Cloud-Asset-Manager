@@ -120,6 +120,7 @@ export interface FieldOperation {
 export interface SoilSample {
   id: string;
   farmId: string;
+  fieldId?: number;
   fieldName: string;
   sampleReference: string;
   dateTaken: string;

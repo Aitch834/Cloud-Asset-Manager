@@ -33,6 +33,7 @@ export default function SoilSampleScreen() {
   const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
+  const [fieldId, setFieldId] = useState<number | undefined>(undefined);
   const [fieldName, setFieldName] = useState("");
   const [sampleReference, setSampleReference] = useState("");
   const [sampledBy, setSampledBy] = useState("");
@@ -68,9 +69,15 @@ export default function SoilSampleScreen() {
       console.warn("Soil sample location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
     }
 
+    const notesParts: string[] = [];
+    if (sampledBy.trim()) notesParts.push(`Sampled by: ${sampledBy.trim()}`);
+    if (notes.trim()) notesParts.push(notes.trim());
+    if (latitude !== undefined && longitude !== undefined) notesParts.push(`GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+
     const sample: SoilSample = {
       id: generateId(),
       farmId: currentFarm?.id || "",
+      fieldId,
       fieldName: fieldName.trim(),
       sampleReference: sampleReference.trim(),
       dateTaken: new Date().toISOString(),
@@ -93,7 +100,7 @@ export default function SoilSampleScreen() {
     await appendToList(STORAGE_KEYS.SOIL_SAMPLES, sample);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "Soil sample saved successfully.", [
+    Alert.alert("Saved", "Soil sample saved. Lab results can be added in the dashboard once synced.", [
       { text: "OK", onPress: () => router.back() },
     ]);
   };
@@ -123,6 +130,7 @@ export default function SoilSampleScreen() {
             label="Field"
             value={fieldName}
             onChange={setFieldName}
+            onChangeField={(f) => { setFieldName(f.name); setFieldId(f.id); }}
             fields={fields}
             loading={fieldsLoading}
             error={fieldsError}

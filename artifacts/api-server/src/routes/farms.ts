@@ -1049,13 +1049,56 @@ router.get("/farms/:farmId/soil-tests", requireAuth, requireTenant, requireModul
 router.post("/farms/:farmId/soil-tests", requireAuth, requireTenant, requireModuleByKey("soil-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { results, ...testData } = req.body;
-  const [record] = await db.insert(soilTestRecordsTable).values({ ...testData, farmId }).returning();
-  if (results && Array.isArray(results)) {
-    for (const r of results) {
-      await db.insert(soilTestResultsTable).values({ ...r, soilTestId: record.id });
+  const body = req.body;
+
+  // Resolve fieldId — accept either fieldId (dashboard) or fieldName (mobile sync)
+  let fieldId: number | null = body.fieldId ? Number(body.fieldId) : null;
+  if (!fieldId && body.fieldName) {
+    const [found] = await db.select({ id: fieldsTable.id }).from(fieldsTable)
+      .where(and(eq(fieldsTable.farmId, farmId), eq(fieldsTable.name, String(body.fieldName))));
+    if (found) fieldId = found.id;
+  }
+  if (!fieldId) { res.status(400).json({ error: "Field is required" }); return; }
+
+  // Map mobile field names → DB column names
+  const sampleDate = body.sampleDate || body.dateTaken || new Date().toISOString();
+  const laboratory = body.laboratory ?? body.labName ?? null;
+  const sampleReference = body.sampleReference ?? null;
+  const rawDepth = body.sampleDepthCm ?? body.depth ?? null;
+  const sampleDepthCm = rawDepth ? parseInt(String(rawDepth), 10) || null : null;
+
+  // Build notes — include sampledBy and GPS from mobile if present
+  const noteParts: string[] = [];
+  if (body.sampledBy) noteParts.push(`Sampled by: ${body.sampledBy}`);
+  if (body.notes) noteParts.push(body.notes);
+  if (body.latitude != null && body.longitude != null) noteParts.push(`GPS: ${body.latitude}, ${body.longitude}`);
+  const notes = noteParts.length > 0 ? noteParts.join(" | ") : null;
+
+  const [record] = await db.insert(soilTestRecordsTable).values({
+    farmId, fieldId, sampleDate: new Date(sampleDate).toISOString(), laboratory, sampleReference, sampleDepthCm, notes,
+  }).returning();
+
+  // Accept explicit results array (dashboard) or build from mobile nutrient fields
+  const incomingResults: Array<Record<string, unknown>> = Array.isArray(body.results) ? body.results : [];
+  if (incomingResults.length === 0) {
+    const mobileNutrients: Array<{ nutrient: string; field: string; unit: string }> = [
+      { nutrient: "pH", field: "ph", unit: "" },
+      { nutrient: "Phosphorus (P)", field: "phosphorus", unit: "mg/l" },
+      { nutrient: "Potassium (K)", field: "potassium", unit: "mg/l" },
+      { nutrient: "Magnesium (Mg)", field: "magnesium", unit: "mg/l" },
+      { nutrient: "Organic Matter (OM)", field: "organicMatter", unit: "%" },
+    ];
+    for (const n of mobileNutrients) {
+      const val = body[n.field];
+      if (val !== undefined && val !== null && String(val).trim() !== "") {
+        incomingResults.push({ nutrient: n.nutrient, value: String(val).trim(), unit: n.unit });
+      }
     }
   }
+  for (const r of incomingResults) {
+    await db.insert(soilTestResultsTable).values({ soilTestId: record.id, nutrient: String(r.nutrient), value: r.value ? String(r.value) : null, unit: r.unit ? String(r.unit) : null, index: r.index ? String(r.index) : null, status: r.status ? String(r.status) : null });
+  }
+
   res.status(201).json({ record });
 });
 

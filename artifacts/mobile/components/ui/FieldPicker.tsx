@@ -21,13 +21,14 @@ import type { ApiField } from "@/lib/hooks/useApiFields";
 interface FieldPickerProps {
   value: string;
   onChange: (name: string) => void;
+  onChangeField?: (field: ApiField) => void;
   fields: ApiField[];
   loading: boolean;
   error: string | null;
   label?: string;
 }
 
-export function FieldPicker({ value, onChange, fields, loading, error, label = "Field" }: FieldPickerProps) {
+export function FieldPicker({ value, onChange, onChangeField, fields, loading, error, label = "Field" }: FieldPickerProps) {
   const insets = useSafeAreaInsets();
   const [modalOpen, setModalOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -36,9 +37,10 @@ export function FieldPicker({ value, onChange, fields, loading, error, label = "
     ? fields.filter((f) => f.name.toLowerCase().includes(search.toLowerCase()))
     : fields;
 
-  const select = (name: string) => {
+  const select = (field: ApiField) => {
     Haptics.selectionAsync();
-    onChange(name);
+    onChange(field.name);
+    onChangeField?.(field);
     setModalOpen(false);
     setSearch("");
   };
@@ -114,7 +116,7 @@ export function FieldPicker({ value, onChange, fields, loading, error, label = "
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <Pressable
-                  onPress={() => select(item.name)}
+                  onPress={() => select(item)}
                   style={[styles.fieldRow, item.name === value && styles.fieldRowSelected]}
                 >
                   <View style={[styles.fieldIcon, item.name === value && styles.fieldIconSelected]}>
