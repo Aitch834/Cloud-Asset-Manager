@@ -17,12 +17,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FieldPicker } from "@/components/ui/FieldPicker";
+import { LabPicker } from "@/components/ui/LabPicker";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
+import { useApiLabs } from "@/lib/hooks/useApiLabs";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { SoilSample } from "@/lib/types";
 
@@ -30,13 +32,15 @@ export default function SoilSampleScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
-  const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
+  const { fields, loading: fieldsLoading, error: fieldsError, fromCache: fieldsCached } = useApiFields(currentFarm?.id);
+  const { labs, loading: labsLoading, error: labsError, fromCache: labsCached } = useApiLabs(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [fieldId, setFieldId] = useState<number | undefined>(undefined);
   const [fieldName, setFieldName] = useState("");
   const [sampleReference, setSampleReference] = useState("");
   const [sampledBy, setSampledBy] = useState("");
+  const [labId, setLabId] = useState<number | null>(null);
   const [labName, setLabName] = useState("");
   const [depth, setDepth] = useState("");
   const [ph, setPh] = useState("");
@@ -83,6 +87,7 @@ export default function SoilSampleScreen() {
       dateTaken: new Date().toISOString(),
       sampledBy: sampledBy.trim(),
       labName: labName.trim(),
+      labSupplierId: labId ?? undefined,
       depth: depth.trim(),
       ph: ph.trim(),
       phosphorus: phosphorus.trim(),
@@ -133,6 +138,7 @@ export default function SoilSampleScreen() {
             onChangeField={(f) => { setFieldName(f.name); setFieldId(f.id); }}
             fields={fields}
             loading={fieldsLoading}
+            fromCache={fieldsCached}
             error={fieldsError}
           />
           <View style={styles.row}>
@@ -152,22 +158,22 @@ export default function SoilSampleScreen() {
               containerStyle={styles.flex}
             />
           </View>
-          <View style={styles.row}>
-            <Input
-              label="Sampled By"
-              placeholder="Name of sampler"
-              value={sampledBy}
-              onChangeText={setSampledBy}
-              containerStyle={styles.flex}
-            />
-            <Input
-              label="Testing Laboratory"
-              placeholder="e.g. NRM, ADAS (link in dashboard)"
-              value={labName}
-              onChangeText={setLabName}
-              containerStyle={styles.flex}
-            />
-          </View>
+          <Input
+            label="Sampled By"
+            placeholder="Name of sampler"
+            value={sampledBy}
+            onChangeText={setSampledBy}
+          />
+          <LabPicker
+            value={labId}
+            labName={labName}
+            onChange={(id, name) => { setLabId(id); setLabName(name); }}
+            onClear={() => { setLabId(null); setLabName(""); }}
+            labs={labs}
+            loading={labsLoading}
+            fromCache={labsCached}
+            error={labsError}
+          />
 
           <View style={styles.sectionLabel}>
             <Feather name="bar-chart-2" size={14} color={colors.fieldBrown} />

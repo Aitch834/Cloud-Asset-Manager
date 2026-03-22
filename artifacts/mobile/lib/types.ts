@@ -126,6 +126,7 @@ export interface SoilSample {
   dateTaken: string;
   sampledBy: string;
   labName: string;
+  labSupplierId?: number;
   depth: string;
   ph: string;
   phosphorus: string;

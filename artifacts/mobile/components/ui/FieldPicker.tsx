@@ -24,11 +24,12 @@ interface FieldPickerProps {
   onChangeField?: (field: ApiField) => void;
   fields: ApiField[];
   loading: boolean;
+  fromCache?: boolean;
   error: string | null;
   label?: string;
 }
 
-export function FieldPicker({ value, onChange, onChangeField, fields, loading, error, label = "Field" }: FieldPickerProps) {
+export function FieldPicker({ value, onChange, onChangeField, fields, loading, fromCache, error, label = "Field" }: FieldPickerProps) {
   const insets = useSafeAreaInsets();
   const [modalOpen, setModalOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -62,8 +63,10 @@ export function FieldPicker({ value, onChange, onChangeField, fields, loading, e
             : <Feather name="chevron-down" size={16} color={colors.textSecondary} />
           }
         </Pressable>
-        {error && (
-          <Text style={styles.errorText}>Could not load fields — you can type the name manually below.</Text>
+        {fromCache && (
+          <Text style={styles.cacheNote}>
+            Offline — showing cached fields list
+          </Text>
         )}
       </View>
 
@@ -101,8 +104,12 @@ export function FieldPicker({ value, onChange, onChangeField, fields, loading, e
           ) : fields.length === 0 ? (
             <View style={styles.centre}>
               <Feather name="map" size={40} color={colors.border} />
-              <Text style={styles.centreTitle}>No fields registered</Text>
-              <Text style={styles.centreText}>Add your fields in the web dashboard under Fields & Crops, then they will appear here.</Text>
+              <Text style={styles.centreTitle}>No fields available</Text>
+              <Text style={styles.centreText}>
+                {error
+                  ? "Could not connect to load fields. Open the app online to sync your fields list."
+                  : "Add your fields in the web dashboard under Fields & Crops, then they will appear here."}
+              </Text>
             </View>
           ) : filtered.length === 0 ? (
             <View style={styles.centre}>
@@ -182,11 +189,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: fonts.regular,
   },
-  errorText: {
+  cacheNote: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
-    color: colors.error,
+    color: colors.textSecondary,
     marginTop: spacing.xs,
+    opacity: 0.7,
   },
   modal: {
     flex: 1,

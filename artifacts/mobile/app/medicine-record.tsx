@@ -17,11 +17,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { HerdPicker } from "@/components/ui/HerdPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiHerds } from "@/lib/hooks/useApiHerds";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { MedicineRecord } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
@@ -48,6 +50,7 @@ export default function MedicineRecordScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
+  const { herds, loading: herdsLoading, error: herdsError, fromCache: herdsCached } = useApiHerds(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [herdName, setHerdName] = useState("");
@@ -138,12 +141,14 @@ export default function MedicineRecordScreen() {
             <Feather name="users" size={14} color={colors.error} />
             <Text style={styles.sectionTitle}>Animal Details</Text>
           </View>
-          <Input
-            label="Herd / Flock Name"
-            placeholder="e.g. Main Dairy Herd, Pen 3 Pigs"
+          <HerdPicker
             value={herdName}
-            onChangeText={setHerdName}
-            required
+            onChange={setHerdName}
+            herds={herds}
+            loading={herdsLoading}
+            fromCache={herdsCached}
+            error={herdsError}
+            label="Herd / Flock *"
           />
           <Input
             label="Individual Animal ID (optional)"
