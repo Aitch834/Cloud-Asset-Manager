@@ -415,7 +415,7 @@ export default function AdvisorsAccessPage() {
 
       {/* Add Advisor Dialog */}
       <Dialog open={showAdvisorDialog} onOpenChange={setShowAdvisorDialog}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><UserCheck className="w-4 h-4" /> Add Advisor Account</DialogTitle>
           </DialogHeader>
@@ -463,7 +463,7 @@ export default function AdvisorsAccessPage() {
 
       {/* Create Inspection Session Dialog */}
       <Dialog open={showSessionDialog} onOpenChange={setShowSessionDialog}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Clock className="w-4 h-4" /> Create Inspection Session</DialogTitle>
           </DialogHeader>

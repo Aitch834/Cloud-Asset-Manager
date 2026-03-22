@@ -756,7 +756,7 @@ export default function EquipmentPage() {
           <DialogTrigger asChild>
             <Button><Plus className="w-4 h-4 mr-2" /> Add Equipment</Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent style={{ maxWidth: "52rem" }}>
             <DialogHeader><DialogTitle>Register Equipment</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit(onAdd)} className="space-y-4 mt-2">
               <div className="grid grid-cols-2 gap-4">
@@ -877,7 +877,7 @@ export default function EquipmentPage() {
       </div>
 
       <Dialog open={!!managingItem} onOpenChange={(open) => { if (!open) setManagingItem(null); }}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent style={{ maxWidth: "52rem" }}>
           <DialogHeader>
             <DialogTitle>Manage Equipment — {managingItem?.name}</DialogTitle>
           </DialogHeader>

@@ -185,7 +185,7 @@ function VisitorTab({ farmId }: { farmId: number }) {
       )}
 
       <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); } }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent style={{ maxWidth: "56rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" />
@@ -194,7 +194,7 @@ function VisitorTab({ farmId }: { farmId: number }) {
             <DialogDescription>Record all persons visiting the farm for Red Tractor biosecurity compliance.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Name <span className="text-red-500">*</span></label>
                 <Input placeholder="Full name" value={form.visitorName} onChange={e => setForm(f => ({ ...f, visitorName: e.target.value }))} required />
@@ -203,7 +203,7 @@ function VisitorTab({ farmId }: { farmId: number }) {
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Company / Organisation</label>
                 <Input placeholder="e.g. ADAS, NFU, Vet practice" value={form.company} onChange={e => setForm(f => ({ ...f, company: e.target.value }))} />
               </div>
-              <div className="sm:col-span-2">
+              <div className="col-span-2">
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Purpose of Visit <span className="text-red-500">*</span></label>
                 <Input placeholder="e.g. Vet visit, Red Tractor audit, Agronomist inspection" value={form.purpose} onChange={e => setForm(f => ({ ...f, purpose: e.target.value }))} required />
               </div>
@@ -223,7 +223,7 @@ function VisitorTab({ farmId }: { farmId: number }) {
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Departure Date &amp; Time</label>
                 <Input type="datetime-local" value={form.departureTime} onChange={e => setForm(f => ({ ...f, departureTime: e.target.value }))} />
               </div>
-              <div className="sm:col-span-2">
+              <div className="col-span-2">
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Areas Visited</label>
                 <Input placeholder="e.g. Dairy unit, Cattle shed 1, Crop store" value={form.areasVisited} onChange={e => setForm(f => ({ ...f, areasVisited: e.target.value }))} />
               </div>
@@ -394,7 +394,7 @@ function PestControlTab({ farmId }: { farmId: number }) {
       )}
 
       <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_PEST); } }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent style={{ maxWidth: "52rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bug className="w-5 h-5 text-primary" />
@@ -403,7 +403,7 @@ function PestControlTab({ farmId }: { farmId: number }) {
             <DialogDescription>Record pest control activities to demonstrate proactive management.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Pest Type <span className="text-red-500">*</span></label>
                 <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={PEST_TYPES.includes(form.pestType) ? form.pestType : "Other"} onChange={e => setForm(f => ({ ...f, pestType: e.target.value }))} required>
@@ -593,7 +593,7 @@ function CleaningTab({ farmId }: { farmId: number }) {
       )}
 
       <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_CLEANING); } }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent style={{ maxWidth: "52rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-primary" />
@@ -602,7 +602,7 @@ function CleaningTab({ farmId }: { farmId: number }) {
             <DialogDescription>Record cleaning and disinfection to maintain Red Tractor biosecurity standards.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Area / Location <span className="text-red-500">*</span></label>
                 <FarmLocationSelect farmId={farmId} value={form.area} onChange={v => setForm(f => ({ ...f, area: v }))} required placeholder="Select area / location…" />
@@ -622,7 +622,7 @@ function CleaningTab({ farmId }: { farmId: number }) {
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaned By</label>
                 <Input placeholder="Name or contractor" value={form.cleanedBy} onChange={e => setForm(f => ({ ...f, cleanedBy: e.target.value }))} />
               </div>
-              <div className="sm:col-span-2">
+              <div className="col-span-2">
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Products Used</label>
                 <Input placeholder="e.g. Virkon S 1%, Stalosan F" value={form.productsUsed} onChange={e => setForm(f => ({ ...f, productsUsed: e.target.value }))} />
               </div>
@@ -956,9 +956,9 @@ function BiosecurityPlanTab({ farmId }: { farmId: number }) {
       )}
 
       <Dialog open={editOpen} onOpenChange={open => { if (!open) setEditOpen(false); }}>
-        <DialogContent style={{ maxWidth: 680, maxHeight: "90vh", overflowY: "auto" }}>
+        <DialogContent style={{ maxWidth: 680 }}>
           <DialogHeader><DialogTitle>Biosecurity Plan</DialogTitle></DialogHeader>
-          <div style={{ display: "grid", gap: 14 }}>
+          <div className="max-h-[72vh] overflow-y-auto" style={{ display: "grid", gap: 14 }}>
             <div><Label>Restricted Areas on Farm</Label><Textarea className="mt-1" rows={3} placeholder="e.g. Grain store restricted to authorised personnel. Livestock areas signed and gated…" value={form.restrictedAreas ?? ""} onChange={e => setForm(f => ({ ...f, restrictedAreas: e.target.value }))} /></div>
             <div><Label>Visitor Procedures</Label><Textarea className="mt-1" rows={3} placeholder="e.g. All visitors must sign in/out, declare any recent animal contact, wear clean PPE provided…" value={form.visitorProcedures ?? ""} onChange={e => setForm(f => ({ ...f, visitorProcedures: e.target.value }))} /></div>
             <div><Label>Vehicle Entry Procedures</Label><Textarea className="mt-1" rows={2} placeholder="e.g. All vehicles entering the yard must use the wheel wash. Contractors must be accompanied…" value={form.vehicleEntryProcedures ?? ""} onChange={e => setForm(f => ({ ...f, vehicleEntryProcedures: e.target.value }))} /></div>

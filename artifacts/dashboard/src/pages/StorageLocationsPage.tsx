@@ -317,7 +317,7 @@ export default function StorageLocationsPage() {
         })()}
 
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditId(null); setForm(emptyForm()); } }}>
-          <DialogContent style={{ maxWidth: 620 }} className="max-h-[90vh] overflow-y-auto">
+          <DialogContent style={{ maxWidth: 620 }}>
             <DialogHeader>
               <DialogTitle>{editId ? "Edit Storage Location" : "Add Storage Location"}</DialogTitle>
             </DialogHeader>

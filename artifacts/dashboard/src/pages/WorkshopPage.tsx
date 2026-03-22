@@ -1013,7 +1013,7 @@ function WorkshopRisksTab({ farmId }: { farmId: number }) {
 
       {showForm && (
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
-          <DialogContent style={{ maxWidth: "44rem" }} className="max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogContent style={{ maxWidth: "44rem" }} aria-describedby={undefined}>
             <DialogHeader><DialogTitle>{editing ? "Edit Risk Assessment" : "Add Workshop Risk Assessment"}</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 mt-2">
               <div className="grid grid-cols-2 gap-4">
@@ -1162,7 +1162,7 @@ function WorkshopCoshhTab({ farmId }: { farmId: number }) {
 
       {showForm && (
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
-          <DialogContent style={{ maxWidth: "44rem" }} className="max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogContent style={{ maxWidth: "44rem" }} aria-describedby={undefined}>
             <DialogHeader><DialogTitle>{editing ? "Edit COSHH Assessment" : "Add Workshop COSHH Assessment"}</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 mt-2">
               <div className="grid grid-cols-2 gap-4">

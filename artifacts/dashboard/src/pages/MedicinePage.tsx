@@ -390,7 +390,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       )}
 
       <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_FORM); } }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent style={{ maxWidth: "56rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <HeartPulse className="w-5 h-5 text-primary" />
@@ -402,7 +402,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Medicine Name <span className="text-red-500">*</span></label>
                 <Input placeholder="e.g. Alamycin 300, Metacam 20mg/ml" value={form.medicineName} onChange={e => setForm(f => ({ ...f, medicineName: e.target.value }))} required />
@@ -454,7 +454,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Reason / Indication</label>
                 <Input placeholder="e.g. Mastitis, lameness, respiratory" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} />
               </div>
-              <div className="sm:col-span-2">
+              <div className="col-span-2">
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
                 <textarea className="w-full min-h-[72px] rounded-md border border-input bg-background px-3 py-2 text-sm resize-y" placeholder="Any additional information..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
               </div>

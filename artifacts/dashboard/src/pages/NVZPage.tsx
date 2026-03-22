@@ -732,7 +732,7 @@ export default function NVZPage() {
 
       {/* ── RISK ASSESSMENT ADD/EDIT DIALOG ── */}
       <Dialog open={raAddOpen || !!raEditItem} onOpenChange={open => { if (!open) { setRaAddOpen(false); setRaEditItem(null); } }}>
-        <DialogContent style={{ maxWidth: 580, maxHeight: "90vh", overflowY: "auto" }}>
+        <DialogContent style={{ maxWidth: 580 }}>
           <DialogHeader><DialogTitle>{raEditItem ? "Edit Risk Assessment" : "Add NVZ Risk Assessment"}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

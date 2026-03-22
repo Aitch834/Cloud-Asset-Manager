@@ -1053,7 +1053,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
 
       {showForm && (
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
-          <DialogContent style={{ maxWidth: "42rem" }} className="max-h-[90vh] overflow-y-auto">
+          <DialogContent style={{ maxWidth: "42rem" }}>
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Mortality Record" : "Log Animal Mortality"}</DialogTitle>
               <DialogDescription>Required for Red Tractor and BCMS compliance. Retain for 3 years.</DialogDescription>
@@ -1261,7 +1261,7 @@ function FeedSection({ farmId }: { farmId: number }) {
 
       {showForm && (
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
-          <DialogContent style={{ maxWidth: "38rem" }} className="max-h-[90vh] overflow-y-auto">
+          <DialogContent style={{ maxWidth: "38rem" }}>
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Feed Record" : "Add Feed Record"}</DialogTitle>
               <DialogDescription>Record feed deliveries with supplier and batch number for traceability.</DialogDescription>
@@ -1386,7 +1386,7 @@ function WaterCertificatesDialog({
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent style={{ maxWidth: "42rem" }} className="max-h-[90vh] overflow-y-auto">
+      <DialogContent style={{ maxWidth: "42rem" }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Paperclip className="h-4 w-4 text-blue-600" />
@@ -1637,7 +1637,7 @@ function WaterSection({ farmId }: { farmId: number }) {
 
       {showForm && (
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
-          <DialogContent style={{ maxWidth: "36rem" }} className="max-h-[90vh] overflow-y-auto">
+          <DialogContent style={{ maxWidth: "36rem" }}>
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Water Record" : "Add Water Quality Record"}</DialogTitle>
               <DialogDescription>Log water source and annual test results for Red Tractor compliance.</DialogDescription>
@@ -1904,7 +1904,7 @@ function AnimalsSection({ farmId }: { farmId: number }) {
 
       {showForm && (
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
-          <DialogContent style={{ maxWidth: "48rem" }} className="max-h-[90vh] overflow-y-auto">
+          <DialogContent style={{ maxWidth: "48rem" }}>
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Animal Record" : "Register Individual Animal"}</DialogTitle>
               <DialogDescription>Record the individual identifier, species, and key details for this animal.</DialogDescription>

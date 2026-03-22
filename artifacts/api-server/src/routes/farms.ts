@@ -4874,6 +4874,223 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>If you have not yet added any laboratories, the picker will show an empty list with a prompt to add a lab in Stock &amp; Suppliers first. The lab field is optional on individual records — you can complete the test data and add the lab link later once it has been registered — but for audit purposes it is best practice to link the lab before submitting the record.</p>`,
     },
     {
+      id: 10020,
+      title: "Pig Production Module — Overview",
+      category: "Pig Production",
+      content: `<p>The Pig Production module provides a dedicated compliance register for Red Tractor Pigs scheme holders. It covers herd records, medicine & withdrawal management, feed & water records, and environmental controls specific to pig units.</p>
+
+<h3>Tabs Overview</h3>
+<ul>
+<li><strong>Herd Overview</strong> — Register your pig herds with herd number, housing type, and capacity. Track herd movements and current occupancy.</li>
+<li><strong>Medicine Records</strong> — Log all veterinary treatments with product, batch number, dosage, route, and withdrawal period. The module automatically tracks withdrawal end dates so you know when animals are clear to move or slaughter.</li>
+<li><strong>Feed Records</strong> — Record all feed deliveries with supplier, batch number, and quantity. Maintained as a legally required feed chain record.</li>
+<li><strong>Mortality Log</strong> — Log deaths with cause and disposal method. Required under Red Tractor Pig Standards.</li>
+<li><strong>Health Assessments</strong> — Record periodic health assessments and veterinary visits. Link to your farm vet and any advisory notes.</li>
+</ul>
+
+<h3>Red Tractor Pig Standards</h3>
+<p>Key requirements covered by this module include: individual identification of breeding animals, medicine records retained for 5 years, withdrawal periods observed before slaughter, feed records including suppliers and batch numbers, and biosecurity measures documented. All records can be printed as a register for inspection purposes.</p>`,
+    },
+    {
+      id: 10021,
+      title: "Poultry Production Module — Overview",
+      category: "Poultry Production",
+      content: `<p>The Poultry Production module covers broiler, layer, and turkey enterprises under the Red Tractor Poultry scheme. It provides flock-level record keeping for placements, production data, medicine, and end-of-cycle thinning and depopulation records.</p>
+
+<h3>Tabs Overview</h3>
+<ul>
+<li><strong>Flocks</strong> — Register each flock with placement date, species, breed, house number, and chick supplier. Track current stock count and expected depletion date.</li>
+<li><strong>Daily Records</strong> — Log daily mortality, feed consumption, and water intake. These records are checked by Red Tractor auditors as evidence of ongoing monitoring.</li>
+<li><strong>Medicine Records</strong> — Record all in-water and in-feed medications with batch number, withdrawal period, and operator details. Withdrawal compliance is tracked automatically.</li>
+<li><strong>Thinning & Depletion</strong> — Log each thinning or catch operation with numbers removed, transporter, and destination abattoir.</li>
+<li><strong>Flock Health Assessments</strong> — Record formal veterinary flock health reviews including scored assessments and action plans.</li>
+</ul>
+
+<h3>Red Tractor Poultry Standards</h3>
+<p>Key requirements covered: flock placement records retained for 2 years after depletion, daily mortality records, medicine records with withdrawal periods, salmonella monitoring results, catcher crew records, and thinning documentation. All records can be exported as a register for audit.</p>`,
+    },
+    {
+      id: 10022,
+      title: "Horticulture Module — Overview",
+      category: "Horticulture",
+      content: `<p>The Horticulture module supports Red Tractor Fresh Produce standard compliance for growers of salads, vegetables, fruit, and protected crops. It covers spray records, produce traceability, worker welfare, and assured field management.</p>
+
+<h3>Tabs Overview</h3>
+<ul>
+<li><strong>Crops & Beds</strong> — Register your growing areas, whether open-field, glasshouse, or polytunnel, with area, crop variety, and planting date.</li>
+<li><strong>Spray Records</strong> — Log all pesticide applications with MAPP number, maximum dose, harvest interval, and operator certificate. Fully linked to your field register.</li>
+<li><strong>Harvest Records</strong> — Record harvest batches with quantity, date, and destination. Provides the product traceability chain required by Red Tractor Fresh Produce.</li>
+<li><strong>Water Quality</strong> — Log irrigation water test results. Red Tractor Fresh Produce requires regular microbial testing of irrigation sources used in the 30 days before harvest.</li>
+<li><strong>Worker Welfare</strong> — Record welfare checks, accommodation inspections, and competency assessments for seasonal and permanent workers.</li>
+</ul>
+
+<h3>Red Tractor Fresh Produce Standards</h3>
+<p>Key requirements covered: spray records retained for 3 years, all pesticides used within label recommendations, harvest intervals observed, produce traceability from field to first buyer, irrigation water testing, and worker welfare checks. Records can be printed as a register for assured buyer or certification body audits.</p>`,
+    },
+    {
+      id: 10023,
+      title: "Carbon & Sustainability Module — Overview",
+      category: "Carbon & Sustainability",
+      content: `<p>The Carbon & Sustainability module helps you measure, record, and reduce your farm's greenhouse gas emissions and environmental footprint. It is aligned with the UK Farm Carbon Calculator methodology and supports reporting requirements under agri-environment schemes and assured supply chain programmes.</p>
+
+<h3>Tabs Overview</h3>
+<ul>
+<li><strong>Carbon Footprint</strong> — Enter your annual inputs (fuel, fertiliser, livestock numbers, purchased feed) and the module calculates an estimated carbon footprint using emission factors from the IPCC and Defra. Results are shown per hectare and per tonne of output.</li>
+<li><strong>Energy Use</strong> — Record electricity and fuel consumption by source. Track renewable energy generation (solar, wind, anaerobic digestion) to offset consumption.</li>
+<li><strong>Soil Carbon</strong> — Log soil organic matter measurements from test results to track carbon sequestration over time.</li>
+<li><strong>Action Plans</strong> — Record sustainability actions taken or planned — cover crops, min-till, hedgerow planting, renewable energy — and track their estimated impact.</li>
+<li><strong>Biodiversity</strong> — Log biodiversity features and assessments, cross-linked to the Environmental module's habitat register.</li>
+</ul>
+
+<h3>Why This Matters</h3>
+<p>Many UK farm assurance and retail supply chain programmes now require evidence of carbon footprinting and sustainability planning. This module gives you the record base to satisfy those requirements and to demonstrate year-on-year progress against your sustainability goals.</p>`,
+    },
+    {
+      id: 10024,
+      title: "Farm Diversification Module — Overview",
+      category: "Farm Diversification",
+      content: `<p>The Farm Diversification module helps you manage compliance records for non-agricultural income activities on your holding — including farm shops, holiday lets, visitor attractions, processing facilities, and renewable energy installations.</p>
+
+<h3>Tabs Overview</h3>
+<ul>
+<li><strong>Activities Register</strong> — Register each diversification enterprise with type, start date, planning consent reference, and applicable licences or permissions.</li>
+<li><strong>Licences & Permits</strong> — Store licence details and expiry dates for food business registrations, alcohol licences, environmental permits, and other regulatory requirements.</li>
+<li><strong>Food Business Records</strong> — For farm shops and direct sales, record food hygiene inspections, temperature monitoring logs, and supplier approvals.</li>
+<li><strong>Visitor Safety</strong> — Log risk assessments and public liability checks for visitor-facing enterprises such as farm shops, open farms, or holiday lets.</li>
+<li><strong>Financial Records</strong> — Record diversification income and costs by activity for cross-referencing with the Financial module.</li>
+</ul>
+
+<h3>Regulatory Context</h3>
+<p>Diversification activities are subject to their own regulatory frameworks separate from farm assurance — including food law (Regulation (EC) 852/2004 as retained in UK law), planning law, and licensing law. This module provides a central record-keeping hub but does not replace professional regulatory advice for your specific enterprise.</p>`,
+    },
+    {
+      id: 10025,
+      title: "Water & Irrigation Module — Overview",
+      category: "Water & Irrigation",
+      content: `<p>The Water & Irrigation module provides a complete record-keeping system for water abstraction, irrigation management, and water quality compliance. It supports Environment Agency abstraction licence compliance and Red Tractor Fresh Produce water testing requirements.</p>
+
+<h3>Tabs Overview</h3>
+<ul>
+<li><strong>Abstraction Records</strong> — Log daily or weekly abstraction volumes from each source (borehole, river, reservoir). Abstraction licence conditions typically specify maximum daily and annual volumes — the module alerts you when you approach permitted limits.</li>
+<li><strong>Irrigation Events</strong> — Record each irrigation application with date, field, volume, crop growth stage, and method (trickle, overhead, boom). Required for Red Tractor Fresh Produce and some agri-environment scheme conditions.</li>
+<li><strong>Water Quality Tests</strong> — Log microbial and chemical test results from each water source. Red Tractor Fresh Produce requires testing of irrigation water used within 30 days of harvest of ready-to-eat crops.</li>
+<li><strong>Sources Register</strong> — Register all water sources with abstraction licence numbers, permitted volumes, and licence expiry dates.</li>
+<li><strong>Infrastructure</strong> — Record storage reservoirs, pump stations, and distribution infrastructure with maintenance schedules.</li>
+</ul>
+
+<h3>Abstraction Licence Compliance</h3>
+<p>All abstraction from surface or groundwater sources of more than 20 cubic metres per day requires an Environment Agency abstraction licence. Records of volumes abstracted must be kept and may be inspected by the Environment Agency. Exceeding licence conditions is a criminal offence.</p>`,
+    },
+    {
+      id: 10026,
+      title: "AI & Reproduction Records — Livestock",
+      category: "Livestock",
+      content: `<p>The AI & Reproduction tab within the Livestock module enables you to record artificial insemination events, natural service records, pregnancy diagnoses, and calving or lambing outcomes for each herd or flock.</p>
+
+<h3>What to Record</h3>
+<ul>
+<li><strong>AI Events</strong> — Date, sire straw reference (including bull/ram/boar name, breed, and AI company reference), female or group inseminated, technician name, and insemination method (frozen, fresh, sexed).</li>
+<li><strong>Natural Service</strong> — Service date, sire ear tag or stock number, female or group, and service outcome if known.</li>
+<li><strong>Pregnancy Diagnosis</strong> — Date of scanning or manual diagnosis, operator, outcome (pregnant / not in calf), and expected calving date.</li>
+<li><strong>Calving / Lambing Records</strong> — Date, dam ID, calf/lamb ID(s), birth weight (optional), and outcome (live, stillborn, requiring assistance).</li>
+</ul>
+
+<h3>Red Tractor Requirements</h3>
+<p>Red Tractor Beef & Lamb and Dairy standards require that breeding records are kept and retained for at least 3 years. For dairy herds, Johne's disease risk management plans and breeding decisions are closely linked — the AI record provides evidence that sires used were from tested herds.</p>
+
+<h3>Integration with the Individual Animal Register</h3>
+<p>When a calf or lamb is born, you can immediately register it as an individual animal in the Individual Animals tab, linking its dam, sire, and birth details. This provides a full pedigree trail within BDE Farm Trac.</p>`,
+    },
+    {
+      id: 10027,
+      title: "Vet Prescriptions & Medicines — Red Tractor Requirements",
+      category: "Livestock",
+      content: `<p>The Vet Prescriptions tab in the Livestock module stores written veterinary prescriptions and links them to the corresponding medicine records in the Medicine Register. This satisfies the Red Tractor requirement for documentary evidence that medicines were prescribed before administration.</p>
+
+<h3>What to Record</h3>
+<ul>
+<li><strong>Prescription Reference</strong> — The unique prescription number issued by the prescribing vet or practice.</li>
+<li><strong>Prescribing Vet & Practice</strong> — Full name and practice address. A vet must have a valid veterinarian-client-patient relationship (VCPR) with your holding.</li>
+<li><strong>Medicines Prescribed</strong> — Product name, strength, quantity, and authorised withdrawal period as stated on the prescription.</li>
+<li><strong>Issue Date & Expiry</strong> — Prescriptions have a maximum validity period (usually 6 months under the Veterinary Medicines Regulations 2013). The system warns you if you try to use a prescription that has expired.</li>
+<li><strong>Repeat Prescriptions</strong> — Mark whether the prescription is a one-off or a standing/repeat prescription, and the maximum number of repeats permitted.</li>
+</ul>
+
+<h3>Veterinary Medicines Regulations 2013</h3>
+<p>Prescription-only medicines (POM-V and POM-VPS categories) may only be supplied on a written prescription from a veterinary surgeon. You must retain the original or a certified copy of the prescription for at least 5 years. Cascade medicines (those authorised for a different species or condition) require written veterinary authorisation and must be clearly flagged in your records.</p>`,
+    },
+    {
+      id: 10028,
+      title: "SFI / ELMs Actions & Agreements — Environmental Module",
+      category: "Environmental",
+      content: `<p>The SFI / ELMs tab in the Environmental module provides a register of your Sustainable Farming Incentive (SFI), Countryside Stewardship (CS), and Environmental Land Management (ELM) agreements. It is essential for cross-referencing land management actions required by your agreements against the field operations and spray records in BDE Farm Trac.</p>
+
+<h3>What to Record</h3>
+<ul>
+<li><strong>Agreement Reference</strong> — Your unique SFI, CS, or ELMS agreement reference number as issued by the Rural Payments Agency.</li>
+<li><strong>Scheme Name & Type</strong> — e.g. SFI 2024, Countryside Stewardship Mid-Tier, Higher Tier, or Landscape Recovery.</li>
+<li><strong>Agreement Period</strong> — Start and end dates of the agreement.</li>
+<li><strong>Actions / Options</strong> — Each action within the agreement (e.g. SAM1: Assess Soil, SAM2: Herbal Leys, AB1: Flower Margins) with the associated payment rate and target area or quantity.</li>
+<li><strong>Evidence Records</strong> — Attach photos, soil tests, or management plans as evidence that actions have been carried out as required.</li>
+</ul>
+
+<h3>Keeping Compliant</h3>
+<p>SFI and CS agreements are inspected by the Rural Payments Agency. Failure to comply with agreement conditions can result in payment reductions or recovery of payments already made. BDE Farm Trac helps you keep evidence of each action undertaken, including dates, areas, and outcomes, ready for an inspection visit.</p>`,
+    },
+    {
+      id: 10029,
+      title: "Slurry & Manure Management — Environmental Module",
+      category: "Environmental",
+      content: `<p>The Slurry & Manure Management tab in the Environmental module provides records of slurry storage capacity, spreading events, and manure management plans. These records are required under the Nitrate Pollution Prevention Regulations (NPPR) and by Red Tractor livestock standards.</p>
+
+<h3>Slurry Stores Register</h3>
+<p>Register each slurry store (lagoon, tower, covered store, lined pit) with its capacity in cubic metres, construction date, and any Environment Agency permit or RPID reference. Include the date of the most recent structural inspection. Slurry stores must be capable of holding 6 months of slurry storage for cattle and pigs in England (requirements vary by devolved nation); the register helps you confirm capacity is sufficient.</p>
+
+<h3>Spreading Records</h3>
+<p>For each slurry spreading event record: the date, the field or fields receiving slurry, the application rate in m³/ha or tonnes/ha, the incorporation method, and the weather conditions. Spreading records must demonstrate that you are not spreading during closed periods (England: 1 October to 31 January for slurry on grassland; specific dates vary for different manure types and countries).</p>
+
+<h3>Manure Management Plan</h3>
+<p>A farm-level manure management plan should describe your nutrient cycle: how much slurry and FYM is produced, how it is stored, and how it is applied to fields to provide nutrients while minimising losses to water and air. This plan is required under the Farming Rules for Water (England) and is a Red Tractor livestock requirement. The plan can be prepared and stored within the Environmental module.</p>`,
+    },
+    {
+      id: 10030,
+      title: "Grain Store Quality Management — Equipment Module",
+      category: "Equipment",
+      content: `<p>The Grain Storage Quality tab within the Equipment module provides records for on-farm grain stores, enabling you to track grain intake, moisture and protein readings, fumigation events, and store inspections. These records support Red Tractor Combinable Crops certification and grain trade assurance.</p>
+
+<h3>Grain Intake Records</h3>
+<p>For each load of grain entering the store, record: the crop type and variety, harvest date, field of origin, quantity in tonnes, moisture content at intake, and any pre-storage treatments applied (e.g. propionic acid, OPP). The field-of-origin linkage provides the traceability chain required by Red Tractor Combinable Crops — from field to store to merchant.</p>
+
+<h3>Moisture & Quality Monitoring</h3>
+<p>Record periodic moisture readings taken during the storage period. Grain safe for storage should be at or below 14.5% moisture for wheat and barley (lower for oilseed rape). Regular monitoring demonstrates that you are actively managing storage conditions to prevent spoilage and mycotoxin development.</p>
+
+<h3>Fumigation Records</h3>
+<p>If grain is fumigated, record the fumigant used (e.g. phosphine), the operator name and BETA certificate reference, the date, duration, and concentration achieved. Fumigation must be carried out by a certificate-holder under the Control of Pesticides Regulations.</p>
+
+<h3>Store Inspections</h3>
+<p>Log the date of each store inspection, who carried it out, and the outcome. Red Tractor Combinable Crops requires that stores are free from pests, in good structural repair, and that any residues from previous crops are removed before new grain is loaded.</p>`,
+    },
+    {
+      id: 10031,
+      title: "Soil Sample Register — Format and Reference Numbers",
+      category: "Nutrient Management",
+      content: `<p>The Soil Sample Register in BDE Farm Trac records all soil sampling events in a structured, auditable format that satisfies Red Tractor Cross-Compliance requirements. Each record is automatically assigned a unique reference number in the format <strong>SS-YYYY-NNNN</strong> (e.g. SS-2025-0012), which provides a traceable identifier for every sample taken.</p>
+
+<h3>What Is Recorded per Sample</h3>
+<ul>
+<li><strong>Reference Number</strong> — Auto-generated (SS-YYYY-NNNN). Cannot be edited; used on all related documents and laboratory reports.</li>
+<li><strong>Field</strong> — Selected from your registered Field Register. Cannot be a free-text entry — must link to a real field record to ensure traceability.</li>
+<li><strong>Sample Date</strong> — Date the sample was taken from the field.</li>
+<li><strong>Laboratory</strong> — Selected from your registered testing laboratory list. Labs must be UKAS-accredited or equivalent. See Help article <em>Testing Laboratories — Registering Labs and Linking Test Results</em>.</li>
+<li><strong>Laboratory Reference</strong> — The reference number on the lab report. This allows you to match the certificate in your document store to this soil record.</li>
+<li><strong>Results</strong> — pH, P, K, and Mg index values from the lab report. Organic matter % if reported.</li>
+<li><strong>Depth and Sampling Method</strong> — e.g. 0–15 cm, W-pattern, 25 cores bulked.</li>
+</ul>
+
+<h3>Red Tractor Requirements</h3>
+<p>Red Tractor requires soil testing at minimum every 5 years for all cropped land, and more frequently for fields receiving significant applications of organic manures. The soil test must be performed by an accredited laboratory and the results used to inform a nutrient management plan. The SS-reference number on each record in BDE Farm Trac provides the unique identifier inspectors need to cross-reference your field records against the laboratory certificate.</p>`,
+    },
+    {
       id: 10019,
       title: "Mobile App — Offline Data and How Reference Pickers Work",
       category: "Mobile App",

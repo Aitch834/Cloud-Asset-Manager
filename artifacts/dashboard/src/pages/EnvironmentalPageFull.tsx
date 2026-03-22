@@ -330,7 +330,7 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
       )}
 
       <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
-        <DialogContent style={{ maxWidth: "56rem", maxHeight: "90vh", overflowY: "auto" }}>
+        <DialogContent style={{ maxWidth: "56rem" }}>
           <DialogHeader><DialogTitle>Add Environmental Feature</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
             {/* Left column — form fields */}
@@ -984,7 +984,7 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
 
       {/* Add / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); } }}>
-        <DialogContent style={{ maxWidth: "42rem", maxHeight: "90vh", overflowY: "auto" }}>
+        <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>{dialogTitle}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-1">
 
