@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -287,7 +287,145 @@ function FciTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "houses" | "flocks" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci";
+function BroilerWelfareTab({ farmId }: { farmId: number }) {
+  const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-broiler-welfare", "poultry-broiler-welfare");
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Broiler Welfare Indicators (BWI)</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Red Tractor Broilers — pododermatitis, hock burn and gait score must be assessed and recorded at each crop cycle.</p>
+        </div>
+        <Button size="sm" onClick={() => openAdd({ overallOutcome: "Pass" })}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
+        cols={[
+          { key: "assessmentDate", label: "Date", fmt: r => fmtDate(r.assessmentDate) },
+          { key: "assessedBy", label: "Assessed By" },
+          { key: "ageAtAssessmentDays", label: "Bird Age (days)" },
+          { key: "sampleSize", label: "Sample Size" },
+          { key: "footpadDermatitisScore", label: "FPD Score" },
+          { key: "footpadDermatitisPercent", label: "FPD %" },
+          { key: "hockBurnScore", label: "Hock Burn Score" },
+          { key: "gaitScore", label: "Gait Score" },
+          { key: "overallOutcome", label: "Outcome" },
+        ]}
+        rows={records as Record<string, unknown>[]}
+        onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }}
+      />}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "44rem" }}>
+          <DialogHeader><DialogTitle>Broiler Welfare Indicators Assessment</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-3 gap-3 max-h-[70vh] overflow-y-auto pr-1">
+            <div><Label>Assessment Date *</Label><Input type="date" value={String(form.assessmentDate ?? "")} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
+            <div><Label>Assessed By *</Label><Input value={String(form.assessedBy ?? "")} onChange={e => setForm(f => ({ ...f, assessedBy: e.target.value }))} /></div>
+            <div><Label>Bird Age (days)</Label><Input type="number" value={String(form.ageAtAssessmentDays ?? "")} onChange={e => setForm(f => ({ ...f, ageAtAssessmentDays: e.target.value }))} /></div>
+            <div><Label>Sample Size (birds)</Label><Input type="number" value={String(form.sampleSize ?? "")} onChange={e => setForm(f => ({ ...f, sampleSize: e.target.value }))} /></div>
+            <div>
+              <Label>Footpad Dermatitis Score</Label>
+              <Select value={String(form.footpadDermatitisScore ?? "")} onValueChange={v => setForm(f => ({ ...f, footpadDermatitisScore: v }))}>
+                <SelectTrigger><SelectValue placeholder="AVEC 0–3" /></SelectTrigger>
+                <SelectContent>{["0 — No lesion", "1 — Superficial", "2 — Moderate", "3 — Severe"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>FPD Prevalence (%)</Label><Input type="number" step="0.1" value={String(form.footpadDermatitisPercent ?? "")} onChange={e => setForm(f => ({ ...f, footpadDermatitisPercent: e.target.value }))} /></div>
+            <div>
+              <Label>Hock Burn Score</Label>
+              <Select value={String(form.hockBurnScore ?? "")} onValueChange={v => setForm(f => ({ ...f, hockBurnScore: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["0 — None", "1 — Minor discolouration", "2 — Moderate lesion", "3 — Severe lesion"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Hock Burn Prevalence (%)</Label><Input type="number" step="0.1" value={String(form.hockBurnPercent ?? "")} onChange={e => setForm(f => ({ ...f, hockBurnPercent: e.target.value }))} /></div>
+            <div>
+              <Label>Gait Score</Label>
+              <Select value={String(form.gaitScore ?? "")} onValueChange={v => setForm(f => ({ ...f, gaitScore: v }))}>
+                <SelectTrigger><SelectValue placeholder="Bristol 0–5" /></SelectTrigger>
+                <SelectContent>{["0 — Normal", "1 — Slight impairment", "2 — Definite abnormality", "3 — Moderate impairment", "4 — Severe impairment", "5 — Unable to walk"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Breast Blister (%)</Label><Input type="number" step="0.1" value={String(form.breastBlisterPercent ?? "")} onChange={e => setForm(f => ({ ...f, breastBlisterPercent: e.target.value }))} /></div>
+            <div>
+              <Label>Plumage Score</Label>
+              <Select value={String(form.plumageScore ?? "")} onValueChange={v => setForm(f => ({ ...f, plumageScore: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["Good — clean & full", "Fair — minor soiling", "Poor — dirty/wet", "Very poor — severe soiling"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Soiled Plumage (%)</Label><Input type="number" step="0.1" value={String(form.soiledPlumagePercent ?? "")} onChange={e => setForm(f => ({ ...f, soiledPlumagePercent: e.target.value }))} /></div>
+            <div>
+              <Label>Overall Outcome *</Label>
+              <Select value={String(form.overallOutcome ?? "")} onValueChange={v => setForm(f => ({ ...f, overallOutcome: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["Pass", "Advisory — monitor closely", "Fail — action required"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-3"><Label>Actions Taken</Label><Textarea value={String(form.actionsTaken ?? "")} onChange={e => setForm(f => ({ ...f, actionsTaken: e.target.value }))} rows={2} placeholder="e.g. Increased litter depth, adjusted drinker height, improved ventilation" /></div>
+            <div className="col-span-3"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save Assessment</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ThinningRecordsTab({ farmId }: { farmId: number }) {
+  const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-thinning-records", "poultry-thinning");
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Thinning Records</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Record each partial depletion event — numbers removed, live weight, catching details and any DOAs at loading.</p>
+        </div>
+        <Button size="sm" onClick={() => openAdd({ thinningNumber: "1", doasAtLoading: "0" })}><Plus className="w-4 h-4 mr-1" />Log Thinning</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
+        cols={[
+          { key: "thinningDate", label: "Date", fmt: r => fmtDate(r.thinningDate) },
+          { key: "thinningNumber", label: "Thinning No." },
+          { key: "birdsRemoved", label: "Birds Removed" },
+          { key: "averageLiveWeightKg", label: "Avg Live Wt (kg)" },
+          { key: "destinationAbattoir", label: "Abattoir" },
+          { key: "catchingContractorName", label: "Catching Contractor" },
+          { key: "doasAtLoading", label: "DOAs at Loading" },
+        ]}
+        rows={records as Record<string, unknown>[]}
+        onDelete={r => { if (confirm("Delete this thinning record?")) del.mutate(r.id as number); }}
+      />}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogHeader><DialogTitle>Thinning Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Thinning Date *</Label><Input type="date" value={String(form.thinningDate ?? "")} onChange={e => setForm(f => ({ ...f, thinningDate: e.target.value }))} /></div>
+            <div>
+              <Label>Thinning Number *</Label>
+              <Select value={String(form.thinningNumber ?? "1")} onValueChange={v => setForm(f => ({ ...f, thinningNumber: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["1st thinning", "2nd thinning", "3rd thinning", "Final depletion"].map((o, i) => <SelectItem key={o} value={String(i + 1)}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Birds Removed *</Label><Input type="number" value={String(form.birdsRemoved ?? "")} onChange={e => setForm(f => ({ ...f, birdsRemoved: e.target.value }))} /></div>
+            <div><Label>DOAs at Loading</Label><Input type="number" value={String(form.doasAtLoading ?? "0")} onChange={e => setForm(f => ({ ...f, doasAtLoading: e.target.value }))} /></div>
+            <div><Label>Target Live Weight (kg)</Label><Input type="number" step="0.01" value={String(form.targetLiveWeightKg ?? "")} onChange={e => setForm(f => ({ ...f, targetLiveWeightKg: e.target.value }))} /></div>
+            <div><Label>Average Live Weight (kg)</Label><Input type="number" step="0.01" value={String(form.averageLiveWeightKg ?? "")} onChange={e => setForm(f => ({ ...f, averageLiveWeightKg: e.target.value }))} /></div>
+            <div><Label>Destination Abattoir</Label><Input value={String(form.destinationAbattoir ?? "")} onChange={e => setForm(f => ({ ...f, destinationAbattoir: e.target.value }))} /></div>
+            <div><Label>Catching Contractor</Label><Input value={String(form.catchingContractorName ?? "")} onChange={e => setForm(f => ({ ...f, catchingContractorName: e.target.value }))} /></div>
+            <div><Label>Catching Start Time</Label><Input type="time" value={String(form.catchingStartTime ?? "")} onChange={e => setForm(f => ({ ...f, catchingStartTime: e.target.value }))} /></div>
+            <div><Label>Catching End Time</Label><Input type="time" value={String(form.catchingEndTime ?? "")} onChange={e => setForm(f => ({ ...f, catchingEndTime: e.target.value }))} /></div>
+            <div><Label>Transport Vehicle Reg</Label><Input value={String(form.transportVehicleReg ?? "")} onChange={e => setForm(f => ({ ...f, transportVehicleReg: e.target.value }))} /></div>
+            <div><Label>Catching Conditions</Label><Input value={String(form.catchingConditions ?? "")} onChange={e => setForm(f => ({ ...f, catchingConditions: e.target.value }))} placeholder="e.g. Good, dark, calm" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save Record</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+type Tab = "houses" | "flocks" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning";
 
 export default function PoultryProductionPage() {
   const { farmId } = useAppStore();
@@ -304,6 +442,8 @@ export default function PoultryProductionPage() {
           <TabButton active={tab === "cleanouts"} onClick={() => setTab("cleanouts")}><SprayCan className="w-3.5 h-3.5 mr-1" />Cleanouts</TabButton>
           <TabButton active={tab === "envlogs"} onClick={() => setTab("envlogs")}><Thermometer className="w-3.5 h-3.5 mr-1" />Environment</TabButton>
           <TabButton active={tab === "fci"} onClick={() => setTab("fci")}><FileText className="w-3.5 h-3.5 mr-1" />FCI Docs</TabButton>
+          <TabButton active={tab === "bwi"} onClick={() => setTab("bwi")}><ShieldCheck className="w-3.5 h-3.5 mr-1" />Broiler Welfare</TabButton>
+          <TabButton active={tab === "thinning"} onClick={() => setTab("thinning")}><Scissors className="w-3.5 h-3.5 mr-1" />Thinning</TabButton>
         </TabBar>
         <Card><CardContent className="pt-4">
           {tab === "houses" && <HousesTab farmId={farmId} />}
@@ -313,6 +453,8 @@ export default function PoultryProductionPage() {
           {tab === "cleanouts" && <CleanoutsTab farmId={farmId} />}
           {tab === "envlogs" && <EnvironmentalLogsTab farmId={farmId} />}
           {tab === "fci" && <FciTab farmId={farmId} />}
+          {tab === "bwi" && <BroilerWelfareTab farmId={farmId} />}
+          {tab === "thinning" && <ThinningRecordsTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>

@@ -96,6 +96,8 @@ import {
   pigFeedRecordsTable,
   pigVetAssessmentsTable,
   pigStockmanshipChecksTable,
+  pigTailBitingRisksTable,
+  pigFarrowingRecordsTable,
   poultryHousesTable,
   poultryFlocksTable,
   poultryDailyMortalityTable,
@@ -103,6 +105,8 @@ import {
   poultryHouseCleanoutsTable,
   poultryEnvironmentalLogsTable,
   poultryFciDocumentsTable,
+  poultryBroilerWelfareTable,
+  poultryThinningRecordsTable,
   horticultureBlocksTable,
   horticultureCropsTable,
   horticultureWaterTestsTable,
@@ -4230,6 +4234,91 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Store Condition Log</h3>
 <p>After every significant inspection or cleaning event, create a store condition log entry: date, person inspecting, observations on the roof, walls, floor, ventilation ducts, and any pest or mould activity. A clean, well-maintained store with documented inspection records demonstrates the management commitment that TASCC and Red Tractor assessors look for.</p>`,
     },
+    {
+      id: 10001,
+      title: "Tail Biting Risk Assessments — Pig Production",
+      category: "Pig Production",
+      content: `<img src="/api/help-images/livestock.png" alt="Tail Biting Risk Assessment" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Red Tractor Pigs Standards require every pig unit to maintain a written tail biting risk assessment. This is a mandatory document — not a recommendation. The assessment must be updated whenever a risk factor changes, and immediately if active tail biting is observed in a pen.</p>
+
+<h3>What the Assessment Covers</h3>
+<p>The risk assessment must evaluate the following factors: current tail length (and whether tails were docked at birth), stocking density relative to the approved limit for your housing type, enrichment material provision (quality, quantity, novelty, and accessibility), feeding system adequacy (feeder space, ad-lib access), health status of the group, and mixing patterns. For each factor, you record whether the condition is adequate or represents an elevated risk.</p>
+
+<h3>When to Review</h3>
+<p>Review the assessment: at placement of each new group, whenever stocking density changes (e.g. after a thinning or purchase), after any disease event affecting the pen, immediately when active tail biting is observed (even at a low level), and at a minimum of once per production cycle. The dashboard shows your most recent assessment date and flags assessments that are more than one production cycle old.</p>
+
+<h3>Active Biting — Immediate Actions</h3>
+<p>If tail biting is observed, you must record this immediately and document your intervention. Common interventions include separating the bitten animal(s), increasing enrichment provision, checking and rectifying any feed or water competition, reducing light intensity, and veterinary assessment if wounds are significant. The intervention record forms part of your Red Tractor compliance evidence.</p>
+
+<h3>Logging Assessments</h3>
+<p>Go to <strong>Pig Production → Tail Biting Risk</strong> tab and click <strong>New Assessment</strong>. Complete all risk factor checks, select the overall risk level (Low / Medium / High), and record any interventions taken. Set a review date — this will appear on your compliance timeline to prompt the next review.</p>`,
+    },
+    {
+      id: 10002,
+      title: "Farrowing & Sow Records — Pig Production",
+      category: "Pig Production",
+      content: `<img src="/api/help-images/livestock.png" alt="Farrowing and Sow Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Farrowing and sow records are a core Red Tractor Pigs requirement for all breeding herds, including farrow-to-finish units. The records demonstrate that you are monitoring litter performance, managing colostrum intake, and tracking sow productivity over multiple parities.</p>
+
+<h3>What to Record at Farrowing</h3>
+<p>For each farrowing event, record: the sow's ear tag (UK-format), her parity number (1 = gilt), the farrowing date, the farrowing ease score (1 = unassisted through to 4 = vet required), whether assistance was provided and details of that assistance, the number of piglets born alive, the number born dead (stillbirths), and any mummified piglets. An average birth weight should also be recorded where possible, as low average birth weight is a welfare indicator that Red Tractor assessors may query.</p>
+
+<h3>Colostrum Management</h3>
+<p>Red Tractor requires that colostrum management is actively confirmed for every litter. Record that you have confirmed all piglets have received colostrum within the first 12 hours — this is a welfare baseline. The <em>Colostrum management confirmed</em> checkbox on each farrowing record provides the evidence.</p>
+
+<h3>Foster Records</h3>
+<p>Record any piglets transferred in or out of the litter (fosters). Foster records demonstrate that litter sizes are being equalised to ensure adequate access to milk and colostrum for all piglets, which is assessed under the welfare inspection.</p>
+
+<h3>Weaning Data</h3>
+<p>On each farrowing record, add weaning data once the litter is weaned: weaning date, number of piglets weaned, and average weaning weight. These fields generate a calculated weaning age and an index of litter growth performance. Red Tractor assessors and your own vet health plan reviews will use this data to identify any downward trends in performance.</p>
+
+<h3>Using the Tab</h3>
+<p>Navigate to <strong>Pig Production → Farrowing</strong> and click <strong>Log Farrowing</strong>. Complete the fields at farrowing and return to add weaning data once the litter leaves the farrowing house.</p>`,
+    },
+    {
+      id: 10003,
+      title: "Broiler Welfare Indicators (BWI) — Poultry Production",
+      category: "Poultry Production",
+      content: `<img src="/api/help-images/livestock.png" alt="Broiler Welfare Indicators" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Broiler Welfare Indicators (BWI) are the standardised at-farm assessment protocol required under Red Tractor Broilers standards. They must be carried out during each crop cycle, typically when the flock is between 21 and 35 days of age, using a random sample of birds.</p>
+
+<h3>The Five Key Indicators</h3>
+<p><strong>1. Footpad Dermatitis (FPD / Pododermatitis):</strong> Scored 0–3 using the AVEC (Association of Poultry Processors and Poultry Trade) scale. Score 0 is no lesion; score 3 is a severe lesion with tissue damage. Record the score and the prevalence (percentage of birds in sample with any lesion). Target thresholds are set in your Red Tractor contract — breaching the threshold triggers a formal advisory or fail outcome.</p>
+
+<p><strong>2. Hock Burn:</strong> Similarly scored 0–3. Hock burn indicates wet litter conditions over an extended period. Chronic hock burn at score 2–3 can be associated with intestinal health issues and inadequate litter management.</p>
+
+<p><strong>3. Gait Score:</strong> Assessed using the Bristol Gait Scoring system (0–5). A score of 3 or above indicates significant lameness. Under Red Tractor Broilers, flocks with more than a defined percentage of birds at gait score 3+ require an investigation and corrective action plan.</p>
+
+<p><strong>4. Breast Blisters:</strong> Record the percentage of sampled birds showing breast blister lesions. Breast blisters are associated with prolonged contact with wet or compacted litter and indicate a management or stocking density concern.</p>
+
+<p><strong>5. Plumage Score &amp; Soiling:</strong> Record the overall plumage condition and the percentage of birds with soiled plumage — a proxy indicator of litter condition and stocking density management.</p>
+
+<h3>Recording BWI Assessments</h3>
+<p>Go to <strong>Poultry Production → Broiler Welfare</strong> and click <strong>Add Assessment</strong>. Enter the flock reference, assessment date, assessor name, bird age and sample size, and complete each indicator. Select the overall outcome (Pass / Advisory / Fail). If the outcome is Advisory or Fail, document the corrective actions taken — this is the evidence that Red Tractor inspectors will review at your next audit.</p>`,
+    },
+    {
+      id: 10004,
+      title: "Thinning Records — Poultry Production",
+      category: "Poultry Production",
+      content: `<img src="/api/help-images/livestock.png" alt="Poultry Thinning Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Thinning (or partial depletion) is the staged removal of broiler birds from the house before final depletion to reduce stocking density and allow the remaining birds to grow to target weight. Under Red Tractor Broilers standards, full records of each thinning event must be maintained.</p>
+
+<h3>Why Thinning Records Matter</h3>
+<p>Stocking density is a critical welfare parameter in broiler production. Council Directive 2007/43/EC and the Red Tractor Broilers standard set maximum cumulative placement densities. Detailed thinning records demonstrate that your management decisions are responsive to flock performance and that your stocking density calculations remain within the permitted limits throughout the crop. Records are also required by abattoirs for Food Chain Information (FCI) purposes.</p>
+
+<h3>What to Record</h3>
+<p>For each thinning event, record: the date and which thinning this is (1st, 2nd, 3rd, or final depletion), the number of birds removed, the target and actual average live weight (kg), the destination abattoir or lairage, the catching contractor's name, catching start and end times, the transport vehicle registration, and any dead on arrival (DOA) birds identified at loading. The catching start and end times are used to verify that catching-to-slaughter journey times comply with the maximum permitted journey time for live birds.</p>
+
+<h3>DOAs at Loading</h3>
+<p>Dead on arrival (DOA) birds found at the abattoir are reported back to the farm by the processor. These DOAs must be reconciled against your thinning record. A DOA rate above the processor's threshold may trigger a welfare investigation. Logging DOAs at the point of loading — where birds found dead during catching are recorded — is a separate (and often overlooked) record that complements the abattoir DOA report.</p>
+
+<h3>Using the Tab</h3>
+<p>Navigate to <strong>Poultry Production → Thinning</strong> and click <strong>Log Thinning</strong>. Complete all required fields at the time of each thinning event. After final depletion, the full thinning history for the flock provides a complete production audit trail.</p>`,
+    },
   ];
 
   const { search, category } = _req.query;
@@ -5905,6 +5994,52 @@ router.delete("/farms/:farmId/pig-stockmanship-checks/:id", requireAuth, require
   res.json({ success: true });
 });
 
+router.get("/farms/:farmId/pig-tail-biting-risks", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(pigTailBitingRisksTable).where(eq(pigTailBitingRisksTable.farmId, farmId)).orderBy(desc(pigTailBitingRisksTable.assessmentDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/pig-tail-biting-risks", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(pigTailBitingRisksTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/pig-tail-biting-risks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(pigTailBitingRisksTable).set(req.body).where(and(eq(pigTailBitingRisksTable.id, id), eq(pigTailBitingRisksTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/pig-tail-biting-risks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(pigTailBitingRisksTable).where(and(eq(pigTailBitingRisksTable.id, id), eq(pigTailBitingRisksTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/pig-farrowing-records", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(pigFarrowingRecordsTable).where(eq(pigFarrowingRecordsTable.farmId, farmId)).orderBy(desc(pigFarrowingRecordsTable.farrowingDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/pig-farrowing-records", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(pigFarrowingRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/pig-farrowing-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(pigFarrowingRecordsTable).set(req.body).where(and(eq(pigFarrowingRecordsTable.id, id), eq(pigFarrowingRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/pig-farrowing-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(pigFarrowingRecordsTable).where(and(eq(pigFarrowingRecordsTable.id, id), eq(pigFarrowingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 // ============================================================
 // POULTRY PRODUCTION
 // ============================================================
@@ -6066,6 +6201,52 @@ router.delete("/farms/:farmId/poultry-fci-documents/:id", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(poultryFciDocumentsTable).where(and(eq(poultryFciDocumentsTable.id, id), eq(poultryFciDocumentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/poultry-broiler-welfare", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(poultryBroilerWelfareTable).where(eq(poultryBroilerWelfareTable.farmId, farmId)).orderBy(desc(poultryBroilerWelfareTable.assessmentDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/poultry-broiler-welfare", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(poultryBroilerWelfareTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/poultry-broiler-welfare/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(poultryBroilerWelfareTable).set(req.body).where(and(eq(poultryBroilerWelfareTable.id, id), eq(poultryBroilerWelfareTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/poultry-broiler-welfare/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(poultryBroilerWelfareTable).where(and(eq(poultryBroilerWelfareTable.id, id), eq(poultryBroilerWelfareTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/poultry-thinning-records", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(poultryThinningRecordsTable).where(eq(poultryThinningRecordsTable.farmId, farmId)).orderBy(desc(poultryThinningRecordsTable.thinningDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/poultry-thinning-records", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(poultryThinningRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/poultry-thinning-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(poultryThinningRecordsTable).set(req.body).where(and(eq(poultryThinningRecordsTable.id, id), eq(poultryThinningRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/poultry-thinning-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(poultryThinningRecordsTable).where(and(eq(poultryThinningRecordsTable.id, id), eq(poultryThinningRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

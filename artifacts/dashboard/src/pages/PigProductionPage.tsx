@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -487,8 +487,190 @@ function StockmanshipChecksTab({ farmId }: { farmId: number }) {
   );
 }
 
+function TailBitingRisksTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string | boolean>>({});
+  const { data: records = [], isLoading } = useQuery({ queryKey: ["pig-tail-biting", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-tail-biting-risks`), { credentials: "include" }).then(r => r.json()) });
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editing ? api(`farms/${farmId}/pig-tail-biting-risks/${editing.id}`) : api(`farms/${farmId}/pig-tail-biting-risks`);
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-tail-biting", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-tail-biting-risks/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-tail-biting", farmId] }) });
+  const defaults = { tailLengthAdequate: true, stockingDensityOk: true, enrichmentProvided: true, feedingSystemOk: true, healthStatusOk: true, currentBiting: false, tailsDockedAtBirth: false };
+  function openAdd() { setEditing(null); setForm({ ...defaults }); setOpen(true); }
+  function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : v as string | boolean]))); setOpen(true); }
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Tail Biting Risk Assessments</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Red Tractor Pigs Standard — a written risk assessment is required. Review when risk factors change or biting is observed.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />New Assessment</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "assessmentDate", label: "Date", fmt: r => fmtDate(r.assessmentDate) },
+            { key: "assessedBy", label: "Assessed By" },
+            { key: "riskLevel", label: "Risk Level" },
+            { key: "currentBiting", label: "Biting Active?", fmt: r => r.currentBiting ? "Yes" : "No" },
+            { key: "interventionsTaken", label: "Interventions" },
+            { key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) },
+          ]}
+          rows={records}
+          onEdit={openEdit}
+          onDelete={r => { if (confirm("Delete this assessment?")) del.mutate(r.id as number); }}
+        />
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogHeader><DialogTitle>Tail Biting Risk Assessment</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 max-h-[70vh] overflow-y-auto pr-1">
+            <div><Label>Assessment Date *</Label><Input type="date" value={String(form.assessmentDate ?? "")} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
+            <div><Label>Assessed By *</Label><Input value={String(form.assessedBy ?? "")} onChange={e => setForm(f => ({ ...f, assessedBy: e.target.value }))} /></div>
+            <div>
+              <Label>Risk Level *</Label>
+              <Select value={String(form.riskLevel ?? "")} onValueChange={v => setForm(f => ({ ...f, riskLevel: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select risk level" /></SelectTrigger>
+                <SelectContent>{["Low", "Medium", "High"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Monitoring Frequency</Label>
+              <Select value={String(form.monitoringFrequency ?? "")} onValueChange={v => setForm(f => ({ ...f, monitoringFrequency: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["Daily", "Twice daily", "Every check", "Weekly"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Mixing Frequency</Label><Input value={String(form.mixingFrequency ?? "")} onChange={e => setForm(f => ({ ...f, mixingFrequency: e.target.value }))} placeholder="e.g. Rarely / at weaning only" /></div>
+            <div><Label>Review Date</Label><Input type="date" value={String(form.reviewDate ?? "")} onChange={e => setForm(f => ({ ...f, reviewDate: e.target.value }))} /></div>
+            <div className="col-span-2">
+              <Label className="mb-2 block">Risk Factor Checks</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {([["tailsDockedAtBirth", "Tails docked at birth"], ["tailLengthAdequate", "Tail length adequate"], ["stockingDensityOk", "Stocking density within limits"], ["enrichmentProvided", "Enrichment material provided"], ["feedingSystemOk", "Feeding system adequate"], ["healthStatusOk", "Good health status (no disease)"], ["currentBiting", "Tail biting currently observed"]] as [string, string][]).map(([k, l]) => (
+                  <div key={k} className="flex items-center gap-2">
+                    <Checkbox id={k} checked={Boolean(form[k])} onCheckedChange={v => setForm(f => ({ ...f, [k]: Boolean(v) }))} />
+                    <Label htmlFor={k} className="text-xs">{l}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div><Label>Enrichment Types</Label><Input value={String(form.enrichmentTypes ?? "")} onChange={e => setForm(f => ({ ...f, enrichmentTypes: e.target.value }))} placeholder="e.g. Straw, chains, hanging rope" /></div>
+            <div><Label>Biting Level (if active)</Label>
+              <Select value={String(form.bitingLevel ?? "")} onValueChange={v => setForm(f => ({ ...f, bitingLevel: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["Minor — superficial", "Moderate — bleeding", "Severe — significant wound"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2"><Label>Interventions Taken</Label><Textarea value={String(form.interventionsTaken ?? "")} onChange={e => setForm(f => ({ ...f, interventionsTaken: e.target.value }))} rows={2} placeholder="e.g. Separated bitten pigs, increased enrichment, reduced stocking density" /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save Assessment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function FarrowingRecordsTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string | boolean>>({});
+  const { data: records = [], isLoading } = useQuery({ queryKey: ["pig-farrowing", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-farrowing-records`), { credentials: "include" }).then(r => r.json()) });
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editing ? api(`farms/${farmId}/pig-farrowing-records/${editing.id}`) : api(`farms/${farmId}/pig-farrowing-records`);
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-farrowing", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-farrowing-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-farrowing", farmId] }) });
+  const defaults = { totalBornAlive: "0", totalBornDead: "0", totalMummified: "0", fostersIn: "0", fostersOut: "0", assistanceRequired: false, colostrumManaged: true };
+  function openAdd() { setEditing(null); setForm({ ...defaults }); setOpen(true); }
+  function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : v as string | boolean]))); setOpen(true); }
+  const totalBorn = (r: Record<string, unknown>) => ((r.totalBornAlive as number || 0) + (r.totalBornDead as number || 0) + (r.totalMummified as number || 0));
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Farrowing &amp; Sow Records</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Required for breeding herds — litter performance, weaning data and sow assistance records.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Farrowing</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "farrowingDate", label: "Date", fmt: r => fmtDate(r.farrowingDate) },
+            { key: "sowEarTag", label: "Sow Ear Tag" },
+            { key: "parityNumber", label: "Parity" },
+            { key: "totalBornAlive", label: "Born Alive" },
+            { key: "totalBornDead", label: "Stillbirths" },
+            { key: "pigletsWeanedCount", label: "Weaned" },
+            { key: "weaningDate", label: "Weaning Date", fmt: r => fmtDate(r.weaningDate) },
+          ]}
+          rows={records}
+          onEdit={openEdit}
+          onDelete={r => { if (confirm("Delete this farrowing record?")) del.mutate(r.id as number); }}
+        />
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "44rem" }}>
+          <DialogHeader><DialogTitle>Farrowing Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-3 gap-3 max-h-[70vh] overflow-y-auto pr-1">
+            <div><Label>Farrowing Date *</Label><Input type="date" value={String(form.farrowingDate ?? "")} onChange={e => setForm(f => ({ ...f, farrowingDate: e.target.value }))} /></div>
+            <div><Label>Sow Ear Tag *</Label><Input value={String(form.sowEarTag ?? "")} onChange={e => setForm(f => ({ ...f, sowEarTag: e.target.value }))} placeholder="UK ear tag" /></div>
+            <div><Label>Sow Breed</Label><Input value={String(form.sowBreed ?? "")} onChange={e => setForm(f => ({ ...f, sowBreed: e.target.value }))} placeholder="e.g. Large White" /></div>
+            <div><Label>Parity Number</Label><Input type="number" value={String(form.parityNumber ?? "")} onChange={e => setForm(f => ({ ...f, parityNumber: e.target.value }))} placeholder="1 = gilt" /></div>
+            <div>
+              <Label>Farrowing Ease</Label>
+              <Select value={String(form.farrowingEase ?? "")} onValueChange={v => setForm(f => ({ ...f, farrowingEase: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["1 — Unassisted", "2 — Minor assistance", "3 — Major assistance", "4 — Vet required"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2 mt-5">
+              <Checkbox id="assistanceRequired" checked={Boolean(form.assistanceRequired)} onCheckedChange={v => setForm(f => ({ ...f, assistanceRequired: Boolean(v) }))} />
+              <Label htmlFor="assistanceRequired" className="text-xs">Assistance required?</Label>
+            </div>
+            <div><Label>Born Alive *</Label><Input type="number" value={String(form.totalBornAlive ?? "0")} onChange={e => setForm(f => ({ ...f, totalBornAlive: e.target.value }))} /></div>
+            <div><Label>Born Dead (Stillbirths)</Label><Input type="number" value={String(form.totalBornDead ?? "0")} onChange={e => setForm(f => ({ ...f, totalBornDead: e.target.value }))} /></div>
+            <div><Label>Mummified</Label><Input type="number" value={String(form.totalMummified ?? "0")} onChange={e => setForm(f => ({ ...f, totalMummified: e.target.value }))} /></div>
+            <div><Label>Avg Birth Weight (kg)</Label><Input type="number" step="0.01" value={String(form.averageBirthWeightKg ?? "")} onChange={e => setForm(f => ({ ...f, averageBirthWeightKg: e.target.value }))} /></div>
+            <div><Label>Fosters In</Label><Input type="number" value={String(form.fostersIn ?? "0")} onChange={e => setForm(f => ({ ...f, fostersIn: e.target.value }))} /></div>
+            <div><Label>Fosters Out</Label><Input type="number" value={String(form.fostersOut ?? "0")} onChange={e => setForm(f => ({ ...f, fostersOut: e.target.value }))} /></div>
+            <div><Label>Weaning Date</Label><Input type="date" value={String(form.weaningDate ?? "")} onChange={e => setForm(f => ({ ...f, weaningDate: e.target.value }))} /></div>
+            <div><Label>Piglets Weaned</Label><Input type="number" value={String(form.pigletsWeanedCount ?? "")} onChange={e => setForm(f => ({ ...f, pigletsWeanedCount: e.target.value }))} /></div>
+            <div><Label>Avg Weaning Weight (kg)</Label><Input type="number" step="0.01" value={String(form.averageWeaningWeightKg ?? "")} onChange={e => setForm(f => ({ ...f, averageWeaningWeightKg: e.target.value }))} /></div>
+            <div className="flex items-center gap-2 mt-5">
+              <Checkbox id="colostrumManaged" checked={Boolean(form.colostrumManaged)} onCheckedChange={v => setForm(f => ({ ...f, colostrumManaged: Boolean(v) }))} />
+              <Label htmlFor="colostrumManaged" className="text-xs">Colostrum management confirmed</Label>
+            </div>
+            <div className="col-span-3"><Label>Assistance Details</Label><Textarea value={String(form.assistanceDetails ?? "")} onChange={e => setForm(f => ({ ...f, assistanceDetails: e.target.value }))} rows={2} placeholder="Details of any vet or manual assistance" /></div>
+            <div className="col-span-3"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save Record</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
-type Tab = "flocks" | "movements" | "fci" | "feed" | "vet" | "stockmanship";
+type Tab = "flocks" | "movements" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing";
 
 export default function PigProductionPage() {
   const { farmId } = useAppStore();
@@ -504,6 +686,8 @@ export default function PigProductionPage() {
           <TabButton active={tab === "feed"} onClick={() => setTab("feed")}><UtensilsCrossed className="w-3.5 h-3.5 mr-1" />Feed Records</TabButton>
           <TabButton active={tab === "vet"} onClick={() => setTab("vet")}><Stethoscope className="w-3.5 h-3.5 mr-1" />Vet Assessments</TabButton>
           <TabButton active={tab === "stockmanship"} onClick={() => setTab("stockmanship")}><ClipboardCheck className="w-3.5 h-3.5 mr-1" />Stockmanship</TabButton>
+          <TabButton active={tab === "tail-biting"} onClick={() => setTab("tail-biting")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Tail Biting Risk</TabButton>
+          <TabButton active={tab === "farrowing"} onClick={() => setTab("farrowing")}><Baby className="w-3.5 h-3.5 mr-1" />Farrowing</TabButton>
         </TabBar>
         <Card><CardContent className="pt-4">
           {tab === "flocks" && <FlocksTab farmId={farmId} />}
@@ -512,6 +696,8 @@ export default function PigProductionPage() {
           {tab === "feed" && <FeedRecordsTab farmId={farmId} />}
           {tab === "vet" && <VetAssessmentsTab farmId={farmId} />}
           {tab === "stockmanship" && <StockmanshipChecksTab farmId={farmId} />}
+          {tab === "tail-biting" && <TailBitingRisksTab farmId={farmId} />}
+          {tab === "farrowing" && <FarrowingRecordsTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>
