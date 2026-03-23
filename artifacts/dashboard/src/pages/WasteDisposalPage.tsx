@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, Search, Pencil, AlertTriangle, FileText, Truck } from "lucide-react";
+import { Trash2, Plus, Search, Pencil, AlertTriangle, FileText, Truck, Recycle } from "lucide-react";
 
 interface WasteRecord {
   id: number;
@@ -21,35 +21,54 @@ interface WasteRecord {
   disposalDate: string;
   carrierName: string | null;
   carrierLicence: string | null;
+  carrierRegistrationType: string | null;
   destinationSite: string | null;
   wasteTransferNote: string | null;
+  ewcCode: string | null;
   notes: string | null;
   createdAt: string;
 }
 
-const WASTE_TYPES = [
-  "Agricultural plastics (bale wrap, silage sheet)",
-  "Chemical containers / pesticide packaging",
-  "Clinical / veterinary waste",
-  "Waste oil / lubricants",
-  "Scrap metal",
-  "Tyres",
-  "Batteries",
-  "Electronic waste (WEEE)",
-  "Cardboard / paper",
-  "General farm waste",
-  "Sewage / slurry",
-  "Asbestos",
-  "Other",
+const WASTE_TYPES_WITH_EWC: { label: string; ewc: string }[] = [
+  { label: "Agricultural plastics – bale wrap / silage sheet", ewc: "02 01 04" },
+  { label: "Chemical containers / pesticide packaging", ewc: "15 01 10*" },
+  { label: "Clinical / veterinary waste (sharps, medicines)", ewc: "18 02 02*" },
+  { label: "Waste oil / lubricants", ewc: "13 02 05*" },
+  { label: "Scrap metal", ewc: "17 04 05" },
+  { label: "Tyres", ewc: "16 01 03" },
+  { label: "Batteries", ewc: "16 06 01*" },
+  { label: "Electronic waste (WEEE)", ewc: "16 02 14" },
+  { label: "Cardboard / paper (non-hazardous)", ewc: "15 01 01" },
+  { label: "General farm waste (mixed non-hazardous)", ewc: "02 01 99" },
+  { label: "Sewage / slurry (non-hazardous)", ewc: "02 01 06" },
+  { label: "Asbestos", ewc: "17 06 01*" },
+  { label: "Food waste / organic waste", ewc: "02 01 02" },
+  { label: "Spent chemicals / washings", ewc: "07 04 04*" },
+  { label: "Mineral oils (non-hazardous)", ewc: "13 01 10" },
+  { label: "Mixed construction waste", ewc: "17 09 04" },
+  { label: "Other", ewc: "" },
 ];
+
+const WASTE_TYPES = WASTE_TYPES_WITH_EWC.map(w => w.label);
 
 const DISPOSAL_METHODS = [
   "Licensed waste carrier collection",
   "Registered waste site drop-off",
   "Agricultural waste contractor",
-  "Retailer take-back scheme",
+  "Retailer take-back scheme (e.g. AgXchange)",
   "On-farm composting",
-  "On-farm burning (permitted)",
+  "On-farm burning (permitted materials only)",
+  "Approved incineration facility",
+  "Recycling facility",
+  "Other",
+];
+
+const CARRIER_TYPES = [
+  "Environment Agency Registered Carrier",
+  "Upper Tier Carrier",
+  "Lower Tier Carrier",
+  "Exemption holder",
+  "Retailer take-back scheme",
   "Other",
 ];
 
@@ -58,347 +77,236 @@ const fmt = (d: string | null | undefined) => {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
 
-const TODAY = new Date().toISOString().slice(0, 10);
-const EMPTY: Partial<WasteRecord> = {
-  wasteType: "", quantity: "", disposalMethod: "", disposalDate: TODAY,
-  carrierName: "", carrierLicence: "", destinationSite: "", wasteTransferNote: "", notes: "",
-};
-
 export default function WasteDisposalPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
-
   const [search, setSearch] = useState("");
-  const [filterMethod, setFilterMethod] = useState("all");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [viewRecord, setViewRecord] = useState<WasteRecord | null>(null);
-  const [editing, setEditing] = useState<WasteRecord | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<WasteRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState<Partial<WasteRecord>>(EMPTY);
 
-  const { data, isLoading } = useQuery({
+  const emptyForm = {
+    wasteType: "", ewcCode: "", quantity: "", disposalMethod: "", disposalDate: "",
+    carrierName: "", carrierLicence: "", carrierRegistrationType: "", destinationSite: "",
+    wasteTransferNote: "", notes: "",
+  };
+  const [form, setForm] = useState<any>(emptyForm);
+
+  const q = useQuery({
     queryKey: ["waste", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/waste`).then(r => r.json()),
     enabled: !!farmId,
+    select: d => d.records ?? [],
   });
 
-  const records: WasteRecord[] = data?.records ?? [];
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["waste", farmId] });
 
-  const thisMonthCount = (() => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    return records.filter(r => new Date(r.disposalDate) >= start).length;
-  })();
-
-  const uniqueTypes = new Set(records.map(r => r.wasteType)).size;
-  const missingWTN = records.filter(r => !r.wasteTransferNote && r.disposalMethod.toLowerCase().includes("carrier")).length;
-
-  const filtered = records.filter(r => {
-    const matchSearch = !search
-      || r.wasteType.toLowerCase().includes(search.toLowerCase())
-      || r.carrierName?.toLowerCase().includes(search.toLowerCase())
-      || r.destinationSite?.toLowerCase().includes(search.toLowerCase())
-      || r.wasteTransferNote?.toLowerCase().includes(search.toLowerCase());
-    const matchMethod = filterMethod === "all" || r.disposalMethod === filterMethod;
-    return matchSearch && matchMethod;
-  });
-
-  const saveMutation = useMutation({
-    mutationFn: (data: Partial<WasteRecord>) => {
-      const url = editing
-        ? `/api/farms/${farmId}/waste/${editing.id}`
-        : `/api/farms/${farmId}/waste`;
-      return fetch(url, {
-        method: editing ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...data,
-          disposalDate: data.disposalDate ? new Date(data.disposalDate).toISOString() : new Date().toISOString(),
-          quantity: data.quantity || null,
-          carrierName: data.carrierName || null,
-          carrierLicence: data.carrierLicence || null,
-          destinationSite: data.destinationSite || null,
-          wasteTransferNote: data.wasteTransferNote || null,
-          notes: data.notes || null,
-        }),
-      }).then(r => r.json());
+  const saveMut = useMutation({
+    mutationFn: (body: any) => {
+      const payload = { ...body, disposalDate: body.disposalDate ? new Date(body.disposalDate).toISOString() : undefined };
+      if (editRecord) return fetch(`/api/farms/${farmId}/waste/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      return fetch(`/api/farms/${farmId}/waste`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["waste", farmId] });
-      toast({ title: editing ? "Record updated" : "Record added" });
-      closeDialog();
-    },
-    onError: () => toast({ title: "Error saving record", variant: "destructive" }),
+    onSuccess: () => { toast({ title: editRecord ? "Record updated" : "Record saved" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(emptyForm); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
-  const deleteMutation = useMutation({
+  const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/waste/${id}`, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["waste", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
+    onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  function openAdd() { setEditing(null); setForm({ ...EMPTY, disposalDate: TODAY }); setDialogOpen(true); }
-  function openEdit(r: WasteRecord) {
-    setEditing(r);
-    setForm({ ...r, disposalDate: r.disposalDate?.slice(0, 10) });
-    setViewRecord(null);
-    setDialogOpen(true);
-  }
-  function closeDialog() { setDialogOpen(false); setEditing(null); setForm(EMPTY); }
-  const set = (k: keyof WasteRecord, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const records: WasteRecord[] = q.data ?? [];
+  const filtered = records.filter(r =>
+    !search || r.wasteType?.toLowerCase().includes(search.toLowerCase()) || r.carrierName?.toLowerCase().includes(search.toLowerCase()) || r.destinationSite?.toLowerCase().includes(search.toLowerCase())
+  );
 
-  const uniqueMethods = Array.from(new Set(records.map(r => r.disposalMethod).filter(Boolean)));
+  const openAdd = () => { setEditRecord(null); setForm(emptyForm); setAddOpen(true); };
+  const openEdit = (r: WasteRecord) => {
+    setEditRecord(r);
+    setForm({ ...r, disposalDate: r.disposalDate?.slice(0, 10) ?? "" });
+    setAddOpen(true);
+  };
+
+  const onWasteTypeChange = (v: string) => {
+    const match = WASTE_TYPES_WITH_EWC.find(w => w.label === v);
+    setForm((f: any) => ({ ...f, wasteType: v, ewcCode: match?.ewc || f.ewcCode }));
+  };
 
   return (
-    <AppLayout>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center">
-              <Trash2 className="w-5 h-5 text-slate-600" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">Waste Disposal</h1>
-              <p className="text-sm text-gray-500">Farm waste disposal records and carrier documentation</p>
-            </div>
-          </div>
-          <Button className="bg-brand-forest hover:bg-brand-forest/90 text-white" onClick={openAdd}>
-            <Plus className="w-4 h-4 mr-2" /> Add Record
-          </Button>
-        </div>
+    <AppLayout title="Waste Disposal">
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <p className="text-sm text-gray-500 mb-4">
+          Waste disposal records — Duty of Care compliance, waste transfer notes, and licensed carrier tracking for Red Tractor and legal requirements.
+        </p>
 
-        {/* Stats */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "1rem" }}>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">Total Disposals</p>
-            <p className="text-2xl font-bold text-gray-900">{records.length}</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: "1.5rem" }}>
+          <div style={{ background: "#f0fdf4", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ background: "#dcfce7", borderRadius: 8, padding: 8 }}><Recycle size={18} color="#16a34a" /></div>
+            <div><p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Total Records</p><p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{records.length}</p></div>
           </div>
-          <div className="bg-white rounded-lg border border-blue-200 p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <FileText className="w-3.5 h-3.5 text-blue-600" />
-              <p className="text-xs text-blue-600 uppercase tracking-wide font-medium">This Month</p>
-            </div>
-            <p className="text-2xl font-bold text-blue-700">{thisMonthCount}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Disposals recorded</p>
+          <div style={{ background: "#fffbeb", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ background: "#fef3c7", borderRadius: 8, padding: 8 }}><FileText size={18} color="#92400e" /></div>
+            <div><p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Waste Transfer Notes</p><p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{records.filter(r => r.wasteTransferNote).length}</p></div>
           </div>
-          <div className="bg-white rounded-lg border border-purple-200 p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Truck className="w-3.5 h-3.5 text-purple-600" />
-              <p className="text-xs text-purple-600 uppercase tracking-wide font-medium">Waste Categories</p>
-            </div>
-            <p className="text-2xl font-bold text-purple-700">{uniqueTypes}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Unique waste types</p>
-          </div>
-          <div className={`bg-white rounded-lg border p-4 ${missingWTN > 0 ? "border-orange-200" : "border-green-200"}`}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <AlertTriangle className={`w-3.5 h-3.5 ${missingWTN > 0 ? "text-orange-600" : "text-green-600"}`} />
-              <p className={`text-xs uppercase tracking-wide font-medium ${missingWTN > 0 ? "text-orange-600" : "text-green-600"}`}>Missing WTN</p>
-            </div>
-            <p className={`text-2xl font-bold ${missingWTN > 0 ? "text-orange-700" : "text-green-700"}`}>{missingWTN}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Carrier records without transfer note</p>
+          <div style={{ background: "#eff6ff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ background: "#dbeafe", borderRadius: 8, padding: 8 }}><Truck size={18} color="#1d4ed8" /></div>
+            <div><p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Unique Carriers</p><p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{new Set(records.filter(r => r.carrierName).map(r => r.carrierName)).size}</p></div>
           </div>
         </div>
 
-        {/* Compliance note */}
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 flex items-start gap-2">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-          <p>Red Tractor requires waste disposal records for all hazardous and controlled waste. When using a licensed waste carrier, always obtain and retain the <strong>Waste Transfer Note (WTN)</strong> — this is a legal requirement under the Environmental Protection Act 1990.</p>
+        <div style={{ background: "#fff3cd", border: "1px solid #ffc107", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.8rem", color: "#856404" }}>
+          <strong>Duty of Care reminder:</strong> Always use licensed waste carriers. Obtain a Waste Transfer Note (WTN) for every collection. EWC codes marked with * are hazardous waste — special rules apply.
         </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-48">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input placeholder="Search by waste type, carrier or WTN…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+        <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
+          <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+            <Input placeholder="Search waste records..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
           </div>
-          <Select value={filterMethod} onValueChange={setFilterMethod}>
-            <SelectTrigger className="w-52"><SelectValue placeholder="Disposal method" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All methods</SelectItem>
-              {uniqueMethods.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Add Waste Record</Button>
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Loading records…</div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-2">
-              <Trash2 className="w-8 h-8 text-gray-300" />
-              <p className="text-gray-500 text-sm">No waste disposal records found</p>
-              <p className="text-gray-400 text-xs">Log all farm waste disposals to demonstrate compliance</p>
-            </div>
-          ) : (
-            <table className="w-full text-sm">
+        {q.isLoading ? (
+          <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
+        ) : filtered.length === 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "4rem 1rem", textAlign: "center" }}>
+            <div style={{ background: "#f3f4f6", borderRadius: "50%", padding: "1rem", marginBottom: "1rem" }}><Recycle size={28} color="#9ca3af" /></div>
+            <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>{records.length === 0 ? "No waste records" : "No records match your search"}</p>
+            <p style={{ fontSize: "0.875rem", color: "#9ca3af", maxWidth: 400, marginBottom: "1.25rem" }}>
+              Log all waste movements to maintain your Duty of Care obligations and Red Tractor records.
+            </p>
+          </div>
+        ) : (
+          <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Waste Type</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Disposal Date</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Method</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Carrier</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">WTN Ref</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Qty</th>
-                  <th className="text-right px-4 py-3"></th>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  {["Date", "Waste Type", "EWC Code", "Quantity", "Method", "Carrier", "Carrier Licence", "Carrier Type", "Destination", "WTN", ""].map(h => (
+                    <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(r => (
-                  <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-gray-900">{r.wasteType}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmt(r.disposalDate)}</td>
-                    <td className="px-4 py-3 text-gray-600 max-w-[160px]"><span className="line-clamp-1">{r.disposalMethod}</span></td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {r.carrierName ? (
-                        <div>
-                          <p>{r.carrierName}</p>
-                          {r.carrierLicence && <p className="text-xs text-gray-400">Lic: {r.carrierLicence}</p>}
-                        </div>
+                {filtered.map((r: WasteRecord, i: number) => (
+                  <tr key={r.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.disposalDate)}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", fontWeight: 500, maxWidth: 200 }}>{r.wasteType || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem" }}>
+                      {r.ewcCode ? (
+                        <Badge style={{ background: r.ewcCode.includes("*") ? "#fee2e2" : "#f3f4f6", color: r.ewcCode.includes("*") ? "#991b1b" : "#374151", border: "none", fontFamily: "monospace", fontSize: "0.72rem" }}>
+                          {r.ewcCode}
+                        </Badge>
                       ) : "—"}
                     </td>
-                    <td className="px-4 py-3">
-                      {r.wasteTransferNote
-                        ? <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded px-1.5 py-0.5">{r.wasteTransferNote}</span>
-                        : <span className="text-orange-500 text-xs">No WTN</span>}
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.quantity || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", maxWidth: 160 }}>{r.disposalMethod || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.carrierName || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontFamily: r.carrierLicence ? "monospace" : "inherit", fontSize: r.carrierLicence ? "0.8rem" : "inherit" }}>{r.carrierLicence || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontSize: "0.75rem" }}>{(r as any).carrierRegistrationType || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.destinationSite || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem" }}>
+                      {r.wasteTransferNote ? (
+                        <Badge style={{ background: "#dcfce7", color: "#166534", border: "none", fontFamily: "monospace", fontSize: "0.72rem" }}>{r.wasteTransferNote}</Badge>
+                      ) : <span style={{ color: "#d1d5db", fontSize: "0.75rem" }}>None</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{r.quantity || "—"}</td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => setViewRecord(r)}>View</Button>
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => setDeleteId(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    <td style={{ padding: "0.5rem" }}>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                        <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
-      </div>
-
-      {/* Add / Edit dialog */}
-      <Dialog open={dialogOpen} onOpenChange={v => { if (!v) closeDialog(); }}>
-        <DialogContent style={{ maxWidth: "52rem" }}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trash2 className="w-5 h-5 text-slate-600" />
-              {editing ? "Edit Disposal Record" : "New Waste Disposal Record"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-              <div className="space-y-1.5">
-                <Label>Waste Type *</Label>
-                <Select value={form.wasteType ?? ""} onValueChange={v => set("wasteType", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select waste type" /></SelectTrigger>
-                  <SelectContent>
-                    {WASTE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Disposal Date *</Label>
-                <Input type="date" value={form.disposalDate ?? ""} onChange={e => set("disposalDate", e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Disposal Method *</Label>
-                <Select value={form.disposalMethod ?? ""} onValueChange={v => set("disposalMethod", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-                  <SelectContent>
-                    {DISPOSAL_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Quantity</Label>
-                <Input value={form.quantity ?? ""} onChange={e => set("quantity", e.target.value)} placeholder="e.g. 500 kg, 20 bales" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Carrier Name</Label>
-                <Input value={form.carrierName ?? ""} onChange={e => set("carrierName", e.target.value)} placeholder="Name of licensed waste carrier" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Carrier Licence Number</Label>
-                <Input value={form.carrierLicence ?? ""} onChange={e => set("carrierLicence", e.target.value)} placeholder="e.g. CBDU123456" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Destination Site</Label>
-                <Input value={form.destinationSite ?? ""} onChange={e => set("destinationSite", e.target.value)} placeholder="Name and location of receiving site" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Waste Transfer Note Reference</Label>
-                <Input value={form.wasteTransferNote ?? ""} onChange={e => set("wasteTransferNote", e.target.value)} placeholder="WTN reference number" />
-              </div>
-              <div className="space-y-1.5 col-span-2">
-                <Label>Notes</Label>
-                <Textarea value={form.notes ?? ""} onChange={e => set("notes", e.target.value)} rows={2} placeholder="Any additional notes…" />
-              </div>
-            </div>
           </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={closeDialog}>Cancel</Button>
-            <Button
-              className="bg-brand-forest hover:bg-brand-forest/90 text-white"
-              disabled={!form.wasteType || !form.disposalMethod || !form.disposalDate || saveMutation.isPending}
-              onClick={() => saveMutation.mutate(form)}
-            >
-              {saveMutation.isPending ? "Saving…" : editing ? "Save Changes" : "Add Record"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
 
-      {/* View dialog */}
-      {viewRecord && !dialogOpen && (
-        <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Trash2 className="w-5 h-5 text-slate-600" />
-                {viewRecord.wasteType}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 text-sm">
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Disposal Date</p><p>{fmt(viewRecord.disposalDate)}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Quantity</p><p>{viewRecord.quantity || "—"}</p></div>
-                <div className="col-span-2"><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Disposal Method</p><p>{viewRecord.disposalMethod}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Carrier</p><p>{viewRecord.carrierName || "—"}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Carrier Licence</p><p className="font-mono text-xs">{viewRecord.carrierLicence || "—"}</p></div>
-                <div><p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Destination Site</p><p>{viewRecord.destinationSite || "—"}</p></div>
+        <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
+          <DialogContent style={{ maxWidth: 600 }}>
+            <DialogHeader><DialogTitle>{editRecord ? "Edit Waste Record" : "Add Waste Disposal Record"}</DialogTitle></DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs text-gray-500 uppercase font-medium mb-0.5">Waste Transfer Note</p>
-                  {viewRecord.wasteTransferNote
-                    ? <span className="font-mono text-sm bg-gray-50 border border-gray-200 rounded px-2 py-0.5">{viewRecord.wasteTransferNote}</span>
-                    : <span className="text-orange-500 text-sm">Not recorded</span>}
+                  <Label>Disposal Date <span style={{ color: "#ef4444" }}>*</span></Label>
+                  <Input type="date" value={form.disposalDate} onChange={e => setForm((f: any) => ({ ...f, disposalDate: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Quantity / Volume</Label>
+                  <Input placeholder="e.g. 50 bags, 200 litres, 0.5 tonnes" value={form.quantity} onChange={e => setForm((f: any) => ({ ...f, quantity: e.target.value }))} />
                 </div>
               </div>
-              {viewRecord.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewRecord.notes}</p></div>}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Waste Type <span style={{ color: "#ef4444" }}>*</span></Label>
+                  <Select value={form.wasteType} onValueChange={onWasteTypeChange}>
+                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectContent>{WASTE_TYPES_WITH_EWC.map(w => <SelectItem key={w.label} value={w.label}>{w.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>EWC Code</Label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Input placeholder="e.g. 02 01 04" value={form.ewcCode} onChange={e => setForm((f: any) => ({ ...f, ewcCode: e.target.value }))} style={{ fontFamily: "monospace" }} />
+                    {form.ewcCode?.includes("*") && <span style={{ color: "#991b1b", fontSize: "0.75rem", whiteSpace: "nowrap" }}>⚠ Hazardous</span>}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <Label>Disposal Method <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Select value={form.disposalMethod} onValueChange={v => setForm((f: any) => ({ ...f, disposalMethod: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>{DISPOSAL_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+
+              <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "0.75rem" }}>
+                <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Duty of Care — Carrier Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Carrier Company Name</Label><Input placeholder="e.g. Smith Waste Services Ltd" value={form.carrierName} onChange={e => setForm((f: any) => ({ ...f, carrierName: e.target.value }))} /></div>
+                  <div><Label>Environment Agency Licence No.</Label><Input placeholder="e.g. CBDU01234" value={form.carrierLicence} onChange={e => setForm((f: any) => ({ ...f, carrierLicence: e.target.value }))} style={{ fontFamily: "monospace" }} /></div>
+                </div>
+                <div style={{ marginTop: "0.75rem" }}>
+                  <Label>Carrier Registration Type</Label>
+                  <Select value={form.carrierRegistrationType} onValueChange={v => setForm((f: any) => ({ ...f, carrierRegistrationType: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectContent>{CARRIER_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Destination / Permitted Site</Label><Input placeholder="e.g. Smiths Quarry Transfer Station" value={form.destinationSite} onChange={e => setForm((f: any) => ({ ...f, destinationSite: e.target.value }))} /></div>
+                <div>
+                  <Label>Waste Transfer Note No.</Label>
+                  <Input placeholder="e.g. WTN-2025-001" value={form.wasteTransferNote} onChange={e => setForm((f: any) => ({ ...f, wasteTransferNote: e.target.value }))} style={{ fontFamily: "monospace" }} />
+                </div>
+              </div>
+              <div><Label>Notes</Label><Textarea placeholder="Additional information, collection reference, driver details..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => openEdit(viewRecord)}>Edit</Button>
-              <Button variant="ghost" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
+              <Button onClick={() => saveMut.mutate(form)} disabled={!form.disposalDate || !form.wasteType || !form.disposalMethod || saveMut.isPending}>
+                {saveMut.isPending ? "Saving…" : editRecord ? "Save Changes" : "Save Record"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      )}
 
-      {/* Delete confirm */}
-      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
-        <DialogContent style={{ maxWidth: "28rem" }}>
-          <DialogHeader><DialogTitle>Delete Waste Record</DialogTitle></DialogHeader>
-          <p className="text-sm text-gray-600">This will permanently delete this waste disposal record. This cannot be undone.</p>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="destructive" disabled={deleteMutation.isPending} onClick={() => deleteId && deleteMutation.mutate(deleteId)}>
-              {deleteMutation.isPending ? "Deleting…" : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+          <DialogContent style={{ maxWidth: 400 }}>
+            <DialogHeader><DialogTitle>Delete Waste Record</DialogTitle></DialogHeader>
+            <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this waste disposal record?</p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </AppLayout>
   );
 }

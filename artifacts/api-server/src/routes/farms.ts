@@ -145,6 +145,8 @@ import {
   farmInsuranceTable,
   farmPlannerEventsTable,
   farmGrantsTable,
+  farmAssuranceCertsTable,
+  cropContractsTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte, isNotNull, lte } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
@@ -1980,6 +1982,74 @@ router.delete("/farms/:farmId/corrective-actions/:recordId", requireAuth, requir
   res.json({ success: true });
 });
 
+// ─── Farm Assurance Certificates ─────────────────────
+router.get("/farms/:farmId/assurance-certs", requireAuth, requireTenant, requireModuleByKey("inspections", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(farmAssuranceCertsTable).where(eq(farmAssuranceCertsTable.farmId, farmId)).orderBy(desc(farmAssuranceCertsTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/assurance-certs", requireAuth, requireTenant, requireModuleByKey("inspections", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(farmAssuranceCertsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/assurance-certs/:recordId", requireAuth, requireTenant, requireModuleByKey("inspections", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(farmAssuranceCertsTable).set(req.body).where(and(eq(farmAssuranceCertsTable.id, recordId), eq(farmAssuranceCertsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/assurance-certs/:recordId", requireAuth, requireTenant, requireModuleByKey("inspections", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(farmAssuranceCertsTable).where(and(eq(farmAssuranceCertsTable.id, recordId), eq(farmAssuranceCertsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── COSHH (via risk-waste module key) ─────────────────
+router.get("/farms/:farmId/risk-coshh", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(coshhRecordsTable).where(eq(coshhRecordsTable.farmId, farmId)).orderBy(desc(coshhRecordsTable.assessmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/risk-coshh", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(coshhRecordsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/risk-coshh/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(coshhRecordsTable).set(req.body).where(and(eq(coshhRecordsTable.id, recordId), eq(coshhRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/risk-coshh/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(coshhRecordsTable).where(and(eq(coshhRecordsTable.id, recordId), eq(coshhRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 // ─── Environmental Features ────────────────────────
 router.get("/farms/:farmId/environmental-features", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -2617,6 +2687,40 @@ router.post("/farms/:farmId/financial-exports", requireAuth, requireTenant, requ
   }
 
   res.json({ record: { format, transactionCount: filtered.length, transactions: filtered } });
+});
+
+// ─── Crop Contracts ─────────────────────────────────
+router.get("/farms/:farmId/crop-contracts", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(cropContractsTable).where(eq(cropContractsTable.farmId, farmId)).orderBy(desc(cropContractsTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/crop-contracts", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(cropContractsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/crop-contracts/:recordId", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(cropContractsTable).set(req.body).where(and(eq(cropContractsTable.id, recordId), eq(cropContractsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/crop-contracts/:recordId", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(cropContractsTable).where(and(eq(cropContractsTable.id, recordId), eq(cropContractsTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 // ─── Documents ─────────────────────────────────────

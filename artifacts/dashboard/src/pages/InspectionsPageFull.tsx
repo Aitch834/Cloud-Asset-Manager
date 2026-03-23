@@ -11,14 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil } from "lucide-react";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
 
-type Tab = "inspections" | "nonconformances" | "corrective-actions";
+type Tab = "inspections" | "nonconformances" | "corrective-actions" | "assurance-certs";
 
 function SeverityBadge({ severity }: { severity: string | null }) {
   const map: Record<string, { bg: string; color: string }> = {
@@ -479,6 +479,230 @@ function CorrectiveActionsTab({ farmId }: { farmId: number }) {
   );
 }
 
+const CERT_BODIES = [
+  "Red Tractor Assurance",
+  "LEAF Marque",
+  "Organic Farmers & Growers",
+  "Soil Association",
+  "RSPCA Assured",
+  "Certus (Assured Food Standards)",
+  "QMS (Quality Meat Scotland)",
+  "HCC Assured",
+  "BRCGS",
+  "Other",
+];
+
+const CERT_SECTORS = [
+  "Combinable Crops",
+  "Fruit & Vegetables",
+  "Fresh Produce",
+  "Beef & Lamb",
+  "Dairy",
+  "Pigs",
+  "Poultry",
+  "Eggs",
+  "Horticulture",
+  "Arable",
+  "Other",
+];
+
+function CertStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { bg: string; color: string }> = {
+    active: { bg: "#dcfce7", color: "#166534" },
+    expired: { bg: "#fee2e2", color: "#991b1b" },
+    suspended: { bg: "#fef3c7", color: "#92400e" },
+    surrendered: { bg: "#f3f4f6", color: "#6b7280" },
+    pending: { bg: "#eff6ff", color: "#1e40af" },
+  };
+  const s = map[status] ?? { bg: "#f3f4f6", color: "#374151" };
+  return (
+    <Badge style={{ background: s.bg, color: s.color, border: "none", textTransform: "capitalize", fontSize: "0.75rem" }}>
+      {status}
+    </Badge>
+  );
+}
+
+function AssuranceCertsTab({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const emptyForm = { certificationBody: "", scheme: "", certNumber: "", sectors: "", assessorName: "", assessorMembershipNo: "", issueDate: "", expiryDate: "", status: "active", nextVisitDue: "", notes: "" };
+  const [form, setForm] = useState<any>(emptyForm);
+
+  const q = useQuery({
+    queryKey: ["assurance-certs", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/assurance-certs`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["assurance-certs", farmId] });
+
+  const saveMut = useMutation({
+    mutationFn: (body: any) => {
+      const payload = {
+        ...body,
+        issueDate: body.issueDate ? new Date(body.issueDate).toISOString() : null,
+        expiryDate: body.expiryDate ? new Date(body.expiryDate).toISOString() : null,
+        nextVisitDue: body.nextVisitDue ? new Date(body.nextVisitDue).toISOString() : null,
+      };
+      if (editRecord) return fetch(`/api/farms/${farmId}/assurance-certs/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      return fetch(`/api/farms/${farmId}/assurance-certs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    },
+    onSuccess: () => { toast({ title: editRecord ? "Certificate updated" : "Certificate saved" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(emptyForm); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/assurance-certs/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const records: any[] = q.data ?? [];
+  const activeCount = records.filter(r => r.status === "active").length;
+
+  const openAdd = () => { setEditRecord(null); setForm(emptyForm); setAddOpen(true); };
+  const openEdit = (r: any) => {
+    setEditRecord(r);
+    setForm({ ...r, issueDate: r.issueDate?.slice(0, 10) ?? "", expiryDate: r.expiryDate?.slice(0, 10) ?? "", nextVisitDue: r.nextVisitDue?.slice(0, 10) ?? "" });
+    setAddOpen(true);
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          {activeCount > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "4px 10px" }}>
+              <Award size={13} color="#16a34a" />
+              <span style={{ fontSize: "0.8rem", color: "#166534", fontWeight: 600 }}>{activeCount} active certificate{activeCount !== 1 ? "s" : ""}</span>
+            </div>
+          )}
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Add Certificate</Button>
+      </div>
+
+      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <Award size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>No assurance certificates recorded</p>
+          <p style={{ fontSize: "0.875rem" }}>Track Red Tractor, LEAF Marque, Organic and other farm assurance certificates here.</p>
+        </div>
+      ) : (
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                {["Certification Body", "Scheme / Sector", "Cert No.", "Assessor", "Membership No.", "Issue Date", "Expiry", "Next Visit", "Status", ""].map(h => (
+                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r: any, i: number) => {
+                const isExpired = r.expiryDate && new Date(r.expiryDate) < new Date();
+                return (
+                  <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                    <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600 }}>{r.certificationBody}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.sectors || r.scheme || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontFamily: r.certNumber ? "monospace" : "inherit" }}>{r.certNumber || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.assessorName || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontFamily: r.assessorMembershipNo ? "monospace" : "inherit" }}>{r.assessorMembershipNo || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.issueDate)}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>
+                      <span style={{ color: isExpired ? "#991b1b" : "#166534", fontWeight: isExpired ? 600 : 400 }}>
+                        {isExpired && "⚠ "}{fmt(r.expiryDate)}
+                      </span>
+                    </td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.nextVisitDue)}</td>
+                    <td style={{ padding: "0.625rem 0.875rem" }}><CertStatusBadge status={r.status} /></td>
+                    <td style={{ padding: "0.5rem" }}>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                        <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
+        <DialogContent style={{ maxWidth: 560 }}>
+          <DialogHeader><DialogTitle>{editRecord ? "Edit Certificate" : "Add Assurance Certificate"}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Certification Body <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Select value={form.certificationBody} onValueChange={v => setForm((f: any) => ({ ...f, certificationBody: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>{CERT_BODIES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Scheme / Sector</Label>
+                <Select value={form.sectors} onValueChange={v => setForm((f: any) => ({ ...f, sectors: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>{CERT_SECTORS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Certificate Number</Label><Input placeholder="e.g. RT-CC-2025-001234" value={form.certNumber} onChange={e => setForm((f: any) => ({ ...f, certNumber: e.target.value }))} /></div>
+              <div>
+                <Label>Status</Label>
+                <Select value={form.status} onValueChange={v => setForm((f: any) => ({ ...f, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
+                    <SelectItem value="surrendered">Surrendered</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Assessor Name</Label><Input placeholder="Name of auditor / assessor" value={form.assessorName} onChange={e => setForm((f: any) => ({ ...f, assessorName: e.target.value }))} /></div>
+              <div><Label>Assessor Membership No.</Label><Input placeholder="e.g. FACTS / CRoPS / BASIS no." value={form.assessorMembershipNo} onChange={e => setForm((f: any) => ({ ...f, assessorMembershipNo: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Issue Date</Label><Input type="date" value={form.issueDate} onChange={e => setForm((f: any) => ({ ...f, issueDate: e.target.value }))} /></div>
+              <div><Label>Expiry Date</Label><Input type="date" value={form.expiryDate} onChange={e => setForm((f: any) => ({ ...f, expiryDate: e.target.value }))} /></div>
+            </div>
+            <div><Label>Next Visit Due</Label><Input type="date" value={form.nextVisitDue} onChange={e => setForm((f: any) => ({ ...f, nextVisitDue: e.target.value }))} /></div>
+            <div><Label>Notes</Label><Textarea placeholder="Location of certificate, renewal actions, etc." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
+            <Button onClick={() => saveMut.mutate(form)} disabled={!form.certificationBody || saveMut.isPending}>
+              {saveMut.isPending ? "Saving…" : editRecord ? "Save Changes" : "Add Certificate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader><DialogTitle>Delete Certificate</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Are you sure you want to remove this certificate record?</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function InspectionsPageFull() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("inspections");
@@ -487,16 +711,18 @@ export default function InspectionsPageFull() {
     <AppLayout title="Inspections & Compliance">
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <p className="text-sm text-gray-500 mb-4">
-          Track Red Tractor and internal inspections, log non-conformances, and manage corrective actions through to closure.
+          Track Red Tractor and internal inspections, log non-conformances, manage corrective actions, and record farm assurance certificates.
         </p>
         <TabBar className="mb-6">
           <TabButton active={tab === "inspections"} onClick={() => setTab("inspections")}>Inspections</TabButton>
           <TabButton active={tab === "nonconformances"} onClick={() => setTab("nonconformances")}>Non-Conformances</TabButton>
           <TabButton active={tab === "corrective-actions"} onClick={() => setTab("corrective-actions")}>Corrective Actions</TabButton>
+          <TabButton active={tab === "assurance-certs"} onClick={() => setTab("assurance-certs")}>Assurance Certificates</TabButton>
         </TabBar>
         {farmId && tab === "inspections" && <InspectionsTab farmId={farmId} />}
         {farmId && tab === "nonconformances" && <NonconformancesTab farmId={farmId} />}
         {farmId && tab === "corrective-actions" && <CorrectiveActionsTab farmId={farmId} />}
+        {farmId && tab === "assurance-certs" && <AssuranceCertsTab farmId={farmId} />}
       </div>
     </AppLayout>
   );

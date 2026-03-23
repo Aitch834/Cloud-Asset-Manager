@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { stockDeliveriesTable } from "./stock-suppliers";
 
@@ -31,4 +31,27 @@ export const financialExportsTable = pgTable("financial_exports", {
   generatedBy: text("generated_by"),
   filePath: text("file_path"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const cropContractsTable = pgTable("crop_contracts", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  buyer: text("buyer").notNull(),
+  commodity: text("commodity").notNull(),
+  variety: text("variety"),
+  qualitySpec: text("quality_spec"),
+  quantityTonnes: numeric("quantity_tonnes", { precision: 10, scale: 2 }),
+  contractedPricePence: integer("contracted_price_pence"),
+  totalValuePence: integer("total_value_pence"),
+  currency: text("currency").notNull().default("GBP"),
+  priceUnit: text("price_unit"),
+  contractDate: timestamp("contract_date", { withTimezone: true }),
+  deliveryWindowStart: timestamp("delivery_window_start", { withTimezone: true }),
+  deliveryWindowEnd: timestamp("delivery_window_end", { withTimezone: true }),
+  deliveryLocation: text("delivery_location"),
+  status: text("status").notNull().default("open"),
+  contractReference: text("contract_reference"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
