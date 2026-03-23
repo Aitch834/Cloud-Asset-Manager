@@ -142,6 +142,7 @@ import {
   staffFarmAssignmentsTable,
   usersTable,
   rolesTable,
+  farmInsuranceTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte, isNotNull, lte } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
@@ -3249,6 +3250,43 @@ router.delete("/farms/:farmId/harvests/:recordId", requireAuth, requireTenant, r
   res.json({ success: true });
 });
 
+// ─── Insurance Register ─────────────────────────────
+router.get("/farms/:farmId/insurance", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const records = await db.select().from(farmInsuranceTable).where(eq(farmInsuranceTable.farmId, farmId)).orderBy(farmInsuranceTable.expiryDate);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/insurance", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const [record] = await db.insert(farmInsuranceTable).values({ ...req.body, farmId }).returning();
+  res.json(record);
+});
+
+router.put("/farms/:farmId/insurance/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const recordId = Number(req.params.recordId);
+  const [record] = await db.update(farmInsuranceTable).set(req.body).where(and(eq(farmInsuranceTable.id, recordId), eq(farmInsuranceTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(record);
+});
+
+router.delete("/farms/:farmId/insurance/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const recordId = Number(req.params.recordId);
+  await db.delete(farmInsuranceTable).where(and(eq(farmInsuranceTable.id, recordId), eq(farmInsuranceTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/insurance/:recordId/document", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const recordId = Number(req.params.recordId);
+  const { documentPath, documentName } = req.body;
+  const [record] = await db.update(farmInsuranceTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(farmInsuranceTable.id, recordId), eq(farmInsuranceTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(record);
+});
+
 // ─── Help Articles ─────────────────────────────────
 router.get("/help/articles", async (_req: Request, res: Response): Promise<void> => {
   const articles = [
@@ -5372,6 +5410,40 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h3>Red Tractor Requirements</h3>
 <p>Red Tractor requires soil testing at minimum every 5 years for all cropped land, and more frequently for fields receiving significant applications of organic manures. The soil test must be performed by an accredited laboratory and the results used to inform a nutrient management plan. The SS-reference number on each record in BDE Farm Trac provides the unique identifier inspectors need to cross-reference your field records against the laboratory certificate.</p>`,
+    },
+    {
+      id: 10035,
+      title: "Farm Insurance Register",
+      category: "Compliance",
+      content: `<p>The <strong>Insurance</strong> register in BDE Farm Trac lets you record all farm insurance policies in one place, attach scans of certificates, and receive automatic alerts when policies are approaching expiry — so you are never caught with a lapsed policy during a Red Tractor inspection.</p>
+
+<h3>Why Insurance Records Matter for Red Tractor</h3>
+<p>Red Tractor assessors check two specific policies during almost every inspection:</p>
+<ul>
+<li><strong>Employers Liability Insurance</strong> — a legal requirement under the Employers' Liability (Compulsory Insurance) Act 1969 for any farm that employs staff, including part-time, seasonal, casual, and paid family members. Minimum cover is £5 million (most policies are £10 million). The assessor will ask to see a current certificate.</li>
+<li><strong>Public Liability Insurance</strong> — required by Red Tractor (minimum £5 million, some sectors require £10 million). This covers third parties injured on farm or third-party property damage. A current certificate showing the level of cover must be available.</li>
+</ul>
+<p>Both policy types are flagged as <strong>Required</strong> in the register. If either is missing or expired, a red alert banner appears at the top of the page.</p>
+
+<h3>Adding a Policy</h3>
+<p>Click <strong>Add Policy</strong> and complete the form. Key fields:</p>
+<ul>
+<li><strong>Policy Type</strong> — choose from the list; Required types are marked with a star (★)</li>
+<li><strong>Cover Level</strong> — enter the cover amount in £ millions (e.g. enter 10 for a £10 million policy). This is shown in the table so assessors can confirm minimum cover at a glance.</li>
+<li><strong>Policyholder Name</strong> — as printed on the certificate; this should match the farm business name</li>
+<li><strong>Expiry Date</strong> — the register uses this to drive colour-coded expiry badges and advance warning alerts</li>
+</ul>
+
+<h3>Attaching a Certificate Scan</h3>
+<p>After adding a policy, click <strong>Attach</strong> in the Certificate column. You can upload a PDF, JPG, or PNG — the scan is stored securely in your farm's document storage and a <strong>View</strong> link appears in the table. During an inspection you can click View to open the full certificate on-screen without searching through paper files.</p>
+
+<h3>Expiry Alerts</h3>
+<ul>
+<li><strong>Green</strong> — more than 60 days remaining</li>
+<li><strong>Amber</strong> — expiring within 60 days — take action to renew</li>
+<li><strong>Red</strong> — expired — a banner alert also appears at the top of the page</li>
+</ul>
+<p>Review the register at the start of each year and whenever a policy is renewed. Most farm insurers issue renewal documents 30 days before expiry — upload the new certificate as soon as it arrives and update the expiry date.</p>`,
     },
     {
       id: 10032,

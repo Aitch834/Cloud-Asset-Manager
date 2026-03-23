@@ -28,3 +28,4 @@ export * from "./horticulture";
 export * from "./carbon";
 export * from "./diversification";
 export * from "./water-irrigation";
+export * from "./insurance";

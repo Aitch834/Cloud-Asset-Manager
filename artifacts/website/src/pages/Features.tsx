@@ -13,7 +13,7 @@ export default function Features() {
       title: "Red Tractor Compliance",
       icon: ClipboardCheck,
       color: "bg-blue-50 text-blue-600 border-blue-100",
-      features: ["Official template matching", "Automated gap analysis", "Audit history log", "One-click print-ready compliance reports", "Week Ahead planner — 7-day view of all scheduled tasks, due dates & overdue items across every active module"]
+      features: ["Official template matching", "Automated gap analysis", "Audit history log", "One-click print-ready compliance reports", "Week Ahead planner — 7-day view of all scheduled tasks, due dates & overdue items across every active module", "Insurance Register — record Employers Liability, Public Liability, and all other farm policies with insurer, policy number, cover level, and expiry date; attach PDF or photo scans of certificates for instant on-screen access during inspections; automatic colour-coded alerts (amber at 60 days, red on expiry) for both legally required and Red Tractor-required policies"]
     },
     {
       title: "Field & Crop Management",
