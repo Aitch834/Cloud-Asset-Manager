@@ -917,9 +917,19 @@ export default function StaffTrainingPage() {
           </TabButton>
         </TabBar>
 
-        {!farmId ? (
-          <div style={{ padding: "3rem", textAlign: "center", color: "#9ca3af" }}>Please select a farm to view training records.</div>
-        ) : tab === "training" ? (
+        {!farmId && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", marginBottom: 24, borderRadius: 8, background: "#fffbeb", border: "1px solid #fde68a" }}>
+            <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1, color: "#d97706" }} />
+            <div>
+              <p style={{ fontWeight: 600, fontSize: "0.875rem", color: "#92400e", margin: 0 }}>No farm selected</p>
+              <p style={{ fontSize: "0.8125rem", color: "#b45309", margin: "2px 0 0" }}>
+                Use the <strong>Current Farm</strong> dropdown in the top-left of the sidebar to select a farm — then this page will load your training records and the Add buttons will become active.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {!farmId ? null : tab === "training" ? (
           <TrainingTab farmId={farmId} staffNames={staffNames} defaultMember={tab === "training" ? urlMember : undefined} />
         ) : tab === "certificates" ? (
           <CertificatesTab farmId={farmId} staffNames={staffNames} defaultMember={tab === "certificates" ? urlMember : undefined} />
