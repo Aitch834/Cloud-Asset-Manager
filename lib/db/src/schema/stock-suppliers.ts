@@ -36,14 +36,40 @@ export const stockItemsTable = pgTable("stock_items", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const purchaseOrdersTable = pgTable("purchase_orders", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
+  poNumber: text("po_number").notNull(),
+  orderDate: timestamp("order_date", { withTimezone: true }).notNull(),
+  expectedDeliveryDate: timestamp("expected_delivery_date", { withTimezone: true }),
+  status: text("status").notNull().default("draft"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const purchaseOrderLinesTable = pgTable("purchase_order_lines", {
+  id: serial("id").primaryKey(),
+  poId: integer("po_id").notNull().references(() => purchaseOrdersTable.id, { onDelete: "cascade" }),
+  stockItemId: integer("stock_item_id").notNull().references(() => stockItemsTable.id),
+  quantityOrdered: numeric("quantity_ordered", { precision: 10, scale: 2 }).notNull(),
+  unitPricePence: integer("unit_price_pence"),
+  quantityReceived: numeric("quantity_received", { precision: 10, scale: 2 }).notNull().default("0"),
+  notes: text("notes"),
+});
+
 export const stockDeliveriesTable = pgTable("stock_deliveries", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   supplierId: integer("supplier_id").references(() => suppliersTable.id),
   stockItemId: integer("stock_item_id").notNull().references(() => stockItemsTable.id),
+  poId: integer("po_id").references(() => purchaseOrdersTable.id),
+  grnNumber: text("grn_number"),
   deliveryDate: timestamp("delivery_date", { withTimezone: true }).notNull(),
   quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
   batchNumber: text("batch_number"),
+  lotNumber: text("lot_number"),
   expiryDate: timestamp("expiry_date", { withTimezone: true }),
   costPence: integer("cost_pence"),
   invoiceReference: text("invoice_reference"),

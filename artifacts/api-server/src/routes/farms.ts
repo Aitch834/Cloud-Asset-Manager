@@ -65,6 +65,8 @@ import {
   hauliersTable,
   suppliersTable,
   stockItemsTable,
+  purchaseOrdersTable,
+  purchaseOrderLinesTable,
   stockDeliveriesTable,
   stockLevelsTable,
   stockMovementsTable,
@@ -769,6 +771,9 @@ router.get("/farms/:farmId/spray-applications", requireAuth, requireTenant, requ
       windSpeedKmh: sprayApplicationsTable.windSpeedKmh,
       windDirection: sprayApplicationsTable.windDirection,
       temperatureC: sprayApplicationsTable.temperatureC,
+      batchNumber: sprayApplicationsTable.batchNumber,
+      lotNumber: sprayApplicationsTable.lotNumber,
+      stockDeliveryId: sprayApplicationsTable.stockDeliveryId,
       notes: sprayApplicationsTable.notes,
       createdAt: sprayApplicationsTable.createdAt,
     })
@@ -2232,9 +2237,13 @@ router.get("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requir
     stockItemId: stockDeliveriesTable.stockItemId,
     stockItemName: stockItemsTable.name,
     stockItemUnit: stockItemsTable.unit,
+    poId: stockDeliveriesTable.poId,
+    poNumber: purchaseOrdersTable.poNumber,
+    grnNumber: stockDeliveriesTable.grnNumber,
     deliveryDate: stockDeliveriesTable.deliveryDate,
     quantity: stockDeliveriesTable.quantity,
     batchNumber: stockDeliveriesTable.batchNumber,
+    lotNumber: stockDeliveriesTable.lotNumber,
     expiryDate: stockDeliveriesTable.expiryDate,
     costPence: stockDeliveriesTable.costPence,
     invoiceReference: stockDeliveriesTable.invoiceReference,
@@ -2245,6 +2254,7 @@ router.get("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requir
   }).from(stockDeliveriesTable)
     .leftJoin(suppliersTable, eq(stockDeliveriesTable.supplierId, suppliersTable.id))
     .leftJoin(stockItemsTable, eq(stockDeliveriesTable.stockItemId, stockItemsTable.id))
+    .leftJoin(purchaseOrdersTable, eq(stockDeliveriesTable.poId, purchaseOrdersTable.id))
     .leftJoin(financialTransactionsTable, eq(financialTransactionsTable.stockDeliveryId, stockDeliveriesTable.id))
     .where(eq(stockDeliveriesTable.farmId, farmId))
     .orderBy(desc(stockDeliveriesTable.deliveryDate));
@@ -2254,7 +2264,20 @@ router.get("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requir
 router.post("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(stockDeliveriesTable).values({ ...req.body, farmId }).returning();
+
+  const year = new Date().getFullYear();
+  const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(stockDeliveriesTable).where(eq(stockDeliveriesTable.farmId, farmId));
+  const grnSeq = (Number(countRow?.count ?? 0) + 1).toString().padStart(4, "0");
+  const grnNumber = `GRN-${year}-${grnSeq}`;
+
+  const { poId, lotNumber, ...rest } = req.body;
+  const [record] = await db.insert(stockDeliveriesTable).values({
+    ...rest,
+    farmId,
+    grnNumber,
+    poId: poId ? Number(poId) : null,
+    lotNumber: lotNumber || null,
+  }).returning();
 
   if (record.stockItemId && record.quantity) {
     const qtyIn = parseFloat(record.quantity);
@@ -2268,7 +2291,7 @@ router.post("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requi
         referenceId: record.id,
         deliveryId: record.id,
         performedBy: record.receivedBy || null,
-        notes: `Goods received${record.batchNumber ? ` — batch ${record.batchNumber}` : ""}${record.invoiceReference ? `, invoice ${record.invoiceReference}` : ""}`,
+        notes: `${grnNumber}${record.batchNumber ? ` — batch ${record.batchNumber}` : ""}${record.lotNumber ? `, lot ${record.lotNumber}` : ""}${record.invoiceReference ? `, invoice ${record.invoiceReference}` : ""}`,
       });
       const [existing] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, record.stockItemId))).limit(1);
       if (existing) {
@@ -2279,7 +2302,214 @@ router.post("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requi
     }
   }
 
+  if (record.poId && record.stockItemId && record.quantity) {
+    const qtyIn = parseFloat(record.quantity);
+    if (!isNaN(qtyIn) && qtyIn > 0) {
+      const lines = await db.select().from(purchaseOrderLinesTable).where(and(eq(purchaseOrderLinesTable.poId, record.poId), eq(purchaseOrderLinesTable.stockItemId, record.stockItemId)));
+      for (const line of lines) {
+        const newQtyReceived = parseFloat(line.quantityReceived) + qtyIn;
+        await db.update(purchaseOrderLinesTable).set({ quantityReceived: String(newQtyReceived) }).where(eq(purchaseOrderLinesTable.id, line.id));
+      }
+      const allLines = await db.select().from(purchaseOrderLinesTable).where(eq(purchaseOrderLinesTable.poId, record.poId));
+      const fullyReceived = allLines.every(l => parseFloat(l.quantityReceived) >= parseFloat(l.quantityOrdered));
+      const partiallyReceived = allLines.some(l => parseFloat(l.quantityReceived) > 0);
+      const newStatus = fullyReceived ? "fully_received" : partiallyReceived ? "partially_received" : "sent";
+      await db.update(purchaseOrdersTable).set({ status: newStatus }).where(eq(purchaseOrdersTable.id, record.poId));
+    }
+  }
+
   res.status(201).json({ record });
+});
+
+// ─── Purchase Orders ────────────────────────────────
+router.get("/farms/:farmId/purchase-orders", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const pos = await db.select({
+    id: purchaseOrdersTable.id,
+    poNumber: purchaseOrdersTable.poNumber,
+    supplierId: purchaseOrdersTable.supplierId,
+    supplierName: suppliersTable.name,
+    orderDate: purchaseOrdersTable.orderDate,
+    expectedDeliveryDate: purchaseOrdersTable.expectedDeliveryDate,
+    status: purchaseOrdersTable.status,
+    notes: purchaseOrdersTable.notes,
+    createdAt: purchaseOrdersTable.createdAt,
+  }).from(purchaseOrdersTable)
+    .leftJoin(suppliersTable, eq(purchaseOrdersTable.supplierId, suppliersTable.id))
+    .where(eq(purchaseOrdersTable.farmId, farmId))
+    .orderBy(desc(purchaseOrdersTable.createdAt));
+
+  const lineAgg = await db.select({
+    poId: purchaseOrderLinesTable.poId,
+    lineCount: sql<number>`count(*)`,
+    totalPence: sql<number>`sum(${purchaseOrderLinesTable.unitPricePence} * ${purchaseOrderLinesTable.quantityOrdered})`,
+  }).from(purchaseOrderLinesTable)
+    .innerJoin(purchaseOrdersTable, eq(purchaseOrderLinesTable.poId, purchaseOrdersTable.id))
+    .where(eq(purchaseOrdersTable.farmId, farmId))
+    .groupBy(purchaseOrderLinesTable.poId);
+
+  const aggMap = Object.fromEntries(lineAgg.map(r => [r.poId, r]));
+  const records = pos.map(po => ({ ...po, lineCount: aggMap[po.id]?.lineCount ?? 0, totalPence: aggMap[po.id]?.totalPence ?? null }));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/purchase-orders", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const year = new Date().getFullYear();
+  const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(purchaseOrdersTable).where(eq(purchaseOrdersTable.farmId, farmId));
+  const seq = (Number(countRow?.count ?? 0) + 1).toString().padStart(4, "0");
+  const poNumber = `PO-${year}-${seq}`;
+  const { lines, ...poBody } = req.body;
+  const [po] = await db.insert(purchaseOrdersTable).values({ ...poBody, farmId, poNumber, status: poBody.status || "draft" }).returning();
+  if (lines && Array.isArray(lines) && lines.length > 0) {
+    await db.insert(purchaseOrderLinesTable).values(lines.map((l: any) => ({ poId: po.id, stockItemId: Number(l.stockItemId), quantityOrdered: String(l.quantityOrdered), unitPricePence: l.unitPricePence ? Number(l.unitPricePence) : null, notes: l.notes || null })));
+  }
+  res.status(201).json({ record: po });
+});
+
+router.get("/farms/:farmId/purchase-orders/:poId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const poId = Number(req.params.poId);
+  if (!poId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [po] = await db.select({
+    id: purchaseOrdersTable.id,
+    poNumber: purchaseOrdersTable.poNumber,
+    supplierId: purchaseOrdersTable.supplierId,
+    supplierName: suppliersTable.name,
+    orderDate: purchaseOrdersTable.orderDate,
+    expectedDeliveryDate: purchaseOrdersTable.expectedDeliveryDate,
+    status: purchaseOrdersTable.status,
+    notes: purchaseOrdersTable.notes,
+    createdAt: purchaseOrdersTable.createdAt,
+  }).from(purchaseOrdersTable)
+    .leftJoin(suppliersTable, eq(purchaseOrdersTable.supplierId, suppliersTable.id))
+    .where(and(eq(purchaseOrdersTable.id, poId), eq(purchaseOrdersTable.farmId, farmId)));
+  if (!po) { res.status(404).json({ error: "Not found" }); return; }
+  const lines = await db.select({
+    id: purchaseOrderLinesTable.id,
+    stockItemId: purchaseOrderLinesTable.stockItemId,
+    stockItemName: stockItemsTable.name,
+    stockItemUnit: stockItemsTable.unit,
+    quantityOrdered: purchaseOrderLinesTable.quantityOrdered,
+    quantityReceived: purchaseOrderLinesTable.quantityReceived,
+    unitPricePence: purchaseOrderLinesTable.unitPricePence,
+    notes: purchaseOrderLinesTable.notes,
+  }).from(purchaseOrderLinesTable)
+    .leftJoin(stockItemsTable, eq(purchaseOrderLinesTable.stockItemId, stockItemsTable.id))
+    .where(eq(purchaseOrderLinesTable.poId, poId));
+  const grns = await db.select({
+    id: stockDeliveriesTable.id,
+    grnNumber: stockDeliveriesTable.grnNumber,
+    deliveryDate: stockDeliveriesTable.deliveryDate,
+    stockItemName: stockItemsTable.name,
+    quantity: stockDeliveriesTable.quantity,
+    stockItemUnit: stockItemsTable.unit,
+    batchNumber: stockDeliveriesTable.batchNumber,
+    lotNumber: stockDeliveriesTable.lotNumber,
+    invoiceReference: stockDeliveriesTable.invoiceReference,
+  }).from(stockDeliveriesTable)
+    .leftJoin(stockItemsTable, eq(stockDeliveriesTable.stockItemId, stockItemsTable.id))
+    .where(eq(stockDeliveriesTable.poId, poId))
+    .orderBy(desc(stockDeliveriesTable.deliveryDate));
+  res.json({ record: po, lines, grns });
+});
+
+router.put("/farms/:farmId/purchase-orders/:poId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const poId = Number(req.params.poId);
+  if (!poId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { lines, ...poBody } = req.body;
+  const [po] = await db.update(purchaseOrdersTable).set(poBody).where(and(eq(purchaseOrdersTable.id, poId), eq(purchaseOrdersTable.farmId, farmId))).returning();
+  res.json({ record: po });
+});
+
+router.delete("/farms/:farmId/purchase-orders/:poId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const poId = Number(req.params.poId);
+  if (!poId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(purchaseOrdersTable).where(and(eq(purchaseOrdersTable.id, poId), eq(purchaseOrdersTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/purchase-orders/:poId/lines", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const poId = Number(req.params.poId);
+  if (!poId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const lines = await db.select({
+    id: purchaseOrderLinesTable.id,
+    stockItemId: purchaseOrderLinesTable.stockItemId,
+    stockItemName: stockItemsTable.name,
+    stockItemUnit: stockItemsTable.unit,
+    quantityOrdered: purchaseOrderLinesTable.quantityOrdered,
+    quantityReceived: purchaseOrderLinesTable.quantityReceived,
+    unitPricePence: purchaseOrderLinesTable.unitPricePence,
+    notes: purchaseOrderLinesTable.notes,
+  }).from(purchaseOrderLinesTable)
+    .leftJoin(stockItemsTable, eq(purchaseOrderLinesTable.stockItemId, stockItemsTable.id))
+    .where(eq(purchaseOrderLinesTable.poId, poId));
+  res.json({ records: lines });
+});
+
+router.post("/farms/:farmId/purchase-orders/:poId/lines", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const poId = Number(req.params.poId);
+  if (!poId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [po] = await db.select().from(purchaseOrdersTable).where(and(eq(purchaseOrdersTable.id, poId), eq(purchaseOrdersTable.farmId, farmId)));
+  if (!po) { res.status(404).json({ error: "PO not found" }); return; }
+  const { stockItemId, quantityOrdered, unitPricePence, notes } = req.body;
+  const [line] = await db.insert(purchaseOrderLinesTable).values({ poId, stockItemId: Number(stockItemId), quantityOrdered: String(quantityOrdered), unitPricePence: unitPricePence ? Number(unitPricePence) : null, notes: notes || null }).returning();
+  res.status(201).json({ record: line });
+});
+
+router.put("/farms/:farmId/purchase-orders/:poId/lines/:lineId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const poId = Number(req.params.poId);
+  const lineId = Number(req.params.lineId);
+  if (!poId || !lineId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [po] = await db.select().from(purchaseOrdersTable).where(and(eq(purchaseOrdersTable.id, poId), eq(purchaseOrdersTable.farmId, farmId)));
+  if (!po) { res.status(404).json({ error: "PO not found" }); return; }
+  const { stockItemId, quantityOrdered, unitPricePence, notes } = req.body;
+  const [line] = await db.update(purchaseOrderLinesTable).set({ stockItemId: stockItemId ? Number(stockItemId) : undefined, quantityOrdered: quantityOrdered ? String(quantityOrdered) : undefined, unitPricePence: unitPricePence !== undefined ? (unitPricePence ? Number(unitPricePence) : null) : undefined, notes: notes || null }).where(eq(purchaseOrderLinesTable.id, lineId)).returning();
+  res.json({ record: line });
+});
+
+router.delete("/farms/:farmId/purchase-orders/:poId/lines/:lineId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const poId = Number(req.params.poId);
+  const lineId = Number(req.params.lineId);
+  if (!poId || !lineId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(purchaseOrderLinesTable).where(eq(purchaseOrderLinesTable.id, lineId));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/stock-deliveries/by-product/:stockItemId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const stockItemId = Number(req.params.stockItemId);
+  if (!stockItemId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const records = await db.select({
+    id: stockDeliveriesTable.id,
+    grnNumber: stockDeliveriesTable.grnNumber,
+    deliveryDate: stockDeliveriesTable.deliveryDate,
+    batchNumber: stockDeliveriesTable.batchNumber,
+    lotNumber: stockDeliveriesTable.lotNumber,
+    expiryDate: stockDeliveriesTable.expiryDate,
+    quantity: stockDeliveriesTable.quantity,
+    supplierName: suppliersTable.name,
+  }).from(stockDeliveriesTable)
+    .leftJoin(suppliersTable, eq(stockDeliveriesTable.supplierId, suppliersTable.id))
+    .where(and(eq(stockDeliveriesTable.farmId, farmId), eq(stockDeliveriesTable.stockItemId, stockItemId)))
+    .orderBy(desc(stockDeliveriesTable.deliveryDate));
+  res.json({ records });
 });
 
 // ─── Financial Transactions ────────────────────────

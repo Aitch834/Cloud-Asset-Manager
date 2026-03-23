@@ -27,6 +27,11 @@ import {
   ArrowUp,
   RefreshCw,
   Info,
+  ClipboardList,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  Trash2,
 } from "lucide-react";
 
 const PRODUCT_CATEGORIES = [
@@ -97,7 +102,7 @@ function EmptyState({ icon: Icon, title, subtitle }: { icon: React.ElementType; 
 }
 
 export default function SuppliersStockPage() {
-  const [tab, setTab] = useState<"suppliers" | "products" | "received" | "levels" | "movements">("levels");
+  const [tab, setTab] = useState<"suppliers" | "products" | "purchase-orders" | "received" | "levels" | "movements">("levels");
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -127,6 +132,11 @@ export default function SuppliersStockPage() {
     queryFn: () => fetch(`/api/farms/${farmId}/stock-movements`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
+  const purchaseOrdersQ = useQuery({
+    queryKey: ["purchase-orders", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/purchase-orders`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["stock-items", farmId] });
@@ -134,6 +144,7 @@ export default function SuppliersStockPage() {
     qc.invalidateQueries({ queryKey: ["stock-levels", farmId] });
     qc.invalidateQueries({ queryKey: ["stock-movements", farmId] });
     qc.invalidateQueries({ queryKey: ["suppliers", farmId] });
+    qc.invalidateQueries({ queryKey: ["purchase-orders", farmId] });
   };
 
   return (
@@ -145,7 +156,8 @@ export default function SuppliersStockPage() {
 
       <TabBar className="mb-6 overflow-x-auto flex-wrap">
         <TabButton active={tab === "levels"} onClick={() => setTab("levels")}>Stock Levels</TabButton>
-        <TabButton active={tab === "received"} onClick={() => setTab("received")}>Goods Received</TabButton>
+        <TabButton active={tab === "purchase-orders"} onClick={() => setTab("purchase-orders")}>Purchase Orders</TabButton>
+        <TabButton active={tab === "received"} onClick={() => setTab("received")}>Goods Received (GRN)</TabButton>
         <TabButton active={tab === "movements"} onClick={() => setTab("movements")}>Movements</TabButton>
         <TabButton active={tab === "products"} onClick={() => setTab("products")}>Product Catalogue</TabButton>
         <TabButton active={tab === "suppliers"} onClick={() => setTab("suppliers")}>Suppliers</TabButton>
@@ -163,11 +175,25 @@ export default function SuppliersStockPage() {
           onGoToProducts={() => setTab("products")}
         />
       )}
+      {tab === "purchase-orders" && (
+        <PurchaseOrdersTab
+          orders={purchaseOrdersQ.data ?? []}
+          products={productsQ.data ?? []}
+          suppliers={suppliersQ.data ?? []}
+          loading={purchaseOrdersQ.isLoading}
+          farmId={farmId}
+          onRefresh={invalidate}
+          toast={toast}
+          qc={qc}
+          onGoToGRN={() => setTab("received")}
+        />
+      )}
       {tab === "received" && (
         <GoodsReceivedTab
           deliveries={deliveriesQ.data ?? []}
           products={productsQ.data ?? []}
           suppliers={suppliersQ.data ?? []}
+          purchaseOrders={purchaseOrdersQ.data ?? []}
           loading={deliveriesQ.isLoading}
           farmId={farmId}
           onRefresh={invalidate}
@@ -327,16 +353,17 @@ const FINANCIAL_CATEGORIES = [
   "Other Income", "Other Expense",
 ];
 
-function GoodsReceivedTab({ deliveries, products, suppliers, loading, farmId, onRefresh, toast, onGoToProducts }: any) {
+function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loading, farmId, onRefresh, toast, onGoToProducts }: any) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState<any>({ stockItemId: "", supplierId: "", deliveryDate: "", quantity: "", batchNumber: "", invoiceReference: "", receivedBy: "", costPence: "", notes: "" });
+  const emptyForm = { stockItemId: "", supplierId: "", poId: "", deliveryDate: "", quantity: "", batchNumber: "", lotNumber: "", invoiceReference: "", receivedBy: "", costPence: "", notes: "" };
+  const [form, setForm] = useState<any>(emptyForm);
   const [invoiceDelivery, setInvoiceDelivery] = useState<any>(null);
   const [invoiceForm, setInvoiceForm] = useState<any>({});
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/stock-deliveries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, costPence: body.costPence ? Math.round(parseFloat(body.costPence) * 100) : null }) }),
-    onSuccess: () => { toast({ title: "Goods received logged" }); onRefresh(); setOpen(false); setForm({ stockItemId: "", supplierId: "", deliveryDate: "", quantity: "", batchNumber: "", invoiceReference: "", receivedBy: "", costPence: "", notes: "" }); },
+    onSuccess: () => { toast({ title: "Goods received logged (GRN auto-generated)" }); onRefresh(); setOpen(false); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
@@ -406,7 +433,7 @@ function GoodsReceivedTab({ deliveries, products, suppliers, loading, farmId, on
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Date", "Product", "Supplier", "Quantity", "Batch No.", "Invoice Ref", "Cost", "Received By", "Financial Record"].map(h => (
+                {["GRN No.", "Date", "Product", "Supplier / PO", "Quantity", "Batch No.", "Lot No.", "Invoice Ref", "Cost", "Financial Record"].map(h => (
                   <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -414,14 +441,18 @@ function GoodsReceivedTab({ deliveries, products, suppliers, loading, farmId, on
             <tbody>
               {filtered.map((d: any, i: number) => (
                 <tr key={d.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                  <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap", fontFamily: "monospace", fontSize: "0.75rem", color: "#166534", fontWeight: 600 }}>{d.grnNumber || "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>{fmt(d.deliveryDate)}</td>
                   <td style={{ padding: "0.625rem 0.875rem", fontWeight: 500 }}>{d.stockItemName || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{d.supplierName || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>
+                    <div>{d.supplierName || "—"}</div>
+                    {d.poNumber && <div style={{ fontSize: "0.7rem", color: "#166534", fontFamily: "monospace", marginTop: 2 }}>{d.poNumber}</div>}
+                  </td>
                   <td style={{ padding: "0.625rem 0.875rem" }}>{fmtQty(d.quantity, d.stockItemUnit)}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{d.batchNumber || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontFamily: "monospace", fontSize: "0.75rem" }}>{d.batchNumber || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontFamily: "monospace", fontSize: "0.75rem" }}>{d.lotNumber || "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{d.invoiceReference || "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem" }}>{fmtCost(d.costPence)}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{d.receivedBy || "—"}</td>
                   <td style={{ padding: "0.5rem 0.875rem" }}>
                     {d.financialTransactionId ? (
                       <span style={{
@@ -550,21 +581,39 @@ function GoodsReceivedTab({ deliveries, products, suppliers, loading, farmId, on
                 <Input type="number" step="0.01" placeholder="0.00" value={form.quantity} onChange={e => setForm((f: any) => ({ ...f, quantity: e.target.value }))} />
               </div>
             </div>
+            <div>
+              <Label>Link to Purchase Order (optional)</Label>
+              <Select value={form.poId} onValueChange={v => setForm((f: any) => ({ ...f, poId: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select PO (optional)..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No PO — standalone delivery</SelectItem>
+                  {(purchaseOrders ?? []).filter((po: any) => po.status !== "cancelled" && po.status !== "fully_received").map((po: any) => (
+                    <SelectItem key={po.id} value={String(po.id)}>{po.poNumber} — {po.supplierName || "No supplier"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Batch / Lot Number</Label>
+                <Label>Batch Number</Label>
                 <Input placeholder="e.g. BT240301" value={form.batchNumber} onChange={e => setForm((f: any) => ({ ...f, batchNumber: e.target.value }))} />
               </div>
               <div>
-                <Label>Invoice Reference</Label>
-                <Input placeholder="e.g. INV-1234" value={form.invoiceReference} onChange={e => setForm((f: any) => ({ ...f, invoiceReference: e.target.value }))} />
+                <Label>Lot Number</Label>
+                <Input placeholder="e.g. LOT-2026-001" value={form.lotNumber} onChange={e => setForm((f: any) => ({ ...f, lotNumber: e.target.value }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
+                <Label>Invoice Reference</Label>
+                <Input placeholder="e.g. INV-1234" value={form.invoiceReference} onChange={e => setForm((f: any) => ({ ...f, invoiceReference: e.target.value }))} />
+              </div>
+              <div>
                 <Label>Cost (£)</Label>
                 <Input type="number" step="0.01" placeholder="0.00" value={form.costPence} onChange={e => setForm((f: any) => ({ ...f, costPence: e.target.value }))} />
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Received By</Label>
                 <Input placeholder="Name" value={form.receivedBy} onChange={e => setForm((f: any) => ({ ...f, receivedBy: e.target.value }))} />
@@ -791,6 +840,310 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
               {editItem ? "Save Changes" : "Add Product"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function poStatusBadge(status: string) {
+  const styles: Record<string, { bg: string; color: string; label: string }> = {
+    draft: { bg: "#f3f4f6", color: "#374151", label: "Draft" },
+    sent: { bg: "#dbeafe", color: "#1e40af", label: "Sent" },
+    partially_received: { bg: "#fef3c7", color: "#92400e", label: "Part. Received" },
+    fully_received: { bg: "#d1fae5", color: "#065f46", label: "Fully Received" },
+    cancelled: { bg: "#fee2e2", color: "#991b1b", label: "Cancelled" },
+  };
+  const s = styles[status] ?? styles.draft;
+  return <span style={{ display: "inline-block", background: s.bg, color: s.color, borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}>{s.label}</span>;
+}
+
+function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRefresh, toast, qc, onGoToGRN }: any) {
+  const [open, setOpen] = useState(false);
+  const [viewPo, setViewPo] = useState<any>(null);
+  const [search, setSearch] = useState("");
+  const emptyForm = { supplierId: "", orderDate: "", expectedDeliveryDate: "", status: "draft", notes: "" };
+  const [form, setForm] = useState<any>(emptyForm);
+  const [lines, setLines] = useState<any[]>([{ stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]);
+
+  const viewQ = useQuery({
+    queryKey: ["purchase-order-detail", viewPo?.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/purchase-orders/${viewPo.id}`).then(r => r.json()),
+    enabled: !!viewPo?.id,
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/purchase-orders`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => { toast({ title: "Purchase Order created" }); onRefresh(); setOpen(false); setForm(emptyForm); setLines([{ stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]); },
+    onError: () => toast({ title: "Failed to create PO", variant: "destructive" }),
+  });
+
+  const updateStatusMut = useMutation({
+    mutationFn: ({ poId, status }: any) => fetch(`/api/farms/${farmId}/purchase-orders/${poId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }),
+    onSuccess: () => { toast({ title: "Status updated" }); onRefresh(); if (viewPo) qc.invalidateQueries({ queryKey: ["purchase-order-detail", viewPo.id] }); },
+    onError: () => toast({ title: "Failed to update status", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (poId: number) => fetch(`/api/farms/${farmId}/purchase-orders/${poId}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "PO deleted" }); onRefresh(); setViewPo(null); },
+    onError: () => toast({ title: "Failed to delete PO", variant: "destructive" }),
+  });
+
+  const filtered = (orders ?? []).filter((po: any) => !search || po.poNumber?.toLowerCase().includes(search.toLowerCase()) || po.supplierName?.toLowerCase().includes(search.toLowerCase()));
+
+  const addLine = () => setLines(ls => [...ls, { stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]);
+  const removeLine = (i: number) => setLines(ls => ls.filter((_, idx) => idx !== i));
+  const updateLine = (i: number, field: string, val: string) => setLines(ls => ls.map((l, idx) => idx === i ? { ...l, [field]: val } : l));
+
+  const handleCreate = () => {
+    const validLines = lines.filter(l => l.stockItemId && l.quantityOrdered);
+    createMut.mutate({
+      ...form,
+      lines: validLines.map(l => ({
+        stockItemId: Number(l.stockItemId),
+        quantityOrdered: parseFloat(l.quantityOrdered),
+        unitPricePence: l.unitPricePence ? Math.round(parseFloat(l.unitPricePence) * 100) : null,
+        notes: l.notes || null,
+      })),
+    });
+  };
+
+  const detail = viewQ.data;
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
+        <div style={{ position: "relative", flex: 1 }}>
+          <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
+          <Input placeholder="Search purchase orders..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+        </div>
+        <Button size="sm" onClick={() => { setForm(emptyForm); setLines([{ stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]); setOpen(true); }}>
+          <Plus size={14} className="mr-1" />Raise Purchase Order
+        </Button>
+      </div>
+
+      {loading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : filtered.length === 0 ? (
+        <EmptyState icon={ClipboardList} title="No purchase orders yet" subtitle="Raise a PO to track what you've ordered from suppliers, then link GRNs when goods arrive" />
+      ) : (
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                {["PO Number", "Supplier", "Order Date", "Expected Delivery", "Lines", "Status", ""].map(h => (
+                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((po: any, i: number) => (
+                <tr key={po.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                  <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: 700, color: "#166534" }}>{po.poNumber}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#374151" }}>{po.supplierName || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>{fmt(po.orderDate)}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap", color: po.expectedDeliveryDate ? "#374151" : "#9ca3af" }}>{po.expectedDeliveryDate ? fmt(po.expectedDeliveryDate) : "Not set"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{po.lineCount ?? 0} line{po.lineCount !== 1 ? "s" : ""}</td>
+                  <td style={{ padding: "0.625rem 0.875rem" }}>{poStatusBadge(po.status)}</td>
+                  <td style={{ padding: "0.5rem 0.875rem" }}>
+                    <button onClick={() => setViewPo(po)} style={{ fontSize: "0.75rem", color: "#166534", cursor: "pointer", background: "none", border: "none", fontWeight: 500 }}>View</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setForm(emptyForm); setLines([{ stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]); } }}>
+        <DialogContent style={{ maxWidth: 680 }}>
+          <DialogHeader><DialogTitle>Raise Purchase Order</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Supplier</Label>
+                <Select value={form.supplierId} onValueChange={v => setForm((f: any) => ({ ...f, supplierId: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select supplier..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No supplier</SelectItem>
+                    {suppliers.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select value={form.status} onValueChange={v => setForm((f: any) => ({ ...f, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="sent">Sent to Supplier</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Order Date <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Input type="date" value={form.orderDate} onChange={e => setForm((f: any) => ({ ...f, orderDate: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Expected Delivery</Label>
+                <Input type="date" value={form.expectedDeliveryDate} onChange={e => setForm((f: any) => ({ ...f, expectedDeliveryDate: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Input placeholder="Optional notes or special instructions..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <Label style={{ marginBottom: 0 }}>Order Lines</Label>
+                <button onClick={addLine} style={{ fontSize: "0.75rem", color: "#166534", background: "none", border: "none", cursor: "pointer", fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}><Plus size={12} />Add Line</button>
+              </div>
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                  <thead>
+                    <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                      {["Product", "Qty Ordered", "Unit Price (£)", "Notes", ""].map(h => (
+                        <th key={h} style={{ padding: "0.5rem 0.625rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.72rem" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((l, i) => (
+                      <tr key={i} style={{ borderBottom: i < lines.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                        <td style={{ padding: "0.375rem 0.5rem" }}>
+                          <Select value={l.stockItemId} onValueChange={v => updateLine(i, "stockItemId", v)}>
+                            <SelectTrigger style={{ height: 32, fontSize: "0.8rem" }}><SelectValue placeholder="Select product..." /></SelectTrigger>
+                            <SelectContent>{products.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </td>
+                        <td style={{ padding: "0.375rem 0.5rem" }}>
+                          <Input type="number" step="0.01" placeholder="0" value={l.quantityOrdered} onChange={e => updateLine(i, "quantityOrdered", e.target.value)} style={{ height: 32, fontSize: "0.8rem" }} />
+                        </td>
+                        <td style={{ padding: "0.375rem 0.5rem" }}>
+                          <Input type="number" step="0.01" placeholder="0.00" value={l.unitPricePence} onChange={e => updateLine(i, "unitPricePence", e.target.value)} style={{ height: 32, fontSize: "0.8rem" }} />
+                        </td>
+                        <td style={{ padding: "0.375rem 0.5rem" }}>
+                          <Input placeholder="Optional" value={l.notes} onChange={e => updateLine(i, "notes", e.target.value)} style={{ height: 32, fontSize: "0.8rem" }} />
+                        </td>
+                        <td style={{ padding: "0.375rem 0.5rem" }}>
+                          {lines.length > 1 && <button onClick={() => removeLine(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}><Trash2 size={13} /></button>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreate} disabled={!form.orderDate || createMut.isPending}>Create Purchase Order</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!viewPo} onOpenChange={o => { if (!o) setViewPo(null); }}>
+        <DialogContent style={{ maxWidth: 740 }}>
+          <DialogHeader>
+            <DialogTitle style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontFamily: "monospace", color: "#166534" }}>{viewPo?.poNumber}</span>
+              {viewPo && poStatusBadge(viewPo.status)}
+            </DialogTitle>
+          </DialogHeader>
+          {viewQ.isLoading ? <p className="text-sm text-gray-400 py-6 text-center">Loading...</p> : detail ? (
+            <div className="space-y-4 py-1">
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                <div><span style={{ color: "#6b7280", fontSize: "0.75rem" }}>Supplier</span><br /><strong>{detail.record?.supplierName || "—"}</strong></div>
+                <div><span style={{ color: "#6b7280", fontSize: "0.75rem" }}>Order Date</span><br /><strong>{fmt(detail.record?.orderDate)}</strong></div>
+                <div><span style={{ color: "#6b7280", fontSize: "0.75rem" }}>Expected Delivery</span><br /><strong>{detail.record?.expectedDeliveryDate ? fmt(detail.record.expectedDeliveryDate) : "—"}</strong></div>
+              </div>
+              {detail.record?.notes && <p style={{ fontSize: "0.85rem", color: "#6b7280", background: "#f9fafb", borderRadius: 6, padding: "0.5rem 0.75rem" }}>{detail.record.notes}</p>}
+
+              <div>
+                <p style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: 6, color: "#374151" }}>Order Lines</p>
+                {(detail.lines ?? []).length === 0 ? <p style={{ fontSize: "0.8rem", color: "#9ca3af" }}>No lines recorded</p> : (
+                  <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                      <thead>
+                        <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                          {["Product", "Ordered", "Received", "Unit Price", "Progress"].map(h => (
+                            <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.72rem" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(detail.lines ?? []).map((l: any, i: number) => {
+                          const pct = l.quantityOrdered > 0 ? Math.min(100, Math.round((parseFloat(l.quantityReceived ?? 0) / parseFloat(l.quantityOrdered)) * 100)) : 0;
+                          return (
+                            <tr key={l.id} style={{ borderBottom: i < detail.lines.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                              <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500 }}>{l.stockItemName || "—"}</td>
+                              <td style={{ padding: "0.5rem 0.75rem" }}>{fmtQty(l.quantityOrdered, l.stockItemUnit)}</td>
+                              <td style={{ padding: "0.5rem 0.75rem", color: pct >= 100 ? "#166534" : "#374151" }}>{fmtQty(l.quantityReceived ?? 0, l.stockItemUnit)}</td>
+                              <td style={{ padding: "0.5rem 0.75rem" }}>{l.unitPricePence ? `£${(l.unitPricePence / 100).toFixed(2)}` : "—"}</td>
+                              <td style={{ padding: "0.5rem 0.75rem" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <div style={{ flex: 1, height: 6, background: "#e5e7eb", borderRadius: 3 }}>
+                                    <div style={{ width: `${pct}%`, height: "100%", background: pct >= 100 ? "#16a34a" : "#f59e0b", borderRadius: 3 }} />
+                                  </div>
+                                  <span style={{ fontSize: "0.7rem", color: "#6b7280", minWidth: 28 }}>{pct}%</span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {(detail.grns ?? []).length > 0 && (
+                <div>
+                  <p style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: 6, color: "#374151" }}>Goods Received (GRNs)</p>
+                  <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                      <thead>
+                        <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                          {["GRN No.", "Date", "Product", "Qty", "Batch", "Lot", "Invoice"].map(h => (
+                            <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.72rem" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(detail.grns ?? []).map((g: any, i: number) => (
+                          <tr key={g.id} style={{ borderBottom: i < detail.grns.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                            <td style={{ padding: "0.5rem 0.75rem", fontFamily: "monospace", color: "#166534", fontWeight: 600, fontSize: "0.75rem" }}>{g.grnNumber || "—"}</td>
+                            <td style={{ padding: "0.5rem 0.75rem" }}>{fmt(g.deliveryDate)}</td>
+                            <td style={{ padding: "0.5rem 0.75rem" }}>{g.stockItemName || "—"}</td>
+                            <td style={{ padding: "0.5rem 0.75rem" }}>{fmtQty(g.quantity, g.stockItemUnit)}</td>
+                            <td style={{ padding: "0.5rem 0.75rem", fontFamily: "monospace", fontSize: "0.72rem", color: "#6b7280" }}>{g.batchNumber || "—"}</td>
+                            <td style={{ padding: "0.5rem 0.75rem", fontFamily: "monospace", fontSize: "0.72rem", color: "#6b7280" }}>{g.lotNumber || "—"}</td>
+                            <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{g.invoiceReference || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {viewPo?.status === "draft" && (
+                  <Button size="sm" variant="outline" onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "sent" })} disabled={updateStatusMut.isPending}>Mark as Sent</Button>
+                )}
+                {viewPo?.status !== "cancelled" && viewPo?.status !== "fully_received" && (
+                  <>
+                    <Button size="sm" onClick={() => { setViewPo(null); onGoToGRN(); }}>Log Goods Received (GRN)</Button>
+                    <Button size="sm" variant="outline" style={{ color: "#b91c1c", borderColor: "#fecaca" }} onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "cancelled" })} disabled={updateStatusMut.isPending}>Cancel PO</Button>
+                  </>
+                )}
+                {viewPo?.status === "draft" && (
+                  <Button size="sm" variant="outline" style={{ color: "#b91c1c", borderColor: "#fecaca" }} onClick={() => deleteMut.mutate(viewPo.id)} disabled={deleteMut.isPending}>Delete Draft</Button>
+                )}
+              </div>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

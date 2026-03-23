@@ -82,9 +82,22 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const emptyForm = { fieldId: "", productId: "", applicationDate: "", applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", certificateNumber: "", equipmentUsed: "", reasonForApplication: "", notes: "" };
+  const emptyForm = { fieldId: "", productId: "", applicationDate: "", applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", certificateNumber: "", equipmentUsed: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const [weatherAutoFilled, setWeatherAutoFilled] = useState(false);
+  const [deliveryStockItemId, setDeliveryStockItemId] = useState<string | null>(null);
+
+  const deliveriesQ = useQuery({
+    queryKey: ["spray-batch-deliveries", farmId, deliveryStockItemId],
+    queryFn: () => fetch(`/api/farms/${farmId}/stock-deliveries/by-product/${deliveryStockItemId}`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId && !!deliveryStockItemId,
+  });
+
+  const handleProductChange = (v: string) => {
+    const product = products.find((p: any) => String(p.id) === v);
+    setDeliveryStockItemId(product?.stockItemId ? String(product.stockItemId) : null);
+    setForm((f: any) => ({ ...f, productId: v, batchNumber: "", lotNumber: "", stockDeliveryId: "" }));
+  };
 
   async function fetchWeatherForDate(date: string) {
     if (!date || !farmId) return;
@@ -113,8 +126,11 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   }
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/spray-applications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Application recorded" }); onRefresh(); setAddOpen(false); setForm(emptyForm); },
+    mutationFn: (body: any) => {
+      const payload = { ...body, stockDeliveryId: body.stockDeliveryId ? Number(body.stockDeliveryId) : null, batchNumber: body.batchNumber || null, lotNumber: body.lotNumber || null };
+      return fetch(`/api/farms/${farmId}/spray-applications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    },
+    onSuccess: () => { toast({ title: "Application recorded" }); onRefresh(); setAddOpen(false); setForm(emptyForm); setDeliveryStockItemId(null); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
@@ -188,12 +204,14 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                             ["Water Volume", r.waterVolumeLitres ? `${r.waterVolumeLitres} L/ha` : null],
                             ["Equipment Used", r.equipmentUsed],
                             ["PA1/PA6 Certificate", r.certificateNumber],
+                            ["Batch Number", r.batchNumber],
+                            ["Lot Number", r.lotNumber],
                             ["Wind Speed", r.windSpeedKmh ? `${r.windSpeedKmh} km/h` : null],
                             ["Wind Direction", r.windDirection],
                             ["Temperature", r.temperatureC ? `${r.temperatureC}°C` : null],
                             ["Notes", r.notes],
                           ].map(([k, v]) => v ? (
-                            <div key={k}><span style={{ color: "#9ca3af", display: "block", fontSize: "0.72rem", textTransform: "uppercase" }}>{k}</span><span style={{ color: "#374151", fontWeight: 500 }}>{v}</span></div>
+                            <div key={k}><span style={{ color: "#9ca3af", display: "block", fontSize: "0.72rem", textTransform: "uppercase" }}>{k}</span><span style={{ color: "#374151", fontWeight: 500, fontFamily: (k === "Batch Number" || k === "Lot Number") ? "monospace" : "inherit" }}>{v}</span></div>
                           ) : null)}
                         </div>
                       </td>
@@ -225,11 +243,65 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
             </div>
             <div>
               <Label>Product <span style={{ color: "#ef4444" }}>*</span></Label>
-              <Select value={form.productId} onValueChange={v => setForm((f: any) => ({ ...f, productId: v }))}>
+              <Select value={form.productId} onValueChange={handleProductChange}>
                 <SelectTrigger><SelectValue placeholder="Select product..." /></SelectTrigger>
                 <SelectContent>{products.length === 0 ? <SelectItem value="__none__" disabled>Add products in the Product Register tab first</SelectItem> : products.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.productName}{p.activeIngredient ? ` (${p.activeIngredient})` : ""}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            {deliveryStockItemId && (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.75rem" }}>
+                <Label style={{ marginBottom: 6, display: "block", color: "#166534", fontWeight: 600, fontSize: "0.8rem" }}>Batch / Lot Traceability</Label>
+                <div className="space-y-2">
+                  <div>
+                    <Label style={{ fontSize: "0.75rem", color: "#4b5563" }}>Select Delivery (Batch/Lot)</Label>
+                    <Select
+                      value={form.stockDeliveryId}
+                      onValueChange={v => {
+                        if (v === "__none__") {
+                          setForm((f: any) => ({ ...f, stockDeliveryId: "", batchNumber: "", lotNumber: "" }));
+                        } else {
+                          const del = (deliveriesQ.data ?? []).find((d: any) => String(d.id) === v);
+                          setForm((f: any) => ({ ...f, stockDeliveryId: v, batchNumber: del?.batchNumber || f.batchNumber, lotNumber: del?.lotNumber || f.lotNumber }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger style={{ fontSize: "0.8rem", height: 34 }}><SelectValue placeholder="Select from GRN deliveries..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">No specific delivery</SelectItem>
+                        {deliveriesQ.isLoading && <SelectItem value="__loading__" disabled>Loading...</SelectItem>}
+                        {(deliveriesQ.data ?? []).map((d: any) => (
+                          <SelectItem key={d.id} value={String(d.id)}>
+                            {d.grnNumber ? `${d.grnNumber} — ` : ""}{d.batchNumber ? `Batch: ${d.batchNumber}` : ""}{d.lotNumber ? ` Lot: ${d.lotNumber}` : ""} ({new Date(d.deliveryDate).toLocaleDateString("en-GB")})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label style={{ fontSize: "0.75rem", color: "#4b5563" }}>Batch Number</Label>
+                      <Input style={{ height: 34, fontSize: "0.8rem" }} placeholder="e.g. BT240301" value={form.batchNumber} onChange={e => setForm((f: any) => ({ ...f, batchNumber: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label style={{ fontSize: "0.75rem", color: "#4b5563" }}>Lot Number</Label>
+                      <Input style={{ height: 34, fontSize: "0.8rem" }} placeholder="e.g. LOT-2026-001" value={form.lotNumber} onChange={e => setForm((f: any) => ({ ...f, lotNumber: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {!deliveryStockItemId && form.productId && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Batch Number</Label>
+                  <Input placeholder="e.g. BT240301" value={form.batchNumber} onChange={e => setForm((f: any) => ({ ...f, batchNumber: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Lot Number</Label>
+                  <Input placeholder="e.g. LOT-2026-001" value={form.lotNumber} onChange={e => setForm((f: any) => ({ ...f, lotNumber: e.target.value }))} />
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Application Rate</Label>
