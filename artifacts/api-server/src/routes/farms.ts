@@ -143,6 +143,7 @@ import {
   usersTable,
   rolesTable,
   farmInsuranceTable,
+  farmPlannerEventsTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte, isNotNull, lte } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
@@ -3285,6 +3286,43 @@ router.patch("/farms/:farmId/insurance/:recordId/document", requireAuth, require
   const [record] = await db.update(farmInsuranceTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(farmInsuranceTable.id, recordId), eq(farmInsuranceTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json(record);
+});
+
+// ─── Planner Events (ad hoc reminders) ────────────────────────────────────────
+
+router.get("/farms/:farmId/planner-events", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const records = await db.select().from(farmPlannerEventsTable).where(eq(farmPlannerEventsTable.farmId, farmId)).orderBy(farmPlannerEventsTable.eventDate);
+  res.json(records);
+});
+
+router.post("/farms/:farmId/planner-events", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const { title, description, eventDate, colour } = req.body;
+  if (!title || !eventDate) { res.status(400).json({ error: "title and eventDate are required" }); return; }
+  const [record] = await db.insert(farmPlannerEventsTable).values({ farmId, title, description: description || null, eventDate: new Date(eventDate), colour: colour || "slate" }).returning();
+  res.status(201).json(record);
+});
+
+router.patch("/farms/:farmId/planner-events/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const recordId = Number(req.params.recordId);
+  const { title, description, eventDate, colour } = req.body;
+  const updates: Record<string, unknown> = {};
+  if (title !== undefined) updates.title = title;
+  if (description !== undefined) updates.description = description;
+  if (eventDate !== undefined) updates.eventDate = new Date(eventDate);
+  if (colour !== undefined) updates.colour = colour;
+  const [record] = await db.update(farmPlannerEventsTable).set(updates).where(and(eq(farmPlannerEventsTable.id, recordId), eq(farmPlannerEventsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(record);
+});
+
+router.delete("/farms/:farmId/planner-events/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const recordId = Number(req.params.recordId);
+  await db.delete(farmPlannerEventsTable).where(and(eq(farmPlannerEventsTable.id, recordId), eq(farmPlannerEventsTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 // ─── Help Articles ─────────────────────────────────
@@ -6658,6 +6696,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     patTestRows, fireExtRows, workshopJobRows,
     biofuelCertRows, waterLicenceRows,
     poDeliveryRows, coshhReviewRows,
+    plannerEventRows,
   ] = await Promise.all([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -6742,6 +6781,10 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: coshhRecordsTable.id, substanceName: coshhRecordsTable.substanceName, reviewDate: coshhRecordsTable.reviewDate })
       .from(coshhRecordsTable)
       .where(and(eq(coshhRecordsTable.farmId, farmId), isNotNull(coshhRecordsTable.reviewDate), gte(coshhRecordsTable.reviewDate, overdueStart), lt(coshhRecordsTable.reviewDate, rangeEnd))),
+
+    db.select({ id: farmPlannerEventsTable.id, title: farmPlannerEventsTable.title, description: farmPlannerEventsTable.description, eventDate: farmPlannerEventsTable.eventDate, colour: farmPlannerEventsTable.colour })
+      .from(farmPlannerEventsTable)
+      .where(and(eq(farmPlannerEventsTable.farmId, farmId), gte(farmPlannerEventsTable.eventDate, overdueStart), lt(farmPlannerEventsTable.eventDate, rangeEnd))),
   ]);
 
   for (const r of pestRows) {
@@ -6833,6 +6876,9 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of poDeliveryRows) {
     if (!r.expectedDeliveryDate || r.status === "delivered" || r.status === "cancelled") continue;
     tasks.push({ id: `pod-${r.id}`, type: "po_delivery_due", title: `Delivery Expected — ${r.poNumber || "PO"}`, description: `${r.supplierName ? `Delivery from ${r.supplierName}` : "Delivery"} is expected${r.poNumber ? ` on PO ${r.poNumber}` : ""}. Check in Suppliers & Stock → Purchase Orders.`, dueDate: toISO(r.expectedDeliveryDate)!, module: "Suppliers & Stock", href: "/suppliers-stock", colour: "amber" });
+  }
+  for (const r of plannerEventRows) {
+    tasks.push({ id: `planner-${r.id}`, type: "planner_event", title: r.title, description: r.description || "Custom reminder added by you.", dueDate: toISO(r.eventDate)!, module: "Custom", href: "#", colour: r.colour || "slate" });
   }
 
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
