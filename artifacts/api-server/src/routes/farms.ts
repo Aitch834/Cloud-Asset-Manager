@@ -5374,6 +5374,91 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Red Tractor requires soil testing at minimum every 5 years for all cropped land, and more frequently for fields receiving significant applications of organic manures. The soil test must be performed by an accredited laboratory and the results used to inform a nutrient management plan. The SS-reference number on each record in BDE Farm Trac provides the unique identifier inspectors need to cross-reference your field records against the laboratory certificate.</p>`,
     },
     {
+      id: 10032,
+      title: "Purchase Orders — Raising and Managing POs",
+      category: "Stock & Suppliers",
+      content: `<p>The <strong>Purchase Orders</strong> tab in Suppliers &amp; Stock lets you raise formal purchase orders (POs) against your registered suppliers, track what has been ordered, and automatically reconcile quantities as goods arrive via Goods Received Notes.</p>
+
+<h3>Raising a Purchase Order</h3>
+<p>Navigate to <strong>Suppliers &amp; Stock</strong> and click the <strong>Purchase Orders</strong> tab. Click <strong>Raise Purchase Order</strong> and complete the form:</p>
+<ul>
+<li><strong>Supplier</strong> — select from your registered supplier directory</li>
+<li><strong>Order Date</strong> — defaults to today</li>
+<li><strong>Expected Delivery Date</strong> — used for planning and overdue tracking</li>
+<li><strong>Order Lines</strong> — add one or more lines, each specifying the product (from your stock catalogue), quantity ordered, and unit price</li>
+</ul>
+<p>Once saved, the PO is assigned an auto-generated reference in the format <strong>PO-YYYY-0001</strong> (e.g. PO-2026-0001). Saved POs start in <strong>Draft</strong> status.</p>
+
+<h3>PO Status Flow</h3>
+<ul>
+<li><strong>Draft</strong> — created but not yet sent to the supplier. You can still edit or delete a draft PO.</li>
+<li><strong>Sent</strong> — use the <em>Mark as Sent</em> action once you have sent or emailed the order to the supplier. This locks the PO from accidental editing.</li>
+<li><strong>Partially Received</strong> — set automatically when a GRN is linked to this PO and some (but not all) lines are fully received.</li>
+<li><strong>Fully Received</strong> — set automatically when every line on the PO has been received in full across one or more GRNs.</li>
+<li><strong>Cancelled</strong> — use the <em>Cancel</em> action if the order is no longer required.</li>
+</ul>
+
+<h3>PO Detail View</h3>
+<p>Click <strong>View</strong> on any PO in the list to open its detail panel. This shows:</p>
+<ul>
+<li>All order lines with quantity ordered, unit price, and a <strong>progress bar</strong> showing how much has been received</li>
+<li>All linked <strong>Goods Received Notes</strong> (GRNs) for this PO — with GRN reference, date, and quantities</li>
+<li>Action buttons: <em>Mark as Sent</em>, <em>Log Goods Received (GRN)</em>, <em>Cancel</em>, <em>Delete Draft</em></li>
+</ul>
+
+<h3>3-Way Match</h3>
+<p>BDE Farm Trac supports a full procurement audit trail through 3-way matching: a <strong>Purchase Order</strong> (what you ordered) is matched against a <strong>Goods Received Note</strong> (what actually arrived) and a <strong>Supplier Invoice</strong> (what was charged). When raising an invoice against a delivery in the <strong>Goods Received</strong> tab, the system links the invoice back to the originating GRN, completing the 3-way match for that delivery.</p>`,
+    },
+    {
+      id: 10033,
+      title: "Goods Received Notes (GRN) — Logging Deliveries and Linking to POs",
+      category: "Stock & Suppliers",
+      content: `<p>Every time goods arrive on your farm, you should record a <strong>Goods Received Note (GRN)</strong>. GRNs update your live stock levels, record the supplier and delivery date, and optionally link to an open Purchase Order to update the quantities received.</p>
+
+<h3>Logging a Delivery</h3>
+<p>Go to <strong>Suppliers &amp; Stock → Goods Received (GRN)</strong> and click <strong>Log Goods Received</strong>. Complete the form fields:</p>
+<ul>
+<li><strong>Supplier</strong> — who delivered the goods</li>
+<li><strong>Product</strong> — select from your stock catalogue</li>
+<li><strong>Quantity Received</strong> and <strong>Unit</strong></li>
+<li><strong>Delivery Date</strong></li>
+<li><strong>Link to Purchase Order</strong> — (optional) select an open PO from this supplier to match the delivery against. The system will automatically update the received quantities on the matched PO line and advance the PO status to Partially Received or Fully Received as appropriate.</li>
+<li><strong>Batch Number</strong> — the batch or lot code printed on the product packaging (e.g. a pesticide batch code). Important for traceability if a batch recall is issued.</li>
+<li><strong>Lot Number</strong> — the manufacturer's lot or production run reference. Use in conjunction with Batch Number where the product label carries both identifiers.</li>
+<li><strong>Invoice Reference</strong> and <strong>Price Paid</strong> — for financial reconciliation</li>
+</ul>
+<p>On saving, the system generates a unique <strong>GRN number</strong> in the format <strong>GRN-YYYY-0001</strong> (e.g. GRN-2026-0001). The GRN number is displayed in the Goods Received list and is referenced on any linked supplier invoice.</p>
+
+<h3>Reading the GRN Table</h3>
+<p>The Goods Received list shows: GRN No. (in green monospace), delivery date, supplier, product, quantity, and lot number. Where a delivery is linked to a PO, the PO reference appears below the supplier name. Expanding a row or raising an invoice shows the full GRN detail.</p>
+
+<h3>Raising a Supplier Invoice from a GRN</h3>
+<p>Click the <strong>Invoice</strong> button on any GRN row to create a linked financial transaction. The invoice is pre-filled with the supplier, amount (price × quantity), and GRN reference. The invoice then appears in Financial Records and completes the <strong>3-way match</strong> (PO → GRN → Invoice) for that delivery.</p>`,
+    },
+    {
+      id: 10034,
+      title: "Batch & Lot Traceability in Spray Application Records",
+      category: "Stock & Suppliers",
+      content: `<p>BDE Farm Trac allows you to trace pesticide and input products from the specific <strong>Goods Received Note (GRN) delivery</strong> through to the <strong>spray application</strong> where they were used. This gives you a full chain of custody from supplier batch to treated field — a requirement if a product is ever subject to a batch recall or a Red Tractor traceability audit.</p>
+
+<h3>How Traceability Works</h3>
+<p>When a product is selected in the spray application form, the system checks whether that product is linked to a stock item in your catalogue. If it is, a green <strong>Batch / Lot Traceability</strong> section appears in the form. This section:</p>
+<ul>
+<li>Shows a dropdown of all <strong>GRN deliveries</strong> received for that product — each listed with its GRN number, batch number, lot number, and delivery date.</li>
+<li>When you select a delivery, the <strong>Batch Number</strong> and <strong>Lot Number</strong> fields are automatically populated from that GRN. You can adjust these if needed.</li>
+<li>You can also enter batch and lot numbers manually without linking to a GRN — useful when recording legacy applications or applications from stock not in the system.</li>
+</ul>
+
+<h3>Viewing Batch Data on Spray Records</h3>
+<p>On the spray applications list, expanding a row shows the full application detail including <strong>Batch Number</strong> and <strong>Lot Number</strong> displayed in monospace format. These fields only appear if a value was recorded — they are not shown for records where batch data was not captured.</p>
+
+<h3>Why This Matters for Compliance</h3>
+<p>Red Tractor and UK law require pesticide records to be kept for at least three years. If a product is subject to a voluntary or mandatory recall by the manufacturer or HSE, you need to be able to identify quickly which fields were treated using that batch. With batch numbers linked through from GRNs to spray records, you can filter your spray history by product and identify all affected applications within seconds.</p>
+
+<h3>Setting Up the Link</h3>
+<p>To enable automatic batch/lot population from GRNs, ensure your spray products are linked to <strong>Stock Items</strong> in the Stock catalogue. Open <strong>Suppliers &amp; Stock → Products</strong>, find the relevant product, and confirm it has a stock item association. Once linked, the traceability picker will appear automatically in the spray form whenever that product is selected.</p>`,
+    },
+    {
       id: 10019,
       title: "Mobile App — Offline Data and How Reference Pickers Work",
       category: "Mobile App",

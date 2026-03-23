@@ -25,7 +25,7 @@ export default function Features() {
       title: "Sprays & Inputs",
       icon: Droplets,
       color: "bg-cyan-50 text-cyan-600 border-cyan-100",
-      features: ["Spray application records", "Product & batch tracking", "Operator & equipment logging", "Withholding period alerts"]
+      features: ["Spray application records", "Product & batch tracking with lot number capture", "Operator & equipment logging", "Withholding period alerts", "GRN-linked batch traceability — select a specific goods received delivery when logging an application to automatically populate batch and lot numbers, creating a full chain of custody from supplier batch to treated field"]
     },
     {
       title: "Soil Management",
@@ -117,7 +117,15 @@ export default function Features() {
       title: "Stock & Suppliers",
       icon: Package,
       color: "bg-earth-cream text-earth-brown border-earth-tan/30",
-      features: ["Supplier directory", "Delivery receipt logging", "Live inventory tracking", "Batch number trace", "Testing laboratory register — add UKAS-accredited labs as a supplier subtype; labs are linked by picker when recording soil samples, grain quality tests, and water quality tests so every analytical result traces to the accredited laboratory that produced it"]
+      features: [
+        "Supplier directory",
+        "Purchase Orders (PO) — raise formal orders against registered suppliers with auto-generated PO-YYYY-0001 reference numbers, multi-line order tables (product, quantity, unit price), and Draft → Sent → Received status tracking",
+        "Goods Received Notes (GRN) — auto-generated GRN-YYYY-0001 references on every delivery; link each GRN to an open PO to automatically update received quantities and advance PO status to Partially Received or Fully Received",
+        "3-way matching — Purchase Order → GRN → Supplier Invoice for a complete procurement audit trail",
+        "Batch & lot number capture on every delivery — batch codes and lot numbers recorded at the point of receipt and carried forward to spray application records",
+        "Live inventory tracking",
+        "Testing laboratory register — add UKAS-accredited labs as a supplier subtype; labs are linked by picker when recording soil samples, grain quality tests, and water quality tests so every analytical result traces to the accredited laboratory that produced it"
+      ]
     },
     {
       title: "Financial Records",

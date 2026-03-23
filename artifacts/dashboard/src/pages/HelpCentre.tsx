@@ -41,6 +41,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Farm Diversification": "bg-indigo-50 text-indigo-800",
   "Water & Irrigation": "bg-sky-50 text-sky-800",
   "Environmental": "bg-teal-50 text-teal-800",
+  "Stock & Suppliers": "bg-amber-50 text-amber-800",
 };
 
 // Categories that are always shown regardless of module subscriptions
@@ -77,6 +78,7 @@ const CATEGORY_TO_MODULE: Record<string, string> = {
   "Farm Diversification": "farm_diversification",
   "Water & Irrigation": "water_irrigation",
   "Environmental": "soil-management",
+  "Stock & Suppliers": "stock-suppliers",
 };
 
 function categoryColor(cat: string) {
