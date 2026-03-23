@@ -86,7 +86,7 @@ export default function Home() {
               className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white"
             >
               <img 
-                src="/hero-tractor.png" 
+                src={`${import.meta.env.BASE_URL}hero-tractor.png`}
                 alt="Modern tractor in a green field" 
                 className="w-full h-auto object-cover aspect-[4/3]"
               />
@@ -143,7 +143,7 @@ export default function Home() {
             <div className="order-2 lg:order-1">
                {/* mobile app user in field inspecting crops */}
                <img 
-                src="/farmer-field.png" 
+                src={`${import.meta.env.BASE_URL}farmer-field.png`}
                 alt="Farmer using mobile app" 
                 className="rounded-2xl shadow-2xl rotate-2 hover:rotate-0 transition-transform duration-500 max-h-[600px] object-cover w-full"
               />
