@@ -62,6 +62,7 @@ import CarbonPage from "@/pages/CarbonPage";
 import DiversificationPage from "@/pages/DiversificationPage";
 import WaterIrrigationPage from "@/pages/WaterIrrigationPage";
 import InsurancePage from "@/pages/InsurancePage";
+import GrantsPage from "@/pages/GrantsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -212,6 +213,7 @@ function Router() {
       <Route path="/diversification" component={DiversificationPage} />
       <Route path="/water-irrigation" component={WaterIrrigationPage} />
       <Route path="/insurance" component={InsurancePage} />
+      <Route path="/grants" component={GrantsPage} />
       <Route path="/inspect/:token" component={InspectionViewPage} />
       <Route component={NotFound} />
     </Switch>

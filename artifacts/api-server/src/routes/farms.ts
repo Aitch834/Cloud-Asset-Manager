@@ -144,6 +144,7 @@ import {
   rolesTable,
   farmInsuranceTable,
   farmPlannerEventsTable,
+  farmGrantsTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte, isNotNull, lte } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
@@ -3323,6 +3324,82 @@ router.delete("/farms/:farmId/planner-events/:recordId", requireAuth, requireTen
   const recordId = Number(req.params.recordId);
   await db.delete(farmPlannerEventsTable).where(and(eq(farmPlannerEventsTable.id, recordId), eq(farmPlannerEventsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Grants & Funding ──────────────────────────────
+router.get("/farms/:farmId/grants", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(farmGrantsTable).where(eq(farmGrantsTable.farmId, farmId)).orderBy(desc(farmGrantsTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/grants", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { schemeName, schemeType, itemReferenceCode, itemDescription, applicationReference, applicationDate, approvalDate, purchaseDeadline, claimDeadline, grantAmountPence, actualCostPence, status, linkedEquipmentId, notes } = req.body;
+  if (!schemeName) { res.status(400).json({ error: "schemeName is required" }); return; }
+  const [record] = await db.insert(farmGrantsTable).values({
+    farmId,
+    schemeName,
+    schemeType: schemeType || "FETF",
+    itemReferenceCode: itemReferenceCode || null,
+    itemDescription: itemDescription || null,
+    applicationReference: applicationReference || null,
+    applicationDate: applicationDate || null,
+    approvalDate: approvalDate || null,
+    purchaseDeadline: purchaseDeadline || null,
+    claimDeadline: claimDeadline || null,
+    grantAmountPence: grantAmountPence ? Number(grantAmountPence) : null,
+    actualCostPence: actualCostPence ? Number(actualCostPence) : null,
+    status: status || "applied",
+    linkedEquipmentId: linkedEquipmentId ? Number(linkedEquipmentId) : null,
+    notes: notes || null,
+  }).returning();
+  res.status(201).json(record);
+});
+
+router.patch("/farms/:farmId/grants/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  const { schemeName, schemeType, itemReferenceCode, itemDescription, applicationReference, applicationDate, approvalDate, purchaseDeadline, claimDeadline, grantAmountPence, actualCostPence, status, linkedEquipmentId, notes } = req.body;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (schemeName !== undefined) updates.schemeName = schemeName;
+  if (schemeType !== undefined) updates.schemeType = schemeType;
+  if (itemReferenceCode !== undefined) updates.itemReferenceCode = itemReferenceCode || null;
+  if (itemDescription !== undefined) updates.itemDescription = itemDescription || null;
+  if (applicationReference !== undefined) updates.applicationReference = applicationReference || null;
+  if (applicationDate !== undefined) updates.applicationDate = applicationDate || null;
+  if (approvalDate !== undefined) updates.approvalDate = approvalDate || null;
+  if (purchaseDeadline !== undefined) updates.purchaseDeadline = purchaseDeadline || null;
+  if (claimDeadline !== undefined) updates.claimDeadline = claimDeadline || null;
+  if (grantAmountPence !== undefined) updates.grantAmountPence = grantAmountPence ? Number(grantAmountPence) : null;
+  if (actualCostPence !== undefined) updates.actualCostPence = actualCostPence ? Number(actualCostPence) : null;
+  if (status !== undefined) updates.status = status;
+  if (linkedEquipmentId !== undefined) updates.linkedEquipmentId = linkedEquipmentId ? Number(linkedEquipmentId) : null;
+  if (notes !== undefined) updates.notes = notes || null;
+  const [record] = await db.update(farmGrantsTable).set(updates).where(and(eq(farmGrantsTable.id, recordId), eq(farmGrantsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(record);
+});
+
+router.delete("/farms/:farmId/grants/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  await db.delete(farmGrantsTable).where(and(eq(farmGrantsTable.id, recordId), eq(farmGrantsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.patch("/farms/:farmId/grants/:recordId/document", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  const { documentPath, documentName } = req.body;
+  const [record] = await db.update(farmGrantsTable).set({ documentPath: documentPath ?? null, documentName: documentName ?? null }).where(and(eq(farmGrantsTable.id, recordId), eq(farmGrantsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(record);
 });
 
 // ─── Help Articles ─────────────────────────────────
@@ -6746,6 +6823,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     biofuelCertRows, waterLicenceRows,
     poDeliveryRows, coshhReviewRows,
     plannerEventRows,
+    grantPurchaseRows, grantClaimRows,
   ] = await Promise.all([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -6834,6 +6912,14 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: farmPlannerEventsTable.id, title: farmPlannerEventsTable.title, description: farmPlannerEventsTable.description, eventDate: farmPlannerEventsTable.eventDate, colour: farmPlannerEventsTable.colour })
       .from(farmPlannerEventsTable)
       .where(and(eq(farmPlannerEventsTable.farmId, farmId), gte(farmPlannerEventsTable.eventDate, overdueStart), lt(farmPlannerEventsTable.eventDate, rangeEnd))),
+
+    db.select({ id: farmGrantsTable.id, schemeName: farmGrantsTable.schemeName, schemeType: farmGrantsTable.schemeType, itemReferenceCode: farmGrantsTable.itemReferenceCode, itemDescription: farmGrantsTable.itemDescription, purchaseDeadline: farmGrantsTable.purchaseDeadline, claimDeadline: farmGrantsTable.claimDeadline, status: farmGrantsTable.status })
+      .from(farmGrantsTable)
+      .where(and(eq(farmGrantsTable.farmId, farmId), isNotNull(farmGrantsTable.purchaseDeadline), gte(farmGrantsTable.purchaseDeadline, overdueStart), lt(farmGrantsTable.purchaseDeadline, rangeEnd))),
+
+    db.select({ id: farmGrantsTable.id, schemeName: farmGrantsTable.schemeName, schemeType: farmGrantsTable.schemeType, itemReferenceCode: farmGrantsTable.itemReferenceCode, itemDescription: farmGrantsTable.itemDescription, purchaseDeadline: farmGrantsTable.purchaseDeadline, claimDeadline: farmGrantsTable.claimDeadline, status: farmGrantsTable.status })
+      .from(farmGrantsTable)
+      .where(and(eq(farmGrantsTable.farmId, farmId), isNotNull(farmGrantsTable.claimDeadline), gte(farmGrantsTable.claimDeadline, overdueStart), lt(farmGrantsTable.claimDeadline, rangeEnd))),
   ]);
 
   for (const r of pestRows) {
@@ -6928,6 +7014,16 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   }
   for (const r of plannerEventRows) {
     tasks.push({ id: `planner-${r.id}`, type: "planner_event", title: r.title, description: r.description || "Custom reminder added by you.", dueDate: toISO(r.eventDate)!, module: "Custom", href: "#", colour: r.colour || "slate" });
+  }
+  for (const r of grantPurchaseRows) {
+    if (!r.purchaseDeadline || r.status === "purchased" || r.status === "claimed" || r.status === "rejected" || r.status === "withdrawn") continue;
+    const itemLabel = r.itemDescription || r.itemReferenceCode || "item";
+    tasks.push({ id: `grant-purchase-${r.id}`, type: "grant_purchase_deadline", title: `Grant Purchase Deadline — ${r.schemeName}`, description: `${r.schemeType} grant for '${itemLabel}' must be purchased by this date. Log in Grants & Funding.`, dueDate: toISO(r.purchaseDeadline)!, module: "Grants & Funding", href: "/grants", colour: "violet" });
+  }
+  for (const r of grantClaimRows) {
+    if (!r.claimDeadline || r.status === "claimed" || r.status === "rejected" || r.status === "withdrawn") continue;
+    const itemLabel = r.itemDescription || r.itemReferenceCode || "item";
+    tasks.push({ id: `grant-claim-${r.id}`, type: "grant_claim_deadline", title: `Grant Claim Deadline — ${r.schemeName}`, description: `${r.schemeType} claim for '${itemLabel}' must be submitted by this date. Log in Grants & Funding.`, dueDate: toISO(r.claimDeadline)!, module: "Grants & Funding", href: "/grants", colour: "violet" });
   }
 
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
