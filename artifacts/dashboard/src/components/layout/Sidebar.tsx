@@ -113,7 +113,7 @@ const specialistNav: NavItem[] = [
 
 const otherNav: NavItem[] = [
   { name: "Staff", href: "/staff", icon: Users, minRole: "senior" },
-  { name: "Training", href: "/training", icon: GraduationCap, moduleKeys: ["staff-training"] },
+  { name: "Training", href: "/training", icon: GraduationCap, minRole: "senior" },
   { name: "Suppliers & Stock", href: "/stock", icon: Package, moduleKeys: ["stock-suppliers"] },
   { name: "Financial", href: "/financial", icon: PoundSterling, moduleKeys: ["financial-records"], minRole: "manager" },
   { name: "Business Reports", href: "/business-reports", icon: BarChart3, moduleKeys: ["business-reports"], minRole: "manager" },
