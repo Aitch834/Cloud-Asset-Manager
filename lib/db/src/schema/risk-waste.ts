@@ -51,6 +51,7 @@ export const wasteDisposalRecordsTable = pgTable("waste_disposal_records", {
   ewcCode: text("ewc_code"),
   destinationSite: text("destination_site"),
   wasteTransferNote: text("waste_transfer_note"),
+  receiptPhotoPath: text("receipt_photo_path"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

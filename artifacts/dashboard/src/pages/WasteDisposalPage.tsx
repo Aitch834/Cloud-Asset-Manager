@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, Search, Pencil, FileText, Truck, Recycle, Printer, ExternalLink } from "lucide-react";
+import { Trash2, Plus, Search, Pencil, FileText, Truck, Recycle, Printer, ExternalLink, Paperclip, X, Upload } from "lucide-react";
 
 interface WasteRecord {
   id: number;
@@ -25,6 +25,7 @@ interface WasteRecord {
   carrierRegistrationType: string | null;
   destinationSite: string | null;
   wasteTransferNote: string | null;
+  receiptPhotoPath: string | null;
   ewcCode: string | null;
   notes: string | null;
   createdAt: string;
@@ -112,9 +113,12 @@ export default function WasteDisposalPage() {
   const emptyForm: any = {
     wasteType: "", ewcCode: "", quantity: "", disposalMethod: "", disposalDate: "",
     carrierId: "", carrierName: "", carrierLicence: "", carrierRegistrationType: "",
-    destinationSite: "", wasteTransferNote: "", notes: "",
+    destinationSite: "", wasteTransferNote: "", receiptPhotoPath: null, notes: "",
   };
   const [form, setForm] = useState<any>(emptyForm);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const q = useQuery({
     queryKey: ["waste", farmId],
@@ -137,6 +141,19 @@ export default function WasteDisposalPage() {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["waste", farmId] });
 
+  const uploadFileMut = async (file: File): Promise<string> => {
+    const urlRes = await fetch("/api/storage/uploads/request-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }),
+    });
+    if (!urlRes.ok) throw new Error("Failed to get upload URL");
+    const { uploadURL, objectPath } = await urlRes.json();
+    const putRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
+    if (!putRes.ok) throw new Error("Failed to upload file");
+    return objectPath as string;
+  };
+
   const saveMut = useMutation({
     mutationFn: (body: any) => {
       const payload = {
@@ -147,9 +164,36 @@ export default function WasteDisposalPage() {
       if (editRecord) return fetch(`/api/farms/${farmId}/waste/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       return fetch(`/api/farms/${farmId}/waste`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     },
-    onSuccess: () => { toast({ title: editRecord ? "Record updated" : "Record saved" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(emptyForm); },
+    onSuccess: () => {
+      toast({ title: editRecord ? "Record updated" : "Record saved" });
+      invalidate();
+      setAddOpen(false);
+      setEditRecord(null);
+      setForm(emptyForm);
+      setSelectedFile(null);
+    },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
+
+  const handleSave = async () => {
+    try {
+      let receiptPhotoPath = form.receiptPhotoPath ?? null;
+      if (selectedFile) {
+        setUploading(true);
+        receiptPhotoPath = await uploadFileMut(selectedFile);
+        setUploading(false);
+      }
+      saveMut.mutate({ ...form, receiptPhotoPath });
+    } catch {
+      setUploading(false);
+      toast({ title: "Failed to upload receipt — record not saved", variant: "destructive" });
+    }
+  };
+
+  const viewAttachmentUrl = (path: string) => {
+    const stripped = path.startsWith("/objects/") ? path.slice("/objects/".length) : path;
+    return `/api/storage/objects/${stripped}`;
+  };
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/waste/${id}`, { method: "DELETE" }),
@@ -177,12 +221,14 @@ export default function WasteDisposalPage() {
     setEditRecord(null);
     setForm(emptyForm);
     setCarrierMode("registered");
+    setSelectedFile(null);
     setAddOpen(true);
   };
   const openEdit = (r: WasteRecord) => {
     setEditRecord(r);
     setForm({ ...r, disposalDate: r.disposalDate?.slice(0, 10) ?? "" });
     setCarrierMode(r.carrierId ? "registered" : "manual");
+    setSelectedFile(null);
     setAddOpen(true);
   };
 
@@ -312,7 +358,7 @@ export default function WasteDisposalPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  {["Date", "Waste Type", "EWC Code", "Qty", "Method", "Carrier", "EA Licence", "Reg. Type", "Destination", "WTN", ""].map(h => (
+                  {["Date", "Waste Type", "EWC Code", "Qty", "Method", "Carrier", "EA Licence", "Reg. Type", "Destination", "WTN", "Receipt", ""].map(h => (
                     <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -344,6 +390,21 @@ export default function WasteDisposalPage() {
                       {r.wasteTransferNote ? (
                         <Badge style={{ background: "#dcfce7", color: "#166534", border: "none", fontFamily: "monospace", fontSize: "0.72rem" }}>{r.wasteTransferNote}</Badge>
                       ) : <span style={{ color: "#d1d5db", fontSize: "0.75rem" }}>None</span>}
+                    </td>
+                    <td style={{ padding: "0.625rem 0.5rem", textAlign: "center" }}>
+                      {r.receiptPhotoPath ? (
+                        <a
+                          href={viewAttachmentUrl(r.receiptPhotoPath)}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="View attached receipt / WTN scan"
+                          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 5, padding: "3px 7px", color: "#1d4ed8", gap: 4, fontSize: "0.72rem" }}
+                        >
+                          <Paperclip size={11} /> View
+                        </a>
+                      ) : (
+                        <span style={{ color: "#e5e7eb", fontSize: "0.72rem" }}>—</span>
+                      )}
                     </td>
                     <td style={{ padding: "0.5rem" }}>
                       <div style={{ display: "flex", gap: 4 }}>
@@ -475,11 +536,86 @@ export default function WasteDisposalPage() {
                 </div>
               </div>
               <div><Label>Notes</Label><Textarea placeholder="Additional information, collection reference, driver details..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+
+              {/* ─── Receipt / WTN scan attachment ─── */}
+              <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "0.75rem" }}>
+                <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
+                  Carrier Receipt / WTN Scan
+                </p>
+                <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: "0.5rem" }}>
+                  Attach a photo or scan of the paper Waste Transfer Note or carrier receipt handed over at collection.
+                </p>
+
+                {/* Existing attachment on the record */}
+                {form.receiptPhotoPath && !selectedFile && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.5rem 0.75rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, marginBottom: "0.5rem" }}>
+                    <Paperclip size={14} color="#16a34a" />
+                    <span style={{ fontSize: "0.8rem", color: "#166534", flex: 1 }}>Receipt already attached</span>
+                    <a
+                      href={viewAttachmentUrl(form.receiptPhotoPath)}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: "0.75rem", color: "#1d4ed8", display: "flex", alignItems: "center", gap: 3 }}
+                    >
+                      <ExternalLink size={12} /> View
+                    </a>
+                    <button
+                      onClick={() => setForm((f: any) => ({ ...f, receiptPhotoPath: null }))}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", display: "flex", alignItems: "center" }}
+                      title="Remove attachment"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {/* New file selected */}
+                {selectedFile && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.5rem 0.75rem", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, marginBottom: "0.5rem" }}>
+                    <Paperclip size={14} color="#1d4ed8" />
+                    <span style={{ fontSize: "0.8rem", color: "#1e40af", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedFile.name}</span>
+                    <span style={{ fontSize: "0.72rem", color: "#6b7280" }}>{(selectedFile.size / 1024).toFixed(0)} KB</span>
+                    <button
+                      onClick={() => { setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", display: "flex", alignItems: "center" }}
+                      title="Remove"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Upload button */}
+                {!selectedFile && (
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,.pdf"
+                      style={{ display: "none" }}
+                      onChange={e => {
+                        const f = e.target.files?.[0] ?? null;
+                        setSelectedFile(f);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem" }}
+                    >
+                      <Upload size={13} />
+                      {form.receiptPhotoPath ? "Replace receipt" : "Attach photo / PDF"}
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
-              <Button onClick={() => saveMut.mutate(form)} disabled={!form.disposalDate || !form.wasteType || !form.disposalMethod || saveMut.isPending}>
-                {saveMut.isPending ? "Saving…" : editRecord ? "Save Changes" : "Save Record"}
+              <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setSelectedFile(null); }}>Cancel</Button>
+              <Button onClick={handleSave} disabled={!form.disposalDate || !form.wasteType || !form.disposalMethod || saveMut.isPending || uploading}>
+                {uploading ? "Uploading…" : saveMut.isPending ? "Saving…" : editRecord ? "Save Changes" : "Save Record"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -527,7 +663,7 @@ export default function WasteDisposalPage() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.72rem" }}>
                     <thead>
                       <tr style={{ background: "#f3f4f6" }}>
-                        {["Date", "Waste Type", "EWC Code", "Quantity", "Disposal Method", "Carrier Company", "EA Reg. No.", "Carrier Type", "Destination Site", "WTN Ref."].map(h => (
+                        {["Date", "Waste Type", "EWC Code", "Quantity", "Disposal Method", "Carrier Company", "EA Reg. No.", "Carrier Type", "Destination Site", "WTN Ref.", "Receipt"].map(h => (
                           <th key={h} style={{ border: "1px solid #d1d5db", padding: "4px 6px", textAlign: "left", fontWeight: 600, fontSize: "0.68rem" }}>{h}</th>
                         ))}
                       </tr>
@@ -545,6 +681,7 @@ export default function WasteDisposalPage() {
                           <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px" }}>{r.carrierRegistrationType || "—"}</td>
                           <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px" }}>{r.destinationSite || "—"}</td>
                           <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px", fontFamily: "monospace", fontSize: "0.65rem" }}>{r.wasteTransferNote || "—"}</td>
+                          <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px", textAlign: "center", color: r.receiptPhotoPath ? "#166534" : "#9ca3af" }}>{r.receiptPhotoPath ? "Yes" : "—"}</td>
                         </tr>
                       ))}
                     </tbody>
