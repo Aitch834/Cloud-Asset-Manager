@@ -5855,6 +5855,274 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 </ul>`,
     },
     {
+      id: 10038,
+      title: "Inspections Module — Tabs, Non-Conformances and Farm Assurance Certificates",
+      category: "Inspections",
+      content: `<p>The Inspections module is the central hub for managing your Red Tractor assessment cycle. It has four tabs: <strong>Inspections</strong>, <strong>Non-Conformances</strong>, <strong>Corrective Actions</strong>, and <strong>Farm Assurance Certificates</strong>. Together they give you a complete audit trail from the inspection visit through to closure of every finding.</p>
+
+<h3>Inspections Tab</h3>
+<p>Log every formal Red Tractor assessment, cross-compliance inspection, or third-party audit here. For each inspection record:</p>
+<ul>
+<li><strong>Inspection Type</strong> — Red Tractor (announced/unannounced), cross-compliance, third-party audit, internal farm review, or other</li>
+<li><strong>Inspector Name &amp; Organisation</strong> — the certifying body or agency (e.g. Farm Certification Ltd, ADAS, NSF)</li>
+<li><strong>Date &amp; Outcome</strong> — pass, pass with minor non-conformances, major non-conformance, or fail</li>
+<li><strong>Certificate Issued</strong> — tick this when the inspection leads to a new or renewed assurance certificate</li>
+<li><strong>Notes</strong> — any overall inspector comments or areas highlighted for improvement</li>
+</ul>
+<p>Each inspection record is assigned a unique reference (INS-YYYY-NNNN) for cross-referencing with non-conformances and corrective actions.</p>
+
+<h3>Non-Conformances Tab</h3>
+<p>Every finding raised during an inspection — whether a minor advisory or a major non-conformance — should be logged here. Record:</p>
+<ul>
+<li><strong>Severity</strong> — Minor, Major, or Critical. Red Tractor defines Minor as items that do not immediately threaten food safety or animal welfare, and Major as items that do. A Critical (critical) finding may lead to immediate suspension.</li>
+<li><strong>Standard Clause</strong> — the specific Red Tractor standard reference (e.g. CC 1.2, B&amp;L 4.5) as written on the inspection report</li>
+<li><strong>Finding Description</strong> — copy the exact wording from the inspector's report so there is no ambiguity about what needs addressing</li>
+<li><strong>Due Date</strong> — the deadline set by the certification body for resolution (typically 28 days for Minor, 14 days for Major)</li>
+</ul>
+
+<h3>Corrective Actions Tab</h3>
+<p>Each non-conformance must have at least one corrective action linked to it. Corrective actions are the specific steps taken to resolve the finding:</p>
+<ul>
+<li>Describe what will be done (or has been done) to address the non-conformance</li>
+<li>Set a target completion date and the person responsible</li>
+<li>Mark the action as complete and record the completion date once done</li>
+<li>Attach evidence (photo, updated record, new procedure document) using the file attachment slot</li>
+</ul>
+<p>When all corrective actions for a non-conformance are marked complete, the non-conformance status automatically updates to Resolved. This gives the certification body auditor a clear, documented evidence trail when they follow up.</p>
+
+<h3>Farm Assurance Certificates Tab</h3>
+<p>This tab holds a register of all your Red Tractor and other farm assurance scheme certificates. For each certificate record:</p>
+<ul>
+<li><strong>Certification Body</strong> — the organisation that issued the certificate (e.g. Farm Certification Ltd, ADAS Certification, Benchmark, Acoura)</li>
+<li><strong>Certificate Number</strong> — the unique certificate reference; this is the number inspectors and merchants will ask for</li>
+<li><strong>Scheme / Standard</strong> — which Red Tractor standard the certificate covers (Combinable Crops, Beef &amp; Lamb, Dairy, Fresh Produce, Pigs, Poultry, etc.)</li>
+<li><strong>Farm Sectors Covered</strong> — tick the relevant sectors (arable, dairy, beef, sheep, etc.) — important where a farm holds a multi-sector certificate</li>
+<li><strong>Issue Date &amp; Expiry Date</strong> — the certificate period. Red Tractor certificates typically run 12 months; colour-coded expiry badges (green / amber / red) appear automatically as the expiry approaches</li>
+<li><strong>Assessor Name</strong> — the individual assessor who signed off the certificate, for your records</li>
+</ul>
+<p>Merchants, co-ops, and grain stores may ask for your certificate number and expiry date before accepting assured produce. Keeping this register up to date means you can confirm assurance status instantly without hunting for paper certificates.</p>`,
+    },
+    {
+      id: 10039,
+      title: "Risk Assessments — Using Hazard Templates and Recording COSHH Assessments",
+      category: "Risk & Waste",
+      content: `<p>The Risk Assessments module in BDE Farm Trac provides a structured register for all farm risk assessments and COSHH records. It has two tabs: <strong>Risk Assessments</strong> and <strong>COSHH Records</strong>. Note that COSHH records sit here in the Risk & Waste module, not in Biosecurity — this reflects the Health & Safety Executive's guidance that COSHH is a risk assessment process rather than a biosecurity tool.</p>
+
+<h3>Risk Assessments Tab — Hazard Templates</h3>
+<p>When you click <strong>Add Risk Assessment</strong>, nine pre-built hazard templates appear to accelerate data entry. Select the template that best matches the activity you are assessing — the hazard description and common control measures are pre-filled, saving time while ensuring consistency:</p>
+<ul>
+<li><strong>Manual Handling</strong> — lifting, carrying, and repetitive operations; covers musculoskeletal risks and TILE (Task, Individual, Load, Environment) framework</li>
+<li><strong>Chemical / Pesticide Exposure</strong> — covers pesticide handling, mixing, application, and storage with reference to COSHH and product label requirements</li>
+<li><strong>Working at Height</strong> — roof work, grain store inspection, silo access, platform use; references the Work at Height Regulations 2005</li>
+<li><strong>Machinery Operation</strong> — guarding, PTO shafts, in-running nip points, entanglement risks</li>
+<li><strong>Electricity</strong> — overhead lines, underground cables, portable equipment, grain drying electrical systems</li>
+<li><strong>Slips, Trips &amp; Falls</strong> — yards, livestock buildings, silage clamps</li>
+<li><strong>Confined Spaces</strong> — slurry pits, grain bins, underground tanks; references Confined Spaces Regulations 1997</li>
+<li><strong>Lone Working</strong> — remote field operations, evening checks, early-morning livestock rounds</li>
+<li><strong>Fire Risk</strong> — grain stores, hay and straw storage, fuel storage, electrical installations</li>
+</ul>
+<p>After selecting a template, review and customise the hazard description, control measures, and risk rating (Likelihood × Severity) to reflect your farm's specific circumstances. Generic templates must be site-specific to satisfy a Red Tractor inspector — a template used unchanged will not demonstrate that the farm manager has actually thought through the risks.</p>
+
+<h3>Risk Rating</h3>
+<p>Each assessment records:</p>
+<ul>
+<li><strong>Likelihood</strong> (1–5) × <strong>Severity</strong> (1–5) = <strong>Risk Score</strong> (1–25)</li>
+<li>Scores 1–6: Low; 7–12: Medium; 13–17: High; 18–25: Critical</li>
+<li>High and Critical assessments are highlighted in the table and should be prioritised for review</li>
+</ul>
+
+<h3>COSHH Records Tab</h3>
+<p>COSHH assessments are required for every hazardous substance used on the farm — pesticides, cleaning chemicals, fuels, lubricants, veterinary medicines, and any other substance that may harm health through inhalation, skin contact, or ingestion.</p>
+<p>For each COSHH record enter:</p>
+<ul>
+<li><strong>Substance Name</strong> — as printed on the product label or Safety Data Sheet (SDS)</li>
+<li><strong>Location / Activity</strong> — where and how the substance is used (e.g. "Grain store — applying propionic acid preservative")</li>
+<li><strong>Hazard Description</strong> — the specific health hazard (e.g. skin irritant, respiratory sensitiser, carcinogen)</li>
+<li><strong>Control Measures</strong> — PPE required, ventilation requirements, storage conditions, emergency procedures</li>
+<li><strong>Assessment Date &amp; Review Date</strong> — assessments should be reviewed annually and whenever a new substance is introduced or methods change</li>
+<li><strong>Assessor</strong> — the name of the person who completed the assessment</li>
+</ul>
+<p>Keep a printed or electronic copy of the relevant Safety Data Sheet alongside each COSHH record. SDS documents are available from the product manufacturer's website — always use the most current version. Red Tractor inspectors may ask to see COSHH assessments for products found in the chemical store and will check that staff are aware of the control measures.</p>`,
+    },
+    {
+      id: 10040,
+      title: "Waste Disposal — EWC Codes and Duty of Care",
+      category: "Risk & Waste",
+      content: `<p>The Waste Disposal register in BDE Farm Trac records all non-agricultural waste produced on the farm — including waste chemicals, used packaging, contaminated soil, scrap metal, waste oils, veterinary waste, and general farm waste. Agricultural waste (farmyard manure, slurry) is managed separately in the Environmental module.</p>
+
+<h3>EWC Codes — European Waste Catalogue</h3>
+<p>Every category of waste is assigned a six-digit EWC (European Waste Catalogue) code that identifies the waste type. The EWC was adopted into UK law and remains in use. Key EWC codes for farm waste include:</p>
+<ul>
+<li><strong>02 01 08* — Agrochemical waste containing hazardous substances</strong> — empty pesticide containers with residues, out-of-date pesticides, contaminated chemical waste. The asterisk (*) denotes a <em>hazardous waste</em> — more stringent controls apply.</li>
+<li><strong>02 01 09 — Agrochemical waste (non-hazardous)</strong> — triple-rinsed empty containers accepted at authorised collection points (Agrecovery, MCRS)</li>
+<li><strong>15 01 02 — Plastic packaging</strong> — bale wrap, fertiliser bags, feed sacks (non-contaminated)</li>
+<li><strong>16 01 03 — End-of-life tyres</strong> — must go to an authorised tyre recycler</li>
+<li><strong>13 02 05* — Waste mineral oils (non-chlorinated, from machinery servicing)</strong> — hazardous; must be collected by a licensed waste carrier</li>
+<li><strong>18 02 02* — Veterinary waste — sharps and medicines</strong> — needles, syringes, unused medicines; hazardous; requires collection by a specialist medical waste contractor</li>
+<li><strong>17 04 05 — Iron and steel (scrap metal)</strong> — non-hazardous; can be collected by a registered scrap metal dealer</li>
+<li><strong>20 03 01 — General mixed municipal waste</strong> — general farm office or yard waste collected by a registered waste carrier</li>
+</ul>
+<p>The EWC code picker in the Add Waste Record form shows these common codes with descriptions. Select the correct code for each waste type — this is the code that appears on your waste transfer notes and Duty of Care documentation.</p>
+
+<h3>Duty of Care</h3>
+<p>Under the Environmental Protection Act 1990, all businesses (including farms) have a legal duty of care in relation to waste they produce. This means you must:</p>
+<ol>
+<li><strong>Ensure waste is kept safely</strong> — stored in labelled, secure containers to prevent escape, leakage, or theft</li>
+<li><strong>Only give waste to an authorised person</strong> — the waste carrier must hold a valid Waste Carrier Registration (Upper Tier for most commercial collections) from the Environment Agency. Self-disposal (fly-tipping) is a criminal offence carrying unlimited fines.</li>
+<li><strong>Complete a Waste Transfer Note (WTN)</strong> — for every transfer of waste between your farm and a waste carrier or disposal site. The WTN must describe the waste, its quantity, its EWC code, the carrier's registration details, and both parties' contact information.</li>
+<li><strong>Keep records for two years</strong> — the Environment Agency or Red Tractor inspector may ask to see WTNs during an inspection. Records must cover all waste types, including packaging and chemical waste.</li>
+</ol>
+<p><strong>Hazardous waste</strong> (marked with * in the EWC picker) requires a <strong>Hazardous Waste Consignment Note</strong> instead of a standard WTN. Consignment notes have additional fields and must be retained for three years. Certain hazardous waste movements also require pre-notification to the Environment Agency (for quantities above the threshold of 500 kg from the same premises in a 12-month period).</p>
+
+<h3>Carrier Registration Types in BDE Farm Trac</h3>
+<p>When recording a Duty of Care waste disposal, you must record whether the carrier holds a standard <strong>Registered Carrier</strong> registration or whether the collection is covered by a carrier <strong>Exemption</strong>. Exemptions apply in limited circumstances (e.g. a farmer carrying their own waste, or a charity collection) — if in doubt, require proof of carrier registration before handing over waste.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor standards require evidence that chemical containers and other hazardous waste are disposed of through approved channels — and that pesticide containers are either triple-rinsed and returned to an MCRS / Agrecovery collection point, or documented as collected by a licensed carrier. Keep Waste Transfer Notes or Agrecovery collection receipts as evidence. The waste disposal register in BDE Farm Trac provides the audit trail inspectors need.</p>`,
+    },
+    {
+      id: 10041,
+      title: "Documents Module — Red Tractor Required Documents Checklist",
+      category: "Documents",
+      content: `<p>The Documents module in BDE Farm Trac serves two purposes: a full document register where you can store and categorise any farm document, and a <strong>Red Tractor Required Documents checklist</strong> that tells you at a glance which of the most important documents are present and which are missing from your register.</p>
+
+<h3>The Red Tractor Required Documents Panel</h3>
+<p>At the top-right of the Documents page, the Required Documents panel lists 11 document types that Red Tractor inspectors almost always ask to see. Each item shows one of three states:</p>
+<ul>
+<li><strong>Present</strong> (green tick) — at least one document of this type exists in your register. The document title appears as a link so you can open it immediately if asked by an inspector.</li>
+<li><strong>Missing</strong> (red cross) — no document of this type has been recorded. You should upload or register this document before your next inspection.</li>
+</ul>
+<p>The 11 required document types checked are:</p>
+<ol>
+<li>Red Tractor Assurance Certificate</li>
+<li>Red Tractor Scheme Membership</li>
+<li>Employers Liability Insurance Certificate</li>
+<li>Public Liability Insurance Certificate</li>
+<li>NSTS Sprayer Test Certificate</li>
+<li>Nutrient Management Plan</li>
+<li>Agri-Environment Scheme Agreement</li>
+<li>COSHH Assessment</li>
+<li>Biosecurity Plan</li>
+<li>Veterinary Health Plan</li>
+<li>Risk Assessment (general farm)</li>
+</ol>
+<p>The checklist updates live — as soon as you add a document of a required type to the register, the red cross turns green. Use this panel in the weeks before an inspection to confirm all key paperwork is in place.</p>
+
+<h3>Document Types and Categories</h3>
+<p>When registering a document, select its type from a grouped picker covering 30+ types across eight categories:</p>
+<ul>
+<li><strong>Assurance &amp; Compliance</strong> — Red Tractor certificate, scheme membership, cross-compliance documents, NVZ designation</li>
+<li><strong>Insurance</strong> — employers liability, public liability, vehicle, livestock, buildings, machinery</li>
+<li><strong>Environmental</strong> — NMP, agri-environment agreements, abstraction licence, SFI/CS agreement, SSSI consent</li>
+<li><strong>Health &amp; Safety</strong> — COSHH assessment, risk assessment, fire risk assessment, DSEAR assessment, emergency procedures</li>
+<li><strong>Biosecurity &amp; Veterinary</strong> — biosecurity plan, vet health plan, TB test certificate, FMD plan, livestock movement licence</li>
+<li><strong>Equipment &amp; Machinery</strong> — NSTS certificate, equipment service record, LOLER/PUWER certificate, calibration record, warranty</li>
+<li><strong>Staff &amp; Training</strong> — PA certificate, employment contract, induction record, DBS check, right to work check</li>
+<li><strong>Land &amp; Legal</strong> — tenancy agreement, title deeds, planning permission, lease, boundary map</li>
+</ul>
+
+<h3>Using the Category Filter</h3>
+<p>The table view has a category filter at the top. Select a category to show only documents of that type — useful when an inspector asks specifically for health and safety records or biosecurity documents. Combine the category filter with the search bar to find a specific document title quickly.</p>
+
+<h3>Reference Numbers</h3>
+<p>Each document in the register can have a <strong>Reference Number</strong> — for example, a certificate number, policy number, or agreement reference. Recording the reference number means you can confirm document details (e.g. "NSTS certificate JS-2025-047") without needing to open the file. This is particularly useful for insurance policies and sprayer test certificates where the reference number is needed for third-party verification.</p>`,
+    },
+    {
+      id: 10042,
+      title: "Crop Contracts — Recording Grain Marketing Agreements",
+      category: "Financial",
+      content: `<p>The <strong>Crop Contracts</strong> tab in the Financial module provides a register of all your grain, pulse, and oilseed marketing contracts. It is separate from the general transaction ledger and is designed to track committed tonnage, agreed prices, delivery windows, and contract status — giving you a live picture of your marketing position for each commodity.</p>
+
+<h3>When to Add a Crop Contract</h3>
+<p>Add a record as soon as a marketing agreement is made — whether that is a fixed-price forward contract, a pool entry, or a spot sale at harvest. Recording contracts promptly ensures you have an accurate picture of your committed position at all times, and provides documentary evidence of the agreed price if there is a later dispute with the merchant.</p>
+
+<h3>Key Fields</h3>
+<ul>
+<li><strong>Commodity</strong> — the crop type (Winter Wheat, Malting Barley, Oilseed Rape, etc.). This is the primary sort field in the table and in the Grain Position analysis in the Haulage module.</li>
+<li><strong>Variety</strong> — particularly important for malting barley and milling wheat where variety specification is part of the contract (e.g. KWS Irina for malting, Skyfall for milling). Leave blank if variety is not contracted.</li>
+<li><strong>Buyer / Merchant</strong> — the name of the merchant, co-op, or direct buyer (e.g. Openfield, ADM, Saxon Agriculture, Frontier). Used to identify which contracts belong to which trading relationship.</li>
+<li><strong>Contract Date</strong> — the date the contract was agreed. Most forward contracts have a specific trade date that determines the pricing day for basis and futures pricing.</li>
+<li><strong>Quantity (t)</strong> — the contracted tonnage. The system uses this to calculate the total contract value and to support position tracking.</li>
+<li><strong>Price / tonne (£)</strong> — the agreed price per tonne in pounds sterling. The system automatically calculates and stores the total contract value (Quantity × Price).</li>
+<li><strong>Delivery Window Start / End</strong> — the period during which grain must be delivered. Missed delivery windows can incur deferment charges or result in the contract being terminated at the farmer's expense.</li>
+<li><strong>Delivery Location / Store</strong> — where the grain is to be delivered (e.g. Saxham Silos, Bury St Edmunds; Tilbury Docks). Used for logistics planning.</li>
+<li><strong>Quality Specification</strong> — moisture, protein, specific weight, admixture, and other tolerances as specified in the contract. Recording this prevents disputes about whether delivered grain meets contract specification.</li>
+<li><strong>Contract Reference</strong> — the merchant's contract reference number, used for invoicing and query resolution.</li>
+</ul>
+
+<h3>Contract Status</h3>
+<p>Track each contract through its lifecycle using the status field:</p>
+<ul>
+<li><strong>Pending</strong> — agreed verbally or in principle, paperwork not yet received</li>
+<li><strong>Active</strong> — contract confirmed, delivery not yet started</li>
+<li><strong>Partially Delivered</strong> — some tonnage delivered but not yet complete</li>
+<li><strong>Fulfilled</strong> — all tonnage delivered and invoiced</li>
+<li><strong>Cancelled</strong> — contract cancelled; excluded from total value calculations</li>
+<li><strong>Disputed</strong> — subject to a quality or quantity dispute with the merchant</li>
+</ul>
+
+<h3>Financial Summary</h3>
+<p>The Crop Contracts tab header shows the total number of active contracts and the aggregate committed value (excluding cancelled contracts). This provides a quick overview of your forward-sold position without opening individual records.</p>
+
+<h3>Red Tractor and Grain Trade Context</h3>
+<p>Red Tractor Combinable Crops certification is a condition of sale for most UK milling, malting, and feed grain contracts. Merchants typically require you to provide your current Red Tractor certificate number before they will accept assured tonnage. Keeping your Farm Assurance Certificate up to date in the Inspections module and your contracts recorded here provides a joined-up audit trail from field to merchant.</p>`,
+    },
+    {
+      id: 10043,
+      title: "Haulage Module — Movement Records, Grain Position and Haulier Directory",
+      category: "Haulage",
+      content: `<p>The Haulage module provides a complete record of all grain and agricultural commodity movements on and off your holding. It has three tabs: <strong>Movement Records</strong>, <strong>Grain Position</strong>, and <strong>Haulier Directory</strong>. Together they provide the traceability documentation required by Red Tractor Combinable Crops and the commercial records needed to manage your grain marketing position.</p>
+
+<h3>Movement Records Tab</h3>
+<p>Every load that leaves the farm — and significant loads that arrive — should be recorded here. For each movement record:</p>
+<ul>
+<li><strong>Movement Date</strong> — when the load departed or arrived</li>
+<li><strong>Load Type</strong> — Grain, Straw, Fertiliser, Livestock Feed, Other. Selecting <strong>Grain</strong> reveals the full grain quality field set (see below).</li>
+<li><strong>Commodity &amp; Variety</strong> — e.g. "Winter Wheat / Skyfall", "Malting Barley / KWS Irina". The Commodity field feeds the Grain Position aggregation.</li>
+<li><strong>Quantity (t)</strong> — the load tonnage as weighed. Always use the weighbridge ticket tonnage if available — do not estimate.</li>
+<li><strong>Destination</strong> — the receiving merchant, store, or farm. Match this to the delivery location on your crop contract.</li>
+<li><strong>Contract Reference</strong> — the merchant's contract number this delivery is being made against. Links the movement to a specific crop contract.</li>
+<li><strong>Haulier &amp; Driver</strong> — select from your registered Haulier Directory (see below) or enter a free-text name for a one-off haulier. Recording the haulier details ensures you have a complete chain of custody for traceability.</li>
+<li><strong>Vehicle Registration</strong> — the lorry or trailer registration. Required for some grain trade documentation.</li>
+<li><strong>Delivery Status</strong> — Pending, In Transit, Delivered, Rejected. Update to Delivered once you receive confirmation from the merchant.</li>
+</ul>
+
+<h3>Grain Quality Fields</h3>
+<p>When Load Type is set to Grain, additional quality fields appear:</p>
+<ul>
+<li><strong>Grade</strong> — e.g. Feed, Milling, Malting, Seed — the grade contracted for this load</li>
+<li><strong>Moisture (%)</strong> — moisture content at loading, from your grain store monitor or drier. Contractual basis moisture is typically 14% for wheat and 15% for barley — loads above basis moisture are subject to drying charges.</li>
+<li><strong>Specific Weight (kg/hl)</strong> — a key quality parameter for milling wheat (minimum 76 kg/hl) and malting barley (minimum 63 kg/hl). Record the value from your grain probe or store monitor.</li>
+<li><strong>Protein (%)</strong> — for milling wheat, protein content (minimum 12.5% typical) is a contractual requirement. Record from your farm or merchant test.</li>
+<li><strong>Admixture (%)</strong> — the percentage of non-grain material (broken grains, weed seeds, stones). Most contracts specify maximum admixture tolerances of 2–3%.</li>
+<li><strong>Weighbridge Ticket No.</strong> — the ticket number from the farm or merchant weighbridge. Attach the actual ticket scan using the document attachment if available — this is the primary evidence of tonnage delivered.</li>
+<li><strong>Storage Reference</strong> — which grain store or store cell the load came from. Supports traceability back to harvest records.</li>
+</ul>
+
+<h3>Grain Position Tab</h3>
+<p>The Grain Position tab aggregates all outgoing grain movement records to give you a live summary of what has left the farm, broken down by commodity. For each commodity, it shows:</p>
+<ul>
+<li>Total tonnage moved (sum of all outgoing movement records for that commodity)</li>
+<li>Number of deliveries (load count)</li>
+<li>Average moisture content across all movements</li>
+<li>A proportional bar showing each commodity's share of total tonnage moved</li>
+</ul>
+<p>Use this alongside your Crop Contracts register to compare contracted tonnage against delivered tonnage — identifying where you are ahead of or behind your delivery schedule for each contract. Cross-reference with harvest yield records to understand how much grain remains in store.</p>
+
+<h3>Haulier Directory Tab</h3>
+<p>Register all hauliers you regularly use for grain haulage. For each haulier record:</p>
+<ul>
+<li><strong>Company Name &amp; Contact</strong> — name, telephone, email, and primary driver name</li>
+<li><strong>Vehicle Registration(s)</strong> — the registration numbers of lorries or trailers regularly used. These auto-fill into movement records when this haulier is selected.</li>
+<li><strong>Operator Licence Number</strong> — hauliers moving goods commercially in the UK require an Operator's Licence (O licence) issued by the Traffic Commissioner. Record this number — it is your evidence that you are using a legitimately licensed carrier.</li>
+<li><strong>Notes</strong> — any trading preferences, payment terms, or specialist capabilities (e.g. tipper, walking floor, grain blower)</li>
+</ul>
+<p>Using the directory rather than free-text haulier names ensures consistent spelling across all movement records, making it straightforward to pull all movements for a specific haulier if a dispute arises.</p>
+
+<h3>Red Tractor Traceability</h3>
+<p>Red Tractor Combinable Crops requires that grain can be traced from field through store to the point of dispatch. Movement records in BDE Farm Trac — linked to harvest records via the Storage Reference field and to crop contracts via the Contract Reference field — provide this traceability chain. In the event of a product withdrawal or quality query, you can identify which loads were dispatched from a specific store cell and which merchant received them, without relying on paper delivery notes.</p>`,
+    },
+    {
       id: 10019,
       title: "Mobile App — Offline Data and How Reference Pickers Work",
       category: "Mobile App",
