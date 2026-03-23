@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
@@ -21,6 +22,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { RightToWorkCheck } from "@/lib/types";
 
@@ -47,9 +49,12 @@ export default function RightToWorkScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { members, loading: membersLoading, error: membersError } = useApiFarmMembers(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
-  const [workerName, setWorkerName] = useState("");
+  const [selectedWorker, setSelectedWorker] = useState<ApiFarmMember | null>(null);
+  const [manualWorkerName, setManualWorkerName] = useState("");
+  const workerName = selectedWorker ? memberFullName(selectedWorker) : manualWorkerName;
   const [documentList, setDocumentList] = useState<DocList>("A");
   const [documentType, setDocumentType] = useState("");
   const [documentReference, setDocumentReference] = useState("");
@@ -132,12 +137,21 @@ export default function RightToWorkScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Worker Details</Text>
+            <Text style={styles.fieldLabel}>Worker *</Text>
+            <StaffMemberPicker
+              selected={selectedWorker}
+              onSelect={(m) => { setSelectedWorker(m); if (m) setManualWorkerName(""); }}
+              members={members}
+              loading={membersLoading}
+              error={membersError}
+            />
             <Input
-              label="Full Name"
-              value={workerName}
-              onChangeText={setWorkerName}
+              label={members.length === 0 ? "Full Name *" : "Or enter name manually *"}
+              value={manualWorkerName}
+              onChangeText={(t) => { setManualWorkerName(t); if (t) setSelectedWorker(null); }}
               placeholder="Worker's full legal name"
               autoCapitalize="words"
+              editable={!selectedWorker}
             />
             <Input
               label="Check Carried Out By"
@@ -277,6 +291,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.text,
     marginBottom: spacing.md,
+  },
+  fieldLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
   },
   helpText: {
     fontFamily: fonts.regular,

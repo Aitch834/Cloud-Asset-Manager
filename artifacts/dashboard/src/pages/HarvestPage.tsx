@@ -4,6 +4,8 @@ import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +47,8 @@ export default function HarvestPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = useState<TabKey>("log");
+  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
+  const staffNames: string[] = (membersData?.members ?? []).filter((m: any) => m.isActive).map(memberFullName);
 
   const harvestQ = useQuery({
     queryKey: ["harvests", farmId],
@@ -361,7 +365,12 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
               </div>
               <div>
                 <Label>Operator Name</Label>
-                <Input placeholder="e.g. John Smith" value={form.operatorName} onChange={e => setForm((f: any) => ({ ...f, operatorName: e.target.value }))} />
+                <StaffSelect
+                  value={form.operatorName}
+                  onChange={v => setForm((f: any) => ({ ...f, operatorName: v }))}
+                  staffNames={staffNames}
+                  loading={membersLoading}
+                />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">

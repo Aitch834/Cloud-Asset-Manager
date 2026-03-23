@@ -1,3 +1,4 @@
+import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
@@ -25,6 +26,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
+import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId, getList, STORAGE_KEYS } from "@/lib/storage";
 import type { FieldBoundary, SprayRecord, WeatherEntry } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
@@ -53,7 +55,12 @@ export default function SprayRecordScreen() {
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
   const { fields: apiFields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
+  const { members, loading: membersLoading, error: membersError } = useApiFarmMembers(currentFarm?.id);
   const [saving, setSaving] = useState(false);
+
+  const [selectedOperator, setSelectedOperator] = useState<ApiFarmMember | null>(null);
+  const [manualOperatorName, setManualOperatorName] = useState(user?.name || "");
+  const operatorName = selectedOperator ? memberFullName(selectedOperator) : manualOperatorName;
 
   const [fieldName, setFieldName] = useState("");
   const [productName, setProductName] = useState("");
@@ -148,7 +155,7 @@ export default function SprayRecordScreen() {
       temperature: temperature.trim(),
       humidity: humidity.trim(),
       pressure: pressure.trim(),
-      operatorName: user?.name || "",
+      operatorName: operatorName,
       equipmentUsed: equipmentUsed.trim(),
       startTime: new Date().toISOString(),
       endTime: new Date().toISOString(),
@@ -299,8 +306,23 @@ export default function SprayRecordScreen() {
 
           <View style={styles.sectionLabel}>
             <Feather name="tool" size={14} color={colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Equipment & Notes</Text>
+            <Text style={styles.sectionTitle}>Operator & Equipment</Text>
           </View>
+          <Text style={styles.fieldLabel}>Operator *</Text>
+          <StaffMemberPicker
+            selected={selectedOperator}
+            onSelect={(m) => { setSelectedOperator(m); if (m) setManualOperatorName(""); }}
+            members={members}
+            loading={membersLoading}
+            error={membersError}
+          />
+          <Input
+            label={members.length === 0 ? "Operator Name *" : "Or enter name manually"}
+            value={manualOperatorName}
+            onChangeText={(t) => { setManualOperatorName(t); if (t) setSelectedOperator(null); }}
+            placeholder="e.g. John Smith"
+            editable={!selectedOperator}
+          />
           <Input
             label="Equipment Used"
             placeholder="e.g. 24m sprayer"
@@ -398,6 +420,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  fieldLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
   },
   row: {
     flexDirection: "row",

@@ -13,32 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Printer, GraduationCap, Award, AlertTriangle } from "lucide-react";
 
-interface FarmMember { id: number; firstName: string; lastName: string; jobTitle: string | null; isActive: boolean; }
-function memberFullName(m: FarmMember) { return `${m.firstName} ${m.lastName}`.trim(); }
-function useFarmMembers(farmId: number | null) {
-  return useQuery<{ members: FarmMember[] }>({
-    queryKey: ["farm-members", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
-    enabled: !!farmId,
-  });
-}
-
-function StaffSelect({ value, onChange, staffNames, loading }: { value: string; onChange: (v: string) => void; staffNames: string[]; loading?: boolean }) {
-  if (loading) {
-    return <Input className="mt-1" value={value} onChange={e => onChange(e.target.value)} placeholder="Loading staff…" disabled />;
-  }
-  if (staffNames.length === 0) {
-    return <Input className="mt-1" value={value} onChange={e => onChange(e.target.value)} placeholder="e.g. John Smith" />;
-  }
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="mt-1"><SelectValue placeholder="Select staff member…" /></SelectTrigger>
-      <SelectContent>
-        {staffNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-      </SelectContent>
-    </Select>
-  );
-}
+import { useFarmMembers, memberFullName, type FarmMember } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 type Tab = "training" | "certificates" | "rtw";
 

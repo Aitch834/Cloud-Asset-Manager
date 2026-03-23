@@ -4,7 +4,8 @@ import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
-import { useListFarms } from "@workspace/api-client-react/src/generated/api";
+import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,12 +35,14 @@ export default function SprayPage() {
   const applicationsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const productsQ = useQuery({ queryKey: ["spray-products", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const fieldsQ = useQuery({ queryKey: ["fields", farmId], queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
-  const { data: farmsData } = useListFarms();
+  const farmsQ = useQuery({ queryKey: ["farms-list"], queryFn: () => fetch("/api/farms").then(r => r.json()), select: d => d.farms ?? [] });
+  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
 
   const applications: any[] = applicationsQ.data ?? [];
   const products: any[] = productsQ.data ?? [];
   const fields: any[] = fieldsQ.data ?? [];
-  const currentFarm = farmsData?.farms?.find((f: any) => f.id === farmId);
+  const currentFarm = (farmsQ.data ?? []).find((f: any) => f.id === farmId);
+  const staffNames: string[] = (membersData?.members ?? []).filter((m: any) => m.isActive).map(memberFullName);
 
   return (
     <AppLayout title="Spray Records">
@@ -279,7 +282,12 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Operator Name <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Input placeholder="Full name" value={form.operatorName} onChange={e => setForm((f: any) => ({ ...f, operatorName: e.target.value }))} />
+                <StaffSelect
+                  value={form.operatorName}
+                  onChange={v => setForm((f: any) => ({ ...f, operatorName: v }))}
+                  staffNames={staffNames}
+                  loading={membersLoading}
+                />
               </div>
               <div>
                 <Label>Certificate No. (PA1/PA6)</Label>

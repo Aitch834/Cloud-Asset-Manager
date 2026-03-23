@@ -21,9 +21,11 @@ import { FieldPicker } from "@/components/ui/FieldPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
+import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
+import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { HarvestRecord } from "@/lib/types";
 
@@ -44,7 +46,12 @@ export default function HarvestRecordScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
+  const { members, loading: membersLoading, error: membersError } = useApiFarmMembers(currentFarm?.id);
   const [saving, setSaving] = useState(false);
+
+  const [selectedOperator, setSelectedOperator] = useState<ApiFarmMember | null>(null);
+  const [manualOperatorName, setManualOperatorName] = useState(user?.name || "");
+  const operatorName = selectedOperator ? memberFullName(selectedOperator) : manualOperatorName;
 
   const [fieldName, setFieldName] = useState("");
   const [cropType, setCropType] = useState("");
@@ -53,7 +60,6 @@ export default function HarvestRecordScreen() {
   const [moisturePercent, setMoisturePercent] = useState("");
   const [grainQualityNotes, setGrainQualityNotes] = useState("");
   const [equipmentUsed, setEquipmentUsed] = useState("");
-  const [operatorName, setOperatorName] = useState(user?.name || "");
   const [startTime, setStartTime] = useState(formatCurrentTime());
   const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState("");
@@ -236,13 +242,21 @@ export default function HarvestRecordScreen() {
             value={equipmentUsed}
             onChangeText={setEquipmentUsed}
           />
-          <Input
-            label="Operator Name"
-            placeholder="Operator"
-            value={operatorName}
-            onChangeText={setOperatorName}
+          <Text style={styles.fieldLabel}>Operator</Text>
+          <StaffMemberPicker
+            selected={selectedOperator}
+            onSelect={(m) => { setSelectedOperator(m); if (m) setManualOperatorName(""); }}
+            members={members}
+            loading={membersLoading}
+            error={membersError}
           />
-          <Text style={styles.hintText}>Pre-filled from your login. Tap to change if recording on behalf of another operator.</Text>
+          <Input
+            label={members.length === 0 ? "Operator Name" : "Or enter name manually"}
+            value={manualOperatorName}
+            onChangeText={(t) => { setManualOperatorName(t); if (t) setSelectedOperator(null); }}
+            placeholder="e.g. John Smith"
+            editable={!selectedOperator}
+          />
 
           <Input
             label="Notes"
@@ -319,6 +333,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  fieldLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
   },
   row: { flexDirection: "row", gap: spacing.md },
   chipGrid: {
