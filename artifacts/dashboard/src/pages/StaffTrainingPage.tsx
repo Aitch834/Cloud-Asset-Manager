@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
-import { useListFarms } from "@workspace/api-client-react/src/generated/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,18 +13,20 @@ import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Printer, GraduationCap, Award, AlertTriangle } from "lucide-react";
 
-interface StaffUser { id: number; email: string; firstName: string | null; lastName: string | null; }
-function staffFullName(u: StaffUser) {
-  return (u.firstName || u.lastName) ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() : u.email;
-}
-function useStaffList() {
-  return useQuery<{ users: StaffUser[] }>({
-    queryKey: ["staff-users"],
-    queryFn: () => fetch("/api/tenants/current/users").then(r => r.json()),
+interface FarmMember { id: number; firstName: string; lastName: string; jobTitle: string | null; isActive: boolean; }
+function memberFullName(m: FarmMember) { return `${m.firstName} ${m.lastName}`.trim(); }
+function useFarmMembers(farmId: number | null) {
+  return useQuery<{ members: FarmMember[] }>({
+    queryKey: ["farm-members", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
+    enabled: !!farmId,
   });
 }
 
-function StaffSelect({ value, onChange, staffNames }: { value: string; onChange: (v: string) => void; staffNames: string[] }) {
+function StaffSelect({ value, onChange, staffNames, loading }: { value: string; onChange: (v: string) => void; staffNames: string[]; loading?: boolean }) {
+  if (loading) {
+    return <Input className="mt-1" value={value} onChange={e => onChange(e.target.value)} placeholder="Loading staff…" disabled />;
+  }
   if (staffNames.length === 0) {
     return <Input className="mt-1" value={value} onChange={e => onChange(e.target.value)} placeholder="e.g. John Smith" />;
   }
@@ -200,7 +201,7 @@ const COMPLIANCE_FLAGS: { label: string; match: string; detail: string; severity
   { label: "PA1 — Safe use of pesticides", match: "PA1 —", detail: "Any person using or supervising the use of professional pesticide products must hold at minimum a PA1 certificate.", severity: "warning" },
 ];
 
-function TrainingTab({ farmId, staffNames, defaultMember }: { farmId: number; staffNames: string[]; defaultMember?: string }) {
+function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farmId: number; staffNames: string[]; staffLoading?: boolean; defaultMember?: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
@@ -320,7 +321,7 @@ function TrainingTab({ farmId, staffNames, defaultMember }: { farmId: number; st
           <DialogContent style={{ maxWidth: 520 }}>
             <DialogHeader><DialogTitle>{editItem ? "Edit Training Record" : "Add Training Record"}</DialogTitle></DialogHeader>
             <div style={{ display: "grid", gap: 12 }}>
-              <div><Label>Staff Member *</Label><StaffSelect value={form.userId} onChange={v => setForm(f => ({ ...f, userId: v }))} staffNames={staffNames} /></div>
+              <div><Label>Staff Member *</Label><StaffSelect value={form.userId} onChange={v => setForm(f => ({ ...f, userId: v }))} staffNames={staffNames} loading={staffLoading} /></div>
               <div><Label>Training Title *</Label><Input className="mt-1" value={form.trainingTitle} onChange={e => setForm(f => ({ ...f, trainingTitle: e.target.value }))} placeholder="e.g. PA1 Safe Use of Pesticides" /></div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div><Label>Training Date *</Label><Input type="date" className="mt-1" value={form.trainingDate} onChange={e => setForm(f => ({ ...f, trainingDate: e.target.value }))} /></div>
@@ -353,7 +354,7 @@ function TrainingTab({ farmId, staffNames, defaultMember }: { farmId: number; st
   );
 }
 
-function CertificatesTab({ farmId, staffNames, defaultMember }: { farmId: number; staffNames: string[]; defaultMember?: string }) {
+function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { farmId: number; staffNames: string[]; staffLoading?: boolean; defaultMember?: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
@@ -497,7 +498,7 @@ function CertificatesTab({ farmId, staffNames, defaultMember }: { farmId: number
         <DialogContent style={{ maxWidth: 520 }}>
           <DialogHeader><DialogTitle>{editItem ? "Edit Certificate" : "Add Certificate"}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12 }}>
-            <div><Label>Staff Member *</Label><StaffSelect value={form.userId} onChange={v => setForm(f => ({ ...f, userId: v }))} staffNames={staffNames} /></div>
+            <div><Label>Staff Member *</Label><StaffSelect value={form.userId} onChange={v => setForm(f => ({ ...f, userId: v }))} staffNames={staffNames} loading={staffLoading} /></div>
             <div>
               <Label>Certificate Type *</Label>
               <Select value={form.certificateType} onValueChange={v => setForm(f => ({ ...f, certificateType: v }))}>
@@ -590,7 +591,7 @@ function rtwStatusBadge(expiryDate: string | null | undefined) {
   return <Badge style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}>Valid · {fmt(expiryDate)}</Badge>;
 }
 
-function RightToWorkTab({ farmId, staffNames, defaultMember }: { farmId: number; staffNames: string[]; defaultMember?: string }) {
+function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { farmId: number; staffNames: string[]; staffLoading?: boolean; defaultMember?: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
@@ -733,7 +734,7 @@ function RightToWorkTab({ farmId, staffNames, defaultMember }: { farmId: number;
         <DialogContent style={{ maxWidth: 540 }}>
           <DialogHeader><DialogTitle>{editItem ? "Edit RTW Record" : "Record Right to Work Check"}</DialogTitle></DialogHeader>
           <div style={{ display: "grid", gap: 12 }}>
-            <div><Label>Staff Member *</Label><StaffSelect value={form.staffName} onChange={v => setForm(f => ({ ...f, staffName: v }))} staffNames={staffNames} /></div>
+            <div><Label>Staff Member *</Label><StaffSelect value={form.staffName} onChange={v => setForm(f => ({ ...f, staffName: v }))} staffNames={staffNames} loading={staffLoading} /></div>
             <div>
               <Label>Document Type *</Label>
               <Select value={form.documentType} onValueChange={v => setForm(f => ({ ...f, documentType: v }))}>
@@ -858,8 +859,11 @@ ${certificates.length === 0
 
 export default function StaffTrainingPage() {
   const { farmId } = useAppStore();
-  const { data: farmsData } = useListFarms();
-  const currentFarm = farmsData?.farms?.find((f: any) => f.id === farmId);
+  const { data: farmsData } = useQuery<{ farms: { id: number; name: string }[] }>({
+    queryKey: ["farms-list"],
+    queryFn: () => fetch("/api/farms").then(r => r.json()),
+  });
+  const currentFarm = farmsData?.farms?.find(f => f.id === farmId);
   const params = new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : ""
   );
@@ -867,8 +871,9 @@ export default function StaffTrainingPage() {
   const urlTab = (params.get("tab") as Tab | null) ?? "training";
 
   const [tab, setTab] = useState<Tab>(urlTab);
-  const staffQ = useStaffList();
-  const staffNames = (staffQ.data?.users ?? []).map(staffFullName);
+  const membersQ = useFarmMembers(farmId);
+  const staffNames = (membersQ.data?.members ?? []).filter(m => m.isActive !== false).map(memberFullName);
+  const staffLoading = membersQ.isLoading;
 
   const trainingQ = useQuery<{ records: TrainingRecord[] }>({
     queryKey: ["training-records", farmId],
@@ -932,11 +937,11 @@ export default function StaffTrainingPage() {
         )}
 
         {!farmId ? null : tab === "training" ? (
-          <TrainingTab farmId={farmId} staffNames={staffNames} defaultMember={tab === "training" ? urlMember : undefined} />
+          <TrainingTab farmId={farmId} staffNames={staffNames} staffLoading={staffLoading} defaultMember={tab === "training" ? urlMember : undefined} />
         ) : tab === "certificates" ? (
-          <CertificatesTab farmId={farmId} staffNames={staffNames} defaultMember={tab === "certificates" ? urlMember : undefined} />
+          <CertificatesTab farmId={farmId} staffNames={staffNames} staffLoading={staffLoading} defaultMember={tab === "certificates" ? urlMember : undefined} />
         ) : (
-          <RightToWorkTab farmId={farmId} staffNames={staffNames} defaultMember={tab === "rtw" ? urlMember : undefined} />
+          <RightToWorkTab farmId={farmId} staffNames={staffNames} staffLoading={staffLoading} defaultMember={tab === "rtw" ? urlMember : undefined} />
         )}
       </div>
     </AppLayout>
