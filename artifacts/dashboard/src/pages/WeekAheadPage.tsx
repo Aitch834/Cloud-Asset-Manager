@@ -5,6 +5,7 @@ import { Redirect, Link } from "wouter";
 import { AlertTriangle, Calendar, CheckCircle2, ArrowRight, Clock, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 type TaskItem = {
   id: string;
@@ -36,12 +37,13 @@ function daysUntil(dateStr: string, today: Date): number {
 }
 
 const COLOUR_MAP: Record<string, { badge: string; dot: string }> = {
-  red:    { badge: "bg-red-50 text-red-700 border-red-100",    dot: "bg-red-400" },
+  red:    { badge: "bg-red-50 text-red-700 border-red-100",       dot: "bg-red-400" },
   indigo: { badge: "bg-indigo-50 text-indigo-700 border-indigo-100", dot: "bg-indigo-400" },
   violet: { badge: "bg-violet-50 text-violet-700 border-violet-100", dot: "bg-violet-400" },
-  amber:  { badge: "bg-amber-50 text-amber-700 border-amber-100",   dot: "bg-amber-400" },
+  amber:  { badge: "bg-amber-50 text-amber-700 border-amber-100",    dot: "bg-amber-400" },
   orange: { badge: "bg-orange-50 text-orange-700 border-orange-100", dot: "bg-orange-400" },
-  blue:   { badge: "bg-blue-50 text-blue-700 border-blue-100",      dot: "bg-blue-400" },
+  blue:   { badge: "bg-blue-50 text-blue-700 border-blue-100",       dot: "bg-blue-400" },
+  green:  { badge: "bg-emerald-50 text-emerald-700 border-emerald-100", dot: "bg-emerald-400" },
 };
 
 function TaskCard({ task, today }: { task: TaskItem; today: Date }) {
@@ -115,15 +117,17 @@ export default function WeekAheadPage() {
   const { farmId } = useAppStore();
   if (!farmId) return <Redirect href="/select" />;
 
+  const [days, setDays] = useState<7 | 30>(7);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const weekEndDisplay = new Date(today);
-  weekEndDisplay.setDate(weekEndDisplay.getDate() + 6);
+  const rangeEnd = new Date(today);
+  rangeEnd.setDate(rangeEnd.getDate() + days);
 
   const { data, isLoading } = useQuery<{ tasks: TaskItem[] }>({
-    queryKey: ["week-ahead", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/week-ahead`).then(r => r.json()),
+    queryKey: ["week-ahead", farmId, days],
+    queryFn: () => fetch(`/api/farms/${farmId}/week-ahead?days=${days}`).then(r => r.json()),
   });
 
   const tasks = data?.tasks ?? [];
@@ -138,29 +142,53 @@ export default function WeekAheadPage() {
     grouped.get(lbl)!.push(t);
   }
 
-  const dateRange = `${today.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${weekEndDisplay.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`;
+  const dateRange = `${today.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${rangeEnd.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`;
+  const label = days === 7 ? "Week Ahead" : "Month Ahead";
 
   return (
-    <AppLayout title="Week Ahead">
+    <AppLayout title={label}>
       <div className="max-w-2xl space-y-6">
 
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm text-foreground/50 mt-0.5">{dateRange}</p>
           </div>
-          {!isLoading && tasks.length > 0 && (
-            <span className="text-xs font-semibold bg-primary/10 text-primary px-3 py-1.5 rounded-full">
-              {tasks.length} task{tasks.length !== 1 ? "s" : ""} in view
-            </span>
-          )}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* 7 / 30 day toggle */}
+            <div className="flex items-center bg-muted rounded-lg p-0.5 text-xs font-semibold">
+              <button
+                onClick={() => setDays(7)}
+                className={cn(
+                  "px-3 py-1.5 rounded-md transition-all",
+                  days === 7 ? "bg-white shadow-sm text-foreground" : "text-foreground/50 hover:text-foreground/70"
+                )}
+              >
+                7 days
+              </button>
+              <button
+                onClick={() => setDays(30)}
+                className={cn(
+                  "px-3 py-1.5 rounded-md transition-all",
+                  days === 30 ? "bg-white shadow-sm text-foreground" : "text-foreground/50 hover:text-foreground/70"
+                )}
+              >
+                30 days
+              </button>
+            </div>
+            {!isLoading && tasks.length > 0 && (
+              <span className="text-xs font-semibold bg-primary/10 text-primary px-3 py-1.5 rounded-full">
+                {tasks.length} task{tasks.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Loading */}
         {isLoading && (
           <div className="flex items-center justify-center py-16 text-foreground/40">
             <Loader2 className="w-6 h-6 animate-spin mr-2" />
-            <span className="text-sm">Loading your week ahead…</span>
+            <span className="text-sm">Loading your {label.toLowerCase()}…</span>
           </div>
         )}
 
@@ -168,8 +196,11 @@ export default function WeekAheadPage() {
         {!isLoading && tasks.length === 0 && (
           <Card className="p-12 text-center border-dashed">
             <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
-            <h3 className="font-semibold text-foreground mb-1">All clear for the week</h3>
-            <p className="text-sm text-foreground/50">No scheduled tasks, due dates, or overdue items found across your active modules for the next 7 days.</p>
+            <h3 className="font-semibold text-foreground mb-1">All clear</h3>
+            <p className="text-sm text-foreground/50">
+              No scheduled tasks, due dates, or overdue items found across your active modules
+              {days === 7 ? " for the next 7 days" : " for the next 30 days"}.
+            </p>
           </Card>
         )}
 

@@ -6625,10 +6625,13 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   const farmId = parseInt(req.params.farmId);
   if (isNaN(farmId)) { res.status(400).json({ error: "Invalid farmId" }); return; }
 
+  const rawDays = parseInt(req.query.days as string);
+  const days = rawDays === 30 ? 30 : 7;
+
   const now = new Date();
   now.setHours(0, 0, 0, 0);
-  const weekEnd = new Date(now);
-  weekEnd.setDate(weekEnd.getDate() + 8);
+  const rangeEnd = new Date(now);
+  rangeEnd.setDate(rangeEnd.getDate() + days + 1);
   const overdueStart = new Date(now);
   overdueStart.setDate(overdueStart.getDate() - 60);
 
@@ -6639,99 +6642,202 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
 
   const tasks: TaskItem[] = [];
 
+  const toISO = (d: Date | string | null | undefined): string | null => {
+    if (!d) return null;
+    if (typeof d === "string") return new Date(d + "T00:00:00Z").toISOString();
+    return d.toISOString();
+  };
+
   const [
     pestRows, cleaningRows, biosecPlanRows,
     certRows, trainingRows, inspectionRows,
     correctiveRows, riskRows,
     maintRows, calibRows,
+    insuranceRows, rtwRows,
+    medicineWithdrawalRows, vetHealthPlanRows,
+    patTestRows, fireExtRows, workshopJobRows,
+    biofuelCertRows, waterLicenceRows,
+    poDeliveryRows, coshhReviewRows,
   ] = await Promise.all([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
-      .where(and(eq(pestControlRecordsTable.farmId, farmId), isNotNull(pestControlRecordsTable.followUpDate), gte(pestControlRecordsTable.followUpDate, overdueStart), lt(pestControlRecordsTable.followUpDate, weekEnd))),
+      .where(and(eq(pestControlRecordsTable.farmId, farmId), isNotNull(pestControlRecordsTable.followUpDate), gte(pestControlRecordsTable.followUpDate, overdueStart), lt(pestControlRecordsTable.followUpDate, rangeEnd))),
 
     db.select({ id: cleaningDisinfectionRecordsTable.id, area: cleaningDisinfectionRecordsTable.area, cleaningType: cleaningDisinfectionRecordsTable.cleaningType, nextDueDate: cleaningDisinfectionRecordsTable.nextDueDate })
       .from(cleaningDisinfectionRecordsTable)
-      .where(and(eq(cleaningDisinfectionRecordsTable.farmId, farmId), isNotNull(cleaningDisinfectionRecordsTable.nextDueDate), gte(cleaningDisinfectionRecordsTable.nextDueDate, overdueStart), lt(cleaningDisinfectionRecordsTable.nextDueDate, weekEnd))),
+      .where(and(eq(cleaningDisinfectionRecordsTable.farmId, farmId), isNotNull(cleaningDisinfectionRecordsTable.nextDueDate), gte(cleaningDisinfectionRecordsTable.nextDueDate, overdueStart), lt(cleaningDisinfectionRecordsTable.nextDueDate, rangeEnd))),
 
     db.select({ id: biosecurityPlansTable.id, nextReviewDate: biosecurityPlansTable.nextReviewDate })
       .from(biosecurityPlansTable)
-      .where(and(eq(biosecurityPlansTable.farmId, farmId), isNotNull(biosecurityPlansTable.nextReviewDate), gte(biosecurityPlansTable.nextReviewDate, overdueStart), lt(biosecurityPlansTable.nextReviewDate, weekEnd))),
+      .where(and(eq(biosecurityPlansTable.farmId, farmId), isNotNull(biosecurityPlansTable.nextReviewDate), gte(biosecurityPlansTable.nextReviewDate, overdueStart), lt(biosecurityPlansTable.nextReviewDate, rangeEnd))),
 
     db.select({ id: staffCertificatesTable.id, certificateType: staffCertificatesTable.certificateType, certificateNumber: staffCertificatesTable.certificateNumber, expiryDate: staffCertificatesTable.expiryDate })
       .from(staffCertificatesTable)
-      .where(and(eq(staffCertificatesTable.farmId, farmId), isNotNull(staffCertificatesTable.expiryDate), gte(staffCertificatesTable.expiryDate, overdueStart), lt(staffCertificatesTable.expiryDate, weekEnd))),
+      .where(and(eq(staffCertificatesTable.farmId, farmId), isNotNull(staffCertificatesTable.expiryDate), gte(staffCertificatesTable.expiryDate, overdueStart), lt(staffCertificatesTable.expiryDate, rangeEnd))),
 
     db.select({ id: staffTrainingRecordsTable.id, trainingType: staffTrainingRecordsTable.trainingType, expiryDate: staffTrainingRecordsTable.expiryDate })
       .from(staffTrainingRecordsTable)
-      .where(and(eq(staffTrainingRecordsTable.farmId, farmId), isNotNull(staffTrainingRecordsTable.expiryDate), gte(staffTrainingRecordsTable.expiryDate, overdueStart), lt(staffTrainingRecordsTable.expiryDate, weekEnd))),
+      .where(and(eq(staffTrainingRecordsTable.farmId, farmId), isNotNull(staffTrainingRecordsTable.expiryDate), gte(staffTrainingRecordsTable.expiryDate, overdueStart), lt(staffTrainingRecordsTable.expiryDate, rangeEnd))),
 
     db.select({ id: inspectionRecordsTable.id, inspectionType: inspectionRecordsTable.inspectionType, nextInspectionDue: inspectionRecordsTable.nextInspectionDue })
       .from(inspectionRecordsTable)
-      .where(and(eq(inspectionRecordsTable.farmId, farmId), isNotNull(inspectionRecordsTable.nextInspectionDue), gte(inspectionRecordsTable.nextInspectionDue, overdueStart), lt(inspectionRecordsTable.nextInspectionDue, weekEnd))),
+      .where(and(eq(inspectionRecordsTable.farmId, farmId), isNotNull(inspectionRecordsTable.nextInspectionDue), gte(inspectionRecordsTable.nextInspectionDue, overdueStart), lt(inspectionRecordsTable.nextInspectionDue, rangeEnd))),
 
     db.select({ id: correctiveActionsTable.id, title: correctiveActionsTable.title, dueDate: correctiveActionsTable.dueDate, status: correctiveActionsTable.status })
       .from(correctiveActionsTable)
-      .where(and(eq(correctiveActionsTable.farmId, farmId), isNotNull(correctiveActionsTable.dueDate), gte(correctiveActionsTable.dueDate, overdueStart), lt(correctiveActionsTable.dueDate, weekEnd))),
+      .where(and(eq(correctiveActionsTable.farmId, farmId), isNotNull(correctiveActionsTable.dueDate), gte(correctiveActionsTable.dueDate, overdueStart), lt(correctiveActionsTable.dueDate, rangeEnd))),
 
     db.select({ id: riskAssessmentsTable.id, title: riskAssessmentsTable.title, riskLevel: riskAssessmentsTable.riskLevel, reviewDate: riskAssessmentsTable.reviewDate, status: riskAssessmentsTable.status })
       .from(riskAssessmentsTable)
-      .where(and(eq(riskAssessmentsTable.farmId, farmId), isNotNull(riskAssessmentsTable.reviewDate), gte(riskAssessmentsTable.reviewDate, overdueStart), lt(riskAssessmentsTable.reviewDate, weekEnd))),
+      .where(and(eq(riskAssessmentsTable.farmId, farmId), isNotNull(riskAssessmentsTable.reviewDate), gte(riskAssessmentsTable.reviewDate, overdueStart), lt(riskAssessmentsTable.reviewDate, rangeEnd))),
 
-    db.select({ id: equipmentMaintenanceLogsTable.id, maintenanceType: equipmentMaintenanceLogsTable.maintenanceType, equipmentId: equipmentMaintenanceLogsTable.equipmentId, nextDueDate: equipmentMaintenanceLogsTable.nextDueDate })
+    db.select({ id: equipmentMaintenanceLogsTable.id, maintenanceType: equipmentMaintenanceLogsTable.maintenanceType, nextDueDate: equipmentMaintenanceLogsTable.nextDueDate })
       .from(equipmentMaintenanceLogsTable)
-      .where(and(eq(equipmentMaintenanceLogsTable.farmId, farmId), isNotNull(equipmentMaintenanceLogsTable.nextDueDate), gte(equipmentMaintenanceLogsTable.nextDueDate, overdueStart), lt(equipmentMaintenanceLogsTable.nextDueDate, weekEnd))),
+      .where(and(eq(equipmentMaintenanceLogsTable.farmId, farmId), isNotNull(equipmentMaintenanceLogsTable.nextDueDate), gte(equipmentMaintenanceLogsTable.nextDueDate, overdueStart), lt(equipmentMaintenanceLogsTable.nextDueDate, rangeEnd))),
 
-    db.select({ id: equipmentCalibrationRecordsTable.id, calibrationType: equipmentCalibrationRecordsTable.calibrationType, equipmentId: equipmentCalibrationRecordsTable.equipmentId, nextDueDate: equipmentCalibrationRecordsTable.nextDueDate })
+    db.select({ id: equipmentCalibrationRecordsTable.id, calibrationType: equipmentCalibrationRecordsTable.calibrationType, nextDueDate: equipmentCalibrationRecordsTable.nextDueDate })
       .from(equipmentCalibrationRecordsTable)
-      .where(and(eq(equipmentCalibrationRecordsTable.farmId, farmId), isNotNull(equipmentCalibrationRecordsTable.nextDueDate), gte(equipmentCalibrationRecordsTable.nextDueDate, overdueStart), lt(equipmentCalibrationRecordsTable.nextDueDate, weekEnd))),
+      .where(and(eq(equipmentCalibrationRecordsTable.farmId, farmId), isNotNull(equipmentCalibrationRecordsTable.nextDueDate), gte(equipmentCalibrationRecordsTable.nextDueDate, overdueStart), lt(equipmentCalibrationRecordsTable.nextDueDate, rangeEnd))),
+
+    db.select({ id: farmInsuranceTable.id, policyType: farmInsuranceTable.policyType, insurer: farmInsuranceTable.insurer, policyNumber: farmInsuranceTable.policyNumber, expiryDate: farmInsuranceTable.expiryDate })
+      .from(farmInsuranceTable)
+      .where(and(eq(farmInsuranceTable.farmId, farmId), isNotNull(farmInsuranceTable.expiryDate))),
+
+    db.select({ id: staffRightToWorkTable.id, staffName: staffRightToWorkTable.staffName, documentType: staffRightToWorkTable.documentType, expiryDate: staffRightToWorkTable.expiryDate })
+      .from(staffRightToWorkTable)
+      .where(and(eq(staffRightToWorkTable.farmId, farmId), isNotNull(staffRightToWorkTable.expiryDate), gte(staffRightToWorkTable.expiryDate, overdueStart), lt(staffRightToWorkTable.expiryDate, rangeEnd))),
+
+    db.select({ id: livestockMedicineRecordsTable.id, medicineName: livestockMedicineRecordsTable.medicineName, withdrawalEndDate: livestockMedicineRecordsTable.withdrawalEndDate })
+      .from(livestockMedicineRecordsTable)
+      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), isNotNull(livestockMedicineRecordsTable.withdrawalEndDate), gte(livestockMedicineRecordsTable.withdrawalEndDate, overdueStart), lt(livestockMedicineRecordsTable.withdrawalEndDate, rangeEnd))),
+
+    db.select({ id: vetHealthPlansTable.id, vetName: vetHealthPlansTable.vetName, planYear: vetHealthPlansTable.planYear, reviewDate: vetHealthPlansTable.reviewDate })
+      .from(vetHealthPlansTable)
+      .where(and(eq(vetHealthPlansTable.farmId, farmId), isNotNull(vetHealthPlansTable.reviewDate), gte(vetHealthPlansTable.reviewDate, overdueStart), lt(vetHealthPlansTable.reviewDate, rangeEnd))),
+
+    db.select({ id: workshopPatTestsTable.id, itemName: workshopPatTestsTable.itemName, location: workshopPatTestsTable.location, nextDueDate: workshopPatTestsTable.nextDueDate })
+      .from(workshopPatTestsTable)
+      .where(and(eq(workshopPatTestsTable.farmId, farmId), isNotNull(workshopPatTestsTable.nextDueDate), gte(workshopPatTestsTable.nextDueDate, overdueStart), lt(workshopPatTestsTable.nextDueDate, rangeEnd))),
+
+    db.select({ id: workshopFireExtinguishersTable.id, location: workshopFireExtinguishersTable.location, type: workshopFireExtinguishersTable.type, nextServiceDue: workshopFireExtinguishersTable.nextServiceDue })
+      .from(workshopFireExtinguishersTable)
+      .where(and(eq(workshopFireExtinguishersTable.farmId, farmId), isNotNull(workshopFireExtinguishersTable.nextServiceDue), gte(workshopFireExtinguishersTable.nextServiceDue, overdueStart), lt(workshopFireExtinguishersTable.nextServiceDue, rangeEnd))),
+
+    db.select({ id: workshopJobsTable.id, title: workshopJobsTable.title, status: workshopJobsTable.status, priority: workshopJobsTable.priority, estimatedCompletionDate: workshopJobsTable.estimatedCompletionDate })
+      .from(workshopJobsTable)
+      .where(and(eq(workshopJobsTable.farmId, farmId), isNotNull(workshopJobsTable.estimatedCompletionDate), gte(workshopJobsTable.estimatedCompletionDate, overdueStart), lt(workshopJobsTable.estimatedCompletionDate, rangeEnd))),
+
+    db.select({ id: biofuelCertificationsTable.id, scheme: biofuelCertificationsTable.scheme, certificationNumber: biofuelCertificationsTable.certificationNumber, expiryDate: biofuelCertificationsTable.expiryDate, status: biofuelCertificationsTable.status })
+      .from(biofuelCertificationsTable)
+      .where(and(eq(biofuelCertificationsTable.farmId, farmId), isNotNull(biofuelCertificationsTable.expiryDate), gte(biofuelCertificationsTable.expiryDate, overdueStart), lt(biofuelCertificationsTable.expiryDate, rangeEnd))),
+
+    db.select({ id: waterAbstractionLicencesTable.id, licenceExpiryDate: waterAbstractionLicencesTable.licenceExpiryDate })
+      .from(waterAbstractionLicencesTable)
+      .where(and(eq(waterAbstractionLicencesTable.farmId, farmId), isNotNull(waterAbstractionLicencesTable.licenceExpiryDate))),
+
+    db.select({ id: purchaseOrdersTable.id, poNumber: purchaseOrdersTable.poNumber, supplierName: purchaseOrdersTable.supplierName, expectedDeliveryDate: purchaseOrdersTable.expectedDeliveryDate, status: purchaseOrdersTable.status })
+      .from(purchaseOrdersTable)
+      .where(and(eq(purchaseOrdersTable.farmId, farmId), isNotNull(purchaseOrdersTable.expectedDeliveryDate), gte(purchaseOrdersTable.expectedDeliveryDate, overdueStart), lt(purchaseOrdersTable.expectedDeliveryDate, rangeEnd))),
+
+    db.select({ id: coshhRecordsTable.id, substanceName: coshhRecordsTable.substanceName, reviewDate: coshhRecordsTable.reviewDate })
+      .from(coshhRecordsTable)
+      .where(and(eq(coshhRecordsTable.farmId, farmId), isNotNull(coshhRecordsTable.reviewDate), gte(coshhRecordsTable.reviewDate, overdueStart), lt(coshhRecordsTable.reviewDate, rangeEnd))),
   ]);
 
   for (const r of pestRows) {
     if (!r.followUpDate) continue;
-    tasks.push({ id: `pest-${r.id}`, type: "pest_control", title: `Pest Control Follow-Up${r.location ? ` — ${r.location}` : ""}`, description: `${r.pestType} follow-up visit required${r.location ? ` at ${r.location}` : ""}`, dueDate: r.followUpDate.toISOString(), module: "Biosecurity", href: "/pest-control", colour: "red" });
+    tasks.push({ id: `pest-${r.id}`, type: "pest_control", title: `Pest Control Follow-Up${r.location ? ` — ${r.location}` : ""}`, description: `${r.pestType} follow-up visit required${r.location ? ` at ${r.location}` : ""}`, dueDate: toISO(r.followUpDate)!, module: "Biosecurity", href: "/pest-control", colour: "red" });
   }
   for (const r of cleaningRows) {
     if (!r.nextDueDate) continue;
-    tasks.push({ id: `clean-${r.id}`, type: "cleaning", title: `Cleaning & Disinfection Due — ${r.area}`, description: `${r.cleaningType || "Cleaning"} scheduled for ${r.area}`, dueDate: r.nextDueDate.toISOString(), module: "Biosecurity", href: "/cleaning", colour: "red" });
+    tasks.push({ id: `clean-${r.id}`, type: "cleaning", title: `Cleaning & Disinfection Due — ${r.area}`, description: `${r.cleaningType || "Cleaning"} scheduled for ${r.area}`, dueDate: toISO(r.nextDueDate)!, module: "Biosecurity", href: "/cleaning", colour: "red" });
   }
   for (const r of biosecPlanRows) {
     if (!r.nextReviewDate) continue;
-    tasks.push({ id: `biosecplan-${r.id}`, type: "biosecurity_plan_review", title: "Biosecurity Plan Review Due", description: "Your farm biosecurity plan is due for review. Update and re-approve in Biosecurity → Biosecurity Plan.", dueDate: r.nextReviewDate.toISOString(), module: "Biosecurity", href: "/visitors", colour: "red" });
+    tasks.push({ id: `biosecplan-${r.id}`, type: "biosecurity_plan_review", title: "Biosecurity Plan Review Due", description: "Your farm biosecurity plan is due for review. Update and re-approve in Biosecurity → Biosecurity Plan.", dueDate: toISO(r.nextReviewDate)!, module: "Biosecurity", href: "/visitors", colour: "red" });
   }
   for (const r of certRows) {
     if (!r.expiryDate) continue;
     const label = r.certificateType || "Certificate";
-    tasks.push({ id: `cert-${r.id}`, type: "certificate_expiry", title: `${label} Expiring${r.certificateNumber ? ` (${r.certificateNumber})` : ""}`, description: `Staff certificate '${label}' is due to expire. Arrange renewal to remain compliant.`, dueDate: r.expiryDate.toISOString(), module: "Staff & Training", href: "/training", colour: "indigo" });
+    tasks.push({ id: `cert-${r.id}`, type: "certificate_expiry", title: `${label} Expiring${r.certificateNumber ? ` (${r.certificateNumber})` : ""}`, description: `Staff certificate '${label}' is due to expire. Arrange renewal to remain compliant.`, dueDate: toISO(r.expiryDate)!, module: "Staff & Training", href: "/training", colour: "indigo" });
   }
   for (const r of trainingRows) {
     if (!r.expiryDate) continue;
     const label = r.trainingType || "Training record";
-    tasks.push({ id: `train-${r.id}`, type: "training_expiry", title: `${label} Expiring`, description: `Training record '${label}' is approaching expiry. Renew or refresh before the expiry date.`, dueDate: r.expiryDate.toISOString(), module: "Staff & Training", href: "/training", colour: "indigo" });
+    tasks.push({ id: `train-${r.id}`, type: "training_expiry", title: `${label} Expiring`, description: `Training record '${label}' is approaching expiry. Renew or refresh before the expiry date.`, dueDate: toISO(r.expiryDate)!, module: "Staff & Training", href: "/training", colour: "indigo" });
+  }
+  for (const r of rtwRows) {
+    if (!r.expiryDate) continue;
+    tasks.push({ id: `rtw-${r.id}`, type: "rtw_expiry", title: `Right to Work Expiring — ${r.staffName}`, description: `${r.staffName}'s right-to-work document (${r.documentType || "time-limited visa"}) is due to expire. Arrange a follow-up check before the expiry date.`, dueDate: toISO(r.expiryDate)!, module: "Staff & Training", href: "/training", colour: "indigo" });
   }
   for (const r of inspectionRows) {
     if (!r.nextInspectionDue) continue;
-    tasks.push({ id: `insp-${r.id}`, type: "inspection_due", title: `Inspection Due — ${r.inspectionType || "General"}`, description: `A ${r.inspectionType || "farm inspection"} is scheduled. Log the outcome in Inspections & Audits.`, dueDate: r.nextInspectionDue.toISOString(), module: "Inspections & Audits", href: "/inspections", colour: "violet" });
+    tasks.push({ id: `insp-${r.id}`, type: "inspection_due", title: `Inspection Due — ${r.inspectionType || "General"}`, description: `A ${r.inspectionType || "farm inspection"} is scheduled. Log the outcome in Inspections & Audits.`, dueDate: toISO(r.nextInspectionDue)!, module: "Inspections & Audits", href: "/inspections", colour: "violet" });
   }
   for (const r of correctiveRows) {
     if (!r.dueDate || r.status === "completed" || r.status === "closed") continue;
-    tasks.push({ id: `ca-${r.id}`, type: "corrective_action", title: `Corrective Action Due — ${r.title || "Unnamed"}`, description: `A corrective action '${r.title || "Unnamed"}' must be completed by this date to close the non-conformance.`, dueDate: r.dueDate.toISOString(), module: "Inspections & Audits", href: "/inspections", colour: "violet" });
+    tasks.push({ id: `ca-${r.id}`, type: "corrective_action", title: `Corrective Action Due — ${r.title || "Unnamed"}`, description: `A corrective action '${r.title || "Unnamed"}' must be completed by this date to close the non-conformance.`, dueDate: toISO(r.dueDate)!, module: "Inspections & Audits", href: "/inspections", colour: "violet" });
   }
   for (const r of riskRows) {
     if (!r.reviewDate || r.status === "archived") continue;
-    tasks.push({ id: `risk-${r.id}`, type: "risk_review", title: `Risk Assessment Review — ${r.title || "Unnamed"}`, description: `The ${r.riskLevel ? r.riskLevel + "-risk " : ""}risk assessment '${r.title || "Unnamed"}' is due for review.`, dueDate: r.reviewDate.toISOString(), module: "Risk & Waste", href: "/risks", colour: "amber" });
+    tasks.push({ id: `risk-${r.id}`, type: "risk_review", title: `Risk Assessment Review — ${r.title || "Unnamed"}`, description: `The ${r.riskLevel ? r.riskLevel + "-risk " : ""}risk assessment '${r.title || "Unnamed"}' is due for review.`, dueDate: toISO(r.reviewDate)!, module: "Risk & Waste", href: "/risks", colour: "amber" });
+  }
+  for (const r of coshhReviewRows) {
+    if (!r.reviewDate) continue;
+    tasks.push({ id: `coshh-${r.id}`, type: "coshh_review", title: `COSHH Review Due — ${r.substanceName}`, description: `The COSHH assessment for '${r.substanceName}' is due for review. Update in Risk & Waste → COSHH.`, dueDate: toISO(r.reviewDate)!, module: "Risk & Waste", href: "/risks", colour: "amber" });
   }
   for (const r of maintRows) {
     if (!r.nextDueDate) continue;
-    tasks.push({ id: `maint-${r.id}`, type: "equipment_maintenance", title: `Equipment Maintenance Due`, description: `${r.maintenanceType || "Scheduled maintenance"} is due for a piece of equipment. Log in Equipment → Maintenance.`, dueDate: r.nextDueDate.toISOString(), module: "Equipment & Vehicles", href: "/equipment", colour: "orange" });
+    tasks.push({ id: `maint-${r.id}`, type: "equipment_maintenance", title: `Equipment Maintenance Due`, description: `${r.maintenanceType || "Scheduled maintenance"} is due for a piece of equipment. Log in Equipment → Maintenance.`, dueDate: toISO(r.nextDueDate)!, module: "Equipment & Vehicles", href: "/equipment", colour: "orange" });
   }
   for (const r of calibRows) {
     if (!r.nextDueDate) continue;
-    tasks.push({ id: `calib-${r.id}`, type: "equipment_calibration", title: `Equipment Calibration Due`, description: `${r.calibrationType || "Calibration"} is due for a piece of equipment. Log in Equipment → Calibration.`, dueDate: r.nextDueDate.toISOString(), module: "Equipment & Vehicles", href: "/equipment", colour: "orange" });
+    tasks.push({ id: `calib-${r.id}`, type: "equipment_calibration", title: `Equipment Calibration Due`, description: `${r.calibrationType || "Calibration"} is due for a piece of equipment. Log in Equipment → Calibration.`, dueDate: toISO(r.nextDueDate)!, module: "Equipment & Vehicles", href: "/equipment", colour: "orange" });
+  }
+  for (const r of patTestRows) {
+    if (!r.nextDueDate) continue;
+    tasks.push({ id: `pat-${r.id}`, type: "pat_test_due", title: `PAT Test Due — ${r.itemName}`, description: `Portable appliance test is due for '${r.itemName}'${r.location ? ` at ${r.location}` : ""}. Arrange testing via Workshop.`, dueDate: toISO(r.nextDueDate)!, module: "Workshop", href: "/equipment", colour: "orange" });
+  }
+  for (const r of fireExtRows) {
+    if (!r.nextServiceDue) continue;
+    tasks.push({ id: `fireext-${r.id}`, type: "fire_extinguisher_service", title: `Fire Extinguisher Service Due — ${r.location}`, description: `${r.type} extinguisher at ${r.location} is due for its annual service. Book a qualified engineer via Workshop.`, dueDate: toISO(r.nextServiceDue)!, module: "Workshop", href: "/equipment", colour: "orange" });
+  }
+  for (const r of workshopJobRows) {
+    if (!r.estimatedCompletionDate || r.status === "completed" || r.status === "closed") continue;
+    tasks.push({ id: `wjob-${r.id}`, type: "workshop_job_deadline", title: `Workshop Job Due — ${r.title}`, description: `Job '${r.title}' has an estimated completion date approaching. Check progress in Workshop → Job Cards.`, dueDate: toISO(r.estimatedCompletionDate)!, module: "Workshop", href: "/equipment", colour: "orange" });
+  }
+  for (const r of medicineWithdrawalRows) {
+    if (!r.withdrawalEndDate) continue;
+    tasks.push({ id: `medwd-${r.id}`, type: "medicine_withdrawal", title: `Withdrawal Period Ends — ${r.medicineName}`, description: `The withdrawal period for '${r.medicineName}' ends on this date. Animals may then be cleared for sale or milk production.`, dueDate: toISO(r.withdrawalEndDate)!, module: "Livestock", href: "/livestock", colour: "green" });
+  }
+  for (const r of vetHealthPlanRows) {
+    if (!r.reviewDate) continue;
+    tasks.push({ id: `vhp-${r.id}`, type: "vet_health_plan_review", title: `Vet Health Plan Review — ${r.planYear}`, description: `The ${r.planYear} vet health plan (${r.vetName}) is due for its annual review. Update in Livestock → Vet Health Plans.`, dueDate: toISO(r.reviewDate)!, module: "Livestock", href: "/livestock", colour: "green" });
+  }
+  for (const r of insuranceRows) {
+    if (!r.expiryDate) continue;
+    const expDate = new Date(r.expiryDate + "T00:00:00Z");
+    if (expDate < overdueStart || expDate >= rangeEnd) continue;
+    tasks.push({ id: `ins-${r.id}`, type: "insurance_expiry", title: `Insurance Expiring — ${r.policyType}`, description: `Your ${r.policyType} policy${r.insurer ? ` with ${r.insurer}` : ""}${r.policyNumber ? ` (${r.policyNumber})` : ""} is due to expire. Arrange renewal to remain legally compliant.`, dueDate: expDate.toISOString(), module: "Compliance", href: "/insurance", colour: "blue" });
+  }
+  for (const r of waterLicenceRows) {
+    if (!r.licenceExpiryDate) continue;
+    const expDate = new Date(r.licenceExpiryDate + "T00:00:00Z");
+    if (expDate < overdueStart || expDate >= rangeEnd) continue;
+    tasks.push({ id: `wlic-${r.id}`, type: "water_licence_expiry", title: `Water Abstraction Licence Expiring`, description: `A water abstraction licence is due to expire. Contact the Environment Agency to arrange renewal before this date.`, dueDate: expDate.toISOString(), module: "Water & Irrigation", href: "/water-irrigation", colour: "blue" });
+  }
+  for (const r of biofuelCertRows) {
+    if (!r.expiryDate || r.status === "expired" || r.status === "cancelled") continue;
+    tasks.push({ id: `bio-${r.id}`, type: "biofuel_cert_expiry", title: `Biofuel Certification Expiring — ${r.scheme}`, description: `Your ${r.scheme} certification${r.certificationNumber ? ` (${r.certificationNumber})` : ""} is due to expire. Arrange renewal to continue making RTFO claims.`, dueDate: toISO(r.expiryDate)!, module: "Biofuel / RTFO", href: "/biofuel", colour: "blue" });
+  }
+  for (const r of poDeliveryRows) {
+    if (!r.expectedDeliveryDate || r.status === "delivered" || r.status === "cancelled") continue;
+    tasks.push({ id: `pod-${r.id}`, type: "po_delivery_due", title: `Delivery Expected — ${r.poNumber || "PO"}`, description: `${r.supplierName ? `Delivery from ${r.supplierName}` : "Delivery"} is expected${r.poNumber ? ` on PO ${r.poNumber}` : ""}. Check in Suppliers & Stock → Purchase Orders.`, dueDate: toISO(r.expectedDeliveryDate)!, module: "Suppliers & Stock", href: "/suppliers-stock", colour: "amber" });
   }
 
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
-  res.json({ tasks, rangeStart: now.toISOString(), rangeEnd: weekEnd.toISOString() });
+  res.json({ tasks, days, rangeStart: now.toISOString(), rangeEnd: rangeEnd.toISOString() });
 });
 
 // ─── Public token validation (no auth required) ───────────────────────────────
