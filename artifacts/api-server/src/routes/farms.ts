@@ -5569,6 +5569,55 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>To enable automatic batch/lot population from GRNs, ensure your spray products are linked to <strong>Stock Items</strong> in the Stock catalogue. Open <strong>Suppliers &amp; Stock → Products</strong>, find the relevant product, and confirm it has a stock item association. Once linked, the traceability picker will appear automatically in the spray form whenever that product is selected.</p>`,
     },
     {
+      id: 10036,
+      title: "Farm Planner — Week Ahead & Month Ahead View",
+      category: "Dashboards",
+      content: `<p>The Farm Planner is your daily command centre — a single page that pulls together every scheduled task, upcoming due date, and overdue item from across all your active modules, presented in chronological order so you can see at a glance what needs doing and when.</p>
+
+<h3>7-Day and 30-Day Views</h3>
+<p>Use the toggle in the top-right corner of the page to switch between the <strong>Week Ahead</strong> (7 days) and <strong>Month Ahead</strong> (30 days) views. Both views always show any <strong>overdue</strong> items from the past 60 days, clearly separated at the top in red, so nothing gets missed.</p>
+<p>The 30-day view is particularly valuable for compliance events that need advance planning — certificate renewals, insurance renewals, vet health plan reviews, and equipment calibrations all require booking weeks ahead. Switching to the 30-day view gives you that planning horizon without overwhelming you with too much detail.</p>
+
+<h3>What the Planner Tracks</h3>
+<p>The planner draws from 21 data sources across every module. Items are colour-coded by module category:</p>
+<ul>
+<li><strong>Biosecurity</strong> (red) — pest control follow-up dates, cleaning &amp; disinfection due dates, biosecurity plan review dates</li>
+<li><strong>Staff &amp; Training</strong> (indigo) — certificate expiry dates, training record expiry dates, right-to-work document expiry dates</li>
+<li><strong>Inspections &amp; Audits</strong> (violet) — upcoming inspection dates, corrective action due dates</li>
+<li><strong>Risk &amp; Waste</strong> (amber) — risk assessment review dates, COSHH assessment review dates</li>
+<li><strong>Equipment &amp; Vehicles</strong> (orange) — maintenance next due dates, calibration next due dates</li>
+<li><strong>Workshop</strong> (orange) — PAT test next due dates, fire extinguisher next service dates, workshop job card estimated completion dates</li>
+<li><strong>Livestock</strong> (green) — medicine withdrawal period end dates, vet health plan review dates</li>
+<li><strong>Compliance</strong> (blue) — insurance policy expiry dates (Employers Liability, Public Liability, and all other policies)</li>
+<li><strong>Water &amp; Irrigation</strong> (blue) — water abstraction licence expiry dates</li>
+<li><strong>Biofuel / RTFO</strong> (blue) — biofuel certification expiry dates</li>
+<li><strong>Suppliers &amp; Stock</strong> (amber) — expected purchase order delivery dates</li>
+</ul>
+<p>Each card in the planner shows the item title, a brief description, the module it belongs to (as a colour-coded badge), and whether it is overdue or due today. Clicking any system-generated card takes you directly to the relevant record in that module.</p>
+
+<h3>Adding Custom Reminders</h3>
+<p>Not everything fits neatly into a structured module. For events like a merchant rep visit, a hedge-trimming contractor, a farm walk, a bank meeting, or an agricultural show, use the <strong>Add reminder</strong> button in the top-right corner of the page.</p>
+<p>The reminder form collects:</p>
+<ul>
+<li><strong>Title</strong> — a short description of the event (required)</li>
+<li><strong>Date</strong> — the date the event is happening (required)</li>
+<li><strong>Note</strong> — any extra detail you want visible on the card (optional)</li>
+<li><strong>Colour</strong> — choose from 8 colours to visually organise your reminders</li>
+</ul>
+<p>Custom reminders appear in the planner alongside system-generated items with a grey <strong>Custom</strong> badge. They are stored as persistent records — visible to all staff with access to the dashboard — and remain in the planner until you remove them. To remove a reminder, click the <strong>trash icon</strong> that appears on the right side of the card.</p>
+
+<h3>Task Count and Overdue Alerts</h3>
+<p>The total number of items in the current view is shown as a badge in the header. Overdue items are always shown at the top of the list with a red background, an alert icon, and a label showing how many days overdue the item is. Items due today are highlighted in amber.</p>
+
+<h3>Tips for Getting the Most from the Planner</h3>
+<ul>
+<li>Check the planner first thing each morning as part of your farm routine.</li>
+<li>Switch to the 30-day view at the start of each month to identify items needing advance booking — especially certificate renewals and equipment calibrations.</li>
+<li>Use custom reminders for contractor visits and farm walks so all staff know what is happening that week.</li>
+<li>Keep your module records up to date with accurate due dates — the planner is only as good as the data behind it.</li>
+</ul>`,
+    },
+    {
       id: 10019,
       title: "Mobile App — Offline Data and How Reference Pickers Work",
       category: "Mobile App",
