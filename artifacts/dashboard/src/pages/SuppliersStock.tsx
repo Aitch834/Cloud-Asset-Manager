@@ -56,6 +56,7 @@ const SUPPLIER_CATEGORIES = [
   "Machinery & Parts",
   "Fuel",
   "Veterinary",
+  "Waste Carrier",
   "General",
 ];
 
@@ -1242,8 +1243,18 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
               <Textarea rows={2} value={form.address} onChange={e => setForm((f: any) => ({ ...f, address: e.target.value }))} />
             </div>
             <div>
-              <Label>Account Number</Label>
-              <Input value={form.accountNumber} onChange={e => setForm((f: any) => ({ ...f, accountNumber: e.target.value }))} />
+              <Label>{form.category === "Waste Carrier" ? "EA Carrier Registration No." : "Account Number"}</Label>
+              <Input
+                value={form.accountNumber}
+                onChange={e => setForm((f: any) => ({ ...f, accountNumber: e.target.value }))}
+                placeholder={form.category === "Waste Carrier" ? "e.g. CBDU01234" : ""}
+                style={form.category === "Waste Carrier" ? { fontFamily: "monospace" } : {}}
+              />
+              {form.category === "Waste Carrier" && (
+                <p style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 3 }}>
+                  Environment Agency Waste Carrier Registration number — appears in Waste Disposal carrier picker and on Duty of Care reports.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>

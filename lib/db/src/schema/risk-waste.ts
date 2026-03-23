@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { suppliersTable } from "./stock-suppliers";
 
 export const riskAssessmentsTable = pgTable("risk_assessments", {
   id: serial("id").primaryKey(),
@@ -43,6 +44,7 @@ export const wasteDisposalRecordsTable = pgTable("waste_disposal_records", {
   quantity: text("quantity"),
   disposalMethod: text("disposal_method").notNull(),
   disposalDate: timestamp("disposal_date", { withTimezone: true }).notNull(),
+  carrierId: integer("carrier_id").references(() => suppliersTable.id),
   carrierName: text("carrier_name"),
   carrierLicence: text("carrier_licence"),
   carrierRegistrationType: text("carrier_registration_type"),

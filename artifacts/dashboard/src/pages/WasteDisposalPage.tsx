@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, Search, Pencil, AlertTriangle, FileText, Truck, Recycle } from "lucide-react";
+import { Trash2, Plus, Search, Pencil, FileText, Truck, Recycle, Printer, ExternalLink } from "lucide-react";
 
 interface WasteRecord {
   id: number;
@@ -19,6 +19,7 @@ interface WasteRecord {
   quantity: string | null;
   disposalMethod: string;
   disposalDate: string;
+  carrierId: number | null;
   carrierName: string | null;
   carrierLicence: string | null;
   carrierRegistrationType: string | null;
@@ -27,6 +28,16 @@ interface WasteRecord {
   ewcCode: string | null;
   notes: string | null;
   createdAt: string;
+}
+
+interface Supplier {
+  id: number;
+  name: string;
+  category: string | null;
+  accountNumber: string | null;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
 }
 
 const WASTE_TYPES_WITH_EWC: { label: string; ewc: string }[] = [
@@ -48,8 +59,6 @@ const WASTE_TYPES_WITH_EWC: { label: string; ewc: string }[] = [
   { label: "Mixed construction waste", ewc: "17 09 04" },
   { label: "Other", ewc: "" },
 ];
-
-const WASTE_TYPES = WASTE_TYPES_WITH_EWC.map(w => w.label);
 
 const DISPOSAL_METHODS = [
   "Licensed waste carrier collection",
@@ -77,19 +86,33 @@ const fmt = (d: string | null | undefined) => {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+const fmtFull = (d: string | null | undefined) => {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+};
+
 export default function WasteDisposalPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const printRef = useRef<HTMLDivElement>(null);
+
   const [search, setSearch] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<WasteRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportFrom, setReportFrom] = useState(() => {
+    const d = new Date(); d.setFullYear(d.getFullYear() - 1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [reportTo, setReportTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [carrierMode, setCarrierMode] = useState<"registered" | "manual">("registered");
 
-  const emptyForm = {
+  const emptyForm: any = {
     wasteType: "", ewcCode: "", quantity: "", disposalMethod: "", disposalDate: "",
-    carrierName: "", carrierLicence: "", carrierRegistrationType: "", destinationSite: "",
-    wasteTransferNote: "", notes: "",
+    carrierId: "", carrierName: "", carrierLicence: "", carrierRegistrationType: "",
+    destinationSite: "", wasteTransferNote: "", notes: "",
   };
   const [form, setForm] = useState<any>(emptyForm);
 
@@ -100,11 +123,27 @@ export default function WasteDisposalPage() {
     select: d => d.records ?? [],
   });
 
+  const suppliersQ = useQuery({
+    queryKey: ["suppliers", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => (d.records ?? []) as Supplier[],
+  });
+
+  const wasteCarriers: Supplier[] = (suppliersQ.data ?? []).filter(
+    (s: Supplier) => s.category === "Waste Carrier" || s.category === "Waste Carrier / Environmental"
+  );
+  const allSuppliers: Supplier[] = suppliersQ.data ?? [];
+
   const invalidate = () => qc.invalidateQueries({ queryKey: ["waste", farmId] });
 
   const saveMut = useMutation({
     mutationFn: (body: any) => {
-      const payload = { ...body, disposalDate: body.disposalDate ? new Date(body.disposalDate).toISOString() : undefined };
+      const payload = {
+        ...body,
+        disposalDate: body.disposalDate ? new Date(body.disposalDate).toISOString() : undefined,
+        carrierId: body.carrierId ? Number(body.carrierId) : null,
+      };
       if (editRecord) return fetch(`/api/farms/${farmId}/waste/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       return fetch(`/api/farms/${farmId}/waste`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     },
@@ -120,13 +159,30 @@ export default function WasteDisposalPage() {
 
   const records: WasteRecord[] = q.data ?? [];
   const filtered = records.filter(r =>
-    !search || r.wasteType?.toLowerCase().includes(search.toLowerCase()) || r.carrierName?.toLowerCase().includes(search.toLowerCase()) || r.destinationSite?.toLowerCase().includes(search.toLowerCase())
+    !search ||
+    r.wasteType?.toLowerCase().includes(search.toLowerCase()) ||
+    r.carrierName?.toLowerCase().includes(search.toLowerCase()) ||
+    r.destinationSite?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const openAdd = () => { setEditRecord(null); setForm(emptyForm); setAddOpen(true); };
+  const reportRecords = records.filter(r => {
+    if (!r.disposalDate) return false;
+    const d = new Date(r.disposalDate);
+    if (reportFrom && d < new Date(reportFrom)) return false;
+    if (reportTo && d > new Date(reportTo + "T23:59:59")) return false;
+    return true;
+  }).sort((a, b) => new Date(a.disposalDate).getTime() - new Date(b.disposalDate).getTime());
+
+  const openAdd = () => {
+    setEditRecord(null);
+    setForm(emptyForm);
+    setCarrierMode("registered");
+    setAddOpen(true);
+  };
   const openEdit = (r: WasteRecord) => {
     setEditRecord(r);
     setForm({ ...r, disposalDate: r.disposalDate?.slice(0, 10) ?? "" });
+    setCarrierMode(r.carrierId ? "registered" : "manual");
     setAddOpen(true);
   };
 
@@ -134,6 +190,67 @@ export default function WasteDisposalPage() {
     const match = WASTE_TYPES_WITH_EWC.find(w => w.label === v);
     setForm((f: any) => ({ ...f, wasteType: v, ewcCode: match?.ewc || f.ewcCode }));
   };
+
+  const onCarrierSelect = (supplierId: string) => {
+    if (!supplierId || supplierId === "manual") {
+      setForm((f: any) => ({ ...f, carrierId: "", carrierName: "", carrierLicence: "" }));
+      return;
+    }
+    const supplier = allSuppliers.find(s => s.id === Number(supplierId));
+    if (supplier) {
+      setForm((f: any) => ({
+        ...f,
+        carrierId: supplierId,
+        carrierName: supplier.name,
+        carrierLicence: supplier.accountNumber || f.carrierLicence,
+      }));
+    }
+  };
+
+  const handlePrint = () => {
+    const printContent = printRef.current;
+    if (!printContent) return;
+    const win = window.open("", "_blank", "width=900,height=700");
+    if (!win) return;
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Waste Disposal Duty of Care Register</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; font-size: 9pt; color: #000; padding: 20mm; }
+          h1 { font-size: 14pt; margin-bottom: 4pt; }
+          h2 { font-size: 10pt; margin: 12pt 0 4pt; border-bottom: 1px solid #ccc; padding-bottom: 2pt; }
+          .meta { font-size: 8pt; color: #555; margin-bottom: 10pt; }
+          .stat-row { display: flex; gap: 24pt; margin-bottom: 10pt; font-size: 8pt; }
+          .stat { border: 1px solid #ccc; padding: 4pt 8pt; border-radius: 3pt; }
+          table { width: 100%; border-collapse: collapse; margin-top: 6pt; }
+          th { background: #f3f4f6; border: 1px solid #d1d5db; padding: 4pt 6pt; font-size: 7.5pt; text-align: left; font-weight: 600; }
+          td { border: 1px solid #e5e7eb; padding: 4pt 6pt; font-size: 7.5pt; vertical-align: top; }
+          tr:nth-child(even) td { background: #fafafa; }
+          .hazard { color: #991b1b; font-weight: 600; }
+          .wtn { font-family: monospace; font-size: 7pt; }
+          .footer { margin-top: 16pt; font-size: 7.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6pt; }
+          .sig-block { display: flex; gap: 48pt; margin-top: 16pt; }
+          .sig-line { flex: 1; }
+          .sig-line p { font-size: 7.5pt; margin-top: 20pt; border-top: 1px solid #000; padding-top: 2pt; }
+          @media print { body { padding: 12mm; } }
+        </style>
+      </head>
+      <body>
+        ${printContent.innerHTML}
+      </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); }, 400);
+  };
+
+  const hazardCount = reportRecords.filter(r => r.ewcCode?.includes("*")).length;
+  const wtnCount = reportRecords.filter(r => r.wasteTransferNote).length;
+  const uniqueCarriers = new Set(reportRecords.filter(r => r.carrierName).map(r => r.carrierName)).size;
 
   return (
     <AppLayout title="Waste Disposal">
@@ -153,19 +270,30 @@ export default function WasteDisposalPage() {
           </div>
           <div style={{ background: "#eff6ff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ background: "#dbeafe", borderRadius: 8, padding: 8 }}><Truck size={18} color="#1d4ed8" /></div>
-            <div><p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Unique Carriers</p><p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{new Set(records.filter(r => r.carrierName).map(r => r.carrierName)).size}</p></div>
+            <div><p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Registered Carriers Used</p><p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{new Set(records.filter(r => r.carrierName).map(r => r.carrierName)).size}</p></div>
           </div>
         </div>
 
         <div style={{ background: "#fff3cd", border: "1px solid #ffc107", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.8rem", color: "#856404" }}>
-          <strong>Duty of Care reminder:</strong> Always use licensed waste carriers. Obtain a Waste Transfer Note (WTN) for every collection. EWC codes marked with * are hazardous waste — special rules apply.
+          <strong>Duty of Care reminder:</strong> Always use licensed waste carriers. Obtain a Waste Transfer Note (WTN) for every collection. EWC codes marked with * are hazardous waste — special rules apply. Records must be retained for at least 2 years (3 years for hazardous waste).
         </div>
+
+        {wasteCarriers.length > 0 && (
+          <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: "0.625rem 0.875rem", marginBottom: "1rem", fontSize: "0.8rem", color: "#0c4a6e", display: "flex", alignItems: "center", gap: 8 }}>
+            <Truck size={13} color="#0284c7" />
+            <span><strong>{wasteCarriers.length} registered waste carrier{wasteCarriers.length !== 1 ? "s" : ""}</strong> available from your supplier register. Select them in the Add Record form to auto-fill carrier details.</span>
+            <a href="/suppliers-stock" style={{ marginLeft: "auto", color: "#0284c7", textDecoration: "none", display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem" }}>
+              Manage carriers <ExternalLink size={11} />
+            </a>
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
             <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
             <Input placeholder="Search waste records..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
           </div>
+          <Button size="sm" variant="outline" onClick={() => setReportOpen(true)}><Printer size={14} className="mr-1" />Print Register</Button>
           <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Add Waste Record</Button>
         </div>
 
@@ -184,7 +312,7 @@ export default function WasteDisposalPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  {["Date", "Waste Type", "EWC Code", "Quantity", "Method", "Carrier", "Carrier Licence", "Carrier Type", "Destination", "WTN", ""].map(h => (
+                  {["Date", "Waste Type", "EWC Code", "Qty", "Method", "Carrier", "EA Licence", "Reg. Type", "Destination", "WTN", ""].map(h => (
                     <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -203,9 +331,14 @@ export default function WasteDisposalPage() {
                     </td>
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.quantity || "—"}</td>
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", maxWidth: 160 }}>{r.disposalMethod || "—"}</td>
-                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.carrierName || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem" }}>
+                      <div>
+                        <span style={{ fontWeight: r.carrierId ? 500 : "normal", color: r.carrierId ? "#1d4ed8" : "#6b7280" }}>{r.carrierName || "—"}</span>
+                        {r.carrierId && <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>Registered</div>}
+                      </div>
+                    </td>
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontFamily: r.carrierLicence ? "monospace" : "inherit", fontSize: r.carrierLicence ? "0.8rem" : "inherit" }}>{r.carrierLicence || "—"}</td>
-                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontSize: "0.75rem" }}>{(r as any).carrierRegistrationType || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontSize: "0.75rem" }}>{r.carrierRegistrationType || "—"}</td>
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.destinationSite || "—"}</td>
                     <td style={{ padding: "0.625rem 0.875rem" }}>
                       {r.wasteTransferNote ? (
@@ -225,8 +358,9 @@ export default function WasteDisposalPage() {
           </div>
         )}
 
+        {/* ─── Add / Edit Dialog ─────────────────────────── */}
         <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
-          <DialogContent style={{ maxWidth: 600 }}>
+          <DialogContent style={{ maxWidth: 620 }}>
             <DialogHeader><DialogTitle>{editRecord ? "Edit Waste Record" : "Add Waste Disposal Record"}</DialogTitle></DialogHeader>
             <div className="space-y-3 py-2">
               <div className="grid grid-cols-2 gap-3">
@@ -263,12 +397,67 @@ export default function WasteDisposalPage() {
                 </Select>
               </div>
 
+              {/* Duty of Care — Carrier Details */}
               <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "0.75rem" }}>
-                <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Duty of Care — Carrier Details</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Carrier Company Name</Label><Input placeholder="e.g. Smith Waste Services Ltd" value={form.carrierName} onChange={e => setForm((f: any) => ({ ...f, carrierName: e.target.value }))} /></div>
-                  <div><Label>Environment Agency Licence No.</Label><Input placeholder="e.g. CBDU01234" value={form.carrierLicence} onChange={e => setForm((f: any) => ({ ...f, carrierLicence: e.target.value }))} style={{ fontFamily: "monospace" }} /></div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+                  <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em" }}>Duty of Care — Carrier Details</p>
+                  {wasteCarriers.length > 0 && (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        onClick={() => setCarrierMode("registered")}
+                        style={{ fontSize: "0.72rem", padding: "2px 8px", borderRadius: 4, border: `1px solid ${carrierMode === "registered" ? "#1d4ed8" : "#e5e7eb"}`, background: carrierMode === "registered" ? "#eff6ff" : "#fff", color: carrierMode === "registered" ? "#1d4ed8" : "#6b7280", cursor: "pointer" }}
+                      >
+                        Registered carrier
+                      </button>
+                      <button
+                        onClick={() => { setCarrierMode("manual"); setForm((f: any) => ({ ...f, carrierId: "" })); }}
+                        style={{ fontSize: "0.72rem", padding: "2px 8px", borderRadius: 4, border: `1px solid ${carrierMode === "manual" ? "#1d4ed8" : "#e5e7eb"}`, background: carrierMode === "manual" ? "#eff6ff" : "#fff", color: carrierMode === "manual" ? "#1d4ed8" : "#6b7280", cursor: "pointer" }}
+                      >
+                        Enter manually
+                      </button>
+                    </div>
+                  )}
                 </div>
+
+                {carrierMode === "registered" && wasteCarriers.length > 0 ? (
+                  <div className="space-y-2">
+                    <div>
+                      <Label>Select Waste Carrier</Label>
+                      <Select value={form.carrierId?.toString() || ""} onValueChange={onCarrierSelect}>
+                        <SelectTrigger><SelectValue placeholder="Choose from registered carriers..." /></SelectTrigger>
+                        <SelectContent>
+                          {wasteCarriers.map(s => (
+                            <SelectItem key={s.id} value={s.id.toString()}>
+                              {s.name}{s.accountNumber ? ` — ${s.accountNumber}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {wasteCarriers.length === 0 && (
+                        <p style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 4 }}>
+                          Add suppliers with category "Waste Carrier" to enable this picker.
+                        </p>
+                      )}
+                    </div>
+                    {form.carrierId && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div><Label>Carrier Name (from record)</Label><Input value={form.carrierName} readOnly style={{ background: "#f9fafb" }} /></div>
+                        <div><Label>EA Registration No.</Label><Input value={form.carrierLicence} onChange={e => setForm((f: any) => ({ ...f, carrierLicence: e.target.value }))} style={{ fontFamily: "monospace" }} placeholder="e.g. CBDU01234" /></div>
+                      </div>
+                    )}
+                  </div>
+                ) : wasteCarriers.length === 0 && carrierMode === "registered" ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Carrier Company Name</Label><Input placeholder="e.g. Smith Waste Services Ltd" value={form.carrierName} onChange={e => setForm((f: any) => ({ ...f, carrierName: e.target.value }))} /></div>
+                    <div><Label>EA Registration No.</Label><Input placeholder="e.g. CBDU01234" value={form.carrierLicence} onChange={e => setForm((f: any) => ({ ...f, carrierLicence: e.target.value }))} style={{ fontFamily: "monospace" }} /></div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Carrier Company Name</Label><Input placeholder="e.g. Smith Waste Services Ltd" value={form.carrierName} onChange={e => setForm((f: any) => ({ ...f, carrierName: e.target.value }))} /></div>
+                    <div><Label>EA Registration No.</Label><Input placeholder="e.g. CBDU01234" value={form.carrierLicence} onChange={e => setForm((f: any) => ({ ...f, carrierLicence: e.target.value }))} style={{ fontFamily: "monospace" }} /></div>
+                  </div>
+                )}
+
                 <div style={{ marginTop: "0.75rem" }}>
                   <Label>Carrier Registration Type</Label>
                   <Select value={form.carrierRegistrationType} onValueChange={v => setForm((f: any) => ({ ...f, carrierRegistrationType: v }))}>
@@ -296,6 +485,100 @@ export default function WasteDisposalPage() {
           </DialogContent>
         </Dialog>
 
+        {/* ─── Print Report Dialog ───────────────────────── */}
+        <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+          <DialogContent style={{ maxWidth: 900, maxHeight: "90vh", overflow: "auto" }}>
+            <DialogHeader>
+              <DialogTitle>Duty of Care Register — Print Report</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+                <div><Label>Date from</Label><Input type="date" value={reportFrom} onChange={e => setReportFrom(e.target.value)} style={{ width: 160 }} /></div>
+                <div><Label>Date to</Label><Input type="date" value={reportTo} onChange={e => setReportTo(e.target.value)} style={{ width: 160 }} /></div>
+                <div style={{ fontSize: "0.8rem", color: "#6b7280", paddingBottom: 6 }}>
+                  {reportRecords.length} record{reportRecords.length !== 1 ? "s" : ""} in this period
+                </div>
+              </div>
+
+              {/* Print Preview */}
+              <div ref={printRef} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "1.5rem", background: "#fff", fontSize: "0.8rem" }}>
+                <h1 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 4 }}>Waste Disposal — Duty of Care Register</h1>
+                <div style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 12 }}>
+                  Period: {fmtFull(reportFrom)} to {fmtFull(reportTo)} &nbsp;·&nbsp; Printed: {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+                </div>
+
+                <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+                  {[
+                    { label: "Total Movements", value: reportRecords.length },
+                    { label: "Hazardous Loads", value: hazardCount },
+                    { label: "WTNs Recorded", value: wtnCount },
+                    { label: "Unique Carriers", value: uniqueCarriers },
+                  ].map(s => (
+                    <div key={s.label} style={{ border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.375rem 0.75rem" }}>
+                      <div style={{ fontSize: "0.65rem", color: "#9ca3af", textTransform: "uppercase" }}>{s.label}</div>
+                      <div style={{ fontWeight: 700, fontSize: "1rem" }}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {reportRecords.length === 0 ? (
+                  <p style={{ color: "#9ca3af", textAlign: "center", padding: "2rem" }}>No records in this date range.</p>
+                ) : (
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.72rem" }}>
+                    <thead>
+                      <tr style={{ background: "#f3f4f6" }}>
+                        {["Date", "Waste Type", "EWC Code", "Quantity", "Disposal Method", "Carrier Company", "EA Reg. No.", "Carrier Type", "Destination Site", "WTN Ref."].map(h => (
+                          <th key={h} style={{ border: "1px solid #d1d5db", padding: "4px 6px", textAlign: "left", fontWeight: 600, fontSize: "0.68rem" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportRecords.map((r, i) => (
+                        <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                          <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px", whiteSpace: "nowrap" }}>{fmt(r.disposalDate)}</td>
+                          <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px" }}>{r.wasteType || "—"}</td>
+                          <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px", fontFamily: "monospace", color: r.ewcCode?.includes("*") ? "#991b1b" : "#374151", fontWeight: r.ewcCode?.includes("*") ? 600 : "normal" }}>{r.ewcCode || "—"}</td>
+                          <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px" }}>{r.quantity || "—"}</td>
+                          <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px" }}>{r.disposalMethod || "—"}</td>
+                          <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px", fontWeight: 500 }}>{r.carrierName || "—"}</td>
+                          <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px", fontFamily: "monospace", fontSize: "0.65rem" }}>{r.carrierLicence || "—"}</td>
+                          <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px" }}>{r.carrierRegistrationType || "—"}</td>
+                          <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px" }}>{r.destinationSite || "—"}</td>
+                          <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px", fontFamily: "monospace", fontSize: "0.65rem" }}>{r.wasteTransferNote || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <div style={{ marginTop: 24, borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
+                  <p style={{ fontSize: "0.7rem", color: "#6b7280", marginBottom: 16 }}>
+                    This register is produced in accordance with the Environmental Protection Act 1990 (Duty of Care) and the Waste (England and Wales) Regulations 2011.
+                    Records must be retained for a minimum of 2 years (3 years for hazardous waste consignments marked *). This document should be made available to the Environment Agency, Red Tractor assessors, or other authorised inspecting bodies on request.
+                  </p>
+                  <div style={{ display: "flex", gap: 48, marginTop: 8 }}>
+                    {[{ label: "Farm Manager / Responsible Person", sub: "Name (print):" }, { label: "Signature", sub: "" }, { label: "Date" , sub: "" }].map(s => (
+                      <div key={s.label} style={{ flex: 1 }}>
+                        <p style={{ fontSize: "0.7rem", color: "#374151" }}>{s.label}</p>
+                        {s.sub && <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 2 }}>{s.sub}</p>}
+                        <div style={{ borderBottom: "1px solid #374151", marginTop: 24 }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReportOpen(false)}>Close</Button>
+              <Button onClick={handlePrint} disabled={reportRecords.length === 0}>
+                <Printer size={14} className="mr-1" />
+                Print / Save as PDF
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ─── Delete Dialog ─────────────────────────────── */}
         <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
           <DialogContent style={{ maxWidth: 400 }}>
             <DialogHeader><DialogTitle>Delete Waste Record</DialogTitle></DialogHeader>
