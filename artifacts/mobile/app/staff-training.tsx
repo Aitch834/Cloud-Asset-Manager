@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,6 +25,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmMembers, memberFullName, type ApiFarmMember } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { kvGet } from "@/lib/database";
 import type { StaffTrainingRecord } from "@/lib/types";
 
 type TrainingType = StaffTrainingRecord["trainingType"];
@@ -51,6 +53,155 @@ const ASSESSMENT_RESULTS: { key: AssessmentResult; label: string; color: string 
   { key: "fail", label: "Fail / Not Yet Competent", color: colors.error },
 ];
 
+interface ApiCertRecord {
+  id: number;
+  userId: string;
+  certificateType: string;
+  certificateNumber: string | null;
+  documentPath: string | null;
+  documentName: string | null;
+  expiryDate: string | null;
+}
+
+async function getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS !== "web") {
+      const SecureStore = await import("expo-secure-store");
+      const t = await SecureStore.getItemAsync("auth_session_token");
+      if (t) return t;
+    }
+    const raw = await kvGet("bde_auth_token");
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+async function getTenantSlug(): Promise<string> {
+  try {
+    const raw = await kvGet("bde_current_farm");
+    if (raw) {
+      const farm = JSON.parse(raw);
+      return farm.tenantSlug || farm.slug || "";
+    }
+  } catch {}
+  return "";
+}
+
+function getApiBase(): string {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  return domain ? `https://${domain}` : "";
+}
+
+async function uploadPhotoToStorage(photoUri: string, apiBase: string): Promise<string | null> {
+  const presignRes = await fetch(`${apiBase}/api/storage/uploads/request-url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "cert-scan.jpg", size: 0, contentType: "image/jpeg" }),
+  });
+  if (!presignRes.ok) return null;
+  const { uploadURL, objectPath } = await presignRes.json();
+  const fileRes = await fetch(photoUri);
+  const blob = await fileRes.blob();
+  const putRes = await fetch(uploadURL, {
+    method: "PUT",
+    body: blob,
+    headers: { "Content-Type": blob.type || "image/jpeg" },
+  });
+  if (!putRes.ok) return null;
+  return objectPath;
+}
+
+function CertificateScanRow({ cert, farmId }: { cert: ApiCertRecord; farmId: string }) {
+  const [uploading, setUploading] = useState(false);
+  const [hasScan, setHasScan] = useState(!!cert.documentPath);
+
+  const attachScan = useCallback(() => {
+    Alert.alert("Attach Certificate Scan", "Take a photo of the certificate or choose from your library.", [
+      {
+        text: "Camera",
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== "granted") { Alert.alert("Permission Required", "Camera access is needed."); return; }
+          const result = await ImagePicker.launchCameraAsync({ quality: 0.85, allowsEditing: false });
+          if (!result.canceled && result.assets[0]) doUpload(result.assets[0].uri);
+        },
+      },
+      {
+        text: "Photo Library",
+        onPress: async () => {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== "granted") { Alert.alert("Permission Required", "Photo library access is needed."); return; }
+          const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.85, allowsEditing: false });
+          if (!result.canceled && result.assets[0]) doUpload(result.assets[0].uri);
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }, []);
+
+  const doUpload = async (photoUri: string) => {
+    const apiBase = getApiBase();
+    if (!apiBase) { Alert.alert("No Connection", "An internet connection is required to attach scans."); return; }
+    setUploading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const [token, tenantSlug, objectPath] = await Promise.all([
+        getAuthToken(),
+        getTenantSlug(),
+        uploadPhotoToStorage(photoUri, apiBase),
+      ]);
+      if (!objectPath || !token) throw new Error("Upload failed");
+      const patchRes = await fetch(`${apiBase}/api/farms/${farmId}/certificates/${cert.id}/document`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-tenant-slug": tenantSlug, "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ documentPath: objectPath, documentName: "cert-scan.jpg" }),
+      });
+      if (!patchRes.ok) throw new Error("Attach failed");
+      setHasScan(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Scan Attached", `Certificate scan for "${cert.certificateType}" saved successfully.`);
+    } catch (e) {
+      Alert.alert("Upload Failed", "Could not upload the scan. Please try again or attach via the web dashboard.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <View style={certStyles.row}>
+      <View style={certStyles.certInfo}>
+        <Text style={certStyles.certType} numberOfLines={1}>{cert.certificateType}</Text>
+        <Text style={certStyles.certSub}>{cert.userId || "—"}{cert.certificateNumber ? ` · ${cert.certificateNumber}` : ""}</Text>
+      </View>
+      <Pressable
+        onPress={hasScan ? undefined : attachScan}
+        style={[certStyles.scanBtn, hasScan ? certStyles.scanBtnDone : null, uploading ? certStyles.scanBtnLoading : null]}
+        disabled={uploading || hasScan}
+      >
+        <Feather
+          name={hasScan ? "check-circle" : uploading ? "loader" : "camera"}
+          size={16}
+          color={hasScan ? colors.success : uploading ? colors.textSecondary : colors.primary}
+        />
+        <Text style={[certStyles.scanBtnText, hasScan ? certStyles.scanBtnTextDone : null]}>
+          {hasScan ? "Scan saved" : uploading ? "Uploading…" : "Scan"}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const certStyles = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight, gap: spacing.sm },
+  certInfo: { flex: 1 },
+  certType: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
+  certSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 1 },
+  scanBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primary + "08" },
+  scanBtnDone: { borderColor: colors.success, backgroundColor: colors.success + "10" },
+  scanBtnLoading: { borderColor: colors.border, backgroundColor: colors.surface },
+  scanBtnText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.primary },
+  scanBtnTextDone: { color: colors.success },
+});
+
 export default function StaffTrainingScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
@@ -71,6 +222,32 @@ export default function StaffTrainingScreen() {
   const [assessmentResult, setAssessmentResult] = useState<AssessmentResult>("pass");
   const [supervisor, setSupervisor] = useState(user?.name || "");
   const [notes, setNotes] = useState("");
+
+  const [certs, setCerts] = useState<ApiCertRecord[]>([]);
+  const [certsLoading, setCertsLoading] = useState(false);
+
+  useEffect(() => {
+    const farmId = currentFarm?.id;
+    if (!farmId) return;
+    const apiBase = getApiBase();
+    if (!apiBase) return;
+
+    let cancelled = false;
+    setCertsLoading(true);
+    (async () => {
+      try {
+        const [token, tenantSlug] = await Promise.all([getAuthToken(), getTenantSlug()]);
+        const res = await fetch(`${apiBase}/api/farms/${farmId}/certificates`, {
+          headers: token ? { "Authorization": `Bearer ${token}`, "x-tenant-slug": tenantSlug } : {},
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setCerts(data.records ?? []);
+      } catch {}
+      if (!cancelled) setCertsLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [currentFarm?.id]);
 
   const selectedType = TRAINING_TYPES.find((t) => t.key === trainingType);
   const noMembersLoaded = !membersLoading && members.length === 0;
@@ -192,6 +369,26 @@ export default function StaffTrainingScreen() {
           <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Any additional details or observations…" multiline numberOfLines={3} />
 
           <Button title={saving ? "Saving…" : "Save Training Record"} onPress={handleSave} disabled={saving} style={styles.saveButton} />
+
+          <View style={styles.certScanSection}>
+            <Text style={styles.sectionTitle}>Certificate Scans</Text>
+            <Text style={styles.certScanHelp}>
+              Attach a photo of each operator certificate for your compliance records. Requires an internet connection.
+            </Text>
+            {certsLoading ? (
+              <Text style={styles.certsEmpty}>Loading certificates…</Text>
+            ) : certs.length === 0 ? (
+              <Text style={styles.certsEmpty}>
+                No certificates found. Add certificates via the web dashboard, then return here to attach scans.
+              </Text>
+            ) : (
+              certs.map((cert) => (
+                <CertificateScanRow key={cert.id} cert={cert} farmId={currentFarm?.id || ""} />
+              ))
+            )}
+          </View>
+
+          <View style={{ height: spacing.xxl }} />
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -217,4 +414,7 @@ const styles = StyleSheet.create({
   saveButton: { marginTop: spacing.lg },
   clearMember: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingVertical: 2, paddingHorizontal: spacing.sm },
   clearMemberText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
+  certScanSection: { marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  certScanHelp: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, lineHeight: 18, marginBottom: spacing.md },
+  certsEmpty: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textTertiary, fontStyle: "italic", lineHeight: 18 },
 });

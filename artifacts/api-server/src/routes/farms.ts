@@ -50,6 +50,7 @@ import {
   staffTrainingRecordsTable,
   staffCertificatesTable,
   staffRightToWorkTable,
+  staffRtwDocumentsTable,
   riskAssessmentsTable,
   coshhRecordsTable,
   wasteDisposalRecordsTable,
@@ -1685,6 +1686,58 @@ router.delete("/farms/:farmId/right-to-work/:recordId", requireAuth, requireTena
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(staffRightToWorkTable).where(and(eq(staffRightToWorkTable.id, recordId), eq(staffRightToWorkTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── RTW Document Attachments ──────────────────────
+router.get("/farms/:farmId/right-to-work/:recordId/documents", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const documents = await db.select().from(staffRtwDocumentsTable).where(and(eq(staffRtwDocumentsTable.rtwId, recordId), eq(staffRtwDocumentsTable.farmId, farmId))).orderBy(staffRtwDocumentsTable.uploadedAt);
+  res.json({ documents });
+});
+
+router.post("/farms/:farmId/right-to-work/:recordId/documents", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { fileName, objectPath } = req.body;
+  if (!fileName || !objectPath) { res.status(400).json({ error: "fileName and objectPath are required" }); return; }
+  const [doc] = await db.insert(staffRtwDocumentsTable).values({ rtwId: recordId, farmId, fileName, objectPath }).returning();
+  res.status(201).json({ document: doc });
+});
+
+router.delete("/farms/:farmId/right-to-work/:recordId/documents/:docId", requireAuth, requireTenant, requireModuleByKey("staff-training", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  const docId = parseInt(req.params.docId, 10);
+  if (!recordId || isNaN(docId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(staffRtwDocumentsTable).where(and(eq(staffRtwDocumentsTable.id, docId), eq(staffRtwDocumentsTable.rtwId, recordId), eq(staffRtwDocumentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Certificate Document Attachment ──────────────
+router.patch("/farms/:farmId/certificates/:recordId/document", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { documentPath, documentName } = req.body;
+  if (!documentPath || !documentName) { res.status(400).json({ error: "documentPath and documentName are required" }); return; }
+  const [record] = await db.update(staffCertificatesTable).set({ documentPath, documentName }).where(and(eq(staffCertificatesTable.id, recordId), eq(staffCertificatesTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/certificates/:recordId/document", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.update(staffCertificatesTable).set({ documentPath: null, documentName: null }).where(and(eq(staffCertificatesTable.id, recordId), eq(staffCertificatesTable.farmId, farmId)));
   res.json({ success: true });
 });
 

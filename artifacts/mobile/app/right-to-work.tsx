@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -24,6 +25,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { kvGet } from "@/lib/database";
 import type { RightToWorkCheck } from "@/lib/types";
 
 const LIST_A_DOCS = [
@@ -45,12 +47,61 @@ const LIST_B_DOCS = [
 
 type DocList = "A" | "B";
 
+async function getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS !== "web") {
+      const SecureStore = await import("expo-secure-store");
+      const t = await SecureStore.getItemAsync("auth_session_token");
+      if (t) return t;
+    }
+    const raw = await kvGet("bde_auth_token");
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+async function getTenantSlug(): Promise<string> {
+  try {
+    const raw = await kvGet("bde_current_farm");
+    if (raw) {
+      const farm = JSON.parse(raw);
+      return farm.tenantSlug || farm.slug || "";
+    }
+  } catch {}
+  return "";
+}
+
+function getApiBase(): string {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  return domain ? `https://${domain}` : "";
+}
+
+async function uploadPhotoToStorage(photoUri: string, apiBase: string): Promise<string | null> {
+  const presignRes = await fetch(`${apiBase}/api/storage/uploads/request-url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "rtw-document.jpg", size: 0, contentType: "image/jpeg" }),
+  });
+  if (!presignRes.ok) return null;
+  const { uploadURL, objectPath } = await presignRes.json();
+  const fileRes = await fetch(photoUri);
+  const blob = await fileRes.blob();
+  const putRes = await fetch(uploadURL, {
+    method: "PUT",
+    body: blob,
+    headers: { "Content-Type": blob.type || "image/jpeg" },
+  });
+  if (!putRes.ok) return null;
+  return objectPath;
+}
+
 export default function RightToWorkScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { members, loading: membersLoading, error: membersError } = useApiFarmMembers(currentFarm?.id);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const [selectedWorker, setSelectedWorker] = useState<ApiFarmMember | null>(null);
   const [manualWorkerName, setManualWorkerName] = useState("");
@@ -65,6 +116,30 @@ export default function RightToWorkScreen() {
   const [notes, setNotes] = useState("");
 
   const docOptions = documentList === "A" ? LIST_A_DOCS : LIST_B_DOCS;
+
+  const takeOrPickPhoto = () => {
+    Alert.alert("Attach Document Photo", "Take a photo of the identity document or choose from your library.", [
+      {
+        text: "Camera",
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== "granted") { Alert.alert("Permission Required", "Camera access is needed."); return; }
+          const result = await ImagePicker.launchCameraAsync({ quality: 0.85, allowsEditing: false });
+          if (!result.canceled && result.assets[0]) { setPhotoUri(result.assets[0].uri); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
+        },
+      },
+      {
+        text: "Photo Library",
+        onPress: async () => {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== "granted") { Alert.alert("Permission Required", "Photo library access is needed."); return; }
+          const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.85, allowsEditing: false });
+          if (!result.canceled && result.assets[0]) { setPhotoUri(result.assets[0].uri); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
 
   const handleSave = async () => {
     if (!workerName.trim()) {
@@ -83,6 +158,66 @@ export default function RightToWorkScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    const apiBase = getApiBase();
+    let savedOnline = false;
+
+    if (photoUri && apiBase) {
+      setUploading(true);
+      try {
+        const [token, tenantSlug, objectPath] = await Promise.all([
+          getAuthToken(),
+          getTenantSlug(),
+          uploadPhotoToStorage(photoUri, apiBase),
+        ]);
+
+        if (objectPath && token) {
+          const authHeaders: Record<string, string> = {
+            "Content-Type": "application/json",
+            "x-tenant-slug": tenantSlug,
+            "Authorization": `Bearer ${token}`,
+          };
+
+          const rtwBody = {
+            staffName: workerName.trim(),
+            documentList,
+            documentType,
+            documentReference: documentReference.trim(),
+            checkDate,
+            checkedBy: checkedBy.trim(),
+            expiryDate: documentList === "B" ? expiryDate.trim() : null,
+            followUpDate: followUpDate.trim() || null,
+            notes: notes.trim() || null,
+          };
+
+          const farmId = currentFarm?.id;
+          const rtwRes = await fetch(`${apiBase}/api/farms/${farmId}/right-to-work`, {
+            method: "POST",
+            headers: authHeaders,
+            body: JSON.stringify(rtwBody),
+          });
+
+          if (rtwRes.ok) {
+            const { record } = await rtwRes.json();
+            if (record?.id) {
+              await fetch(`${apiBase}/api/farms/${farmId}/right-to-work/${record.id}/documents`, {
+                method: "POST",
+                headers: authHeaders,
+                body: JSON.stringify({
+                  fileName: "rtw-document.jpg",
+                  objectPath,
+                }),
+              });
+            }
+            savedOnline = true;
+          }
+        }
+      } catch (e) {
+        console.warn("Online RTW save failed, falling back to local:", e);
+      } finally {
+        setUploading(false);
+      }
+    }
+
     const record: RightToWorkCheck = {
       id: generateId(),
       farmId: currentFarm?.id || "",
@@ -96,16 +231,18 @@ export default function RightToWorkScreen() {
       followUpDate: followUpDate.trim(),
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
-      synced: false,
+      synced: savedOnline,
     };
 
     await appendToList(STORAGE_KEYS.RIGHT_TO_WORK_CHECKS, record, currentFarm?.id);
-    await refreshPendingCount();
+    if (!savedOnline) await refreshPendingCount();
     setSaving(false);
 
     Alert.alert(
       "Check Recorded",
-      `Right to Work check for ${workerName} saved. Retain a copy of the original document in your files.`,
+      savedOnline
+        ? `RTW check for ${workerName} saved with document photo attached.`
+        : `Right to Work check for ${workerName} saved. Retain a copy of the original document in your files.`,
       [{ text: "Done", onPress: () => router.back() }]
     );
   };
@@ -242,10 +379,31 @@ export default function RightToWorkScreen() {
           </View>
 
           <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Document Photo</Text>
+            <Text style={styles.helpText}>
+              Attach a photo of the identity document. Requires a network connection to upload.
+            </Text>
+            {photoUri ? (
+              <View style={styles.photoAttached}>
+                <Feather name="check-circle" size={16} color={colors.success} />
+                <Text style={styles.photoAttachedText}>Photo attached — will upload with record</Text>
+                <Pressable onPress={() => setPhotoUri(null)} style={styles.removePhoto}>
+                  <Feather name="x" size={14} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={styles.photoButton} onPress={takeOrPickPhoto}>
+                <Feather name="camera" size={18} color={colors.primary} />
+                <Text style={styles.photoButtonText}>Attach Document Photo</Text>
+              </Pressable>
+            )}
+          </View>
+
+          <View style={styles.section}>
             <Button
-              title={saving ? "Saving…" : "Save RTW Check"}
+              title={uploading ? "Uploading photo…" : saving ? "Saving…" : "Save RTW Check"}
               onPress={handleSave}
-              disabled={saving}
+              disabled={saving || uploading}
             />
           </View>
 
@@ -364,4 +522,38 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   docOptionLabelActive: { color: colors.text },
+  photoButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + "08",
+    justifyContent: "center",
+  },
+  photoButtonText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.primary,
+  },
+  photoAttached: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.success,
+    backgroundColor: colors.success + "10",
+  },
+  photoAttachedText: {
+    flex: 1,
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.success,
+  },
+  removePhoto: { padding: 4 },
 });

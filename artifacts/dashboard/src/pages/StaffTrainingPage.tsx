@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Printer, GraduationCap, Award, AlertTriangle } from "lucide-react";
+import { Plus, Printer, GraduationCap, Award, AlertTriangle, File, Trash2, Paperclip, ChevronDown, ChevronUp, Loader2, Upload } from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
 
 import { useFarmMembers, memberFullName, type FarmMember } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -54,6 +55,8 @@ interface CertificateRecord {
   issueDate: string;
   expiryDate: string | null;
   notes: string | null;
+  documentPath: string | null;
+  documentName: string | null;
 }
 
 const CERT_GROUPS: { group: string; certs: string[] }[] = [
@@ -330,12 +333,65 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
   );
 }
 
+function CertDocPanel({ certId, farmId, documentPath, documentName }: { certId: number; farmId: number; documentPath: string | null; documentName: string | null }) {
+  const qc = useQueryClient();
+
+  const removeMut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/certificates/${certId}/document`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["staff-certificates", farmId] }),
+  });
+
+  const { uploadFile, isUploading, progress } = useUpload({
+    onSuccess: async (response) => {
+      const fileName = response.objectPath.split("/").pop() ?? "document";
+      await fetch(`/api/farms/${farmId}/certificates/${certId}/document`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentPath: response.objectPath, documentName: fileName }),
+      });
+      qc.invalidateQueries({ queryKey: ["staff-certificates", farmId] });
+    },
+  });
+
+  return (
+    <div style={{ padding: "8px 12px 10px", background: "#f9fafb", borderTop: "1px solid #f3f4f6" }}>
+      <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 6 }}>Certificate Scan</p>
+      {documentPath ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <File style={{ width: 14, height: 14, color: "#6b7280", flexShrink: 0 }} />
+          <a href={`/api/storage${documentPath}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.8125rem", color: "#2563eb", textDecoration: "none", flex: 1 }}>
+            {documentName ?? "View Scan"}
+          </a>
+          <button onClick={() => removeMut.mutate()} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#9ca3af" }} title="Remove scan">
+            <Trash2 style={{ width: 13, height: 13 }} />
+          </button>
+        </div>
+      ) : (
+        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <input
+            type="file"
+            accept="image/*,application/pdf"
+            style={{ display: "none" }}
+            disabled={isUploading}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = ""; }}
+          />
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.75rem", padding: "3px 10px", border: "1px solid #d1d5db", borderRadius: 5, color: "#374151", background: "#fff" }}>
+            {isUploading ? <><Loader2 style={{ width: 12, height: 12, animation: "spin 1s linear infinite" }} /> Uploading {progress}%</> : <><Upload style={{ width: 12, height: 12 }} /> Attach Scan</>}
+          </span>
+          <span style={{ fontSize: "0.7rem", color: "#9ca3af" }}>PDF, JPG or PNG</span>
+        </label>
+      )}
+    </div>
+  );
+}
+
 function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { farmId: number; staffNames: string[]; staffLoading?: boolean; defaultMember?: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<CertificateRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [expandedCertId, setExpandedCertId] = useState<number | null>(null);
 
   const empty = { userId: "", certificateType: "", certificateNumber: "", issuer: "", issueDate: "", expiryDate: "", notes: "" };
   const [form, setForm] = useState({ ...empty, userId: defaultMember ?? "" });
@@ -450,20 +506,39 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
             </thead>
             <tbody>
               {records.map(r => (
-                <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.userId || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.certificateType}</td>
-                  <td style={{ padding: "0.625rem 0.75rem", fontFamily: "monospace", fontSize: "0.8125rem", color: "#374151" }}>{r.certificateNumber || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.issuer || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{fmt(r.issueDate)}</td>
-                  <td style={{ padding: "0.625rem 0.75rem" }}>{r.expiryDate ? expiryBadge(r.expiryDate) : <Badge style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb" }}>No expiry</Badge>}</td>
-                  <td style={{ padding: "0.625rem 0.75rem" }}>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => openEdit(r)}>Edit</Button>
-                      <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setDeleteId(r.id)}>Del</Button>
-                    </div>
-                  </td>
-                </tr>
+                <React.Fragment key={r.id}>
+                  <tr style={{ borderBottom: expandedCertId === r.id ? "none" : "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.userId || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.certificateType}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", fontFamily: "monospace", fontSize: "0.8125rem", color: "#374151" }}>{r.certificateNumber || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.issuer || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{fmt(r.issueDate)}</td>
+                    <td style={{ padding: "0.625rem 0.75rem" }}>{r.expiryDate ? expiryBadge(r.expiryDate) : <Badge style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb" }}>No expiry</Badge>}</td>
+                    <td style={{ padding: "0.625rem 0.75rem" }}>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          style={{ fontSize: "0.75rem", height: 28, display: "flex", alignItems: "center", gap: 3 }}
+                          onClick={() => setExpandedCertId(expandedCertId === r.id ? null : r.id)}
+                        >
+                          {r.documentPath ? <File style={{ width: 11, height: 11, color: "#2563eb" }} /> : <Paperclip style={{ width: 11, height: 11 }} />}
+                          Scan
+                          {expandedCertId === r.id ? <ChevronUp style={{ width: 11, height: 11 }} /> : <ChevronDown style={{ width: 11, height: 11 }} />}
+                        </Button>
+                        <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => openEdit(r)}>Edit</Button>
+                        <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setDeleteId(r.id)}>Del</Button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedCertId === r.id && (
+                    <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td colSpan={7} style={{ padding: 0 }}>
+                        <CertDocPanel certId={r.id} farmId={farmId} documentPath={r.documentPath} documentName={r.documentName} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -567,6 +642,75 @@ function rtwStatusBadge(expiryDate: string | null | undefined) {
   return <Badge style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}>Valid · {fmt(expiryDate)}</Badge>;
 }
 
+interface RtwDocument { id: number; rtwId: number; farmId: number; fileName: string; objectPath: string; uploadedAt: string; }
+
+function RtwDocsPanel({ rtwId, farmId }: { rtwId: number; farmId: number }) {
+  const qc = useQueryClient();
+
+  const { data, isLoading } = useQuery<{ documents: RtwDocument[] }>({
+    queryKey: ["rtw-docs", rtwId],
+    queryFn: () => fetch(`/api/farms/${farmId}/right-to-work/${rtwId}/documents`).then(r => r.json()),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (docId: number) => fetch(`/api/farms/${farmId}/right-to-work/${rtwId}/documents/${docId}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["rtw-docs", rtwId] }),
+  });
+
+  const { uploadFile, isUploading, progress } = useUpload({
+    onSuccess: async (response) => {
+      const fileName = response.objectPath.split("/").pop() ?? "document";
+      await fetch(`/api/farms/${farmId}/right-to-work/${rtwId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName, objectPath: response.objectPath }),
+      });
+      qc.invalidateQueries({ queryKey: ["rtw-docs", rtwId] });
+    },
+  });
+
+  const docs = data?.documents ?? [];
+
+  return (
+    <div style={{ padding: "8px 12px 10px", background: "#f9fafb", borderTop: "1px solid #f3f4f6" }}>
+      <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 6 }}>Attached Document Copies</p>
+      {isLoading ? (
+        <p style={{ fontSize: "0.8125rem", color: "#9ca3af" }}>Loading…</p>
+      ) : docs.length === 0 ? (
+        <p style={{ fontSize: "0.8125rem", color: "#9ca3af", fontStyle: "italic", marginBottom: 6 }}>No documents attached. Upload a scan or photo of the identity document below.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+          {docs.map(doc => (
+            <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 5, padding: "4px 8px" }}>
+              <File style={{ width: 13, height: 13, color: "#6b7280", flexShrink: 0 }} />
+              <a href={`/api/storage${doc.objectPath}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.8125rem", color: "#2563eb", textDecoration: "none", flex: 1 }}>
+                {doc.fileName}
+              </a>
+              <span style={{ fontSize: "0.7rem", color: "#9ca3af" }}>{new Date(doc.uploadedAt).toLocaleDateString("en-GB")}</span>
+              <button onClick={() => deleteMut.mutate(doc.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#9ca3af" }} title="Remove">
+                <Trash2 style={{ width: 12, height: 12 }} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+        <input
+          type="file"
+          accept="image/*,application/pdf"
+          style={{ display: "none" }}
+          disabled={isUploading}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = ""; }}
+        />
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.75rem", padding: "3px 10px", border: "1px solid #d1d5db", borderRadius: 5, color: "#374151", background: "#fff" }}>
+          {isUploading ? <><Loader2 style={{ width: 12, height: 12, animation: "spin 1s linear infinite" }} /> Uploading {progress}%</> : <><Upload style={{ width: 12, height: 12 }} /> Add Document</>}
+        </span>
+        <span style={{ fontSize: "0.7rem", color: "#9ca3af" }}>PDF, JPG or PNG — scan or photo of original document</span>
+      </label>
+    </div>
+  );
+}
+
 function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { farmId: number; staffNames: string[]; staffLoading?: boolean; defaultMember?: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -574,6 +718,7 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
   const [editItem, setEditItem] = useState<RtwRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [search, setSearch] = useState(defaultMember ?? "");
+  const [expandedRtwId, setExpandedRtwId] = useState<number | null>(null);
 
   const emptyForm = { staffName: defaultMember ?? "", documentType: "", documentReference: "", checkDate: "", checkedBy: "", expiryDate: "", followUpDate: "", notes: "" };
   const [form, setForm] = useState({ ...emptyForm });
@@ -686,20 +831,39 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
             </thead>
             <tbody>
               {records.map(r => (
-                <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.staffName}</td>
-                  <td style={{ padding: "0.625rem 0.75rem" }}>{r.documentType}</td>
-                  <td style={{ padding: "0.625rem 0.75rem", fontFamily: "monospace", fontSize: "0.8125rem", color: "#374151" }}>{r.documentReference || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{fmt(r.checkDate)}</td>
-                  <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.checkedBy || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.75rem" }}>{rtwStatusBadge(r.expiryDate)}</td>
-                  <td style={{ padding: "0.625rem 0.75rem" }}>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => openEdit(r)}>Edit</Button>
-                      <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setDeleteId(r.id)}>Del</Button>
-                    </div>
-                  </td>
-                </tr>
+                <React.Fragment key={r.id}>
+                  <tr style={{ borderBottom: expandedRtwId === r.id ? "none" : "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.staffName}</td>
+                    <td style={{ padding: "0.625rem 0.75rem" }}>{r.documentType}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", fontFamily: "monospace", fontSize: "0.8125rem", color: "#374151" }}>{r.documentReference || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{fmt(r.checkDate)}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.checkedBy || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem" }}>{rtwStatusBadge(r.expiryDate)}</td>
+                    <td style={{ padding: "0.625rem 0.75rem" }}>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          style={{ fontSize: "0.75rem", height: 28, display: "flex", alignItems: "center", gap: 3 }}
+                          onClick={() => setExpandedRtwId(expandedRtwId === r.id ? null : r.id)}
+                        >
+                          <Paperclip style={{ width: 11, height: 11 }} />
+                          Docs
+                          {expandedRtwId === r.id ? <ChevronUp style={{ width: 11, height: 11 }} /> : <ChevronDown style={{ width: 11, height: 11 }} />}
+                        </Button>
+                        <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => openEdit(r)}>Edit</Button>
+                        <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setDeleteId(r.id)}>Del</Button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedRtwId === r.id && (
+                    <tr style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td colSpan={7} style={{ padding: 0 }}>
+                        <RtwDocsPanel rtwId={r.id} farmId={farmId} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
