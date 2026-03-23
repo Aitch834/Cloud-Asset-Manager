@@ -5695,6 +5695,62 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 </ul>`,
     },
     {
+      id: 10037,
+      title: "Grants & Funding Register — Tracking FETF and Scheme Applications",
+      category: "Grants & Funding",
+      content: `<p>The Grants & Funding register is a central record of all your farming grant applications — from the Farming Equipment and Technology Fund (FETF) to Countryside Stewardship capital items, Sustainable Farming Incentive (SFI) capital grants, RDPE, and any other scheme. It is designed to ensure that purchase deadlines and claim deadlines never get missed, and that you always have a clear picture of approved grant values across your holding.</p>
+
+<h3>When to Use the Register</h3>
+<p>Add a record as soon as you submit an application — even before approval. Recording the application date and reference at submission means you have a documented trail if the RPA asks for confirmation of when you applied. Update the record when approval is received, when the equipment is purchased, and again when the claim is submitted.</p>
+
+<h3>Key Fields Explained</h3>
+<ul>
+<li><strong>Scheme Name</strong> — the name of the scheme, e.g. "FETF 2026" or "Countryside Stewardship Capital Grant 2025/26". This is the label that appears on planner cards.</li>
+<li><strong>Scheme Type</strong> — select from FETF, CS (Countryside Stewardship), SFI (Sustainable Farming Incentive), RDPE, or Other. This is used for filtering and reporting.</li>
+<li><strong>Item Reference Code</strong> — for FETF applications, every fundable item has an alphanumeric reference code published by the RPA (e.g. T-SYS-1 for GPS auto-steering, LESS-2 for a dribble bar slurry spreader). Use the <strong>Browse FETF items</strong> button to pick from a searchable list based on previous FETF rounds — always verify the code and eligible cost against the current RPA prospectus before applying.</li>
+<li><strong>Item Description</strong> — a plain-English description of what you are buying, e.g. "John Deere StarFire 6000 GPS receiver for 8370R tractor". Be specific — this is what you will quote when submitting your claim evidence.</li>
+<li><strong>Application Reference</strong> — the reference number issued by the RPA or scheme administrator when you submit. Record this immediately to save searching for it later.</li>
+<li><strong>Application Date / Approval Date</strong> — log both dates to establish a clear timeline. The approval date triggers the start of most purchase and claim windows.</li>
+<li><strong>Purchase Deadline</strong> — the date by which the equipment must be purchased and invoiced. Missing this deadline normally forfeits the grant entirely. This date automatically appears in the Farm Planner (amber if within 30 days, red if overdue).</li>
+<li><strong>Claim Deadline</strong> — the date by which you must submit your claim to the scheme administrator, including all evidence. This also appears in the Farm Planner.</li>
+<li><strong>Grant Amount</strong> — the approved grant value in pounds (not pence). For FETF this is a fixed amount per item; for CS capital it may be a percentage of a standard cost.</li>
+<li><strong>Actual Cost</strong> — the real purchase price of the item. Record this once you have the invoice. The difference between actual cost and grant amount is the net cost to the farm.</li>
+</ul>
+
+<h3>Status Workflow</h3>
+<p>Each grant moves through a defined status journey. Use the status filter tabs to see records by stage:</p>
+<ul>
+<li><strong>Draft</strong> — preparing the application, not yet submitted</li>
+<li><strong>Applied</strong> — submitted to the scheme, awaiting decision</li>
+<li><strong>Approved</strong> — offer letter received; you can now proceed to purchase within the purchase deadline</li>
+<li><strong>Purchased</strong> — equipment bought and invoiced; ready to submit claim evidence</li>
+<li><strong>Claimed</strong> — claim submitted to scheme; awaiting payment</li>
+<li><strong>Rejected</strong> — application or claim rejected; purchase and claim deadline alerts are suppressed</li>
+<li><strong>Withdrawn</strong> — application withdrawn; deadline alerts suppressed</li>
+</ul>
+<p>Update the status as each stage completes. The planner and deadline badges will adjust automatically — for example, purchase deadline cards stop appearing once the status moves to Purchased or beyond.</p>
+
+<h3>Evidence Attachment</h3>
+<p>Each grant record has an evidence attachment slot. Use it to upload the item you would need to produce on request: for an in-progress FETF application this might be the RPA offer letter; once claimed, upload the purchase invoice and photo of the installed equipment. Accepted formats are PDF, Word, JPEG, and PNG.</p>
+<p>For FETF claims, typical evidence requirements are: a copy of the VAT invoice dated before the purchase deadline, a photograph showing the equipment installed and operational on your farm, and proof that the equipment matches the approved item reference. Keep copies of all correspondence with the RPA as well.</p>
+
+<h3>Farm Planner Integration</h3>
+<p>Purchase deadlines and claim deadlines for active grants appear automatically in the Week Ahead and Month Ahead planner views as violet-badged items. Switch to the 30-day Month Ahead view at the start of each month to see whether any purchase or claim deadlines are approaching over the next four weeks — FETF deadlines in particular can be difficult to extend and penalties for missing them are severe.</p>
+
+<h3>FETF 2026 — What to Expect</h3>
+<p>The FETF has run in annual rounds since 2021. Each round publishes a fixed list of approved items with reference codes and standard costs; farmers apply online via the Rural Payments Agency, and grants are awarded competitively in some rounds or on a first-come, first-served basis in others.</p>
+<p>The 2026 item list and grant rates are confirmed by the RPA at the time each round opens — check the current prospectus at <a href="https://www.gov.uk/guidance/farming-equipment-and-technology-fund" target="_blank" rel="noopener noreferrer">gov.uk/guidance/farming-equipment-and-technology-fund</a> before applying. The item codes and descriptions in the BDE Farm Trac picker are based on previous rounds as a reference guide.</p>
+
+<h3>Other Schemes</h3>
+<p>The register is not limited to FETF. Use it to track:</p>
+<ul>
+<li><strong>Countryside Stewardship Capital Grants</strong> — capital items funded as part of a CS agreement, each with a standard cost and claim deadline</li>
+<li><strong>SFI Capital Grants</strong> — capital actions available under the Sustainable Farming Incentive, claimed at the end of an agreement year</li>
+<li><strong>RDPE (Rural Development Programme for England)</strong> — older scheme grants still in their claim window</li>
+<li><strong>Any other scheme</strong> — select "Other" as the scheme type and record the scheme name, reference, and deadlines in the free-text fields</li>
+</ul>`,
+    },
+    {
       id: 10019,
       title: "Mobile App — Offline Data and How Reference Pickers Work",
       category: "Mobile App",

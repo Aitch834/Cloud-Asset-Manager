@@ -42,6 +42,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Water & Irrigation": "bg-sky-50 text-sky-800",
   "Environmental": "bg-teal-50 text-teal-800",
   "Stock & Suppliers": "bg-amber-50 text-amber-800",
+  "Grants & Funding": "bg-violet-50 text-violet-700",
 };
 
 // Categories that are always shown regardless of module subscriptions

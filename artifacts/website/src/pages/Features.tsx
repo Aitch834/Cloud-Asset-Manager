@@ -4,7 +4,7 @@ import {
   ClipboardCheck, Map, Package, Tractor, FileText, LineChart, 
   CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
   Droplets, AlertTriangle, ClipboardList, Leaf, Truck, Fuel, Share2, BarChart3, Wrench,
-  Ham, Bird, Flower2, Flame, Store, Waves
+  Ham, Bird, Flower2, Flame, Store, Waves, Landmark
 } from "lucide-react";
 
 export default function Features() {
@@ -132,6 +132,21 @@ export default function Features() {
       icon: LineChart,
       color: "bg-emerald-50 text-emerald-600 border-emerald-100",
       features: ["Input cost logging", "Crop sales transactions", "CSV export", "Xero compatible export"]
+    },
+    {
+      title: "Grants & Funding",
+      icon: Landmark,
+      color: "bg-violet-50 text-violet-600 border-violet-100",
+      features: [
+        "Unified grant register — track FETF, Countryside Stewardship capital grants, SFI capital, RDPE, and other scheme applications in one place",
+        "Status workflow — Draft → Applied → Approved → Purchased → Claimed, with rejected and withdrawn states to suppress alerts",
+        "FETF item reference picker — searchable list of 30+ items across 8 categories (Precision Technology, Slurry Management, Animal Health, Arable, Irrigation, Horticulture, Environment & Energy) based on previous FETF rounds",
+        "Purchase and claim deadline tracking — both dates surface automatically in the Farm Planner (amber within 30 days, red when overdue); alerts suppressed once grant is claimed or withdrawn",
+        "Grant value and actual cost recording — approved grant amount vs. real purchase price with net cost calculation",
+        "Evidence attachment — upload RPA offer letters, purchase invoices, and equipment photos directly to each grant record",
+        "Summary dashboard — total approved grant value, live count by status, upcoming deadline warning card",
+        "Application reference tracking — store RPA reference numbers at point of submission for audit trail",
+      ]
     },
     {
       title: "Document Management",
