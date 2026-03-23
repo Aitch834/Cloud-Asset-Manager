@@ -747,3 +747,326 @@ export interface AuthState {
   token: string | null;
   userId: string | null;
 }
+
+export interface AiReproductionRecord {
+  id: string;
+  farmId: string;
+  herdName: string;
+  animalId: string;
+  serviceDate: string;
+  method: "AI" | "natural_service" | "ET" | "synchronised_AI";
+  sireId: string;
+  sireBreed: string;
+  sireSource: string;
+  strawnBatchNumber: string;
+  technicianName: string;
+  expectedCalvingDate: string;
+  pregnancyConfirmed: boolean;
+  pregnancyCheckDate: string;
+  pregnancyCheckMethod: "visual" | "rectal_palpation" | "ultrasound" | "blood_test";
+  result: "confirmed_in_calf" | "not_in_calf" | "pending" | "repeat_service";
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface VetPrescription {
+  id: string;
+  farmId: string;
+  herdName: string;
+  prescribingVet: string;
+  vetPracticeName: string;
+  vetRcvsNumber: string;
+  prescriptionDate: string;
+  expiryDate: string;
+  drugName: string;
+  drugSpecies: string;
+  dose: string;
+  doseUnit: string;
+  route: string;
+  duration: string;
+  withdrawalMeat: string;
+  withdrawalMilk: string;
+  quantityPrescribed: string;
+  quantityUnit: string;
+  prescriptionReference: string;
+  clinicalReason: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface GrainQualityTest {
+  id: string;
+  farmId: string;
+  binReference: string;
+  cropType: string;
+  variety: string;
+  sampleDate: string;
+  moisture: string;
+  protein: string;
+  specificWeight: string;
+  hagbergFallingNumber: string;
+  screenings: string;
+  mycotoxinResult: string;
+  testedBy: string;
+  labReference: string;
+  passOrFail: "pass" | "fail" | "conditional";
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface GrainTemperatureReading {
+  id: string;
+  farmId: string;
+  binReference: string;
+  readingDate: string;
+  readingTime: string;
+  temperatureC: string;
+  sensorLocation: string;
+  recordedBy: string;
+  alertTriggered: boolean;
+  actionTaken: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface EggProductionRecord {
+  id: string;
+  farmId: string;
+  flockReference: string;
+  house: string;
+  recordDate: string;
+  birdsInFlock: string;
+  eggsCollected: string;
+  brokenEggs: string;
+  dirtyEggs: string;
+  layRate: string;
+  grade1: string;
+  grade2: string;
+  thirds: string;
+  downgraded: string;
+  collectedBy: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface SlurryEvent {
+  id: string;
+  farmId: string;
+  eventDate: string;
+  eventType: "spreading" | "store_fill" | "store_empty" | "analysis" | "import" | "export";
+  storeReference: string;
+  fieldName: string;
+  applicationMethod: "splash_plate" | "trailing_shoe" | "injected" | "band_spread" | "irrigated";
+  volumeM3: string;
+  applicationRateM3PerHa: string;
+  areaTreatedHa: string;
+  contractor: string;
+  nvzClosed: boolean;
+  soilCondition: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface SfiAction {
+  id: string;
+  farmId: string;
+  agreementReference: string;
+  actionCode: string;
+  actionName: string;
+  actionDate: string;
+  fieldName: string;
+  areaHa: string;
+  completedBy: string;
+  evidenceNotes: string;
+  photoTaken: boolean;
+  paymentRate: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface SprayerCalibration {
+  id: string;
+  farmId: string;
+  sprayerName: string;
+  calibrationDate: string;
+  calibratedBy: string;
+  certificationNumber: string;
+  nozzleType: string;
+  nozzleSize: string;
+  pressureBar: string;
+  speedKmh: string;
+  targetVolumePerHa: string;
+  actualVolumePerHa: string;
+  passOrFail: "pass" | "fail" | "advisory";
+  nextCalibrationDue: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface MaintenanceLog {
+  id: string;
+  farmId: string;
+  assetName: string;
+  assetReference: string;
+  maintenanceDate: string;
+  maintenanceType: "service" | "repair" | "inspection" | "oil_change" | "filter_change" | "tyre" | "other";
+  description: string;
+  hoursAtService: string;
+  labourHours: string;
+  partsCost: string;
+  labourCost: string;
+  totalCost: string;
+  technician: string;
+  externalGarage: string;
+  invoiceNumber: string;
+  nextServiceDue: string;
+  nextServiceHours: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface HorticultureRecord {
+  id: string;
+  farmId: string;
+  activityType: "planting" | "transplanting" | "harvest" | "thinning" | "pruning" | "soil_prep" | "other";
+  activityDate: string;
+  cropName: string;
+  variety: string;
+  blockOrField: string;
+  areaM2: string;
+  rowsOrBeds: string;
+  plantingDensity: string;
+  seedLotNumber: string;
+  seedSupplier: string;
+  harvestWeightKg: string;
+  operator: string;
+  weatherConditions: string;
+  notes: string;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface HorticultureHarvestGrade {
+  id: string;
+  farmId: string;
+  gradeDate: string;
+  cropName: string;
+  blockOrField: string;
+  totalHarvestedKg: string;
+  class1Kg: string;
+  class2Kg: string;
+  rejectedKg: string;
+  rejectionReasons: string;
+  packedByKg: string;
+  destinationPacker: string;
+  lotNumber: string;
+  coldStoreReference: string;
+  gradedBy: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface ColdStoreTempReading {
+  id: string;
+  farmId: string;
+  storeReference: string;
+  storeName: string;
+  readingDate: string;
+  readingTime: string;
+  temperatureC: string;
+  targetMinC: string;
+  targetMaxC: string;
+  alertTriggered: boolean;
+  actionTaken: string;
+  recordedBy: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface CarbonEntry {
+  id: string;
+  farmId: string;
+  recordYear: string;
+  category: "enteric_fermentation" | "manure" | "fuel_energy" | "fertiliser" | "imported_feed" | "crop_residue" | "land_use" | "waste" | "renewable_energy" | "other";
+  sourceDescription: string;
+  quantity: string;
+  unit: string;
+  emissionFactorSource: string;
+  co2eKg: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface DiversificationRecord {
+  id: string;
+  farmId: string;
+  enterprise: string;
+  activityDate: string;
+  activityType: "booking" | "check_in" | "check_out" | "income" | "expense" | "inspection" | "visitor_waiver" | "other";
+  guestOrGroupName: string;
+  numberOfGuests: string;
+  amountGbp: string;
+  paymentMethod: string;
+  referenceNumber: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface StaffTrainingRecord {
+  id: string;
+  farmId: string;
+  staffName: string;
+  trainingDate: string;
+  trainingType: "induction" | "refresher" | "first_aid" | "fork_lift" | "pesticide_pa1" | "pesticide_pa2" | "pesticide_pa6" | "chainsaw" | "manual_handling" | "fire_safety" | "coshh" | "other";
+  courseName: string;
+  trainingProvider: string;
+  certificationNumber: string;
+  expiryDate: string;
+  assessmentResult: "pass" | "fail" | "in_progress" | "no_assessment";
+  supervisor: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface CoshhAssessment {
+  id: string;
+  farmId: string;
+  substanceName: string;
+  productReference: string;
+  supplier: string;
+  assessmentDate: string;
+  assessedBy: string;
+  hazardClassification: string;
+  exposureRisk: "low" | "medium" | "high";
+  controlMeasures: string;
+  ppeRequired: string;
+  storageRequirements: string;
+  disposalMethod: string;
+  emergencyProcedure: string;
+  reviewDate: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
