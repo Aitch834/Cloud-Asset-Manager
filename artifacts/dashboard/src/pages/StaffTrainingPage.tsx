@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { useListFarms } from "@workspace/api-client-react/src/generated/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -856,8 +857,9 @@ ${certificates.length === 0
 }
 
 export default function StaffTrainingPage() {
-  const { currentFarm } = useAppStore();
-  const farmId = currentFarm?.id;
+  const { farmId } = useAppStore();
+  const { data: farmsData } = useListFarms();
+  const currentFarm = farmsData?.farms?.find((f: any) => f.id === farmId);
   const params = new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : ""
   );
