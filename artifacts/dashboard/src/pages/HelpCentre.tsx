@@ -184,8 +184,9 @@ export default function HelpCentre() {
           </Card>
         )}
 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
         {Object.entries(grouped).map(([category, items]) => (
-          <div key={category} className="mb-6">
+          <div key={category}>
             <div className="flex items-center gap-3 mb-3">
               <span className={`text-sm font-bold tracking-wide ${categoryColor(category).replace(/bg-\S+\s?/g, '').trim()}`}>
                 {category}
@@ -234,6 +235,7 @@ export default function HelpCentre() {
             </div>
           </div>
         ))}
+        </div>
       </div>
     </AppLayout>
   );
