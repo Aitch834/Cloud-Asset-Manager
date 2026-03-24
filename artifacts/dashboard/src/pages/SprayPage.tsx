@@ -36,13 +36,10 @@ export default function SprayPage() {
   const productsQ = useQuery({ queryKey: ["spray-products", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const fieldsQ = useQuery({ queryKey: ["fields", farmId], queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const farmsQ = useQuery({ queryKey: ["farms-list"], queryFn: () => fetch("/api/farms").then(r => r.json()), select: d => d.farms ?? [] });
-  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
-
   const applications: any[] = applicationsQ.data ?? [];
   const products: any[] = productsQ.data ?? [];
   const fields: any[] = fieldsQ.data ?? [];
   const currentFarm = (farmsQ.data ?? []).find((f: any) => f.id === farmId);
-  const staffNames: string[] = (membersData?.members ?? []).filter((m: any) => m.isActive).map(memberFullName);
 
   return (
     <AppLayout title="Spray Records">
@@ -78,6 +75,8 @@ function StatCard({ icon, label, value, bg, iconBg }: any) {
 }
 
 function ApplicationsTab({ applications, products, fields, farmId, loading, onRefresh, toast }: any) {
+  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
+  const staffNames: string[] = (membersData?.members ?? []).filter((m: any) => m.isActive).map(memberFullName);
   const [search, setSearch] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
