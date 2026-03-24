@@ -4236,52 +4236,107 @@ BDE Farm Trac includes a secure external access system that lets you share read-
     },
     {
       id: 36,
-      title: "Week Ahead — Your 7-Day Compliance Planner",
+      title: "Week Ahead & Month Ahead — Your Compliance Planner",
       category: "Getting Started",
       content: `<img src="/api/help-images/dashboard-overview.png" alt="Week Ahead Compliance Planner" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
-<p>The <strong>Week Ahead</strong> page gives you a single, consolidated view of every scheduled task, upcoming due date, and overdue item across all of your active modules — covering the next seven days plus anything that has already passed its due date. It is designed to be the first thing a farm manager or agronomist checks at the start of the week to make sure nothing slips through before an audit or inspection.</p>
+<p>The <strong>Week Ahead</strong> page gives you a single, consolidated view of every scheduled task, upcoming due date, and overdue item across all of your active modules. It is designed to be the first thing a farm manager or agronomist checks at the start of the week to make sure nothing slips through before an audit or inspection.</p>
 
-<h3>Accessing the Week Ahead</h3>
-<p>Click <strong>Week Ahead</strong> in the sidebar — it sits just below the main Dashboard link so it is always within one click from anywhere in the system. The page header shows the date range currently displayed (e.g. "21 Mar – 27 Mar 2026") and a count of how many tasks are in view.</p>
+<h3>Accessing the Planner</h3>
+<p>Click <strong>Week Ahead</strong> in the sidebar — it sits just below the main Dashboard link so it is always within one click from anywhere in the system. The page header shows the date range currently displayed (e.g. "24 Mar – 30 Mar 2026") and a count of how many tasks are in view.</p>
+
+<h3>7-Day vs 30-Day View</h3>
+<p>Use the <strong>7 days / 30 days</strong> toggle in the top-right corner of the page to switch between the Week Ahead (7-day) and Month Ahead (30-day) views. Both views always show any overdue items from the past 60 days at the top in red, so nothing gets missed regardless of which view you are using. Switch to 30 days at the start of each month to get a broader picture of upcoming deadlines — particularly useful for grant claim deadlines, certification renewals, and insurance renewals that may not appear in a 7-day window.</p>
 
 <h3>What It Shows</h3>
-<p>The Week Ahead pulls scheduled dates from all of the following record types automatically — you do not need to configure anything:</p>
+<p>The planner pulls scheduled dates from the following record types automatically — you do not need to configure anything. Tasks are colour-coded by module so you can instantly see what area of the farm needs attention:</p>
+
+<h4>Biosecurity <span style="color:#ef4444">(red)</span></h4>
 <ul>
 <li><strong>Pest Control</strong> — follow-up visit dates set when logging a pest control record</li>
 <li><strong>Cleaning &amp; Disinfection</strong> — "next due" dates set when logging a cleaning event</li>
 <li><strong>Biosecurity Plan</strong> — plan review dates set in the Biosecurity Plan section</li>
-<li><strong>Staff Certificates</strong> — certificate expiry dates (e.g. PA1, PA6, first aid, sprayer operator)</li>
+</ul>
+
+<h4>Staff &amp; Training <span style="color:#6366f1">(indigo)</span></h4>
+<ul>
+<li><strong>Staff Certificates</strong> — expiry dates for PA1, PA6, first aid, sprayer operator certificates and any others logged</li>
 <li><strong>Training Records</strong> — course expiry dates for any logged training</li>
-<li><strong>Inspections &amp; Audits</strong> — next inspection due dates and corrective action due dates</li>
+<li><strong>Right to Work</strong> — expiry dates for time-limited right-to-work documents (e.g. work visas). Appears in the week before expiry so you can arrange a follow-up check before the document lapses.</li>
+</ul>
+
+<h4>Inspections &amp; Audits / Risk &amp; Waste <span style="color:#8b5cf6">(violet)</span></h4>
+<ul>
+<li><strong>Inspections &amp; Audits</strong> — next inspection due dates from inspection records</li>
+<li><strong>Corrective Actions</strong> — due dates for open corrective actions raised against inspection non-conformances</li>
 <li><strong>Risk Assessments</strong> — scheduled review dates for active risk assessments</li>
+<li><strong>COSHH Assessments</strong> — review dates for COSHH records logged in Risk &amp; COSHH</li>
+<li><strong>Grants &amp; Funding</strong> — purchase deadlines and claim deadlines for active grant items (e.g. FETF, SFI)</li>
+</ul>
+
+<h4>Equipment &amp; Workshop <span style="color:#f97316">(orange)</span></h4>
+<ul>
 <li><strong>Equipment Maintenance</strong> — next maintenance due dates from maintenance logs</li>
 <li><strong>Equipment Calibration</strong> — next calibration due dates from calibration records</li>
+<li><strong>Workshop PAT Tests</strong> — next portable appliance test dates for electrical equipment logged in Workshop</li>
+<li><strong>Fire Extinguisher Services</strong> — next annual service dates for extinguishers registered in Workshop</li>
+<li><strong>Workshop Job Deadlines</strong> — estimated completion dates for open job cards in Workshop</li>
 </ul>
+
+<h4>Livestock <span style="color:#10b981">(green)</span></h4>
+<ul>
+<li><strong>Medicine Withdrawal Periods</strong> — the date each medicine withdrawal period ends, so you know when treated animals can be cleared for sale or milk production</li>
+<li><strong>Vet Health Plan Reviews</strong> — annual review dates for vet health plans registered in Livestock</li>
+</ul>
+
+<h4>Compliance &amp; Finance <span style="color:#3b82f6">(blue)</span></h4>
+<ul>
+<li><strong>Insurance Policies</strong> — expiry dates for farm insurance policies logged in the Insurance section</li>
+<li><strong>Water Abstraction Licences</strong> — expiry dates for abstraction licences logged in Water &amp; Irrigation</li>
+<li><strong>Biofuel Certifications</strong> — expiry dates for RTFO scheme certifications logged in Biofuel / RTFO</li>
+</ul>
+
+<h4>Suppliers &amp; Stock <span style="color:#f59e0b">(amber)</span></h4>
+<ul>
+<li><strong>Purchase Order Deliveries</strong> — expected delivery dates for open purchase orders, so you can plan staff and storage accordingly</li>
+</ul>
+
 <p>Only records belonging to your currently selected farm are shown. If a module is not active on your subscription, dates from that module will not appear.</p>
+
+<h3>Adding Custom Reminders</h3>
+<p>Not everything has a specific module page — merchant visits, contractor calls, vet appointments, grant application submissions. Use the <strong>Add reminder</strong> button (top-right of the page) to pin any event to the planner without it being tied to a record.</p>
+<p>Each reminder has:</p>
+<ul>
+<li><strong>Title</strong> — a short description shown on the task card (required)</li>
+<li><strong>Date</strong> — the date of the event or deadline (required); limited to the current view window (7 or 30 days) so the reminder appears immediately</li>
+<li><strong>Note</strong> — optional extra detail shown beneath the title on the card</li>
+<li><strong>Colour</strong> — choose from eight colours to visually group your custom reminders</li>
+</ul>
+<p>Custom reminders are shown with a <strong>trash icon</strong> — click it to remove a reminder once the event has passed or is no longer relevant. Custom reminders are saved per farm and visible to all staff who have access to the planner.</p>
 
 <h3>How Tasks Are Grouped</h3>
 <p>Tasks are displayed in chronological order and grouped into day buckets:</p>
 <ul>
 <li><strong>Overdue</strong> — tasks whose due date has already passed (shown at the very top in red). The system looks back up to 60 days so that anything missed in the past two months is still surfaced.</li>
-<li><strong>Today</strong> — tasks due on today's date</li>
+<li><strong>Today</strong> — tasks due on today's date, with an amber "Due today" indicator</li>
 <li><strong>Tomorrow</strong> — tasks due the following day</li>
-<li><strong>Named weekdays</strong> — remaining days of the 7-day window (e.g. "Wednesday 25 Mar")</li>
+<li><strong>Named days</strong> — remaining days within the selected window (e.g. "Wednesday 25 Mar" or "Tuesday 21 Apr" in 30-day view)</li>
 </ul>
-<p>Each task card shows the task name, a short description of what needs to be done, the module it belongs to (shown as a colour-coded badge), and a days-overdue indicator where relevant. Clicking any card takes you directly to the relevant module page so you can log the completed action immediately.</p>
+<p>Each task card shows the task name, a short description of what needs to be done, the module it belongs to (shown as a colour-coded badge), and a days-overdue indicator where relevant. Clicking any automatically-generated card takes you directly to the relevant module page so you can log the completed action immediately. Custom reminder cards do not link anywhere — they are information only.</p>
 
 <h3>How to Use It Effectively</h3>
-<p>The Week Ahead works best when you set due dates consistently as you log records. For example:</p>
+<p>The planner works best when you set due dates consistently as you log records. For example:</p>
 <ul>
 <li>When logging a pest control visit, always set the <strong>Follow-up date</strong> based on the frequency required for that area (monthly for active grain stores, quarterly for lower-risk areas)</li>
 <li>When logging a cleaning event, always enter the <strong>Next due date</strong> based on your cleaning schedule</li>
-<li>When adding a risk assessment, set the <strong>Review date</strong> to match your assessment cycle (typically annual for standard assessments)</li>
-<li>When adding staff certificates, ensure the <strong>Expiry date</strong> is entered accurately — the Week Ahead will surface it in the week before expiry</li>
+<li>When adding a risk or COSHH assessment, set the <strong>Review date</strong> to match your assessment cycle (typically annual)</li>
+<li>When adding staff certificates and right-to-work documents, ensure the <strong>Expiry date</strong> is entered accurately — the planner will surface them in the week before expiry</li>
+<li>Use the <strong>30-day view</strong> at the start of each month to catch insurance renewals, grant deadlines, and certification expiries that are more than a week away</li>
 </ul>
-<p>If a task appears in the Overdue section, click through to the relevant module, complete and log the action, then ensure the next due date is set in the new record. The old overdue item will disappear from the Week Ahead once it is no longer the most recent record for that building or area.</p>
+<p>If a task appears in the Overdue section, click through to the relevant module, complete and log the action, then ensure the next due date is set in the new record. The old overdue item will disappear from the planner once it is no longer the most recent record for that area.</p>
 
 <h3>Relationship with SMS Alerts</h3>
-<p>The Week Ahead is a visual planning tool — it does not replace the SMS alert system. Critical overdue biosecurity items (pest control follow-ups and cleaning schedules) will also trigger SMS text notifications to designated farm managers and opted-in users when the SMS Text Alerts add-on is active. The Week Ahead shows all upcoming and overdue tasks, whereas SMS alerts fire only when a date is breached and only for critical categories.</p>`,
+<p>The planner is a visual planning tool — it does not replace the SMS alert system. Critical overdue biosecurity items (pest control follow-ups and cleaning schedules) will also trigger SMS text notifications to designated farm managers and opted-in users when the SMS Text Alerts add-on is active. The planner shows all upcoming and overdue tasks across every module, whereas SMS alerts fire only when a date is breached and only for critical categories.</p>`,
     },
     {
       id: 37,
