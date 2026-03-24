@@ -187,7 +187,7 @@ export default function HelpCentre() {
         {Object.entries(grouped).map(([category, items]) => (
           <div key={category}>
             <div className="flex items-center gap-3 mb-3">
-              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${categoryColor(category)}`}>
+              <span className={`text-sm font-bold tracking-wide ${categoryColor(category).replace(/bg-\S+\s?/g, '').trim()}`}>
                 {category}
               </span>
               <div className="flex-1 h-px bg-border" />
