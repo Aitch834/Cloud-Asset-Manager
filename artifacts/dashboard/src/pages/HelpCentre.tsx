@@ -184,7 +184,7 @@ export default function HelpCentre() {
           </Card>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+        <div className="flex flex-col gap-10">
         {Object.entries(grouped).map(([category, items]) => (
           <div key={category}>
             <div className="flex items-center gap-3 mb-3">

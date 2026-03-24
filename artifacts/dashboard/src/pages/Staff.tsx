@@ -80,25 +80,28 @@ const FARM_ROLE_COLORS: Record<FarmRole, string> = {
   owner: "bg-amber-100 text-amber-800",
 };
 
-const ACCESS_LABELS: Record<AccessType, string> = {
+const ACCESS_LABELS: Record<string, string> = {
   none: "No system access",
   mobile_only: "Mobile only",
   web_only: "Web only",
   full: "Full access",
+  limited: "Limited access",
 };
 
-const ACCESS_COLORS: Record<AccessType, string> = {
+const ACCESS_COLORS: Record<string, string> = {
   none: "bg-slate-100 text-slate-500",
   mobile_only: "bg-green-100 text-green-700",
   web_only: "bg-indigo-100 text-indigo-700",
   full: "bg-emerald-100 text-emerald-700",
+  limited: "bg-green-100 text-green-700",
 };
 
-const ACCESS_ICONS: Record<AccessType, React.ElementType> = {
+const ACCESS_ICONS: Record<string, React.ElementType> = {
   none: Lock,
   mobile_only: Smartphone,
   web_only: Monitor,
   full: Unlock,
+  limited: Smartphone,
 };
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
