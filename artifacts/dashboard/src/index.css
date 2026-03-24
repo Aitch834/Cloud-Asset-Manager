@@ -125,7 +125,10 @@
   @apply text-foreground/75 text-sm leading-relaxed mb-3;
 }
 .help-html-content h3 {
-  @apply font-semibold text-foreground text-sm mt-4 mb-2;
+  @apply font-bold text-foreground text-base mt-6 mb-2;
+}
+.help-html-content h4 {
+  @apply font-semibold text-foreground text-sm mt-4 mb-1.5;
 }
 .help-html-content ol, .help-html-content ul {
   @apply text-foreground/75 text-sm leading-relaxed mb-3 pl-5;
