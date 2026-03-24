@@ -47,9 +47,6 @@ export default function HarvestPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = useState<TabKey>("log");
-  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
-  const staffNames: string[] = (membersData?.members ?? []).filter((m: any) => m.isActive).map(memberFullName);
-
   const harvestQ = useQuery({
     queryKey: ["harvests", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/harvests`).then(r => r.json()),
@@ -169,6 +166,8 @@ function StatCard({ icon, label, value, bg, iconBg }: { icon: React.ReactNode; l
 }
 
 function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRefresh, toast }: any) {
+  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
+  const staffNames: string[] = (membersData?.members ?? []).filter((m: any) => m.isActive).map(memberFullName);
   const [search, setSearch] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
