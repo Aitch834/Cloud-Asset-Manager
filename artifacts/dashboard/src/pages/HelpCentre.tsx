@@ -185,7 +185,7 @@ export default function HelpCentre() {
         )}
 
         {Object.entries(grouped).map(([category, items]) => (
-          <div key={category}>
+          <div key={category} className="mb-6">
             <div className="flex items-center gap-3 mb-3">
               <span className={`text-sm font-bold tracking-wide ${categoryColor(category).replace(/bg-\S+\s?/g, '').trim()}`}>
                 {category}
