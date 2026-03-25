@@ -1,5 +1,5 @@
 import { db, rolesTable, modulesTable, tenantsTable, farmsTable, subscriptionsTable } from "@workspace/db";
-import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable } from "@workspace/db/schema";
+import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, suppliersTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const SYSTEM_ROLES = [
@@ -37,6 +37,8 @@ const MODULES = [
   { key: "carbon_sustainability", name: "Carbon & Sustainability", description: "Farm carbon footprint, renewable energy, biodiversity actions, soil carbon and sustainability goals tracking", monthlyPricePence: 1000 },
   { key: "farm_diversification", name: "Farm Diversification", description: "Activities register, farm shop, hygiene inspections, equine register, renewables income and shooting records", monthlyPricePence: 1500 },
   { key: "water_irrigation", name: "Water & Irrigation Management", description: "Water source register, abstraction log, irrigation events, water quality testing and infrastructure maintenance", monthlyPricePence: 1000 },
+  { key: "fuel-energy", name: "Fuel & Energy Management", description: "Red diesel tank register, delivery log, usage recording linked to machinery and field operations, oil storage compliance inspections — HMRC-compliant records for rebated fuel", monthlyPricePence: 800 },
+  { key: "feed-management", name: "Feed Management", description: "Feed delivery goods-received records with UFAS/FEMAS traceability, feed stock levels per species, medicated feed withdrawal tracking, and supplier approval number recording", monthlyPricePence: 800 },
 ];
 
 export async function seedDefaults() {
@@ -127,6 +129,8 @@ async function seedDevData() {
   await seedCropData(farm.id);
   await seedMovementData(farm.id);
   await seedFieldOperations(farm.id);
+  await seedFuelData(farm.id);
+  await seedFeedDeliveryData(farm.id);
 }
 
 async function seedCropData(farmId: number) {
@@ -332,4 +336,254 @@ async function seedFieldOperations(farmId: number) {
 
   await db.insert(fieldOperationsTable).values(ops);
   console.log("[SEED] Dev field operations seeded for farm:", farmId);
+}
+
+async function seedFuelData(farmId: number) {
+  const existing = await db.select().from(fuelTanksTable).where(eq(fuelTanksTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) return;
+
+  const yr = new Date().getFullYear();
+
+  const [tank1] = await db.insert(fuelTanksTable).values({
+    farmId,
+    name: "Main Yard Tank",
+    fuelType: "red_diesel",
+    capacityLitres: "10000",
+    currentStockLitres: "3240",
+    location: "Main Yard — adjacent to workshop",
+    isBunded: true,
+    bundCapacityLitres: "11000",
+    tankMaterial: "steel",
+    installDate: "2017-04-01",
+    lastInspectionDate: `${yr - 1}-11-14`,
+    nextInspectionDue: `${yr}-11-14`,
+    notes: "Primary on-farm fuel tank. Bunded steel tank, fill point locked.",
+    isActive: true,
+  }).returning();
+
+  const [tank2] = await db.insert(fuelTanksTable).values({
+    farmId,
+    name: "North Block Field Tank",
+    fuelType: "red_diesel",
+    capacityLitres: "3000",
+    currentStockLitres: "820",
+    location: "North Block — south corner",
+    isBunded: false,
+    tankMaterial: "plastic",
+    installDate: "2020-07-15",
+    lastInspectionDate: `${yr - 1}-11-14`,
+    nextInspectionDue: `${yr}-11-14`,
+    notes: "Secondary tank for field operations. Requires bunding assessment — flagged for upgrade.",
+    isActive: true,
+  }).returning();
+
+  if (!tank1 || !tank2) return;
+
+  await db.insert(fuelDeliveriesTable).values([
+    {
+      farmId, tankId: tank1.id, fuelType: "red_diesel",
+      deliveryDate: new Date(`${yr}-01-08`),
+      quantityLitres: "5000",
+      unitPricePence: 78,
+      totalCostPence: 390000,
+      invoiceReference: "NRG-2026-00441",
+      deliveryNoteNumber: "DN-441-A",
+      supplierName: "Northern Energy Fuels Ltd",
+      driverName: "P. Smithson",
+      qualifyingUse: "agriculture",
+      notes: "Winter stock-up delivery. Tank was at 15% when filled.",
+    },
+    {
+      farmId, tankId: tank1.id, fuelType: "red_diesel",
+      deliveryDate: new Date(`${yr}-03-03`),
+      quantityLitres: "3000",
+      unitPricePence: 76,
+      totalCostPence: 228000,
+      invoiceReference: "NRG-2026-00812",
+      deliveryNoteNumber: "DN-812-A",
+      supplierName: "Northern Energy Fuels Ltd",
+      driverName: "P. Smithson",
+      qualifyingUse: "agriculture",
+      notes: "Spring cultivations top-up.",
+    },
+    {
+      farmId, tankId: tank2.id, fuelType: "red_diesel",
+      deliveryDate: new Date(`${yr}-02-20`),
+      quantityLitres: "1500",
+      unitPricePence: 78,
+      totalCostPence: 117000,
+      invoiceReference: "NRG-2026-00631",
+      deliveryNoteNumber: "DN-631-B",
+      supplierName: "Northern Energy Fuels Ltd",
+      qualifyingUse: "agriculture",
+      notes: "Field tank topped up for spring drilling.",
+    },
+  ]);
+
+  await db.insert(fuelUsageTable).values([
+    { farmId, tankId: tank1.id, usageDate: new Date(`${yr}-01-15`), quantityLitres: "380", purpose: "Ploughing — Home Field", qualifyingActivity: "agriculture", recordedBy: "James Davidson", notes: "John Deere 8R350 — full day ploughing" },
+    { farmId, tankId: tank1.id, usageDate: new Date(`${yr}-01-22`), quantityLitres: "310", purpose: "Ploughing — South Field", qualifyingActivity: "agriculture", recordedBy: "James Davidson" },
+    { farmId, tankId: tank1.id, usageDate: new Date(`${yr}-02-05`), quantityLitres: "240", purpose: "Power harrowing — seedbed preparation", qualifyingActivity: "agriculture", recordedBy: "Robert Thornton" },
+    { farmId, tankId: tank1.id, usageDate: new Date(`${yr}-02-12`), quantityLitres: "180", purpose: "Cattle handling & feeding — livestock operations", qualifyingActivity: "agriculture", recordedBy: "Tom Bradley", notes: "Telehandler and JCB loader" },
+    { farmId, tankId: tank2.id, usageDate: new Date(`${yr}-03-08`), quantityLitres: "420", purpose: "Spring drilling — North Block winter barley", qualifyingActivity: "agriculture", recordedBy: "Robert Thornton", notes: "Horsch Avatar drill — full day 3-pass" },
+    { farmId, tankId: tank1.id, usageDate: new Date(`${yr}-03-15`), quantityLitres: "290", purpose: "Spraying — pre-emergence herbicide", qualifyingActivity: "agriculture", recordedBy: "James Davidson" },
+  ]);
+
+  await db.insert(fuelStorageInspectionsTable).values([
+    {
+      farmId, tankId: tank1.id,
+      inspectionDate: `${yr - 1}-11-14`,
+      inspector: "James Davidson",
+      overallResult: "pass",
+      bundingOk: true,
+      labellingOk: true,
+      spillKitPresent: true,
+      spillKitComplete: true,
+      tankConditionOk: true,
+      pipeworkOk: true,
+      fillPointLocked: true,
+      overfillProtectionOk: true,
+      drainageRiskOk: true,
+      nextInspectionDue: `${yr}-11-14`,
+      notes: "Annual inspection — all items satisfactory. Minor surface rust on fill point — monitored.",
+    },
+    {
+      farmId, tankId: tank2.id,
+      inspectionDate: `${yr - 1}-11-14`,
+      inspector: "James Davidson",
+      overallResult: "advisory",
+      bundingOk: false,
+      labellingOk: true,
+      spillKitPresent: true,
+      spillKitComplete: false,
+      tankConditionOk: true,
+      pipeworkOk: true,
+      fillPointLocked: false,
+      overfillProtectionOk: true,
+      drainageRiskOk: false,
+      issuesFound: "Tank not bunded. Spill kit missing absorbent pads. No fill point lock fitted. Located close to field drain — drainage risk.",
+      actionsRequired: "1. Source bunding solution (quote requested from Fuel Tank Shop). 2. Replace spill kit pads. 3. Fit fill point padlock. Timeline: before next delivery.",
+      nextInspectionDue: `${yr}-05-14`,
+      notes: "Follow-up inspection due in 6 months due to advisory items.",
+    },
+  ]);
+
+  console.log("[SEED] Fuel tanks, deliveries, usage and inspections seeded for farm:", farmId);
+}
+
+async function seedFeedDeliveryData(farmId: number) {
+  const existing = await db.select().from(feedDeliveriesTable).where(eq(feedDeliveriesTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) return;
+
+  const yr = new Date().getFullYear();
+
+  const feedSuppliers = await db.select().from(suppliersTable)
+    .where(and(eq(suppliersTable.farmId, farmId), eq(suppliersTable.supplierType, "feed")))
+    .limit(1);
+
+  let supplierId: number | null = null;
+  if (feedSuppliers.length === 0) {
+    const [fs] = await db.insert(suppliersTable).values({
+      farmId,
+      name: "Yorkshire Feeds Ltd",
+      contactName: "Mark Thistlethwaite",
+      email: "mark@yorkshirefeeds.co.uk",
+      phone: "01748 822 445",
+      address: "Mill Lane, Ripon, HG4 1PP",
+      category: "Feed & Nutrition",
+      supplierType: "feed",
+      accountNumber: "YFL-0842",
+      isApproved: true,
+      approvedDate: new Date(`${yr - 1}-03-15`),
+      ufasNumber: "UFAS-2024-004821",
+      certificationBody: "ABN AMRO — UFAS Scheme",
+      certificationExpiry: new Date(`${yr + 1}-03-31`),
+      notes: "Primary compound feed supplier. UFAS certified. Delivers to farm direct.",
+      isActive: true,
+    }).returning();
+    supplierId = fs.id;
+  } else {
+    supplierId = feedSuppliers[0].id;
+  }
+
+  await db.insert(feedDeliveriesTable).values([
+    {
+      farmId, supplierId,
+      deliveryDate: new Date(`${yr}-01-10`),
+      supplierName: "Yorkshire Feeds Ltd",
+      ufasNumberOnNote: "UFAS-2024-004821",
+      deliveryNoteNumber: "YFL-DN-2026-0041",
+      invoiceReference: "YFL-INV-2026-0041",
+      feedType: "compound_pellets",
+      productName: "Beef Finisher 18% — Nuts",
+      batchNumber: "BF18-2026-01-A",
+      lotNumber: "LOT-0041",
+      quantityKg: "3000",
+      costPence: 87000,
+      storageLocation: "Grain store — Bay 4",
+      bestBeforeDate: `${yr}-07-10`,
+      medicatedFeed: false,
+      speciesIntended: "cattle",
+      receivedBy: "Tom Bradley",
+      notes: "Delivered on 26t artic. Bay 4 silo refilled. Stock checked and correct.",
+    },
+    {
+      farmId, supplierId,
+      deliveryDate: new Date(`${yr}-01-10`),
+      supplierName: "Yorkshire Feeds Ltd",
+      ufasNumberOnNote: "UFAS-2024-004821",
+      deliveryNoteNumber: "YFL-DN-2026-0042",
+      invoiceReference: "YFL-INV-2026-0042",
+      feedType: "mineral_supplement",
+      productName: "Dalton Mineral Bucket — Beef",
+      batchNumber: "MB-BEEF-2601",
+      quantityKg: "200",
+      costPence: 28000,
+      storageLocation: "Feed store — Shelf 3",
+      medicatedFeed: false,
+      speciesIntended: "cattle",
+      receivedBy: "Tom Bradley",
+      notes: "4 x 50kg mineral buckets for beef herd.",
+    },
+    {
+      farmId, supplierId,
+      deliveryDate: new Date(`${yr}-02-14`),
+      supplierName: "Yorkshire Feeds Ltd",
+      ufasNumberOnNote: "UFAS-2024-004821",
+      deliveryNoteNumber: "YFL-DN-2026-0118",
+      invoiceReference: "YFL-INV-2026-0118",
+      feedType: "compound_pellets",
+      productName: "Beef Finisher 18% — Nuts",
+      batchNumber: "BF18-2026-02-B",
+      lotNumber: "LOT-0118",
+      quantityKg: "5000",
+      costPence: 145000,
+      storageLocation: "Grain store — Bay 4",
+      bestBeforeDate: `${yr}-08-14`,
+      medicatedFeed: false,
+      speciesIntended: "cattle",
+      receivedBy: "Robert Thornton",
+      notes: "Large delivery ahead of store cattle coming in Feb.",
+    },
+    {
+      farmId, supplierId,
+      deliveryDate: new Date(`${yr}-03-06`),
+      supplierName: "Yorkshire Feeds Ltd",
+      ufasNumberOnNote: "UFAS-2024-004821",
+      deliveryNoteNumber: "YFL-DN-2026-0241",
+      invoiceReference: "YFL-INV-2026-0241",
+      feedType: "straights",
+      productName: "Soya Hipro 48%",
+      batchNumber: "SH48-2026-03-A",
+      quantityKg: "1500",
+      costPence: 52500,
+      storageLocation: "Feed store — Bin 2",
+      medicatedFeed: false,
+      speciesIntended: "cattle",
+      receivedBy: "James Davidson",
+      notes: "Additional protein supplement for intensive beef finishers.",
+    },
+  ]);
+
+  console.log("[SEED] Feed delivery records seeded for farm:", farmId);
 }

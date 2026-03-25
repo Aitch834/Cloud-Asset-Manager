@@ -1151,13 +1151,37 @@ function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRef
   );
 }
 
+const SUPPLIER_TYPES = [
+  { value: "general", label: "General" },
+  { value: "feed", label: "Feed Supplier (UFAS/FEMAS)" },
+  { value: "agchem", label: "Agrochemicals / Sprays" },
+  { value: "fuel", label: "Fuel / Energy" },
+  { value: "vet", label: "Veterinary" },
+  { value: "seed", label: "Seeds" },
+  { value: "machinery", label: "Machinery / Parts" },
+  { value: "waste", label: "Waste Carrier" },
+  { value: "other", label: "Other" },
+];
+
+function certExpiryStatus(expiry: string | null | undefined): "ok" | "soon" | "expired" | null {
+  if (!expiry) return null;
+  const d = new Date(expiry);
+  const now = new Date();
+  const daysUntil = Math.round((d.getTime() - now.getTime()) / (1000 * 86400));
+  if (daysUntil < 0) return "expired";
+  if (daysUntil <= 60) return "soon";
+  return "ok";
+}
+
 function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
   const [open, setOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState<any>({ name: "", contactName: "", email: "", phone: "", address: "", category: "", accountNumber: "", notes: "" });
+  const [filterType, setFilterType] = useState<string>("all");
+  const emptyForm = { name: "", contactName: "", email: "", phone: "", address: "", category: "", supplierType: "general", accountNumber: "", ufasNumber: "", femasNumber: "", aphaFeedRegNumber: "", certificationBody: "", certificationExpiry: "", notes: "" };
+  const [form, setForm] = useState<any>(emptyForm);
 
-  const resetForm = () => setForm({ name: "", contactName: "", email: "", phone: "", address: "", category: "", accountNumber: "", notes: "" });
+  const resetForm = () => setForm(emptyForm);
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/suppliers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
@@ -1170,45 +1194,114 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
-  const filtered = (suppliers ?? []).filter((s: any) => s.isActive !== false && (!search || s.name?.toLowerCase().includes(search.toLowerCase())));
+  const allActive = (suppliers ?? []).filter((s: any) => s.isActive !== false);
+  const filtered = allActive.filter((s: any) =>
+    (filterType === "all" || s.supplierType === filterType) &&
+    (!search || s.name?.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const expiringSoon = allActive.filter((s: any) => {
+    const st = certExpiryStatus(s.certificationExpiry);
+    return st === "expired" || st === "soon";
+  });
 
   const openEdit = (s: any) => {
     setEditItem(s);
-    setForm({ name: s.name, contactName: s.contactName || "", email: s.email || "", phone: s.phone || "", address: s.address || "", category: s.category || "", accountNumber: s.accountNumber || "", notes: s.notes || "" });
+    setForm({
+      name: s.name || "", contactName: s.contactName || "", email: s.email || "", phone: s.phone || "",
+      address: s.address || "", category: s.category || "", supplierType: s.supplierType || "general",
+      accountNumber: s.accountNumber || "", ufasNumber: s.ufasNumber || "", femasNumber: s.femasNumber || "",
+      aphaFeedRegNumber: s.aphaFeedRegNumber || "", certificationBody: s.certificationBody || "",
+      certificationExpiry: s.certificationExpiry ? String(s.certificationExpiry).substring(0, 10) : "",
+      notes: s.notes || "",
+    });
     setOpen(true);
   };
 
+  const isFeedSupplier = form.supplierType === "feed";
+
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
-        <div style={{ position: "relative", flex: 1 }}>
+      {expiringSoon.length > 0 && (
+        <div style={{ background: "#fef3c7", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: "1rem", display: "flex", alignItems: "flex-start", gap: 8 }}>
+          <AlertTriangle size={16} color="#92400e" style={{ marginTop: 2, flexShrink: 0 }} />
+          <div>
+            <p style={{ fontSize: "0.875rem", color: "#92400e", fontWeight: 600, marginBottom: 2 }}>Supplier certifications require attention:</p>
+            {expiringSoon.map((s: any) => {
+              const st = certExpiryStatus(s.certificationExpiry);
+              return (
+                <p key={s.id} style={{ fontSize: "0.8rem", color: "#92400e" }}>
+                  <strong>{s.name}</strong> — {st === "expired" ? "UFAS/certification EXPIRED" : "expires soon"} ({s.certificationExpiry ? new Date(s.certificationExpiry).toLocaleDateString("en-GB") : ""})
+                </p>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
           <Input placeholder="Search suppliers..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
         </div>
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            {SUPPLIER_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Button size="sm" onClick={() => { resetForm(); setEditItem(null); setOpen(true); }}><Plus size={14} className="mr-1" />Add Supplier</Button>
       </div>
+
       {loading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : filtered.length === 0 ? (
-        <EmptyState icon={Building2} title="No suppliers added" subtitle="Add approved suppliers and link them to products" />
+        <EmptyState icon={Building2} title="No suppliers found" subtitle="Add approved suppliers and link them to products" />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
-          {filtered.map((s: any) => (
-            <div key={s.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-                <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{s.name}</span>
-                {s.isApproved && <Badge style={{ background: "#d1fae5", color: "#065f46", border: "none", fontSize: "0.7rem" }}>Approved</Badge>}
+          {filtered.map((s: any) => {
+            const certStatus = certExpiryStatus(s.certificationExpiry);
+            return (
+              <div key={s.id} style={{ background: "#fff", border: certStatus === "expired" ? "1.5px solid #ef4444" : certStatus === "soon" ? "1.5px solid #f59e0b" : "1px solid #e5e7eb", borderRadius: 10, padding: "1rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{s.name}</span>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {s.isApproved && <Badge style={{ background: "#d1fae5", color: "#065f46", border: "none", fontSize: "0.7rem" }}>Approved</Badge>}
+                    {s.supplierType && s.supplierType !== "general" && (
+                      <Badge style={{ background: "#eff6ff", color: "#1d4ed8", border: "none", fontSize: "0.7rem" }}>
+                        {SUPPLIER_TYPES.find(t => t.value === s.supplierType)?.label ?? s.supplierType}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                {s.category && <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 4 }}>{s.category}</p>}
+                {s.contactName && <p style={{ fontSize: "0.8rem", color: "#374151" }}>{s.contactName}</p>}
+                {s.phone && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>{s.phone}</p>}
+                {s.email && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>{s.email}</p>}
+                {s.ufasNumber && (
+                  <p style={{ fontSize: "0.72rem", color: "#065f46", marginTop: 4, fontFamily: "monospace", background: "#d1fae5", borderRadius: 4, padding: "2px 6px", display: "inline-block" }}>
+                    UFAS: {s.ufasNumber}
+                  </p>
+                )}
+                {s.femasNumber && (
+                  <p style={{ fontSize: "0.72rem", color: "#5b21b6", marginTop: 2, fontFamily: "monospace", background: "#ede9fe", borderRadius: 4, padding: "2px 6px", display: "inline-block" }}>
+                    FEMAS: {s.femasNumber}
+                  </p>
+                )}
+                {s.certificationExpiry && (
+                  <p style={{ fontSize: "0.72rem", marginTop: 4, color: certStatus === "expired" ? "#dc2626" : certStatus === "soon" ? "#d97706" : "#6b7280" }}>
+                    {certStatus === "expired" ? "⚠ Cert EXPIRED" : certStatus === "soon" ? "⚠ Cert expires soon" : "Cert expires:"}{" "}
+                    {new Date(s.certificationExpiry).toLocaleDateString("en-GB")}
+                  </p>
+                )}
+                <button onClick={() => openEdit(s)} style={{ marginTop: 8, fontSize: "0.75rem", color: "#166534", cursor: "pointer", background: "none", border: "none", padding: 0 }}>Edit</button>
               </div>
-              {s.category && <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 6 }}>{s.category}</p>}
-              {s.contactName && <p style={{ fontSize: "0.8rem", color: "#374151" }}>{s.contactName}</p>}
-              {s.phone && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>{s.phone}</p>}
-              {s.email && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>{s.email}</p>}
-              <button onClick={() => openEdit(s)} style={{ marginTop: 8, fontSize: "0.75rem", color: "#166534", cursor: "pointer", background: "none", border: "none", padding: 0 }}>Edit</button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditItem(null); resetForm(); } }}>
-        <DialogContent style={{ maxWidth: 480 }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editItem ? "Edit Supplier" : "Add Supplier"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div>
@@ -1217,8 +1310,11 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Contact Name</Label>
-                <Input value={form.contactName} onChange={e => setForm((f: any) => ({ ...f, contactName: e.target.value }))} />
+                <Label>Supplier Type</Label>
+                <Select value={form.supplierType || "general"} onValueChange={v => setForm((f: any) => ({ ...f, supplierType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{SUPPLIER_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Category</Label>
@@ -1230,36 +1326,78 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
+                <Label>Contact Name</Label>
+                <Input value={form.contactName} onChange={e => setForm((f: any) => ({ ...f, contactName: e.target.value }))} />
+              </div>
+              <div>
                 <Label>Phone</Label>
                 <Input value={form.phone} onChange={e => setForm((f: any) => ({ ...f, phone: e.target.value }))} />
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Email</Label>
                 <Input type="email" value={form.email} onChange={e => setForm((f: any) => ({ ...f, email: e.target.value }))} />
+              </div>
+              <div>
+                <Label>{form.supplierType === "waste" ? "EA Carrier Reg No." : "Account Number"}</Label>
+                <Input
+                  value={form.accountNumber}
+                  onChange={e => setForm((f: any) => ({ ...f, accountNumber: e.target.value }))}
+                  placeholder={form.supplierType === "waste" ? "e.g. CBDU01234" : ""}
+                  style={form.supplierType === "waste" ? { fontFamily: "monospace" } : {}}
+                />
               </div>
             </div>
             <div>
               <Label>Address</Label>
               <Textarea rows={2} value={form.address} onChange={e => setForm((f: any) => ({ ...f, address: e.target.value }))} />
             </div>
+
+            {isFeedSupplier && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-3">
+                <p className="text-xs font-semibold text-green-800">Feed Supplier Approvals — required for Red Tractor &amp; APHA compliance</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>UFAS Approval Number</Label>
+                    <Input value={form.ufasNumber} onChange={e => setForm((f: any) => ({ ...f, ufasNumber: e.target.value }))} placeholder="UFAS-XXXX-XXXXXX" className="font-mono text-sm" />
+                    <p className="text-xs text-gray-500 mt-1">Universal Feed Assurance Scheme — check supplier certificate</p>
+                  </div>
+                  <div>
+                    <Label>FEMAS Approval Number</Label>
+                    <Input value={form.femasNumber} onChange={e => setForm((f: any) => ({ ...f, femasNumber: e.target.value }))} placeholder="FEMAS-XXXX" className="font-mono text-sm" />
+                    <p className="text-xs text-gray-500 mt-1">Feed Materials Assurance Scheme (if applicable)</p>
+                  </div>
+                </div>
+                <div>
+                  <Label>APHA Feed Business Registration No.</Label>
+                  <Input value={form.aphaFeedRegNumber} onChange={e => setForm((f: any) => ({ ...f, aphaFeedRegNumber: e.target.value }))} placeholder="e.g. GB-XXXX-XXXXX" className="font-mono text-sm" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Certification body</Label>
+                    <Input value={form.certificationBody} onChange={e => setForm((f: any) => ({ ...f, certificationBody: e.target.value }))} placeholder="e.g. UFAS Scheme" />
+                  </div>
+                  <div>
+                    <Label>Certification expiry</Label>
+                    <Input type="date" value={form.certificationExpiry} onChange={e => setForm((f: any) => ({ ...f, certificationExpiry: e.target.value }))} />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
-              <Label>{form.category === "Waste Carrier" ? "EA Carrier Registration No." : "Account Number"}</Label>
-              <Input
-                value={form.accountNumber}
-                onChange={e => setForm((f: any) => ({ ...f, accountNumber: e.target.value }))}
-                placeholder={form.category === "Waste Carrier" ? "e.g. CBDU01234" : ""}
-                style={form.category === "Waste Carrier" ? { fontFamily: "monospace" } : {}}
-              />
-              {form.category === "Waste Carrier" && (
-                <p style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 3 }}>
-                  Environment Agency Waste Carrier Registration number — appears in Waste Disposal carrier picker and on Duty of Care reports.
-                </p>
-              )}
+              <Label>Notes</Label>
+              <Textarea rows={2} value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setOpen(false); setEditItem(null); resetForm(); }}>Cancel</Button>
-            <Button onClick={() => editItem ? updateMut.mutate(form) : createMut.mutate(form)} disabled={!form.name || (editItem ? updateMut.isPending : createMut.isPending)}>
+            <Button onClick={() => {
+              const payload = { ...form };
+              if (!payload.certificationExpiry) delete payload.certificationExpiry;
+              editItem ? updateMut.mutate(payload) : createMut.mutate(payload);
+            }} disabled={!form.name || (editItem ? updateMut.isPending : createMut.isPending)}>
               {editItem ? "Save Changes" : "Add Supplier"}
             </Button>
           </DialogFooter>
