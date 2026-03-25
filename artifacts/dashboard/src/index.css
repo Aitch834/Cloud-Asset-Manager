@@ -3,6 +3,11 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
+/* Explicitly scan the dashboard source directory so that when this CSS file is
+   imported by other artifacts (e.g. the test-dashboard), Tailwind still picks
+   up all class names used in dashboard components and generates them correctly. */
+@source ".";
+
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
