@@ -1,0 +1,35 @@
+Dashboard
+
+Actions Due Box 
+
+The '2 items need attention' message would be a nice improvement if a Mouse Over event was triggered when cursor was over the message that then popped up a dialog that listed the items that need attention.  Think this would be a useful addition and aid in Farmers getting more detailed information rather than a generic message.  Same could be applied to the Red Tractor Compliance box when the 'Attention needed' is displayed.
+
+Add Policy Screen
+
+When you navigate to the '+ Add Policy' screen, it is interesting to note that there is no option on here to Attach the document whilst adding the record, you have to add the new record and then Attach the document on the main 'Insurance Register' screen.  Adding extra steps that aren't needed. Just to confirm that once a document is attached, it can be viewed from this screen?
+
+Navigation back to the Dashboard is not obvious, would expect to see a 'Back to Dashboard' link near the top of the page and perhaps at the bottom too if there are lots of documents in the Farm Insurance Register.  Should there be an option to print the 'Farm Insurance Register', perhaps with options to print by date range or to only print current records?
+
+Documents Page
+
+As with the Add Policy Screen, there is no obvious route to go back to the dashboard.  It always worries me that with browser based systems that the user using the Browsers' own back arrow to go back might not always catch all the necessary actions the developer intended. 
+
+It seems all pages accessed from the dashboard all have no obvious route back to the dashboard.
+
+Staff/Training
+
+Record Right To Work Check
+
+Whilst you choose document type and document reference, there is no option on this dialog to actually save a copy of the document.  Also, struggling to find any staff screens that allow you to view the saved copy of the document.
+
+Sidebar Navigation seems to switch from Staff to Training depending on what option you choose in the Staff screen, clicking RTW for example.  Is this planned to work this way?  It's just that you are left in the Training screen after the RTW, rather than in the Staff screen where you started.
+
+Training Register report.  When you produce the report, the STAFF column appears to display the records' unique identifier, rather than the Staff Name.  The report itself shows FARM, rather than the actual farm details.  The report layout appears great on the new browser page that is produced, but on the report PDF that is produced it looks terrible.  Spacing is all wrong, font size is too wrong, all in all it looks nothing like what is seen on screen.  I should add that this issue is not limited to one report, all reports in PDF form look awful.  We need to ensure the PDF looks like the page displayed on screen.  We also need to ensure requests sent to the print dialog are always sent in the right aspect, landscape for example, rather than using the last used settings on the PC.  We should also ensure size is always set to A4. 
+
+Fields & Crops
+
+The Crop Register displayed after selecting 'Print Register' has the right format for the Farm's details, showing Farm Name, Address, CPH details and Red Tractor ID.  Can all reports use this same display detail? Overall, this is a great looking section.
+
+On the Crops Register tab, there is no print option.  Should there be an option to print here?  Does Red Tractor Assessor need to see a report of the farms Crops options?  Not sure. 
+
+On the Seed Records tab, when you add a Drilling Record, Operator/Driller appears as a free text field.  Should this be a lookup of staff?  Does a Driller need a certification? If they do, should we also be recording whether that operator or driller is suitably qualified by checking back to the staff training and certificates?  If they don't have a current certificate, should we be recording that as some sort of non compliance event?  Also, is the weather when drilling important and if it is should we be capturing a weather reading at the time of the activity?
