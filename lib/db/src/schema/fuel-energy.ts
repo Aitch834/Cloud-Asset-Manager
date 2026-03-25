@@ -59,6 +59,47 @@ export const fuelUsageTable = pgTable("fuel_usage", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const gridEnergyMetersTable = pgTable("grid_energy_meters", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  meterType: text("meter_type").notNull(),
+  meterReference: text("meter_reference"),
+  mpan: text("mpan"),
+  mprn: text("mprn"),
+  supplier: text("supplier"),
+  accountNumber: text("account_number"),
+  location: text("location"),
+  tariffName: text("tariff_name"),
+  standingChargePencePerDay: integer("standing_charge_pence_per_day"),
+  unitRatePencePerKwh: integer("unit_rate_pence_per_kwh"),
+  exportTariffPencePerKwh: integer("export_tariff_pence_per_kwh"),
+  linkedToRenewable: boolean("linked_to_renewable").notNull().default(false),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const gridEnergyReadingsTable = pgTable("grid_energy_readings", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  meterId: integer("meter_id").notNull().references(() => gridEnergyMetersTable.id),
+  readingDate: date("reading_date").notNull(),
+  meterReading: numeric("meter_reading", { precision: 12, scale: 2 }).notNull(),
+  consumptionKwh: numeric("consumption_kwh", { precision: 10, scale: 2 }),
+  consumptionUnits: numeric("consumption_units", { precision: 10, scale: 2 }),
+  exportKwh: numeric("export_kwh", { precision: 10, scale: 2 }),
+  costPence: integer("cost_pence"),
+  readingType: text("reading_type").notNull().default("actual"),
+  recordedBy: text("recorded_by"),
+  invoiceReference: text("invoice_reference"),
+  billingPeriodStart: date("billing_period_start"),
+  billingPeriodEnd: date("billing_period_end"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const fuelStorageInspectionsTable = pgTable("fuel_storage_inspections", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

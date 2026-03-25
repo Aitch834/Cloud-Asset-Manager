@@ -153,6 +153,8 @@ import {
   fuelStorageInspectionsTable,
   feedDeliveriesTable,
   feedStockLevelsTable,
+  gridEnergyMetersTable,
+  gridEnergyReadingsTable,
 } from "@workspace/db";
 import { eq, and, desc, sql, lt, gte, isNotNull, lte } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
@@ -9399,6 +9401,76 @@ router.delete("/farms/:farmId/fuel/storage-inspections/:recordId", requireAuth, 
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(fuelStorageInspectionsTable).where(and(eq(fuelStorageInspectionsTable.id, recordId), eq(fuelStorageInspectionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Grid Energy Meters & Readings ────────────────────────────────────────────
+
+router.get("/farms/:farmId/energy/meters", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(gridEnergyMetersTable).where(and(eq(gridEnergyMetersTable.farmId, farmId), eq(gridEnergyMetersTable.isActive, true))).orderBy(gridEnergyMetersTable.meterType, gridEnergyMetersTable.name);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/energy/meters", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(gridEnergyMetersTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/energy/meters/:recordId", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(gridEnergyMetersTable).set(req.body).where(and(eq(gridEnergyMetersTable.id, recordId), eq(gridEnergyMetersTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/energy/meters/:recordId", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.update(gridEnergyMetersTable).set({ isActive: false }).where(and(eq(gridEnergyMetersTable.id, recordId), eq(gridEnergyMetersTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/energy/readings", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const meterId = req.query.meterId ? parseInt(String(req.query.meterId)) : null;
+  const where = meterId
+    ? and(eq(gridEnergyReadingsTable.farmId, farmId), eq(gridEnergyReadingsTable.meterId, meterId))
+    : eq(gridEnergyReadingsTable.farmId, farmId);
+  const records = await db.select().from(gridEnergyReadingsTable).where(where).orderBy(desc(gridEnergyReadingsTable.readingDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/energy/readings", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(gridEnergyReadingsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/energy/readings/:recordId", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(gridEnergyReadingsTable).set(req.body).where(and(eq(gridEnergyReadingsTable.id, recordId), eq(gridEnergyReadingsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/energy/readings/:recordId", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(gridEnergyReadingsTable).where(and(eq(gridEnergyReadingsTable.id, recordId), eq(gridEnergyReadingsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

@@ -1,5 +1,5 @@
 import { db, rolesTable, modulesTable, tenantsTable, farmsTable, subscriptionsTable } from "@workspace/db";
-import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, suppliersTable } from "@workspace/db/schema";
+import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, suppliersTable, gridEnergyMetersTable, gridEnergyReadingsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const SYSTEM_ROLES = [
@@ -130,6 +130,8 @@ async function seedDevData() {
   await seedMovementData(farm.id);
   await seedFieldOperations(farm.id);
   await seedFuelData(farm.id);
+  await seedLpgAndHeatingOilTanks(farm.id);
+  await seedGridEnergyData(farm.id);
   await seedFeedDeliveryData(farm.id);
 }
 
@@ -468,7 +470,182 @@ async function seedFuelData(farmId: number) {
     },
   ]);
 
+  // LPG bulk tank
+  await db.insert(fuelTanksTable).values({
+    farmId,
+    name: "Livestock Building LPG Tank",
+    fuelType: "lpg_bulk",
+    capacityLitres: "2000",
+    currentStockLitres: "740",
+    location: "Rear of livestock building — north side",
+    isBunded: false,
+    tankMaterial: "steel",
+    installDate: "2019-06-12",
+    nextInspectionDue: `${yr + 1}-06-12`,
+    notes: "Calor Gas bulk propane tank. Used for livestock building space heating and hot water. DSEAR zone 2 area marked. Quarterly visual check carried out.",
+    isActive: true,
+  });
+
+  // Heating oil tank
+  await db.insert(fuelTanksTable).values({
+    farmId,
+    name: "Farmhouse Heating Oil Tank",
+    fuelType: "heating_oil",
+    capacityLitres: "1500",
+    currentStockLitres: "680",
+    location: "East side of farmhouse",
+    isBunded: true,
+    bundCapacityLitres: "1650",
+    tankMaterial: "plastic",
+    installDate: "2014-09-03",
+    nextInspectionDue: `${yr}-09-03`,
+    notes: "Plastic bunded heating oil (kerosene) tank serving farmhouse and cottage. Oil Storage Regs 2001 apply.",
+    isActive: true,
+  });
+
   console.log("[SEED] Fuel tanks, deliveries, usage and inspections seeded for farm:", farmId);
+}
+
+async function seedLpgAndHeatingOilTanks(farmId: number) {
+  const existingLpg = await db.select().from(fuelTanksTable).where(and(eq(fuelTanksTable.farmId, farmId), eq(fuelTanksTable.fuelType, "lpg_bulk"))).limit(1);
+  if (existingLpg.length === 0) {
+    await db.insert(fuelTanksTable).values({
+      farmId,
+      name: "Livestock Building LPG Tank",
+      fuelType: "lpg_bulk",
+      capacityLitres: "2000",
+      currentStockLitres: "740",
+      location: "Rear of livestock building — north side",
+      isBunded: false,
+      tankMaterial: "steel",
+      installDate: "2019-06-12",
+      nextInspectionDue: `${new Date().getFullYear() + 1}-06-12`,
+      notes: "Calor Gas bulk propane tank. Used for livestock building space heating and hot water. DSEAR zone 2 area marked. Quarterly visual check carried out.",
+      isActive: true,
+    });
+  }
+
+  const existingHeating = await db.select().from(fuelTanksTable).where(and(eq(fuelTanksTable.farmId, farmId), eq(fuelTanksTable.fuelType, "heating_oil"))).limit(1);
+  if (existingHeating.length === 0) {
+    await db.insert(fuelTanksTable).values({
+      farmId,
+      name: "Farmhouse Heating Oil Tank",
+      fuelType: "heating_oil",
+      capacityLitres: "1500",
+      currentStockLitres: "680",
+      location: "East side of farmhouse",
+      isBunded: true,
+      bundCapacityLitres: "1650",
+      tankMaterial: "plastic",
+      installDate: "2014-09-03",
+      nextInspectionDue: `${new Date().getFullYear()}-09-03`,
+      notes: "Plastic bunded heating oil (kerosene) tank serving farmhouse and cottage. Oil Storage Regs 2001 apply.",
+      isActive: true,
+    });
+  }
+  console.log("[SEED] LPG and heating oil tanks checked/seeded for farm:", farmId);
+}
+
+async function seedGridEnergyData(farmId: number) {
+  const existing = await db.select().from(gridEnergyMetersTable).where(eq(gridEnergyMetersTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) return;
+
+  const yr = new Date().getFullYear();
+
+  const [elecMeter] = await db.insert(gridEnergyMetersTable).values({
+    farmId,
+    name: "Main Farm Supply — Electricity",
+    meterType: "electricity",
+    mpan: "1012345678901",
+    supplier: "OVO Energy",
+    accountNumber: "OVO-4821937",
+    location: "Main yard fusebox",
+    tariffName: "Agri Fixed 2yr",
+    standingChargePencePerDay: 62,
+    unitRatePencePerKwh: 24,
+    notes: "Main electricity supply feeding grain store, workshops and yard lighting. Solar export from roof array also recorded here.",
+    isActive: true,
+  }).returning();
+
+  const [gasMeter] = await db.insert(gridEnergyMetersTable).values({
+    farmId,
+    name: "Farm Office — Natural Gas",
+    meterType: "natural_gas",
+    mprn: "8742916",
+    supplier: "British Gas Business",
+    accountNumber: "BGas-74291-B",
+    location: "Farm office building",
+    tariffName: "SME Fixed 12m",
+    standingChargePencePerDay: 28,
+    unitRatePencePerKwh: 7,
+    notes: "Natural gas supply to farm office boiler and kitchen. Office and meeting rooms.",
+    isActive: true,
+  }).returning();
+
+  if (!elecMeter || !gasMeter) return;
+
+  // Electricity readings — quarterly
+  await db.insert(gridEnergyReadingsTable).values([
+    {
+      farmId, meterId: elecMeter.id,
+      readingDate: `${yr - 1}-12-31`,
+      meterReading: "48210",
+      consumptionKwh: "8450",
+      exportKwh: "1240",
+      costPence: 218400,
+      readingType: "actual",
+      billingPeriodStart: `${yr - 1}-10-01`,
+      billingPeriodEnd: `${yr - 1}-12-31`,
+      invoiceReference: "OVO-Q4-2025",
+      recordedBy: "James Davidson",
+      notes: "Q4 — includes grain drying season peak load",
+    },
+    {
+      farmId, meterId: elecMeter.id,
+      readingDate: `${yr}-03-31`,
+      meterReading: "50140",
+      consumptionKwh: "1930",
+      exportKwh: "820",
+      costPence: 51840,
+      readingType: "actual",
+      billingPeriodStart: `${yr}-01-01`,
+      billingPeriodEnd: `${yr}-03-31`,
+      invoiceReference: "OVO-Q1-2026",
+      recordedBy: "James Davidson",
+      notes: "Q1 — lower consumption outside grain drying season",
+    },
+  ]);
+
+  // Gas readings — quarterly
+  await db.insert(gridEnergyReadingsTable).values([
+    {
+      farmId, meterId: gasMeter.id,
+      readingDate: `${yr - 1}-12-31`,
+      meterReading: "3842",
+      consumptionKwh: "2810",
+      costPence: 21840,
+      readingType: "actual",
+      billingPeriodStart: `${yr - 1}-10-01`,
+      billingPeriodEnd: `${yr - 1}-12-31`,
+      invoiceReference: "BGas-Q4-2025",
+      recordedBy: "James Davidson",
+      notes: "Q4 — winter heating demand",
+    },
+    {
+      farmId, meterId: gasMeter.id,
+      readingDate: `${yr}-03-31`,
+      meterReading: "4218",
+      consumptionKwh: "2644",
+      costPence: 19520,
+      readingType: "actual",
+      billingPeriodStart: `${yr}-01-01`,
+      billingPeriodEnd: `${yr}-03-31`,
+      invoiceReference: "BGas-Q1-2026",
+      recordedBy: "James Davidson",
+    },
+  ]);
+
+  console.log("[SEED] Grid energy meters and readings seeded for farm:", farmId);
 }
 
 async function seedFeedDeliveryData(farmId: number) {
