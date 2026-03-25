@@ -6208,6 +6208,117 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Sync Queue</h3>
 <p>Records saved offline are held in a sync queue and uploaded automatically once connectivity is restored. You can check the sync queue status from the home screen. Partial or failed syncs are shown with a warning badge — tap to see which records are pending. Do not uninstall or log out of the app while records are pending sync as this will clear the queue.</p>`,
     },
+    {
+      id: 10044,
+      title: "Fuel & Energy Management — HMRC Compliance, Oil Storage, LPG and Grid Energy",
+      category: "Fuel & Energy",
+      content: `<p>The Fuel &amp; Energy module provides a complete, audit-ready register for every energy source on the farm — from red diesel tanks and LPG bulk vessels to mains electricity meters and natural gas supplies. It has five tabs: <strong>Tank Register</strong>, <strong>Deliveries</strong>, <strong>Usage Log</strong>, <strong>Inspections</strong>, and <strong>Grid Energy</strong>.</p>
+
+<h3>Tank Register</h3>
+<p>Register every on-farm fuel storage vessel — red diesel, white diesel (road DERV), heating oil (kerosene), bulk LPG (Calor Gas, Flogas), bottled LPG cylinders, AdBlue, petrol, and other fuels. For each tank record the name, fuel type, capacity, current stock, location, tank material, bunding status, and next inspection due date. A colour-coded gauge shows stock level at a glance and alerts you when stock is low.</p>
+<p><strong>Regulatory compliance notes are shown automatically for each fuel type:</strong></p>
+<ul>
+<li><strong>Red diesel and white diesel</strong> — Oil Storage Regulations 2001 apply; tanks ≥201 L require secondary containment (bunding) and labelling</li>
+<li><strong>Heating oil (kerosene)</strong> — Oil Storage Regulations 2001 apply; same bunding and inspection requirements as diesel</li>
+<li><strong>LPG bulk tanks</strong> — regulated under DSEAR 2002, the HSE LPG Regulations, and the UKLPG Code of Practice; no oil storage bunding requirement but tank must be sited and maintained to HSE standards; periodic inspection by a competent person required</li>
+<li><strong>LPG bottled cylinders</strong> — DSEAR 2002; cylinders must be stored upright in a ventilated cage, away from ignition sources and drains</li>
+</ul>
+<p>A warning banner appears automatically on the page if any non-bunded oil or diesel tank is registered, prompting action before the next inspection.</p>
+
+<h3>Fuel Deliveries</h3>
+<p>Record every tanker delivery with the date, tank, fuel type, supplier name, driver name, delivery note number, invoice reference, quantity in litres, unit price per litre, total cost, and qualifying use. For red diesel, the qualifying use field is critical — HMRC may request delivery records as part of a fuel duty compliance check to verify that rebated fuel was delivered for a qualifying agricultural purpose. Keep delivery notes and invoices for at least four years.</p>
+
+<h3>Usage Log</h3>
+<p>Log every draw-down from a tank, recording the date, tank, quantity, purpose (for example "Ploughing — Home Field"), the qualifying activity, the equipment used, the field, and the staff member who made the record. A complete usage log demonstrates to HMRC that red diesel is being used exclusively for permitted activities and has not been diverted to road use. Discrepancies between deliveries and usage can flag a fuel theft issue early.</p>
+
+<h3>Oil Storage Inspections</h3>
+<p>Record annual inspection outcomes for each tank using the built-in checklist, which covers:</p>
+<ul>
+<li>Bunding / secondary containment integrity</li>
+<li>Tank labelling correct</li>
+<li>Spill kit present and complete</li>
+<li>Tank condition (no corrosion, damage, or leaks)</li>
+<li>Pipework and valves in good order</li>
+<li>Fill point locked</li>
+<li>Overfill protection functioning</li>
+<li>Drainage risk managed (no open drain within the bund)</li>
+</ul>
+<p>Each inspection records an overall result — Pass, Advisory, or Fail — with a free-text issues and actions field. Overdue inspections are flagged in the Farm Planner. For LPG bulk tanks, the same form is used to record periodic inspections carried out by a competent person under the UKLPG Code of Practice.</p>
+
+<h3>Grid Energy — Meters and Readings</h3>
+<p>The Grid Energy tab is a meter register for mains-supplied electricity, natural gas, and mains LPG. Add each utility meter and record:</p>
+<ul>
+<li><strong>MPAN</strong> (Meter Point Administration Number) — the 13-digit identifier for an electricity supply point, printed on every electricity bill</li>
+<li><strong>MPRN</strong> (Meter Point Reference Number) — the 6–10 digit identifier for a gas supply point, printed on every gas bill</li>
+<li><strong>Supplier, account number, tariff name, unit rate (p/kWh), and standing charge (p/day)</strong></li>
+</ul>
+<p>For each billing period, log the cumulative meter reading, consumption in kWh since the last reading, export kWh (if the meter records solar or wind export), total cost for the period, and the invoice reference number. The Grid Energy tab shows year-to-date consumption and cost for each meter.</p>
+
+<h3>Why Track Grid Energy?</h3>
+<p>Electricity and gas consumption data is increasingly required for:</p>
+<ul>
+<li><strong>Carbon footprint (Scope 2 emissions)</strong> — required for Agrecalc, Cool Farm, and retailer sustainability questionnaires. The Fuel &amp; Energy module feeds consumption data directly to the Carbon &amp; Sustainability module.</li>
+<li><strong>ESOS (Energy Savings Opportunity Scheme)</strong> — farms connected to larger agricultural businesses that meet the ESOS qualification thresholds must provide auditable energy consumption records to their lead assessor every four years.</li>
+<li><strong>Red Tractor sustainability assessments</strong> — scheme assessments are moving toward requiring energy efficiency evidence; having digital consumption records now puts you ahead of forthcoming requirements.</li>
+<li><strong>Cost management</strong> — electricity is often the second or third largest operating cost on arable farms with grain drying, irrigation, or livestock ventilation; tracking consumption by billing period lets you identify anomalies quickly.</li>
+</ul>`,
+    },
+    {
+      id: 10045,
+      title: "Feed Management — UFAS/FEMAS Traceability, Medicated Feed and Stock Levels",
+      category: "Feed Management",
+      content: `<p>The Feed Management module provides a complete record of all animal feed purchased, received, stored, and used on the farm. It satisfies the feed materials traceability requirements of Red Tractor Beef &amp; Lamb, Dairy, and Pigs standards, and supports compliance with the Feed Hygiene Regulation (EC) 183/2005 as retained in UK law. The module has two tabs: <strong>Feed Deliveries</strong> and <strong>Feed Stock Levels</strong>.</p>
+
+<h3>Feed Deliveries Tab</h3>
+<p>Record every feed delivery using the Goods Received Note (GRN) form. Each GRN captures:</p>
+<ul>
+<li><strong>Delivery date</strong> and <strong>supplier</strong> — selected from your registered Supplier directory</li>
+<li><strong>Delivery note number</strong> and <strong>invoice reference</strong> — for cross-referencing with paper documents</li>
+<li><strong>Feed type</strong> — for example Compound Cattle Nuts, Sheep Blend, Creep Feed, Mineralised Straights, Silage Additive</li>
+<li><strong>Quantity</strong> in tonnes or bags and <strong>unit price</strong></li>
+<li><strong>Batch / lot number</strong> — as printed on the delivery note or bag label; this is the primary traceability identifier linking your farm record to the feed manufacturer's production record</li>
+<li><strong>UFAS number</strong> (Universal Feed Assurance Scheme) — the registration number of the feed manufacturer or supplier under the UFAS scheme; pre-populated automatically when you select a registered feed supplier</li>
+<li><strong>FEMAS number</strong> (Feed Materials Assurance Scheme) — for feed materials suppliers (straights, blends); enter the FEMAS registration number</li>
+<li><strong>APHA registration number</strong> — required for licensed compound feeds and premixtures that include veterinary additives or coccidiostats</li>
+</ul>
+
+<h3>Medicated Feed Flagging</h3>
+<p>If the delivery contains a medicated feed (for example a compound containing a coccidiostat, growth promoter permitted under UK law, or a veterinary medicinal premixture), tick the <strong>Medicated Feed</strong> flag. Additional fields appear:</p>
+<ul>
+<li><strong>Active ingredient / medicinal additive</strong> — name and licensed concentration</li>
+<li><strong>Withdrawal period (days)</strong> — the withdrawal period applying to the livestock category for which the feed is licensed</li>
+<li><strong>Withdrawal period end date</strong> — calculated from the date of last feeding; the system tracks this automatically and surfaces a warning banner until the date passes</li>
+<li><strong>Licensed indication</strong> — the species and production category for which the medicated feed is authorised</li>
+</ul>
+<p>Medicated feed deliveries are shown with a prominent warning label throughout the module. Animals must not enter the food chain until the withdrawal period has cleared. Red Tractor requires medicated feed records to be retained for at least three years.</p>
+
+<h3>UFAS / FEMAS Auto-Population</h3>
+<p>When you select a feed supplier from the Supplier Register, the supplier's UFAS number and FEMAS number (if recorded on the supplier record) are automatically filled into the GRN form. This eliminates the risk of entering an incorrect registration number and ensures that the traceability chain from your GRN back to the supplier's scheme certification is intact without manual re-keying.</p>
+
+<h3>Feed Stock Levels Tab</h3>
+<p>The Feed Stock Levels tab maintains a current stock level for each feed type at each storage location. Stock levels are automatically reduced when delivery records are flagged as consumed, or you can update them manually after a physical stock check. When stock falls below your configured reorder level, a warning card appears prompting you to arrange a delivery. This prevents unexpected feed shortages, particularly for livestock operations where feed availability is a welfare requirement.</p>
+
+<h3>Supplier Certification Tracking</h3>
+<p>In the Supplier Register (accessible from Stock &amp; Suppliers), feed suppliers are given a dedicated compliance section where you record:</p>
+<ul>
+<li>Supplier type — Feed (and other types such as Veterinary, Agricultural Chemicals, Fuel)</li>
+<li>UFAS registration number</li>
+<li>FEMAS registration number</li>
+<li>APHA compound feed registration number</li>
+<li>Certification expiry date</li>
+</ul>
+<p>The system monitors certification expiry dates and shows an amber warning 60 days before expiry. Once expired, a red banner is displayed on the supplier record. This prompts you to confirm that the supplier has renewed their assurance scheme membership before placing the next order — protecting you from inadvertently sourcing feed from an uncertified supplier, which could constitute a traceability breach under your Red Tractor standards.</p>
+
+<h3>Red Tractor Traceability Requirements</h3>
+<p>Red Tractor Beef &amp; Lamb, Dairy, and Pigs standards all require feed materials to be traceable to an assured supplier. In practice, an inspector will ask to see:</p>
+<ul>
+<li>Your most recent feed delivery records</li>
+<li>The UFAS or FEMAS number of your feed supplier</li>
+<li>Evidence that your feed supplier holds a current UFAS / FEMAS certificate</li>
+<li>Records of any medicated feed used, with withdrawal period compliance evidence</li>
+</ul>
+<p>BDE Farm Trac's Feed Management module holds all of this in one place, with print-ready records that can be presented on a tablet or laptop during an inspection.</p>`,
+    },
   ];
 
   const { search, category } = _req.query;

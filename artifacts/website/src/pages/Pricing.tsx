@@ -24,6 +24,8 @@ const MODULES = [
   { id: "financial-records", name: "Financial Records", price: 20 },
   { id: "document-management", name: "Document Management", price: 10 },
   { id: "weather-tracking", name: "Weather Tracking", price: 15 },
+  { id: "fuel-energy", name: "Fuel & Energy Management", price: 8 },
+  { id: "feed-management", name: "Feed Management", price: 8 },
   { id: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", price: 30 },
   { id: "pig-production", name: "Pig Production", price: 25 },
   { id: "poultry-production", name: "Poultry Production", price: 25 },

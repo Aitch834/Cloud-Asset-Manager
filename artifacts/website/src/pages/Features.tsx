@@ -4,7 +4,7 @@ import {
   ClipboardCheck, Map, Package, Tractor, FileText, LineChart,
   CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
   Droplets, AlertTriangle, ClipboardList, Leaf, Truck, Fuel, Share2, BarChart3, Wrench,
-  Ham, Bird, Flower2, Flame, Store, Waves, Landmark
+  Ham, Bird, Flower2, Flame, Store, Waves, Landmark, Zap, WheatIcon
 } from "lucide-react";
 
 type Badge = "required" | "module" | "included";
@@ -197,6 +197,22 @@ const sections: Section[] = [
           "Veterinary prescriptions — log vet-written prescriptions with drug, dose, withdrawal period, and dispensing vet details for full medicine audit trail",
         ],
       },
+      {
+        title: "Feed Management",
+        icon: WheatIcon,
+        color: "bg-yellow-50 text-yellow-800 border-yellow-100",
+        badge: "module",
+        features: [
+          "Feed deliveries (GRN) — log every feed delivery with supplier, delivery note number, invoice reference, feed type, quantity, lot/batch number, and unit price; complete audit trail from supplier batch to livestock feeding event",
+          "UFAS / FEMAS supplier traceability — record your feed supplier's UFAS (Universal Feed Assurance Scheme) or FEMAS (Feed Materials Assurance Scheme) registration number on every delivery; UFAS number auto-populated from the Supplier Register for recognised feed suppliers",
+          "APHA compound feed registration — record Animal & Plant Health Agency (APHA) registered feed number on GRNs for licensed compound feeds and premixtures",
+          "Medicated feed flagging — flag deliveries as medicated with the active ingredient, withdrawal period end date, and licensed indication; medicated feed appears with a dedicated warning label and is excluded from untreated animal feeding until the withdrawal period has cleared",
+          "Feed stock levels register — maintain a live stock level per feed type and storage location; reorder alerts when stock falls below your configured minimum; stock is automatically updated when deliveries are recorded",
+          "Withdrawal period tracking — active withdrawal periods for medicated feeds surface as warnings on the Feed Management dashboard; alerts remain until the withdrawal date passes or the medicated batch is consumed",
+          "Feed supplier certification register — feed suppliers are classified in the Supplier Register with UFAS / FEMAS / APHA numbers, scheme certification expiry dates, and automated 60-day expiry warnings; expired certification flagged with a red banner to prevent inadvertent purchases from non-compliant suppliers",
+          "Red Tractor traceability readiness — all feed delivery records satisfy the feed materials traceability requirements of Red Tractor Beef & Lamb, Dairy, and Pigs standards; inspectors can be shown a complete digital record of what was fed, when, from which batch, and from which approved supplier",
+        ],
+      },
     ],
   },
   {
@@ -275,6 +291,25 @@ const sections: Section[] = [
           "Audit pack PDF generation",
         ],
       },
+      {
+        title: "Fuel & Energy Management",
+        icon: Zap,
+        color: "bg-amber-50 text-amber-700 border-amber-100",
+        badge: "module",
+        features: [
+          "Fuel tank register — diesel (red and white), heating oil (kerosene), bulk LPG (Calor / Flogas) and bottled cylinders, AdBlue, petrol, and other fuels in a single register with gauge visualisation and low-stock alerts",
+          "Regulatory framework per fuel type — Oil Storage Regulations 2001 notes on diesel and heating oil tanks; DSEAR 2002 / HSE LPGR / UKLPG Code of Practice notes on all LPG entries; ensures the correct compliance regime is visible at the point of record entry",
+          "Bunding compliance tracking — mark each tank as bunded or unbunded; bund capacity recorded; automatic warning banner flags any non-bunded oil tanks ≥201 L as per the Oil Storage Regs 2001",
+          "Fuel delivery log — record every tanker delivery with supplier, driver, delivery note number, invoice reference, quantity, unit price, total cost, and qualifying use; retains the full paper trail HMRC may request during a fuel duty inspection",
+          "Red diesel usage log — log every draw-down by date, tank, quantity, purpose, qualifying activity, and staff member; demonstrates to HMRC that rebated fuel is used exclusively for permitted activities",
+          "Oil storage inspections — annual inspection checklist covering bunding, labelling, spill kit, fill point lock, pipework, overfill protection, and drainage risk; pass / advisory / fail result with issues and actions recorded; overdue inspection warnings surfaced in the Farm Planner",
+          "Grid Energy — Meter Register — add electricity meters (identified by 13-digit MPAN), natural gas meters (MPRN), and mains LPG; record supplier, account number, tariff name, unit rate and standing charge",
+          "Grid Energy — Readings Log — log cumulative meter readings with consumption (kWh), export kWh (solar / wind feed-in), billing period, invoice reference, and cost per billing period; filter by individual meter",
+          "Grid Energy summary cards — year-to-date electricity consumption, year-to-date gas/LPG energy, and year-to-date grid energy cost shown at a glance on the module overview",
+          "Carbon reporting ready — all energy consumption data (fuel, electricity, gas) feeds directly into the Carbon & Sustainability module for Scope 1 and Scope 2 emissions calculations, Agrecalc / Cool Farm compatible",
+          "ESOS compliance support — auditable energy consumption records suitable for presenting to an Energy Savings Opportunity Scheme (ESOS) lead assessor for farms connected to larger businesses",
+        ],
+      },
     ],
   },
   {
@@ -347,6 +382,9 @@ const sections: Section[] = [
           "Batch & lot number capture on every delivery — batch codes and lot numbers recorded at the point of receipt and carried forward to spray application records",
           "Live inventory tracking",
           "Testing laboratory register — add UKAS-accredited labs as a supplier subtype; labs are linked by picker when recording soil samples, grain quality tests, and water quality tests so every analytical result traces to the accredited laboratory that produced it",
+          "Supplier type classification — classify each supplier by type (Feed, Agricultural Chemicals, Fuel & Energy, Veterinary, Laboratory, Machinery, Seed, Haulage, and more) so feed merchants, agchem distributors, and fuel suppliers are held in one searchable register; type-filter on the supplier list narrows results instantly",
+          "Feed supplier compliance fields — record UFAS (Universal Feed Assurance Scheme) registration number, FEMAS (Feed Materials Assurance Scheme) number, and APHA compound feed registration number directly on the supplier record; these pre-populate automatically when logging feed deliveries, eliminating re-keying",
+          "Supplier certification expiry tracking — enter certification expiry dates (UFAS, FEMAS, Red Tractor supply chain membership, or any other scheme); amber warning at 60 days to expiry, red expired banner after the date; expired suppliers are flagged in the supplier list so orders are not inadvertently placed with non-compliant sources",
         ],
       },
       {
