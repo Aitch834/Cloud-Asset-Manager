@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -844,11 +845,12 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
                         <Button
                           size="sm"
                           variant="outline"
-                          style={{ fontSize: "0.75rem", height: 28, display: "flex", alignItems: "center", gap: 3 }}
+                          style={{ fontSize: "0.75rem", height: 28, display: "flex", alignItems: "center", gap: 3, borderColor: "#2563eb33", color: "#2563eb", background: expandedRtwId === r.id ? "#eff6ff" : undefined }}
                           onClick={() => setExpandedRtwId(expandedRtwId === r.id ? null : r.id)}
+                          title="Upload and view identity document scans"
                         >
                           <Paperclip style={{ width: 11, height: 11 }} />
-                          Docs
+                          Documents
                           {expandedRtwId === r.id ? <ChevronUp style={{ width: 11, height: 11 }} /> : <ChevronDown style={{ width: 11, height: 11 }} />}
                         </Button>
                         <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => openEdit(r)}>Edit</Button>
@@ -939,59 +941,91 @@ function printTrainingRegister(
   trainingRecords: TrainingRecord[],
   certificates: CertificateRecord[],
   farmName: string,
+  members: FarmMember[],
 ) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
 
+  const nameMap = new Map<string, string>();
+  members.forEach(m => nameMap.set(String(m.id), memberFullName(m)));
+  const staffName = (userId: string) => nameMap.get(String(userId)) ?? nameMap.get(userId) ?? userId ?? "—";
+
   const trainingRows = trainingRecords.map(r => {
     const expired = r.expiryDate && new Date(r.expiryDate) < new Date();
     const expTxt = r.expiryDate
-      ? `<span style="color:${expired ? "#dc2626" : "#16a34a"}">${fmtD(r.expiryDate)}${expired ? " ⚠ EXPIRED" : ""}</span>`
+      ? `<span style="color:${expired ? "#dc2626" : "#16a34a"}">${fmtD(r.expiryDate)}${expired ? " &#9888; EXPIRED" : ""}</span>`
       : "—";
-    return `<tr><td>${r.userId || "—"}</td><td>${r.trainingTitle}</td><td>${r.trainingProvider || "—"}</td><td>${fmtD(r.trainingDate)}</td><td>${expTxt}</td><td>${r.competencyAchieved || "—"}</td></tr>`;
+    return `<tr><td class="name">${staffName(r.userId)}</td><td>${r.trainingTitle}</td><td>${r.trainingProvider || "—"}</td><td class="date">${fmtD(r.trainingDate)}</td><td class="date">${expTxt}</td><td>${r.competencyAchieved || "—"}</td></tr>`;
   }).join("");
 
   const certRows = certificates.map(r => {
     const expired = r.expiryDate && new Date(r.expiryDate) < new Date();
     const expTxt = r.expiryDate
-      ? `<span style="color:${expired ? "#dc2626" : "#16a34a"}">${fmtD(r.expiryDate)}${expired ? " ⚠ EXPIRED" : ""}</span>`
+      ? `<span style="color:${expired ? "#dc2626" : "#16a34a"}">${fmtD(r.expiryDate)}${expired ? " &#9888; EXPIRED" : ""}</span>`
       : "No expiry";
-    return `<tr><td>${r.userId || "—"}</td><td>${r.certificateType}</td><td style="font-family:monospace">${r.certificateNumber || "—"}</td><td>${r.issuer || "—"}</td><td>${fmtD(r.issueDate)}</td><td>${expTxt}</td></tr>`;
+    return `<tr><td class="name">${staffName(r.userId)}</td><td>${r.certificateType}</td><td class="mono">${r.certificateNumber || "—"}</td><td>${r.issuer || "—"}</td><td class="date">${fmtD(r.issueDate)}</td><td class="date">${expTxt}</td></tr>`;
   }).join("");
 
-  const html = `<html><head><title>Staff Training &amp; Qualifications Register</title>
-<style>body{font-family:Arial,sans-serif;font-size:11px;margin:2cm;color:#000}
-h1{font-size:14px;margin:0 0 2px}h2{font-size:12px;margin:18px 0 8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px}
-p{font-size:10px;color:#555;margin:1px 0}
-table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:16px}
-th{background:#f0fdf4;font-weight:600;text-align:left;border:1px solid #d1d5db;padding:5px 8px;font-size:9px;text-transform:uppercase;letter-spacing:.04em}
-td{border:1px solid #e5e7eb;padding:5px 8px}tr:nth-child(even) td{background:#fafafa}
-.hdr{display:flex;justify-content:space-between;border-bottom:2px solid #16a34a;padding-bottom:12px;margin-bottom:18px}
-.hdr-r{text-align:right;font-size:10px;color:#555}.hdr-r b{display:block;font-size:13px;font-weight:700;color:#000}
-.footer{font-size:9px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:24px}
-.sig{margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:40px}
-.sig-box{border-top:1px solid #000;padding-top:6px;font-size:10px}
-@media print{@page{margin:1.5cm}}</style></head><body>
-<div class="hdr"><div><h1>${farmName}</h1><p>Staff Training &amp; Qualifications Register</p></div>
-<div class="hdr-r"><b>Training Register</b>Printed: ${today}<br>${trainingRecords.length} training records · ${certificates.length} certificates</div></div>
+  const html = `<html><head><title>Staff Training &amp; Qualifications Register — ${farmName}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;margin:0;color:#111;background:#fff}
+  .page{padding:2cm 2cm 2.5cm}
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #16a34a;padding-bottom:14px;margin-bottom:20px}
+  .hdr-left h1{font-size:16pt;font-weight:800;margin:0 0 2px;color:#111}
+  .hdr-left p{font-size:9pt;color:#555;margin:0}
+  .hdr-right{text-align:right;font-size:9pt;color:#555;line-height:1.6}
+  .hdr-right .farm{font-size:12pt;font-weight:700;color:#111;display:block;margin-bottom:2px}
+  h2{font-size:11pt;font-weight:700;margin:22px 0 4px;padding-bottom:5px;border-bottom:1.5px solid #d1fae5;color:#15803d;letter-spacing:.01em}
+  .subtitle{font-size:8.5pt;color:#6b7280;font-style:italic;margin:0 0 10px}
+  table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:6px;page-break-inside:auto}
+  thead tr{page-break-after:avoid}
+  tbody tr{page-break-inside:avoid}
+  th{background:#f0fdf4;font-weight:700;text-align:left;border:1px solid #bbf7d0;padding:5px 8px;font-size:8pt;text-transform:uppercase;letter-spacing:.05em;color:#166534}
+  td{border:1px solid #e5e7eb;padding:5px 8px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafafa}
+  td.name{font-weight:600;color:#111;white-space:nowrap}
+  td.date{white-space:nowrap;color:#374151}
+  td.mono{font-family:"Courier New",monospace;font-size:8.5pt}
+  .sig{margin-top:36px;display:grid;grid-template-columns:1fr 1fr;gap:48px}
+  .sig-box{border-top:1.5px solid #374151;padding-top:8px;font-size:9pt;line-height:2}
+  .sig-box strong{font-size:9.5pt;display:block;margin-bottom:4px}
+  .footer{font-size:8pt;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:28px;line-height:1.5}
+  .empty{color:#9ca3af;font-style:italic;font-size:9pt;padding:6px 0 12px}
+  @media print{@page{size:A4;margin:1.5cm}body{font-size:10pt}.page{padding:0}}
+</style></head><body><div class="page">
+<div class="hdr">
+  <div class="hdr-left">
+    <h1>Staff Training &amp; Qualifications Register</h1>
+    <p>Red Tractor Combinable Crops &amp; Sugar Beet — Staff Competency Record</p>
+  </div>
+  <div class="hdr-right">
+    <span class="farm">${farmName}</span>
+    Printed: ${today}<br>
+    ${trainingRecords.length} training record${trainingRecords.length !== 1 ? "s" : ""} &middot; ${certificates.length} certificate${certificates.length !== 1 ? "s" : ""}
+  </div>
+</div>
 
 <h2>Training Records</h2>
 ${trainingRecords.length === 0
-    ? '<p style="color:#9ca3af;font-style:italic">No training records on file.</p>'
-    : `<table><thead><tr><th>Staff</th><th>Training Title</th><th>Provider</th><th>Date</th><th>Expiry</th><th>Competency</th></tr></thead><tbody>${trainingRows}</tbody></table>`}
+    ? '<p class="empty">No training records on file.</p>'
+    : `<table><thead><tr><th style="width:16%">Staff Member</th><th style="width:25%">Training Title</th><th style="width:16%">Provider</th><th style="width:10%">Date</th><th style="width:13%">Expiry</th><th>Competency Achieved</th></tr></thead><tbody>${trainingRows}</tbody></table>`}
 
 <h2>Operator Certificates &amp; Qualifications</h2>
-<p style="margin-bottom:8px;font-style:italic">Includes PA1, PA2, PA3, PA6, BASIS, FACTS, and other required operator certificates.</p>
+<p class="subtitle">Includes PA1, PA2, PA3, PA6, PA6AW, BASIS, FACTS, and all other required operator certificates.</p>
 ${certificates.length === 0
-    ? '<p style="color:#9ca3af;font-style:italic">No certificates on file.</p>'
-    : `<table><thead><tr><th>Staff</th><th>Certificate Type</th><th>Cert. No.</th><th>Issuer</th><th>Issue Date</th><th>Expiry</th></tr></thead><tbody>${certRows}</tbody></table>`}
+    ? '<p class="empty">No certificates on file.</p>'
+    : `<table><thead><tr><th style="width:16%">Staff Member</th><th style="width:22%">Certificate Type</th><th style="width:14%">Cert. Number</th><th style="width:14%">Issuer</th><th style="width:10%">Issue Date</th><th>Expiry / Status</th></tr></thead><tbody>${certRows}</tbody></table>`}
 
 <div class="sig">
-<div class="sig-box">Farm Manager Signature<br><br><br>Name: ____________________________<br><br>Date: ____________________________</div>
-<div class="sig-box">Red Tractor Assessor<br><br><br>Name: ____________________________<br><br>Date: ____________________________</div>
+  <div class="sig-box"><strong>Farm Manager</strong>Signature: ____________________________<br>Name (print): ________________________<br>Date: ________________________________</div>
+  <div class="sig-box"><strong>Red Tractor Assessor</strong>Signature: ____________________________<br>Name (print): ________________________<br>Date: ________________________________</div>
 </div>
-<div class="footer">Staff Training &amp; Qualifications Register — Red Tractor Combinable Crops &amp; Sugar Beet compliance record. Retain for minimum 3 years and make available at audit. BDE Farm Trac · ${today}</div>
-</body></html>`;
+<div class="footer">
+  Staff Training &amp; Qualifications Register &mdash; Red Tractor compliance record. Retain for a minimum of 3 years and make available at audit.<br>
+  Generated by BDE Farm Trac &middot; ${today}
+</div>
+</div></body></html>`;
 
   const w = window.open("", "_blank");
   if (w) { w.document.write(html); w.document.close(); w.print(); }
@@ -1033,6 +1067,16 @@ export default function StaffTrainingPage() {
   return (
     <AppLayout>
       <div style={{ padding: "1.5rem", maxWidth: 1100, margin: "0 auto" }}>
+        {tab === "rtw" && (
+          <div style={{ marginBottom: 12 }}>
+            <Link href="/staff" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "0.8125rem", color: "#6b7280", textDecoration: "none", padding: "4px 0" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              Staff
+            </Link>
+            <span style={{ fontSize: "0.8125rem", color: "#9ca3af", margin: "0 6px" }}>›</span>
+            <span style={{ fontSize: "0.8125rem", color: "#374151" }}>Right to Work</span>
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1.25rem", gap: 12 }}>
           <div>
             <h1 style={{ fontSize: "1.375rem", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
@@ -1045,8 +1089,8 @@ export default function StaffTrainingPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => printTrainingRegister(trainingRecords, certificates, farmName)}
-            disabled={trainingRecords.length === 0 && certificates.length === 0}
+            onClick={() => printTrainingRegister(trainingRecords, certificates, farmName, membersQ.data?.members ?? [])}
+            disabled={(trainingRecords.length === 0 && certificates.length === 0) || !currentFarm}
           >
             <Printer size={14} className="mr-2" /> Print Register
           </Button>

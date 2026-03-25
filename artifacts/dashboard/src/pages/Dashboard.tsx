@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Link, Redirect } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function Dashboard() {
   const { farmId } = useAppStore();
@@ -109,9 +110,32 @@ export default function Dashboard() {
                 </svg>
               </div>
             </div>
-            <div className={`mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${dashboard.complianceScore > 90 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-              {dashboard.complianceScore > 90 ? "✓ Excellent — audit-ready" : "⚠ Attention needed"}
-            </div>
+            {dashboard.complianceScore > 90 ? (
+              <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
+                ✓ Excellent — audit-ready
+              </div>
+            ) : (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 cursor-help">
+                      ⚠ Attention needed
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-left">
+                    {((dashboard as any).overdueItems ?? []).length > 0 ? (
+                      <ul className="space-y-1">
+                        {((dashboard as any).overdueItems as {description: string}[]).map((item, i) => (
+                          <li key={i} className="text-xs">{item.description}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs">Open non-conformances or overdue inspections are reducing the compliance score.</p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </CardContent>
         </Card>
 
@@ -136,9 +160,32 @@ export default function Dashboard() {
                 }
               </div>
             </div>
-            <div className={`mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${dashboard.overdueActions > 0 ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
-              {dashboard.overdueActions > 0 ? `${dashboard.overdueActions} item${dashboard.overdueActions !== 1 ? "s" : ""} need attention` : "All clear"}
-            </div>
+            {dashboard.overdueActions === 0 ? (
+              <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
+                All clear
+              </div>
+            ) : (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-700 cursor-help">
+                      {dashboard.overdueActions} item{dashboard.overdueActions !== 1 ? "s" : ""} need attention
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-left">
+                    {((dashboard as any).overdueItems ?? []).length > 0 ? (
+                      <ul className="space-y-1">
+                        {((dashboard as any).overdueItems as {description: string}[]).map((item, i) => (
+                          <li key={i} className="text-xs">{item.description}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs">View Inspections to see overdue items.</p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </CardContent>
         </Card>
 

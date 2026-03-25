@@ -138,6 +138,8 @@ function InsuranceDialog({ open, onClose, initial, farmId, onSaved }: { open: bo
     expiryDate: initial.expiryDate ?? "",
     notes: initial.notes ?? "",
   } : emptyForm);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -157,12 +159,41 @@ function InsuranceDialog({ open, onClose, initial, farmId, onSaved }: { open: bo
       const method = initial ? "PUT" : "POST";
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error("Save failed");
+      return res.json() as Promise<{ id: number }>;
     },
-    onSuccess: () => { toast({ title: initial ? "Policy updated" : "Policy added" }); onSaved(); onClose(); },
+    onSuccess: async (record) => {
+      if (pendingFile) {
+        setUploading(true);
+        try {
+          const urlRes = await fetch("/api/storage/uploads/request-url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contentType: pendingFile.type }),
+          });
+          if (!urlRes.ok) throw new Error("Could not get upload URL");
+          const { uploadURL, objectPath } = await urlRes.json();
+          await fetch(uploadURL, { method: "PUT", body: pendingFile, headers: { "Content-Type": pendingFile.type } });
+          const fileName = objectPath.split("/").pop() ?? pendingFile.name;
+          await fetch(`/api/farms/${farmId}/insurance/${record.id}/document`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ documentPath: objectPath, documentName: fileName }),
+          });
+        } catch {
+          toast({ title: "Policy saved but document upload failed", variant: "destructive" });
+        } finally {
+          setUploading(false);
+        }
+      }
+      toast({ title: initial ? "Policy updated" : "Policy added" });
+      onSaved();
+      onClose();
+    },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const selectedType = POLICY_TYPES.find(p => p.value === form.policyType);
+  const isBusy = saveMut.isPending || uploading;
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -215,10 +246,34 @@ function InsuranceDialog({ open, onClose, initial, farmId, onSaved }: { open: bo
             <label style={labelStyle}>Notes</label>
             <textarea value={form.notes} onChange={e => set("notes", e.target.value)} rows={2} placeholder="Any additional notes..." style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "7px 10px", fontSize: "0.875rem", resize: "vertical", outline: "none", fontFamily: "inherit" }} />
           </div>
+          <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 12 }}>
+            <label style={labelStyle}>Attach Certificate / Schedule (optional)</label>
+            {pendingFile ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+                <FileText style={{ width: 14, height: 14, color: "#16a34a", flexShrink: 0 }} />
+                <span style={{ fontSize: "0.8125rem", color: "#166534", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pendingFile.name}</span>
+                <button onClick={() => setPendingFile(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#6b7280", display: "flex" }}>
+                  <X style={{ width: 14, height: 14 }} />
+                </button>
+              </div>
+            ) : (
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  style={{ display: "none" }}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) setPendingFile(f); e.target.value = ""; }}
+                />
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "0.8125rem", padding: "5px 12px", border: "1px dashed #d1d5db", borderRadius: 6, color: "#6b7280", background: "#fafafa" }}>
+                  <Upload style={{ width: 13, height: 13 }} /> Choose file (PDF, JPG, PNG)
+                </span>
+              </label>
+            )}
+          </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending || !form.policyType}>
-              {saveMut.isPending ? "Saving…" : initial ? "Save Changes" : "Add Policy"}
+            <Button variant="outline" onClick={onClose} disabled={isBusy}>Cancel</Button>
+            <Button onClick={() => saveMut.mutate()} disabled={isBusy || !form.policyType}>
+              {uploading ? <><Loader2 style={{ width: 14, height: 14, marginRight: 6, animation: "spin 1s linear infinite" }} />Uploading…</> : saveMut.isPending ? "Saving…" : initial ? "Save Changes" : "Add Policy"}
             </Button>
           </div>
         </div>

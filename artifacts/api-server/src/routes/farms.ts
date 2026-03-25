@@ -156,7 +156,7 @@ import {
   gridEnergyMetersTable,
   gridEnergyReadingsTable,
 } from "@workspace/db";
-import { eq, and, desc, sql, lt, gte, isNotNull, lte } from "drizzle-orm";
+import { eq, and, desc, asc, sql, lt, gte, isNotNull, lte } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
@@ -262,6 +262,8 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
     [equipmentCount],
     [sprayCount],
     [inspectionCount],
+    overdueNcItems,
+    overdueInspItems,
   ] = await Promise.all([
     db
       .select({ nextDue: inspectionRecordsTable.nextInspectionDue })
@@ -293,7 +295,32 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
       .select({ count: sql<number>`count(*)::int` })
       .from(inspectionRecordsTable)
       .where(eq(inspectionRecordsTable.farmId, farmId)),
+    db
+      .select({ id: nonconformanceRecordsTable.id, category: nonconformanceRecordsTable.category, description: nonconformanceRecordsTable.description })
+      .from(nonconformanceRecordsTable)
+      .where(and(eq(nonconformanceRecordsTable.farmId, farmId), eq(nonconformanceRecordsTable.status, "open")))
+      .orderBy(desc(nonconformanceRecordsTable.identifiedDate))
+      .limit(5),
+    db
+      .select({ id: inspectionRecordsTable.id, inspectionType: inspectionRecordsTable.inspectionType, nextInspectionDue: inspectionRecordsTable.nextInspectionDue })
+      .from(inspectionRecordsTable)
+      .where(and(eq(inspectionRecordsTable.farmId, farmId), lt(inspectionRecordsTable.nextInspectionDue, now)))
+      .orderBy(asc(inspectionRecordsTable.nextInspectionDue))
+      .limit(5),
   ]);
+
+  const overdueItems = [
+    ...overdueNcItems.map((nc) => ({
+      type: "nonconformance" as const,
+      description: `Open NC: ${nc.category}${nc.description ? ` — ${nc.description.slice(0, 60)}${nc.description.length > 60 ? "…" : ""}` : ""}`,
+      href: "/inspections",
+    })),
+    ...overdueInspItems.map((insp) => ({
+      type: "inspection" as const,
+      description: `Overdue inspection: ${insp.inspectionType}`,
+      href: "/inspections",
+    })),
+  ];
 
   const moduleStats = activeSubs.map((s) => ({
     moduleKey: s.moduleKey,
@@ -310,6 +337,7 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
     farm,
     complianceScore,
     overdueActions: totalOverdue,
+    overdueItems,
     upcomingInspection: inspResult?.nextDue || null,
     fieldCount: fieldCount.count,
     equipmentCount: equipmentCount.count,
