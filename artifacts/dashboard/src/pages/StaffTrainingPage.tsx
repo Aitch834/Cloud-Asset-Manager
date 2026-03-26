@@ -189,6 +189,19 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [search, setSearch] = useState(defaultMember ?? "");
 
+  const membersQ = useFarmMembers(farmId);
+  const memberNameMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    (membersQ.data?.members ?? []).forEach(m => {
+      const full = memberFullName(m);
+      map.set(String(m.id), full);
+      map.set(full, full);
+      if (m.linkedUserId) map.set(m.linkedUserId, full);
+    });
+    return map;
+  }, [membersQ.data]);
+  const resolveStaffName = (uid: string) => memberNameMap.get(String(uid)) ?? memberNameMap.get(uid) ?? (uid || "—");
+
   const empty = { userId: "", trainingTitle: "", trainingProvider: "", trainingDate: "", expiryDate: "", competencyAchieved: "", assessorName: "", notes: "" };
   const [form, setForm] = useState({ ...empty });
 
@@ -277,7 +290,7 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
             <tbody>
               {records.map(r => (
                 <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.userId || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{resolveStaffName(r.userId)}</td>
                   <td style={{ padding: "0.625rem 0.75rem" }}>{r.trainingTitle}</td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.trainingProvider || "—"}</td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{fmt(r.trainingDate)}</td>
@@ -394,6 +407,19 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedCertId, setExpandedCertId] = useState<number | null>(null);
 
+  const membersQ = useFarmMembers(farmId);
+  const memberNameMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    (membersQ.data?.members ?? []).forEach(m => {
+      const full = memberFullName(m);
+      map.set(String(m.id), full);
+      map.set(full, full);
+      if (m.linkedUserId) map.set(m.linkedUserId, full);
+    });
+    return map;
+  }, [membersQ.data]);
+  const resolveStaffName = (uid: string) => memberNameMap.get(String(uid)) ?? memberNameMap.get(uid) ?? (uid || "—");
+
   const empty = { userId: "", certificateType: "", certificateNumber: "", issuer: "", issueDate: "", expiryDate: "", notes: "" };
   const [form, setForm] = useState({ ...empty, userId: defaultMember ?? "" });
 
@@ -509,7 +535,7 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
               {records.map(r => (
                 <React.Fragment key={r.id}>
                   <tr style={{ borderBottom: expandedCertId === r.id ? "none" : "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.userId || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{resolveStaffName(r.userId)}</td>
                     <td style={{ padding: "0.625rem 0.75rem", fontWeight: 500 }}>{r.certificateType}</td>
                     <td style={{ padding: "0.625rem 0.75rem", fontFamily: "monospace", fontSize: "0.8125rem", color: "#374151" }}>{r.certificateNumber || "—"}</td>
                     <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.issuer || "—"}</td>
