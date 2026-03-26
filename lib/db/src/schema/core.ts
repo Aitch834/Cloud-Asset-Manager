@@ -210,6 +210,8 @@ export const farmMembersTable = pgTable("farm_members", {
   invitationStatus: text("invitation_status").notNull().default("not_invited"),
   isActive: boolean("is_active").notNull().default(true),
   notes: text("notes"),
+  niNumber: text("ni_number"),
+  payrollNumber: text("payroll_number"),
   nokName: text("nok_name"),
   nokRelationship: text("nok_relationship"),
   nokPhone: text("nok_phone"),

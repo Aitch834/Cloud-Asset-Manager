@@ -46,6 +46,8 @@ interface FarmMember {
   invitationStatus: "not_invited" | "pending" | "accepted";
   isActive: boolean;
   notes: string | null;
+  niNumber: string | null;
+  payrollNumber: string | null;
   nokName: string | null;
   nokRelationship: string | null;
   nokPhone: string | null;
@@ -197,6 +199,8 @@ function AddMemberDialog({ farmId, open, onClose }: { farmId: number; open: bool
   const [farmRole, setFarmRole] = useState<FarmRole>("operator");
   const [employedFrom, setEmployedFrom] = useState("");
   const [notes, setNotes] = useState("");
+  const [niNumber, setNiNumber] = useState("");
+  const [payrollNumber, setPayrollNumber] = useState("");
   const [nokName, setNokName] = useState("");
   const [nokRelationship, setNokRelationship] = useState("");
   const [nokPhone, setNokPhone] = useState("");
@@ -208,6 +212,7 @@ function AddMemberDialog({ farmId, open, onClose }: { farmId: number; open: bool
   function reset() {
     setFirstName(""); setLastName(""); setEmail(""); setPhone(""); setJobTitle("");
     setFarmRole("operator"); setEmployedFrom(""); setNotes("");
+    setNiNumber(""); setPayrollNumber("");
     setNokName(""); setNokRelationship(""); setNokPhone(""); setNokEmail("");
     setStep("form");
   }
@@ -217,7 +222,7 @@ function AddMemberDialog({ farmId, open, onClose }: { farmId: number; open: bool
       const res = await fetch(`/api/farms/${farmId}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ firstName, lastName, email: email || null, phone: phone || null, jobTitle: jobTitle || null, farmRole, employedFrom: employedFrom || null, notes: notes || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
+        body: JSON.stringify({ firstName, lastName, email: email || null, phone: phone || null, jobTitle: jobTitle || null, farmRole, employedFrom: employedFrom || null, notes: notes || null, niNumber: niNumber || null, payrollNumber: payrollNumber || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -284,6 +289,18 @@ function AddMemberDialog({ farmId, open, onClose }: { farmId: number; open: bool
                 <div>
                   <Label>Employed From</Label>
                   <Input type="date" value={employedFrom} onChange={e => setEmployedFrom(e.target.value)} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>NI Number</Label>
+                    <Input placeholder="AB 12 34 56 C" value={niNumber} onChange={e => setNiNumber(e.target.value)} />
+                    <p className="text-xs text-muted-foreground mt-1">Required for PAYE / HMRC.</p>
+                  </div>
+                  <div>
+                    <Label>Payroll Number</Label>
+                    <Input placeholder="Your internal ref" value={payrollNumber} onChange={e => setPayrollNumber(e.target.value)} />
+                    <p className="text-xs text-muted-foreground mt-1">Your payroll software reference.</p>
+                  </div>
                 </div>
                 <div>
                   <Label>Notes</Label>
@@ -481,6 +498,8 @@ function EditMemberDialog({
   const [farmRole, setFarmRole] = useState<FarmRole>(member?.farmRole ?? "operator");
   const [accessType, setAccessType] = useState<AccessType>(member?.accessType ?? "none");
   const [jobTitle, setJobTitle] = useState(member?.jobTitle ?? "");
+  const [niNumber, setNiNumber] = useState(member?.niNumber ?? "");
+  const [payrollNumber, setPayrollNumber] = useState(member?.payrollNumber ?? "");
   const [nokName, setNokName] = useState(member?.nokName ?? "");
   const [nokRelationship, setNokRelationship] = useState(member?.nokRelationship ?? "");
   const [nokPhone, setNokPhone] = useState(member?.nokPhone ?? "");
@@ -493,7 +512,7 @@ function EditMemberDialog({
       const res = await fetch(`/api/farms/${farmId}/members/${member!.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ farmRole, accessType, jobTitle: jobTitle || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
+        body: JSON.stringify({ farmRole, accessType, jobTitle: jobTitle || null, niNumber: niNumber || null, payrollNumber: payrollNumber || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
       });
       if (!res.ok) throw new Error("Save failed");
     },
@@ -517,6 +536,16 @@ function EditMemberDialog({
           <div>
             <Label>Job Title</Label>
             <Input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="Stockman, Tractor Driver…" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>NI Number</Label>
+              <Input placeholder="AB 12 34 56 C" value={niNumber} onChange={e => setNiNumber(e.target.value)} />
+            </div>
+            <div>
+              <Label>Payroll Number</Label>
+              <Input placeholder="Your internal ref" value={payrollNumber} onChange={e => setPayrollNumber(e.target.value)} />
+            </div>
           </div>
           <div>
             <Label>Permission Level</Label>

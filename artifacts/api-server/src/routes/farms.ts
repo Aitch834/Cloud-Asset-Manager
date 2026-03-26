@@ -9452,7 +9452,7 @@ router.post("/farms/:farmId/members", requireAuth, requireTenant, async (req: Re
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const tenantId = (req as any).tenantId as number;
-  const { firstName, lastName, email, phone, jobTitle, farmRole, employedFrom, employedTo, notes, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
+  const { firstName, lastName, email, phone, jobTitle, farmRole, employedFrom, employedTo, notes, niNumber, payrollNumber, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
   if (!firstName || !lastName) { res.status(400).json({ error: "First name and last name are required" }); return; }
   const [member] = await db.insert(farmMembersTable).values({
     farmId,
@@ -9468,6 +9468,8 @@ router.post("/farms/:farmId/members", requireAuth, requireTenant, async (req: Re
     employedFrom: employedFrom ? new Date(employedFrom) : null,
     employedTo: employedTo ? new Date(employedTo) : null,
     notes: notes ?? null,
+    niNumber: niNumber ?? null,
+    payrollNumber: payrollNumber ?? null,
     nokName: nokName ?? null,
     nokRelationship: nokRelationship ?? null,
     nokPhone: nokPhone ?? null,
@@ -9481,7 +9483,7 @@ router.put("/farms/:farmId/members/:memberId", requireAuth, requireTenant, async
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const memberId = parseInt(req.params.memberId);
-  const { firstName, lastName, email, phone, jobTitle, farmRole, accessType, employedFrom, employedTo, isActive, notes, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
+  const { firstName, lastName, email, phone, jobTitle, farmRole, accessType, employedFrom, employedTo, isActive, notes, niNumber, payrollNumber, nokName, nokRelationship, nokPhone, nokEmail } = req.body;
   const [member] = await db.update(farmMembersTable).set({
     ...(firstName !== undefined && { firstName }),
     ...(lastName !== undefined && { lastName }),
@@ -9494,6 +9496,8 @@ router.put("/farms/:farmId/members/:memberId", requireAuth, requireTenant, async
     ...(employedTo !== undefined && { employedTo: employedTo ? new Date(employedTo) : null }),
     ...(isActive !== undefined && { isActive }),
     ...(notes !== undefined && { notes }),
+    ...(niNumber !== undefined && { niNumber }),
+    ...(payrollNumber !== undefined && { payrollNumber }),
     ...(nokName !== undefined && { nokName }),
     ...(nokRelationship !== undefined && { nokRelationship }),
     ...(nokPhone !== undefined && { nokPhone }),
