@@ -210,6 +210,10 @@ export const farmMembersTable = pgTable("farm_members", {
   invitationStatus: text("invitation_status").notNull().default("not_invited"),
   isActive: boolean("is_active").notNull().default(true),
   notes: text("notes"),
+  nokName: text("nok_name"),
+  nokRelationship: text("nok_relationship"),
+  nokPhone: text("nok_phone"),
+  nokEmail: text("nok_email"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

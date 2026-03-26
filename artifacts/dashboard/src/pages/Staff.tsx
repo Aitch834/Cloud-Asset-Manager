@@ -14,7 +14,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users, Plus, Search, Mail, UserCheck, UserX, RefreshCw, Award, AlertTriangle,
   ArrowRight, CheckCircle2, Smartphone, Monitor, Shield, User, Edit2, Send,
-  Lock, Unlock, ChevronDown, GraduationCap,
+  Lock, Unlock, ChevronDown, GraduationCap, Phone, UserRound,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -46,6 +46,10 @@ interface FarmMember {
   invitationStatus: "not_invited" | "pending" | "accepted";
   isActive: boolean;
   notes: string | null;
+  nokName: string | null;
+  nokRelationship: string | null;
+  nokPhone: string | null;
+  nokEmail: string | null;
   employedFrom: string | null;
   employedTo: string | null;
   createdAt: string;
@@ -193,13 +197,19 @@ function AddMemberDialog({ farmId, open, onClose }: { farmId: number; open: bool
   const [farmRole, setFarmRole] = useState<FarmRole>("operator");
   const [employedFrom, setEmployedFrom] = useState("");
   const [notes, setNotes] = useState("");
+  const [nokName, setNokName] = useState("");
+  const [nokRelationship, setNokRelationship] = useState("");
+  const [nokPhone, setNokPhone] = useState("");
+  const [nokEmail, setNokEmail] = useState("");
   const [step, setStep] = useState<"form" | "success">("form");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   function reset() {
     setFirstName(""); setLastName(""); setEmail(""); setPhone(""); setJobTitle("");
-    setFarmRole("operator"); setEmployedFrom(""); setNotes(""); setStep("form");
+    setFarmRole("operator"); setEmployedFrom(""); setNotes("");
+    setNokName(""); setNokRelationship(""); setNokPhone(""); setNokEmail("");
+    setStep("form");
   }
 
   const create = useMutation({
@@ -207,7 +217,7 @@ function AddMemberDialog({ farmId, open, onClose }: { farmId: number; open: bool
       const res = await fetch(`/api/farms/${farmId}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ firstName, lastName, email: email || null, phone: phone || null, jobTitle: jobTitle || null, farmRole, employedFrom: employedFrom || null, notes: notes || null }),
+        body: JSON.stringify({ firstName, lastName, email: email || null, phone: phone || null, jobTitle: jobTitle || null, farmRole, employedFrom: employedFrom || null, notes: notes || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -231,6 +241,7 @@ function AddMemberDialog({ farmId, open, onClose }: { farmId: number; open: bool
               <TabsList className="w-full">
                 <TabsTrigger value="details" className="flex-1">Details</TabsTrigger>
                 <TabsTrigger value="employment" className="flex-1">Employment</TabsTrigger>
+                <TabsTrigger value="nok" className="flex-1">Next of Kin</TabsTrigger>
               </TabsList>
               <TabsContent value="details" className="space-y-3 pt-3">
                 <div className="grid grid-cols-2 gap-3">
@@ -277,6 +288,32 @@ function AddMemberDialog({ farmId, open, onClose }: { farmId: number; open: bool
                 <div>
                   <Label>Notes</Label>
                   <Textarea placeholder="Any relevant notes about this staff member…" value={notes} onChange={e => setNotes(e.target.value)} rows={3} />
+                </div>
+              </TabsContent>
+              <TabsContent value="nok" className="space-y-3 pt-3">
+                <p className="text-xs text-muted-foreground pb-1">
+                  The person to notify if this worker is involved in a serious accident or incident on the farm.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Full Name</Label>
+                    <Input placeholder="e.g. Sarah Smith" value={nokName} onChange={e => setNokName(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Relationship</Label>
+                    <Input placeholder="e.g. Spouse, Parent, Sibling" value={nokRelationship} onChange={e => setNokRelationship(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Phone Number</Label>
+                  <div className="relative">
+                    <Phone size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                    <Input type="tel" className="pl-8" placeholder="07700 000000" value={nokPhone} onChange={e => setNokPhone(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Email Address</Label>
+                  <Input type="email" placeholder="sarah@example.com" value={nokEmail} onChange={e => setNokEmail(e.target.value)} />
                 </div>
               </TabsContent>
             </Tabs>
@@ -444,6 +481,10 @@ function EditMemberDialog({
   const [farmRole, setFarmRole] = useState<FarmRole>(member?.farmRole ?? "operator");
   const [accessType, setAccessType] = useState<AccessType>(member?.accessType ?? "none");
   const [jobTitle, setJobTitle] = useState(member?.jobTitle ?? "");
+  const [nokName, setNokName] = useState(member?.nokName ?? "");
+  const [nokRelationship, setNokRelationship] = useState(member?.nokRelationship ?? "");
+  const [nokPhone, setNokPhone] = useState(member?.nokPhone ?? "");
+  const [nokEmail, setNokEmail] = useState(member?.nokEmail ?? "");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -452,7 +493,7 @@ function EditMemberDialog({
       const res = await fetch(`/api/farms/${farmId}/members/${member!.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ farmRole, accessType, jobTitle: jobTitle || null }),
+        body: JSON.stringify({ farmRole, accessType, jobTitle: jobTitle || null, nokName: nokName || null, nokRelationship: nokRelationship || null, nokPhone: nokPhone || null, nokEmail: nokEmail || null }),
       });
       if (!res.ok) throw new Error("Save failed");
     },
@@ -503,6 +544,37 @@ function EditMemberDialog({
               </Select>
             </div>
           )}
+          <div className="pt-3 border-t border-border/50">
+            <div className="flex items-center gap-1.5 mb-3">
+              <UserRound size={13} className="text-muted-foreground" />
+              <span className="text-sm font-semibold">Next of Kin / Emergency Contact</span>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Full Name</Label>
+                  <Input className="mt-1" placeholder="e.g. Sarah Smith" value={nokName} onChange={e => setNokName(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs">Relationship</Label>
+                  <Input className="mt-1" placeholder="e.g. Spouse, Parent" value={nokRelationship} onChange={e => setNokRelationship(e.target.value)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Phone</Label>
+                  <div className="relative mt-1">
+                    <Phone size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                    <Input type="tel" className="pl-8" placeholder="07700 000000" value={nokPhone} onChange={e => setNokPhone(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs">Email</Label>
+                  <Input type="email" className="mt-1" placeholder="sarah@example.com" value={nokEmail} onChange={e => setNokEmail(e.target.value)} />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
@@ -567,6 +639,15 @@ function MemberRow({
       </td>
       <td className="px-5 py-4">
         <RtwBadge name={fullName} records={rtw} />
+      </td>
+      <td className="px-5 py-4">
+        {member.nokName ? (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-200" title={`${member.nokName}${member.nokRelationship ? ` (${member.nokRelationship})` : ""} — ${member.nokPhone || "no phone"}`}>
+            <Phone className="w-3 h-3" />NOK
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground italic">No NOK</span>
+        )}
       </td>
       <td className="px-6 py-4">
         <div className="flex gap-1.5 flex-wrap">
@@ -769,6 +850,7 @@ function StaffTable({ members, farmId, certs, rtw, onInvite, onEdit, navigate }:
                 managed in Training
               </span>
             </th>
+            <th className="text-left px-5 py-3 font-semibold text-foreground/60">NOK</th>
             <th className="w-48" />
           </tr>
         </thead>
