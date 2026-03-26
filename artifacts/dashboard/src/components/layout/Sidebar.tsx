@@ -45,6 +45,7 @@ import {
   TreePine,
   Landmark,
   AlertTriangle,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -85,6 +86,7 @@ const complianceNav: NavItem[] = [
   { name: "Risk & COSHH", href: "/risks", icon: ShieldAlert, moduleKeys: ["risk-waste"] },
   { name: "Waste", href: "/waste", icon: Trash2, moduleKeys: ["risk-waste"] },
   { name: "Fly-Tipping", href: "/fly-tipping", icon: AlertTriangle, moduleKeys: ["risk-waste"] },
+  { name: "Accident Book", href: "/accident-book", icon: BookOpen, moduleKeys: ["risk-waste"] },
   { name: "Insurance", href: "/insurance", icon: ShieldCheck },
 ];
 

@@ -57,6 +57,7 @@ import {
   wasteDisposalRecordsTable,
   flyTippingIncidentsTable,
   flyTippingPhotosTable,
+  accidentBookTable,
   inspectionRecordsTable,
   nonconformanceRecordsTable,
   correctiveActionsTable,
@@ -10003,6 +10004,39 @@ router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId/yields/:yieldId
   const yieldId = parseInt(req.params.yieldId, 10);
   if (isNaN(yieldId)) { res.status(400).json({ error: "Invalid yield ID" }); return; }
   await db.delete(cropTrialYieldsTable).where(and(eq(cropTrialYieldsTable.id, yieldId), eq(cropTrialYieldsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Accident Book ────────────────────────────────────────────────────────────
+router.get("/farms/:farmId/accident-book", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(accidentBookTable).where(eq(accidentBookTable.farmId, farmId)).orderBy(desc(accidentBookTable.incidentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/accident-book", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(accidentBookTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/accident-book/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(accidentBookTable).set(req.body).where(and(eq(accidentBookTable.id, recordId), eq(accidentBookTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/accident-book/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(accidentBookTable).where(and(eq(accidentBookTable.id, recordId), eq(accidentBookTable.farmId, farmId)));
   res.json({ success: true });
 });
 

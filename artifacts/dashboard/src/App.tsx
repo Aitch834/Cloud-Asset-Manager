@@ -52,6 +52,7 @@ import InspectionViewPage from "@/pages/InspectionViewPage";
 import RiskAssessmentsPage from "@/pages/RiskAssessmentsPage";
 import WasteDisposalPage from "@/pages/WasteDisposalPage";
 import FlyTippingPage from "@/pages/FlyTippingPage";
+import AccidentBookPage from "@/pages/AccidentBookPage";
 import FarmLocationsPage from "@/pages/FarmLocationsPage";
 import FarmMapPage from "@/pages/FarmMapPage";
 import WeekAheadPage from "@/pages/WeekAheadPage";
@@ -182,6 +183,7 @@ function Router() {
       <Route path="/risks" component={RisksPage} />
       <Route path="/waste" component={WastePage} />
       <Route path="/fly-tipping" component={FlyTippingPageWrapper} />
+      <Route path="/accident-book" component={AccidentBookPage} />
       <Route path="/visitors" component={VisitorsPage} />
       <Route path="/pest-control" component={PestControlPage} />
       <Route path="/cleaning" component={CleaningPage} />
