@@ -55,6 +55,8 @@ import {
   riskAssessmentsTable,
   coshhRecordsTable,
   wasteDisposalRecordsTable,
+  flyTippingIncidentsTable,
+  flyTippingPhotosTable,
   inspectionRecordsTable,
   nonconformanceRecordsTable,
   correctiveActionsTable,
@@ -3141,6 +3143,62 @@ router.delete("/farms/:farmId/waste/:recordId", requireAuth, requireTenant, requ
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(wasteDisposalRecordsTable).where(and(eq(wasteDisposalRecordsTable.id, recordId), eq(wasteDisposalRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Fly-Tipping Incidents ────────────────────────────────────────────────────
+router.get("/farms/:farmId/fly-tipping", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const incidents = await db.select().from(flyTippingIncidentsTable).where(eq(flyTippingIncidentsTable.farmId, farmId)).orderBy(desc(flyTippingIncidentsTable.discoveredAt));
+  const photos = incidents.length ? await db.select().from(flyTippingPhotosTable).where(eq(flyTippingPhotosTable.farmId, farmId)) : [];
+  const photosByIncident: Record<number, typeof photos> = {};
+  photos.forEach(p => { if (!photosByIncident[p.incidentId]) photosByIncident[p.incidentId] = []; photosByIncident[p.incidentId].push(p); });
+  res.json({ records: incidents.map(i => ({ ...i, photos: photosByIncident[i.id] ?? [] })) });
+});
+
+router.post("/farms/:farmId/fly-tipping", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(flyTippingIncidentsTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/fly-tipping/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { photos: _photos, ...body } = req.body;
+  const [record] = await db.update(flyTippingIncidentsTable).set(body).where(and(eq(flyTippingIncidentsTable.id, recordId), eq(flyTippingIncidentsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/fly-tipping/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(flyTippingIncidentsTable).where(and(eq(flyTippingIncidentsTable.id, recordId), eq(flyTippingIncidentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.post("/farms/:farmId/fly-tipping/:recordId/photos", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { objectPath, fileName } = req.body;
+  const [photo] = await db.insert(flyTippingPhotosTable).values({ incidentId: recordId, farmId, objectPath, fileName }).returning();
+  res.json({ photo });
+});
+
+router.delete("/farms/:farmId/fly-tipping/:recordId/photos/:photoId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const photoId = parseInt(req.params.photoId);
+  if (!photoId) { res.status(400).json({ error: "Invalid photo ID" }); return; }
+  await db.delete(flyTippingPhotosTable).where(and(eq(flyTippingPhotosTable.id, photoId), eq(flyTippingPhotosTable.farmId, farmId)));
   res.json({ success: true });
 });
 

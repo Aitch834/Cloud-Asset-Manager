@@ -275,6 +275,29 @@ export interface HarvestRecord {
   synced: boolean;
 }
 
+export interface FlyTippingReport {
+  id: string;
+  farmId: string;
+  discoveredAt: string;
+  locationDescription: string;
+  latitude: string;
+  longitude: string;
+  wasteTypes: string;
+  estimatedQuantity: string;
+  isHazardous: boolean;
+  accessPoint: string;
+  policeReported: boolean;
+  policeRefNumber: string;
+  councilReported: boolean;
+  councilRefNumber: string;
+  eaReported: boolean;
+  eaRefNumber: string;
+  clearanceStatus: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface WasteDisposalRecord {
   id: string;
   farmId: string;

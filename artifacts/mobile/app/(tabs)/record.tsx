@@ -351,6 +351,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["biosecurity"],
   },
   {
+    id: "fly-tipping",
+    title: "Fly-Tipping Incident Report",
+    description: "Record illegal waste dumping on your land — location, waste types, hazard assessment and authority reporting",
+    icon: "alert-triangle",
+    color: "#DC2626",
+    bgColor: "#FEE2E2",
+    route: "/fly-tipping",
+    moduleKeys: ["risk-waste"],
+  },
+  {
     id: "waste-disposal",
     title: "Waste Disposal Record",
     description: "Log farm waste collections — waste type, carrier licence, transfer note number and disposal site",

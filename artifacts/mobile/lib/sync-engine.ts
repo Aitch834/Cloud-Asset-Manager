@@ -293,6 +293,7 @@ function getSyncEndpoint(recordType: string, farmId: string): string | null {
     bde_grain_quality_tests: `/farms/${farmId}/grain-quality-tests`,
     bde_grain_temperature_readings: `/farms/${farmId}/grain-temperature-readings`,
     bde_egg_production_records: `/farms/${farmId}/egg-production-records`,
+    bde_fly_tipping_reports: `/farms/${farmId}/fly-tipping`,
     bde_slurry_events: `/farms/${farmId}/slurry-events`,
     bde_sfi_actions: `/farms/${farmId}/sfi-actions`,
     bde_sprayer_calibrations: `/farms/${farmId}/sprayer-calibrations`,

@@ -2,6 +2,41 @@ import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/
 import { farmsTable } from "./core";
 import { suppliersTable } from "./stock-suppliers";
 
+export const flyTippingIncidentsTable = pgTable("fly_tipping_incidents", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  discoveredAt: text("discovered_at").notNull(),
+  locationDescription: text("location_description").notNull(),
+  latitude: text("latitude"),
+  longitude: text("longitude"),
+  wasteTypes: text("waste_types"),
+  estimatedQuantity: text("estimated_quantity"),
+  isHazardous: boolean("is_hazardous").notNull().default(false),
+  accessPoint: text("access_point"),
+  policeReported: boolean("police_reported").notNull().default(false),
+  policeRefNumber: text("police_ref_number"),
+  councilReported: boolean("council_reported").notNull().default(false),
+  councilRefNumber: text("council_ref_number"),
+  eaReported: boolean("ea_reported").notNull().default(false),
+  eaRefNumber: text("ea_ref_number"),
+  clearanceStatus: text("clearance_status").notNull().default("pending"),
+  clearanceContractor: text("clearance_contractor"),
+  clearanceDate: text("clearance_date"),
+  wasteTransferNoteRef: text("waste_transfer_note_ref"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const flyTippingPhotosTable = pgTable("fly_tipping_photos", {
+  id: serial("id").primaryKey(),
+  incidentId: integer("incident_id").notNull().references(() => flyTippingIncidentsTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  objectPath: text("object_path").notNull(),
+  fileName: text("file_name"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const riskAssessmentsTable = pgTable("risk_assessments", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

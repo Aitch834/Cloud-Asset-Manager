@@ -50,6 +50,7 @@ import AdvisorsAccessPage from "@/pages/AdvisorsAccessPage";
 import InspectionViewPage from "@/pages/InspectionViewPage";
 import RiskAssessmentsPage from "@/pages/RiskAssessmentsPage";
 import WasteDisposalPage from "@/pages/WasteDisposalPage";
+import FlyTippingPage from "@/pages/FlyTippingPage";
 import FarmLocationsPage from "@/pages/FarmLocationsPage";
 import FarmMapPage from "@/pages/FarmMapPage";
 import WeekAheadPage from "@/pages/WeekAheadPage";
@@ -90,6 +91,10 @@ function RisksPage() {
 
 function WastePage() {
   return <WasteDisposalPage />;
+}
+
+function FlyTippingPageWrapper() {
+  return <FlyTippingPage />;
 }
 
 function VisitorsPage() {
@@ -174,6 +179,7 @@ function Router() {
       <Route path="/inspections" component={InspectionsPage} />
       <Route path="/risks" component={RisksPage} />
       <Route path="/waste" component={WastePage} />
+      <Route path="/fly-tipping" component={FlyTippingPageWrapper} />
       <Route path="/visitors" component={VisitorsPage} />
       <Route path="/pest-control" component={PestControlPage} />
       <Route path="/cleaning" component={CleaningPage} />
