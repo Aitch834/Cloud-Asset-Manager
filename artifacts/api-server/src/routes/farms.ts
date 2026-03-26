@@ -61,6 +61,11 @@ import {
   nonconformanceRecordsTable,
   correctiveActionsTable,
   environmentalFeaturesTable,
+  cropTrialsTable,
+  cropTrialPlotsTable,
+  cropTrialTreatmentsTable,
+  cropTrialObservationsTable,
+  cropTrialYieldsTable,
   agriEnvironmentSchemeRecordsTable,
   environmentalAssessmentsTable,
   environmentalManagementEventsTable,
@@ -412,7 +417,22 @@ router.get("/farms/:farmId/activity", requireAuth, requireTenant, async (req: Re
 router.get("/farms/:farmId/fields", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(fieldsTable).where(eq(fieldsTable.farmId, farmId)).orderBy(desc(fieldsTable.createdAt));
+  const fields = await db.select().from(fieldsTable).where(eq(fieldsTable.farmId, farmId)).orderBy(desc(fieldsTable.createdAt));
+  const enclosedSums = await db
+    .select({ fieldId: environmentalFeaturesTable.fieldId, totalHa: sql<string>`SUM(${environmentalFeaturesTable.areaHectares})` })
+    .from(environmentalFeaturesTable)
+    .where(and(eq(environmentalFeaturesTable.farmId, farmId), eq(environmentalFeaturesTable.isEnclosed, true)))
+    .groupBy(environmentalFeaturesTable.fieldId);
+  const enclosedByField: Record<number, number> = {};
+  for (const e of enclosedSums) { if (e.fieldId) enclosedByField[e.fieldId] = parseFloat(e.totalHa ?? "0"); }
+  const records = fields.map(f => {
+    const enclosedHa = enclosedByField[f.id] ?? 0;
+    const grossHa = parseFloat(String(f.areaHectares ?? "0")) || 0;
+    const computedFarmableAreaHa = f.farmableAreaHectares != null
+      ? parseFloat(String(f.farmableAreaHectares))
+      : Math.max(0, grossHa - enclosedHa);
+    return { ...f, enclosedFeatureAreaHa: enclosedHa, computedFarmableAreaHa };
+  });
   res.json({ records });
 });
 
@@ -9814,6 +9834,176 @@ router.patch("/farms/:farmId/users/:targetUserId/access", requireAuth, requireTe
   }).where(and(eq(staffFarmAssignmentsTable.userId, targetUserId), eq(staffFarmAssignmentsTable.farmId, farmId))).returning();
   if (!assignment) { res.status(404).json({ error: "User not found on this farm" }); return; }
   res.json({ assignment });
+});
+
+// ─── Crop Trials ─────────────────────────────────────────────────────────────
+router.get("/farms/:farmId/crop-trials", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const trials = await db.select().from(cropTrialsTable).where(eq(cropTrialsTable.farmId, farmId)).orderBy(desc(cropTrialsTable.createdAt));
+  const trialIds = trials.map(t => t.id);
+  const plots = trialIds.length ? await db.select().from(cropTrialPlotsTable).where(eq(cropTrialPlotsTable.farmId, farmId)) : [];
+  const yields = trialIds.length ? await db.select().from(cropTrialYieldsTable).where(eq(cropTrialYieldsTable.farmId, farmId)) : [];
+  const plotsByTrial: Record<number, typeof plots> = {};
+  plots.forEach(p => { if (!plotsByTrial[p.trialId]) plotsByTrial[p.trialId] = []; plotsByTrial[p.trialId].push(p); });
+  const yieldsByPlot: Record<number, typeof yields> = {};
+  yields.forEach(y => { if (!yieldsByPlot[y.plotId]) yieldsByPlot[y.plotId] = []; yieldsByPlot[y.plotId].push(y); });
+  const records = trials.map(t => ({
+    ...t,
+    plots: (plotsByTrial[t.id] ?? []).map(p => ({ ...p, yields: yieldsByPlot[p.id] ?? [] })),
+  }));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/crop-trials", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { plots: _plots, ...body } = req.body;
+  const [record] = await db.insert(cropTrialsTable).values({ ...body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/crop-trials/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { plots: _plots, ...body } = req.body;
+  const [record] = await db.update(cropTrialsTable).set(body).where(and(eq(cropTrialsTable.id, recordId), eq(cropTrialsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/crop-trials/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(cropTrialsTable).where(and(eq(cropTrialsTable.id, recordId), eq(cropTrialsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Trial Plots
+router.get("/farms/:farmId/crop-trials/:trialId/plots", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const trialId = parseInt(req.params.trialId, 10);
+  if (isNaN(trialId)) { res.status(400).json({ error: "Invalid trial ID" }); return; }
+  const plots = await db.select().from(cropTrialPlotsTable).where(and(eq(cropTrialPlotsTable.trialId, trialId), eq(cropTrialPlotsTable.farmId, farmId))).orderBy(asc(cropTrialPlotsTable.plotNumber));
+  res.json({ records: plots });
+});
+
+router.post("/farms/:farmId/crop-trials/:trialId/plots", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const trialId = parseInt(req.params.trialId, 10);
+  if (isNaN(trialId)) { res.status(400).json({ error: "Invalid trial ID" }); return; }
+  const [record] = await db.insert(cropTrialPlotsTable).values({ ...req.body, farmId, trialId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/crop-trials/:trialId/plots/:plotId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const plotId = parseInt(req.params.plotId, 10);
+  if (isNaN(plotId)) { res.status(400).json({ error: "Invalid plot ID" }); return; }
+  const [record] = await db.update(cropTrialPlotsTable).set(req.body).where(and(eq(cropTrialPlotsTable.id, plotId), eq(cropTrialPlotsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const plotId = parseInt(req.params.plotId, 10);
+  if (isNaN(plotId)) { res.status(400).json({ error: "Invalid plot ID" }); return; }
+  await db.delete(cropTrialPlotsTable).where(and(eq(cropTrialPlotsTable.id, plotId), eq(cropTrialPlotsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Treatments
+router.get("/farms/:farmId/crop-trials/:trialId/plots/:plotId/treatments", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const plotId = parseInt(req.params.plotId, 10);
+  if (isNaN(plotId)) { res.status(400).json({ error: "Invalid plot ID" }); return; }
+  const records = await db.select().from(cropTrialTreatmentsTable).where(and(eq(cropTrialTreatmentsTable.plotId, plotId), eq(cropTrialTreatmentsTable.farmId, farmId))).orderBy(desc(cropTrialTreatmentsTable.treatmentDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/crop-trials/:trialId/plots/:plotId/treatments", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const trialId = parseInt(req.params.trialId, 10);
+  const plotId = parseInt(req.params.plotId, 10);
+  if (isNaN(trialId) || isNaN(plotId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.insert(cropTrialTreatmentsTable).values({ ...req.body, farmId, trialId, plotId }).returning();
+  res.status(201).json({ record });
+});
+
+router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId/treatments/:treatmentId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const treatmentId = parseInt(req.params.treatmentId, 10);
+  if (isNaN(treatmentId)) { res.status(400).json({ error: "Invalid treatment ID" }); return; }
+  await db.delete(cropTrialTreatmentsTable).where(and(eq(cropTrialTreatmentsTable.id, treatmentId), eq(cropTrialTreatmentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Observations
+router.get("/farms/:farmId/crop-trials/:trialId/plots/:plotId/observations", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const plotId = parseInt(req.params.plotId, 10);
+  if (isNaN(plotId)) { res.status(400).json({ error: "Invalid plot ID" }); return; }
+  const records = await db.select().from(cropTrialObservationsTable).where(and(eq(cropTrialObservationsTable.plotId, plotId), eq(cropTrialObservationsTable.farmId, farmId))).orderBy(desc(cropTrialObservationsTable.observationDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/crop-trials/:trialId/plots/:plotId/observations", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const trialId = parseInt(req.params.trialId, 10);
+  const plotId = parseInt(req.params.plotId, 10);
+  if (isNaN(trialId) || isNaN(plotId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.insert(cropTrialObservationsTable).values({ ...req.body, farmId, trialId, plotId }).returning();
+  res.status(201).json({ record });
+});
+
+router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId/observations/:obsId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const obsId = parseInt(req.params.obsId, 10);
+  if (isNaN(obsId)) { res.status(400).json({ error: "Invalid observation ID" }); return; }
+  await db.delete(cropTrialObservationsTable).where(and(eq(cropTrialObservationsTable.id, obsId), eq(cropTrialObservationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Yields
+router.get("/farms/:farmId/crop-trials/:trialId/plots/:plotId/yields", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const plotId = parseInt(req.params.plotId, 10);
+  if (isNaN(plotId)) { res.status(400).json({ error: "Invalid plot ID" }); return; }
+  const records = await db.select().from(cropTrialYieldsTable).where(and(eq(cropTrialYieldsTable.plotId, plotId), eq(cropTrialYieldsTable.farmId, farmId))).orderBy(desc(cropTrialYieldsTable.harvestDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/crop-trials/:trialId/plots/:plotId/yields", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const trialId = parseInt(req.params.trialId, 10);
+  const plotId = parseInt(req.params.plotId, 10);
+  if (isNaN(trialId) || isNaN(plotId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.insert(cropTrialYieldsTable).values({ ...req.body, farmId, trialId, plotId }).returning();
+  res.status(201).json({ record });
+});
+
+router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId/yields/:yieldId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const yieldId = parseInt(req.params.yieldId, 10);
+  if (isNaN(yieldId)) { res.status(400).json({ error: "Invalid yield ID" }); return; }
+  await db.delete(cropTrialYieldsTable).where(and(eq(cropTrialYieldsTable.id, yieldId), eq(cropTrialYieldsTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 export default router;

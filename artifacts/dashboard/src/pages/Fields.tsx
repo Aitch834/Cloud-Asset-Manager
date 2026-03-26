@@ -35,6 +35,9 @@ interface FieldRecord {
   name?: string;
   fieldReference?: string;
   areaHectares?: string | number | null;
+  farmableAreaHectares?: string | number | null;
+  enclosedFeatureAreaHa?: number;
+  computedFarmableAreaHa?: number;
   soilType?: string;
   currentUse?: string;
   isActive?: boolean;
@@ -991,9 +994,20 @@ export default function FieldsPage() {
                       <div className="w-px h-8 bg-border" />
                       <div className="flex-1">
                         <p className="text-xs text-foreground/50 uppercase font-semibold mb-0.5">Area</p>
-                        <p className="text-sm font-medium text-foreground">
-                          {field.areaHectares ? `${parseFloat(String(field.areaHectares)).toFixed(2)} ha` : '—'}
-                        </p>
+                        {field.enclosedFeatureAreaHa && field.enclosedFeatureAreaHa > 0 ? (
+                          <div>
+                            <p className="text-sm font-medium text-foreground">
+                              {field.computedFarmableAreaHa != null ? field.computedFarmableAreaHa.toFixed(2) : (field.areaHectares ? parseFloat(String(field.areaHectares)).toFixed(2) : "—")} ha <span className="text-xs text-green-600 font-semibold">farmable</span>
+                            </p>
+                            <p className="text-xs text-foreground/50">
+                              {field.areaHectares ? parseFloat(String(field.areaHectares)).toFixed(2) : "—"} ha gross · −{field.enclosedFeatureAreaHa.toFixed(2)} ha features
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-sm font-medium text-foreground">
+                            {field.areaHectares ? `${parseFloat(String(field.areaHectares)).toFixed(2)} ha` : '—'}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -205,8 +205,16 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
   const [pin, setPin] = useState<LatLng | null>(null);
   const [form, setForm] = useState<any>({
     featureType: "", description: "", areaHectares: "", lengthMetres: "",
-    managementPractice: "", dateRecorded: "", notes: "",
+    managementPractice: "", dateRecorded: "", notes: "", fieldId: "", isEnclosed: false,
   });
+
+  const fieldsQuery = useQuery({
+    queryKey: ["fields", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => (d.records ?? []) as Array<{ id: number; name: string; areaHectares?: string | null }>,
+  });
+  const fields = fieldsQuery.data ?? [];
 
   const q = useQuery({
     queryKey: ["environmental-features", farmId],
@@ -234,7 +242,7 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
   });
 
   function resetForm() {
-    setForm({ featureType: "", description: "", areaHectares: "", lengthMetres: "", managementPractice: "", dateRecorded: "", notes: "" });
+    setForm({ featureType: "", description: "", areaHectares: "", lengthMetres: "", managementPractice: "", dateRecorded: "", notes: "", fieldId: "", isEnclosed: false });
     setPin(null);
   }
 
@@ -352,6 +360,30 @@ function EnvironmentalFeaturesTab({ farmId, schemes }: { farmId: number; schemes
                 <div><Label>Length (metres)</Label><Input type="number" step="0.1" min="0" value={form.lengthMetres} onChange={e => setForm((f: any) => ({ ...f, lengthMetres: e.target.value }))} /></div>
               </div>
               <div><Label>Management Practice</Label><Input placeholder="e.g. Annual trim, no autumn cutting" value={form.managementPractice} onChange={e => setForm((f: any) => ({ ...f, managementPractice: e.target.value }))} /></div>
+              {/* Field association */}
+              <div>
+                <Label>Associated Field <span style={{ color: "#9ca3af", fontWeight: 400 }}>(optional)</span></Label>
+                <Select value={form.fieldId || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, fieldId: v === "__none__" ? "" : v, isEnclosed: v === "__none__" ? false : f.isEnclosed }))}>
+                  <SelectTrigger><SelectValue placeholder="None — farm-wide feature" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None — farm-wide feature</SelectItem>
+                    {fields.map((fld: any) => (
+                      <SelectItem key={fld.id} value={String(fld.id)}>{fld.name}{fld.areaHectares ? ` (${parseFloat(String(fld.areaHectares)).toFixed(2)} ha)` : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.fieldId && form.fieldId !== "__none__" && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 7 }}>
+                  <input type="checkbox" id="isEnclosed" checked={!!form.isEnclosed} onChange={e => setForm((f: any) => ({ ...f, isEnclosed: e.target.checked }))} style={{ width: 15, height: 15, marginTop: 2 }} />
+                  <label htmlFor="isEnclosed" style={{ cursor: "pointer", fontSize: "0.875rem", color: "#111827" }}>
+                    <strong>Wholly enclosed within this field</strong>
+                    <p style={{ fontWeight: 400, fontSize: "0.8125rem", color: "#6b7280", marginTop: 2 }}>
+                      Tick this if the feature (e.g. copse, pond) sits entirely within the field boundary. Its area will be deducted from the field's farmable area, affecting yield and rate calculations.
+                    </p>
+                  </label>
+                </div>
+              )}
               <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
             </div>
 

@@ -9,6 +9,7 @@ export const environmentalFeaturesTable = pgTable("environmental_features", {
   featureType: text("feature_type").notNull(),
   description: text("description"),
   areaHectares: numeric("area_hectares", { precision: 10, scale: 4 }),
+  isEnclosed: boolean("is_enclosed").notNull().default(false),
   lengthMetres: numeric("length_metres", { precision: 10, scale: 2 }),
   managementPractice: text("management_practice"),
   dateRecorded: timestamp("date_recorded", { withTimezone: true }).notNull().defaultNow(),

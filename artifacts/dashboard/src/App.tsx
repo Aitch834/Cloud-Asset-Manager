@@ -10,6 +10,7 @@ import Login from "@/pages/Login";
 import SelectContext from "@/pages/SelectContext";
 import Dashboard from "@/pages/Dashboard";
 import FieldsPage from "@/pages/Fields";
+import CropTrialsPage from "@/pages/CropTrialsPage";
 import EquipmentPage from "@/pages/Equipment";
 import ModulePage from "@/pages/ModulePage";
 import MovementsPage from "@/pages/Movements";
@@ -169,6 +170,7 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/week-ahead" component={WeekAheadPage} />
       <Route path="/fields" component={FieldsPage} />
+      <Route path="/crop-trials" component={CropTrialsPage} />
       <Route path="/harvest" component={HarvestPage} />
       <Route path="/storage-locations" component={StorageLocationsPage} />
       <Route path="/equipment" component={EquipmentPage} />

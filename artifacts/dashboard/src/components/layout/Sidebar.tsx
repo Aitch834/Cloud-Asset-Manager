@@ -71,6 +71,7 @@ const coreNav: NavItem[] = [
   { name: "Field Operations", href: "/field-operations", icon: Shovel, moduleKeys: ["field-crop-management"] },
   { name: "Field Inspections", href: "/field-inspections", icon: ClipboardCheck, moduleKeys: ["field-crop-management"] },
   { name: "Storage Locations", href: "/storage-locations", icon: Warehouse, moduleKeys: ["field-crop-management"] },
+  { name: "Crop Trials", href: "/crop-trials", icon: FlaskConical, moduleKeys: ["field-crop-management"] },
   { name: "Spray Records", href: "/sprays", icon: Droplets, moduleKeys: ["sprays-inputs"] },
   { name: "NMP", href: "/nmp", icon: Leaf, moduleKeys: ["sprays-inputs"] },
   { name: "NVZ Compliance", href: "/nvz", icon: FlaskConical, moduleKeys: ["sprays-inputs"] },

@@ -7,6 +7,7 @@ export const fieldsTable = pgTable("fields", {
   name: text("name").notNull(),
   fieldReference: text("field_reference"),
   areaHectares: numeric("area_hectares", { precision: 10, scale: 4 }),
+  farmableAreaHectares: numeric("farmable_area_hectares", { precision: 10, scale: 4 }),
   soilType: text("soil_type"),
   currentUse: text("current_use"),
   isOrganic: boolean("is_organic").notNull().default(false),
