@@ -116,6 +116,7 @@ export default function FieldOperationScreen() {
 
   const [fieldName, setFieldName] = useState("");
   const [operationType, setOperationType] = useState("");
+  const [vehicleDescription, setVehicleDescription] = useState("");
   const [implement, setImplement] = useState("");
   const [workingDepthCm, setWorkingDepthCm] = useState("");
   const [passes, setPasses] = useState("1");
@@ -154,6 +155,7 @@ export default function FieldOperationScreen() {
       fieldId: "",
       operationDate: new Date().toISOString(),
       operationType,
+      vehicleDescription: vehicleDescription.trim(),
       implement: implement.trim(),
       workingDepthCm: workingDepthCm.trim(),
       passes: passes.trim() || "1",
@@ -255,6 +257,14 @@ export default function FieldOperationScreen() {
               </View>
             </View>
           )}
+
+          {/* Vehicle */}
+          <Input
+            label="Vehicle / Tractor"
+            placeholder="e.g. JD 6R 185 (YT23 ABC)"
+            value={vehicleDescription}
+            onChangeText={setVehicleDescription}
+          />
 
           {/* Implement */}
           <Input

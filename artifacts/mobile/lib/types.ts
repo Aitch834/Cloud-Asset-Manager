@@ -105,6 +105,7 @@ export interface FieldOperation {
   fieldId: string;
   operationDate: string;
   operationType: string;
+  vehicleDescription: string;
   implement: string;
   workingDepthCm: string;
   passes: string;
