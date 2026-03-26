@@ -845,12 +845,12 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
                         <Button
                           size="sm"
                           variant="outline"
-                          style={{ fontSize: "0.75rem", height: 28, display: "flex", alignItems: "center", gap: 3, borderColor: "#2563eb33", color: "#2563eb", background: expandedRtwId === r.id ? "#eff6ff" : undefined }}
+                          style={{ fontSize: "0.75rem", height: 28, display: "flex", alignItems: "center", gap: 3, border: "1px solid #93c5fd", color: "#1d4ed8", background: expandedRtwId === r.id ? "#dbeafe" : "#eff6ff", fontWeight: 600 }}
                           onClick={() => setExpandedRtwId(expandedRtwId === r.id ? null : r.id)}
-                          title="Upload and view identity document scans"
+                          title="Upload and view identity document scans for this RTW check"
                         >
                           <Paperclip style={{ width: 11, height: 11 }} />
-                          Documents
+                          Docs / Scans
                           {expandedRtwId === r.id ? <ChevronUp style={{ width: 11, height: 11 }} /> : <ChevronDown style={{ width: 11, height: 11 }} />}
                         </Button>
                         <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => openEdit(r)}>Edit</Button>
@@ -947,8 +947,13 @@ function printTrainingRegister(
   const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
 
   const nameMap = new Map<string, string>();
-  members.forEach(m => nameMap.set(String(m.id), memberFullName(m)));
-  const staffName = (userId: string) => nameMap.get(String(userId)) ?? nameMap.get(userId) ?? userId ?? "—";
+  members.forEach(m => {
+    const fullName = memberFullName(m);
+    nameMap.set(String(m.id), fullName);
+    nameMap.set(fullName, fullName);
+    if (m.linkedUserId) nameMap.set(m.linkedUserId, fullName);
+  });
+  const staffName = (userId: string) => nameMap.get(String(userId)) ?? nameMap.get(userId) ?? (userId || "—");
 
   const trainingRows = trainingRecords.map(r => {
     const expired = r.expiryDate && new Date(r.expiryDate) < new Date();
@@ -968,42 +973,70 @@ function printTrainingRegister(
 
   const html = `<html><head><title>Staff Training &amp; Qualifications Register — ${farmName}</title>
 <style>
-  *{box-sizing:border-box}
-  body{font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;margin:0;color:#111;background:#fff}
-  .page{padding:2cm 2cm 2.5cm}
-  .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #16a34a;padding-bottom:14px;margin-bottom:20px}
-  .hdr-left h1{font-size:16pt;font-weight:800;margin:0 0 2px;color:#111}
-  .hdr-left p{font-size:9pt;color:#555;margin:0}
-  .hdr-right{text-align:right;font-size:9pt;color:#555;line-height:1.6}
-  .hdr-right .farm{font-size:12pt;font-weight:700;color:#111;display:block;margin-bottom:2px}
-  h2{font-size:11pt;font-weight:700;margin:22px 0 4px;padding-bottom:5px;border-bottom:1.5px solid #d1fae5;color:#15803d;letter-spacing:.01em}
-  .subtitle{font-size:8.5pt;color:#6b7280;font-style:italic;margin:0 0 10px}
-  table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:6px;page-break-inside:auto}
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-family:'Helvetica Neue',Arial,Helvetica,sans-serif;font-size:10pt;margin:0;color:#111;background:#fff;line-height:1.4}
+  .page{padding:1.8cm 2cm 2.5cm}
+  /* Header */
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;margin-bottom:22px;border-bottom:3px solid #16a34a}
+  .hdr-left{max-width:60%}
+  .hdr-left h1{font-size:15pt;font-weight:800;margin:0 0 3px;color:#111;letter-spacing:-.01em}
+  .hdr-left .doc-type{font-size:8.5pt;font-weight:600;color:#16a34a;text-transform:uppercase;letter-spacing:.08em;margin:0 0 2px}
+  .hdr-left p{font-size:8.5pt;color:#6b7280;margin:4px 0 0}
+  .hdr-right{text-align:right;font-size:8.5pt;color:#6b7280;line-height:1.7;flex-shrink:0}
+  .hdr-right .farm{font-size:11.5pt;font-weight:700;color:#111;display:block;margin-bottom:3px}
+  /* Section headings */
+  h2{font-size:10pt;font-weight:700;margin:24px 0 6px;padding:6px 10px 6px;background:#f0fdf4;border-left:4px solid #16a34a;color:#14532d;letter-spacing:.01em;page-break-after:avoid}
+  .subtitle{font-size:8pt;color:#6b7280;font-style:italic;margin:0 0 8px 0}
+  /* Tables */
+  table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:4px;page-break-inside:auto}
+  thead{display:table-header-group}
   thead tr{page-break-after:avoid}
   tbody tr{page-break-inside:avoid}
-  th{background:#f0fdf4;font-weight:700;text-align:left;border:1px solid #bbf7d0;padding:5px 8px;font-size:8pt;text-transform:uppercase;letter-spacing:.05em;color:#166534}
-  td{border:1px solid #e5e7eb;padding:5px 8px;vertical-align:top}
-  tr:nth-child(even) td{background:#fafafa}
-  td.name{font-weight:600;color:#111;white-space:nowrap}
-  td.date{white-space:nowrap;color:#374151}
-  td.mono{font-family:"Courier New",monospace;font-size:8.5pt}
-  .sig{margin-top:36px;display:grid;grid-template-columns:1fr 1fr;gap:48px}
-  .sig-box{border-top:1.5px solid #374151;padding-top:8px;font-size:9pt;line-height:2}
-  .sig-box strong{font-size:9.5pt;display:block;margin-bottom:4px}
-  .footer{font-size:8pt;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:28px;line-height:1.5}
-  .empty{color:#9ca3af;font-style:italic;font-size:9pt;padding:6px 0 12px}
-  @media print{@page{size:A4;margin:1.5cm}body{font-size:10pt}.page{padding:0}}
+  th{background:#f0fdf4;font-weight:700;text-align:left;border-top:2px solid #16a34a;border-bottom:1.5px solid #16a34a;border-right:1px solid #dcfce7;padding:6px 9px;font-size:7.5pt;text-transform:uppercase;letter-spacing:.06em;color:#166534}
+  th:first-child{border-left:2px solid #16a34a}
+  th:last-child{border-right:2px solid #16a34a}
+  td{border:1px solid #e5e7eb;padding:5px 9px;vertical-align:top}
+  tr:nth-child(even) td{background:#f9fafb}
+  td.name{font-weight:600;color:#111;white-space:nowrap;min-width:110px}
+  td.date{white-space:nowrap;color:#374151;min-width:80px}
+  td.mono{font-family:'Courier New',monospace;font-size:8pt;letter-spacing:.02em}
+  td.status-ok{color:#15803d;font-weight:600}
+  td.status-exp{color:#dc2626;font-weight:600}
+  /* Signature block */
+  .sig{margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:52px;page-break-inside:avoid}
+  .sig-box{border-top:2px solid #374151;padding-top:10px;font-size:8.5pt;line-height:2.2}
+  .sig-box strong{font-size:9pt;display:block;margin-bottom:4px;color:#111}
+  /* Footer */
+  .footer{font-size:7.5pt;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:32px;line-height:1.5}
+  .empty{color:#9ca3af;font-style:italic;font-size:8.5pt;padding:8px 0 14px}
+  /* Summary row */
+  .summary{display:flex;gap:24px;margin:0 0 18px;font-size:8.5pt}
+  .summary-item{border:1px solid #e5e7eb;border-radius:5px;padding:5px 12px;background:#f9fafb}
+  .summary-item strong{display:block;font-size:11pt;font-weight:700;color:#111;line-height:1.1}
+  .summary-item span{color:#6b7280;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em}
+  @media print{
+    @page{size:A4 landscape;margin:1.2cm 1.5cm}
+    body{font-size:9.5pt}
+    .page{padding:0}
+    h2{margin-top:18px}
+  }
 </style></head><body><div class="page">
 <div class="hdr">
   <div class="hdr-left">
+    <p class="doc-type">Red Tractor Compliance Record</p>
     <h1>Staff Training &amp; Qualifications Register</h1>
     <p>Red Tractor Combinable Crops &amp; Sugar Beet — Staff Competency Record</p>
   </div>
   <div class="hdr-right">
     <span class="farm">${farmName}</span>
     Printed: ${today}<br>
-    ${trainingRecords.length} training record${trainingRecords.length !== 1 ? "s" : ""} &middot; ${certificates.length} certificate${certificates.length !== 1 ? "s" : ""}
+    Retain for minimum 3 years — make available at audit
   </div>
+</div>
+<div class="summary">
+  <div class="summary-item"><strong>${trainingRecords.length}</strong><span>Training Records</span></div>
+  <div class="summary-item"><strong>${certificates.length}</strong><span>Certificates</span></div>
+  <div class="summary-item"><strong>${trainingRecords.filter(r => r.expiryDate && new Date(r.expiryDate) < new Date()).length + certificates.filter(r => r.expiryDate && new Date(r.expiryDate) < new Date()).length}</strong><span>Expired</span></div>
 </div>
 
 <h2>Training Records</h2>

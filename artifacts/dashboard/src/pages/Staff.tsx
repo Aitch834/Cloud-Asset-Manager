@@ -14,7 +14,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users, Plus, Search, Mail, UserCheck, UserX, RefreshCw, Award, AlertTriangle,
   ArrowRight, CheckCircle2, Smartphone, Monitor, Shield, User, Edit2, Send,
-  Lock, Unlock, ChevronDown,
+  Lock, Unlock, ChevronDown, GraduationCap,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -582,9 +582,14 @@ function MemberRow({
             onClick={() => navigate(`/training?member=${encodeURIComponent(fullName)}&tab=certificates`)}>
             <Award className="w-3 h-3 mr-1" />Certs
           </Button>
-          <Button size="sm" variant="outline" className="text-xs h-7"
-            onClick={() => navigate(`/training?member=${encodeURIComponent(fullName)}&tab=rtw`)}>
-            RTW
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-xs h-7"
+            title="Right to Work checks — managed in the Training section"
+            onClick={() => navigate(`/training?member=${encodeURIComponent(fullName)}&tab=rtw`)}
+          >
+            <GraduationCap className="w-3 h-3 mr-1" />RTW
           </Button>
         </div>
       </td>
@@ -758,7 +763,12 @@ function StaffTable({ members, farmId, certs, rtw, onInvite, onEdit, navigate }:
             <th className="text-left px-5 py-3 font-semibold text-foreground/60">Access</th>
             <th className="text-left px-5 py-3 font-semibold text-foreground/60">Status</th>
             <th className="text-left px-5 py-3 font-semibold text-foreground/60">Certificates</th>
-            <th className="text-left px-5 py-3 font-semibold text-foreground/60">Right to Work</th>
+            <th className="text-left px-5 py-3 font-semibold text-foreground/60">
+              Right to Work
+              <span className="block text-[10px] font-normal text-muted-foreground/70 mt-0.5 normal-case tracking-normal">
+                managed in Training
+              </span>
+            </th>
             <th className="w-48" />
           </tr>
         </thead>

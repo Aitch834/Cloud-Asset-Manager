@@ -1,8 +1,46 @@
 import createContextHook from "@nkzw/create-context-hook";
 import React, { useCallback, useEffect, useState } from "react";
+import { Platform } from "react-native";
 
 import { getItem, setItem, STORAGE_KEYS } from "@/lib/storage";
 import type { Farm, UserProfile } from "@/lib/types";
+
+async function getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS !== "web") {
+      const SecureStore = await import("expo-secure-store");
+      const token = await SecureStore.getItemAsync("auth_session_token");
+      if (token) return token;
+    } else {
+      try { return localStorage.getItem("auth_session_token"); } catch { return null; }
+    }
+  } catch { }
+  return null;
+}
+
+async function fetchFarmsFromApi(token: string): Promise<Farm[]> {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (!domain) return [];
+  try {
+    const res = await fetch(`https://${domain}/api/my-farms`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { farms?: Array<{ id: number; name: string; tenantSlug: string; sectorArable: boolean; sectorBeef: boolean; sectorDairy: boolean; sectorPigs: boolean; sectorPoultry: boolean; }> };
+    return (data.farms ?? []).map((f) => ({
+      id: String(f.id),
+      name: f.name,
+      tenantSlug: f.tenantSlug,
+      sectorArable: f.sectorArable,
+      sectorBeef: f.sectorBeef,
+      sectorDairy: f.sectorDairy,
+      sectorPigs: f.sectorPigs,
+      sectorPoultry: f.sectorPoultry,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 const DEMO_FARMS: Farm[] = [
   {
@@ -47,6 +85,27 @@ const [FarmProviderInner, useFarm] = createContextHook(
         const savedFarm = await getItem<Farm>(STORAGE_KEYS.CURRENT_FARM);
         const savedUser = await getItem<UserProfile>(STORAGE_KEYS.USER_PROFILE);
 
+        // Try to load real farms from the API using the stored auth token.
+        // This ensures the farm ID is the real numeric DB ID, not a demo string.
+        const token = await getAuthToken();
+        if (token) {
+          const apiFarms = await fetchFarmsFromApi(token);
+          if (apiFarms.length > 0) {
+            const currentApiFarm =
+              savedFarm && apiFarms.find((f) => f.id === savedFarm.id)
+                ? savedFarm
+                : apiFarms[0];
+            await setItem(STORAGE_KEYS.FARM_LIST, apiFarms);
+            await setItem(STORAGE_KEYS.CURRENT_FARM, currentApiFarm);
+            setFarms(apiFarms);
+            setCurrentFarmState(currentApiFarm);
+            setUser(savedUser || DEMO_USER);
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // Fall back to locally stored data or demo farms
         if (savedFarms && savedFarms.length > 0) {
           setFarms(savedFarms);
           setCurrentFarmState(savedFarm || savedFarms[0]);

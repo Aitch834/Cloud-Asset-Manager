@@ -6,11 +6,61 @@ import {
   Activity, AlertTriangle, CheckCircle2, Sprout, Tractor, Droplets, FileText,
   Leaf, ArrowRight, ShieldCheck, Landmark, CalendarDays, Package, GraduationCap,
   Wrench, PawPrint, ClipboardList, BarChart3, LineChart, ShieldAlert, CloudRain,
-  ClipboardCheck, Layers, MapPin, Wheat,
+  ClipboardCheck, Layers, MapPin, Wheat, ExternalLink,
 } from "lucide-react";
 import { Link, Redirect } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+
+type OverdueItem = { type: string; description: string; href: string };
+
+function OverdueItemsPopover({
+  items,
+  label,
+  variant = "amber",
+}: {
+  items: OverdueItem[];
+  label: string;
+  variant?: "amber" | "red";
+}) {
+  const colors =
+    variant === "red"
+      ? { pill: "bg-red-50 text-red-700 border border-red-200", dot: "bg-red-500", header: "text-red-700", item: "text-red-900" }
+      : { pill: "bg-amber-50 text-amber-700 border border-amber-200", dot: "bg-amber-500", header: "text-amber-700", item: "text-amber-900" };
+
+  return (
+    <HoverCard openDelay={150} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <div className={`mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full cursor-help select-none ${colors.pill}`}>
+          <AlertTriangle className="w-3 h-3" />
+          {label}
+        </div>
+      </HoverCardTrigger>
+      <HoverCardContent side="bottom" align="start" className="w-80 p-0 overflow-hidden">
+        <div className="px-4 py-3 border-b border-border bg-muted/40">
+          <p className={`text-xs font-bold uppercase tracking-wide ${colors.header}`}>Items requiring attention</p>
+        </div>
+        {items.length > 0 ? (
+          <ul className="divide-y divide-border">
+            {items.map((item, i) => (
+              <li key={i} className="px-4 py-2.5 flex items-start gap-2.5">
+                <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${colors.dot}`} />
+                <span className={`text-xs leading-relaxed ${colors.item}`}>{item.description}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-4 py-3 text-xs text-muted-foreground">Open non-conformances or overdue inspections are reducing the score.</p>
+        )}
+        <div className="px-4 py-2.5 border-t border-border bg-muted/20">
+          <Link href="/inspections" className="text-xs text-primary font-medium inline-flex items-center gap-1 hover:underline">
+            View in Inspections <ExternalLink className="w-3 h-3" />
+          </Link>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
 
 export default function Dashboard() {
   const { farmId } = useAppStore();
@@ -115,26 +165,7 @@ export default function Dashboard() {
                 ✓ Excellent — audit-ready
               </div>
             ) : (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 cursor-help">
-                      ⚠ Attention needed
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-xs text-left">
-                    {((dashboard as any).overdueItems ?? []).length > 0 ? (
-                      <ul className="space-y-1">
-                        {((dashboard as any).overdueItems as {description: string}[]).map((item, i) => (
-                          <li key={i} className="text-xs">{item.description}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs">Open non-conformances or overdue inspections are reducing the compliance score.</p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <OverdueItemsPopover items={(dashboard as any).overdueItems ?? []} label="⚠ Attention needed" />
             )}
           </CardContent>
         </Card>
@@ -165,26 +196,11 @@ export default function Dashboard() {
                 All clear
               </div>
             ) : (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-700 cursor-help">
-                      {dashboard.overdueActions} item{dashboard.overdueActions !== 1 ? "s" : ""} need attention
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-xs text-left">
-                    {((dashboard as any).overdueItems ?? []).length > 0 ? (
-                      <ul className="space-y-1">
-                        {((dashboard as any).overdueItems as {description: string}[]).map((item, i) => (
-                          <li key={i} className="text-xs">{item.description}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs">View Inspections to see overdue items.</p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <OverdueItemsPopover
+                items={(dashboard as any).overdueItems ?? []}
+                label={`${dashboard.overdueActions} item${dashboard.overdueActions !== 1 ? "s" : ""} need attention`}
+                variant="red"
+              />
             )}
           </CardContent>
         </Card>

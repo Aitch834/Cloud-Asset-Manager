@@ -6,7 +6,8 @@ import {
   ExchangeMobileAuthorizationCodeResponse,
   LogoutMobileSessionResponse,
 } from "@workspace/api-zod";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, userTenantsTable, tenantsTable, farmsTable } from "@workspace/db";
+import { eq, inArray } from "drizzle-orm";
 import {
   clearSession,
   getOidcConfig,
@@ -267,6 +268,47 @@ router.post("/mobile-auth/logout", async (req: Request, res: Response) => {
     await deleteSession(sid);
   }
   res.json(LogoutMobileSessionResponse.parse({ success: true }));
+});
+
+router.get("/my-farms", async (req: Request, res: Response): Promise<void> => {
+  if (!req.isAuthenticated() || !req.user) {
+    res.status(401).json({ error: "Unauthorised" });
+    return;
+  }
+
+  const userId = (req.user as { id: string }).id;
+
+  const userTenants = await db
+    .select({ tenantId: userTenantsTable.tenantId })
+    .from(userTenantsTable)
+    .where(eq(userTenantsTable.userId, userId));
+
+  if (userTenants.length === 0) {
+    res.json({ farms: [] });
+    return;
+  }
+
+  const tenantIds = userTenants.map((ut) => ut.tenantId);
+
+  const farms = await db
+    .select({
+      id: farmsTable.id,
+      name: farmsTable.name,
+      tenantId: farmsTable.tenantId,
+      tenantSlug: tenantsTable.slug,
+      sectorArable: farmsTable.sectorArable,
+      sectorBeef: farmsTable.sectorBeef,
+      sectorDairy: farmsTable.sectorDairy,
+      sectorPigs: farmsTable.sectorPigs,
+      sectorPoultry: farmsTable.sectorPoultry,
+      sectorHorticulture: farmsTable.sectorHorticulture,
+      sectorSheep: farmsTable.sectorSheep,
+    })
+    .from(farmsTable)
+    .innerJoin(tenantsTable, eq(farmsTable.tenantId, tenantsTable.id))
+    .where(inArray(farmsTable.tenantId, tenantIds));
+
+  res.json({ farms });
 });
 
 export default router;
