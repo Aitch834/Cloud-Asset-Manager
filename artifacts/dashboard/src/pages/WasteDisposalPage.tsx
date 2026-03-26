@@ -120,6 +120,13 @@ export default function WasteDisposalPage() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const farmQ = useQuery({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const farmRecord = farmQ.data?.record ?? null;
+
   const q = useQuery({
     queryKey: ["waste", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/waste`).then(r => r.json()),
@@ -639,6 +646,11 @@ export default function WasteDisposalPage() {
               {/* Print Preview */}
               <div ref={printRef} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "1.5rem", background: "#fff", fontSize: "0.8rem" }}>
                 <h1 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 4 }}>Waste Disposal — Duty of Care Register</h1>
+                {farmRecord && (
+                  <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#111827", marginBottom: 2 }}>
+                    {farmRecord.name}{farmRecord.cphNumber ? ` · CPH: ${farmRecord.cphNumber}` : ""}{farmRecord.redTractorId ? ` · Red Tractor ID: ${farmRecord.redTractorId}` : ""}
+                  </div>
+                )}
                 <div style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 12 }}>
                   Period: {fmtFull(reportFrom)} to {fmtFull(reportTo)} &nbsp;·&nbsp; Printed: {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
                 </div>

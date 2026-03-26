@@ -35,11 +35,11 @@ export default function SprayPage() {
   const applicationsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const productsQ = useQuery({ queryKey: ["spray-products", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const fieldsQ = useQuery({ queryKey: ["fields", farmId], queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
-  const farmsQ = useQuery({ queryKey: ["farms-list"], queryFn: () => fetch("/api/farms").then(r => r.json()), select: d => d.farms ?? [] });
+  const farmQ = useQuery({ queryKey: ["farm-detail", farmId], queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()), enabled: !!farmId });
   const applications: any[] = applicationsQ.data ?? [];
   const products: any[] = productsQ.data ?? [];
   const fields: any[] = fieldsQ.data ?? [];
-  const currentFarm = (farmsQ.data ?? []).find((f: any) => f.id === farmId);
+  const currentFarm = farmQ.data?.record ?? null;
 
   return (
     <AppLayout title="Spray Records">

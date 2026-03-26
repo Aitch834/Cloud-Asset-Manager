@@ -237,7 +237,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  const farmQ = useQuery<Farm>({
+  const farmQ = useQuery<{ record: Farm }>({
     queryKey: ["farm-detail", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" }).then(r => r.json()),
   });
@@ -250,7 +250,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
     queryFn: () => fetch(`/api/farms/${farmId}/medicine-records`, { credentials: "include" }).then(r => r.json()),
   });
 
-  const farm: Farm = farmQ.data ?? { id: farmId, name: "Farm", address: null, postcode: null, cphNumber: null, redTractorId: null };
+  const farm: Farm = farmQ.data?.record ?? { id: farmId, name: "Farm", address: null, postcode: null, cphNumber: null, redTractorId: null };
   const herds: Herd[] = herdsQ.data?.records ?? [];
   const allRecords: MedicineRecord[] = medicineQ.data?.records ?? [];
 

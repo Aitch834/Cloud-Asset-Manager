@@ -82,6 +82,13 @@ export default function HarvestPage() {
     select: (d) => d.records ?? [],
   });
 
+  const farmQ = useQuery({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const farmRecord = farmQ.data?.record ?? null;
+
   const harvests: any[] = harvestQ.data ?? [];
   const transports: any[] = transportQ.data ?? [];
   const storages: any[] = storageQ.data ?? [];
@@ -146,7 +153,7 @@ export default function HarvestPage() {
           />
         )}
         {tab === "print" && (
-          <PrintTab harvests={harvests} transports={transports} storages={storages} />
+          <PrintTab harvests={harvests} transports={transports} storages={storages} farm={farmRecord} />
         )}
       </div>
     </AppLayout>
@@ -750,9 +757,8 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
   );
 }
 
-function PrintTab({ harvests, transports, storages }: any) {
+function PrintTab({ harvests, transports, storages, farm }: any) {
   const printRef = useRef<HTMLDivElement>(null);
-  const farmName = "Farm";
 
   const handlePrint = () => {
     const content = printRef.current;
@@ -786,6 +792,11 @@ function PrintTab({ harvests, transports, storages }: any) {
         <h1 style={{ fontSize: "1.125rem", fontWeight: 700, borderBottom: "2px solid #333", paddingBottom: 8, marginBottom: 4 }}>
           Harvest Records — Red Tractor Compliance Report
         </h1>
+        {farm && (
+          <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#111827", marginBottom: 2 }}>
+            {farm.name}{farm.cphNumber ? ` · CPH: ${farm.cphNumber}` : ""}{farm.redTractorId ? ` · Red Tractor ID: ${farm.redTractorId}` : ""}
+          </p>
+        )}
         <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: "1.5rem" }}>
           Printed: {today} &nbsp;|&nbsp; BDE Farm Trac
         </p>

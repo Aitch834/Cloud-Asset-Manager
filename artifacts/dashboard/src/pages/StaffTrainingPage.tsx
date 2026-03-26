@@ -942,6 +942,8 @@ function printTrainingRegister(
   certificates: CertificateRecord[],
   farmName: string,
   members: FarmMember[],
+  cphNumber?: string | null,
+  redTractorId?: string | null,
 ) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
@@ -1028,8 +1030,8 @@ function printTrainingRegister(
     <p>Red Tractor Combinable Crops &amp; Sugar Beet — Staff Competency Record</p>
   </div>
   <div class="hdr-right">
-    <span class="farm">${farmName}</span>
-    Printed: ${today}<br>
+    <span class="farm">${farmName}</span>${cphNumber ? `<br>CPH: ${cphNumber}` : ""}${redTractorId ? `<br>Red Tractor ID: ${redTractorId}` : ""}
+    <br>Printed: ${today}<br>
     Retain for minimum 3 years — make available at audit
   </div>
 </div>
@@ -1066,11 +1068,12 @@ ${certificates.length === 0
 
 export default function StaffTrainingPage() {
   const { farmId } = useAppStore();
-  const { data: farmsData } = useQuery<{ farms: { id: number; name: string }[] }>({
-    queryKey: ["farms-list"],
-    queryFn: () => fetch("/api/farms").then(r => r.json()),
+  const { data: farmData } = useQuery<{ record: { id: number; name: string; cphNumber: string | null; redTractorId: string | null } }>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
   });
-  const currentFarm = farmsData?.farms?.find(f => f.id === farmId);
+  const currentFarm = farmData?.record ?? null;
   const params = new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : ""
   );
@@ -1096,6 +1099,8 @@ export default function StaffTrainingPage() {
   const trainingRecords = trainingQ.data?.records ?? [];
   const certificates = certsQ.data?.records ?? [];
   const farmName = currentFarm?.name ?? "Farm";
+  const farmCph = currentFarm?.cphNumber ?? null;
+  const farmRtId = currentFarm?.redTractorId ?? null;
 
   return (
     <AppLayout>
@@ -1118,7 +1123,7 @@ export default function StaffTrainingPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => printTrainingRegister(trainingRecords, certificates, farmName, membersQ.data?.members ?? [])}
+            onClick={() => printTrainingRegister(trainingRecords, certificates, farmName, membersQ.data?.members ?? [], farmCph, farmRtId)}
             disabled={(trainingRecords.length === 0 && certificates.length === 0) || !currentFarm}
           >
             <Printer size={14} className="mr-2" /> Print Register

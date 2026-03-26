@@ -150,7 +150,7 @@ export default function FieldOperationsPage() {
     queryFn: () => fetch(`/api/farms/${farmId}`).then((r) => r.json()),
     enabled: !!farmId,
   });
-  const farmData = farmQ.data?.farm ?? farmQ.data ?? null;
+  const farmData = farmQ.data?.record ?? null;
 
   // Fields for selector
   const fieldsQ = useQuery({
