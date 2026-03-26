@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Printer, GraduationCap, Award, AlertTriangle, File, Trash2, Paperclip, ChevronDown, ChevronUp, Loader2, Upload } from "lucide-react";
+import { Plus, Printer, GraduationCap, Award, AlertTriangle, File, Trash2, Paperclip, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
 import { useFarmMembers, memberFullName, type FarmMember } from "@/hooks/use-farm-members";
@@ -576,7 +576,7 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/certificates`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Certificate added" }); qc.invalidateQueries({ queryKey: ["staff-certificates", farmId] }); setAddOpen(false); setForm({ ...empty }); },
+    onSuccess: () => { toast({ title: "Certificate added" }); qc.invalidateQueries({ queryKey: ["staff-certificates", farmId] }); setAddOpen(false); setForm({ ...empty }); setRenewMode(false); },
   });
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/certificates/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -587,7 +587,10 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
     onSuccess: () => { toast({ title: "Certificate deleted" }); qc.invalidateQueries({ queryKey: ["staff-certificates", farmId] }); setDeleteId(null); },
   });
 
+  const [renewMode, setRenewMode] = useState(false);
+
   function openEdit(r: CertificateRecord) {
+    setRenewMode(false);
     setEditItem(r);
     setForm({
       userId: r.userId ?? "",
@@ -598,6 +601,21 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
       expiryDate: r.expiryDate ? r.expiryDate.slice(0, 10) : "",
       notes: r.notes ?? "",
     });
+  }
+
+  function openRenew(r: CertificateRecord) {
+    setEditItem(null);
+    setRenewMode(true);
+    setForm({
+      userId: r.userId ?? "",
+      certificateType: r.certificateType,
+      certificateNumber: "",
+      issuer: r.issuer ?? "",
+      issueDate: "",
+      expiryDate: "",
+      notes: "",
+    });
+    setAddOpen(true);
   }
 
   const expiredCount = records.filter(r => r.expiryDate && new Date(r.expiryDate) < new Date()).length;
@@ -689,6 +707,7 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
                           Scan
                           {expandedCertId === r.id ? <ChevronUp style={{ width: 11, height: 11 }} /> : <ChevronDown style={{ width: 11, height: 11 }} />}
                         </Button>
+                        <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#059669" }} onClick={() => openRenew(r)} title="Create a new renewal record — keeps this one intact">Renew</Button>
                         <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => openEdit(r)}>Edit</Button>
                         <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setDeleteId(r.id)}>Del</Button>
                       </div>
@@ -708,9 +727,19 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
         </div>
       )}
 
-      <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); } }}>
+      <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); setRenewMode(false); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
-          <DialogHeader><DialogTitle>{editItem ? "Edit Certificate" : "Add Certificate"}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editItem ? "Edit Certificate" : renewMode ? "Renew Certificate" : "Add Certificate"}</DialogTitle>
+          </DialogHeader>
+          {renewMode && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 7, marginBottom: 4 }}>
+              <RefreshCw size={14} style={{ flexShrink: 0, marginTop: 2, color: "#16a34a" }} />
+              <p style={{ fontSize: "0.8125rem", color: "#166534", margin: 0 }}>
+                A <strong>new</strong> certificate record will be created. The previous record is kept — both will be stored and viewable.
+              </p>
+            </div>
+          )}
           <div style={{ display: "grid", gap: 12 }}>
             <div><Label>Staff Member *</Label><StaffSelect value={form.userId} onChange={v => setForm(f => ({ ...f, userId: v }))} staffNames={staffNames} loading={staffLoading} /></div>
             <div>
@@ -739,12 +768,12 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
             <div><Label>Notes</Label><Textarea className="mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); setRenewMode(false); }}>Cancel</Button>
             <Button onClick={() => {
               const body = { ...form };
               if (editItem) updateMut.mutate({ id: editItem.id, body });
               else createMut.mutate(body);
-            }} disabled={!form.certificateType || !form.issueDate || !form.userId}>Save Certificate</Button>
+            }} disabled={!form.certificateType || !form.issueDate || !form.userId}>{renewMode ? "Save Renewal" : "Save Certificate"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
