@@ -18,6 +18,24 @@ async function getAuthToken(): Promise<string | null> {
   return null;
 }
 
+async function fetchUserProfileFromApi(token: string): Promise<UserProfile | null> {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (!domain) return null;
+  try {
+    const res = await fetch(`https://${domain}/api/auth/user`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { user?: { id: string; email: string | null; firstName: string | null; lastName: string | null } };
+    const u = data.user;
+    if (!u) return null;
+    const name = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || "Unknown";
+    return { id: u.id, name, email: u.email ?? "", farmIds: [] };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchFarmsFromApi(token: string): Promise<Farm[]> {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   if (!domain) return [];
@@ -85,21 +103,27 @@ const [FarmProviderInner, useFarm] = createContextHook(
         const savedFarm = await getItem<Farm>(STORAGE_KEYS.CURRENT_FARM);
         const savedUser = await getItem<UserProfile>(STORAGE_KEYS.USER_PROFILE);
 
-        // Try to load real farms from the API using the stored auth token.
-        // This ensures the farm ID is the real numeric DB ID, not a demo string.
+        // Try to load real farms and user profile from the API using the stored auth token.
+        // This ensures: the farm ID is the real numeric DB ID, and the user's real
+        // name populates "Checked By" / operator fields throughout the app.
         const token = await getAuthToken();
         if (token) {
-          const apiFarms = await fetchFarmsFromApi(token);
+          const [apiFarms, apiUser] = await Promise.all([
+            fetchFarmsFromApi(token),
+            fetchUserProfileFromApi(token),
+          ]);
           if (apiFarms.length > 0) {
             const currentApiFarm =
               savedFarm && apiFarms.find((f) => f.id === savedFarm.id)
                 ? savedFarm
                 : apiFarms[0];
+            const resolvedUser = apiUser || savedUser || DEMO_USER;
             await setItem(STORAGE_KEYS.FARM_LIST, apiFarms);
             await setItem(STORAGE_KEYS.CURRENT_FARM, currentApiFarm);
+            await setItem(STORAGE_KEYS.USER_PROFILE, resolvedUser);
             setFarms(apiFarms);
             setCurrentFarmState(currentApiFarm);
-            setUser(savedUser || DEMO_USER);
+            setUser(resolvedUser);
             setIsLoading(false);
             return;
           }
