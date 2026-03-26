@@ -274,7 +274,8 @@ export default function AccidentBookPage() {
     th,td{border:1px solid #bbb;padding:5px 7px;vertical-align:top}
     th{background:#f0f0f0;font-weight:700;font-size:9px;text-transform:uppercase}
     .riddor-pending{color:#dc2626;font-weight:700}
-    @media print{.no-print{display:none}}</style></head>
+    @page{margin:1.5cm}
+    @media print{.no-print{display:none};body{padding:0}}</style></head>
     <body>
     <h2>Accident Book Register</h2>
     <p><strong>Farm:</strong> ${farmData?.record?.name ?? "—"}${farmData?.record?.cphNumber ? " &nbsp;|&nbsp; <strong>CPH:</strong> " + farmData.record.cphNumber : ""}</p>

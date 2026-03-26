@@ -117,7 +117,8 @@ function printFeatureRegister(features: any[], schemes: any[], farmId: number) {
   .sig-line { border-bottom: 1px solid #333; height: 32px; margin-bottom: 4px; }
   .sig-label { font-size: 9pt; color: #555; }
   .footer { margin-top: 32px; font-size: 8pt; color: #888; border-top: 1px solid #e5e7eb; padding-top: 8px; }
-  @media print { body { margin: 15mm; } }
+  @page { margin: 15mm; }
+  @media print { body { margin: 0; } }
 </style>
 </head>
 <body>

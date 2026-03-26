@@ -288,7 +288,8 @@ export default function WasteDisposalPage() {
           .sig-block { display: flex; gap: 48pt; margin-top: 16pt; }
           .sig-line { flex: 1; }
           .sig-line p { font-size: 7.5pt; margin-top: 20pt; border-top: 1px solid #000; padding-top: 2pt; }
-          @media print { body { padding: 12mm; } }
+          @page { margin: 12mm; }
+          @media print { body { padding: 0; } }
         </style>
       </head>
       <body>

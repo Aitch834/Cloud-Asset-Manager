@@ -23,7 +23,7 @@ export function printHtml(html: string, _filename?: string): void {
     // Screen-only rule hides all visible content so the tab appears as a
     // blank white page behind the print dialog — less jarring for the user.
     // The @media print rule restores visibility so the printed output is unaffected.
-    `<style>@media screen{body>*{visibility:hidden!important}}@media print{body>*{visibility:visible!important}}@page{margin:0!important}</style>` +
+    `<style>@media screen{body>*{visibility:hidden!important}}@media print{body>*{visibility:visible!important}}</style>` +
     `<script>` +
     `window.addEventListener('load',function(){setTimeout(function(){window.print();},300);});` +
     `window.addEventListener('afterprint',function(){window.close();});` +
