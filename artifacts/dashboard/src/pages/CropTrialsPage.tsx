@@ -42,6 +42,36 @@ const TREATMENT_TYPES = ["Seed / variety", "Fertiliser", "Herbicide", "Fungicide
 const GROWTH_STAGES = ["Pre-emergence", "GS11 (1st leaf)", "GS12-19 (Tillering)", "GS21-29 (Stem extension)", "GS31-39 (Jointing)", "GS41-49 (Flag leaf)", "GS51-59 (Heading)", "GS61-69 (Flowering)", "GS71-77 (Milk)", "GS83-87 (Dough)", "GS91-99 (Harvest)", "Other"];
 const CONDITION_OPTIONS = ["Excellent", "Good", "Fair", "Poor"];
 
+const CROP_OPTIONS = [
+  "Winter wheat", "Spring wheat",
+  "Winter barley", "Spring barley",
+  "Winter oats", "Spring oats",
+  "Oilseed rape",
+  "Field peas", "Field beans", "Spring beans",
+  "Sugar beet", "Potatoes",
+  "Maize / forage maize",
+  "Rye", "Triticale",
+  "Linseed",
+  "Grass / silage",
+  "Cover crop mix",
+  "Other",
+];
+
+function getSeasonOptions(): string[] {
+  const base = currentCropYear();
+  const out: string[] = [];
+  for (let y = base - 1; y <= base + 4; y++) out.push(cropYearLabel(y));
+  return out;
+}
+
+const STATUS_DESCRIPTIONS: Record<string, string> = {
+  planned:   "Trial designed but not yet underway",
+  active:    "Plots established, treatments being applied",
+  harvested: "Harvest complete, yield data collected",
+  completed: "All analysis done and results recorded",
+  cancelled: "Trial abandoned or invalidated",
+};
+
 const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const fmtNum = (v: string | number | null | undefined, dp = 2) => v != null && v !== "" ? parseFloat(String(v)).toFixed(dp) : "—";
 
@@ -120,6 +150,14 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
   const [addObsOpen, setAddObsOpen] = useState(false);
   const [addYieldOpen, setAddYieldOpen] = useState(false);
   const [deletePlotId, setDeletePlotId] = useState<number | null>(null);
+  const [statusPickerOpen, setStatusPickerOpen] = useState(false);
+
+  const updateStatusMut = useMutation({
+    mutationFn: (status: string) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+    }).then(r => r.json()),
+    onSuccess: (_, status) => { toast({ title: `Status updated to ${STATUS_MAP[status]?.label ?? status}` }); invalidate(); setStatusPickerOpen(false); },
+  });
 
   const [plotForm, setPlotForm] = useState({ plotNumber: "", treatmentLabel: "", isControl: false, areaHa: "", locationDescription: "", replicationBlock: "" });
   const [txForm, setTxForm] = useState({ treatmentDate: new Date().toISOString().slice(0, 10), treatmentType: "", productName: "", applicationRate: "", unit: "", notes: "" });
@@ -165,12 +203,33 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
   return (
     <div>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <Button variant="outline" size="sm" onClick={onBack}><ChevronLeft size={14} className="mr-1" /> All Trials</Button>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        <Button variant="outline" size="sm" onClick={onBack} style={{ flexShrink: 0, marginTop: 3 }}><ChevronLeft size={14} className="mr-1" /> All Trials</Button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#111827", margin: 0 }}>{trial.trialName}</h2>
-            <StatusBadge status={trial.status} />
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setStatusPickerOpen(p => !p)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                <StatusBadge status={trial.status} />
+                <span style={{ fontSize: "0.7rem", color: "#9ca3af" }}>▼</span>
+              </button>
+              {statusPickerOpen && (
+                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 50, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", padding: 6, minWidth: 220 }}>
+                  <p style={{ fontSize: "0.7rem", color: "#9ca3af", padding: "2px 8px 6px", fontWeight: 500 }}>CHANGE STATUS</p>
+                  {Object.entries(STATUS_MAP).map(([k, s]) => (
+                    <button key={k} onClick={() => updateStatusMut.mutate(k)}
+                      style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 10px", borderRadius: 5, border: "none", cursor: "pointer", background: trial.status === k ? s.bg : "transparent", textAlign: "left" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+                      <span style={{ flex: 1 }}>
+                        <span style={{ fontSize: "0.8125rem", fontWeight: trial.status === k ? 700 : 500, color: trial.status === k ? s.color : "#374151" }}>{s.label}</span>
+                        <span style={{ display: "block", fontSize: "0.7rem", color: "#9ca3af" }}>{STATUS_DESCRIPTIONS[k]}</span>
+                      </span>
+                      {trial.status === k && <CheckCircle size={13} style={{ color: s.color, flexShrink: 0 }} />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <p style={{ fontSize: "0.8125rem", color: "#6b7280", marginTop: 2 }}>
             {trial.cropName && <>{trial.cropName} · </>}{trial.season && <>{trial.season} · </>}{trial.trialPurpose}
@@ -178,6 +237,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
           </p>
         </div>
       </div>
+      {statusPickerOpen && <div style={{ position: "fixed", inset: 0, zIndex: 49 }} onClick={() => setStatusPickerOpen(false)} />}
 
       {/* Meta strip */}
       <div style={{ display: "flex", gap: 20, flexWrap: "wrap", padding: "12px 16px", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, marginBottom: 20, fontSize: "0.8125rem", color: "#374151" }}>
@@ -456,7 +516,7 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
-const EMPTY_TRIAL = { trialName: "", season: "", cropName: "", trialPurpose: "", trialType: "", trialsBody: "", contactName: "", numberOfTreatments: "", numberOfReplications: "", totalAreaHa: "", startDate: "", endDate: "", status: "planned", fieldId: "", notes: "" };
+const EMPTY_TRIAL = { trialName: "", season: cropYearLabel(currentCropYear()), cropName: "", cropOther: "", trialPurpose: "", trialType: "", trialsBody: "", contactName: "", numberOfTreatments: "", numberOfReplications: "", totalAreaHa: "", startDate: "", endDate: "", status: "planned", fieldId: "", notes: "" };
 
 export default function CropTrialsPage() {
   const { farmId } = useAppStore();
@@ -495,8 +555,11 @@ export default function CropTrialsPage() {
   function openAdd() { setEditItem(null); setForm({ ...EMPTY_TRIAL }); setAddOpen(true); }
   function openEdit(t: Trial) {
     setEditItem(t);
+    const existingCrop = t.cropName ?? "";
+    const isKnown = CROP_OPTIONS.includes(existingCrop);
     setForm({
-      trialName: t.trialName, season: t.season ?? "", cropName: t.cropName ?? "",
+      trialName: t.trialName, season: t.season ?? cropYearLabel(currentCropYear()), cropName: isKnown ? existingCrop : (existingCrop ? "Other" : ""),
+      cropOther: isKnown ? "" : existingCrop,
       trialPurpose: t.trialPurpose, trialType: t.trialType ?? "", trialsBody: t.trialsBody ?? "",
       contactName: t.contactName ?? "", numberOfTreatments: t.numberOfTreatments ? String(t.numberOfTreatments) : "",
       numberOfReplications: t.numberOfReplications ? String(t.numberOfReplications) : "",
@@ -520,8 +583,10 @@ export default function CropTrialsPage() {
   });
 
   function handleSave() {
+    const resolvedCrop = form.cropName === "Other" ? form.cropOther.trim() : form.cropName;
     const body = {
       ...form,
+      cropName: resolvedCrop,
       fieldId: form.fieldId && form.fieldId !== "__none__" ? parseInt(form.fieldId) : null,
       numberOfTreatments: form.numberOfTreatments ? parseInt(String(form.numberOfTreatments)) : null,
       numberOfReplications: form.numberOfReplications ? parseInt(String(form.numberOfReplications)) : null,
@@ -529,6 +594,8 @@ export default function CropTrialsPage() {
     if (editItem) updateMut.mutate({ id: editItem.id, body });
     else createMut.mutate(body);
   }
+
+  const seasonOptions = getSeasonOptions();
 
   // Refresh selected trial from latest data
   const currentTrial = selectedTrial ? (trials.find(t => t.id === selectedTrial.id) ?? null) : null;
@@ -685,11 +752,44 @@ export default function CropTrialsPage() {
             <DialogContent style={{ maxWidth: 560, maxHeight: "85vh", overflowY: "auto" }}>
               <DialogHeader><DialogTitle>{editItem ? "Edit Trial" : "Create New Trial"}</DialogTitle></DialogHeader>
               <div style={{ display: "grid", gap: 14 }}>
+                {/* Auto-status suggestion banner */}
+                {editItem && form.startDate && new Date(form.startDate) <= new Date() && form.status === "planned" && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px", borderRadius: 7, background: "#fffbeb", border: "1px solid #fde68a", fontSize: "0.8125rem", color: "#92400e" }}>
+                    <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1, color: "#d97706" }} />
+                    <span>The start date has passed — consider changing the status to <strong>Active</strong>.</span>
+                  </div>
+                )}
+                {editItem && editItem.plots.some(p => p.yields.length > 0) && form.status === "active" && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px", borderRadius: 7, background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: "0.8125rem", color: "#166534" }}>
+                    <CheckCircle size={15} style={{ flexShrink: 0, marginTop: 1, color: "#16a34a" }} />
+                    <span>Yield data has been recorded on at least one plot — consider changing the status to <strong>Harvested</strong>.</span>
+                  </div>
+                )}
+
                 <div><Label>Trial Name *</Label><Input className="mt-1" value={form.trialName} onChange={e => setForm(f => ({ ...f, trialName: e.target.value }))} placeholder="e.g. Winter wheat variety trial 2025/26" /></div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div><Label>Crop</Label><Input className="mt-1" value={form.cropName} onChange={e => setForm(f => ({ ...f, cropName: e.target.value }))} placeholder="e.g. Winter wheat" /></div>
-                  <div><Label>Season</Label><Input className="mt-1" value={form.season} onChange={e => setForm(f => ({ ...f, season: e.target.value }))} placeholder="e.g. 2025/26" /></div>
+                  <div>
+                    <Label>Crop</Label>
+                    <Select value={form.cropName} onValueChange={v => setForm(f => ({ ...f, cropName: v, cropOther: v !== "Other" ? "" : f.cropOther }))}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select crop…" /></SelectTrigger>
+                      <SelectContent>{CROP_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {form.cropName === "Other" && (
+                      <Input className="mt-2" value={form.cropOther} onChange={e => setForm(f => ({ ...f, cropOther: e.target.value }))} placeholder="Specify crop…" />
+                    )}
+                  </div>
+                  <div>
+                    <Label>Season</Label>
+                    <Select value={form.season} onValueChange={v => setForm(f => ({ ...f, season: v }))}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select season…" /></SelectTrigger>
+                      <SelectContent>
+                        {seasonOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
+
                 <div>
                   <Label>Trial Purpose *</Label>
                   <Select value={form.trialPurpose} onValueChange={v => setForm(f => ({ ...f, trialPurpose: v }))}>
@@ -697,6 +797,7 @@ export default function CropTrialsPage() {
                     <SelectContent>{TRIAL_PURPOSES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
                     <Label>Trial Design</Label>
@@ -716,32 +817,49 @@ export default function CropTrialsPage() {
                     </Select>
                   </div>
                 </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div><Label>Conducting Body</Label><Input className="mt-1" value={form.trialsBody} onChange={e => setForm(f => ({ ...f, trialsBody: e.target.value }))} placeholder="e.g. AHDB, Agrii, own farm" /></div>
                   <div><Label>Contact / Agronomist</Label><Input className="mt-1" value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))} /></div>
                 </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                  <div><Label># Treatments</Label><Input type="number" min="1" className="mt-1" value={form.numberOfTreatments} onChange={e => setForm(f => ({ ...f, numberOfTreatments: e.target.value }))} /></div>
-                  <div><Label># Reps / Blocks</Label><Input type="number" min="1" className="mt-1" value={form.numberOfReplications} onChange={e => setForm(f => ({ ...f, numberOfReplications: e.target.value }))} /></div>
-                  <div><Label>Total Area (ha)</Label><Input type="number" step="0.0001" className="mt-1" value={form.totalAreaHa} onChange={e => setForm(f => ({ ...f, totalAreaHa: e.target.value }))} /></div>
+                  <div>
+                    <Label># Treatments</Label>
+                    <Input type="number" min="1" className="mt-1" value={form.numberOfTreatments} onChange={e => setForm(f => ({ ...f, numberOfTreatments: e.target.value }))} />
+                    <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 3 }}>Number of different treatments or varieties being compared</p>
+                  </div>
+                  <div>
+                    <Label># Reps / Blocks</Label>
+                    <Input type="number" min="1" className="mt-1" value={form.numberOfReplications} onChange={e => setForm(f => ({ ...f, numberOfReplications: e.target.value }))} />
+                    <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 3 }}>How many times each treatment is repeated across the field</p>
+                  </div>
+                  <div>
+                    <Label>Total Area (ha)</Label>
+                    <Input type="number" step="0.0001" className="mt-1" value={form.totalAreaHa} onChange={e => setForm(f => ({ ...f, totalAreaHa: e.target.value }))} />
+                  </div>
                 </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div><Label>Start Date</Label><Input type="date" className="mt-1" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} /></div>
                   <div><Label>End Date</Label><Input type="date" className="mt-1" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></div>
                 </div>
+
                 <div>
                   <Label>Status</Label>
-                  <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                  <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 2, marginBottom: 6 }}>Update manually as the trial progresses — no automatic changes occur.</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {Object.entries(STATUS_MAP).map(([k, s]) => (
                       <button key={k} type="button" onClick={() => setForm(f => ({ ...f, status: k }))}
-                        style={{ padding: "4px 12px", borderRadius: 20, fontSize: "0.8125rem", cursor: "pointer", fontWeight: form.status === k ? 700 : 400,
-                          background: form.status === k ? s.bg : "#f9fafb", color: form.status === k ? s.color : "#6b7280",
-                          border: `1px solid ${form.status === k ? s.border : "#e5e7eb"}` }}>
-                        {s.label}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 12px", borderRadius: 8, cursor: "pointer", textAlign: "left",
+                          background: form.status === k ? s.bg : "#f9fafb", border: `1px solid ${form.status === k ? s.border : "#e5e7eb"}` }}>
+                        <span style={{ minWidth: 80, fontWeight: 600, fontSize: "0.8125rem", color: form.status === k ? s.color : "#374151" }}>{s.label}</span>
+                        <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{STATUS_DESCRIPTIONS[k]}</span>
                       </button>
                     ))}
                   </div>
                 </div>
+
                 <div><Label>Notes</Label><Textarea className="mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
               </div>
               <DialogFooter>
