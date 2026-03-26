@@ -157,6 +157,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["field-crop-management"],
   },
   {
+    id: "crop-trials-gps",
+    title: "Crop Trials GPS Plot",
+    description: "Walk to a trial plot and capture your live GPS coordinates — updates the plot location on the dashboard instantly",
+    icon: "map-pin",
+    color: "#65a30d",
+    bgColor: "#f7fee7",
+    route: "/crop-trials",
+    moduleKeys: ["crop-trials"],
+  },
+  {
     id: "medicine",
     title: "Medicine Record",
     description: "Log veterinary medicines, dosage, withdrawal periods and batch numbers",

@@ -9,6 +9,7 @@ const BASE_FEE = 15;
 const MODULES = [
   { id: "red-tractor-compliance", name: "Red Tractor Compliance (Required)", price: 25, required: true },
   { id: "field-crop-management", name: "Field & Crop Management", price: 20 },
+  { id: "crop-trials", name: "Crop Trials", price: 15 },
   { id: "sprays-inputs", name: "Sprays & Inputs", price: 15 },
   { id: "soil-management", name: "Soil Management", price: 10 },
   { id: "equipment-management", name: "Equipment & Vehicles", price: 15 },

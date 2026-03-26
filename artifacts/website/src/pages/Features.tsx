@@ -105,9 +105,26 @@ const sections: Section[] = [
         features: [
           "Spray application records",
           "Product & batch tracking with lot number capture",
-          "Operator & equipment logging",
+          "Operator lookup with PA certificate auto-fill — select a spray operator from your staff list; their PA1/PA2/PA6 certificate number and expiry status auto-populate with a green (valid) or amber (expiring) indicator confirming compliance before you save",
+          "Equipment Used lookup — pick the sprayer or tractor from your Equipment Register; equipment name is stored with the record and cross-referenced against your NSTS sprayer test log",
+          "Supplier auto-fill — supplier pre-populates automatically when a GRN delivery is linked; also selectable as a standalone lookup from your Suppliers register",
           "Withholding period alerts",
           "GRN-linked batch traceability — select a specific goods received delivery when logging an application to automatically populate batch and lot numbers, creating a full chain of custody from supplier batch to treated field",
+        ],
+      },
+      {
+        title: "Crop Trials",
+        icon: WheatIcon,
+        color: "bg-lime-50 text-lime-700 border-lime-100",
+        badge: "module",
+        features: [
+          "Trial register — create named on-farm trials with crop, season, protocol, and status (Planned → Active → Harvested → Completed)",
+          "Plot management — define treatment and control plots with plot number, rep, area, and treatment label for each trial",
+          "GPS plot pin capture — record the exact latitude and longitude of each plot; coordinates stored and displayed in the plot table",
+          "Interactive satellite map view — all GPS-tagged plots shown on a Leaflet satellite map with colour-coded markers (green = control, blue = treatment); click any marker to see plot details",
+          "Observation log — record dated in-season observations per plot: emergence, canopy, lodging, disease, pest pressure, and yield notes",
+          "Full trial report — generate a print-ready A4 report containing trial overview, all plots with GPS coordinates, and the complete observation log for each plot",
+          "Mobile GPS walk-up — use the mobile app to walk to a trial plot in the field, tap to capture your live GPS coordinates, and update the plot's location directly on site",
         ],
       },
       {
