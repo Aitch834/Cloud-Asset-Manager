@@ -10007,6 +10007,23 @@ router.delete("/farms/:farmId/crop-trials/:trialId/plots/:plotId/yields/:yieldId
   res.json({ success: true });
 });
 
+// ─── What3Words Proxy ─────────────────────────────────────────────────────────
+router.get("/utils/w3w-convert", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { lat, lng } = req.query as { lat?: string; lng?: string };
+  if (!lat || !lng) { res.status(400).json({ error: "lat and lng are required" }); return; }
+  const apiKey = process.env.W3W_API_KEY;
+  if (!apiKey) { res.status(503).json({ error: "W3W_API_KEY not configured", noKey: true }); return; }
+  try {
+    const url = `https://api.what3words.com/v3/convert-to-3wa?coordinates=${encodeURIComponent(lat + "," + lng)}&language=en&format=json&key=${apiKey}`;
+    const r = await fetch(url);
+    const data = await r.json() as any;
+    if (data.error) { res.status(400).json({ error: data.error.message ?? "W3W API error" }); return; }
+    res.json({ words: data.words, nearestPlace: data.nearestPlace, country: data.country });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to contact W3W API" });
+  }
+});
+
 // ─── Accident Book ────────────────────────────────────────────────────────────
 router.get("/farms/:farmId/accident-book", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);

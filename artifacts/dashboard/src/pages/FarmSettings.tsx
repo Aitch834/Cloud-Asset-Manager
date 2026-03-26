@@ -23,7 +23,7 @@ import {
 } from "@workspace/api-client-react/src/generated/api";
 import type { Farm } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Redirect } from "wouter";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw } from "lucide-react";
 
 const SECTORS = [
   { key: "sectorArable", label: "Arable" },
@@ -65,6 +65,9 @@ interface FarmFormData {
   address: string;
   postcode: string;
   gridReference: string;
+  latitude: string;
+  longitude: string;
+  what3words: string;
   totalAcreage: string;
   totalHectares: string;
   redTractorId: string;
@@ -98,6 +101,9 @@ function farmToFormData(farm: Farm & {
     address: farm.address || "",
     postcode: farm.postcode || "",
     gridReference: farm.gridReference || "",
+    latitude: (farm as any).latitude || "",
+    longitude: (farm as any).longitude || "",
+    what3words: (farm as any).what3words || "",
     totalAcreage: farm.totalAcreage?.toString() || "",
     totalHectares: (farm as any).totalHectares?.toString() || "",
     redTractorId: (farm as any).redTractorId || "",
@@ -151,6 +157,10 @@ export default function FarmSettings() {
 
   const [formData, setFormData] = useState<FarmFormData | null>(null);
   const [loadedFarmId, setLoadedFarmId] = useState<number | null>(null);
+  const [locatingPostcode, setLocatingPostcode] = useState(false);
+  const [convertingW3W, setConvertingW3W] = useState(false);
+  const [w3wNoKey, setW3wNoKey] = useState(false);
+  const [coordsCopied, setCoordsCopied] = useState(false);
 
   useEffect(() => {
     if (currentFarm && currentFarm.id !== loadedFarmId) {
@@ -196,6 +206,65 @@ export default function FarmSettings() {
     } : prev);
   };
 
+  const locateFromPostcode = async () => {
+    if (!formData?.postcode?.trim()) {
+      toast({ title: "Enter a postcode first", variant: "destructive" });
+      return;
+    }
+    setLocatingPostcode(true);
+    try {
+      const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(formData.postcode.trim())}`);
+      const data = await res.json();
+      if (data.status === 200 && data.result) {
+        const { latitude, longitude } = data.result;
+        setFormData(prev => prev ? { ...prev, latitude: String(latitude), longitude: String(longitude) } : prev);
+        setW3wNoKey(false);
+        toast({ title: "Coordinates set", description: `${latitude}, ${longitude} — drag the pin in W3W to fine-tune.` });
+      } else {
+        toast({ title: "Postcode not found", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to look up postcode", variant: "destructive" });
+    } finally {
+      setLocatingPostcode(false);
+    }
+  };
+
+  const convertToW3W = async () => {
+    if (!formData?.latitude || !formData?.longitude) {
+      toast({ title: "Set GPS coordinates first", variant: "destructive" });
+      return;
+    }
+    setConvertingW3W(true);
+    setW3wNoKey(false);
+    try {
+      const res = await fetch(`/api/utils/w3w-convert?lat=${encodeURIComponent(formData.latitude)}&lng=${encodeURIComponent(formData.longitude)}`);
+      const data = await res.json();
+      if (res.status === 503 && data.noKey) {
+        setW3wNoKey(true);
+        return;
+      }
+      if (!res.ok) {
+        toast({ title: "W3W conversion failed", description: data.error ?? "Unknown error", variant: "destructive" });
+        return;
+      }
+      setFormData(prev => prev ? { ...prev, what3words: data.words } : prev);
+      toast({ title: "What3Words address set", description: `///${data.words}${data.nearestPlace ? ` — near ${data.nearestPlace}` : ""}` });
+    } catch {
+      toast({ title: "Failed to contact W3W service", variant: "destructive" });
+    } finally {
+      setConvertingW3W(false);
+    }
+  };
+
+  const copyCoordinates = () => {
+    if (!formData?.latitude || !formData?.longitude) return;
+    navigator.clipboard.writeText(`${formData.latitude}, ${formData.longitude}`).then(() => {
+      setCoordsCopied(true);
+      setTimeout(() => setCoordsCopied(false), 2000);
+    });
+  };
+
   const handleSave = () => {
     if (!formData.name.trim()) {
       toast({ title: "Farm name is required", variant: "destructive" });
@@ -210,6 +279,9 @@ export default function FarmSettings() {
         address: formData.address.trim() || undefined,
         postcode: formData.postcode.trim() || undefined,
         gridReference: formData.gridReference.trim() || undefined,
+        latitude: formData.latitude.trim() || undefined,
+        longitude: formData.longitude.trim() || undefined,
+        what3words: formData.what3words.trim() || undefined,
         totalAcreage: formData.totalAcreage ? parseInt(formData.totalAcreage, 10) : undefined,
         ...formData.sectors,
         redTractorId: formData.redTractorId.trim() || undefined,
@@ -400,6 +472,129 @@ export default function FarmSettings() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">Determines which livestock movement portals apply to this holding (eAML2, ScotEID, EIDCymru, or NIFAIS)</p>
+              </div>
+
+              {/* ── GPS Coordinates ── */}
+              <div className="md:col-span-2 pt-2 border-t border-border/50">
+                <div className="flex items-center gap-2 mb-3">
+                  <MapPin size={14} className="text-muted-foreground" />
+                  <span className="text-sm font-semibold text-foreground">GPS Coordinates &amp; What3Words</span>
+                  <span className="text-xs text-muted-foreground">— for emergency services, contractors and compliance site visits</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                  <div>
+                    <Label htmlFor="settings-lat">Latitude</Label>
+                    <Input
+                      id="settings-lat"
+                      className="mt-1 font-mono text-sm"
+                      placeholder="e.g. 53.958333"
+                      value={formData.latitude}
+                      onChange={e => updateField("latitude", e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="settings-lng">Longitude</Label>
+                    <Input
+                      id="settings-lng"
+                      className="mt-1 font-mono text-sm"
+                      placeholder="e.g. -1.080278"
+                      value={formData.longitude}
+                      onChange={e => updateField("longitude", e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={locateFromPostcode}
+                    disabled={locatingPostcode || !formData.postcode?.trim()}
+                  >
+                    {locatingPostcode ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : <MapPin size={13} className="mr-1.5" />}
+                    Locate from Postcode
+                  </Button>
+
+                  {formData.latitude && formData.longitude && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={copyCoordinates}
+                      >
+                        <Copy size={13} className="mr-1.5" />
+                        {coordsCopied ? "Copied!" : "Copy Coordinates"}
+                      </Button>
+                      <a
+                        href={`https://www.google.com/maps?q=${formData.latitude},${formData.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Button type="button" variant="outline" size="sm">
+                          <ExternalLink size={13} className="mr-1.5" />
+                          View in Maps
+                        </Button>
+                      </a>
+                    </>
+                  )}
+                </div>
+
+                {/* What3Words */}
+                <div>
+                  <Label htmlFor="settings-w3w">What3Words Address</Label>
+                  <div className="flex gap-2 mt-1">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#e11d48] select-none">///</span>
+                      <Input
+                        id="settings-w3w"
+                        className="pl-9 font-mono text-sm"
+                        placeholder="three.word.address"
+                        value={formData.what3words}
+                        onChange={e => updateField("what3words", e.target.value.replace(/^\/+/, ""))}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={convertToW3W}
+                      disabled={convertingW3W || !formData.latitude || !formData.longitude}
+                      title="Auto-convert from GPS coordinates"
+                    >
+                      {convertingW3W ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                      <span className="ml-1.5 hidden sm:inline">Auto-convert</span>
+                    </Button>
+                    {formData.what3words && (
+                      <a
+                        href={`https://what3words.com/${formData.what3words}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Button type="button" variant="outline" size="sm">
+                          <ExternalLink size={13} />
+                        </Button>
+                      </a>
+                    )}
+                  </div>
+
+                  {w3wNoKey && (
+                    <div className="mt-2 flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                      <span className="text-amber-600 text-xs font-semibold mt-0.5">⚠</span>
+                      <p className="text-xs text-amber-700">
+                        Auto-convert needs a <strong>W3W_API_KEY</strong> environment secret. Register for a free key at{" "}
+                        <a href="https://developer.what3words.com" target="_blank" rel="noopener noreferrer" className="underline">developer.what3words.com</a>{" "}
+                        and add it to your project secrets. You can also type or paste the W3W address manually above.
+                      </p>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Used by emergency services, delivery drivers and Red Tractor assessors. Find yours at{" "}
+                    <a href="https://what3words.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">what3words.com</a>.
+                  </p>
+                </div>
               </div>
             </div>
           </CardContent>
