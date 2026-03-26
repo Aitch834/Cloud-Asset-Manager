@@ -23,7 +23,7 @@ import {
 } from "@workspace/api-client-react/src/generated/api";
 import type { Farm } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Redirect } from "wouter";
-import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw } from "lucide-react";
+import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound } from "lucide-react";
 
 const SECTORS = [
   { key: "sectorArable", label: "Arable" },
@@ -68,6 +68,10 @@ interface FarmFormData {
   latitude: string;
   longitude: string;
   what3words: string;
+  emergencyContactName: string;
+  emergencyContactRelationship: string;
+  emergencyContactPhone: string;
+  emergencyContactEmail: string;
   totalAcreage: string;
   totalHectares: string;
   redTractorId: string;
@@ -104,6 +108,10 @@ function farmToFormData(farm: Farm & {
     latitude: (farm as any).latitude || "",
     longitude: (farm as any).longitude || "",
     what3words: (farm as any).what3words || "",
+    emergencyContactName: (farm as any).emergencyContactName || "",
+    emergencyContactRelationship: (farm as any).emergencyContactRelationship || "",
+    emergencyContactPhone: (farm as any).emergencyContactPhone || "",
+    emergencyContactEmail: (farm as any).emergencyContactEmail || "",
     totalAcreage: farm.totalAcreage?.toString() || "",
     totalHectares: (farm as any).totalHectares?.toString() || "",
     redTractorId: (farm as any).redTractorId || "",
@@ -282,6 +290,10 @@ export default function FarmSettings() {
         latitude: formData.latitude.trim() || undefined,
         longitude: formData.longitude.trim() || undefined,
         what3words: formData.what3words.trim() || undefined,
+        emergencyContactName: formData.emergencyContactName.trim() || undefined,
+        emergencyContactRelationship: formData.emergencyContactRelationship.trim() || undefined,
+        emergencyContactPhone: formData.emergencyContactPhone.trim() || undefined,
+        emergencyContactEmail: formData.emergencyContactEmail.trim() || undefined,
         totalAcreage: formData.totalAcreage ? parseInt(formData.totalAcreage, 10) : undefined,
         ...formData.sectors,
         redTractorId: formData.redTractorId.trim() || undefined,
@@ -786,6 +798,81 @@ export default function FarmSettings() {
               {formData.country === "wales" && <>In Wales, sheep and goats use <strong>EIDCymru</strong>; cattle use <strong>BCMS Online</strong>.</>}
               {(formData.country === "england" || !formData.country) && <>In England, sheep, goats and pigs use <strong>eAML2.org.uk</strong>; cattle use <strong>BCMS Online</strong>.</>}
               {formData.country === "northern_ireland" && <>In Northern Ireland, use <strong>NIFAIS</strong> for cattle and <strong>APHIS</strong> for sheep and pigs.</>}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Emergency Contact ── */}
+        <Card>
+          <CardContent className="p-6 md:p-8 space-y-5">
+            <SectionHeader
+              title="Emergency Contact"
+              description="The person to contact first in the event of a serious accident or incident on this holding. Visible to all staff with access to Farm Settings."
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <Label htmlFor="settings-ec-name">Full Name</Label>
+                <div className="relative mt-1">
+                  <UserRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="settings-ec-name"
+                    className="pl-8"
+                    placeholder="e.g. Jane Smith"
+                    value={formData.emergencyContactName}
+                    onChange={e => updateField("emergencyContactName", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="settings-ec-rel">Relationship</Label>
+                <Input
+                  id="settings-ec-rel"
+                  className="mt-1"
+                  placeholder="e.g. Spouse, Farm Owner, Business Partner"
+                  value={formData.emergencyContactRelationship}
+                  onChange={e => updateField("emergencyContactRelationship", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="settings-ec-phone">Phone Number</Label>
+                <div className="relative mt-1">
+                  <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="settings-ec-phone"
+                    type="tel"
+                    className="pl-8"
+                    placeholder="e.g. 07700 900123"
+                    value={formData.emergencyContactPhone}
+                    onChange={e => updateField("emergencyContactPhone", e.target.value)}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Include country code if outside the UK</p>
+              </div>
+
+              <div>
+                <Label htmlFor="settings-ec-email">Email Address</Label>
+                <Input
+                  id="settings-ec-email"
+                  type="email"
+                  className="mt-1"
+                  placeholder="e.g. jane@example.com"
+                  value={formData.emergencyContactEmail}
+                  onChange={e => updateField("emergencyContactEmail", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 p-3.5 bg-red-50 border border-red-200 rounded-lg">
+              <Phone size={15} className="text-red-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-red-800">
+                <strong>In a life-threatening emergency, always call 999 first.</strong>{" "}
+                This contact is for follow-up notification and farm management decisions, not as a substitute for emergency services.
+                {formData.emergencyContactPhone && (
+                  <> Quick-dial: <a href={`tel:${formData.emergencyContactPhone.replace(/\s/g, "")}`} className="font-semibold underline">{formData.emergencyContactPhone}</a>.</>
+                )}
+              </p>
             </div>
           </CardContent>
         </Card>
