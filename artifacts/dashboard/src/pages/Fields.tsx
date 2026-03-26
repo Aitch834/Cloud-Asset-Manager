@@ -15,6 +15,8 @@ import {
 import { useAppStore } from "@/hooks/use-app-store";
 import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/use-fields";
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
+import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 import {
   Plus, Search, Map, MoreVertical, Pencil, Trash2, AlertTriangle,
   Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode,
@@ -406,9 +408,21 @@ interface SeedRecord {
   treatmentProduct: string | null;
   operator: string | null;
   areaSeededHa: string | null;
+  soilConditions: string | null;
+  weatherNotes: string | null;
   notes: string | null;
   createdAt: string;
 }
+
+const SOIL_CONDITIONS = [
+  { value: "", label: "— Not recorded —" },
+  { value: "firm_good_tilth", label: "Firm, good seedbed tilth" },
+  { value: "adequate_tilth", label: "Adequate tilth — acceptable conditions" },
+  { value: "cloddy_rough", label: "Cloddy / rough — not ideal" },
+  { value: "wet_soft", label: "Wet / soft — risk of compaction" },
+  { value: "dry_dusty", label: "Dry / dusty — capping risk" },
+  { value: "frozen", label: "Frozen — drilling on frozen ground" },
+];
 
 const EMPTY_SEED = {
   fieldId: "",
@@ -422,12 +436,15 @@ const EMPTY_SEED = {
   treatmentProduct: "",
   operator: "",
   areaSeededHa: "",
+  soilConditions: "",
+  weatherNotes: "",
   notes: "",
 };
 
 function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: FieldRecord[] }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const { data: membersData } = useFarmMembers(farmId);
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<SeedRecord | null>(null);
   const [formData, setFormData] = useState<typeof EMPTY_SEED>(EMPTY_SEED);
@@ -507,6 +524,8 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
       treatmentProduct: r.treatmentProduct ?? "",
       operator: r.operator ?? "",
       areaSeededHa: r.areaSeededHa ?? "",
+      soilConditions: r.soilConditions ?? "",
+      weatherNotes: r.weatherNotes ?? "",
       notes: r.notes ?? "",
     });
     setShowForm(true);
@@ -606,7 +625,21 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Operator / Driller</label>
-                  <Input placeholder="Person or contractor" value={formData.operator} onChange={e => setField("operator", e.target.value)} />
+                  <StaffSelect
+                    staffNames={(membersData?.members ?? []).map(m => memberFullName(m))}
+                    value={formData.operator ?? ""}
+                    onChange={val => setField("operator", val)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Soil Conditions</label>
+                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.soilConditions} onChange={e => setField("soilConditions", e.target.value)}>
+                    {SOIL_CONDITIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Weather at Drilling</label>
+                  <Input placeholder="e.g. Dry, light wind, 8°C" value={formData.weatherNotes} onChange={e => setField("weatherNotes", e.target.value)} />
                 </div>
               </div>
 
@@ -660,6 +693,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Lot No.</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Rate</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Area (ha)</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Operator</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Treated</th>
                   <th className="text-right p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Actions</th>
                 </tr>
@@ -676,6 +710,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                     <td className="p-4 text-sm font-mono text-foreground/70">{r.seedLotNumber || "—"}</td>
                     <td className="p-4 text-sm text-foreground/70">{r.seedRate ? `${r.seedRate} ${r.seedRateUnit || "kg/ha"}` : "—"}</td>
                     <td className="p-4 text-sm text-foreground/70">{r.areaSeededHa ? parseFloat(r.areaSeededHa).toFixed(2) : "—"}</td>
+                    <td className="p-4 text-sm text-foreground/70">{r.operator || "—"}</td>
                     <td className="p-4">
                       {r.isTreated ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
@@ -978,6 +1013,10 @@ export default function FieldsPage() {
                 Your crop catalogue — add crop types here, then assign them to fields each season.
               </p>
             </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" className="gap-2" onClick={() => setPrintOpen(true)}>
+                <Printer className="w-4 h-4" /> Print Register
+              </Button>
             <Dialog open={isAddCropOpen} onOpenChange={setIsAddCropOpen}>
               <DialogTrigger asChild>
                 <Button><Plus className="w-4 h-4 mr-2" /> Add Crop</Button>
@@ -1013,6 +1052,7 @@ export default function FieldsPage() {
                 </form>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
 
           {cropsLoading ? (

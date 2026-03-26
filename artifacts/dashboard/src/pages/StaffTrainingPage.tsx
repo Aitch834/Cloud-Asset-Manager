@@ -1067,16 +1067,12 @@ export default function StaffTrainingPage() {
   return (
     <AppLayout>
       <div style={{ padding: "1.5rem", maxWidth: 1100, margin: "0 auto" }}>
-        {tab === "rtw" && (
-          <div style={{ marginBottom: 12 }}>
-            <Link href="/staff" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "0.8125rem", color: "#6b7280", textDecoration: "none", padding: "4px 0" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-              Staff
-            </Link>
-            <span style={{ fontSize: "0.8125rem", color: "#9ca3af", margin: "0 6px" }}>›</span>
-            <span style={{ fontSize: "0.8125rem", color: "#374151" }}>Right to Work</span>
-          </div>
-        )}
+        <div style={{ marginBottom: 10 }}>
+          <Link href="/staff" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.8125rem", color: "#6b7280", textDecoration: "none" }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Staff
+          </Link>
+        </div>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1.25rem", gap: 12 }}>
           <div>
             <h1 style={{ fontSize: "1.375rem", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
