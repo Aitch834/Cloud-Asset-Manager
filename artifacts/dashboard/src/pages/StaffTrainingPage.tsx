@@ -18,7 +18,7 @@ import { useUpload } from "@workspace/object-storage-web";
 import { useFarmMembers, memberFullName, type FarmMember } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 
-type Tab = "training" | "certificates" | "rtw";
+type Tab = "training" | "certificates" | "rtw" | "courses";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -40,6 +40,8 @@ interface TrainingRecord {
   userId: string;
   trainingTitle: string;
   trainingProvider: string | null;
+  trainingProviderId: number | null;
+  courseId: number | null;
   trainingDate: string;
   expiryDate: string | null;
   competencyAchieved: string | null;
@@ -202,7 +204,23 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
   }, [membersQ.data]);
   const resolveStaffName = (uid: string) => memberNameMap.get(String(uid)) ?? memberNameMap.get(uid) ?? (uid || "—");
 
-  const empty = { userId: "", trainingTitle: "", trainingProvider: "", trainingDate: "", expiryDate: "", competencyAchieved: "", assessorName: "", notes: "" };
+  const coursesQ = useQuery<{ records: any[] }>({
+    queryKey: ["training-courses", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/training-courses`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const providersQ = useQuery<{ records: any[] }>({
+    queryKey: ["training-providers", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/training-providers`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const courses: any[] = coursesQ.data?.records ?? [];
+  const providers: any[] = providersQ.data?.records ?? [];
+
+  const [courseSearch, setCourseSearch] = useState("");
+  const [courseDropOpen, setCourseDropOpen] = useState(false);
+
+  const empty = { userId: "", trainingTitle: "", trainingProvider: "", trainingProviderId: "" as string, courseId: "" as string, trainingDate: "", expiryDate: "", competencyAchieved: "", assessorName: "", notes: "" };
   const [form, setForm] = useState({ ...empty });
 
   const q = useQuery<{ records: TrainingRecord[] }>({
@@ -217,7 +235,7 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/training`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Training record added" }); qc.invalidateQueries({ queryKey: ["training-records", farmId] }); setAddOpen(false); setForm({ ...empty }); },
+    onSuccess: () => { toast({ title: "Training record added" }); qc.invalidateQueries({ queryKey: ["training-records", farmId] }); setAddOpen(false); setForm({ ...empty }); setCourseSearch(""); },
   });
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/training/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -234,18 +252,44 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
       userId: r.userId ?? "",
       trainingTitle: r.trainingTitle,
       trainingProvider: r.trainingProvider ?? "",
+      trainingProviderId: r.trainingProviderId ? String(r.trainingProviderId) : "",
+      courseId: r.courseId ? String(r.courseId) : "",
       trainingDate: r.trainingDate ? r.trainingDate.slice(0, 10) : "",
       expiryDate: r.expiryDate ? r.expiryDate.slice(0, 10) : "",
       competencyAchieved: r.competencyAchieved ?? "",
       assessorName: r.assessorName ?? "",
       notes: r.notes ?? "",
     });
+    setCourseSearch(r.trainingTitle ?? "");
   }
 
   function handleSubmit(isEdit: boolean) {
-    const body = { ...form };
+    const providerIdNum = form.trainingProviderId && form.trainingProviderId !== "__custom__" ? parseInt(form.trainingProviderId) : null;
+    const body = {
+      ...form,
+      courseId: form.courseId ? parseInt(form.courseId) : null,
+      trainingProviderId: providerIdNum,
+    };
     if (isEdit && editItem) updateMut.mutate({ id: editItem.id, body });
     else createMut.mutate(body);
+  }
+
+  function selectCourse(course: any) {
+    const expiryDate = course.defaultValidityMonths && form.trainingDate
+      ? (() => {
+          const d = new Date(form.trainingDate);
+          d.setMonth(d.getMonth() + course.defaultValidityMonths);
+          return d.toISOString().slice(0, 10);
+        })()
+      : form.expiryDate;
+    setForm(f => ({
+      ...f,
+      trainingTitle: course.name,
+      courseId: String(course.id),
+      expiryDate,
+    }));
+    setCourseSearch(course.name);
+    setCourseDropOpen(false);
   }
 
   const expiredCount = records.filter(r => r.expiryDate && new Date(r.expiryDate) < new Date()).length;
@@ -260,7 +304,7 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
             <AlertTriangle size={13} /> {expiredCount} expired
           </Badge>
         )}
-        <Button size="sm" onClick={() => { setForm({ ...empty }); setAddOpen(true); }}>
+        <Button size="sm" onClick={() => { setForm({ ...empty }); setCourseSearch(""); setAddOpen(true); }}>
           <Plus size={14} className="mr-1" /> Add Training Record
         </Button>
       </div>
@@ -311,22 +355,114 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
 
       {[addOpen, !!editItem].includes(true) && (
         <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); } }}>
-          <DialogContent style={{ maxWidth: 520 }}>
+          <DialogContent style={{ maxWidth: 540 }}>
             <DialogHeader><DialogTitle>{editItem ? "Edit Training Record" : "Add Training Record"}</DialogTitle></DialogHeader>
             <div style={{ display: "grid", gap: 12 }}>
               <div><Label>Staff Member *</Label><StaffSelect value={form.userId} onChange={v => setForm(f => ({ ...f, userId: v }))} staffNames={staffNames} loading={staffLoading} /></div>
-              <div><Label>Training Title *</Label><Input className="mt-1" value={form.trainingTitle} onChange={e => setForm(f => ({ ...f, trainingTitle: e.target.value }))} placeholder="e.g. PA1 Safe Use of Pesticides" /></div>
+
+              {/* Training Title — combobox from Course Register, free-text fallback */}
+              <div>
+                <Label>Training Title *</Label>
+                <div style={{ position: "relative", marginTop: 4 }}>
+                  <Input
+                    value={courseSearch}
+                    onChange={e => {
+                      setCourseSearch(e.target.value);
+                      setForm(f => ({ ...f, trainingTitle: e.target.value, courseId: "" }));
+                      setCourseDropOpen(true);
+                    }}
+                    onFocus={() => setCourseDropOpen(true)}
+                    onBlur={() => setTimeout(() => setCourseDropOpen(false), 150)}
+                    placeholder={courses.length ? "Search or type a course name…" : "e.g. PA1 Safe Use of Pesticides"}
+                  />
+                  {courseDropOpen && courses.length > 0 && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "#fff", border: "1px solid #d1d5db", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.1)", maxHeight: 220, overflowY: "auto", marginTop: 2 }}>
+                      {courses.filter(c => !courseSearch || c.name.toLowerCase().includes(courseSearch.toLowerCase())).length === 0 ? (
+                        <div style={{ padding: "8px 12px", fontSize: "0.8125rem", color: "#9ca3af" }}>No matching courses — your typed text will be saved</div>
+                      ) : courses.filter(c => !courseSearch || c.name.toLowerCase().includes(courseSearch.toLowerCase())).map((c: any) => (
+                        <div
+                          key={c.id}
+                          onMouseDown={() => selectCourse(c)}
+                          style={{ padding: "8px 12px", cursor: "pointer", fontSize: "0.8125rem", borderBottom: "1px solid #f3f4f6" }}
+                          onMouseEnter={e => (e.currentTarget.style.background = "#f9fafb")}
+                          onMouseLeave={e => (e.currentTarget.style.background = "")}
+                        >
+                          <div style={{ fontWeight: 500 }}>{c.name}</div>
+                          {(c.issuingBody || c.defaultValidityMonths) && (
+                            <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 1 }}>
+                              {c.issuingBody}{c.issuingBody && c.defaultValidityMonths ? " · " : ""}{c.defaultValidityMonths ? `Valid ${c.defaultValidityMonths} months` : ""}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {courses.length === 0 && (
+                  <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 4 }}>Add standard courses in the Course Register tab to enable quick lookup.</p>
+                )}
+              </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div><Label>Training Date *</Label><Input type="date" className="mt-1" value={form.trainingDate} onChange={e => setForm(f => ({ ...f, trainingDate: e.target.value }))} /></div>
+                <div>
+                  <Label>Training Date *</Label>
+                  <Input type="date" className="mt-1" value={form.trainingDate} onChange={e => {
+                    const newDate = e.target.value;
+                    setForm(f => {
+                      let expiryDate = f.expiryDate;
+                      if (f.courseId) {
+                        const course = courses.find((c: any) => String(c.id) === f.courseId);
+                        if (course?.defaultValidityMonths && newDate) {
+                          const d = new Date(newDate);
+                          d.setMonth(d.getMonth() + course.defaultValidityMonths);
+                          expiryDate = d.toISOString().slice(0, 10);
+                        }
+                      }
+                      return { ...f, trainingDate: newDate, expiryDate };
+                    });
+                  }} />
+                </div>
                 <div><Label>Expiry Date</Label><Input type="date" className="mt-1" value={form.expiryDate} onChange={e => setForm(f => ({ ...f, expiryDate: e.target.value }))} /></div>
               </div>
-              <div><Label>Training Provider</Label><Input className="mt-1" value={form.trainingProvider} onChange={e => setForm(f => ({ ...f, trainingProvider: e.target.value }))} placeholder="e.g. Lantra Awards" /></div>
+
+              {/* Training Provider — dropdown from training provider suppliers */}
+              <div>
+                <Label>Training Provider</Label>
+                <select
+                  className="mt-1"
+                  value={form.trainingProviderId}
+                  onChange={e => {
+                    const id = e.target.value;
+                    const p = providers.find((p: any) => String(p.id) === id);
+                    setForm(f => ({ ...f, trainingProviderId: id, trainingProvider: p ? p.name : f.trainingProvider }));
+                  }}
+                  style={{ width: "100%", padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: "0.875rem", background: "#fff" }}
+                >
+                  <option value="">— select registered provider —</option>
+                  {providers.map((p: any) => (
+                    <option key={p.id} value={String(p.id)}>{p.name}</option>
+                  ))}
+                  <option value="__custom__">Other / not listed</option>
+                </select>
+                {(form.trainingProviderId === "__custom__" || (form.trainingProviderId === "" && form.trainingProvider)) && (
+                  <Input
+                    className="mt-1"
+                    value={form.trainingProvider}
+                    onChange={e => setForm(f => ({ ...f, trainingProvider: e.target.value }))}
+                    placeholder="Provider name"
+                  />
+                )}
+                {providers.length === 0 && (
+                  <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 4 }}>Add training providers to your Suppliers list (category: Training Provider) to enable this lookup.</p>
+                )}
+              </div>
+
               <div><Label>Competency Achieved</Label><Input className="mt-1" value={form.competencyAchieved} onChange={e => setForm(f => ({ ...f, competencyAchieved: e.target.value }))} placeholder="e.g. Safe pesticide handling" /></div>
               <div><Label>Assessor Name</Label><Input className="mt-1" value={form.assessorName} onChange={e => setForm(f => ({ ...f, assessorName: e.target.value }))} /></div>
               <div><Label>Notes</Label><Textarea className="mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); }}>Cancel</Button>
+              <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); setCourseSearch(""); }}>Cancel</Button>
               <Button onClick={() => handleSubmit(!!editItem)} disabled={!form.trainingTitle || !form.trainingDate || !form.userId}>Save Record</Button>
             </DialogFooter>
           </DialogContent>
@@ -1092,6 +1228,183 @@ ${certificates.length === 0
   if (w) { w.document.write(html); w.document.close(); w.print(); }
 }
 
+// ─── Course Register Tab ─────────────────────────────────────────────────────
+function CoursesTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const q = useQuery<{ records: any[] }>({
+    queryKey: ["training-courses", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/training-courses`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const courses: any[] = q.data?.records ?? [];
+
+  const emptyForm = { name: "", courseType: "", issuingBody: "", defaultValidityMonths: "" as string | number, notes: "" };
+  const [form, setForm] = useState({ ...emptyForm });
+  const [addOpen, setAddOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  function openEdit(c: any) {
+    setEditItem(c);
+    setForm({
+      name: c.name ?? "",
+      courseType: c.courseType ?? "",
+      issuingBody: c.issuingBody ?? "",
+      defaultValidityMonths: c.defaultValidityMonths ?? "",
+      notes: c.notes ?? "",
+    });
+  }
+
+  const createMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/training-courses`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Course added" }); qc.invalidateQueries({ queryKey: ["training-courses", farmId] }); setAddOpen(false); setForm({ ...emptyForm }); },
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/training-courses/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Course updated" }); qc.invalidateQueries({ queryKey: ["training-courses", farmId] }); setEditItem(null); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/training-courses/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Course removed" }); qc.invalidateQueries({ queryKey: ["training-courses", farmId] }); setDeleteId(null); },
+  });
+
+  function handleSubmit(isEdit: boolean) {
+    const body: any = {
+      ...form,
+      defaultValidityMonths: form.defaultValidityMonths !== "" ? parseInt(String(form.defaultValidityMonths)) : null,
+    };
+    if (isEdit && editItem) {
+      body.isActive = !!editItem.isActive;
+      updateMut.mutate({ id: editItem.id, body });
+    } else {
+      createMut.mutate(body);
+    }
+  }
+
+  const COURSE_TYPES = ["Safety", "Pesticide / PA Award", "First Aid", "Machinery", "Animal Welfare", "Environmental", "Business / Admin", "Other"];
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+            Define standard courses your farm uses. These appear as quick-select options in the Training Records form.
+          </p>
+        </div>
+        <Button size="sm" onClick={() => { setForm({ ...emptyForm }); setAddOpen(true); }}>
+          <Plus size={14} className="mr-1" /> Add Course
+        </Button>
+      </div>
+
+      {q.isLoading ? (
+        <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>Loading…</p>
+      ) : courses.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#9ca3af" }}>
+          <GraduationCap size={32} style={{ margin: "0 auto 8px", opacity: 0.4 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>No courses defined yet</p>
+          <p style={{ fontSize: "0.875rem" }}>Add standard courses (e.g. PA1, First Aid, Safe Tractor Operation) to speed up training record entry.</p>
+          <Button size="sm" className="mt-4" onClick={() => { setForm({ ...emptyForm }); setAddOpen(true); }}>
+            <Plus size={14} className="mr-1" /> Add Course
+          </Button>
+        </div>
+      ) : (
+        <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                <th style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#374151" }}>Course Name</th>
+                <th style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#374151" }}>Type</th>
+                <th style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#374151" }}>Issuing Body</th>
+                <th style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#374151" }}>Valid (months)</th>
+                <th style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, color: "#374151" }}>Status</th>
+                <th style={{ padding: "10px 14px" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {courses.map((c: any, i: number) => (
+                <tr key={c.id} style={{ borderBottom: i < courses.length - 1 ? "1px solid #f3f4f6" : undefined }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 500 }}>{c.name}</td>
+                  <td style={{ padding: "10px 14px", color: "#6b7280" }}>{c.courseType || "—"}</td>
+                  <td style={{ padding: "10px 14px", color: "#6b7280" }}>{c.issuingBody || "—"}</td>
+                  <td style={{ padding: "10px 14px", color: "#6b7280" }}>{c.defaultValidityMonths ?? "—"}</td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 12, fontSize: "0.75rem", fontWeight: 600, background: c.isActive ? "#f0fdf4" : "#f9fafb", color: c.isActive ? "#16a34a" : "#9ca3af", border: `1px solid ${c.isActive ? "#bbf7d0" : "#e5e7eb"}` }}>
+                      {c.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(c)} style={{ padding: "4px 8px" }}>Edit</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteId(c.id)} style={{ padding: "4px 8px", color: "#dc2626" }}>Delete</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add / Edit dialog */}
+      {(addOpen || !!editItem) && (
+        <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); } }}>
+          <DialogContent style={{ maxWidth: 480 }}>
+            <DialogHeader><DialogTitle>{editItem ? "Edit Course" : "Add Course"}</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div><Label>Course Name *</Label><Input className="mt-1" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. PA1 Safe Use of Pesticides" /></div>
+              <div>
+                <Label>Course Type</Label>
+                <select
+                  className="mt-1"
+                  value={form.courseType}
+                  onChange={e => setForm(f => ({ ...f, courseType: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: "0.875rem", background: "#fff" }}
+                >
+                  <option value="">— select type —</option>
+                  {COURSE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div><Label>Issuing Body</Label><Input className="mt-1" value={form.issuingBody} onChange={e => setForm(f => ({ ...f, issuingBody: e.target.value }))} placeholder="e.g. Lantra Awards, NPTC Group" /></div>
+              <div>
+                <Label>Default Validity (months)</Label>
+                <Input type="number" min={1} className="mt-1" value={form.defaultValidityMonths} onChange={e => setForm(f => ({ ...f, defaultValidityMonths: e.target.value }))} placeholder="e.g. 36" />
+                <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 4 }}>When a course is selected in a training record, expiry date is auto-calculated from this value.</p>
+              </div>
+              <div><Label>Notes</Label><Textarea className="mt-1" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+              {editItem && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input type="checkbox" id="courseActive" checked={!!editItem.isActive} onChange={e => setEditItem((ei: any) => ({ ...ei, isActive: e.target.checked }))} style={{ width: 16, height: 16 }} />
+                  <Label htmlFor="courseActive" style={{ marginBottom: 0, cursor: "pointer" }}>Active (available for selection)</Label>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setAddOpen(false); setEditItem(null); }}>Cancel</Button>
+              <Button onClick={() => handleSubmit(!!editItem)} disabled={!form.name}>Save Course</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete confirm */}
+      {deleteId !== null && (
+        <Dialog open onOpenChange={() => setDeleteId(null)}>
+          <DialogContent style={{ maxWidth: 380 }}>
+            <DialogHeader><DialogTitle>Delete Course?</DialogTitle></DialogHeader>
+            <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>This will remove the course from your register. Existing training records that reference this course will not be deleted.</p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteMut.mutate(deleteId!)}>Delete</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
 export default function StaffTrainingPage() {
   const { farmId } = useAppStore();
   const { data: farmData } = useQuery<{ record: { id: number; name: string; cphNumber: string | null; redTractorId: string | null } }>({
@@ -1166,6 +1479,9 @@ export default function StaffTrainingPage() {
           <TabButton active={tab === "rtw"} onClick={() => setTab("rtw")}>
             Right to Work
           </TabButton>
+          <TabButton active={tab === "courses"} onClick={() => setTab("courses")}>
+            Course Register
+          </TabButton>
         </TabBar>
 
         {!farmId && (
@@ -1184,8 +1500,10 @@ export default function StaffTrainingPage() {
           <TrainingTab farmId={farmId} staffNames={staffNames} staffLoading={staffLoading} defaultMember={tab === "training" ? urlMember : undefined} />
         ) : tab === "certificates" ? (
           <CertificatesTab farmId={farmId} staffNames={staffNames} staffLoading={staffLoading} defaultMember={tab === "certificates" ? urlMember : undefined} />
-        ) : (
+        ) : tab === "rtw" ? (
           <RightToWorkTab farmId={farmId} staffNames={staffNames} staffLoading={staffLoading} defaultMember={tab === "rtw" ? urlMember : undefined} />
+        ) : (
+          <CoursesTab farmId={farmId} />
         )}
       </div>
     </AppLayout>

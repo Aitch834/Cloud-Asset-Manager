@@ -51,6 +51,7 @@ import {
   staffCertificatesTable,
   staffRightToWorkTable,
   staffRtwDocumentsTable,
+  trainingCoursesTable,
   riskAssessmentsTable,
   coshhRecordsTable,
   wasteDisposalRecordsTable,
@@ -1673,6 +1674,48 @@ router.post("/farms/:farmId/training", requireAuth, requireTenant, requireModule
   if (!farmId) return;
   const [record] = await db.insert(staffTrainingRecordsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
+});
+
+// ─── Training Courses Register ────────────────────
+router.get("/farms/:farmId/training-courses", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(trainingCoursesTable).where(and(eq(trainingCoursesTable.farmId, farmId), eq(trainingCoursesTable.isActive, true))).orderBy(trainingCoursesTable.name);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/training-courses", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(trainingCoursesTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/training-courses/:recordId", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(trainingCoursesTable).set(req.body).where(and(eq(trainingCoursesTable.id, recordId), eq(trainingCoursesTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/training-courses/:recordId", requireAuth, requireTenant, requireModuleByKey("staff-training", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.update(trainingCoursesTable).set({ isActive: false }).where(and(eq(trainingCoursesTable.id, recordId), eq(trainingCoursesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Training providers — suppliers with category "Training Provider", accessible to staff-training module
+router.get("/farms/:farmId/training-providers", requireAuth, requireTenant, requireModuleByKey("staff-training", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(suppliersTable).where(and(eq(suppliersTable.farmId, farmId), eq(suppliersTable.category, "Training Provider"), eq(suppliersTable.isActive, true))).orderBy(suppliersTable.name);
+  res.json({ records });
 });
 
 // ─── Staff Certificates ───────────────────────────
