@@ -52,6 +52,8 @@ export default function SeedDrillingScreen() {
   const [treatmentProduct, setTreatmentProduct] = useState("");
   const [operator, setOperator] = useState(user?.name || "");
   const [areaSeededHa, setAreaSeededHa] = useState("");
+  const [soilConditions, setSoilConditions] = useState("");
+  const [weatherNotes, setWeatherNotes] = useState("");
   const [notes, setNotes] = useState("");
 
   const handleCropSelect = (name: string) => {
@@ -109,6 +111,8 @@ export default function SeedDrillingScreen() {
       treatmentProduct: isTreated ? treatmentProduct.trim() : "",
       operator: operator.trim(),
       areaSeededHa: areaSeededHa.trim(),
+      soilConditions: soilConditions || undefined,
+      weatherNotes: weatherNotes.trim() || undefined,
       notes: notes.trim(),
       latitude,
       longitude,
@@ -124,6 +128,15 @@ export default function SeedDrillingScreen() {
   };
 
   const SEED_RATE_UNITS = ["kg/ha", "seeds/m²", "units/ha", "lbs/acre"];
+
+  const SOIL_CONDITION_OPTIONS = [
+    { value: "firm_good_tilth", label: "Good tilth" },
+    { value: "adequate_tilth", label: "Adequate" },
+    { value: "cloddy_rough", label: "Cloddy/rough" },
+    { value: "wet_soft", label: "Wet/soft" },
+    { value: "dry_dusty", label: "Dry/dusty" },
+    { value: "frozen", label: "Frozen" },
+  ];
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -318,6 +331,48 @@ export default function SeedDrillingScreen() {
           </View>
 
           <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Conditions</Text>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Soil Conditions</Text>
+              <View style={styles.chipWrap}>
+                {SOIL_CONDITION_OPTIONS.map((opt) => (
+                  <Pressable
+                    key={opt.value}
+                    style={[
+                      styles.chip,
+                      soilConditions === opt.value && styles.chipSelected,
+                    ]}
+                    onPress={() =>
+                      setSoilConditions(
+                        soilConditions === opt.value ? "" : opt.value
+                      )
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        soilConditions === opt.value && styles.chipTextSelected,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Weather at Drilling</Text>
+              <Input
+                placeholder="e.g. Dry, light wind, 8°C"
+                value={weatherNotes}
+                onChangeText={setWeatherNotes}
+              />
+            </View>
+          </View>
+
+          <View style={styles.section}>
             <Text style={styles.sectionTitle}>Operator &amp; Notes</Text>
 
             <View style={styles.field}>
@@ -332,7 +387,7 @@ export default function SeedDrillingScreen() {
             <View style={styles.field}>
               <Text style={styles.label}>Notes</Text>
               <Input
-                placeholder="Soil conditions, drilling depth, any issues…"
+                placeholder="Drilling depth, any issues…"
                 value={notes}
                 onChangeText={setNotes}
                 multiline

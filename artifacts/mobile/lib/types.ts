@@ -305,6 +305,8 @@ export interface SeedDrillingRecord {
   treatmentProduct: string;
   operator: string;
   areaSeededHa: string;
+  soilConditions?: string;
+  weatherNotes?: string;
   notes: string;
   latitude?: number;
   longitude?: number;
