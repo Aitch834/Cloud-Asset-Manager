@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Shovel, Plus, Search, Trash2, Pencil, Filter, CalendarDays, MapPin, Wrench, Printer } from "lucide-react";
+import { Shovel, Plus, Search, Trash2, Pencil, Filter, CalendarDays, MapPin, Wrench, Printer, Tractor } from "lucide-react";
 import { printHtml } from "@/lib/utils";
 
 const fmt = (d: string | null | undefined) => {
@@ -116,7 +116,10 @@ const blank = () => ({
   fieldId: "",
   operationDate: new Date().toISOString().slice(0, 10),
   operationType: "",
+  vehicleId: "",
+  vehicleDescription: "",
   implement: "",
+  implementId: "",
   workingDepthCm: "",
   passes: "1",
   areaHa: "",
@@ -163,6 +166,22 @@ export default function FieldOperationsPage() {
     enabled: !!farmId,
     select: (d) => d.records ?? [],
   });
+
+  const modulesQ = useQuery({
+    queryKey: ["farm-modules", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/modules`).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const activeModuleKeys: string[] = modulesQ.data?.activeModuleKeys ?? [];
+  const hasEquipmentModule = activeModuleKeys.includes("equipment-management");
+
+  const equipmentQ = useQuery({
+    queryKey: ["equipment", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/equipment`).then((r) => r.json()),
+    enabled: !!farmId && hasEquipmentModule,
+    select: (d) => d.equipment ?? [],
+  });
+  const equipmentList: any[] = equipmentQ.data ?? [];
 
   const records: any[] = opsQ.data ?? [];
 
@@ -244,7 +263,10 @@ export default function FieldOperationsPage() {
       fieldId: hasDbField ? r.fieldId.toString() : (r.fieldName ? "__manual__" : ""),
       operationDate: r.operationDate ? new Date(r.operationDate).toISOString().slice(0, 10) : "",
       operationType: r.operationType ?? "",
+      vehicleId: r.vehicleId?.toString() ?? "",
+      vehicleDescription: r.vehicleDescription ?? "",
       implement: r.implement ?? "",
+      implementId: r.implementId?.toString() ?? "",
       workingDepthCm: r.workingDepthCm?.toString() ?? "",
       passes: r.passes?.toString() ?? "1",
       areaHa: r.areaHa?.toString() ?? "",
@@ -287,6 +309,8 @@ export default function FieldOperationsPage() {
     const payload = {
       ...form,
       fieldId: form.fieldId === "__manual__" || form.fieldId === "__select__" ? "" : form.fieldId,
+      vehicleId: form.vehicleId && form.vehicleId !== "__none__" ? form.vehicleId : "",
+      implementId: form.implementId && form.implementId !== "__none__" ? form.implementId : "",
     };
     if (editId !== null) {
       updateMut.mutate({ id: editId, data: payload });
@@ -310,6 +334,7 @@ export default function FieldOperationsPage() {
         <td>${r.fieldName || "—"}</td>
         <td>${cat}</td>
         <td>${labelForType(r.operationType)}</td>
+        <td>${r.vehicleDescription || "—"}</td>
         <td>${r.implement || "—"}</td>
         <td>${depthQty}${r.passes && r.passes > 1 ? ` · ${r.passes}×` : ""}</td>
         <td>${r.areaHa ? parseFloat(r.areaHa).toFixed(2) : "—"}</td>
@@ -332,7 +357,7 @@ export default function FieldOperationsPage() {
       <p style="font-size:9px;color:#6b7280;margin:2px 0">Printed: ${today} · ${rows.length} record(s)</p>
       <table>
         <thead><tr>
-          <th>Date</th><th>Field</th><th>Category</th><th>Operation</th><th>Implement</th>
+          <th>Date</th><th>Field</th><th>Category</th><th>Operation</th><th>Vehicle</th><th>Implement</th>
           <th>Depth / Qty</th><th>Area (ha)</th><th>Operator</th><th>Notes</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
@@ -440,6 +465,7 @@ export default function FieldOperationsPage() {
                     <th className="px-4 py-3 font-semibold">Date</th>
                     <th className="px-4 py-3 font-semibold">Field</th>
                     <th className="px-4 py-3 font-semibold">Operation</th>
+                    <th className="px-4 py-3 font-semibold">Vehicle</th>
                     <th className="px-4 py-3 font-semibold">Implement</th>
                     <th className="px-4 py-3 font-semibold">Depth / Qty</th>
                     <th className="px-4 py-3 font-semibold">Area (ha)</th>
@@ -469,6 +495,14 @@ export default function FieldOperationsPage() {
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badgeCls}`}>
                             {labelForType(r.operationType)}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {r.vehicleDescription ? (
+                            <div className="flex items-center gap-1">
+                              <Tractor className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              {r.vehicleDescription}
+                            </div>
+                          ) : "—"}
                         </td>
                         <td className="px-4 py-3 text-gray-600">
                           {r.implement ? (
@@ -659,15 +693,82 @@ export default function FieldOperationsPage() {
               </div>
             )}
 
+            {/* Vehicle */}
+            <div className="space-y-1.5">
+              <Label>Vehicle / Tractor</Label>
+              {hasEquipmentModule ? (
+                <Select
+                  value={form.vehicleId || "__none__"}
+                  onValueChange={(v) => {
+                    if (v === "__none__") {
+                      setForm((f) => ({ ...f, vehicleId: "", vehicleDescription: "" }));
+                      return;
+                    }
+                    const eq = equipmentList.find((e: any) => e.id.toString() === v);
+                    const label = eq
+                      ? [eq.name, eq.make, eq.model].filter(Boolean).join(" — ") + (eq.registrationNumber ? ` (${eq.registrationNumber})` : "")
+                      : "";
+                    setForm((f) => ({ ...f, vehicleId: v, vehicleDescription: label }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select vehicle…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None / N/A</SelectItem>
+                    {equipmentList.map((e: any) => (
+                      <SelectItem key={e.id} value={e.id.toString()}>
+                        {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                        {e.registrationNumber ? ` (${e.registrationNumber})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  placeholder="e.g. JD 6R 185 (YT23 ABC)"
+                  value={form.vehicleDescription}
+                  onChange={(e) => setForm((f) => ({ ...f, vehicleDescription: e.target.value }))}
+                />
+              )}
+            </div>
+
             {/* Implement + Operator */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div className="space-y-1.5">
                 <Label>Implement / Machinery</Label>
-                <Input
-                  placeholder="e.g. Vaderstad Topdown 400"
-                  value={form.implement}
-                  onChange={(e) => setForm((f) => ({ ...f, implement: e.target.value }))}
-                />
+                {hasEquipmentModule ? (
+                  <Select
+                    value={form.implementId || "__none__"}
+                    onValueChange={(v) => {
+                      if (v === "__none__") {
+                        setForm((f) => ({ ...f, implementId: "", implement: "" }));
+                        return;
+                      }
+                      const eq = equipmentList.find((e: any) => e.id.toString() === v);
+                      const label = eq ? [eq.name, eq.make, eq.model].filter(Boolean).join(" — ") : "";
+                      setForm((f) => ({ ...f, implementId: v, implement: label }));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select implement…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None / N/A</SelectItem>
+                      {equipmentList.map((e: any) => (
+                        <SelectItem key={e.id} value={e.id.toString()}>
+                          {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="e.g. Vaderstad Topdown 400"
+                    value={form.implement}
+                    onChange={(e) => setForm((f) => ({ ...f, implement: e.target.value }))}
+                  />
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>Operator</Label>

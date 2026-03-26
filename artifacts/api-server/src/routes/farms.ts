@@ -708,14 +708,17 @@ router.get("/farms/:farmId/field-operations", requireAuth, requireTenant, requir
 router.post("/farms/:farmId/field-operations", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { operationDate, operationType, fieldName, fieldId, implement, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, notes } = req.body;
+  const { operationDate, operationType, fieldName, fieldId, vehicleId, vehicleDescription, implement, implementId, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, notes } = req.body;
   const [record] = await db.insert(fieldOperationsTable).values({
     farmId,
     fieldId: fieldId ? parseInt(fieldId) : null,
     fieldName,
     operationDate: new Date(operationDate),
     operationType,
+    vehicleId: vehicleId ? parseInt(vehicleId) : null,
+    vehicleDescription: vehicleDescription || null,
     implement: implement || null,
+    implementId: implementId ? parseInt(implementId) : null,
     workingDepthCm: workingDepthCm ? parseInt(workingDepthCm) : null,
     passes: passes ? parseInt(passes) : 1,
     areaHa: areaHa || null,
@@ -731,13 +734,16 @@ router.put("/farms/:farmId/field-operations/:recordId", requireAuth, requireTena
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = parseInt(req.params.recordId);
-  const { operationDate, operationType, fieldName, fieldId, implement, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, notes } = req.body;
+  const { operationDate, operationType, fieldName, fieldId, vehicleId, vehicleDescription, implement, implementId, workingDepthCm, passes, areaHa, quantity, quantityUnit, operator, notes } = req.body;
   const [record] = await db.update(fieldOperationsTable).set({
     fieldId: fieldId ? parseInt(fieldId) : null,
     fieldName,
     operationDate: operationDate ? new Date(operationDate) : undefined,
     operationType,
+    vehicleId: vehicleId ? parseInt(vehicleId) : null,
+    vehicleDescription: vehicleDescription || null,
     implement: implement || null,
+    implementId: implementId ? parseInt(implementId) : null,
     workingDepthCm: workingDepthCm ? parseInt(workingDepthCm) : null,
     passes: passes ? parseInt(passes) : 1,
     areaHa: areaHa || null,
