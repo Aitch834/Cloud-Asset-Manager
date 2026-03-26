@@ -15,7 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   FlaskConical, Plus, ChevronLeft, Printer, Trash2, PlusCircle,
   Sprout, TestTube, Eye, Wheat, BarChart3, AlertTriangle, CheckCircle, Loader2,
+  MapPin, Map, List, FileText, Navigation,
 } from "lucide-react";
+import { TrialMapView } from "@/components/crop-trials/TrialMapView";
 
 const STATUS_MAP: Record<string, { label: string; bg: string; color: string; border: string }> = {
   planned:   { label: "Planned",    bg: "#f9fafb",  color: "#6b7280", border: "#e5e7eb" },
@@ -75,7 +77,7 @@ const STATUS_DESCRIPTIONS: Record<string, string> = {
 const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const fmtNum = (v: string | number | null | undefined, dp = 2) => v != null && v !== "" ? parseFloat(String(v)).toFixed(dp) : "—";
 
-interface Plot { id: number; plotNumber: string; treatmentLabel: string | null; isControl: boolean; areaHa: string | null; locationDescription: string | null; replicationBlock: string | null; notes: string | null; yields: Yield[]; }
+interface Plot { id: number; plotNumber: string; treatmentLabel: string | null; isControl: boolean; areaHa: string | null; locationDescription: string | null; replicationBlock: string | null; latitude: string | null; longitude: string | null; notes: string | null; yields: Yield[]; }
 interface Treatment { id: number; plotId: number; treatmentDate: string; treatmentType: string; productName: string | null; applicationRate: string | null; unit: string | null; notes: string | null; }
 interface Observation { id: number; plotId: number; observationDate: string; growthStage: string | null; plantCount: number | null; diseasePresent: boolean; diseaseName: string | null; pestPresent: boolean; notes: string | null; }
 interface Yield { id: number; plotId: number; harvestDate: string; freshWeightKg: string | null; moisturePercent: string | null; adjustedDryWeightKg: string | null; yieldTha: string | null; }
@@ -159,17 +161,95 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
     onSuccess: (_, status) => { toast({ title: `Status updated to ${STATUS_MAP[status]?.label ?? status}` }); invalidate(); setStatusPickerOpen(false); },
   });
 
-  const [plotForm, setPlotForm] = useState({ plotNumber: "", treatmentLabel: "", isControl: false, areaHa: "", locationDescription: "", replicationBlock: "" });
+  const [plotForm, setPlotForm] = useState({ plotNumber: "", treatmentLabel: "", isControl: false, areaHa: "", locationDescription: "", replicationBlock: "", latitude: "", longitude: "" });
+  const [gpsCapturing, setGpsCapturing] = useState(false);
   const [txForm, setTxForm] = useState({ treatmentDate: new Date().toISOString().slice(0, 10), treatmentType: "", productName: "", applicationRate: "", unit: "", notes: "" });
   const [obsForm, setObsForm] = useState({ observationDate: new Date().toISOString().slice(0, 10), growthStage: "", plantCount: "", plantHeightCm: "", diseasePresent: false, diseaseName: "", pestPresent: false, pestName: "", generalCondition: "", notes: "" });
   const [yieldForm, setYieldForm] = useState({ harvestDate: new Date().toISOString().slice(0, 10), freshWeightKg: "", moisturePercent: "", adjustedDryWeightKg: "", yieldTha: "", grainProteinPercent: "", specificWeight: "", notes: "" });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["crop-trials", farmId] });
 
+  const EMPTY_PLOT_FORM = { plotNumber: "", treatmentLabel: "", isControl: false, areaHa: "", locationDescription: "", replicationBlock: "", latitude: "", longitude: "" };
   const addPlotMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/plots`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Plot added" }); invalidate(); setAddPlotOpen(false); setPlotForm({ plotNumber: "", treatmentLabel: "", isControl: false, areaHa: "", locationDescription: "", replicationBlock: "" }); },
+    onSuccess: () => { toast({ title: "Plot added" }); invalidate(); setAddPlotOpen(false); setPlotForm({ ...EMPTY_PLOT_FORM }); },
   });
+
+  async function captureGPS() {
+    if (!navigator.geolocation) { toast({ title: "GPS not available in this browser" }); return; }
+    setGpsCapturing(true);
+    navigator.geolocation.getCurrentPosition(
+      pos => { setPlotForm(f => ({ ...f, latitude: pos.coords.latitude.toFixed(7), longitude: pos.coords.longitude.toFixed(7) })); setGpsCapturing(false); },
+      () => { toast({ title: "Could not get location", description: "Ensure location access is granted in your browser." }); setGpsCapturing(false); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  function generateFullReport() {
+    const field = fields.find((f: any) => f.id === trial.fieldId);
+    const plotRows = trial.plots.map(p => {
+      const latestYield = p.yields[0];
+      return `<tr>
+        <td>${p.plotNumber}</td>
+        <td>${p.isControl ? "✓" : ""}</td>
+        <td>${p.treatmentLabel ?? "—"}</td>
+        <td>${p.replicationBlock ?? "—"}</td>
+        <td>${p.areaHa ? parseFloat(p.areaHa).toFixed(4) + " ha" : "—"}</td>
+        <td>${p.latitude && p.longitude ? parseFloat(p.latitude).toFixed(5) + ", " + parseFloat(p.longitude).toFixed(5) : "—"}</td>
+        <td>${p.locationDescription ?? "—"}</td>
+        <td style="font-weight:${latestYield?.yieldTha ? "700" : "400"}">${latestYield?.yieldTha ? parseFloat(latestYield.yieldTha).toFixed(3) + " t/ha" : "—"}</td>
+        <td>${latestYield?.moisturePercent ? parseFloat(latestYield.moisturePercent).toFixed(1) + "%" : "—"}</td>
+      </tr>`;
+    }).join("");
+    const statusInfo = STATUS_MAP[trial.status];
+    const html = `<!DOCTYPE html><html><head>
+      <title>Full Trial Report — ${trial.trialName}</title>
+      <style>
+        @page { margin: 18mm; }
+        body { font-family: Arial, sans-serif; font-size: 11px; color: #111; }
+        h1 { font-size: 18px; margin: 0 0 4px; } h2 { font-size: 13px; margin: 18px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        th, td { border: 1px solid #ddd; padding: 5px 7px; vertical-align: top; }
+        th { background: #f0f0f0; font-size: 10px; text-transform: uppercase; font-weight: 600; }
+        .meta { display: flex; flex-wrap: wrap; gap: 20px; padding: 10px 14px; background: #f9f9f9; border: 1px solid #e5e7eb; border-radius: 6px; margin: 10px 0; }
+        .meta span { font-size: 11px; } .meta strong { font-weight: 700; }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 10px; font-weight: 700; background: ${statusInfo?.bg}; color: ${statusInfo?.color}; border: 1px solid ${statusInfo?.border}; }
+        .footer { margin-top: 30px; font-size: 9px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 8px; }
+        .control-row { background: #fefce8; }
+      </style>
+    </head><body>
+      <h1>Full Trial Report</h1>
+      <p style="font-size:13px;font-weight:700;margin:0 0 4px">${trial.trialName} &nbsp; <span class="badge">${statusInfo?.label ?? trial.status}</span></p>
+      <p style="color:#6b7280;margin:0 0 2px">${[trial.cropName, trial.season, trial.trialPurpose].filter(Boolean).join(" · ")}</p>
+      ${field ? `<p style="color:#6b7280;margin:0">Field: <strong>${field.name}</strong></p>` : ""}
+
+      <div class="meta">
+        ${trial.trialsBody ? `<span><strong>Trials Body:</strong> ${trial.trialsBody}</span>` : ""}
+        ${trial.contactName ? `<span><strong>Contact:</strong> ${trial.contactName}</span>` : ""}
+        ${trial.trialType ? `<span><strong>Design:</strong> ${trial.trialType}</span>` : ""}
+        ${trial.numberOfTreatments ? `<span><strong>Treatments:</strong> ${trial.numberOfTreatments}</span>` : ""}
+        ${trial.numberOfReplications ? `<span><strong>Reps:</strong> ${trial.numberOfReplications}</span>` : ""}
+        ${trial.totalAreaHa ? `<span><strong>Total Area:</strong> ${parseFloat(trial.totalAreaHa).toFixed(4)} ha</span>` : ""}
+        ${trial.startDate ? `<span><strong>Start:</strong> ${fmt(trial.startDate)}</span>` : ""}
+        ${trial.endDate ? `<span><strong>End:</strong> ${fmt(trial.endDate)}</span>` : ""}
+      </div>
+
+      <h2>Plot Results Summary (${trial.plots.length} plots)</h2>
+      <table>
+        <thead><tr><th>Plot</th><th>Control</th><th>Treatment</th><th>Block</th><th>Area</th><th>GPS</th><th>Location</th><th>Yield (t/ha)</th><th>Moisture</th></tr></thead>
+        <tbody>${plotRows}</tbody>
+      </table>
+
+      ${trial.notes ? `<h2>Trial Notes</h2><p style="white-space:pre-wrap;font-size:11px">${trial.notes}</p>` : ""}
+
+      <p class="footer">
+        Generated by BDE Farm Trac &nbsp;|&nbsp; Printed: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+        &nbsp;|&nbsp; This report is for on-farm records only and does not constitute an official trial result submission.
+      </p>
+    </body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); w.print(); }
+  }
   const deletePlotMut = useMutation({
     mutationFn: (plotId: number) => fetch(`/api/farms/${farmId}/crop-trials/${trial.id}/plots/${plotId}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Plot deleted" }); invalidate(); setDeletePlotId(null); setSelectedPlot(null); },
@@ -205,6 +285,11 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
         <Button variant="outline" size="sm" onClick={onBack} style={{ flexShrink: 0, marginTop: 3 }}><ChevronLeft size={14} className="mr-1" /> All Trials</Button>
+        {(trial.status === "harvested" || trial.status === "completed") && (
+          <Button variant="outline" size="sm" onClick={generateFullReport} style={{ flexShrink: 0, marginTop: 3, gap: 6 }}>
+            <FileText size={13} /> Full Trial Report
+          </Button>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#111827", margin: 0 }}>{trial.trialName}</h2>
@@ -294,6 +379,11 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
                   </div>
                   {plot.treatmentLabel && <p style={{ fontSize: "0.8125rem", color: "#6b7280", marginTop: 4 }}>{plot.treatmentLabel}</p>}
                   {plot.areaHa && <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 2 }}>{fmtNum(plot.areaHa)} ha{plot.replicationBlock ? ` · Block ${plot.replicationBlock}` : ""}</p>}
+                  {plot.latitude && plot.longitude && (
+                    <p style={{ fontSize: "0.7rem", color: "#16a34a", marginTop: 2, display: "flex", alignItems: "center", gap: 3 }}>
+                      <MapPin size={10} /> {parseFloat(plot.latitude).toFixed(5)}, {parseFloat(plot.longitude).toFixed(5)}
+                    </p>
+                  )}
                   <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
                     <button onClick={() => { setSelectedPlot(plot); setDetailTab("treatments"); setAddTreatmentOpen(true); }} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem", padding: "3px 8px", borderRadius: 5, border: "1px solid #e5e7eb", background: "#f9fafb", cursor: "pointer", color: "#374151" }}><TestTube size={11} /> Treatment</button>
                     <button onClick={() => { setSelectedPlot(plot); setDetailTab("observations"); setAddObsOpen(true); }} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem", padding: "3px 8px", borderRadius: 5, border: "1px solid #e5e7eb", background: "#f9fafb", cursor: "pointer", color: "#374151" }}><Eye size={11} /> Observe</button>
@@ -379,6 +469,31 @@ function TrialDetailView({ trial, farmId, onBack, fields }: { trial: Trial; farm
             <div><Label>Treatment Label</Label><Input className="mt-1" value={plotForm.treatmentLabel} onChange={e => setPlotForm(f => ({ ...f, treatmentLabel: e.target.value }))} placeholder="e.g. Variety A @ 170 kg N/ha" /></div>
             <div><Label>Plot Area (ha)</Label><Input type="number" step="0.0001" className="mt-1" value={plotForm.areaHa} onChange={e => setPlotForm(f => ({ ...f, areaHa: e.target.value }))} placeholder="e.g. 0.1250" /></div>
             <div><Label>Location in Field</Label><Input className="mt-1" value={plotForm.locationDescription} onChange={e => setPlotForm(f => ({ ...f, locationDescription: e.target.value }))} placeholder="e.g. North strip, rows 1–8" /></div>
+            {/* GPS coordinates */}
+            <div style={{ padding: "10px 12px", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 7 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <Label style={{ marginBottom: 0 }}>GPS Coordinates (optional)</Label>
+                <Button type="button" variant="outline" size="sm" onClick={captureGPS} disabled={gpsCapturing} style={{ height: 26, fontSize: "0.75rem", gap: 4 }}>
+                  {gpsCapturing ? <Loader2 size={11} className="animate-spin" /> : <Navigation size={11} />}
+                  {gpsCapturing ? "Getting…" : "Use GPS"}
+                </Button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div>
+                  <Label style={{ fontSize: "0.75rem", color: "#6b7280" }}>Latitude</Label>
+                  <Input className="mt-1" value={plotForm.latitude} onChange={e => setPlotForm(f => ({ ...f, latitude: e.target.value }))} placeholder="e.g. 52.4862" style={{ fontFamily: "monospace", fontSize: "0.8125rem" }} />
+                </div>
+                <div>
+                  <Label style={{ fontSize: "0.75rem", color: "#6b7280" }}>Longitude</Label>
+                  <Input className="mt-1" value={plotForm.longitude} onChange={e => setPlotForm(f => ({ ...f, longitude: e.target.value }))} placeholder="e.g. -1.8904" style={{ fontFamily: "monospace", fontSize: "0.8125rem" }} />
+                </div>
+              </div>
+              {plotForm.latitude && plotForm.longitude && (
+                <p style={{ fontSize: "0.7rem", color: "#0369a1", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                  <MapPin size={10} /> {parseFloat(plotForm.latitude).toFixed(5)}, {parseFloat(plotForm.longitude).toFixed(5)}
+                </p>
+              )}
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "#fefce8", border: "1px solid #fde047", borderRadius: 7 }}>
               <input type="checkbox" id="isControl" checked={plotForm.isControl} onChange={e => setPlotForm(f => ({ ...f, isControl: e.target.checked }))} style={{ width: 15, height: 15 }} />
               <label htmlFor="isControl" style={{ fontWeight: 600, fontSize: "0.875rem", cursor: "pointer" }}>This is the control plot (untreated / standard practice)</label>
@@ -550,6 +665,7 @@ export default function CropTrialsPage() {
   const [selectedTrial, setSelectedTrial] = useState<Trial | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [cropYear, setCropYear] = useState(currentCropYear());
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [form, setForm] = useState<typeof EMPTY_TRIAL>({ ...EMPTY_TRIAL });
 
   function openAdd() { setEditItem(null); setForm({ ...EMPTY_TRIAL }); setAddOpen(true); }
@@ -670,21 +786,33 @@ export default function CropTrialsPage() {
           </div>
         ) : (
           <>
-            {/* Status filter */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
-              {(["all", "planned", "active", "harvested", "completed", "cancelled"] as const).map(s => (
-                <button key={s} onClick={() => setStatusFilter(s)}
-                  style={{ padding: "4px 12px", borderRadius: 20, fontSize: "0.8125rem", cursor: "pointer", fontWeight: statusFilter === s ? 600 : 400,
-                    background: statusFilter === s ? "#111827" : "#f3f4f6", color: statusFilter === s ? "#fff" : "#374151",
-                    border: "1px solid " + (statusFilter === s ? "#111827" : "#e5e7eb") }}
-                >
-                  {s === "all" ? `All (${trials.length})` : STATUS_MAP[s]?.label ?? s}
+            {/* Filter bar + View toggle */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center", flexWrap: "wrap", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                {(["all", "planned", "active", "harvested", "completed", "cancelled"] as const).map(s => (
+                  <button key={s} onClick={() => setStatusFilter(s)}
+                    style={{ padding: "4px 12px", borderRadius: 20, fontSize: "0.8125rem", cursor: "pointer", fontWeight: statusFilter === s ? 600 : 400,
+                      background: statusFilter === s ? "#111827" : "#f3f4f6", color: statusFilter === s ? "#fff" : "#374151",
+                      border: "1px solid " + (statusFilter === s ? "#111827" : "#e5e7eb") }}
+                  >
+                    {s === "all" ? `All (${trials.length})` : STATUS_MAP[s]?.label ?? s}
+                  </button>
+                ))}
+                <CropYearSelector value={cropYear} onChange={setCropYear} />
+              </div>
+              <div style={{ display: "flex", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", flexShrink: 0 }}>
+                <button onClick={() => setViewMode("list")} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", border: "none", cursor: "pointer", fontSize: "0.8125rem", fontWeight: 500, background: viewMode === "list" ? "#111827" : "#f9fafb", color: viewMode === "list" ? "#fff" : "#374151" }}>
+                  <List size={13} /> List
                 </button>
-              ))}
-              <CropYearSelector value={cropYear} onChange={setCropYear} />
+                <button onClick={() => setViewMode("map")} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", border: "none", borderLeft: "1px solid #e5e7eb", cursor: "pointer", fontSize: "0.8125rem", fontWeight: 500, background: viewMode === "map" ? "#111827" : "#f9fafb", color: viewMode === "map" ? "#fff" : "#374151" }}>
+                  <Map size={13} /> Map
+                </button>
+              </div>
             </div>
 
-            {q.isLoading ? (
+            {viewMode === "map" ? (
+              <TrialMapView trials={filtered} cropYear={cropYear} />
+            ) : q.isLoading ? (
               <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>Loading…</p>
             ) : filtered.length === 0 ? (
               <div style={{ textAlign: "center", padding: "4rem 1rem", color: "#9ca3af" }}>

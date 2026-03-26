@@ -34,6 +34,8 @@ export const cropTrialPlotsTable = pgTable("crop_trial_plots", {
   areaHa: numeric("area_ha", { precision: 8, scale: 4 }),
   locationDescription: text("location_description"),
   replicationBlock: text("replication_block"),
+  latitude: numeric("latitude", { precision: 10, scale: 7 }),
+  longitude: numeric("longitude", { precision: 10, scale: 7 }),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

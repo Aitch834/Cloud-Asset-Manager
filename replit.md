@@ -54,6 +54,10 @@ The monorepo is structured with `pnpm workspaces`, using Node.js 24 and TypeScri
 - Provides Xero-compatible CSV export for financial data and Red Tractor compliance export (CSV/JSON).
 - Dashboard features include an activity feed, quick access cards with live record counts, and a compliance health panel with live checks.
 - Specific modules like **SprayPage**, **NMPPage**, **NVZPage**, **DocumentsPage**, **SoilTestsPage**, **BiosecurityPage**, **MedicinePage**, and **Stock & Supplier Management** have dedicated implementations with advanced features and compliance-specific functionalities.
+- **Crop Trials** module supports full trial lifecycle: plot design with GPS lat/lng coordinates, treatment logging, growth stage observations, yield comparisons. Includes a **Map View** tab (Leaflet, satellite tiles, field boundaries coloured by trial status, numbered GPS plot pins, click-through popups) and a **Full Trial Report** print function (available on harvested/completed trials). Crop year filter spans all event-log pages.
+- **`GET /api/farms/:farmId/fields/boundaries/all`** endpoint returns all field boundaries in one request (used by TrialMapView and future map features).
+- `cropTrialPlotsTable` stores `latitude` and `longitude` (nullable numeric) for GPS-located plots.
+- **Mobile GPS screen** (`artifacts/mobile/app/crop-trials.tsx`): walk-up-to-plot flow — select trial → select plot → capture GPS with expo-location → save coordinates back to API. Shows GPS-saved status per plot.
 - An admin panel supports full support ticket workflow.
 - OpenAPI specification and generated TypeScript client are kept in sync.
 

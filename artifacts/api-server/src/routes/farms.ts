@@ -165,7 +165,7 @@ import {
   gridEnergyMetersTable,
   gridEnergyReadingsTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, sql, lt, gte, isNotNull, lte } from "drizzle-orm";
+import { eq, and, desc, asc, sql, lt, gte, isNotNull, lte, inArray } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
@@ -480,6 +480,22 @@ router.delete("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, req
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.update(fieldsTable).set({ isActive: false }).where(and(eq(fieldsTable.id, recordId), eq(fieldsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── All Field Boundaries (for map views) ────────────
+router.get("/farms/:farmId/fields/boundaries/all", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const fields = await db.select({ id: fieldsTable.id, name: fieldsTable.name }).from(fieldsTable).where(and(eq(fieldsTable.farmId, farmId), eq(fieldsTable.isActive, true)));
+  const fieldIds = fields.map(f => f.id);
+  if (!fieldIds.length) { res.json({ boundaries: [] }); return; }
+  const boundaries = await db.select().from(fieldBoundariesTable).where(inArray(fieldBoundariesTable.fieldId, fieldIds));
+  const latestByField: Record<number, typeof boundaries[0]> = {};
+  boundaries.forEach(b => {
+    if (!latestByField[b.fieldId] || b.capturedAt > latestByField[b.fieldId].capturedAt) latestByField[b.fieldId] = b;
+  });
+  const result = fields.map(f => ({ fieldId: f.id, fieldName: f.name, boundary: latestByField[f.id] ?? null }));
+  res.json({ boundaries: result });
 });
 
 // ─── Field Boundaries ────────────────────────────────
