@@ -28,6 +28,7 @@ type FormValues = z.infer<typeof formSchema>;
 const AVAILABLE_MODULES = [
   { id: "red-tractor-compliance", label: "Red Tractor Compliance" },
   { id: "field-crop-management", label: "Field & Crop Management" },
+  { id: "crop-trials", label: "Crop Trials" },
   { id: "sprays-inputs", label: "Sprays & Inputs" },
   { id: "soil-management", label: "Soil Management" },
   { id: "equipment-management", label: "Equipment & Vehicles" },
@@ -43,6 +44,8 @@ const AVAILABLE_MODULES = [
   { id: "financial-records", label: "Financial Records" },
   { id: "document-management", label: "Document Management" },
   { id: "weather-tracking", label: "Weather Tracking" },
+  { id: "fuel-energy", label: "Fuel & Energy Management" },
+  { id: "feed-management", label: "Feed Management" },
   { id: "biofuel-rtfo", label: "Biofuel / RTFO Compliance" },
   { id: "pig-production", label: "Pig Production" },
   { id: "poultry-production", label: "Poultry Production" },
