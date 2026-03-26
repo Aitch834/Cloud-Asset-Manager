@@ -1,7 +1,8 @@
 import { pgTable, text, serial, integer, timestamp, numeric, jsonb } from "drizzle-orm/pg-core";
-import { farmsTable } from "./core";
+import { farmsTable, farmMembersTable } from "./core";
 import { fieldsTable } from "./fields-crops";
-import { stockItemsTable, stockDeliveriesTable } from "./stock-suppliers";
+import { stockItemsTable, stockDeliveriesTable, suppliersTable } from "./stock-suppliers";
+import { equipmentTable } from "./equipment";
 
 export const sprayProductsTable = pgTable("spray_products", {
   id: serial("id").primaryKey(),
@@ -32,8 +33,11 @@ export const sprayApplicationsTable = pgTable("spray_applications", {
   windDirection: text("wind_direction"),
   temperatureC: numeric("temperature_c", { precision: 5, scale: 1 }),
   operatorName: text("operator_name"),
+  operatorMemberId: integer("operator_member_id").references(() => farmMembersTable.id),
   certificateNumber: text("certificate_number"),
   equipmentUsed: text("equipment_used"),
+  equipmentId: integer("equipment_id").references(() => equipmentTable.id),
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
   reasonForApplication: text("reason_for_application"),
   batchNumber: text("batch_number"),
   lotNumber: text("lot_number"),

@@ -853,11 +853,19 @@ router.get("/farms/:farmId/spray-applications", requireAuth, requireTenant, requ
       applicationRate: sprayApplicationsTable.applicationRate,
       rateUnit: sprayApplicationsTable.rateUnit,
       areaSprayedHa: sprayApplicationsTable.areaSprayedHa,
-      operatorName: sprayApplicationsTable.operatorName,
-      reasonForApplication: sprayApplicationsTable.reasonForApplication,
+      waterVolumeLitres: sprayApplicationsTable.waterVolumeLitres,
       windSpeedKmh: sprayApplicationsTable.windSpeedKmh,
       windDirection: sprayApplicationsTable.windDirection,
       temperatureC: sprayApplicationsTable.temperatureC,
+      operatorName: sprayApplicationsTable.operatorName,
+      operatorMemberId: sprayApplicationsTable.operatorMemberId,
+      certificateNumber: sprayApplicationsTable.certificateNumber,
+      equipmentUsed: sprayApplicationsTable.equipmentUsed,
+      equipmentId: sprayApplicationsTable.equipmentId,
+      equipmentName: equipmentTable.name,
+      supplierId: sprayApplicationsTable.supplierId,
+      supplierName: suppliersTable.name,
+      reasonForApplication: sprayApplicationsTable.reasonForApplication,
       batchNumber: sprayApplicationsTable.batchNumber,
       lotNumber: sprayApplicationsTable.lotNumber,
       stockDeliveryId: sprayApplicationsTable.stockDeliveryId,
@@ -867,6 +875,8 @@ router.get("/farms/:farmId/spray-applications", requireAuth, requireTenant, requ
     .from(sprayApplicationsTable)
     .leftJoin(fieldsTable, eq(sprayApplicationsTable.fieldId, fieldsTable.id))
     .leftJoin(sprayProductsTable, eq(sprayApplicationsTable.productId, sprayProductsTable.id))
+    .leftJoin(equipmentTable, eq(sprayApplicationsTable.equipmentId, equipmentTable.id))
+    .leftJoin(suppliersTable, eq(sprayApplicationsTable.supplierId, suppliersTable.id))
     .where(eq(sprayApplicationsTable.farmId, farmId))
     .orderBy(desc(sprayApplicationsTable.applicationDate));
   res.json({ records });

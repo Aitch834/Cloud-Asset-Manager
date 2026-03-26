@@ -7,7 +7,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
-import { StaffSelect } from "@/components/ui/staff-select";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +15,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Trash2, Droplets, FlaskConical, Printer, Wind, Thermometer, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight } from "lucide-react";
+
+const SPRAY_EQUIPMENT_TYPES = ["sprayer", "spot-sprayer", "knapsack", "boom sprayer", "tractor", "uas", "drone", "other"];
+
+function equipmentIsSprayRelevant(type: string) {
+  const t = (type ?? "").toLowerCase();
+  return SPRAY_EQUIPMENT_TYPES.some(k => t.includes(k)) || t.includes("spray");
+}
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -78,13 +84,35 @@ function StatCard({ icon, label, value, bg, iconBg }: any) {
 
 function ApplicationsTab({ applications, products, fields, farmId, loading, onRefresh, toast }: any) {
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
-  const staffNames: string[] = (membersData?.members ?? []).filter((m: any) => m.isActive).map(memberFullName);
+  const activeMembers: any[] = (membersData?.members ?? []).filter((m: any) => m.isActive);
+
+  const equipmentQ = useQuery({
+    queryKey: ["equipment-list", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/equipment`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+  const sprayEquipment: any[] = (equipmentQ.data ?? []).filter((e: any) => equipmentIsSprayRelevant(e.type) && e.isActive !== false);
+
+  const certificatesQ = useQuery({
+    queryKey: ["staff-certificates", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/certificates`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+  const allCerts: any[] = certificatesQ.data ?? [];
+
+  const suppliersQ = useQuery({
+    queryKey: ["suppliers-list", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+  const allSuppliers: any[] = suppliersQ.data ?? [];
+
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const emptyForm = { fieldId: "", productId: "", applicationDate: "", applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", certificateNumber: "", equipmentUsed: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", notes: "" };
+  const emptyForm = { fieldId: "", productId: "", applicationDate: "", applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", operatorMemberId: "", certificateNumber: "", equipmentUsed: "", equipmentId: "", supplierId: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const [weatherAutoFilled, setWeatherAutoFilled] = useState(false);
   const [deliveryStockItemId, setDeliveryStockItemId] = useState<string | null>(null);
@@ -99,6 +127,52 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
     const product = products.find((p: any) => String(p.id) === v);
     setDeliveryStockItemId(product?.stockItemId ? String(product.stockItemId) : null);
     setForm((f: any) => ({ ...f, productId: v, batchNumber: "", lotNumber: "", stockDeliveryId: "" }));
+  };
+
+  const handleOperatorChange = (memberId: string) => {
+    if (!memberId || memberId === "__manual__") {
+      setForm((f: any) => ({ ...f, operatorMemberId: "", operatorName: "" }));
+      return;
+    }
+    const member = activeMembers.find((m: any) => String(m.id) === memberId);
+    if (!member) return;
+    const fullName = memberFullName(member);
+    let certNumber = "";
+    if (member.linkedUserId) {
+      const paTypes = ["PA1", "PA2", "PA6", "PA4", "PA3"];
+      const now = new Date();
+      for (const paType of paTypes) {
+        const cert = allCerts.find((c: any) =>
+          c.userId === member.linkedUserId &&
+          (c.certificateType ?? "").toUpperCase().includes(paType) &&
+          (!c.expiryDate || new Date(c.expiryDate) > now)
+        );
+        if (cert) { certNumber = cert.certificateNumber ?? ""; break; }
+      }
+      if (!certNumber) {
+        const anyCert = allCerts.find((c: any) =>
+          c.userId === member.linkedUserId &&
+          (!c.expiryDate || new Date(c.expiryDate) > now)
+        );
+        if (anyCert) certNumber = anyCert.certificateNumber ?? "";
+      }
+    }
+    setForm((f: any) => ({ ...f, operatorMemberId: memberId, operatorName: fullName, certificateNumber: certNumber }));
+  };
+
+  const handleDeliveryChange = (v: string) => {
+    if (v === "__none__") {
+      setForm((f: any) => ({ ...f, stockDeliveryId: "", batchNumber: "", lotNumber: "", supplierId: "" }));
+    } else {
+      const del = (deliveriesQ.data ?? []).find((d: any) => String(d.id) === v);
+      setForm((f: any) => ({
+        ...f,
+        stockDeliveryId: v,
+        batchNumber: del?.batchNumber || f.batchNumber,
+        lotNumber: del?.lotNumber || f.lotNumber,
+        supplierId: del?.supplierId ? String(del.supplierId) : f.supplierId,
+      }));
+    }
   };
 
   async function fetchWeatherForDate(date: string) {
@@ -129,7 +203,15 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
 
   const createMut = useMutation({
     mutationFn: (body: any) => {
-      const payload = { ...body, stockDeliveryId: body.stockDeliveryId ? Number(body.stockDeliveryId) : null, batchNumber: body.batchNumber || null, lotNumber: body.lotNumber || null };
+      const payload = {
+        ...body,
+        stockDeliveryId: body.stockDeliveryId ? Number(body.stockDeliveryId) : null,
+        equipmentId: body.equipmentId ? Number(body.equipmentId) : null,
+        supplierId: body.supplierId ? Number(body.supplierId) : null,
+        operatorMemberId: body.operatorMemberId ? Number(body.operatorMemberId) : null,
+        batchNumber: body.batchNumber || null,
+        lotNumber: body.lotNumber || null,
+      };
       return fetch(`/api/farms/${farmId}/spray-applications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     },
     onSuccess: () => { toast({ title: "Application recorded" }); onRefresh(); setAddOpen(false); setForm(emptyForm); setDeliveryStockItemId(null); },
@@ -206,8 +288,9 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, fontSize: "0.8rem" }}>
                           {[
                             ["Water Volume", r.waterVolumeLitres ? `${r.waterVolumeLitres} L/ha` : null],
-                            ["Equipment Used", r.equipmentUsed],
+                            ["Equipment Used", r.equipmentName ? `${r.equipmentName}${r.equipmentUsed && r.equipmentUsed !== r.equipmentName ? ` — ${r.equipmentUsed}` : ""}` : r.equipmentUsed],
                             ["PA1/PA6 Certificate", r.certificateNumber],
+                            ["Supplier", r.supplierName || null],
                             ["Batch Number", r.batchNumber],
                             ["Lot Number", r.lotNumber],
                             ["Wind Speed", r.windSpeedKmh ? `${r.windSpeedKmh} km/h` : null],
@@ -260,14 +343,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                     <Label style={{ fontSize: "0.75rem", color: "#4b5563" }}>Select Delivery (Batch/Lot)</Label>
                     <Select
                       value={form.stockDeliveryId}
-                      onValueChange={v => {
-                        if (v === "__none__") {
-                          setForm((f: any) => ({ ...f, stockDeliveryId: "", batchNumber: "", lotNumber: "" }));
-                        } else {
-                          const del = (deliveriesQ.data ?? []).find((d: any) => String(d.id) === v);
-                          setForm((f: any) => ({ ...f, stockDeliveryId: v, batchNumber: del?.batchNumber || f.batchNumber, lotNumber: del?.lotNumber || f.lotNumber }));
-                        }
-                      }}
+                      onValueChange={handleDeliveryChange}
                     >
                       <SelectTrigger style={{ fontSize: "0.8rem", height: 34 }}><SelectValue placeholder="Select from GRN deliveries..." /></SelectTrigger>
                       <SelectContent>
@@ -330,7 +406,35 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
               </div>
               <div>
                 <Label>Equipment Used</Label>
-                <Input placeholder="e.g. Trailed sprayer, 24m boom" value={form.equipmentUsed} onChange={e => setForm((f: any) => ({ ...f, equipmentUsed: e.target.value }))} />
+                {sprayEquipment.length > 0 ? (
+                  <Select
+                    value={form.equipmentId}
+                    onValueChange={v => {
+                      if (v === "__other__") {
+                        setForm((f: any) => ({ ...f, equipmentId: "", equipmentUsed: "" }));
+                      } else {
+                        const eq = sprayEquipment.find((e: any) => String(e.id) === v);
+                        const label = eq ? [eq.name, eq.make, eq.model, eq.registrationNumber].filter(Boolean).join(" · ") : "";
+                        setForm((f: any) => ({ ...f, equipmentId: v, equipmentUsed: label }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select equipment..." /></SelectTrigger>
+                    <SelectContent>
+                      {sprayEquipment.map((e: any) => (
+                        <SelectItem key={e.id} value={String(e.id)}>
+                          {e.name}{e.make ? ` — ${e.make}` : ""}{e.registrationNumber ? ` (${e.registrationNumber})` : ""}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__other__">Other / not listed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input placeholder="e.g. Trailed sprayer, 24m boom" value={form.equipmentUsed} onChange={e => setForm((f: any) => ({ ...f, equipmentUsed: e.target.value, equipmentId: "" }))} />
+                )}
+                {form.equipmentId === "" && sprayEquipment.length > 0 && (
+                  <Input className="mt-1" style={{ fontSize: "0.8rem" }} placeholder="Describe equipment..." value={form.equipmentUsed} onChange={e => setForm((f: any) => ({ ...f, equipmentUsed: e.target.value }))} />
+                )}
               </div>
             </div>
             {weatherAutoFilled && (
@@ -358,21 +462,59 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Operator Name <span style={{ color: "#ef4444" }}>*</span></Label>
-                <StaffSelect
-                  value={form.operatorName}
-                  onChange={v => setForm((f: any) => ({ ...f, operatorName: v }))}
-                  staffNames={staffNames}
-                  loading={membersLoading}
-                />
+                {membersLoading ? (
+                  <Input disabled placeholder="Loading staff…" />
+                ) : activeMembers.length > 0 ? (
+                  <>
+                    <Select value={form.operatorMemberId} onValueChange={handleOperatorChange}>
+                      <SelectTrigger><SelectValue placeholder="Select staff member…" /></SelectTrigger>
+                      <SelectContent>
+                        {activeMembers.map((m: any) => (
+                          <SelectItem key={m.id} value={String(m.id)}>
+                            {memberFullName(m)}{m.jobTitle ? ` — ${m.jobTitle}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {form.operatorMemberId && (
+                      <Input className="mt-1" style={{ fontSize: "0.8rem" }} value={form.operatorName} onChange={e => setForm((f: any) => ({ ...f, operatorName: e.target.value }))} />
+                    )}
+                  </>
+                ) : (
+                  <Input placeholder="Type staff member name…" value={form.operatorName} onChange={e => setForm((f: any) => ({ ...f, operatorName: e.target.value }))} />
+                )}
               </div>
               <div>
                 <Label>Certificate No. (PA1/PA6)</Label>
                 <Input placeholder="e.g. PA1-123456" value={form.certificateNumber} onChange={e => setForm((f: any) => ({ ...f, certificateNumber: e.target.value }))} />
+                {form.operatorMemberId && form.certificateNumber && (
+                  <p style={{ fontSize: "0.72rem", color: "#16a34a", marginTop: 3 }}>&#10003; Auto-filled from staff certificate record</p>
+                )}
+                {form.operatorMemberId && !form.certificateNumber && (
+                  <p style={{ fontSize: "0.72rem", color: "#f59e0b", marginTop: 3 }}>No in-date PA certificate on file for this operator</p>
+                )}
               </div>
             </div>
-            <div>
-              <Label>Reason for Application <span style={{ color: "#ef4444" }}>*</span></Label>
-              <Input placeholder="e.g. Control of blackgrass, crop threshold exceeded" value={form.reasonForApplication} onChange={e => setForm((f: any) => ({ ...f, reasonForApplication: e.target.value }))} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Supplier</Label>
+                <Select value={form.supplierId} onValueChange={v => setForm((f: any) => ({ ...f, supplierId: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select supplier…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not specified</SelectItem>
+                    {allSuppliers.map((s: any) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.supplierId && form.stockDeliveryId && (
+                  <p style={{ fontSize: "0.72rem", color: "#16a34a", marginTop: 3 }}>&#10003; Auto-filled from delivery record</p>
+                )}
+              </div>
+              <div>
+                <Label>Reason for Application <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Input placeholder="e.g. Control of blackgrass, crop threshold exceeded" value={form.reasonForApplication} onChange={e => setForm((f: any) => ({ ...f, reasonForApplication: e.target.value }))} />
+              </div>
             </div>
             <div>
               <Label>Notes</Label>
