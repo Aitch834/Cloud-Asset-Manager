@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CropYearSelector } from "@/components/CropYearSelector";
+import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -200,6 +202,7 @@ export default function AccidentBookPage() {
   const [editItem, setEditItem] = useState<AccidentRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [filter, setFilter] = useState<"all" | "riddor-pending" | "riddor-reported" | "unsigned">("all");
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [form, setForm] = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM });
 
   function openAdd() { setEditItem(null); setForm({ ...EMPTY_FORM, incidentDate: new Date().toISOString().slice(0, 10) }); setAddOpen(true); }
@@ -243,6 +246,7 @@ export default function AccidentBookPage() {
   }
 
   const filtered = records.filter(r => {
+    if (!isInCropYear(r.incidentDate, cropYear)) return false;
     if (filter === "riddor-pending") return r.riddorReportable && !r.riddorReference;
     if (filter === "riddor-reported") return r.riddorReportable && !!r.riddorReference;
     if (filter === "unsigned") return !r.signedOffBy;
@@ -351,7 +355,7 @@ export default function AccidentBookPage() {
             )}
 
             {/* Filter pills */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
               {([
                 ["all", `All (${records.length})`],
                 ["riddor-pending", `RIDDOR Pending (${records.filter(r => r.riddorReportable && !r.riddorReference).length})`],
@@ -365,6 +369,7 @@ export default function AccidentBookPage() {
                   {label}
                 </button>
               ))}
+              <div style={{ marginLeft: "auto" }}><CropYearSelector value={cropYear} onChange={setCropYear} /></div>
             </div>
 
             {/* Records */}

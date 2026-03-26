@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CropYearSelector } from "@/components/CropYearSelector";
+import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -168,6 +170,7 @@ export default function FlyTippingPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedWasteTypes, setSelectedWasteTypes] = useState<string[]>([]);
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [form, setForm] = useState<Omit<Incident, "id" | "farmId" | "photos">>({ ...EMPTY });
 
   function openAdd() {
@@ -232,7 +235,8 @@ export default function FlyTippingPage() {
     else createMut.mutate(body);
   }
 
-  const filtered = statusFilter === "all" ? incidents : incidents.filter(i => i.clearanceStatus === statusFilter);
+  const filtered = (statusFilter === "all" ? incidents : incidents.filter(i => i.clearanceStatus === statusFilter))
+    .filter(i => isInCropYear(i.discoveredAt, cropYear));
   const openCount = incidents.filter(i => i.clearanceStatus !== "cleared").length;
 
   function clearanceStyle(status: string) {
@@ -267,7 +271,7 @@ export default function FlyTippingPage() {
     th{background:#f5f5f5;font-weight:600;font-size:10px;text-transform:uppercase}</style></head>
     <body><h2>Fly-Tipping Incident Log</h2>
     <p><strong>Farm:</strong> ${farm?.name ?? "—"} ${farm?.cphNumber ? `&nbsp;|&nbsp; <strong>CPH:</strong> ${farm.cphNumber}` : ""}</p>
-    <p>Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;|&nbsp; Total incidents: ${filtered.length}</p>
+    <p>Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;|&nbsp; Crop Year: ${cropYearLabel(cropYear)} &nbsp;|&nbsp; Total incidents: ${filtered.length}</p>
     <table><thead><tr><th>Date Found</th><th>Location</th><th>Waste Types</th><th>Hazardous</th><th>Reported To</th><th>Status</th><th>Photos</th></tr></thead>
     <tbody>${rows}</tbody></table></body></html>`;
     const w = window.open("", "_blank");
@@ -331,6 +335,7 @@ export default function FlyTippingPage() {
                   {s === "all" ? `All (${incidents.length})` : clearanceLabel(s)}
                 </button>
               ))}
+              <CropYearSelector value={cropYear} onChange={setCropYear} />
               {openCount > 0 && (
                 <Badge style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", marginLeft: "auto" }}>
                   <AlertTriangle size={11} className="mr-1" /> {openCount} open {openCount === 1 ? "incident" : "incidents"}

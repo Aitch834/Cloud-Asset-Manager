@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CropYearSelector } from "@/components/CropYearSelector";
+import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -487,6 +489,7 @@ export default function CropTrialsPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [selectedTrial, setSelectedTrial] = useState<Trial | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [form, setForm] = useState<typeof EMPTY_TRIAL>({ ...EMPTY_TRIAL });
 
   function openAdd() { setEditItem(null); setForm({ ...EMPTY_TRIAL }); setAddOpen(true); }
@@ -530,7 +533,8 @@ export default function CropTrialsPage() {
   // Refresh selected trial from latest data
   const currentTrial = selectedTrial ? (trials.find(t => t.id === selectedTrial.id) ?? null) : null;
 
-  const filtered = statusFilter === "all" ? trials : trials.filter(t => t.status === statusFilter);
+  const filtered = (statusFilter === "all" ? trials : trials.filter(t => t.status === statusFilter))
+    .filter(t => !t.startDate || isInCropYear(t.startDate, cropYear));
 
   function handlePrint() {
     const rows = filtered.map(t => {
@@ -610,6 +614,7 @@ export default function CropTrialsPage() {
                   {s === "all" ? `All (${trials.length})` : STATUS_MAP[s]?.label ?? s}
                 </button>
               ))}
+              <CropYearSelector value={cropYear} onChange={setCropYear} />
             </div>
 
             {q.isLoading ? (

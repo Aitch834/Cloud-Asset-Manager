@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
+import { CropYearSelector } from "@/components/CropYearSelector";
+import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { FarmLocationSelect } from "@/components/ui/FarmLocationSelect";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -64,6 +66,7 @@ const EMPTY_VISITOR = {
 function VisitorTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Visitor | null>(null);
   const [form, setForm] = useState<typeof EMPTY_VISITOR>(EMPTY_VISITOR);
@@ -74,10 +77,13 @@ function VisitorTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(`/api/farms/${farmId}/visitors`).then(r => r.json()),
   });
   const records: Visitor[] = data?.records ?? [];
-  const filtered = records.filter(r => !search
-    || r.visitorName.toLowerCase().includes(search.toLowerCase())
-    || r.company?.toLowerCase().includes(search.toLowerCase())
-    || r.purpose.toLowerCase().includes(search.toLowerCase())
+  const filtered = records.filter(r =>
+    isInCropYear(r.arrivalTime, cropYear) && (
+      !search
+      || r.visitorName.toLowerCase().includes(search.toLowerCase())
+      || r.company?.toLowerCase().includes(search.toLowerCase())
+      || r.purpose.toLowerCase().includes(search.toLowerCase())
+    )
   );
 
   const createM = useMutation({
@@ -124,6 +130,7 @@ function VisitorTab({ farmId }: { farmId: number }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input placeholder="Search visitors, company, purpose..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+        <CropYearSelector value={cropYear} onChange={setCropYear} />
         <Button onClick={() => { setEditing(null); setForm(EMPTY_VISITOR); setFormOpen(true); }} className="gap-2 shrink-0">
           <Plus className="w-4 h-4" /> Log Visitor
         </Button>

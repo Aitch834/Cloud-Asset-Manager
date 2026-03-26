@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { printHtml } from "@/lib/utils";
+import { CropYearSelector } from "@/components/CropYearSelector";
+import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -232,6 +234,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MedicineRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
@@ -275,10 +278,10 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
 
   const tabCounts = { all: allRecords.length, in_withdrawal: inWithdrawal.length, cleared: cleared.length, no_withdrawal: noWithdrawal.length };
 
-  const baseFiltered = statusFilter === "all" ? allRecords
+  const baseFiltered = (statusFilter === "all" ? allRecords
     : statusFilter === "in_withdrawal" ? inWithdrawal
     : statusFilter === "cleared" ? cleared
-    : noWithdrawal;
+    : noWithdrawal).filter(r => isInCropYear(r.administeredDate, cropYear));
 
   const filtered = baseFiltered.filter(r => !search
     || r.medicineName.toLowerCase().includes(search.toLowerCase())
@@ -359,6 +362,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input placeholder="Search medicine, ref, reason..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+        <CropYearSelector value={cropYear} onChange={setCropYear} />
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => printHtml(buildPrintHtml(filtered, herds, farm, filterLabel))} className="gap-2">
             <Printer className="w-4 h-4" /> Print Register

@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import { useUpload } from "@workspace/object-storage-web";
 import { printHtml } from "@/lib/utils";
+import { CropYearSelector } from "@/components/CropYearSelector";
+import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 
 interface Movement {
   id: number;
@@ -820,6 +822,7 @@ export default function Movements() {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<Movement | null>(null);
   const [formData, setFormData] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
@@ -915,6 +918,7 @@ export default function Movements() {
   });
 
   const filtered = bcmsFiltered.filter((r) => {
+    if (!isInCropYear(r.movementDate, cropYear)) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return (
@@ -1121,7 +1125,7 @@ export default function Movements() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input
@@ -1131,6 +1135,7 @@ export default function Movements() {
             className="pl-10"
           />
         </div>
+        <CropYearSelector value={cropYear} onChange={setCropYear} />
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-1" /> Refresh

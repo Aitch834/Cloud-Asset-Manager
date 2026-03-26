@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { Shovel, Plus, Search, Trash2, Pencil, Filter, CalendarDays, MapPin, Wrench, Printer, Tractor } from "lucide-react";
 import { printHtml } from "@/lib/utils";
+import { CropYearSelector } from "@/components/CropYearSelector";
+import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -139,6 +141,7 @@ export default function FieldOperationsPage() {
 
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("__all__");
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [showDialog, setShowDialog] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(blank());
@@ -228,7 +231,7 @@ export default function FieldOperationsPage() {
   const typeDef = form.operationType ? getTypeDef(form.operationType) : null;
 
   const filtered = useMemo(() => {
-    let list = records;
+    let list = records.filter((r: any) => isInCropYear(r.operationDate, cropYear));
     if (search.trim()) {
       const s = search.toLowerCase();
       list = list.filter(
@@ -243,7 +246,7 @@ export default function FieldOperationsPage() {
       list = list.filter((r: any) => r.operationType === filterType);
     }
     return list;
-  }, [records, search, filterType]);
+  }, [records, search, filterType, cropYear]);
 
   // Stats
   const totalArea = records.reduce((sum: number, r: any) => sum + (parseFloat(r.areaHa) || 0), 0);
@@ -407,7 +410,7 @@ export default function FieldOperationsPage() {
             { label: "Total Records", value: records.length, sub: "all time" },
             { label: "Fields Covered", value: uniqueFields, sub: "distinct fields" },
             { label: "Total Area", value: totalArea > 0 ? `${totalArea.toFixed(1)} ha` : "—", sub: "cumulative" },
-            { label: "This Season", value: records.filter((r: any) => new Date(r.operationDate).getFullYear() >= new Date().getFullYear()).length, sub: new Date().getFullYear().toString() },
+            { label: "This Crop Year", value: records.filter((r: any) => isInCropYear(r.operationDate, cropYear)).length, sub: cropYearLabel(cropYear) },
           ].map((s) => (
             <div key={s.label} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
               <p className="text-xs text-gray-500 uppercase tracking-wide">{s.label}</p>
@@ -445,6 +448,7 @@ export default function FieldOperationsPage() {
               ))}
             </SelectContent>
           </Select>
+          <CropYearSelector value={cropYear} onChange={setCropYear} />
         </div>
 
         {/* Table */}

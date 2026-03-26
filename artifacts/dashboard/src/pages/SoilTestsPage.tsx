@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { printHtml } from "@/lib/utils";
+import { CropYearSelector } from "@/components/CropYearSelector";
+import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -88,6 +90,7 @@ const STATUS_FILTER_TABS: { key: StatusFilter; label: string }[] = [
 function RegisterTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [addTestOpen, setAddTestOpen] = useState(false);
@@ -164,6 +167,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
   });
 
   const filtered = allTests.filter(t => {
+    if (!isInCropYear(t.sampleDate, cropYear)) return false;
     if (statusFilter !== "all" && t.status !== statusFilter) return false;
     if (!search) return true;
     const fieldName = fields.find(f => f.id === t.fieldId)?.name ?? "";
@@ -243,6 +247,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input placeholder="Search by field, lab, reference, sampler..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+        <CropYearSelector value={cropYear} onChange={setCropYear} />
         <Button onClick={openAddTest} className="gap-2 shrink-0">
           <Plus className="w-4 h-4" /> Register Sample
         </Button>

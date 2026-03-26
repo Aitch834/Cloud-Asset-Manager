@@ -1,5 +1,7 @@
 import React, { useState, useRef } from "react";
 import { printHtml } from "@/lib/utils";
+import { CropYearSelector } from "@/components/CropYearSelector";
+import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -176,6 +178,7 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
   const staffNames: string[] = (membersData?.members ?? []).filter((m: any) => m.isActive).map(memberFullName);
   const [search, setSearch] = useState("");
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -220,6 +223,7 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
   });
 
   const filtered = harvests.filter((r: any) => {
+    if (!isInCropYear(r.harvestDate, cropYear)) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return (
@@ -238,6 +242,7 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
           <Input placeholder="Search harvests..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
         </div>
+        <CropYearSelector value={cropYear} onChange={setCropYear} />
         <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}>
           <Plus size={14} className="mr-1" />Log Harvest
         </Button>

@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CropYearSelector } from "@/components/CropYearSelector";
+import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -61,6 +63,7 @@ export default function FieldInspectionsPage() {
   const [search, setSearch] = useState("");
   const [filterAction, setFilterAction] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [cropYear, setCropYear] = useState(currentCropYear());
 
   const [detailRecord, setDetailRecord] = useState<FieldInspection | null>(null);
   const [resolveOpen, setResolveOpen] = useState(false);
@@ -84,6 +87,7 @@ export default function FieldInspectionsPage() {
   })();
 
   const filtered = records.filter((r) => {
+    if (!isInCropYear(r.inspectionDate, cropYear)) return false;
     const matchSearch = !search || r.fieldName.toLowerCase().includes(search.toLowerCase()) || r.inspector?.toLowerCase().includes(search.toLowerCase());
     const matchAction = filterAction === "all" || r.actionRequired === filterAction;
     const matchStatus = filterStatus === "all"
@@ -189,6 +193,7 @@ export default function FieldInspectionsPage() {
                 <SelectItem value="resolved">Resolved</SelectItem>
               </SelectContent>
             </Select>
+            <CropYearSelector value={cropYear} onChange={setCropYear} />
             <Select value={filterAction} onValueChange={setFilterAction}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Action" />

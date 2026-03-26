@@ -15,6 +15,8 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Printer, GraduationCap, Award, AlertTriangle, File, Trash2, Paperclip, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
+import { CropYearSelector } from "@/components/CropYearSelector";
+import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useFarmMembers, memberFullName, type FarmMember } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 
@@ -190,6 +192,7 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
   const [editItem, setEditItem] = useState<TrainingRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [search, setSearch] = useState(defaultMember ?? "");
+  const [cropYear, setCropYear] = useState(currentCropYear());
 
   const membersQ = useFarmMembers(farmId);
   const memberNameMap = React.useMemo(() => {
@@ -230,7 +233,9 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
   });
 
   const records = (q.data?.records ?? []).filter(r =>
-    !search || r.trainingTitle.toLowerCase().includes(search.toLowerCase()) || (r.trainingProvider ?? "").toLowerCase().includes(search.toLowerCase())
+    isInCropYear(r.trainingDate, cropYear) && (
+      !search || r.trainingTitle.toLowerCase().includes(search.toLowerCase()) || (r.trainingProvider ?? "").toLowerCase().includes(search.toLowerCase())
+    )
   );
 
   const createMut = useMutation({
@@ -298,6 +303,7 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
         <Input placeholder="Search training records…" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 280 }} />
+        <CropYearSelector value={cropYear} onChange={setCropYear} />
         <div style={{ flex: 1 }} />
         {expiredCount > 0 && (
           <Badge style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", display: "flex", alignItems: "center", gap: 4 }}>

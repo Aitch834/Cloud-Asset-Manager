@@ -1,5 +1,7 @@
 import React, { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CropYearSelector } from "@/components/CropYearSelector";
+import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -99,6 +101,7 @@ export default function WasteDisposalPage() {
   const printRef = useRef<HTMLDivElement>(null);
 
   const [search, setSearch] = useState("");
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<WasteRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -210,10 +213,12 @@ export default function WasteDisposalPage() {
 
   const records: WasteRecord[] = q.data ?? [];
   const filtered = records.filter(r =>
-    !search ||
-    r.wasteType?.toLowerCase().includes(search.toLowerCase()) ||
-    r.carrierName?.toLowerCase().includes(search.toLowerCase()) ||
-    r.destinationSite?.toLowerCase().includes(search.toLowerCase())
+    isInCropYear(r.disposalDate, cropYear) && (
+      !search ||
+      r.wasteType?.toLowerCase().includes(search.toLowerCase()) ||
+      r.carrierName?.toLowerCase().includes(search.toLowerCase()) ||
+      r.destinationSite?.toLowerCase().includes(search.toLowerCase())
+    )
   );
 
   const reportRecords = records.filter(r => {
@@ -347,6 +352,7 @@ export default function WasteDisposalPage() {
             <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
             <Input placeholder="Search waste records..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
           </div>
+          <CropYearSelector value={cropYear} onChange={setCropYear} />
           <Button size="sm" variant="outline" onClick={() => setReportOpen(true)}><Printer size={14} className="mr-1" />Print Register</Button>
           <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Add Waste Record</Button>
         </div>
