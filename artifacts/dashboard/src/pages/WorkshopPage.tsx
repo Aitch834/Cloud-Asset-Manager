@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Zap, Flame, ShieldAlert, FlaskConical } from "lucide-react";
+import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Zap, Flame, ShieldAlert, FlaskConical, Paperclip, File as FileIcon } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -565,11 +565,68 @@ function FleetOverviewTab({ farmId }: { farmId: number }) {
 
 // ─── PAT Testing tab ──────────────────────────────────────────────────────────
 
+function DocCell({ endpoint, queryKey, documentPath, documentName }: {
+  endpoint: string;
+  queryKey: unknown[];
+  documentPath: string | null;
+  documentName: string | null;
+}) {
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      const urlRes = await fetch("/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream" }),
+      });
+      const { uploadURL, objectPath } = await urlRes.json();
+      await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
+      const fileName = objectPath.split("/").pop() ?? file.name;
+      await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ documentPath: objectPath, documentName: fileName }) });
+      qc.invalidateQueries({ queryKey });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleRemove() {
+    await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ documentPath: null, documentName: null }) });
+    qc.invalidateQueries({ queryKey });
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      {documentPath ? (
+        <>
+          <a href={`/api/storage${documentPath}`} target="_blank" rel="noopener noreferrer" title={documentName || "View document"} className="flex items-center text-blue-600 p-1">
+            <FileIcon className="h-3.5 w-3.5" />
+          </a>
+          <button onClick={handleRemove} title="Remove document" className="text-gray-300 hover:text-gray-500 p-1 leading-none" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem" }}>×</button>
+        </>
+      ) : (
+        <>
+          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+          {uploading
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
+            : <button onClick={() => fileRef.current?.click()} title="Attach certificate copy" className="text-gray-300 hover:text-gray-500 p-1" style={{ background: "none", border: "none", cursor: "pointer" }}><Paperclip className="h-3.5 w-3.5" /></button>
+          }
+        </>
+      )}
+    </div>
+  );
+}
+
 interface PatTest {
   id: number; farmId: number; itemName: string; equipmentId: number | null;
   location: string | null; testDate: string | null; testerName: string | null;
   testerCompany: string | null; certificateNumber: string | null;
-  result: string; nextDueDate: string | null; notes: string | null; createdAt: string;
+  result: string; nextDueDate: string | null; notes: string | null;
+  documentPath: string | null; documentName: string | null; createdAt: string;
 }
 
 const PAT_RESULT: Record<string, { label: string; colour: string }> = {
@@ -641,7 +698,7 @@ function PatTestingTab({ farmId }: { farmId: number }) {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 border-b text-xs uppercase tracking-wide text-gray-500">
               <tr>
-                {["Item / Appliance", "Location", "Test Date", "Tester", "Cert No.", "Result", "Next Due", ""].map(h => <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>)}
+                {["Item / Appliance", "Location", "Test Date", "Tester", "Cert No.", "Result", "Next Due", "Cert Doc", ""].map(h => <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>)}
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -663,6 +720,14 @@ function PatTestingTab({ farmId }: { farmId: number }) {
                           {due.toLocaleDateString("en-GB")}
                         </span>
                       ) : "—"}
+                    </td>
+                    <td className="px-2 py-3">
+                      <DocCell
+                        endpoint={`/api/farms/${farmId}/workshop/pat-tests/${r.id}`}
+                        queryKey={["workshop-pat", farmId]}
+                        documentPath={r.documentPath ?? null}
+                        documentName={r.documentName ?? null}
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">

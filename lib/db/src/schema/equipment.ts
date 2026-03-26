@@ -51,6 +51,8 @@ export const equipmentCalibrationRecordsTable = pgTable("equipment_calibration_r
   certificateReference: text("certificate_reference"),
   resultPass: boolean("result_pass"),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -104,6 +106,8 @@ export const workshopPatTestsTable = pgTable("workshop_pat_tests", {
   result: text("result").notNull().default("pass"),
   nextDueDate: timestamp("next_due_date", { withTimezone: true }),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

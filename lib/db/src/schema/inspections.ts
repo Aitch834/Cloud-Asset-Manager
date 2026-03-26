@@ -12,6 +12,8 @@ export const inspectionRecordsTable = pgTable("inspection_records", {
   summary: text("summary"),
   nextInspectionDue: timestamp("next_inspection_due", { withTimezone: true }),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -58,6 +60,8 @@ export const farmAssuranceCertsTable = pgTable("farm_assurance_certs", {
   status: text("status").notNull().default("active"),
   nextVisitDue: timestamp("next_visit_due", { withTimezone: true }),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -11,12 +11,74 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Paperclip, File as FileIcon, Loader2, ExternalLink } from "lucide-react";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
+
+function DocCell({ endpoint, queryKey, documentPath, documentName, portalUrl }: {
+  endpoint: string;
+  queryKey: unknown[];
+  documentPath: string | null;
+  documentName: string | null;
+  portalUrl?: string;
+}) {
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      const urlRes = await fetch("/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream" }),
+      });
+      const { uploadURL, objectPath } = await urlRes.json();
+      await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
+      const fileName = objectPath.split("/").pop() ?? file.name;
+      await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentPath: objectPath, documentName: fileName }) });
+      qc.invalidateQueries({ queryKey });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleRemove() {
+    await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentPath: null, documentName: null }) });
+    qc.invalidateQueries({ queryKey });
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+      {portalUrl && (
+        <a href={portalUrl} target="_blank" rel="noopener noreferrer" title="View on assurance portal" style={{ display: "flex", alignItems: "center", color: "#6b7280", padding: 4 }}>
+          <ExternalLink size={13} />
+        </a>
+      )}
+      {documentPath ? (
+        <>
+          <a href={`/api/storage${documentPath}`} target="_blank" rel="noopener noreferrer" title={documentName || "View document"} style={{ display: "flex", alignItems: "center", color: "#2563eb", padding: 4 }}>
+            <FileIcon size={13} />
+          </a>
+          <button onClick={handleRemove} title="Remove document" style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4, fontSize: "0.8rem", lineHeight: 1 }}>×</button>
+        </>
+      ) : (
+        <>
+          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: "none" }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+          {uploading
+            ? <Loader2 size={13} style={{ color: "#9ca3af", padding: 4, animation: "spin 1s linear infinite" }} />
+            : <button onClick={() => fileRef.current?.click()} title="Attach document copy" style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}><Paperclip size={13} /></button>
+          }
+        </>
+      )}
+    </div>
+  );
+}
 
 type Tab = "inspections" | "nonconformances" | "corrective-actions" | "assurance-certs";
 
@@ -101,7 +163,7 @@ function InspectionsTab({ farmId }: { farmId: number }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Date", "Type", "Inspector", "Body", "Result", "Next Due", ""].map(h => (
+                {["Date", "Type", "Inspector", "Body", "Result", "Next Due", "Report", ""].map(h => (
                   <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
                 ))}
               </tr>
@@ -115,6 +177,14 @@ function InspectionsTab({ farmId }: { farmId: number }) {
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.inspectionBody || "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem" }}>{r.overallResult ? <StatusBadge status={r.overallResult} /> : "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{fmt(r.nextInspectionDue)}</td>
+                  <td style={{ padding: "0.25rem 0.5rem" }}>
+                    <DocCell
+                      endpoint={`/api/farms/${farmId}/inspections/${r.id}`}
+                      queryKey={["inspections", farmId]}
+                      documentPath={r.documentPath ?? null}
+                      documentName={r.documentName ?? null}
+                    />
+                  </td>
                   <td style={{ padding: "0.5rem" }}>
                     <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                   </td>
@@ -596,7 +666,7 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Certification Body", "Scheme / Sector", "Cert No.", "Assessor", "Membership No.", "Issue Date", "Expiry", "Next Visit", "Status", ""].map(h => (
+                {["Certification Body", "Scheme / Sector", "Cert No.", "Assessor", "Membership No.", "Issue Date", "Expiry", "Next Visit", "Status", "Doc / Portal", ""].map(h => (
                   <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -619,6 +689,15 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
                     </td>
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.nextVisitDue)}</td>
                     <td style={{ padding: "0.625rem 0.875rem" }}><CertStatusBadge status={r.status} /></td>
+                    <td style={{ padding: "0.25rem 0.5rem" }}>
+                      <DocCell
+                        endpoint={`/api/farms/${farmId}/assurance-certs/${r.id}`}
+                        queryKey={["assurance-certs", farmId]}
+                        documentPath={r.documentPath ?? null}
+                        documentName={r.documentName ?? null}
+                        portalUrl={r.certificationBody?.toLowerCase().includes("red tractor") ? "https://assured.redtractor.org.uk" : undefined}
+                      />
+                    </td>
                     <td style={{ padding: "0.5rem" }}>
                       <div style={{ display: "flex", gap: 4 }}>
                         <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
