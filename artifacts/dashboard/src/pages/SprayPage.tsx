@@ -666,59 +666,176 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
 
 function PrintTab({ applications, farm }: any) {
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
   const handlePrint = () => {
-    const rows = applications.map((r: any) => `
-      <tr>
-        <td>${fmt(r.applicationDate)}</td><td>${r.fieldName || "—"}</td><td>${r.productName || "—"}</td>
-        <td>${r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}` : "—"}</td>
-        <td>${r.areaSprayedHa ? `${r.areaSprayedHa} ha` : "—"}</td>
-        <td>${r.waterVolumeLitres ? `${r.waterVolumeLitres} L/ha` : "—"}</td>
-        <td>${r.windSpeedKmh ? `${r.windSpeedKmh} km/h ${r.windDirection || ""}` : "—"}</td>
-        <td>${r.temperatureC ? `${r.temperatureC}°C` : "—"}</td>
-        <td>${r.operatorName || "—"}</td><td>${r.certificateNumber || "—"}</td>
+    const farmName = farm?.name || "—";
+    const cph = farm?.cphNumber ? `CPH: ${farm.cphNumber}` : "";
+    const rtId = farm?.redTractorId ? `Red Tractor ID: ${farm.redTractorId}` : "";
+    const meta = [cph, rtId].filter(Boolean).join("  ·  ");
+
+    const rows = applications.map((r: any, i: number) => {
+      const conditions = [
+        r.windSpeedKmh ? `${r.windSpeedKmh} km/h ${r.windDirection || ""}`.trim() : null,
+        r.temperatureC != null ? `${r.temperatureC}°C` : null,
+      ].filter(Boolean).join(" / ") || "—";
+      const rate = r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}`.trim() : "—";
+      const area = r.areaSprayedHa ? `${r.areaSprayedHa} ha` : "—";
+      const water = r.waterVolumeLitres ? `${r.waterVolumeLitres} L/ha` : "—";
+      const bg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
+      return `<tr style="background:${bg};page-break-inside:avoid">
+        <td style="white-space:nowrap">${fmt(r.applicationDate)}</td>
+        <td>${r.fieldName || "—"}</td>
+        <td><strong>${r.productName || "—"}</strong>${r.productCategory ? `<br><span style="color:#6b7280;font-size:6.5px">${r.productCategory}</span>` : ""}</td>
+        <td style="white-space:nowrap">${rate}</td>
+        <td style="white-space:nowrap">${area}</td>
+        <td style="white-space:nowrap">${water}</td>
+        <td style="white-space:nowrap">${conditions}</td>
+        <td>${r.operatorName || "—"}</td>
+        <td style="font-family:monospace">${r.certificateNumber || "—"}</td>
         <td>${r.reasonForApplication || "—"}</td>
-      </tr>`).join("");
-    const farmLine = farm ? `<p style="font-size:10px;color:#374151;margin:2px 0"><strong>${farm.name || ""}${farm.cphNumber ? ` · CPH: ${farm.cphNumber}` : ""}${farm.redTractorId ? ` · Red Tractor ID: ${farm.redTractorId}` : ""}</strong></p>` : "";
-    printHtml(`<html><head><title>Spray Records</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:2cm}h1{font-size:15px;border-bottom:2px solid #333;padding-bottom:6px}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#f3f4f6;padding:5px 6px;text-align:left;font-size:10px;border:1px solid #d1d5db}td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top}tr:nth-child(even){background:#f9fafb}.footer{margin-top:24px;font-size:9px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;display:flex;justify-content:space-between}</style></head><body><h1>Spray Application Records — Red Tractor Compliance</h1>${farmLine}<p style="font-size:10px;color:#6b7280;margin:2px 0">Printed: ${today}</p><table><thead><tr><th>Date</th><th>Field</th><th>Product</th><th>Rate</th><th>Area</th><th>Water Vol.</th><th>Wind</th><th>Temp</th><th>Operator</th><th>Certificate</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table><div class="footer"><span>Retain for a minimum of 3 years and make available at Red Tractor audit.</span><span>Powered by BDE Farm Trac · ${today}</span></div></body></html>`);
+      </tr>`;
+    }).join("");
+
+    const css = `
+      @page { size: A4 landscape; margin: 0.9cm 1.1cm; }
+      * { box-sizing: border-box; }
+      body { font-family: Arial, Helvetica, sans-serif; font-size: 8px; color: #111; margin: 0; padding: 0; }
+      .hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a3a1a; padding-bottom: 6px; margin-bottom: 8px; }
+      .hdr-left h1 { font-size: 12px; font-weight: 700; color: #1a3a1a; margin: 0 0 2px; }
+      .hdr-left p { font-size: 7.5px; color: #374151; margin: 1px 0; }
+      .hdr-right { text-align: right; font-size: 7px; color: #6b7280; }
+      .hdr-right .rt-badge { display: inline-block; background: #dc2626; color: #fff; font-size: 6.5px; font-weight: 700; padding: 2px 6px; border-radius: 3px; letter-spacing: 0.05em; margin-bottom: 3px; }
+      .meta { display: flex; gap: 16px; margin-bottom: 8px; font-size: 7px; color: #374151; }
+      .meta span { background: #f3f4f6; padding: 2px 6px; border-radius: 3px; border: 1px solid #e5e7eb; }
+      table { width: 100%; border-collapse: collapse; font-size: 7.5px; }
+      colgroup col.date { width: 52px; }
+      colgroup col.field { width: 68px; }
+      colgroup col.product { width: 90px; }
+      colgroup col.rate { width: 44px; }
+      colgroup col.area { width: 36px; }
+      colgroup col.water { width: 38px; }
+      colgroup col.cond { width: 54px; }
+      colgroup col.operator { width: 64px; }
+      colgroup col.cert { width: 52px; }
+      colgroup col.reason { width: auto; }
+      thead tr { background: #1a3a1a; }
+      thead th { padding: 4px 5px; color: #fff; font-weight: 700; font-size: 6.5px; text-transform: uppercase; letter-spacing: 0.05em; border-right: 1px solid #2d5a2d; text-align: left; }
+      thead th:last-child { border-right: none; }
+      tbody td { padding: 3px 5px; border-bottom: 1px solid #e5e7eb; border-right: 1px solid #f0f0f0; vertical-align: top; line-height: 1.35; }
+      tbody td:last-child { border-right: none; }
+      .footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid #d1d5db; display: flex; justify-content: space-between; font-size: 6.5px; color: #9ca3af; }
+      .empty { text-align: center; padding: 24px; color: #9ca3af; font-size: 9px; }
+    `;
+
+    const body = applications.length === 0
+      ? `<div class="empty">No spray application records to display.</div>`
+      : `<table><colgroup><col class="date"><col class="field"><col class="product"><col class="rate"><col class="area"><col class="water"><col class="cond"><col class="operator"><col class="cert"><col class="reason"></colgroup>
+          <thead><tr><th>Date</th><th>Field</th><th>Product</th><th>Rate</th><th>Area</th><th>Water Vol.</th><th>Wind / Temp</th><th>Operator</th><th>PA Cert No.</th><th>Reason / Notes</th></tr></thead>
+          <tbody>${rows}</tbody></table>`;
+
+    printHtml(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Spray Records — ${farmName}</title><style>${css}</style></head><body>
+      <div class="hdr">
+        <div class="hdr-left">
+          <h1>Spray Application Records</h1>
+          <p><strong>${farmName}</strong>${meta ? `  ·  ${meta}` : ""}</p>
+          <p style="color:#6b7280">Red Tractor Crop Inputs Compliance Register</p>
+        </div>
+        <div class="hdr-right">
+          <div class="rt-badge">RED TRACTOR</div><br>
+          <span>Printed: ${today}</span><br>
+          <span>${applications.length} record${applications.length !== 1 ? "s" : ""}</span>
+        </div>
+      </div>
+      ${body}
+      <div class="footer">
+        <span>Retain records for a minimum of 3 years and make available at Red Tractor audit inspection.</span>
+        <span>BDE Farm Trac · ${today}</span>
+      </div>
+    </body></html>`);
   };
+
+  const farmName = farm?.name;
+  const meta = [
+    farm?.cphNumber ? `CPH: ${farm.cphNumber}` : null,
+    farm?.redTractorId ? `RT ID: ${farm.redTractorId}` : null,
+  ].filter(Boolean).join(" · ");
+
+  const COLS = ["Date", "Field", "Product", "Rate", "Area", "Water Vol.", "Wind / Temp", "Operator", "PA Cert No.", "Reason / Notes"];
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
-        <Button size="sm" onClick={handlePrint}><Printer size={14} className="mr-1" />Print / Export PDF</Button>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
+        <div>
+          <p style={{ fontSize: "0.8rem", color: "#6b7280", margin: 0 }}>
+            Preview of the printed report. Prints landscape A4 — fits all columns on a single page row.
+          </p>
+        </div>
+        <Button size="sm" onClick={handlePrint}>
+          <Printer size={14} className="mr-1.5" />Print / Export PDF
+        </Button>
       </div>
-      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "2rem" }}>
-        <h2 style={{ fontSize: "1rem", fontWeight: 700, borderBottom: "2px solid #333", paddingBottom: 8, marginBottom: 8 }}>Spray Application Records — Red Tractor Compliance</h2>
-        <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: "1.5rem" }}>Printed: {today} | BDE Farm Trac</p>
-        {applications.length === 0 ? <p style={{ fontSize: "0.85rem", color: "#9ca3af" }}>No spray applications on record.</p> : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
-              <thead>
-                <tr style={{ background: "#f3f4f6" }}>
-                  {["Date", "Field", "Product", "Rate", "Area", "Water Vol.", "Wind", "Temp", "Operator", "Certificate No.", "Reason"].map(h => (
-                    <th key={h} style={{ padding: "5px 6px", textAlign: "left", fontSize: "0.7rem", border: "1px solid #d1d5db" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {applications.map((r: any, i: number) => (
-                  <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : "#f9fafb" }}>
-                    <td style={{ padding: "4px 6px", border: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{fmt(r.applicationDate)}</td>
-                    <td style={{ padding: "4px 6px", border: "1px solid #e5e7eb" }}>{r.fieldName || "—"}</td>
-                    <td style={{ padding: "4px 6px", border: "1px solid #e5e7eb" }}>{r.productName || "—"}</td>
-                    <td style={{ padding: "4px 6px", border: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}` : "—"}</td>
-                    <td style={{ padding: "4px 6px", border: "1px solid #e5e7eb" }}>{r.areaSprayedHa ? `${r.areaSprayedHa} ha` : "—"}</td>
-                    <td style={{ padding: "4px 6px", border: "1px solid #e5e7eb" }}>{r.waterVolumeLitres ? `${r.waterVolumeLitres} L/ha` : "—"}</td>
-                    <td style={{ padding: "4px 6px", border: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{r.windSpeedKmh ? `${r.windSpeedKmh} km/h ${r.windDirection || ""}` : "—"}</td>
-                    <td style={{ padding: "4px 6px", border: "1px solid #e5e7eb" }}>{r.temperatureC ? `${r.temperatureC}°C` : "—"}</td>
-                    <td style={{ padding: "4px 6px", border: "1px solid #e5e7eb" }}>{r.operatorName || "—"}</td>
-                    <td style={{ padding: "4px 6px", border: "1px solid #e5e7eb" }}>{r.certificateNumber || "—"}</td>
-                    <td style={{ padding: "4px 6px", border: "1px solid #e5e7eb" }}>{r.reasonForApplication || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+      <div style={{ background: "#e5e7eb", padding: "1.5rem", borderRadius: 10 }}>
+        <div style={{ background: "#fff", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", padding: "1.5rem 1.75rem", fontFamily: "Arial, Helvetica, sans-serif" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #1a3a1a", paddingBottom: 10, marginBottom: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1a3a1a", margin: "0 0 2px" }}>Spray Application Records</h2>
+              {farmName && <p style={{ fontSize: "0.75rem", color: "#374151", margin: "1px 0" }}><strong>{farmName}</strong>{meta ? `  ·  ${meta}` : ""}</p>}
+              <p style={{ fontSize: "0.7rem", color: "#6b7280", margin: "1px 0" }}>Red Tractor Crop Inputs Compliance Register</p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ display: "inline-block", background: "#dc2626", color: "#fff", fontSize: "0.6rem", fontWeight: 700, padding: "2px 8px", borderRadius: 3, letterSpacing: "0.05em", marginBottom: 4 }}>RED TRACTOR</div>
+              <p style={{ fontSize: "0.65rem", color: "#6b7280", margin: "1px 0" }}>Printed: {today}</p>
+              <p style={{ fontSize: "0.65rem", color: "#6b7280", margin: "1px 0" }}>{applications.length} record{applications.length !== 1 ? "s" : ""}</p>
+            </div>
           </div>
-        )}
+
+          {applications.length === 0 ? (
+            <p style={{ fontSize: "0.8rem", color: "#9ca3af", textAlign: "center", padding: "2rem 0" }}>No spray applications on record.</p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.7rem" }}>
+                <thead>
+                  <tr style={{ background: "#1a3a1a" }}>
+                    {COLS.map(h => (
+                      <th key={h} style={{ padding: "5px 7px", color: "#fff", fontWeight: 700, fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "left", borderRight: "1px solid #2d5a2d", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {applications.map((r: any, i: number) => {
+                    const conditions = [
+                      r.windSpeedKmh ? `${r.windSpeedKmh} km/h ${r.windDirection || ""}`.trim() : null,
+                      r.temperatureC != null ? `${r.temperatureC}°C` : null,
+                    ].filter(Boolean).join(" / ") || "—";
+                    return (
+                      <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : "#f8fafc" }}>
+                        <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", whiteSpace: "nowrap", color: "#374151" }}>{fmt(r.applicationDate)}</td>
+                        <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", color: "#374151" }}>{r.fieldName || "—"}</td>
+                        <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0" }}>
+                          <span style={{ fontWeight: 600, color: "#111827" }}>{r.productName || "—"}</span>
+                          {r.productCategory && <span style={{ display: "block", fontSize: "0.6rem", color: "#9ca3af" }}>{r.productCategory}</span>}
+                        </td>
+                        <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", whiteSpace: "nowrap", color: "#374151" }}>{r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}`.trim() : "—"}</td>
+                        <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", whiteSpace: "nowrap", color: "#374151" }}>{r.areaSprayedHa ? `${r.areaSprayedHa} ha` : "—"}</td>
+                        <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", whiteSpace: "nowrap", color: "#374151" }}>{r.waterVolumeLitres ? `${r.waterVolumeLitres} L/ha` : "—"}</td>
+                        <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", whiteSpace: "nowrap", color: "#374151" }}>{conditions}</td>
+                        <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", color: "#374151" }}>{r.operatorName || "—"}</td>
+                        <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", color: "#374151", fontFamily: "monospace", fontSize: "0.65rem" }}>{r.certificateNumber || "—"}</td>
+                        <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", color: "#374151" }}>{r.reasonForApplication || "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid #d1d5db", display: "flex", justifyContent: "space-between", fontSize: "0.6rem", color: "#9ca3af" }}>
+            <span>Retain records for a minimum of 3 years and make available at Red Tractor audit inspection.</span>
+            <span>BDE Farm Trac · {today}</span>
+          </div>
+        </div>
       </div>
     </div>
   );
