@@ -1,4 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  Legend, ResponsiveContainer, ReferenceLine,
+} from "recharts";
 import { printHtml } from "@/lib/utils";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -14,7 +18,7 @@ import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, ChevronDown, ChevronUp,
   TestTube, Printer, FlaskConical, ArrowRight, CheckCircle, Clock, Archive,
-  MoreHorizontal, MapPin,
+  MoreHorizontal, MapPin, Map, TrendingUp, TrendingDown, Minus,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import {
@@ -24,7 +28,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
-type PageTab = "register" | "print";
+type PageTab = "register" | "map" | "trends" | "print";
 type StatusFilter = "all" | "sampled" | "sent_to_lab" | "results_received" | "archived";
 
 function formatDate(val: string | null | undefined): string {
@@ -687,6 +691,441 @@ function PrintTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+const STATUS_PIN_COLORS: Record<string, string> = {
+  sampled:          "#3b82f6",
+  sent_to_lab:      "#f59e0b",
+  results_received: "#16a34a",
+  archived:         "#9ca3af",
+};
+
+function destroyLeafletMap(map: import("leaflet").Map | null) {
+  if (!map) return;
+  try { map.off(); map.remove(); } catch { }
+}
+
+function extractNutrient(results: SoilTestResult[], names: string[]): string | null {
+  for (const name of names) {
+    const r = results.find(r => r.nutrient.toLowerCase().includes(name.toLowerCase()));
+    if (r) return r.value ?? (r.index ? `Index ${r.index}` : null);
+  }
+  return null;
+}
+
+function extractIndex(results: SoilTestResult[], names: string[]): string | null {
+  for (const name of names) {
+    const r = results.find(r => r.nutrient.toLowerCase().includes(name.toLowerCase()));
+    if (r?.index) return r.index;
+  }
+  return null;
+}
+
+// ─── Map Tab ───────────────────────────────────────────────────────────────
+
+function MapTab({ farmId }: { farmId: number }) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const leafletMapRef = useRef<import("leaflet").Map | null>(null);
+  const [leafletReady, setLeafletReady] = useState(false);
+
+  const fieldsQ = useQuery<{ records: FieldRecord[] }>({
+    queryKey: ["fields-soil-map", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`, { credentials: "include" }).then(r => r.json()),
+  });
+  const testsQ = useQuery<{ records: SoilTestRecord[] }>({
+    queryKey: ["soil-tests", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/soil-tests`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const fields: FieldRecord[] = fieldsQ.data?.records ?? [];
+  const gpsTests = (testsQ.data?.records ?? []).filter(t => t.latitude && t.longitude);
+
+  const detailResults = useQueries({
+    queries: gpsTests.map(t => ({
+      queryKey: ["soil-test-detail", farmId, t.id],
+      queryFn: (): Promise<{ record: SoilTestRecord & { results: SoilTestResult[] } }> =>
+        fetch(`/api/farms/${farmId}/soil-tests/${t.id}`, { credentials: "include" }).then(r => r.json()),
+    })),
+  });
+
+  const detailMap: Record<number, SoilTestResult[]> = {};
+  gpsTests.forEach((t, i) => {
+    detailMap[t.id] = detailResults[i]?.data?.record?.results ?? [];
+  });
+  const allLoaded = gpsTests.length === 0 || !detailResults.some(r => r.isLoading);
+
+  useEffect(() => {
+    import("leaflet").then((L) => {
+      if (!("_leafletLoaded" in window)) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        document.head.appendChild(link);
+        (window as Record<string, unknown>)["_leafletLoaded"] = true;
+      }
+      (window as Record<string, unknown>)["_L"] = L;
+      setLeafletReady(true);
+    });
+    return () => { destroyLeafletMap(leafletMapRef.current); leafletMapRef.current = null; };
+  }, []);
+
+  useEffect(() => {
+    if (!leafletReady || !mapRef.current || !allLoaded) return;
+    const L = (window as Record<string, unknown>)["_L"] as typeof import("leaflet");
+
+    destroyLeafletMap(leafletMapRef.current);
+    leafletMapRef.current = null;
+
+    const map = L.map(mapRef.current, { zoomControl: true }).setView([52.4, -1.5], 6);
+    L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { attribution: "Tiles &copy; Esri", maxZoom: 20 }
+    ).addTo(map);
+    leafletMapRef.current = map;
+
+    const allBounds: [number, number][] = [];
+
+    gpsTests.forEach(test => {
+      if (!test.latitude || !test.longitude) return;
+      const lat = parseFloat(test.latitude);
+      const lng = parseFloat(test.longitude);
+      if (isNaN(lat) || isNaN(lng)) return;
+
+      const fieldName = fields.find(f => f.id === test.fieldId)?.name ?? `Field #${test.fieldId}`;
+      const pinColor = STATUS_PIN_COLORS[test.status ?? "sampled"] ?? "#6b7280";
+      const statusLabel = STATUS_CONFIG[test.status ?? "sampled"]?.label ?? test.status;
+      const results = detailMap[test.id] ?? [];
+
+      const pH = extractNutrient(results, ["pH", "ph"]);
+      const pVal = extractNutrient(results, ["Phosphorus", "phosphorus", "P)"]);
+      const pIdx = extractIndex(results, ["Phosphorus", "phosphorus", "P)"]);
+      const kVal = extractNutrient(results, ["Potassium", "potassium", "K)"]);
+      const kIdx = extractIndex(results, ["Potassium", "potassium", "K)"]);
+      const mgVal = extractNutrient(results, ["Magnesium", "magnesium", "Mg)"]);
+      const mgIdx = extractIndex(results, ["Magnesium", "magnesium", "Mg)"]);
+
+      const nutrientRow = (label: string, val: string | null, idx: string | null) =>
+        `<tr><td style="padding:2px 6px 2px 0;color:#6b7280;font-size:11px">${label}</td>
+              <td style="padding:2px 0;font-family:monospace;font-size:11px;font-weight:600;color:#111">${val ?? "—"}</td>
+              ${idx ? `<td style="padding:2px 0 2px 6px;font-size:10px;color:#6b7280">Index ${idx}</td>` : "<td></td>"}
+         </tr>`;
+
+      const hasResults = results.length > 0;
+      const nutrientTable = hasResults
+        ? `<table style="margin-top:6px;border-collapse:collapse;width:100%">
+             ${pH ? nutrientRow("pH", pH, null) : ""}
+             ${pVal || pIdx ? nutrientRow("Phosphorus (P)", pVal, pIdx) : ""}
+             ${kVal || kIdx ? nutrientRow("Potassium (K)", kVal, kIdx) : ""}
+             ${mgVal || mgIdx ? nutrientRow("Magnesium (Mg)", mgVal, mgIdx) : ""}
+           </table>`
+        : `<p style="font-size:11px;color:#9ca3af;font-style:italic;margin:4px 0 0">Lab results pending</p>`;
+
+      const popupHtml = `
+        <div style="font-family:system-ui;font-size:13px;min-width:200px;max-width:260px;padding:2px 0">
+          <p style="font-weight:700;margin:0 0 2px;color:#111">${fieldName}</p>
+          <p style="margin:0 0 4px;font-family:monospace;font-size:10px;color:#6b7280">${test.sampleReference ?? "No ref"}</p>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+            <span style="font-size:10px;color:#6b7280">${formatDate(test.sampleDate)}</span>
+            <span style="font-size:10px;font-weight:600;padding:1px 8px;border-radius:10px;background:${pinColor}22;color:${pinColor};border:1px solid ${pinColor}40">${statusLabel}</span>
+          </div>
+          ${test.locationDescription ? `<p style="font-size:10px;color:#6b7280;margin:2px 0;font-style:italic">${test.locationDescription}</p>` : ""}
+          ${nutrientTable}
+          ${test.sampledBy ? `<p style="font-size:10px;color:#9ca3af;margin:4px 0 0">Sampled by ${test.sampledBy}</p>` : ""}
+        </div>`;
+
+      const pinHtml = `<div style="width:26px;height:26px;border-radius:50%;background:${pinColor};border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="13" height="13"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+      </div>`;
+      const icon = L.divIcon({ html: pinHtml, className: "", iconSize: [26, 26], iconAnchor: [13, 13] });
+      const marker = L.marker([lat, lng], { icon }).addTo(map);
+      marker.bindPopup(popupHtml, { maxWidth: 280 });
+      allBounds.push([lat, lng]);
+    });
+
+    if (allBounds.length > 0) {
+      map.fitBounds(allBounds as [number, number][], { padding: [60, 60], maxZoom: 16 });
+    }
+  }, [leafletReady, allLoaded, gpsTests, fields, detailMap]);
+
+  const loading = testsQ.isLoading || !allLoaded;
+  const noGps = !loading && gpsTests.length === 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-3">
+        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+          <span key={key} className="inline-flex items-center gap-1.5 text-xs font-medium">
+            <span className="w-3 h-3 rounded-full inline-block" style={{ background: STATUS_PIN_COLORS[key] }} />
+            {cfg.label}
+          </span>
+        ))}
+        <span className="text-xs text-foreground/40 ml-2">Click any pin to see sample details and nutrient results</span>
+      </div>
+
+      <div className="rounded-xl border border-border overflow-hidden" style={{ position: "relative" }}>
+        {(loading || !leafletReady) && (
+          <div className="absolute inset-0 bg-muted flex items-center justify-center z-10" style={{ height: 480 }}>
+            <div className="flex items-center gap-2 text-foreground/50 text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading sample map…
+            </div>
+          </div>
+        )}
+        {noGps && (
+          <div className="absolute inset-0 bg-muted/80 flex flex-col items-center justify-center z-10" style={{ height: 480 }}>
+            <MapPin className="w-8 h-8 text-foreground/20 mb-2" />
+            <p className="text-sm font-semibold text-foreground/50">No GPS-tagged samples yet</p>
+            <p className="text-xs text-foreground/40 mt-1">Use "Pick on map" when registering a sample to add it here.</p>
+          </div>
+        )}
+        <div ref={mapRef} style={{ height: 480, width: "100%" }} />
+      </div>
+
+      {gpsTests.length > 0 && (
+        <p className="text-xs text-foreground/40">{gpsTests.length} of {testsQ.data?.records.length ?? 0} samples have GPS coordinates · Showing all years</p>
+      )}
+    </div>
+  );
+}
+
+// ─── Trends Tab ────────────────────────────────────────────────────────────
+
+const TREND_NUTRIENTS = [
+  { key: "ph",   label: "pH",             names: ["pH", "ph"],              color: "#7c3aed", target: 6.5, unit: "",      higherIsBetter: true,  targetNote: "Target ≥ 6.5 for arable" },
+  { key: "p",    label: "Phosphorus (P)", names: ["Phosphorus", "phospho"], color: "#ea580c", target: 2,   unit: "index", higherIsBetter: false, targetNote: "AHDB Index 2 = optimal" },
+  { key: "k",    label: "Potassium (K)",  names: ["Potassium", "potass"],   color: "#0891b2", target: 2,   unit: "index", higherIsBetter: false, targetNote: "AHDB Index 2 = optimal" },
+  { key: "mg",   label: "Magnesium (Mg)", names: ["Magnesium", "magnes"],   color: "#16a34a", target: 2,   unit: "index", higherIsBetter: false, targetNote: "AHDB Index 2 = optimal" },
+];
+
+function getNutrientValue(results: SoilTestResult[], names: string[]): number | null {
+  for (const name of names) {
+    const r = results.find(r => r.nutrient.toLowerCase().includes(name.toLowerCase()));
+    if (r) {
+      const v = parseFloat(r.index ?? r.value ?? "");
+      if (!isNaN(v)) return v;
+    }
+  }
+  return null;
+}
+
+function TrendsTab({ farmId }: { farmId: number }) {
+  const [selectedFieldId, setSelectedFieldId] = useState<number | "">("");
+
+  const fieldsQ = useQuery<{ records: FieldRecord[] }>({
+    queryKey: ["fields-soil-trends", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`, { credentials: "include" }).then(r => r.json()),
+  });
+  const testsQ = useQuery<{ records: SoilTestRecord[] }>({
+    queryKey: ["soil-tests", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/soil-tests`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const fields: FieldRecord[] = fieldsQ.data?.records ?? [];
+  const allTests: SoilTestRecord[] = testsQ.data?.records ?? [];
+
+  const fieldTests = selectedFieldId
+    ? allTests.filter(t => t.fieldId === selectedFieldId && t.status === "results_received")
+        .sort((a, b) => new Date(a.sampleDate).getTime() - new Date(b.sampleDate).getTime())
+    : [];
+
+  const detailResults = useQueries({
+    queries: fieldTests.map(t => ({
+      queryKey: ["soil-test-detail", farmId, t.id],
+      queryFn: (): Promise<{ record: SoilTestRecord & { results: SoilTestResult[] } }> =>
+        fetch(`/api/farms/${farmId}/soil-tests/${t.id}`, { credentials: "include" }).then(r => r.json()),
+    })),
+  });
+
+  const fieldsWithResults = allTests.length > 0
+    ? fields.filter(f => allTests.some(t => t.fieldId === f.id && t.status === "results_received"))
+    : [];
+
+  const chartData = fieldTests.map((test, i) => {
+    const results = detailResults[i]?.data?.record?.results ?? [];
+    const row: Record<string, unknown> = {
+      date: new Date(test.sampleDate).toLocaleDateString("en-GB", { month: "short", year: "numeric" }),
+      ref: test.sampleReference ?? "",
+    };
+    TREND_NUTRIENTS.forEach(n => {
+      row[n.key] = getNutrientValue(results, n.names);
+    });
+    return row;
+  });
+
+  const allDetailLoaded = fieldTests.length === 0 || !detailResults.some(r => r.isLoading);
+
+  function TrendArrow({ current, previous, higherIsBetter }: { current: number | null; previous: number | null; higherIsBetter: boolean }) {
+    if (current === null || previous === null) return <Minus className="w-3.5 h-3.5 text-foreground/30" />;
+    const diff = current - previous;
+    if (Math.abs(diff) < 0.1) return <Minus className="w-3.5 h-3.5 text-foreground/40" />;
+    const improving = higherIsBetter ? diff > 0 : Math.abs(current - 2) < Math.abs(previous - 2);
+    if (diff > 0) return <TrendingUp className={`w-3.5 h-3.5 ${improving ? "text-green-600" : "text-red-500"}`} />;
+    return <TrendingDown className={`w-3.5 h-3.5 ${improving ? "text-green-600" : "text-red-500"}`} />;
+  }
+
+  const latestResults = fieldTests.length > 0 ? detailResults[fieldTests.length - 1]?.data?.record?.results ?? [] : [];
+  const prevResults = fieldTests.length > 1 ? detailResults[fieldTests.length - 2]?.data?.record?.results ?? [] : [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <div>
+          <label className="text-xs font-medium text-foreground/60 mb-1 block">Field</label>
+          <select
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-48"
+            value={selectedFieldId}
+            onChange={e => setSelectedFieldId(e.target.value ? Number(e.target.value) : "")}
+          >
+            <option value="">Select a field…</option>
+            {fieldsWithResults.map(f => (
+              <option key={f.id} value={f.id}>{f.name}{f.fieldReference ? ` (${f.fieldReference})` : ""}</option>
+            ))}
+          </select>
+        </div>
+        {selectedFieldId && fieldsWithResults.length === 0 && (
+          <p className="text-sm text-foreground/50 mt-4">No fields with completed lab results yet.</p>
+        )}
+      </div>
+
+      {!selectedFieldId && (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <TrendingUp className="w-10 h-10 text-foreground/20 mb-3" />
+          <p className="text-sm font-semibold text-foreground/50">Select a field to view soil health trends</p>
+          <p className="text-xs text-foreground/40 mt-1">Shows how pH, P, K and Mg have changed across all sampling events</p>
+        </div>
+      )}
+
+      {selectedFieldId && !allDetailLoaded && (
+        <div className="flex items-center gap-2 text-foreground/50 text-sm py-8 justify-center">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading nutrient history…
+        </div>
+      )}
+
+      {selectedFieldId && allDetailLoaded && fieldTests.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <TestTube className="w-10 h-10 text-foreground/20 mb-3" />
+          <p className="text-sm font-semibold text-foreground/50">No completed lab results for this field</p>
+          <p className="text-xs text-foreground/40 mt-1">Results will appear here once samples reach "Results Received" status.</p>
+        </div>
+      )}
+
+      {selectedFieldId && allDetailLoaded && fieldTests.length === 1 && (
+        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+          Only one set of results recorded — trends appear when there are two or more sampling events with results.
+        </p>
+      )}
+
+      {selectedFieldId && allDetailLoaded && fieldTests.length >= 1 && (
+        <>
+          {/* Summary row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {TREND_NUTRIENTS.map(n => {
+              const latest = getNutrientValue(latestResults, n.names);
+              const prev = getNutrientValue(prevResults, n.names);
+              return (
+                <div key={n.key} className="rounded-xl border border-border bg-white p-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-foreground/60 uppercase tracking-wider">{n.label}</span>
+                    <TrendArrow current={latest} previous={prev} higherIsBetter={n.higherIsBetter} />
+                  </div>
+                  <p className="text-2xl font-bold" style={{ color: n.color }}>{latest !== null ? latest.toFixed(n.key === "ph" ? 1 : 0) : "—"}</p>
+                  <p className="text-xs text-foreground/40 mt-0.5">{n.unit || "value"} · {n.targetNote}</p>
+                  {prev !== null && latest !== null && (
+                    <p className="text-xs text-foreground/50 mt-1">
+                      Previous: {prev.toFixed(n.key === "ph" ? 1 : 0)} · {latest > prev ? "▲" : latest < prev ? "▼" : "="} {Math.abs(latest - prev).toFixed(n.key === "ph" ? 1 : 0)}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Charts */}
+          {fieldTests.length >= 2 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {TREND_NUTRIENTS.map(n => {
+                const hasData = chartData.some(d => d[n.key] !== null);
+                if (!hasData) return null;
+                return (
+                  <div key={n.key} className="rounded-xl border border-border bg-white p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold text-foreground">{n.label}</h4>
+                      <span className="text-xs text-foreground/40">{n.targetNote}</span>
+                    </div>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 4, left: -16 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} domain={["auto", "auto"]} />
+                        <Tooltip
+                          contentStyle={{ fontSize: 11, borderRadius: 8 }}
+                          formatter={(val: unknown) => [typeof val === "number" ? val.toFixed(n.key === "ph" ? 2 : 1) : val, n.label]}
+                          labelFormatter={(l) => `Sample: ${l}`}
+                        />
+                        <ReferenceLine y={n.target} stroke={n.color} strokeDasharray="5 3" opacity={0.5} label={{ value: `Target ${n.target}`, fontSize: 9, fill: n.color }} />
+                        <Line
+                          type="monotone"
+                          dataKey={n.key}
+                          stroke={n.color}
+                          strokeWidth={2.5}
+                          dot={{ r: 4, fill: n.color, strokeWidth: 0 }}
+                          activeDot={{ r: 6 }}
+                          connectNulls={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Sampling history table */}
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="px-4 py-3 bg-muted/30 border-b border-border">
+              <h4 className="text-sm font-semibold text-foreground">All Sampling Events</h4>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/20">
+                    <th className="text-left py-2 px-4 font-bold text-foreground/50 uppercase tracking-wider">Date</th>
+                    <th className="text-left py-2 px-3 font-bold text-foreground/50 uppercase tracking-wider">Reference</th>
+                    {TREND_NUTRIENTS.map(n => (
+                      <th key={n.key} className="text-right py-2 px-3 font-bold uppercase tracking-wider" style={{ color: n.color }}>{n.label.split(" ")[0]}</th>
+                    ))}
+                    <th className="text-left py-2 px-3 font-bold text-foreground/50 uppercase tracking-wider">Lab</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fieldTests.map((test, i) => {
+                    const res = detailResults[i]?.data?.record?.results ?? [];
+                    return (
+                      <tr key={test.id} className="border-b border-border/30 hover:bg-black/[0.02]">
+                        <td className="py-2 px-4 text-foreground/70">{formatDate(test.sampleDate)}</td>
+                        <td className="py-2 px-3 font-mono text-foreground/60">{test.sampleReference ?? "—"}</td>
+                        {TREND_NUTRIENTS.map(n => {
+                          const val = getNutrientValue(res, n.names);
+                          return (
+                            <td key={n.key} className="py-2 px-3 text-right font-mono font-semibold" style={{ color: val !== null ? n.color : undefined }}>
+                              {val !== null ? val.toFixed(n.key === "ph" ? 2 : 1) : "—"}
+                            </td>
+                          );
+                        })}
+                        <td className="py-2 px-3 text-foreground/50">{test.laboratory ?? "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function SoilTestsPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<PageTab>("register");
@@ -697,10 +1136,18 @@ export default function SoilTestsPage() {
     <AppLayout title="Soil Sample Register">
       <TabBar>
         <TabButton active={tab === "register"} onClick={() => setTab("register")}>Sample Register</TabButton>
+        <TabButton active={tab === "map"} onClick={() => setTab("map")}>
+          <Map className="w-3.5 h-3.5 mr-1 inline-block" />Sample Map
+        </TabButton>
+        <TabButton active={tab === "trends"} onClick={() => setTab("trends")}>
+          <TrendingUp className="w-3.5 h-3.5 mr-1 inline-block" />Soil Trends
+        </TabButton>
         <TabButton active={tab === "print"} onClick={() => setTab("print")}>Print / Export</TabButton>
       </TabBar>
       <div className="mt-6">
         {tab === "register" && <RegisterTab farmId={farmId} />}
+        {tab === "map" && <MapTab farmId={farmId} />}
+        {tab === "trends" && <TrendsTab farmId={farmId} />}
         {tab === "print" && <PrintTab farmId={farmId} />}
       </div>
     </AppLayout>
