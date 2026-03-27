@@ -1,4 +1,6 @@
+import { useMemo } from "react";
 import { buildCachedApiHook } from "./buildCachedApiHook";
+import { isDemoFarmId, getDemoLabs } from "@/lib/demo/demoData";
 
 export interface ApiLab {
   id: number;
@@ -20,7 +22,24 @@ const useApiLabsHook = buildCachedApiHook<ApiLab>(
 );
 
 export function useApiLabs(farmId: string | undefined) {
-  const { items, loading, fromCache, lastError } = useApiLabsHook(farmId);
+  const isDemo = isDemoFarmId(farmId);
+  const demoLabs = useMemo(
+    () => (isDemo && farmId ? getDemoLabs(farmId) : []),
+    [isDemo, farmId]
+  );
+
+  const { items, loading, fromCache, lastError } = useApiLabsHook(isDemo ? undefined : farmId);
+
+  // Show loading state while farm context is initialising
+  if (!farmId) {
+    return { labs: [], loading: true, error: null, fromCache: false };
+  }
+
+  // Demo mode — serve pre-defined demo labs immediately
+  if (isDemo) {
+    return { labs: demoLabs, loading: false, error: null, fromCache: false };
+  }
+
   return {
     labs: items,
     loading,
