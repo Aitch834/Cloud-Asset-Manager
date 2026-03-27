@@ -293,6 +293,45 @@ export interface FlyTippingReport {
   eaReported: boolean;
   eaRefNumber: string;
   clearanceStatus: string;
+  photoUris: string[];
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface EncampmentReport {
+  id: string;
+  farmId: string;
+  discoveredAt: string;
+  locationDescription: string;
+  fieldParcel: string;
+  latitude: string;
+  longitude: string;
+  entryPoint: string;
+  vehicleCount: string;
+  personCount: string;
+  caravanCount: string;
+  vehicleDescriptions: string;
+  landDamageDescription: string;
+  cropsAffected: boolean;
+  estimatedDamage: string;
+  policeNotified: boolean;
+  policeRefNumber: string;
+  policeAction: string;
+  councilNotified: boolean;
+  councilRefNumber: string;
+  legalActionTaken: boolean;
+  legalActionDetails: string;
+  solicitorInstructed: boolean;
+  courtOrderObtained: boolean;
+  courtOrderRef: string;
+  vacatedAt: string;
+  insuranceClaimMade: boolean;
+  insuranceClaimRef: string;
+  remediationRequired: boolean;
+  remediationNotes: string;
+  photoUris: string[];
+  status: string;
   notes: string;
   createdAt: string;
   synced: boolean;

@@ -371,6 +371,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["risk-waste"],
   },
   {
+    id: "encampments",
+    title: "Unauthorized Encampment",
+    description: "Log a trespass encampment — vehicle & person count, police / council notification, legal action and remediation",
+    icon: "home",
+    color: "#B45309",
+    bgColor: "#FEF3C7",
+    route: "/encampments",
+    moduleKeys: ["risk-waste"],
+  },
+  {
     id: "waste-disposal",
     title: "Waste Disposal Record",
     description: "Log farm waste collections — waste type, carrier licence, transfer note number and disposal site",

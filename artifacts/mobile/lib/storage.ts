@@ -143,6 +143,7 @@ export const STORAGE_KEYS = {
   SEED_DRILLING_RECORDS: "bde_seed_drilling_records",
   WASTE_DISPOSAL_RECORDS: "bde_waste_disposal_records",
   FLY_TIPPING_REPORTS: "bde_fly_tipping_reports",
+  ENCAMPMENT_REPORTS: "bde_encampment_reports",
   POULTRY_WELFARE_CHECKS: "bde_poultry_welfare_checks",
   PIG_WELFARE_CHECKS: "bde_pig_welfare_checks",
   RIGHT_TO_WORK_CHECKS: "bde_right_to_work_checks",

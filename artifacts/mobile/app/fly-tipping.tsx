@@ -1,9 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -73,6 +75,7 @@ export default function FlyTippingScreen() {
   const [clearanceStatus, setClearanceStatus] = useState("pending");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [photoUris, setPhotoUris] = useState<string[]>([]);
 
   function toggleType(t: string) {
     Haptics.selectionAsync();
@@ -119,6 +122,7 @@ export default function FlyTippingScreen() {
         eaReported,
         eaRefNumber: eaRefNumber.trim(),
         clearanceStatus,
+        photoUris,
         notes: notes.trim(),
         createdAt: new Date().toISOString(),
         synced: false,
@@ -414,6 +418,61 @@ export default function FlyTippingScreen() {
           />
         </View>
 
+        {/* Photo Evidence */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Photo Evidence</Text>
+          <Text style={styles.hint}>
+            Photograph the waste, access point, vehicle tracks or any identifying material. Photos are saved with your report.
+          </Text>
+          {photoUris.length > 0 && (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+              {photoUris.map((uri, i) => (
+                <View key={i} style={{ position: "relative" }}>
+                  <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8, borderWidth: 1, borderColor: "#e5e7eb" }} />
+                  <Pressable
+                    onPress={() => setPhotoUris(p => p.filter((_, j) => j !== i))}
+                    style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: 10, backgroundColor: "#dc2626", alignItems: "center", justifyContent: "center" }}
+                    hitSlop={4}
+                  >
+                    <Feather name="x" size={11} color="#fff" />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+            <Pressable
+              style={styles.photoBtn}
+              onPress={async () => {
+                const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                if (status !== "granted") { Alert.alert("Permission Required", "Camera access is needed."); return; }
+                const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: false });
+                if (!result.canceled && result.assets[0]) {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setPhotoUris(p => [...p, result.assets[0].uri]);
+                }
+              }}
+            >
+              <Feather name="camera" size={14} color={colors.text} />
+              <Text style={styles.photoBtnText}>Camera</Text>
+            </Pressable>
+            <Pressable
+              style={styles.photoBtn}
+              onPress={async () => {
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== "granted") { Alert.alert("Permission Required", "Photo library access is needed."); return; }
+                const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.8, allowsMultipleSelection: true, selectionLimit: 10 });
+                if (!result.canceled) {
+                  setPhotoUris(p => [...p, ...result.assets.map(a => a.uri)]);
+                }
+              }}
+            >
+              <Feather name="image" size={14} color={colors.text} />
+              <Text style={styles.photoBtnText}>Choose from Library</Text>
+            </Pressable>
+          </View>
+        </View>
+
         {/* Save */}
         <Button
           onPress={handleSave}
@@ -549,5 +608,21 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.sm,
+  },
+  photoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: colors.background,
+  },
+  photoBtnText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
   },
 });
