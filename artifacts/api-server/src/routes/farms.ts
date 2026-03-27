@@ -57,6 +57,8 @@ import {
   wasteDisposalRecordsTable,
   flyTippingIncidentsTable,
   flyTippingPhotosTable,
+  unauthorizedEncampmentsTable,
+  encampmentPhotosTable,
   accidentBookTable,
   inspectionRecordsTable,
   nonconformanceRecordsTable,
@@ -3246,6 +3248,115 @@ router.delete("/farms/:farmId/fly-tipping/:recordId/photos/:photoId", requireAut
   const photoId = parseInt(req.params.photoId);
   if (!photoId) { res.status(400).json({ error: "Invalid photo ID" }); return; }
   await db.delete(flyTippingPhotosTable).where(and(eq(flyTippingPhotosTable.id, photoId), eq(flyTippingPhotosTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Unauthorized Encampments ─────────────────────────────────────────────────
+
+router.get("/farms/:farmId/encampments", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(unauthorizedEncampmentsTable).where(eq(unauthorizedEncampmentsTable.farmId, farmId)).orderBy(desc(unauthorizedEncampmentsTable.discoveredAt));
+  const photos = await db.select().from(encampmentPhotosTable).where(eq(encampmentPhotosTable.farmId, farmId));
+  const photosByIncident: Record<number, typeof photos> = {};
+  for (const p of photos) {
+    if (!photosByIncident[p.incidentId]) photosByIncident[p.incidentId] = [];
+    photosByIncident[p.incidentId].push(p);
+  }
+  res.json({ records: records.map(r => ({ ...r, photos: photosByIncident[r.id] ?? [] })) });
+});
+
+router.post("/farms/:farmId/encampments", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { discoveredAt, locationDescription, fieldParcel, latitude, longitude, entryPoint,
+    vehicleCount, personCount, caravanCount, vehicleDescriptions, landDamageDescription,
+    cropsAffected, estimatedDamage, policeNotified, policeRefNumber, policeAction,
+    councilNotified, councilRefNumber, legalActionTaken, legalActionDetails,
+    solicitorInstructed, courtOrderObtained, courtOrderRef, vacatedAt, landConditionAfter,
+    insuranceClaimMade, insuranceClaimRef, remediationRequired, remediationNotes,
+    remediationCost, status, notes } = req.body;
+  if (!discoveredAt || !locationDescription) { res.status(400).json({ error: "discoveredAt and locationDescription are required" }); return; }
+  const [record] = await db.insert(unauthorizedEncampmentsTable).values({
+    farmId, discoveredAt, locationDescription,
+    fieldParcel: fieldParcel || null, latitude: latitude || null, longitude: longitude || null,
+    entryPoint: entryPoint || null, vehicleCount: vehicleCount ?? null, personCount: personCount ?? null,
+    caravanCount: caravanCount ?? null, vehicleDescriptions: vehicleDescriptions || null,
+    landDamageDescription: landDamageDescription || null, cropsAffected: !!cropsAffected,
+    estimatedDamage: estimatedDamage || null, policeNotified: !!policeNotified,
+    policeRefNumber: policeRefNumber || null, policeAction: policeAction || null,
+    councilNotified: !!councilNotified, councilRefNumber: councilRefNumber || null,
+    legalActionTaken: !!legalActionTaken, legalActionDetails: legalActionDetails || null,
+    solicitorInstructed: !!solicitorInstructed, courtOrderObtained: !!courtOrderObtained,
+    courtOrderRef: courtOrderRef || null, vacatedAt: vacatedAt || null,
+    landConditionAfter: landConditionAfter || null, insuranceClaimMade: !!insuranceClaimMade,
+    insuranceClaimRef: insuranceClaimRef || null, remediationRequired: !!remediationRequired,
+    remediationNotes: remediationNotes || null, remediationCost: remediationCost || null,
+    status: status || "active", notes: notes || null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/encampments/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { discoveredAt, locationDescription, fieldParcel, latitude, longitude, entryPoint,
+    vehicleCount, personCount, caravanCount, vehicleDescriptions, landDamageDescription,
+    cropsAffected, estimatedDamage, policeNotified, policeRefNumber, policeAction,
+    councilNotified, councilRefNumber, legalActionTaken, legalActionDetails,
+    solicitorInstructed, courtOrderObtained, courtOrderRef, vacatedAt, landConditionAfter,
+    insuranceClaimMade, insuranceClaimRef, remediationRequired, remediationNotes,
+    remediationCost, status, notes } = req.body;
+  const [record] = await db.update(unauthorizedEncampmentsTable).set({
+    discoveredAt, locationDescription,
+    fieldParcel: fieldParcel || null, latitude: latitude || null, longitude: longitude || null,
+    entryPoint: entryPoint || null, vehicleCount: vehicleCount ?? null, personCount: personCount ?? null,
+    caravanCount: caravanCount ?? null, vehicleDescriptions: vehicleDescriptions || null,
+    landDamageDescription: landDamageDescription || null, cropsAffected: !!cropsAffected,
+    estimatedDamage: estimatedDamage || null, policeNotified: !!policeNotified,
+    policeRefNumber: policeRefNumber || null, policeAction: policeAction || null,
+    councilNotified: !!councilNotified, councilRefNumber: councilRefNumber || null,
+    legalActionTaken: !!legalActionTaken, legalActionDetails: legalActionDetails || null,
+    solicitorInstructed: !!solicitorInstructed, courtOrderObtained: !!courtOrderObtained,
+    courtOrderRef: courtOrderRef || null, vacatedAt: vacatedAt || null,
+    landConditionAfter: landConditionAfter || null, insuranceClaimMade: !!insuranceClaimMade,
+    insuranceClaimRef: insuranceClaimRef || null, remediationRequired: !!remediationRequired,
+    remediationNotes: remediationNotes || null, remediationCost: remediationCost || null,
+    status: status || "active", notes: notes || null,
+  }).where(and(eq(unauthorizedEncampmentsTable.id, recordId), eq(unauthorizedEncampmentsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/encampments/:recordId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(unauthorizedEncampmentsTable).where(and(eq(unauthorizedEncampmentsTable.id, recordId), eq(unauthorizedEncampmentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.post("/farms/:farmId/encampments/:recordId/photos", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { objectPath, fileName } = req.body;
+  if (!objectPath) { res.status(400).json({ error: "objectPath is required" }); return; }
+  const [photo] = await db.insert(encampmentPhotosTable).values({
+    incidentId: recordId, farmId, objectPath, fileName: fileName || null,
+  }).returning();
+  res.json({ photo });
+});
+
+router.delete("/farms/:farmId/encampments/:recordId/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const photoId = parseInt(req.params.photoId);
+  if (!photoId) { res.status(400).json({ error: "Invalid photo ID" }); return; }
+  await db.delete(encampmentPhotosTable).where(and(eq(encampmentPhotosTable.id, photoId), eq(encampmentPhotosTable.farmId, farmId)));
   res.json({ success: true });
 });
 
