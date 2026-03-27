@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer } from "lucide-react";
 
 const SPRAY_EQUIPMENT_TYPES = ["sprayer", "spot-sprayer", "knapsack", "boom sprayer", "tractor", "uas", "drone", "other"];
 
