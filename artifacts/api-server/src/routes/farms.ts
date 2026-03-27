@@ -5333,6 +5333,76 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>After every significant inspection or cleaning event, create a store condition log entry: date, person inspecting, observations on the roof, walls, floor, ventilation ducts, and any pest or mould activity. A clean, well-maintained store with documented inspection records demonstrates the management commitment that TASCC and Red Tractor assessors look for.</p>`,
     },
     {
+      id: 62,
+      title: "Fly-Tipping — Recording Incidents, Authority Reporting and Photo Evidence",
+      category: "Risk & Waste",
+      content: `<img src="/api/help-images/field-register.png" alt="Fly-Tipping" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Under the Environmental Protection Act 1990, the <strong>landowner is legally responsible</strong> for clearing fly-tipped waste from their land — even when they did not deposit it. BDE Farm Trac provides a comprehensive incident register to help you document each incident for insurance, authority reporting, and Red Tractor compliance.</p>
+
+<h3>Logging an Incident</h3>
+<p>Navigate to <strong>Compliance → Fly-Tipping</strong> in the sidebar and click <strong>Report Incident</strong>. Fill in the discovery date and a clear location description (including an OS grid reference if possible). Record GPS coordinates using your browser's location, or enter them manually. Enter the access or entry point the depositors used — this is important for your land security review and any future court proceedings.</p>
+
+<h3>Waste Types and Quantities</h3>
+<p>Select all applicable waste types from the list (Household, Commercial, Asbestos, Tyres, Chemical drums, Scrap metal, etc.). Mark the incident as <strong>Hazardous</strong> if the waste includes asbestos, chemicals, or clinical material — this triggers the legal reminder that the waste must not be moved and must be removed by a licensed contractor. Record the estimated quantity (e.g. "2 transit van loads" or "3 tonnes").</p>
+
+<h3>⚠ Hazardous Waste</h3>
+<p><strong>Do NOT touch or move</strong> suspected asbestos, chemical drums, or clinical/medical waste. Report immediately to the Environment Agency on <strong>0800 80 70 60</strong>. Only a licensed waste contractor can legally remove hazardous fly-tipped material. Moving it yourself could expose you to prosecution under HSWA 1974 and the Hazardous Waste Regulations.</p>
+
+<h3>Authority Reporting</h3>
+<p>Record whether you have reported the incident to: (1) <strong>Police</strong> — call 101 and request a crime reference number; enter this on the record; (2) <strong>Local Council</strong> — most district councils have an online fly-tipping reporting form; note their reference; (3) <strong>Environment Agency</strong> — mandatory for all hazardous waste; call 0800 80 70 60 or report via their website. These reference numbers form the evidential chain needed for any prosecution or insurance claim.</p>
+
+<h3>Clearance Status</h3>
+<p>Track the clearance progress through three states: <strong>Pending Clearance</strong> (incident logged, waste not yet removed), <strong>Clearance Arranged</strong> (contractor booked or council collection agreed), and <strong>Cleared</strong> (waste fully removed and land reinstated). Update the status as events progress. Only records with status Cleared are excluded from the active-incident count on the register header.</p>
+
+<h3>Photo Evidence</h3>
+<p>After saving a record, <strong>expand the record card</strong> by clicking the chevron (▸) on the right. The <strong>Evidence Photos</strong> panel appears at the bottom. Click <strong>Add Photo</strong> to upload images or PDFs from your device — JPEG, PNG and PDF are all accepted. Attach photos of the waste pile, access point, vehicle tracks, any discarded mail or identifying materials, and the land before and after clearance. Multiple photos can be added to one incident. Photos are stored securely and are accessible when printing your register report.</p>
+
+<h3>Mobile Reporting</h3>
+<p>On your mobile app, tap <strong>Record</strong> and select <strong>Fly-Tipping Incident Report</strong>. The mobile form captures all the same fields and includes a <strong>Photo Evidence</strong> section at the bottom — use <strong>Camera</strong> to take an immediate photograph of the waste, or <strong>Choose from Library</strong> to attach existing photos. Reports saved on the mobile sync to the dashboard automatically.</p>
+
+<h3>Print Register</h3>
+<p>Click <strong>Print Register</strong> at the top of the page to generate a print-ready A4 report listing all incidents (or a filtered subset by clearance status) with their dates, locations, waste types, authority references, and clearance status. This is the document to present to a Red Tractor assessor as evidence of your waste management and duty-of-care compliance.</p>`,
+    },
+    {
+      id: 63,
+      title: "Unauthorized Encampments — Recording, Authority Action and Legal Remedies",
+      category: "Risk & Waste",
+      content: `<img src="/api/help-images/field-register.png" alt="Unauthorized Encampments" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Unauthorized encampments (traveller trespass) on agricultural land cause significant disruption, crop damage, and financial loss. BDE Farm Trac provides a dedicated register to document each incident with the granular detail required to support police direction, legal proceedings, and insurance claims.</p>
+
+<h3>Immediate Response</h3>
+<p>As soon as an encampment is discovered, call the police on <strong>101</strong> (or <strong>999</strong> if there is a threat of violence or immediate criminal activity). Request that officers attend and consider a <strong>Section 61 direction</strong> under the Criminal Justice and Public Order Act 1994 (as amended by the Police, Crime, Sentencing and Courts Act 2022), which gives police power to direct trespassers to leave. If Section 61 criteria are not met, officers may serve a <strong>Section 62A direction</strong> directing occupants to an alternative local authority site. Also contact your solicitor immediately if court action — an injunction or Part 55 CPR possession order — may be needed.</p>
+
+<h3>Logging an Incident</h3>
+<p>Navigate to <strong>Compliance → Encampments</strong> in the sidebar and click <strong>Log Encampment</strong>. Record the discovery date, a detailed location description including a field or parcel reference (OS grid reference recommended), and GPS coordinates. Note the entry point — where fencing or gates were breached — as this is needed for insurance claims and security reviews.</p>
+
+<h3>Persons and Vehicles</h3>
+<p>Record the number of vehicles, persons (approximate), and caravans or trailers. Add vehicle descriptions — make, colour, and any visible registration plates. This contemporaneous evidence is time-critical: people and vehicles may move between when you discover the encampment and when police attend.</p>
+
+<h3>Land Damage</h3>
+<p>Describe any damage in detail: cut fences, damaged gates, driven-over crops, soil compaction from heavy vehicles, waste deposited on the land. Note whether crops are affected and estimate the value of damage as best you can. This evidence supports your insurance claim and any application for costs in civil proceedings.</p>
+
+<h3>Police Section</h3>
+<p>Record whether police were notified and log their incident or crime reference number. Select the action they took from the dropdown — including whether a Section 61 direction was served, whether they declined to act (treating it as a civil matter), or whether arrests were made. If police decline to act, this does not prevent you from pursuing a civil remedy through the courts.</p>
+
+<h3>Legal Action</h3>
+<p>Record any legal steps taken: solicitor instructed, type of notice or order (Section 61 direction, High Court injunction, Part 55 possession order, trespass notice), and any court order reference number. A <strong>Part 55 CPR possession order</strong> (County Court) is typically the fastest civil remedy when police do not act. An <strong>emergency injunction ex parte</strong> can be granted by the High Court without the occupants being present if urgency requires it. Keep all court order references here — they form a chain of evidence if enforcement is needed for a future incident.</p>
+
+<h3>Resolution and Remediation</h3>
+<p>Record the date the land was vacated and describe the condition of the land afterwards. Record insurance claim reference numbers and any remediation work required (fencing repairs, waste removal, soil decompaction, crop replanting). Remediation costs are recoverable in civil proceedings against known individuals.</p>
+
+<h3>Photo Evidence</h3>
+<p>After saving a record, <strong>expand the record card</strong> by clicking the chevron (▸). The <strong>Evidence Photos</strong> panel appears at the bottom — upload photographs of the access point, the encampment itself, any vehicle registration plates, land damage, and the condition of the land after vacation. Take photos continuously throughout the incident: police and solicitors rely heavily on contemporaneous photographic evidence.</p>
+
+<h3>Mobile Reporting</h3>
+<p>On your mobile app, tap <strong>Record</strong> and select <strong>Unauthorized Encampment</strong>. The mobile form covers all key fields and includes a <strong>Photo Evidence</strong> section — tap <strong>Camera</strong> to photograph vehicles or damage on-site, or choose from your library. Mobile reports sync to the dashboard immediately. The mobile form is designed to be completed quickly in the field: log what you can see, photograph everything, then complete the authority-notification sections once you are back at the office.</p>
+
+<h3>Print Register</h3>
+<p>Click <strong>Print Register</strong> to generate a print-ready A4 report of all encampment incidents, filterable by status (Active, Legal Action, Resolved). The register shows discovery date, location, persons and vehicles, police reference, legal action taken, and resolution date — suitable for presenting to your insurer, solicitor, or Red Tractor assessor.</p>`,
+    },
+    {
       id: 61,
       title: "Crop Trials Register — Setting Up and Managing On-Farm Trials",
       category: "Crop Trials",
