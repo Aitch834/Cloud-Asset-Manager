@@ -5284,7 +5284,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
     },
     {
       id: 57,
-      title: "Veterinary Prescriptions &amp; Medicine Book",
+      title: "Veterinary Prescriptions & Medicine Book",
       category: "Livestock",
       content: `<img src="/api/help-images/medicine-records.png" alt="Veterinary Prescriptions and Medicine Book" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
