@@ -4055,6 +4055,17 @@ A Nutrient Management Plan (NMP) is a written record of how you intend to manage
 
 <p>On the dashboard, any sample with GPS coordinates shows a green location badge when you expand the record card, with a <strong>View on map ↗</strong> link that opens Google Maps at the exact point. This makes it straightforward to navigate back to the same spot at the next sampling cycle.</p>
 
+<h3>Sample Map View</h3>
+<p>The <strong>Sample Map</strong> tab shows every GPS-tagged sample point across all years and all fields on a satellite imagery map. Pins are colour-coded by sample status: blue for freshly sampled, amber for samples currently at the laboratory, green for records with results received, and grey for archived records. Click any pin to open a popup showing the field name, sample reference number, sampling date, status, location description, and a concise summary of the key nutrient results — pH, Phosphorus, Potassium, and Magnesium — so you can read the headline numbers without opening the register.</p>
+<p>The map shows all years simultaneously, making it easy to see whether certain areas of a farm or certain field zones have been consistently tested and which corners have gaps in the sampling record.</p>
+
+<h3>Soil Health Trends</h3>
+<p>The <strong>Soil Trends</strong> tab provides a field-by-field longitudinal analysis of soil nutrient data. Select a field from the dropdown and the system retrieves all completed sampling events for that field in date order. Four summary cards at the top of the page show the latest value for pH, Phosphorus index, Potassium index, and Magnesium index, each with a direction-of-travel arrow: a green arrow indicates the nutrient level is moving towards the AHDB target, a red arrow indicates it is moving away, and a dash indicates it is stable or insufficient data for comparison.</p>
+<p>Below the summary cards, four line charts (one per nutrient) plot the value across all sampling dates, with a dashed reference line showing the AHDB target for that nutrient (pH 6.5 for arable, AHDB Index 2 for P, K, and Mg). A complete sampling history table beneath the charts lists every sampling event with its reference number, lab, and all four nutrient values in a compact tabular format, suitable for sharing with your agronomist or nutrient management planning adviser.</p>
+
+<h3>Historic Sampling Data</h3>
+<p>All historic sampling data is accessible at any time. In the <strong>Sample Register</strong> tab, use the crop year selector in the top right to step backwards through previous growing seasons — records from any year are presented in the same format. The <strong>Print / Export</strong> tab defaults to "All years" and can produce a printed register of the complete sampling archive, which is useful when preparing for a Red Tractor audit covering multiple previous seasons.</p>
+
 <h3>Lime and pH Alerts</h3>
 <p>Where soil pH falls below 6.0, the system generates a lime recommendation alert. Applying lime to bring soil to the correct pH is not only agronomically beneficial but is required by Red Tractor before further phosphate or nitrogen applications are made to the affected field. Record any lime applications in the fertiliser records section with the product name (e.g. ground limestone, calcium carbide), rate per hectare, and application date. Retain laboratory analysis reports from your sampling contractor — these are the primary evidence an inspector will look for.</p>`,
     },
@@ -5668,6 +5679,15 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li><strong>On the mobile app:</strong> tap <strong>Capture GPS</strong> in the GPS Point section at the top of the form. The app uses maximum accuracy and displays latitude, longitude, and the positional accuracy (e.g. ±4 m) before you save.</li>
 </ul>
 
+<h3>Sample Map Tab</h3>
+<p>The <strong>Sample Map</strong> tab shows every GPS-tagged sample point from all years on a single satellite imagery map. Pins are colour-coded by status — blue (Sampled), amber (Sent to Lab), green (Results Received), grey (Archived). Click any pin to open a popup card with the field name, sample reference, date, location description, and a summary of the key nutrient readings (pH, P, K, Mg). This is the quickest way to see at a glance which parts of the farm have been sampled and what the headline results were at each point — without needing to open individual register records.</p>
+
+<h3>Soil Trends Tab</h3>
+<p>The <strong>Soil Trends</strong> tab is a field-by-field longitudinal analysis tool. Select any field that has two or more completed sampling events and the system displays four summary cards (pH, P index, K index, Mg index) with direction-of-travel arrows — green if improving toward the AHDB target, red if moving away. Below the cards, four line charts plot each nutrient over time with a dashed AHDB target reference line, making it simple to see whether the soil is getting better or worse cycle on cycle. A compact history table beneath the charts lists all events in date order for sharing with an agronomist.</p>
+
+<h3>Historic Sampling Data</h3>
+<p>All historical data remains accessible. In the Sample Register tab, the crop year selector at the top right lets you step back through previous growing seasons — records from any year are displayed in the same format. The Print / Export tab defaults to "All years" and generates a complete register across the full record history.</p>
+
 <h3>Print Register</h3>
 <p>The <strong>Print Register</strong> button generates a printable report of your current filtered records. Print the full register annually or ahead of a Red Tractor audit. The printed register shows all reference numbers, sampling dates, field names, nutrient indices, and pH values in a standard tabular format.</p>
 
@@ -6119,6 +6139,12 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h3>Why Location Matters</h3>
 <p>A single field can cover multiple soil types — heavier clay in low-lying areas, lighter sandy soils on rises, pockets of chalk. Recording the precise GPS location of each sample point means you can return to exactly the same spot at the next sampling cycle and build a meaningful longitudinal record of how soil chemistry is changing in each part of the field. Combined with the location description, this removes the ambiguity that comes from recording only the field name.</p>
+
+<h3>Viewing All Sample Points on the Map</h3>
+<p>The <strong>Sample Map</strong> tab in the Soil Sample Register plots every GPS-tagged record as a colour-coded pin on a satellite imagery map — across all fields and all years simultaneously. Clicking a pin shows the field name, reference number, sampling date, status, and the key nutrient readings in a popup. This gives an instant overview of sampling coverage and headline results across the farm without needing to scroll through the register.</p>
+
+<h3>Tracking Nutrient Changes Over Time</h3>
+<p>Once a field has two or more sampling events with results, the <strong>Soil Trends</strong> tab generates line charts for pH, Phosphorus index, Potassium index, and Magnesium index over time. Each chart includes a dashed AHDB target reference line and a direction-of-travel arrow showing whether the nutrient level is improving or declining cycle on cycle. This is the most direct way to answer the question a farm adviser or Red Tractor assessor will inevitably ask: <em>is the soil health on this farm getting better or worse?</em></p>
 
 <h3>Red Tractor Requirements</h3>
 <p>Red Tractor requires soil testing at minimum every 5 years for all cropped land, and more frequently for fields receiving significant applications of organic manures. The soil test must be performed by an accredited laboratory and the results used to inform a nutrient management plan. The SS-reference number on each record in BDE Farm Trac provides the unique identifier inspectors need to cross-reference your field records against the laboratory certificate.</p>`,

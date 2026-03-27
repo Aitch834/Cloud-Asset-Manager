@@ -140,6 +140,8 @@ const sections: Section[] = [
           "Soil test records linked to accredited testing laboratories — lab selected from picker, UKAS number stored with every sample",
           "Nutrient results per sample — pH, P, K, Mg, N, S, Organic Matter and more; AHDB index and status (Low/Adequate/High) per nutrient",
           "Nutrient Management Plans — field-by-field soil data feeds directly into NMP view",
+          "Sample Map view — all GPS-tagged sample points shown on a satellite map as colour-coded pins by status; click any pin to see the field name, sample reference, date, and key nutrient results in a popup",
+          "Soil Trends report — select any field to see line charts for pH, P, K and Mg across all historical sampling events, with AHDB target reference lines and direction-of-travel arrows showing whether each nutrient is improving or declining",
           "RB209 compliance and NVZ Nitrate Vulnerable Zone records",
         ],
       },
