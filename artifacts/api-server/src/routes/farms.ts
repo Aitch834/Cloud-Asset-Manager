@@ -4041,7 +4041,22 @@ A Nutrient Management Plan (NMP) is a written record of how you intend to manage
       category: "Fields & Crops",
       content: `<img src="/api/help-images/field-register.png" alt="Soil Testing Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
-Regular soil testing is a fundamental part of good crop husbandry and is specifically required by Red Tractor. The Combinable Crops standard requires soil sampling on a minimum 5-year cycle for all fields, and recommends more frequent testing for fields with intensive cropping programmes or where soil health is a concern.\n\nTo record a soil test result in BDE Farm Trac, navigate to the field in the Fields & Crops section and open the Soil Tests tab. Enter the sampling date, the laboratory that carried out the analysis, the sample reference number, and the index values for pH, phosphate (P), potassium (K), and magnesium (Mg). Where a full soil health analysis is available — including organic matter percentage, bulk density, or earthworm counts — these can be entered in the extended fields.\n\nThe system tracks when each field was last sampled and will surface overdue soil tests on the Fields & Crops dashboard. A field is flagged as overdue if no sample has been recorded in the last five years, or earlier if you have set a more frequent cycle in the field settings.\n\nWhere soil pH falls below 6.0, the system generates a lime recommendation alert. Applying lime to bring soil to the correct pH is not only agronomically beneficial but is required by Red Tractor before further phosphate or nitrogen applications are made to the affected field. Record any lime applications in the fertiliser records section with the product name (e.g. ground limestone, calcium carbide), rate per hectare, and application date. Retain laboratory analysis reports from your sampling contractor — these are the primary evidence an inspector will look for.`,
+<p>Regular soil testing is a fundamental part of good crop husbandry and is specifically required by Red Tractor. The Combinable Crops standard requires soil sampling on a minimum 5-year cycle for all fields, and recommends more frequent testing for fields with intensive cropping programmes or where soil health is a concern.</p>
+
+<p>To record a soil test result in BDE Farm Trac, navigate to the field in the Fields &amp; Crops section and open the Soil Tests tab. Enter the sampling date, the laboratory that carried out the analysis, the sample reference number, and the index values for pH, phosphate (P), potassium (K), and magnesium (Mg). Where a full soil health analysis is available — including organic matter percentage, bulk density, or earthworm counts — these can be entered in the extended fields.</p>
+
+<h3>Recording the Precise Sample Location</h3>
+<p>A single field can span multiple soil types, so recording the exact location of each sample point is critical for interpreting results correctly and for knowing where to re-sample at the next cycle. BDE Farm Trac supports two methods depending on whether you are working from the dashboard or the mobile app:</p>
+
+<ul>
+<li><strong>Dashboard — Map Pin-Picker:</strong> When registering a new sample (or editing an existing one), click <strong>Pick on map</strong> inside the Register Sample dialog. A satellite imagery map opens — navigate to the field, then click the exact location where the sample was taken to drop a pin. The pin is draggable so you can fine-tune its position. The latitude and longitude populate automatically. You can also type coordinates directly into the lat/lng fields if you already have them from a handheld GPS device. An optional <strong>Location description</strong> field lets you add a plain-English note such as <em>"NE corner, 50m from hedge"</em> for quick reference without needing to open the map every time.</li>
+<li><strong>Mobile App — GPS Capture:</strong> In the Soil Sample form, a dedicated <strong>GPS Point</strong> section appears at the top of the Sample Location area. Tap <strong>Capture GPS</strong> to record your current position — the app uses the highest available navigation accuracy and displays the latitude, longitude, and positional accuracy (e.g. ±4 m) immediately. A <strong>Re-capture</strong> button is provided if you move slightly before saving. Once captured, the coordinates and the location description are stored with the sample and synchronised to the dashboard when you are back in range.</li>
+</ul>
+
+<p>On the dashboard, any sample with GPS coordinates shows a green location badge when you expand the record card, with a <strong>View on map ↗</strong> link that opens Google Maps at the exact point. This makes it straightforward to navigate back to the same spot at the next sampling cycle.</p>
+
+<h3>Lime and pH Alerts</h3>
+<p>Where soil pH falls below 6.0, the system generates a lime recommendation alert. Applying lime to bring soil to the correct pH is not only agronomically beneficial but is required by Red Tractor before further phosphate or nitrogen applications are made to the affected field. Record any lime applications in the fertiliser records section with the product name (e.g. ground limestone, calcium carbide), rate per hectare, and application date. Retain laboratory analysis reports from your sampling contractor — these are the primary evidence an inspector will look for.</p>`,
     },
     {
       id: 19,
@@ -5641,10 +5656,17 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>The Soil Sample Register in BDE Farm Trac records all soil sampling events in a structured, auditable format that satisfies Red Tractor Cross-Compliance requirements. Each record is automatically assigned a unique reference number in the format <strong>SS-YYYY-NNNN</strong> (e.g. SS-2025-0012), which provides a traceable identifier for every sample taken.</p>
 
 <h3>Status System</h3>
-<p>Each soil sample record has one of three statuses: <strong>Pending</strong> (sample taken but lab results not yet received), <strong>Results Received</strong> (laboratory report received and data entered), or <strong>Action Required</strong> (results indicate pH, phosphorus, potassium, or magnesium index is outside target range and a management response is needed).</p>
+<p>Each soil sample record moves through four statuses: <strong>Sampled</strong> (sample taken, awaiting dispatch to lab), <strong>Sent to Lab</strong> (dispatched; date logged automatically when status is advanced), <strong>Results Received</strong> (lab report received and nutrient data entered), or <strong>Archived</strong>. Advance the status using the three-dot menu on each record card.</p>
 
 <h3>Status Tabs</h3>
-<p>The register uses a tab bar to filter records by status. Use the <strong>Action Required</strong> tab to quickly identify fields that need corrective action before the next growing season. The <strong>Pending</strong> tab shows samples awaiting lab results. You can update the status of any record using the dropdown menu on each card.</p>
+<p>The register uses a tab bar to filter records by status. Use the <strong>Results Received</strong> tab to review completed analyses, or the <strong>Sampled / Sent to Lab</strong> tabs to track samples still in the pipeline. You can update the status of any record using the dropdown menu on each card.</p>
+
+<h3>GPS Sample Point Location</h3>
+<p>A field can contain multiple soil types, so BDE Farm Trac records the precise location of each sample point — not just the field name. When you expand a record card on the dashboard, any saved GPS coordinates appear as a green badge showing the latitude and longitude, a plain-English location description (e.g. <em>"SW quadrant, low-lying area"</em>), and a <strong>View on map ↗</strong> link that opens Google Maps at that exact point. This makes it simple to find the same spot at the next sampling cycle.</p>
+<ul>
+<li><strong>On the dashboard:</strong> click <strong>Pick on map</strong> in the Register Sample dialog to open a satellite imagery map, then click to place or drag a pin to the exact sample location.</li>
+<li><strong>On the mobile app:</strong> tap <strong>Capture GPS</strong> in the GPS Point section at the top of the form. The app uses maximum accuracy and displays latitude, longitude, and the positional accuracy (e.g. ±4 m) before you save.</li>
+</ul>
 
 <h3>Print Register</h3>
 <p>The <strong>Print Register</strong> button generates a printable report of your current filtered records. Print the full register annually or ahead of a Red Tractor audit. The printed register shows all reference numbers, sampling dates, field names, nutrient indices, and pH values in a standard tabular format.</p>
@@ -6086,11 +6108,17 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li><strong>Reference Number</strong> — Auto-generated (SS-YYYY-NNNN). Cannot be edited; used on all related documents and laboratory reports.</li>
 <li><strong>Field</strong> — Selected from your registered Field Register. Cannot be a free-text entry — must link to a real field record to ensure traceability.</li>
 <li><strong>Sample Date</strong> — Date the sample was taken from the field.</li>
+<li><strong>Sampled By</strong> — The name of the operative who took the sample.</li>
 <li><strong>Laboratory</strong> — Selected from your registered testing laboratory list. Labs must be UKAS-accredited or equivalent. See Help article <em>Testing Laboratories — Registering Labs and Linking Test Results</em>.</li>
 <li><strong>Laboratory Reference</strong> — The reference number on the lab report. This allows you to match the certificate in your document store to this soil record.</li>
-<li><strong>Results</strong> — pH, P, K, and Mg index values from the lab report. Organic matter % if reported.</li>
+<li><strong>Results</strong> — pH, P, K, Mg, N, S, Organic Matter, Calcium, Sodium, Boron. AHDB index and status (Low / Adequate / Optimal / High / Excessive) can be entered per nutrient.</li>
 <li><strong>Depth and Sampling Method</strong> — e.g. 0–15 cm, W-pattern, 25 cores bulked.</li>
+<li><strong>GPS Sample Point</strong> — Latitude and longitude of the exact sampling location within the field. Captured automatically on mobile via the Capture GPS button, or set by clicking a satellite map on the dashboard. A "View on map ↗" link is shown on expanded record cards.</li>
+<li><strong>Location Description</strong> — Free-text note describing the sample point in plain English (e.g. <em>"NE corner, 50m from gate near chalky outcrop"</em>). Helps identify the spot at the next sampling cycle without needing GPS.</li>
 </ul>
+
+<h3>Why Location Matters</h3>
+<p>A single field can cover multiple soil types — heavier clay in low-lying areas, lighter sandy soils on rises, pockets of chalk. Recording the precise GPS location of each sample point means you can return to exactly the same spot at the next sampling cycle and build a meaningful longitudinal record of how soil chemistry is changing in each part of the field. Combined with the location description, this removes the ambiguity that comes from recording only the field name.</p>
 
 <h3>Red Tractor Requirements</h3>
 <p>Red Tractor requires soil testing at minimum every 5 years for all cropped land, and more frequently for fields receiving significant applications of organic manures. The soil test must be performed by an accredited laboratory and the results used to inform a nutrient management plan. The SS-reference number on each record in BDE Farm Trac provides the unique identifier inspectors need to cross-reference your field records against the laboratory certificate.</p>`,
