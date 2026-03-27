@@ -917,8 +917,9 @@ export default function Movements() {
     );
   });
 
-  const pendingCount = records.filter(r => requiresBcms(r) && !r.legalNotificationSubmitted).length;
-  const submittedCount = records.filter(r => r.legalNotificationSubmitted).length;
+  const yearRecords = records.filter(r => isInCropYear(r.movementDate, cropYear));
+  const pendingCount = yearRecords.filter(r => requiresBcms(r) && !r.legalNotificationSubmitted).length;
+  const submittedCount = yearRecords.filter(r => r.legalNotificationSubmitted).length;
 
   const openAdd = () => {
     setEditingRecord(null);
@@ -1021,7 +1022,7 @@ export default function Movements() {
       {activeTab === "movements" && (<>
       <TabBar className="mb-5">
         <TabButton active={bcmsFilter === "all"} onClick={() => setBcmsFilter("all")}>
-          All <span className="ml-1 text-xs opacity-60">({records.length})</span>
+          All <span className="ml-1 text-xs opacity-60">({yearRecords.length})</span>
         </TabButton>
         <TabButton active={bcmsFilter === "pending"} onClick={() => setBcmsFilter("pending")}>
           BCMS Pending <span className="ml-1 text-xs opacity-60">({pendingCount})</span>

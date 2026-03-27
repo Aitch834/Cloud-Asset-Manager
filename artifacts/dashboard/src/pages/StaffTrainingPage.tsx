@@ -1471,6 +1471,7 @@ export default function StaffTrainingPage() {
   });
 
   const trainingRecords = trainingQ.data?.records ?? [];
+  const trainingRecordsThisYear = trainingRecords.filter(r => isInCropYear(r.trainingDate, currentCropYear()));
   const certificates = certsQ.data?.records ?? [];
   const farmName = currentFarm?.name ?? "Farm";
   const farmCph = currentFarm?.cphNumber ?? null;
@@ -1506,7 +1507,7 @@ export default function StaffTrainingPage() {
 
         <TabBar className="mb-6">
           <TabButton active={tab === "training"} onClick={() => setTab("training")}>
-            Training Records {trainingRecords.length > 0 && `(${trainingRecords.length})`}
+            Training Records {trainingRecordsThisYear.length > 0 && `(${trainingRecordsThisYear.length})`}
           </TabButton>
           <TabButton active={tab === "certificates"} onClick={() => setTab("certificates")}>
             Certificates &amp; Qualifications {certificates.length > 0 && `(${certificates.length})`}

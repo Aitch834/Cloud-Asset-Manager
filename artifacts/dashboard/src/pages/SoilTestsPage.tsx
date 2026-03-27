@@ -192,8 +192,9 @@ function RegisterTab({ farmId }: { farmId: number }) {
       || t.sampledBy?.toLowerCase().includes(search.toLowerCase());
   });
 
-  const counts: Record<string, number> = { all: allTests.length };
-  for (const t of allTests) { counts[t.status] = (counts[t.status] ?? 0) + 1; }
+  const yearTests = allTests.filter(t => isInCropYear(t.sampleDate, cropYear));
+  const counts: Record<string, number> = { all: yearTests.length };
+  for (const t of yearTests) { counts[t.status] = (counts[t.status] ?? 0) + 1; }
 
   function openAddTest() {
     setEditTest(null); setTestForm(EMPTY_TEST); setLabSupplierId(null);
