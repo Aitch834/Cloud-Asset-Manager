@@ -15,7 +15,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { useUpload } from "@workspace/object-storage-web";
-import { printHtml } from "@/lib/utils";
+import { printProReport, openPrintWindow } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 
@@ -73,13 +73,17 @@ function daysSince(date: string): number {
   return Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
 }
 
-function buildMovementsRegisterHtml(movements: Movement[], farm: { name: string; cphNumber?: string | null; address?: string | null; postcode?: string | null } | null, filterLabel: string): string {
+function printMovementsRegister(movements: Movement[], farm: { name: string; cphNumber?: string | null; address?: string | null; postcode?: string | null } | null, filterLabel: string): void {
   const typeLabels: Record<string, string> = { on: "On", off: "Off", between: "Between", birth: "Birth", death: "Death" };
   const rows = movements.map(m => {
     const isExempt = m.movementType === "birth" || m.movementType === "between";
-    const notified = isExempt ? "<em style='color:#9ca3af'>N/A</em>" : m.legalNotificationSubmitted ? "<span style='color:#065f46;font-weight:600'>✓ Notified</span>" : "<span style='color:#991b1b;font-weight:600'>⚠ Pending</span>";
+    const notified = isExempt
+      ? "<em style='color:#9ca3af'>N/A</em>"
+      : m.legalNotificationSubmitted
+      ? "<span style='color:#065f46;font-weight:700'>✓ Notified</span>"
+      : "<span style='color:#991b1b;font-weight:700'>⚠ Pending</span>";
     return `<tr>
-      <td>${formatDate(m.movementDate)}</td>
+      <td style="white-space:nowrap">${formatDate(m.movementDate)}</td>
       <td>${typeLabels[m.movementType] ?? m.movementType}</td>
       <td>${m.species ?? "—"}</td>
       <td style="text-align:center">${m.numberOfAnimals ?? "—"}</td>
@@ -90,38 +94,19 @@ function buildMovementsRegisterHtml(movements: Movement[], farm: { name: string;
       <td style="font-family:monospace">${m.bcmsSubmissionRef ?? "—"}</td>
     </tr>`;
   }).join("");
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Livestock Movements Register</title><style>
-body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
-.hdr{display:flex;justify-content:space-between;border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
-.hdr h1{font-size:14px;font-weight:700;margin:0 0 2px}.hdr p{font-size:9px;color:#555;margin:1px 0}
-.hdr-r{text-align:right;font-size:9px;color:#666}.hdr-r b{display:block;font-size:12px;font-weight:700;color:#000}
-table{width:100%;border-collapse:collapse;font-size:9px}
-th{background:#f0fdf4;font-weight:700;text-align:left;border:1px solid #d1d5db;padding:5px 7px}
-td{border:1px solid #d1d5db;padding:5px 7px;vertical-align:top}
-tr:nth-child(even) td{background:#fafafa}
-.footer{font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:6px;font-style:italic}
-@media print{@page{margin:1.5cm;size:A4 landscape}}
-</style></head><body>
-<div class="hdr">
-  <div>
-    <h1>Livestock Movements Register</h1>
-    ${farm ? `<p>${farm.name}</p>` : ""}
-    ${farm?.cphNumber ? `<p>CPH: ${farm.cphNumber}</p>` : ""}
-    <p>Filter: ${filterLabel}</p>
-  </div>
-  <div class="hdr-r">
-    <b>BDE Farm Trac</b>
-    <span>Printed: ${new Date().toLocaleDateString("en-GB")}</span>
-  </div>
-</div>
-<table>
-  <thead><tr>
+  const tableHtml = `<table><thead><tr>
     <th>Date</th><th>Type</th><th>Species</th><th>No.</th><th>From CPH</th><th>To CPH</th><th>Licence / AML Ref</th><th>BCMS Notified</th><th>BCMS/eAML2 Ref</th>
-  </tr></thead>
-  <tbody>${rows}</tbody>
-</table>
-<p class="footer">Livestock movement records must be kept for a minimum of 3 years under the Cattle Identification Regulations and the Sheep and Goat (Records, Identification and Movement) Order. All on/off movements must be separately notified to the relevant government portal (BCMS, eAML2, ScotEID, EIDCymru, or NIFAIS). Printed records are for on-farm Red Tractor compliance use only.</p>
-</body></html>`;
+  </tr></thead><tbody>${rows}</tbody></table>`;
+  printProReport({
+    title: "Livestock Movements Register",
+    subtitle: "Cattle Identification Regulations · Sheep & Goat Movement Order",
+    farmName: farm?.name,
+    cphNumber: farm?.cphNumber ?? undefined,
+    recordCount: movements.length,
+    extraMeta: `Filter: ${filterLabel}`,
+    tableHtml,
+    footerNote: "Movement records must be retained for a minimum of 3 years. All on/off movements must be notified to the relevant government portal (BCMS, eAML2, ScotEID, EIDCymru, or NIFAIS).",
+  });
 }
 
 function movementTypeBadge(type: string) {
@@ -326,7 +311,7 @@ ${movement.notes ? `<div class="col2">${field("Notes", movement.notes)}</div>` :
 </div><div class="sig"><div><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af">Recorded By</p><div class="sigline"></div><p style="font-size:9px;color:#9ca3af">Signature / Name</p></div><div><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af">Date Recorded</p><div class="sigline"></div><p style="font-size:9px;color:#9ca3af">Date</p></div></div>
 <div class="note">This is an on-farm record for Red Tractor compliance purposes. Official livestock movement documents (AML1/AML2/eAML2) must be submitted separately to APHA/BCMS as required by UK livestock movement regulations. Records must be kept for a minimum of 3 years.</div>
 </body></html>`;
-    printHtml(html, `movement-record-${movement.id}.html`);
+    openPrintWindow(html);
   };
 
   return (
@@ -1145,7 +1130,7 @@ export default function Movements() {
             size="sm"
             onClick={() => {
               const filterLabel = bcmsFilter === "all" ? "All movements" : bcmsFilter === "pending" ? "BCMS Pending" : "BCMS Submitted";
-              printHtml(buildMovementsRegisterHtml(filtered, farmData ?? null, filterLabel));
+              printMovementsRegister(filtered, farmData ?? null, filterLabel);
             }}
             disabled={filtered.length === 0}
           >

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -540,54 +541,35 @@ function PrintDialog({ plan, farmId, farm, onClose }: { plan: any; farmId: numbe
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
 
   const handlePrint = () => {
-    const rows = entries.map((e: any) =>
-      `<tr>
-        <td>${e.fieldName || `Field #${e.fieldId}`}</td>
-        <td>${e.cropType || "—"}</td>
-        <td>${e.nitrogenKgHa || "—"}</td>
-        <td>${e.phosphorusKgHa || "—"}</td>
-        <td>${e.potassiumKgHa || "—"}</td>
-        <td>${e.organicManureType || "None"}</td>
-        <td>${e.organicManureRate || "—"}</td>
-        <td>${e.applicationMethod || "—"}</td>
-        <td>${e.timingNotes || "—"}</td>
-      </tr>`).join("");
-    const win = window.open("", "_blank");
-    if (!win) return;
-    const farmHeader = farm ? `<div style="margin-bottom:6px"><strong style="font-size:12px">${farm.name || ""}</strong>${farm.cphNumber ? `<span style="color:#6b7280;margin-left:10px;font-size:10px">CPH: ${farm.cphNumber}</span>` : ""}${farm.redTractorId ? `<span style="color:#6b7280;margin-left:10px;font-size:10px">Red Tractor ID: ${farm.redTractorId}</span>` : ""}</div>` : "";
-    win.document.write(`
-      <html><head><title>NMP ${plan.planYear}</title>
-      <style>
-        body{font-family:Arial,sans-serif;font-size:11px;margin:2cm}
-        h1{font-size:14px;border-bottom:2px solid #333;padding-bottom:5px}
-        table{width:100%;border-collapse:collapse;margin-top:12px}
-        th{background:#f3f4f6;padding:5px 6px;text-align:left;font-size:10px;border:1px solid #d1d5db}
-        td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top}
-        tr:nth-child(even){background:#f9fafb}
-        .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;font-size:11px;margin:10px 0}
-        .footer{margin-top:24px;font-size:9px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;display:flex;justify-content:space-between}
-      </style></head><body>
-      ${farmHeader}
-      <h1>Nutrient Management Plan — ${plan.planYear}</h1>
-      <div class="meta">
-        <div><b>Prepared by:</b> ${plan.preparedBy || "—"}</div>
-        <div><b>Approved by:</b> ${plan.approvedBy || "—"}</div>
-        <div><b>Approval date:</b> ${plan.approvedDate ? new Date(plan.approvedDate).toLocaleDateString("en-GB") : "Pending"}</div>
-        <div><b>Printed:</b> ${today}</div>
-      </div>
-      ${plan.notes ? `<p style="font-size:11px;background:#f9fafb;padding:6px 8px;border-radius:4px;margin:8px 0">${plan.notes}</p>` : ""}
-      <table>
-        <thead><tr>
-          <th>Field</th><th>Crop</th><th>N (kg/ha)</th><th>P (kg/ha)</th><th>K (kg/ha)</th>
-          <th>Organic Manure</th><th>Rate</th><th>Method</th><th>Timing Notes</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-      <div class="footer"><span>Retain for a minimum of 3 years and make available at Red Tractor audit.</span><span>Powered by BDE Farm Trac · ${today}</span></div>
-      </body></html>`);
-    win.document.close();
-    win.focus();
-    win.print();
+    const rows = entries.map((e: any) => `<tr>
+      <td><strong>${e.fieldName || `Field #${e.fieldId}`}</strong></td>
+      <td>${e.cropType || "—"}</td>
+      <td>${e.nitrogenKgHa || "—"}</td>
+      <td>${e.phosphorusKgHa || "—"}</td>
+      <td>${e.potassiumKgHa || "—"}</td>
+      <td>${e.organicManureType || "None"}</td>
+      <td>${e.organicManureRate || "—"}</td>
+      <td>${e.applicationMethod || "—"}</td>
+      <td>${e.timingNotes || "—"}</td>
+    </tr>`).join("");
+    const metaBlock = [
+      `<p style="font-size:7.5px;color:#374151;margin:0 0 2px"><strong>Prepared by:</strong> ${plan.preparedBy || "—"}  &nbsp;·&nbsp;  <strong>Approved by:</strong> ${plan.approvedBy || "—"}  &nbsp;·&nbsp;  <strong>Approval date:</strong> ${plan.approvedDate ? new Date(plan.approvedDate).toLocaleDateString("en-GB") : "Pending"}</p>`,
+      plan.notes ? `<p style="font-size:7.5px;color:#6b7280;margin:2px 0;font-style:italic">Notes: ${plan.notes}</p>` : "",
+    ].filter(Boolean).join("");
+    const tableHtml = `${metaBlock}<table><thead><tr>
+      <th>Field</th><th>Crop</th><th>N (kg/ha)</th><th>P (kg/ha)</th><th>K (kg/ha)</th>
+      <th>Organic Manure</th><th>Rate</th><th>Method</th><th>Timing Notes</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+    printProReport({
+      title: `Nutrient Management Plan — ${plan.planYear}`,
+      subtitle: "RB209 Fertiliser Recommendations",
+      farmName: farm?.name,
+      cphNumber: farm?.cphNumber ?? undefined,
+      redTractorId: farm?.redTractorId ?? undefined,
+      recordCount: entries.length,
+      recordLabel: "field entry",
+      tableHtml,
+    });
     onClose();
   };
 

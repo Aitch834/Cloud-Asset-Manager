@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { printHtml } from "@/lib/utils";
+import { printProReport } from "@/lib/print-report";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -201,37 +201,13 @@ export default function ModulePage({ title, apiPath, columns, formFields, respon
       farm?.cphNumber ? `CPH: ${farm.cphNumber}` : null,
     ].filter(Boolean).join(" &nbsp;|&nbsp; ");
 
-    printHtml(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title} — ${farmName}</title>
-<style>
-  body{font-family:Arial,sans-serif;font-size:11px;color:#111;padding:24px}
-  .hdr{display:flex;justify-content:space-between;border-bottom:2px solid #166534;padding-bottom:10px;margin-bottom:14px}
-  .hdr-left h1{margin:0;font-size:14px;font-weight:700;color:#166534}
-  .hdr-left p{margin:2px 0;font-size:10px;color:#555}
-  .hdr-right{text-align:right;font-size:10px;color:#555}
-  .hdr-right b{display:block;font-size:12px;font-weight:700;color:#111}
-  table{width:100%;border-collapse:collapse;margin-top:8px}
-  th{background:#f0fdf4;font-weight:700;text-align:left;border:1px solid #d1d5db;padding:5px 8px;font-size:10px}
-  td{border:1px solid #e5e7eb;padding:5px 8px;vertical-align:top}
-  tr.alt td{background:#fafafa}
-  .footer{margin-top:20px;font-size:9px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;display:flex;justify-content:space-between}
-</style></head><body>
-<div class="hdr">
-  <div class="hdr-left">
-    <h1>${farmName}</h1>
-    ${farmMeta ? `<p>${farmMeta}</p>` : ""}
-  </div>
-  <div class="hdr-right">
-    <b>${title}</b>
-    <span>Printed: ${printedDate}</span><br>
-    <span>${records.length} record${records.length !== 1 ? "s" : ""}</span>
-  </div>
-</div>
-<table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>
-<div class="footer">
-  <span>On-farm record for Red Tractor compliance. Retain for a minimum of 3 years and make available for inspection at audit.</span>
-  <span>BDE Farm Trac &middot; ${printedDate}</span>
-</div>
-</body></html>`);
+    printProReport({
+      title,
+      farmName,
+      cphNumber: farm?.cphNumber ?? undefined,
+      recordCount: records.length,
+      tableHtml: `<table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`,
+    });
   };
 
   if (isLoading) return <LoadingSkeleton />;

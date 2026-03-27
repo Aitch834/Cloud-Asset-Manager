@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Shovel, Plus, Search, Trash2, Pencil, Filter, CalendarDays, MapPin, Wrench, Printer, Tractor } from "lucide-react";
-import { printHtml } from "@/lib/utils";
+import { printProReport } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 
@@ -324,52 +324,35 @@ export default function FieldOperationsPage() {
 
   const isBusy = createMut.isPending || updateMut.isPending;
 
-  function buildFieldOpsRegisterHtml(rows: any[], farm: any) {
-    const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-    const farmLine = farm
-      ? `<p style="font-size:10px;color:#374151;margin:2px 0"><strong>${farm.name || ""}${farm.cphNumber ? ` · CPH: ${farm.cphNumber}` : ""}${farm.redTractorId ? ` · Red Tractor ID: ${farm.redTractorId}` : ""}</strong></p>`
-      : "";
+  function printFieldOpsRegister(rows: any[], farm: any) {
     const tableRows = rows.map((r: any) => {
       const cat = getCategoryForType(r.operationType);
       const depthQty = r.workingDepthCm ? `${r.workingDepthCm} cm` : r.quantity ? `${r.quantity}${r.quantityUnit ? ` ${r.quantityUnit}` : ""}` : "—";
       return `<tr>
-        <td>${fmt(r.operationDate)}</td>
-        <td>${r.fieldName || "—"}</td>
+        <td style="white-space:nowrap">${fmt(r.operationDate)}</td>
+        <td><strong>${r.fieldName || "—"}</strong></td>
         <td>${cat}</td>
         <td>${labelForType(r.operationType)}</td>
         <td>${r.vehicleDescription || "—"}</td>
         <td>${r.implement || "—"}</td>
-        <td>${depthQty}${r.passes && r.passes > 1 ? ` · ${r.passes}×` : ""}</td>
+        <td style="white-space:nowrap">${depthQty}${r.passes && r.passes > 1 ? ` · ${r.passes}×` : ""}</td>
         <td>${r.areaHa ? parseFloat(r.areaHa).toFixed(2) : "—"}</td>
         <td>${r.operator || "—"}</td>
         <td>${r.notes || ""}</td>
       </tr>`;
     }).join("");
-    return `<html><head><title>Field Operations Register</title><style>
-      @page{size:A4 landscape;margin:1.5cm}
-      body{font-family:Arial,sans-serif;font-size:10px;margin:0}
-      h1{font-size:13px;border-bottom:2px solid #333;padding-bottom:5px;margin-bottom:4px}
-      table{width:100%;border-collapse:collapse;margin-top:10px}
-      th{background:#f3f4f6;padding:4px 5px;text-align:left;font-size:9px;border:1px solid #d1d5db}
-      td{padding:3px 5px;border:1px solid #e5e7eb;vertical-align:top;font-size:9px}
-      tr:nth-child(even){background:#f9fafb}
-      .footer{margin-top:18px;font-size:8px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:6px;display:flex;justify-content:space-between}
-    </style></head><body>
-      <h1>Field Operations Register — Red Tractor Compliance</h1>
-      ${farmLine}
-      <p style="font-size:9px;color:#6b7280;margin:2px 0">Printed: ${today} · ${rows.length} record(s)</p>
-      <table>
-        <thead><tr>
-          <th>Date</th><th>Field</th><th>Category</th><th>Operation</th><th>Vehicle</th><th>Implement</th>
-          <th>Depth / Qty</th><th>Area (ha)</th><th>Operator</th><th>Notes</th>
-        </tr></thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-      <div class="footer">
-        <span>Retain for a minimum of 3 years and make available at Red Tractor audit.</span>
-        <span>Powered by BDE Farm Trac · ${today}</span>
-      </div>
-    </body></html>`;
+    const tableHtml = `<table><thead><tr>
+      <th>Date</th><th>Field</th><th>Category</th><th>Operation</th><th>Vehicle</th><th>Implement</th>
+      <th>Depth / Qty</th><th>Area (ha)</th><th>Operator</th><th>Notes</th>
+    </tr></thead><tbody>${tableRows}</tbody></table>`;
+    printProReport({
+      title: "Field Operations Register",
+      farmName: farm?.name,
+      cphNumber: farm?.cphNumber ?? undefined,
+      redTractorId: farm?.redTractorId ?? undefined,
+      recordCount: rows.length,
+      tableHtml,
+    });
   }
 
   return (
@@ -390,7 +373,7 @@ export default function FieldOperationsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => printHtml(buildFieldOpsRegisterHtml(filtered, farmData))}
+              onClick={() => printFieldOpsRegister(filtered, farmData)}
               disabled={filtered.length === 0}
               className="flex items-center gap-2"
             >

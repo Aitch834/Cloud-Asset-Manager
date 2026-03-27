@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { printHtml } from "@/lib/utils";
+import { printFromRef } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
@@ -766,21 +766,7 @@ function PrintTab({ harvests, transports, storages, farm }: any) {
   const printRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => {
-    const content = printRef.current;
-    if (!content) return;
-    printHtml(`
-      <html><head><title>Harvest Records — Red Tractor Audit</title>
-      <style>
-        body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 2cm; }
-        h1 { font-size: 16px; border-bottom: 2px solid #333; padding-bottom: 6px; margin-bottom: 4px; }
-        h2 { font-size: 13px; margin-top: 20px; margin-bottom: 6px; color: #166534; border-bottom: 1px solid #e5e7eb; padding-bottom: 3px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-        th { background: #f3f4f6; padding: 5px 8px; text-align: left; font-size: 11px; border: 1px solid #d1d5db; }
-        td { padding: 4px 8px; border: 1px solid #e5e7eb; vertical-align: top; }
-        tr:nth-child(even) { background: #f9fafb; }
-        .footer { margin-top: 30px; font-size: 10px; color: #9ca3af; }
-      </style></head><body>${content.innerHTML}</body></html>
-    `);
+    printFromRef(printRef, "Harvest Records — Red Tractor Audit");
   };
 
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });

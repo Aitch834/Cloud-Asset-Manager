@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -720,34 +721,37 @@ export default function CropTrialsPage() {
     .filter(t => !t.startDate || isInCropYear(t.startDate, cropYear));
 
   function handlePrint() {
+    const farm = farmData?.record;
     const rows = filtered.map(t => {
       const field = fields.find((f: any) => f.id === t.fieldId);
       const plotsWithYield = t.plots.filter(p => p.yields.length > 0);
       const control = plotsWithYield.find(p => p.isControl);
       const ctrlY = control?.yields[0]?.yieldTha ? parseFloat(control.yields[0].yieldTha) : null;
       return `<tr>
-        <td>${t.trialName}</td>
-        <td>${t.season ?? "—"}</td>
+        <td><strong>${t.trialName}</strong></td>
+        <td style="white-space:nowrap">${t.season ?? "—"}</td>
         <td>${t.cropName ?? "—"}</td>
         <td>${field?.name ?? "—"}</td>
         <td>${t.trialPurpose}</td>
         <td>${t.trialsBody ?? "—"}</td>
         <td>${t.plots.length}</td>
-        <td>${ctrlY != null ? ctrlY.toFixed(3) + " t/ha" : "—"}</td>
+        <td style="white-space:nowrap">${ctrlY != null ? ctrlY.toFixed(3) + " t/ha" : "—"}</td>
         <td>${STATUS_MAP[t.status]?.label ?? t.status}</td>
       </tr>`;
     }).join("");
-    const html = `<!DOCTYPE html><html><head><title>Crop Trials Register — ${farmData?.record?.name ?? ""}</title>
-    <style>body{font-family:Arial,sans-serif;font-size:11px;padding:20px}h2{font-size:16px;margin-bottom:4px}
-    table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #ccc;padding:6px 8px;vertical-align:top}
-    th{background:#f5f5f5;font-weight:600;font-size:10px;text-transform:uppercase}</style></head>
-    <body><h2>Crop Trials Register</h2>
-    <p><strong>Farm:</strong> ${farmData?.record?.name ?? "—"} ${farmData?.record?.cphNumber ? `&nbsp;|&nbsp; <strong>CPH:</strong> ${farmData.record.cphNumber}` : ""}</p>
-    <p>Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;|&nbsp; Total trials: ${filtered.length}</p>
-    <table><thead><tr><th>Trial Name</th><th>Season</th><th>Crop</th><th>Field</th><th>Purpose</th><th>Body</th><th>Plots</th><th>Control Yield</th><th>Status</th></tr></thead>
-    <tbody>${rows}</tbody></table></body></html>`;
-    const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
+    const tableHtml = `<table><thead><tr>
+      <th>Trial Name</th><th>Season</th><th>Crop</th><th>Field</th><th>Purpose</th><th>Trials Body</th><th>Plots</th><th>Control Yield</th><th>Status</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+    printProReport({
+      title: "Crop Trials Register",
+      farmName: farm?.name,
+      cphNumber: farm?.cphNumber ?? undefined,
+      redTractorId: farm?.redTractorId ?? undefined,
+      recordCount: filtered.length,
+      recordLabel: "trial",
+      extraMeta: `Crop Year: ${cropYearLabel(cropYear)}`,
+      tableHtml,
+    });
   }
 
   if (currentTrial) {

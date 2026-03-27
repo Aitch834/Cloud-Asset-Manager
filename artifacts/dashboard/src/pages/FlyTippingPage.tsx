@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -256,26 +257,29 @@ export default function FlyTippingPage() {
         i.eaReported ? `Environment Agency${i.eaRefNumber ? ` (${i.eaRefNumber})` : ""}` : "",
       ].filter(Boolean).join("; ") || "Not yet reported";
       return `<tr>
-        <td>${fmt(i.discoveredAt)}</td>
+        <td style="white-space:nowrap">${fmt(i.discoveredAt)}</td>
         <td>${i.locationDescription}</td>
         <td>${types}</td>
-        <td>${i.isHazardous ? "⚠ YES" : "No"}</td>
-        <td style="font-size:0.75rem">${reports}</td>
+        <td style="${i.isHazardous ? "color:#dc2626;font-weight:700" : ""}">${i.isHazardous ? "⚠ YES" : "No"}</td>
+        <td>${reports}</td>
         <td>${clearanceLabel(i.clearanceStatus)}</td>
         <td>${i.photos.length > 0 ? `${i.photos.length} photo(s)` : "—"}</td>
       </tr>`;
     }).join("");
-    const html = `<!DOCTYPE html><html><head><title>Fly-Tipping Incident Log — ${farm?.name ?? ""}</title>
-    <style>body{font-family:Arial,sans-serif;font-size:11px;padding:20px}h2{font-size:16px;margin-bottom:4px}
-    table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #ccc;padding:6px 8px;vertical-align:top}
-    th{background:#f5f5f5;font-weight:600;font-size:10px;text-transform:uppercase}</style></head>
-    <body><h2>Fly-Tipping Incident Log</h2>
-    <p><strong>Farm:</strong> ${farm?.name ?? "—"} ${farm?.cphNumber ? `&nbsp;|&nbsp; <strong>CPH:</strong> ${farm.cphNumber}` : ""}</p>
-    <p>Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;|&nbsp; Crop Year: ${cropYearLabel(cropYear)} &nbsp;|&nbsp; Total incidents: ${filtered.length}</p>
-    <table><thead><tr><th>Date Found</th><th>Location</th><th>Waste Types</th><th>Hazardous</th><th>Reported To</th><th>Status</th><th>Photos</th></tr></thead>
-    <tbody>${rows}</tbody></table></body></html>`;
-    const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
+    const tableHtml = `<table><thead><tr>
+      <th>Date Found</th><th>Location</th><th>Waste Types</th><th>Hazardous</th><th>Reported To</th><th>Status</th><th>Photos</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+    printProReport({
+      title: "Fly-Tipping Incident Log",
+      subtitle: "Environmental Protection Act 1990",
+      farmName: farm?.name,
+      cphNumber: farm?.cphNumber ?? undefined,
+      recordCount: filtered.length,
+      recordLabel: "incident",
+      extraMeta: `Crop Year: ${cropYearLabel(cropYear)}`,
+      tableHtml,
+      footerNote: "Under the Environmental Protection Act 1990, landowners are responsible for removing fly-tipped waste from their land. Report to local council and Environment Agency (0800 80 70 60) for hazardous waste.",
+    });
   }
 
   return (

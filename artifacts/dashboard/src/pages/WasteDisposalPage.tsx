@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { printFromRef } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -266,45 +267,7 @@ export default function WasteDisposalPage() {
   };
 
   const handlePrint = () => {
-    const printContent = printRef.current;
-    if (!printContent) return;
-    const win = window.open("", "_blank", "width=900,height=700");
-    if (!win) return;
-    win.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Waste Disposal Duty of Care Register</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; font-size: 9pt; color: #000; padding: 20mm; }
-          h1 { font-size: 14pt; margin-bottom: 4pt; }
-          h2 { font-size: 10pt; margin: 12pt 0 4pt; border-bottom: 1px solid #ccc; padding-bottom: 2pt; }
-          .meta { font-size: 8pt; color: #555; margin-bottom: 10pt; }
-          .stat-row { display: flex; gap: 24pt; margin-bottom: 10pt; font-size: 8pt; }
-          .stat { border: 1px solid #ccc; padding: 4pt 8pt; border-radius: 3pt; }
-          table { width: 100%; border-collapse: collapse; margin-top: 6pt; }
-          th { background: #f3f4f6; border: 1px solid #d1d5db; padding: 4pt 6pt; font-size: 7.5pt; text-align: left; font-weight: 600; }
-          td { border: 1px solid #e5e7eb; padding: 4pt 6pt; font-size: 7.5pt; vertical-align: top; }
-          tr:nth-child(even) td { background: #fafafa; }
-          .hazard { color: #991b1b; font-weight: 600; }
-          .wtn { font-family: monospace; font-size: 7pt; }
-          .footer { margin-top: 16pt; font-size: 7.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6pt; }
-          .sig-block { display: flex; gap: 48pt; margin-top: 16pt; }
-          .sig-line { flex: 1; }
-          .sig-line p { font-size: 7.5pt; margin-top: 20pt; border-top: 1px solid #000; padding-top: 2pt; }
-          @page { margin: 12mm; }
-          @media print { body { padding: 0; } }
-        </style>
-      </head>
-      <body>
-        ${printContent.innerHTML}
-      </body>
-      </html>
-    `);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); }, 400);
+    printFromRef(printRef, "Waste Disposal Duty of Care Register");
   };
 
   const hazardCount = reportRecords.filter(r => r.ewcCode?.includes("*")).length;

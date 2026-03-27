@@ -3,7 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, ReferenceLine,
 } from "recharts";
-import { printHtml } from "@/lib/utils";
+import { openPrintWindow } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -626,9 +626,22 @@ function PrintTab({ farmId }: { farmId: number }) {
 
   const handlePrint = () => {
     const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-    const farmLine = farm
-      ? `<div style="display:flex;justify-content:space-between;border-bottom:2px solid #16a34a;padding-bottom:12px;margin-bottom:20px"><div><h2 style="font-size:14px;margin:0 0 2px;font-weight:700">${farm.name ?? ""}</h2>${farm.address ? `<p style="font-size:10px;color:#6b7280;margin:1px 0">${farm.address}${farm.postcode ? `, ${farm.postcode}` : ""}</p>` : ""}${farm.cphNumber ? `<p style="font-size:10px;color:#6b7280;margin:1px 0">CPH: ${farm.cphNumber}</p>` : ""}</div><div style="text-align:right"><p style="font-size:13px;font-weight:700;margin:0">Soil Sample Register</p>${printYear !== "all" ? `<p style="font-size:10px;color:#6b7280;margin:2px 0">Year: ${printYear}</p>` : ""}<p style="font-size:10px;color:#6b7280;margin:2px 0">Printed: ${today}</p></div></div>`
-      : `<div style="border-bottom:2px solid #16a34a;padding-bottom:12px;margin-bottom:20px"><p style="font-size:13px;font-weight:700;margin:0">Soil Sample Register</p><p style="font-size:10px;color:#6b7280;margin:2px 0">Printed: ${today}</p></div>`;
+    const meta = [
+      farm?.cphNumber ? `CPH: ${farm.cphNumber}` : null,
+      farm?.redTractorId ? `Red Tractor ID: ${farm.redTractorId}` : null,
+    ].filter(Boolean).join("  ·  ");
+    const farmLine = `<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a3a1a;padding-bottom:6px;margin-bottom:8px">
+      <div>
+        <h1 style="font-size:12px;font-weight:700;color:#1a3a1a;margin:0 0 2px">Soil Sample Register</h1>
+        ${farm ? `<p style="font-size:7.5px;color:#374151;margin:1px 0"><strong>${farm.name}</strong>${meta ? "  ·  " + meta : ""}</p>` : ""}
+        ${printYear !== "all" ? `<p style="font-size:7.5px;color:#6b7280;margin:1px 0">Year: ${printYear}</p>` : ""}
+      </div>
+      <div style="text-align:right;font-size:7px;color:#6b7280;line-height:1.6">
+        <div style="display:inline-block;background:#dc2626;color:#fff;font-size:6.5px;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.05em;margin-bottom:3px">RED TRACTOR</div><br>
+        <span>Printed: ${today}</span><br>
+        <span>${filteredTests.length} sample${filteredTests.length !== 1 ? "s" : ""}</span>
+      </div>
+    </div>`;
     const statusLabel = (s: string) => STATUS_CONFIG[s]?.label ?? s;
     const testBlocks = filteredTests.map(test => {
       const fieldName = fields.find(f => f.id === test.fieldId)?.name ?? `Field #${test.fieldId}`;
@@ -651,7 +664,22 @@ function PrintTab({ farmId }: { farmId: number }) {
         ${test.notes ? `<p style="font-size:9px;color:#6b7280;font-style:italic;margin:4px 0 0">Notes: ${test.notes}</p>` : ""}
       </div>`;
     }).join("");
-    printHtml(`<html><head><style>body{font-family:Arial,sans-serif;color:#111;margin:0;padding:20px}@media print{@page{size:A4;margin:15mm}}</style></head><body>${farmLine}${testBlocks}<p style="font-size:9px;color:#9ca3af;text-align:center;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:12px">BDE Farm Trac — Soil Sample Register · ${filteredTests.length} sample${filteredTests.length !== 1 ? "s" : ""} · Printed ${today}</p></body></html>`);
+    openPrintWindow(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Soil Sample Register</title><style>
+      @page { size: A4; margin: 0.9cm 1.1cm; }
+      *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      body { font-family: Arial, Helvetica, sans-serif; font-size: 8px; color: #111; margin: 0; padding: 0; }
+      table { width: 100%; border-collapse: collapse; font-size: 7.5px; }
+      th { background: #1a3a1a; padding: 4px 5px; color: #fff; font-weight: 700; font-size: 6.5px; text-transform: uppercase; letter-spacing: .05em; text-align: left; }
+      td { padding: 3px 5px; border-bottom: 1px solid #e5e7eb; border-right: 1px solid #f0f0f0; vertical-align: top; }
+      tr:nth-child(even) { background: #f8fafc; }
+      .footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid #d1d5db; display: flex; justify-content: space-between; font-size: 6.5px; color: #9ca3af; }
+    </style></head><body>
+    ${farmLine}${testBlocks}
+    <div class="footer">
+      <span>Retain for a minimum of 3 years and make available at Red Tractor audit inspection.</span>
+      <span>BDE Farm Trac · ${today}</span>
+    </div>
+    </body></html>`);
   };
 
   return (

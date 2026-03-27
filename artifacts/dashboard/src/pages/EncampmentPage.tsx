@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -266,39 +267,30 @@ export default function EncampmentPage() {
 
   function handlePrint() {
     const printList = statusFilter === "all" ? incidents : filtered;
-    const rows = printList.map(r => `
-      <tr style="page-break-inside:avoid">
-        <td>${fmt(r.discoveredAt)}</td>
-        <td>${r.locationDescription}${r.fieldParcel ? ` — ${r.fieldParcel}` : ""}</td>
-        <td>${r.vehicleCount ?? "—"} vehicles / ${r.personCount ?? "—"} persons / ${r.caravanCount ?? "—"} caravans</td>
-        <td>${r.policeNotified ? `Yes — ${r.policeRefNumber || "ref TBC"}` : "No"}</td>
-        <td>${r.legalActionTaken ? (r.legalActionDetails || "Yes") : "No"}</td>
-        <td>${r.vacatedAt ? fmt(r.vacatedAt) : "—"}</td>
-        <td>${statusLabel(r.status)}</td>
-      </tr>`).join("");
-    const html = `<!DOCTYPE html><html><head><title>Unauthorized Encampments — ${farm?.name ?? ""}</title>
-      <style>body{font-family:Arial,sans-serif;font-size:11pt;margin:25mm}
-      h1{font-size:15pt;margin-bottom:4px}p.sub{color:#555;font-size:10pt;margin-top:0}
-      table{width:100%;border-collapse:collapse;margin-top:16px}
-      th{background:#1a3d2b;color:#fff;padding:7px 8px;text-align:left;font-size:9pt}
-      td{padding:6px 8px;border-bottom:1px solid #e5e7eb;font-size:9pt;vertical-align:top}
-      tr:nth-child(even) td{background:#f9fafb}
-      .footer{margin-top:24px;font-size:9pt;color:#888;border-top:1px solid #e5e7eb;padding-top:8px}
-      </style></head><body>
-      <h1>Unauthorized Encampments Register</h1>
-      <p class="sub">${farm?.name ?? ""}${farm?.cphNumber ? ` · CPH: ${farm.cphNumber}` : ""} · Printed: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</p>
-      <table><thead><tr>
-        <th>Discovered</th><th>Location / Field</th><th>Persons &amp; Vehicles</th>
-        <th>Police Ref</th><th>Legal Action</th><th>Vacated</th><th>Status</th>
-      </tr></thead><tbody>${rows}</tbody></table>
-      <div class="footer">Total records: ${printList.length} · Active/Legal: ${printList.filter(r => r.status !== "resolved").length} · Resolved: ${printList.filter(r => r.status === "resolved").length}</div>
-      </body></html>`;
-    const w = window.open("", "_blank");
-    if (!w) return;
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    w.print();
+    const rows = printList.map(r => `<tr>
+      <td style="white-space:nowrap">${fmt(r.discoveredAt)}</td>
+      <td>${r.locationDescription}${r.fieldParcel ? ` — ${r.fieldParcel}` : ""}</td>
+      <td>${r.vehicleCount ?? "—"} vehicles / ${r.personCount ?? "—"} persons / ${r.caravanCount ?? "—"} caravans</td>
+      <td>${r.policeNotified ? `Yes — ${r.policeRefNumber || "ref TBC"}` : "No"}</td>
+      <td>${r.legalActionTaken ? (r.legalActionDetails || "Yes") : "No"}</td>
+      <td style="white-space:nowrap">${r.vacatedAt ? fmt(r.vacatedAt) : "—"}</td>
+      <td>${statusLabel(r.status)}</td>
+    </tr>`).join("");
+    const tableHtml = `<table><thead><tr>
+      <th>Discovered</th><th>Location / Field</th><th>Persons &amp; Vehicles</th>
+      <th>Police Ref</th><th>Legal Action</th><th>Vacated</th><th>Status</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+    printProReport({
+      title: "Unauthorized Encampments Register",
+      subtitle: "Criminal Justice and Public Order Act 1994",
+      farmName: farm?.name,
+      cphNumber: farm?.cphNumber ?? undefined,
+      recordCount: printList.length,
+      recordLabel: "incident",
+      extraMeta: `Active / In Legal Process: ${printList.filter(r => r.status !== "resolved").length}  ·  Resolved: ${printList.filter(r => r.status === "resolved").length}`,
+      tableHtml,
+      footerNote: "Retain all documentation relating to legal action and police involvement. Keep records securely as evidence for any future proceedings.",
+    });
   }
 
   const isDialogOpen = addOpen || !!editItem;

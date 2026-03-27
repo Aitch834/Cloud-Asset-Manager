@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { printHtml } from "@/lib/utils";
+import { printProReport } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -161,62 +161,44 @@ function RecordCard({ record, herds, onEdit, onDelete }: { record: MedicineRecor
   );
 }
 
-function buildPrintHtml(records: MedicineRecord[], herds: Herd[], farm: Farm, filterLabel: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Medicine Register</title><style>
-body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
-.hdr{display:flex;justify-content:space-between;border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
-.hdr h1{font-size:14px;font-weight:700;margin:0 0 2px}.hdr p{font-size:9px;color:#555;margin:1px 0}
-.hdr-r{text-align:right;font-size:9px;color:#666}.hdr-r b{display:block;font-size:12px;font-weight:700;color:#000}
-table{width:100%;border-collapse:collapse;font-size:9px;margin-bottom:10px}
-th{background:#f0fdf4;font-weight:700;text-align:left;border:1px solid #d1d5db;padding:5px 7px}
-td{border:1px solid #d1d5db;padding:5px 7px}
-tr:nth-child(even) td{background:#fafafa}
-.badge-wd{background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:99px;font-weight:600}
-.badge-ok{background:#dcfce7;color:#166534;padding:1px 5px;border-radius:99px;font-weight:600}
-.badge-na{background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:99px;font-weight:600}
-.footer{font-size:8px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:6px;font-style:italic}
-@media print{@page{margin:1.5cm}}
-</style></head><body>
-<div class="hdr">
-  <div>
-    <h1>Medicine Register</h1>
-    <p>${farm.name}</p>
-    ${farm.cphNumber ? `<p>CPH: ${farm.cphNumber}</p>` : ""}
-    ${farm.redTractorId ? `<p>Red Tractor ID: ${farm.redTractorId}</p>` : ""}
-    <p>Filter: ${filterLabel}</p>
-  </div>
-  <div class="hdr-r">
-    <b>BDE Farm Trac</b>
-    <span>Printed: ${new Date().toLocaleDateString("en-GB")}</span>
-  </div>
-</div>
-<table>
-  <thead><tr>
+function printMedicineRegister(records: MedicineRecord[], herds: Herd[], farm: Farm, filterLabel: string): void {
+  const tableHtml = `<table><thead><tr>
     <th>Reference</th><th>Medicine</th><th>Batch No.</th><th>Herd / Group</th><th>Administered</th>
     <th>Dosage / Route</th><th>W/D Days</th><th>W/D Ends</th><th>Status</th><th>Vet</th><th>Reason</th>
-  </tr></thead>
-  <tbody>${records.map(r => {
+  </tr></thead><tbody>${records.map(r => {
     const status = getRecordStatus(r);
     const herdName = herds.find(h => h.id === r.herdId)?.name ?? "—";
     const days = daysUntil(r.withdrawalEndDate);
-    const badge = status === "in_withdrawal" ? `<span class="badge-wd">${days}d left</span>` : status === "cleared" ? `<span class="badge-ok">Cleared</span>` : `<span class="badge-na">No W/D</span>`;
+    const badge = status === "in_withdrawal"
+      ? `<span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;font-weight:600">${days}d left</span>`
+      : status === "cleared"
+      ? `<span style="background:#dcfce7;color:#166534;padding:1px 5px;border-radius:3px;font-weight:600">Cleared</span>`
+      : `<span style="background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px;font-weight:600">No W/D</span>`;
     return `<tr>
       <td style="font-family:monospace">${r.medicineRef ?? "—"}</td>
-      <td><b>${r.medicineName}</b></td>
+      <td><strong>${r.medicineName}</strong></td>
       <td style="font-family:monospace">${r.batchNumber ?? "—"}</td>
       <td>${herdName}</td>
-      <td>${formatDateLong(r.administeredDate)}</td>
+      <td style="white-space:nowrap">${formatDateLong(r.administeredDate)}</td>
       <td>${[r.dosage, r.administrationRoute].filter(Boolean).join(" · ") || "—"}</td>
       <td>${r.withdrawalPeriodDays ?? "—"}</td>
-      <td>${r.withdrawalEndDate ? formatDateLong(r.withdrawalEndDate) : "—"}</td>
+      <td style="white-space:nowrap">${r.withdrawalEndDate ? formatDateLong(r.withdrawalEndDate) : "—"}</td>
       <td>${badge}</td>
       <td>${r.vetName ?? "—"}</td>
       <td>${r.reason ?? "—"}</td>
     </tr>`;
-  }).join("")}</tbody>
-</table>
-<p class="footer">This register is a legally required document under the Veterinary Medicines Regulations 2013 and must be retained for at least 5 years. Ensure withdrawal periods are observed before slaughter, milk sale, or egg collection.</p>
-</body></html>`;
+  }).join("")}</tbody></table>`;
+  printProReport({
+    title: "Medicine Register",
+    subtitle: "Veterinary Medicines Regulations 2013",
+    farmName: farm.name,
+    cphNumber: farm.cphNumber ?? undefined,
+    redTractorId: farm.redTractorId ?? undefined,
+    recordCount: records.length,
+    extraMeta: `Filter: ${filterLabel}`,
+    tableHtml,
+    footerNote: "Legally required under the Veterinary Medicines Regulations 2013 — retain for at least 5 years. Observe all withdrawal periods before slaughter, milk sale, or egg collection.",
+  });
 }
 
 export default function MedicinePageDedicated() {
@@ -364,7 +346,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
         </div>
         <CropYearSelector value={cropYear} onChange={setCropYear} />
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => printHtml(buildPrintHtml(filtered, herds, farm, filterLabel))} className="gap-2">
+          <Button variant="outline" size="sm" onClick={() => printMedicineRegister(filtered, herds, farm, filterLabel)} className="gap-2">
             <Printer className="w-4 h-4" /> Print Register
           </Button>
           <Button onClick={() => { setEditing(null); setForm(EMPTY_FORM); setFormOpen(true); }} className="gap-2" size="sm">

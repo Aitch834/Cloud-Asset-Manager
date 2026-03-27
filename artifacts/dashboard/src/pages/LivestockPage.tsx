@@ -14,7 +14,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { printHtml } from "@/lib/utils";
+import { printProReport, openPrintWindow } from "@/lib/print-report";
 
 function formatDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -178,15 +178,30 @@ function PrintHerdRegisterDialog({ farmId, herds, onClose }: { farmId: number; h
   const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   const handleHerdPrint = () => {
-    const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>Herd &amp; Flock Register</title>
-<style>body{font-family:Arial,sans-serif;font-size:11px;color:#000;margin:0;padding:24px}.hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:12px;margin-bottom:12px}.hdr h1{font-size:13px;font-weight:700;margin:0 0 2px}.hdr p{font-size:10px;color:#555;margin:1px 0}.hdr-r{text-align:right;font-size:10px;color:#666}.hdr-r b{display:block;font-size:12px;font-weight:600;color:#000}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#f0fdf4;font-weight:600;text-align:left;border:1px solid #d1d5db;padding:5px 8px}td{border:1px solid #d1d5db;padding:5px 8px}tr:nth-child(even) td{background:#fafafa}.summary{display:flex;gap:20px;font-size:10px;color:#555;padding:6px 0;border-top:1px solid #e5e7eb}.footer{display:flex;justify-content:space-between;font-size:9px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:4px}@media print{@page{margin:1.5cm}}</style>
-</head><body><div class="hdr"><div><h1>${farm?.name ?? "Farm"}</h1>${farm?.address ? `<p>${farm.address}${farm.postcode ? ", " + farm.postcode : ""}</p>` : ""}${farm?.cphNumber ? `<p>CPH: <span style="font-family:monospace;font-weight:600">${farm.cphNumber}</span></p>` : ""}${farm?.redTractorId ? `<p>Red Tractor ID: <span style="font-family:monospace;font-weight:600">${farm.redTractorId}</span></p>` : ""}</div><div class="hdr-r"><b>Herd &amp; Flock Register</b>Printed: ${printedDate}</div></div>
-<table><thead><tr><th>Name</th><th>Species</th><th>Breed</th><th>Herd / Flock No.</th><th>Status</th><th>Notes</th></tr></thead><tbody>${herds.length === 0 ? `<tr><td colspan="6" style="text-align:center;color:#9ca3af;font-style:italic;padding:12px">No herds recorded</td></tr>` : herds.map(h => `<tr><td style="font-weight:500">${h.name}</td><td style="text-transform:capitalize">${h.type || "—"}</td><td>${h.breed || "—"}</td><td style="font-family:monospace">${h.herdNumber || "—"}</td><td>${h.isActive ? "Active" : "Inactive"}</td><td style="color:#6b7280">${h.notes || "—"}</td></tr>`).join("")}</tbody></table>
-<div class="summary"><span><b>${herds.length}</b> herd${herds.length !== 1 ? "s" : ""} / flock${herds.length !== 1 ? "s" : ""} registered</span> <span><b>${herds.filter(h => h.isActive).length}</b> active</span></div>
-<div class="footer"><em>On-farm record for Red Tractor compliance. Retain for minimum 3 years and make available for inspection at audit.</em><span>BDE Farm Trac · ${printedDate}</span></div>
-</body></html>`;
-    printHtml(html, "herd-flock-register.html");
+    const rows = herds.length === 0
+      ? `<tr><td colspan="6" style="text-align:center;color:#9ca3af;font-style:italic;padding:12px">No herds recorded</td></tr>`
+      : herds.map(h => `<tr>
+          <td><strong>${h.name}</strong></td>
+          <td style="text-transform:capitalize">${h.type || "—"}</td>
+          <td>${h.breed || "—"}</td>
+          <td style="font-family:monospace">${h.herdNumber || "—"}</td>
+          <td>${h.isActive ? "Active" : "Inactive"}</td>
+          <td style="color:#6b7280">${h.notes || "—"}</td>
+        </tr>`).join("");
+    const tableHtml = `<table><thead><tr>
+      <th>Name</th><th>Species</th><th>Breed</th><th>Herd / Flock No.</th><th>Status</th><th>Notes</th>
+    </tr></thead><tbody>${rows}</tbody></table>
+    <p style="font-size:7px;color:#6b7280;margin:6px 0 0"><strong>${herds.length}</strong> herd${herds.length !== 1 ? "s" : ""} / flock${herds.length !== 1 ? "s" : ""} registered  ·  <strong>${herds.filter(h => h.isActive).length}</strong> active</p>`;
+    printProReport({
+      title: "Herd & Flock Register",
+      farmName: farm?.name,
+      cphNumber: farm?.cphNumber ?? undefined,
+      redTractorId: farm?.redTractorId ?? undefined,
+      recordCount: herds.length,
+      recordLabel: "herd / flock",
+      tableHtml,
+      landscape: false,
+    });
   };
 
   return (
@@ -308,7 +323,7 @@ ${sections.length === 0 ? `<p style="color:#9ca3af;font-style:italic;text-align:
 <div class="sig"><div><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af">Farmer Signature</p><div class="sigline"></div><p style="font-size:9px;color:#9ca3af">Name &amp; Date</p></div><div><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af">Vet Signature</p><div class="sigline"></div><p style="font-size:9px;color:#9ca3af">Name &amp; Date</p></div></div>
 <div class="note">This veterinary health plan is an on-farm record required by Red Tractor Livestock Standards. Retain for a minimum of 3 years and make available for inspection at audit.</div>
 </body></html>`;
-    printHtml(html, `vet-health-plan-${plan.planYear}.html`);
+    openPrintWindow(html);
   };
 
   return (

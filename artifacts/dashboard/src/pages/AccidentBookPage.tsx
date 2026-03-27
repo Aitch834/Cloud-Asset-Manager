@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -257,9 +258,10 @@ export default function AccidentBookPage() {
   const totalTimeLost = records.reduce((s, r) => s + (r.timeLostDays ? parseFloat(r.timeLostDays) || 0 : 0), 0);
 
   function handlePrint() {
+    const farm = farmData?.record;
     const rows = records.map(r => `<tr>
-      <td>${r.incidentDate}</td>
-      <td>${r.personName}</td>
+      <td style="white-space:nowrap">${r.incidentDate ? new Date(r.incidentDate).toLocaleDateString("en-GB") : "—"}</td>
+      <td><strong>${r.personName}</strong></td>
       <td>${r.personType}</td>
       <td>${r.incidentLocation}</td>
       <td>${r.natureOfIncident}</td>
@@ -267,35 +269,27 @@ export default function AccidentBookPage() {
       <td>${r.bodyPartAffected || "—"}</td>
       <td>${r.firstAidGiven ? (r.firstAidDetails || "Yes") : "No"}</td>
       <td>${r.hospitalAttended ? "Yes" : "No"}</td>
-      <td>${r.timeLostDays ? r.timeLostDays + " day(s)" : "—"}</td>
-      <td>${r.riddorReportable ? (r.riddorReference ? "Reported — " + r.riddorReference : "YES — PENDING") : "No"}</td>
+      <td style="white-space:nowrap">${r.timeLostDays ? r.timeLostDays + " day(s)" : "—"}</td>
+      <td style="${r.riddorReportable && !r.riddorReference ? "color:#dc2626;font-weight:700" : ""}">${r.riddorReportable ? (r.riddorReference ? r.riddorReference : "PENDING") : "No"}</td>
       <td>${r.signedOffBy || "—"}</td>
     </tr>`).join("");
-    const html = `<!DOCTYPE html><html><head><title>Accident Book — ${farmData?.record?.name ?? ""}</title>
-    <style>body{font-family:Arial,sans-serif;font-size:10px;padding:20px}h2{font-size:15px;margin-bottom:4px}
-    p{font-size:11px;color:#555;margin:2px 0}
-    table{width:100%;border-collapse:collapse;margin-top:16px;page-break-inside:auto}
-    th,td{border:1px solid #bbb;padding:5px 7px;vertical-align:top}
-    th{background:#f0f0f0;font-weight:700;font-size:9px;text-transform:uppercase}
-    .riddor-pending{color:#dc2626;font-weight:700}
-    @page{margin:1.5cm}
-    @media print{.no-print{display:none};body{padding:0}}</style></head>
-    <body>
-    <h2>Accident Book Register</h2>
-    <p><strong>Farm:</strong> ${farmData?.record?.name ?? "—"}${farmData?.record?.cphNumber ? " &nbsp;|&nbsp; <strong>CPH:</strong> " + farmData.record.cphNumber : ""}</p>
-    <p>Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;|&nbsp; Total entries: ${records.length} &nbsp;|&nbsp; Total days lost: ${totalTimeLost > 0 ? totalTimeLost.toFixed(1) : "0"}</p>
-    <p style="margin-top:6px;color:#666;font-size:9px">This register is maintained in accordance with UK Health &amp; Safety law and the Reporting of Injuries, Diseases and Dangerous Occurrences Regulations 2013 (RIDDOR). Records are kept securely and access is restricted to authorised persons in accordance with data protection obligations.</p>
-    <table>
-      <thead><tr>
-        <th>Date</th><th>Person</th><th>Type</th><th>Location</th><th>Incident Description</th>
-        <th>Nature of Injury</th><th>Body Part</th><th>First Aid</th><th>Hospital</th>
-        <th>Time Lost</th><th>RIDDOR</th><th>Signed Off By</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    </body></html>`;
-    const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 400); }
+    const tableHtml = `<table><thead><tr>
+      <th>Date</th><th>Person</th><th>Type</th><th>Location</th><th>Incident</th>
+      <th>Injury</th><th>Body Part</th><th>First Aid</th><th>Hospital</th>
+      <th>Time Lost</th><th>RIDDOR</th><th>Signed Off</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+    printProReport({
+      title: "Accident Book Register",
+      subtitle: "UK Health & Safety Law · RIDDOR 2013",
+      farmName: farm?.name,
+      cphNumber: farm?.cphNumber ?? undefined,
+      redTractorId: farm?.redTractorId ?? undefined,
+      recordCount: records.length,
+      recordLabel: "entry",
+      extraMeta: `Total days lost: ${totalTimeLost > 0 ? totalTimeLost.toFixed(1) : "0"}`,
+      tableHtml,
+      footerNote: "Maintained under UK Health & Safety law and RIDDOR 2013. Keep securely — access restricted to authorised persons.",
+    });
   }
 
   return (
