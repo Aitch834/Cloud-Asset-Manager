@@ -254,16 +254,18 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
   });
 
-  const inWithdrawal = allRecords.filter(r => getRecordStatus(r) === "in_withdrawal");
-  const cleared = allRecords.filter(r => getRecordStatus(r) === "cleared");
-  const noWithdrawal = allRecords.filter(r => getRecordStatus(r) === "no_withdrawal");
+  const yearRecords = allRecords.filter(r => isInCropYear(r.administeredDate, cropYear));
 
-  const tabCounts = { all: allRecords.length, in_withdrawal: inWithdrawal.length, cleared: cleared.length, no_withdrawal: noWithdrawal.length };
+  const inWithdrawal = yearRecords.filter(r => getRecordStatus(r) === "in_withdrawal");
+  const cleared = yearRecords.filter(r => getRecordStatus(r) === "cleared");
+  const noWithdrawal = yearRecords.filter(r => getRecordStatus(r) === "no_withdrawal");
 
-  const baseFiltered = (statusFilter === "all" ? allRecords
+  const tabCounts = { all: yearRecords.length, in_withdrawal: inWithdrawal.length, cleared: cleared.length, no_withdrawal: noWithdrawal.length };
+
+  const baseFiltered = statusFilter === "all" ? yearRecords
     : statusFilter === "in_withdrawal" ? inWithdrawal
     : statusFilter === "cleared" ? cleared
-    : noWithdrawal).filter(r => isInCropYear(r.administeredDate, cropYear));
+    : noWithdrawal;
 
   const filtered = baseFiltered.filter(r => !search
     || r.medicineName.toLowerCase().includes(search.toLowerCase())
