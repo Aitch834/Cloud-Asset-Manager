@@ -54,10 +54,20 @@ export function buildCachedApiHook<T>(
       if (!farmId) {
         setItems([]);
         setLoading(false);
+        setLastError(null);
         return;
       }
 
+      // Reset to loading state whenever farmId becomes available
+      setLoading(true);
+      setLastError(null);
+
       let cancelled = false;
+
+      // If the farmId is not a valid numeric ID (e.g. demo mode "farm-1"),
+      // skip the API call — just serve from cache if available, otherwise
+      // show the empty state without an error message.
+      const isNumericFarm = /^\d+$/.test(farmId);
 
       (async () => {
         // Step 1: Load from cache immediately — fast, no spinner
@@ -70,6 +80,12 @@ export function buildCachedApiHook<T>(
           }
         } catch {
           // Ignore cache read errors
+        }
+
+        if (!isNumericFarm) {
+          // Demo mode — no real API to call, just show whatever is cached
+          if (!cancelled) setLoading(false);
+          return;
         }
 
         // Step 2: Try to refresh from API in background
