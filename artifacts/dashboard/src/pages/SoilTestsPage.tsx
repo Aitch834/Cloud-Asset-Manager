@@ -9,11 +9,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LabSelector } from "@/components/ui/LabSelector";
+import { SoilLocationPicker } from "@/components/ui/SoilLocationPicker";
 import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, ChevronDown, ChevronUp,
   TestTube, Printer, FlaskConical, ArrowRight, CheckCircle, Clock, Archive,
-  MoreHorizontal,
+  MoreHorizontal, MapPin,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import {
@@ -44,7 +45,9 @@ interface SoilTestRecord {
   sampleDate: string; sampleReference: string | null;
   status: string; laboratory: string | null;
   sentToLabDate: string | null; resultsReceivedDate: string | null;
-  sampleDepthCm: number | null; sampledBy: string | null; notes: string | null; createdAt: string;
+  sampleDepthCm: number | null; sampledBy: string | null; notes: string | null;
+  latitude: string | null; longitude: string | null; locationDescription: string | null;
+  createdAt: string;
   results?: SoilTestResult[];
 }
 interface Farm { id: number; name: string; address: string | null; postcode: string | null; cphNumber: string | null; redTractorId: string | null; }
@@ -98,6 +101,9 @@ function RegisterTab({ farmId }: { farmId: number }) {
   const [deleteTestId, setDeleteTestId] = useState<number | null>(null);
   const [testForm, setTestForm] = useState<typeof EMPTY_TEST>(EMPTY_TEST);
   const [labSupplierId, setLabSupplierId] = useState<number | null>(null);
+  const [sampleLat, setSampleLat] = useState("");
+  const [sampleLng, setSampleLng] = useState("");
+  const [sampleLocationDesc, setSampleLocationDesc] = useState("");
   const [addResultFor, setAddResultFor] = useState<number | null>(null);
   const [resultForm, setResultForm] = useState<typeof EMPTY_RESULT>(EMPTY_RESULT);
   const [deleteResultInfo, setDeleteResultInfo] = useState<{ testId: number; resultId: number } | null>(null);
@@ -134,13 +140,18 @@ function RegisterTab({ farmId }: { farmId: number }) {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["soil-tests", farmId] });
       setAddTestOpen(false); setEditTest(null); setTestForm(EMPTY_TEST);
+      setSampleLat(""); setSampleLng(""); setSampleLocationDesc("");
       if (data?.record?.id) setExpanded(prev => new Set([...prev, data.record.id]));
     },
   });
   const updateTest = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
       fetch(`/api/farms/${farmId}/soil-tests/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["soil-tests", farmId] }); setEditTest(null); setTestForm(EMPTY_TEST); setAddTestOpen(false); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["soil-tests", farmId] });
+      setEditTest(null); setTestForm(EMPTY_TEST); setAddTestOpen(false);
+      setSampleLat(""); setSampleLng(""); setSampleLocationDesc("");
+    },
   });
   const deleteTest = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/soil-tests/${id}`, { method: "DELETE" }),
@@ -180,11 +191,16 @@ function RegisterTab({ farmId }: { farmId: number }) {
   const counts: Record<string, number> = { all: allTests.length };
   for (const t of allTests) { counts[t.status] = (counts[t.status] ?? 0) + 1; }
 
-  function openAddTest() { setEditTest(null); setTestForm(EMPTY_TEST); setLabSupplierId(null); setAddTestOpen(true); }
+  function openAddTest() {
+    setEditTest(null); setTestForm(EMPTY_TEST); setLabSupplierId(null);
+    setSampleLat(""); setSampleLng(""); setSampleLocationDesc("");
+    setAddTestOpen(true);
+  }
   function openEditTest(t: SoilTestRecord) {
     setEditTest(t);
     setTestForm({ fieldId: String(t.fieldId), sampleDate: t.sampleDate?.slice(0, 10) ?? "", laboratory: t.laboratory ?? "", sampleReference: t.sampleReference ?? "", sampleDepthCm: String(t.sampleDepthCm ?? ""), sampledBy: t.sampledBy ?? "", notes: t.notes ?? "" });
     setLabSupplierId((t as unknown as { labSupplierId?: number | null }).labSupplierId ?? null);
+    setSampleLat(t.latitude ?? ""); setSampleLng(t.longitude ?? ""); setSampleLocationDesc(t.locationDescription ?? "");
     setAddTestOpen(true);
   }
   function handleTestSubmit(e: React.FormEvent) {
@@ -197,6 +213,9 @@ function RegisterTab({ farmId }: { farmId: number }) {
       sampledBy: testForm.sampledBy || null,
       sampleReference: testForm.sampleReference || null,
       labSupplierId: labSupplierId ?? null,
+      latitude: sampleLat || null,
+      longitude: sampleLng || null,
+      locationDescription: sampleLocationDesc || null,
     };
     if (editTest) { updateTest.mutate({ id: editTest.id, body }); }
     else { createTest.mutate(body); }
@@ -344,6 +363,23 @@ function RegisterTab({ farmId }: { farmId: number }) {
                       {test.resultsReceivedDate && <><ArrowRight className="w-3 h-3" /><span>Results received {formatDate(test.resultsReceivedDate)}</span></>}
                     </div>
 
+                    {/* GPS location */}
+                    {(test.latitude && test.longitude) && (
+                      <div className="flex items-center gap-2 mb-4 text-xs text-foreground/60 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                        <MapPin className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                        <span className="font-mono text-green-800">{parseFloat(test.latitude).toFixed(6)}, {parseFloat(test.longitude).toFixed(6)}</span>
+                        {test.locationDescription && <span className="text-green-700 before:content-['·'] before:mx-1.5">{test.locationDescription}</span>}
+                        <a
+                          href={`https://maps.google.com/?q=${test.latitude},${test.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-auto text-primary hover:underline whitespace-nowrap"
+                        >
+                          View on map ↗
+                        </a>
+                      </div>
+                    )}
+
                     {detailLoading && !detail ? (
                       <div className="text-center py-4 text-foreground/40 text-sm"><Loader2 className="w-4 h-4 animate-spin mx-auto mb-1" />Loading results...</div>
                     ) : (
@@ -455,8 +491,8 @@ function RegisterTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Add / Edit dialog */}
-      <Dialog open={addTestOpen} onOpenChange={(o) => { if (!o) { setAddTestOpen(false); setEditTest(null); setTestForm(EMPTY_TEST); } }}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={addTestOpen} onOpenChange={(o) => { if (!o) { setAddTestOpen(false); setEditTest(null); setTestForm(EMPTY_TEST); setSampleLat(""); setSampleLng(""); setSampleLocationDesc(""); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FlaskConical className="w-5 h-5 text-amber-600" />
@@ -506,6 +542,15 @@ function RegisterTab({ farmId }: { farmId: number }) {
               <div className="col-span-2">
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
                 <Input placeholder="Any additional notes" value={testForm.notes} onChange={e => setTestForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+              <div className="col-span-2">
+                <SoilLocationPicker
+                  lat={sampleLat}
+                  lng={sampleLng}
+                  locationDescription={sampleLocationDesc}
+                  onLatLngChange={(lat, lng) => { setSampleLat(lat); setSampleLng(lng); }}
+                  onDescriptionChange={setSampleLocationDesc}
+                />
               </div>
             </div>
             <DialogFooter>

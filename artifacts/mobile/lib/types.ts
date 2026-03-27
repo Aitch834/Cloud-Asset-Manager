@@ -137,6 +137,7 @@ export interface SoilSample {
   notes: string;
   latitude?: number;
   longitude?: number;
+  locationDescription?: string;
   photoIds: string[];
   createdAt: string;
   synced: boolean;

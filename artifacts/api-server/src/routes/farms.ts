@@ -1173,10 +1173,10 @@ router.post("/farms/:farmId/soil-tests", requireAuth, requireTenant, requireModu
   const rawDepth = body.sampleDepthCm ?? body.depth ?? null;
   const sampleDepthCm = rawDepth ? parseInt(String(rawDepth), 10) || null : null;
   const sampledBy = body.sampledBy ? String(body.sampledBy).trim() : null;
-  const noteParts: string[] = [];
-  if (body.notes) noteParts.push(body.notes);
-  if (body.latitude != null && body.longitude != null) noteParts.push(`GPS: ${body.latitude}, ${body.longitude}`);
-  const notes = noteParts.length > 0 ? noteParts.join(" | ") : null;
+  const notes = body.notes ? String(body.notes).trim() : null;
+  const latitude = body.latitude != null && body.latitude !== "" ? String(body.latitude).trim() : null;
+  const longitude = body.longitude != null && body.longitude !== "" ? String(body.longitude).trim() : null;
+  const locationDescription = body.locationDescription ? String(body.locationDescription).trim() : null;
 
   // Auto-generate reference: SS-YYYY-NNNN per farm per year if none provided
   let sampleReference = body.sampleReference ? String(body.sampleReference).trim() : null;
@@ -1199,6 +1199,7 @@ router.post("/farms/:farmId/soil-tests", requireAuth, requireTenant, requireModu
   const [record] = await db.insert(soilTestRecordsTable).values({
     farmId, fieldId, sampleDate: new Date(sampleDate).toISOString(),
     sampleReference, status: "sampled", laboratory, sampleDepthCm, sampledBy, notes,
+    latitude, longitude, locationDescription,
   }).returning();
 
   // Accept explicit results array (dashboard) or build from mobile nutrient fields
@@ -1241,7 +1242,7 @@ router.put("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, re
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { fieldId, sampleDate, laboratory, sampleReference, sampleDepthCm, sampledBy, notes } = req.body;
+  const { fieldId, sampleDate, laboratory, sampleReference, sampleDepthCm, sampledBy, notes, latitude, longitude, locationDescription } = req.body;
   const updates: Record<string, unknown> = {};
   if (fieldId !== undefined) updates.fieldId = Number(fieldId);
   if (sampleDate !== undefined) updates.sampleDate = new Date(sampleDate).toISOString();
@@ -1250,6 +1251,9 @@ router.put("/farms/:farmId/soil-tests/:recordId", requireAuth, requireTenant, re
   if (sampleDepthCm !== undefined) updates.sampleDepthCm = sampleDepthCm ? parseInt(String(sampleDepthCm), 10) : null;
   if (sampledBy !== undefined) updates.sampledBy = sampledBy;
   if (notes !== undefined) updates.notes = notes;
+  if (latitude !== undefined) updates.latitude = latitude || null;
+  if (longitude !== undefined) updates.longitude = longitude || null;
+  if (locationDescription !== undefined) updates.locationDescription = locationDescription || null;
   const [record] = await db.update(soilTestRecordsTable).set(updates).where(and(eq(soilTestRecordsTable.id, recordId), eq(soilTestRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });

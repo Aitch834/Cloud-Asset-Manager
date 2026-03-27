@@ -4,12 +4,14 @@ import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -27,6 +29,8 @@ import { useApiFields } from "@/lib/hooks/useApiFields";
 import { useApiLabs } from "@/lib/hooks/useApiLabs";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { SoilSample } from "@/lib/types";
+
+type GpsStatus = "idle" | "capturing" | "captured" | "denied" | "error";
 
 export default function SoilSampleScreen() {
   const insets = useSafeAreaInsets();
@@ -50,6 +54,38 @@ export default function SoilSampleScreen() {
   const [organicMatter, setOrganicMatter] = useState("");
   const [notes, setNotes] = useState("");
 
+  const [gpsStatus, setGpsStatus] = useState<GpsStatus>("idle");
+  const [gpsLat, setGpsLat] = useState<number | undefined>(undefined);
+  const [gpsLng, setGpsLng] = useState<number | undefined>(undefined);
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | undefined>(undefined);
+  const [locationDescription, setLocationDescription] = useState("");
+
+  const captureGps = async () => {
+    setGpsStatus("capturing");
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setGpsStatus("denied");
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation });
+      setGpsLat(loc.coords.latitude);
+      setGpsLng(loc.coords.longitude);
+      setGpsAccuracy(loc.coords.accuracy ?? undefined);
+      setGpsStatus("captured");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      setGpsStatus("error");
+    }
+  };
+
+  const clearGps = () => {
+    setGpsLat(undefined);
+    setGpsLng(undefined);
+    setGpsAccuracy(undefined);
+    setGpsStatus("idle");
+  };
+
   const handleSave = async () => {
     if (!fieldName.trim()) {
       Alert.alert("Required", "Please select a field before saving.");
@@ -58,25 +94,6 @@ export default function SoilSampleScreen() {
 
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    let latitude: number | undefined;
-    let longitude: number | undefined;
-
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-        latitude = loc.coords.latitude;
-        longitude = loc.coords.longitude;
-      }
-    } catch (locErr: unknown) {
-      console.warn("Soil sample location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
-    }
-
-    const notesParts: string[] = [];
-    if (sampledBy.trim()) notesParts.push(`Sampled by: ${sampledBy.trim()}`);
-    if (notes.trim()) notesParts.push(notes.trim());
-    if (latitude !== undefined && longitude !== undefined) notesParts.push(`GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
 
     const sample: SoilSample = {
       id: generateId(),
@@ -95,8 +112,9 @@ export default function SoilSampleScreen() {
       magnesium: magnesium.trim(),
       organicMatter: organicMatter.trim(),
       notes: notes.trim(),
-      latitude,
-      longitude,
+      latitude: gpsLat,
+      longitude: gpsLng,
+      locationDescription: locationDescription.trim() || undefined,
       photoIds: [],
       createdAt: new Date().toISOString(),
       synced: false,
@@ -141,6 +159,82 @@ export default function SoilSampleScreen() {
             fromCache={fieldsCached}
             error={fieldsError}
           />
+
+          {/* GPS capture */}
+          <View style={styles.gpsCard}>
+            <View style={styles.gpsRow}>
+              <View style={styles.gpsLabelRow}>
+                <Feather
+                  name="crosshair"
+                  size={14}
+                  color={gpsStatus === "captured" ? colors.success ?? "#16a34a" : colors.textSecondary}
+                />
+                <Text style={[styles.gpsLabel, gpsStatus === "captured" && styles.gpsLabelCaptured]}>
+                  {gpsStatus === "idle" ? "GPS Point" :
+                   gpsStatus === "capturing" ? "Capturing GPS…" :
+                   gpsStatus === "captured" ? "GPS Captured" :
+                   gpsStatus === "denied" ? "Location permission denied" :
+                   "GPS unavailable"}
+                </Text>
+              </View>
+              {gpsStatus === "idle" || gpsStatus === "denied" || gpsStatus === "error" ? (
+                <TouchableOpacity style={styles.gpsCaptureBtn} onPress={captureGps} activeOpacity={0.7}>
+                  <Feather name="crosshair" size={13} color={colors.primary} />
+                  <Text style={styles.gpsCaptureBtnText}>Capture GPS</Text>
+                </TouchableOpacity>
+              ) : gpsStatus === "capturing" ? (
+                <View style={styles.gpsCapturing}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.gpsCapturingText}>Locating…</Text>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.gpsRecaptureBtn} onPress={captureGps} activeOpacity={0.7}>
+                  <Feather name="refresh-cw" size={12} color={colors.textSecondary} />
+                  <Text style={styles.gpsRecaptureBtnText}>Re-capture</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {gpsStatus === "captured" && gpsLat !== undefined && gpsLng !== undefined && (
+              <View style={styles.gpsCoords}>
+                <View style={styles.gpsCoordsRow}>
+                  <View style={styles.gpsCoordsItem}>
+                    <Text style={styles.gpsCoordsLabel}>Latitude</Text>
+                    <Text style={styles.gpsCoordsValue}>{gpsLat.toFixed(6)}</Text>
+                  </View>
+                  <View style={styles.gpsCoordsItem}>
+                    <Text style={styles.gpsCoordsLabel}>Longitude</Text>
+                    <Text style={styles.gpsCoordsValue}>{gpsLng.toFixed(6)}</Text>
+                  </View>
+                  {gpsAccuracy !== undefined && (
+                    <View style={styles.gpsCoordsItem}>
+                      <Text style={styles.gpsCoordsLabel}>Accuracy</Text>
+                      <Text style={styles.gpsCoordsValue}>±{Math.round(gpsAccuracy)}m</Text>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity onPress={clearGps} style={styles.gpsClearBtn}>
+                  <Feather name="x" size={11} color={colors.textSecondary} />
+                  <Text style={styles.gpsClearBtnText}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {gpsStatus === "denied" && (
+              <Text style={styles.gpsHint}>Enable location access in your device settings to capture GPS coordinates.</Text>
+            )}
+            {gpsStatus === "idle" && (
+              <Text style={styles.gpsHint}>Tap "Capture GPS" to record the precise position of this sample point within the field.</Text>
+            )}
+          </View>
+
+          <Input
+            label="Location description (optional)"
+            placeholder="e.g. NE corner near hedge, 50m from gate"
+            value={locationDescription}
+            onChangeText={setLocationDescription}
+          />
+
           <View style={styles.row}>
             <Input
               label="Sample Reference (optional)"
@@ -288,5 +382,113 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     gap: spacing.md,
+  },
+  gpsCard: {
+    backgroundColor: colors.cardBackground ?? "#f9fafb",
+    borderWidth: 1,
+    borderColor: colors.border ?? "#e5e7eb",
+    borderRadius: 10,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  gpsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  gpsLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  gpsLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  gpsLabelCaptured: {
+    color: "#15803d",
+  },
+  gpsCaptureBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: colors.primaryLight ?? "#e8f4fd",
+  },
+  gpsCaptureBtnText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.primary,
+  },
+  gpsCapturing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  gpsCapturingText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  gpsRecaptureBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  gpsRecaptureBtnText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  gpsCoords: {
+    marginTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border ?? "#e5e7eb",
+    paddingTop: spacing.sm,
+  },
+  gpsCoordsRow: {
+    flexDirection: "row",
+    gap: spacing.lg,
+  },
+  gpsCoordsItem: {
+    flex: 1,
+  },
+  gpsCoordsLabel: {
+    fontFamily: fonts.regular,
+    fontSize: 10,
+    color: colors.textSecondary,
+    marginBottom: 2,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  gpsCoordsValue: {
+    fontFamily: fonts.mono ?? fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#15803d",
+    fontWeight: "600",
+  },
+  gpsClearBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginTop: spacing.xs ?? 4,
+    alignSelf: "flex-end",
+  },
+  gpsClearBtnText: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  gpsHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: spacing.xs ?? 4,
+    lineHeight: 16,
   },
 });
