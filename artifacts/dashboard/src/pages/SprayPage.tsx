@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { printHtml } from "@/lib/utils";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -666,92 +666,31 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
 
 function PrintTab({ applications, farm }: any) {
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => {
-    const farmName = farm?.name || "—";
-    const cph = farm?.cphNumber ? `CPH: ${farm.cphNumber}` : "";
-    const rtId = farm?.redTractorId ? `Red Tractor ID: ${farm.redTractorId}` : "";
-    const meta = [cph, rtId].filter(Boolean).join("  ·  ");
-
-    const rows = applications.map((r: any, i: number) => {
-      const conditions = [
-        r.windSpeedKmh ? `${r.windSpeedKmh} km/h ${r.windDirection || ""}`.trim() : null,
-        r.temperatureC != null ? `${r.temperatureC}°C` : null,
-      ].filter(Boolean).join(" / ") || "—";
-      const rate = r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}`.trim() : "—";
-      const area = r.areaSprayedHa ? `${r.areaSprayedHa} ha` : "—";
-      const water = r.waterVolumeLitres ? `${r.waterVolumeLitres} L/ha` : "—";
-      const bg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
-      return `<tr style="background:${bg};page-break-inside:avoid">
-        <td style="white-space:nowrap">${fmt(r.applicationDate)}</td>
-        <td>${r.fieldName || "—"}</td>
-        <td><strong>${r.productName || "—"}</strong>${r.productCategory ? `<br><span style="color:#6b7280;font-size:6.5px">${r.productCategory}</span>` : ""}</td>
-        <td style="white-space:nowrap">${rate}</td>
-        <td style="white-space:nowrap">${area}</td>
-        <td style="white-space:nowrap">${water}</td>
-        <td style="white-space:nowrap">${conditions}</td>
-        <td>${r.operatorName || "—"}</td>
-        <td style="font-family:monospace">${r.certificateNumber || "—"}</td>
-        <td>${r.reasonForApplication || "—"}</td>
-      </tr>`;
-    }).join("");
-
-    const css = `
-      @page { size: A4 landscape; margin: 0.9cm 1.1cm; }
-      * { box-sizing: border-box; }
-      body { font-family: Arial, Helvetica, sans-serif; font-size: 8px; color: #111; margin: 0; padding: 0; }
-      .hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a3a1a; padding-bottom: 6px; margin-bottom: 8px; }
-      .hdr-left h1 { font-size: 12px; font-weight: 700; color: #1a3a1a; margin: 0 0 2px; }
-      .hdr-left p { font-size: 7.5px; color: #374151; margin: 1px 0; }
-      .hdr-right { text-align: right; font-size: 7px; color: #6b7280; }
-      .hdr-right .rt-badge { display: inline-block; background: #dc2626; color: #fff; font-size: 6.5px; font-weight: 700; padding: 2px 6px; border-radius: 3px; letter-spacing: 0.05em; margin-bottom: 3px; }
-      .meta { display: flex; gap: 16px; margin-bottom: 8px; font-size: 7px; color: #374151; }
-      .meta span { background: #f3f4f6; padding: 2px 6px; border-radius: 3px; border: 1px solid #e5e7eb; }
-      table { width: 100%; border-collapse: collapse; font-size: 7.5px; }
-      colgroup col.date { width: 52px; }
-      colgroup col.field { width: 68px; }
-      colgroup col.product { width: 90px; }
-      colgroup col.rate { width: 44px; }
-      colgroup col.area { width: 36px; }
-      colgroup col.water { width: 38px; }
-      colgroup col.cond { width: 54px; }
-      colgroup col.operator { width: 64px; }
-      colgroup col.cert { width: 52px; }
-      colgroup col.reason { width: auto; }
-      thead tr { background: #1a3a1a; }
-      thead th { padding: 4px 5px; color: #fff; font-weight: 700; font-size: 6.5px; text-transform: uppercase; letter-spacing: 0.05em; border-right: 1px solid #2d5a2d; text-align: left; }
-      thead th:last-child { border-right: none; }
-      tbody td { padding: 3px 5px; border-bottom: 1px solid #e5e7eb; border-right: 1px solid #f0f0f0; vertical-align: top; line-height: 1.35; }
-      tbody td:last-child { border-right: none; }
-      .footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid #d1d5db; display: flex; justify-content: space-between; font-size: 6.5px; color: #9ca3af; }
-      .empty { text-align: center; padding: 24px; color: #9ca3af; font-size: 9px; }
-    `;
-
-    const body = applications.length === 0
-      ? `<div class="empty">No spray application records to display.</div>`
-      : `<table><colgroup><col class="date"><col class="field"><col class="product"><col class="rate"><col class="area"><col class="water"><col class="cond"><col class="operator"><col class="cert"><col class="reason"></colgroup>
-          <thead><tr><th>Date</th><th>Field</th><th>Product</th><th>Rate</th><th>Area</th><th>Water Vol.</th><th>Wind / Temp</th><th>Operator</th><th>PA Cert No.</th><th>Reason / Notes</th></tr></thead>
-          <tbody>${rows}</tbody></table>`;
-
-    printHtml(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Spray Records — ${farmName}</title><style>${css}</style></head><body>
-      <div class="hdr">
-        <div class="hdr-left">
-          <h1>Spray Application Records</h1>
-          <p><strong>${farmName}</strong>${meta ? `  ·  ${meta}` : ""}</p>
-          <p style="color:#6b7280">Red Tractor Crop Inputs Compliance Register</p>
-        </div>
-        <div class="hdr-right">
-          <div class="rt-badge">RED TRACTOR</div><br>
-          <span>Printed: ${today}</span><br>
-          <span>${applications.length} record${applications.length !== 1 ? "s" : ""}</span>
-        </div>
-      </div>
-      ${body}
-      <div class="footer">
-        <span>Retain records for a minimum of 3 years and make available at Red Tractor audit inspection.</span>
-        <span>BDE Farm Trac · ${today}</span>
-      </div>
-    </body></html>`);
+    if (!previewRef.current) return;
+    const content = previewRef.current.innerHTML;
+    const farmName = farm?.name || "Spray Records";
+    const win = window.open("", "_blank", "width=1400,height=900");
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>Spray Records — ${farmName}</title>
+      <style>
+        @page { size: A4 landscape; margin: 1cm 1.2cm; }
+        *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        body { margin: 0; padding: 0; background: #fff; font-family: Arial, Helvetica, sans-serif; }
+        /* Remove the screen-only overflow scroll on the table wrapper */
+        div[style*="overflow"] { overflow: visible !important; }
+        /* Prevent rows splitting across pages */
+        tr { page-break-inside: avoid; }
+        /* Strip the screen drop-shadow and border-radius for a clean print */
+        div[style*="box-shadow"] { box-shadow: none !important; border-radius: 0 !important; }
+      </style>
+    </head><body>${content}</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 600);
   };
 
   const farmName = farm?.name;
@@ -776,7 +715,7 @@ function PrintTab({ applications, farm }: any) {
       </div>
 
       <div style={{ background: "#e5e7eb", padding: "1.5rem", borderRadius: 10 }}>
-        <div style={{ background: "#fff", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", padding: "1.5rem 1.75rem", fontFamily: "Arial, Helvetica, sans-serif" }}>
+        <div ref={previewRef} style={{ background: "#fff", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", padding: "1.5rem 1.75rem", fontFamily: "Arial, Helvetica, sans-serif" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #1a3a1a", paddingBottom: 10, marginBottom: 12 }}>
             <div>
               <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1a3a1a", margin: "0 0 2px" }}>Spray Application Records</h2>
