@@ -993,11 +993,23 @@ function MortalitySection({ farmId }: { farmId: number }) {
   });
   const activeContractors = contractors.filter(c => c.isActive);
 
+  const { data: vetPlans = [] } = useQuery<VetHealthPlan[]>({
+    queryKey: ["vet-health-plans", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/vet-health-plans`).then(r => r.json()).then(d => d.records ?? []),
+  });
+  // Deduplicated list of vets from health plans (most recent plan for each vet)
+  const knownVets = vetPlans.reduce<{ label: string; value: string }[]>((acc, p) => {
+    const value = [p.vetName, p.practiceName].filter(Boolean).join(" — ");
+    if (!acc.find(v => v.value === value)) acc.push({ label: value + (p.practicePhone ? ` · ${p.practicePhone}` : ""), value });
+    return acc;
+  }, []);
+
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<MortalityRecord | null>(null);
   const [form, setForm] = useState(EMPTY_MORTALITY);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [useOtherVet, setUseOtherVet] = useState(false);
 
   function setField(k: string, v: string | boolean) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -1031,12 +1043,12 @@ function MortalitySection({ farmId }: { farmId: number }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["mortality", farmId] });
       qc.invalidateQueries({ queryKey: ["livestock-animals", farmId] });
-      setShowForm(false); setForm(EMPTY_MORTALITY);
+      setShowForm(false); setForm(EMPTY_MORTALITY); setUseOtherVet(false);
     },
   });
   const updateMut = useMutation({
     mutationFn: (body: typeof EMPTY_MORTALITY & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setEditing(null); setShowForm(false); setForm(EMPTY_MORTALITY); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setEditing(null); setShowForm(false); setForm(EMPTY_MORTALITY); setUseOtherVet(false); },
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
@@ -1045,6 +1057,9 @@ function MortalitySection({ farmId }: { farmId: number }) {
 
   function openEdit(r: MortalityRecord) {
     setEditing(r);
+    const existingVet = r.vetName ?? "";
+    const isKnownVet = knownVets.some(v => v.value === existingVet);
+    setUseOtherVet(existingVet !== "" && !isKnownVet);
     setForm({
       animalId: r.animalId ? String(r.animalId) : "",
       contractorId: r.contractorId ? String(r.contractorId) : "",
@@ -1052,7 +1067,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
       dateOfDeath: r.dateOfDeath?.slice(0, 10) ?? "", causeOfDeath: r.causeOfDeath,
       disposalMethod: r.disposalMethod, disposalOperator: r.disposalOperator ?? "",
       disposalRef: r.disposalRef ?? "", veterinaryAttended: r.veterinaryAttended,
-      vetName: r.vetName ?? "", postMortemCarriedOut: r.postMortemCarriedOut,
+      vetName: existingVet, postMortemCarriedOut: r.postMortemCarriedOut,
       postMortemFindings: r.postMortemFindings ?? "", bcmsNotified: r.bcmsNotified,
       bcmsNotificationRef: r.bcmsNotificationRef ?? "", notes: r.notes ?? "",
     });
@@ -1080,7 +1095,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search by tag, species or cause…" className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button onClick={() => { setEditing(null); setForm(EMPTY_MORTALITY); setShowForm(true); }}>
+        <Button onClick={() => { setEditing(null); setForm(EMPTY_MORTALITY); setUseOtherVet(false); setShowForm(true); }}>
           <Plus className="h-4 w-4 mr-1" /> Add Record
         </Button>
       </div>
@@ -1140,7 +1155,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
       )}
 
       {showForm && (
-        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); setUseOtherVet(false); } }}>
           <DialogContent style={{ maxWidth: "42rem" }}>
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Mortality Record" : "Log Animal Mortality"}</DialogTitle>
@@ -1247,12 +1262,40 @@ function MortalitySection({ farmId }: { farmId: number }) {
                   BCMS notified
                 </label>
               </div>
-              {form.veterinaryAttended && <div><Label>Vet Name / Practice</Label><Input value={form.vetName} onChange={e => setField("vetName", e.target.value)} placeholder="e.g. Mr A. Jones BVSc" /></div>}
+              {form.veterinaryAttended && (
+                <div>
+                  <Label>Attending Vet / Practice</Label>
+                  {knownVets.length > 0 ? (
+                    <>
+                      <Select
+                        value={(!useOtherVet && knownVets.find(v => v.value === form.vetName)) ? form.vetName : (useOtherVet ? "__other__" : "__none__")}
+                        onValueChange={v => {
+                          if (v === "__none__") { setUseOtherVet(false); setField("vetName", ""); }
+                          else if (v === "__other__") { setUseOtherVet(true); setField("vetName", ""); }
+                          else { setUseOtherVet(false); setField("vetName", v); }
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select from your vet register…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Select vet —</SelectItem>
+                          {knownVets.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+                          <SelectItem value="__other__">Other / manual entry…</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {useOtherVet && (
+                        <Input className="mt-2" value={form.vetName} onChange={e => setField("vetName", e.target.value)} placeholder="e.g. Mr A. Jones BVSc — Shire Vets" autoFocus />
+                      )}
+                    </>
+                  ) : (
+                    <Input value={form.vetName} onChange={e => setField("vetName", e.target.value)} placeholder="e.g. Mr A. Jones BVSc — add vets in Vet Health Plans" />
+                  )}
+                </div>
+              )}
               {form.postMortemCarriedOut && <div><Label>Post-mortem Findings</Label><Textarea value={form.postMortemFindings} onChange={e => setField("postMortemFindings", e.target.value)} placeholder="Summary of PM findings..." rows={2} /></div>}
               {form.bcmsNotified && <div><Label>BCMS Notification Reference</Label><Input value={form.bcmsNotificationRef} onChange={e => setField("bcmsNotificationRef", e.target.value)} placeholder="BCMS submission reference" /></div>}
               <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Additional circumstances or observations..." rows={2} /></div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); setUseOtherVet(false); }}>Cancel</Button>
                 <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
                   {(createMut.isPending || updateMut.isPending) ? <><Loader2 className="animate-spin h-4 w-4 mr-1" /> Saving…</> : editing ? "Update Record" : "Save Record"}
                 </Button>
