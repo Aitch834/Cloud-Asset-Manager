@@ -616,6 +616,346 @@ function FleetOverviewTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Parts Store tab ───────────────────────────────────────────────────────────
+
+interface Part {
+  id: number; name: string; category: string | null; productCode: string | null;
+  unit: string | null; reorderLevel: string | null; unitCostPence: number | null;
+  storageLocation: string | null; defaultSupplierId: number | null; supplierName: string | null;
+  notes: string | null; currentQuantity: string;
+}
+
+interface Movement {
+  id: number; stockItemId: number; partName: string; unit: string | null;
+  movementType: string; quantityChange: string; referenceType: string | null;
+  referenceId: number | null; performedBy: string | null; notes: string | null;
+  movedAt: string;
+}
+
+const PART_CATEGORIES = ["Filters", "Belts & Drives", "Bearings", "Seals & Gaskets", "Fasteners", "Electrical", "Hydraulics", "Tyres & Wheels", "Lubricants & Oils", "Welding Supplies", "Safety Equipment", "Tools", "Other"];
+
+const EMPTY_PART = { name: "", category: "", productCode: "", unit: "", reorderLevel: "", unitCostPence: "", storageLocation: "", defaultSupplierId: "", notes: "" };
+
+function PartsStoreTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+
+  const [view, setView] = useState<"catalogue" | "history">("catalogue");
+  const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<Part | null>(null);
+  const [form, setForm] = useState<Record<string, string>>(EMPTY_PART);
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [receivePart, setReceivePart] = useState<Part | null>(null);
+  const [receiveForm, setReceiveForm] = useState({ qty: "", unitCostPence: "", supplierId: "", invoiceRef: "", date: new Date().toISOString().slice(0, 10), notes: "", performedBy: "" });
+  const [useOpen, setUseOpen] = useState(false);
+  const [usePart, setUsePart] = useState<Part | null>(null);
+  const [useForm, setUseForm] = useState({ qty: "", jobId: "", performedBy: "", notes: "" });
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data: parts = [], isLoading } = useQuery<Part[]>({ queryKey: ["workshop-parts", farmId], queryFn: () => fetch(api(`farms/${farmId}/workshop/parts`), { credentials: "include" }).then(r => r.json()) });
+  const { data: movements = [] } = useQuery<Movement[]>({ queryKey: ["workshop-parts-movements", farmId], queryFn: () => fetch(api(`farms/${farmId}/workshop/parts/movements`), { credentials: "include" }).then(r => r.json()), enabled: view === "history" });
+  const { data: jobsData } = useQuery<{ jobs: { job: { id: number; jobNumber: string; title: string; status: string } }[] }>({ queryKey: ["workshop-jobs", farmId], queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs`), { credentials: "include" }).then(r => r.json()) });
+  const { data: suppliersData } = useQuery<any[]>({ queryKey: ["suppliers-list", farmId], queryFn: () => fetch(api(`farms/${farmId}/suppliers`), { credentials: "include" }).then(r => { if (!r.ok) return []; return r.json().then(d => Array.isArray(d) ? d : []); }) });
+
+  const openJobs = (jobsData?.jobs ?? []).filter(j => !["completed", "cancelled"].includes(j.job.status));
+  const suppliers = Array.isArray(suppliersData) ? suppliersData : [];
+
+  function setF(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  const savePart = useMutation({
+    mutationFn: async (body: Record<string, string>) => {
+      const supplierId = body.defaultSupplierId && body.defaultSupplierId !== "__none__" ? body.defaultSupplierId : null;
+      const payload = { ...body, unitCostPence: body.unitCostPence ? Math.round(parseFloat(body.unitCostPence) * 100) : null, reorderLevel: body.reorderLevel || null, defaultSupplierId: supplierId };
+      const url = editing ? api(`farms/${farmId}/workshop/parts/${editing.id}`) : api(`farms/${farmId}/workshop/parts`);
+      return fetch(url, { method: editing ? "PUT" : "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); setAddOpen(false); setEditing(null); setForm(EMPTY_PART); },
+  });
+
+  const deletePart = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/parts/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); setDeleteId(null); },
+  });
+
+  const receive = useMutation({
+    mutationFn: (body: Record<string, string>) => fetch(api(`farms/${farmId}/workshop/parts/receive`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stockItemId: receivePart?.id, quantity: body.qty, supplierId: body.supplierId || null, unitCostPence: body.unitCostPence || null, invoiceReference: body.invoiceRef, deliveryDate: body.date, notes: body.notes, performedBy: body.performedBy }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); qc.invalidateQueries({ queryKey: ["workshop-parts-movements", farmId] }); setReceiveOpen(false); setReceiveForm({ qty: "", unitCostPence: "", supplierId: "", invoiceRef: "", date: new Date().toISOString().slice(0, 10), notes: "", performedBy: "" }); },
+  });
+
+  const useParts = useMutation({
+    mutationFn: (body: Record<string, string>) => fetch(api(`farms/${farmId}/workshop/parts/use`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stockItemId: usePart?.id, quantity: body.qty, jobId: body.jobId || null, performedBy: body.performedBy, notes: body.notes }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] }); qc.invalidateQueries({ queryKey: ["workshop-parts-movements", farmId] }); qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] }); setUseOpen(false); setUseForm({ qty: "", jobId: "", performedBy: "", notes: "" }); },
+  });
+
+  const lowStock = parts.filter(p => p.reorderLevel && parseFloat(p.currentQuantity) <= parseFloat(p.reorderLevel));
+
+  function openAdd() { setEditing(null); setForm(EMPTY_PART); setAddOpen(true); }
+  function openEdit(p: Part) { setEditing(p); setForm({ name: p.name, category: p.category ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", reorderLevel: p.reorderLevel ?? "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", storageLocation: p.storageLocation ?? "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes ?? "" }); setAddOpen(true); }
+  function openReceive(p: Part) { setReceivePart(p); setReceiveForm({ qty: "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", supplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", invoiceRef: "", date: new Date().toISOString().slice(0, 10), notes: "", performedBy: "" }); setReceiveOpen(true); }
+  function openUse(p: Part) { setUsePart(p); setUseForm({ qty: "", jobId: "", performedBy: "", notes: "" }); setUseOpen(true); }
+
+  function fmtQty(qty: string, unit: string | null) { const n = parseFloat(qty); return `${isNaN(n) ? 0 : n}${unit ? ` ${unit}` : ""}`; }
+  function fmtCost(pence: number | null) { return pence ? `£${(pence / 100).toFixed(2)}` : "—"; }
+  function fmtDate(s: string) { return new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); }
+
+  if (isLoading) return <div className="py-12 text-center text-gray-400"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>;
+
+  return (
+    <div className="space-y-4">
+      {/* Sub-nav + actions */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex gap-2">
+          {(["catalogue", "history"] as const).map(v => (
+            <button key={v} onClick={() => setView(v)} className={cn("px-3 py-1 rounded-full text-xs font-medium border transition-colors", view === v ? "bg-primary text-white border-primary" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300")}>
+              {v === "catalogue" ? <><Package className="h-3 w-3 inline-block mr-1" />Parts Catalogue</> : <><History className="h-3 w-3 inline-block mr-1" />Movement History</>}
+            </button>
+          ))}
+        </div>
+        {view === "catalogue" && <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Part</Button>}
+      </div>
+
+      {/* Low-stock alert banner */}
+      {view === "catalogue" && lowStock.length > 0 && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm text-amber-800">
+          <TriangleAlert className="h-4 w-4 text-amber-500 shrink-0" />
+          <span><strong>{lowStock.length} part{lowStock.length > 1 ? "s" : ""}</strong> at or below reorder level: {lowStock.map(p => p.name).join(", ")}</span>
+        </div>
+      )}
+
+      {/* Parts Catalogue */}
+      {view === "catalogue" && (
+        parts.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <Package className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+            <p className="font-medium text-gray-500 mb-1">No parts registered yet</p>
+            <p className="text-sm">Add parts to track stock levels, receive deliveries, and log usage against job cards.</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-gray-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  {["Part / Part No.", "Category", "Location", "In Stock", "Reorder At", "Unit Cost", "Supplier", "Actions"].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {parts.map(p => {
+                  const qty = parseFloat(p.currentQuantity);
+                  const reorder = p.reorderLevel ? parseFloat(p.reorderLevel) : null;
+                  const isLow = reorder !== null && qty <= reorder;
+                  return (
+                    <tr key={p.id} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-gray-900">{p.name}</p>
+                        {p.productCode && <p className="text-xs text-gray-400 font-mono">{p.productCode}</p>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{p.category || "—"}</td>
+                      <td className="px-4 py-3 text-gray-600">{p.storageLocation || "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={cn("font-semibold", isLow ? "text-amber-600" : "text-gray-900")}>
+                          {fmtQty(p.currentQuantity, p.unit)}
+                        </span>
+                        {isLow && <span className="ml-1.5 text-xs text-amber-500 font-medium">Low</span>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">{p.reorderLevel ? fmtQty(p.reorderLevel, p.unit) : "—"}</td>
+                      <td className="px-4 py-3 text-gray-600">{fmtCost(p.unitCostPence)}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{p.supplierName || "—"}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => openReceive(p)} title="Receive stock">
+                            <ArrowDownToLine className="h-3 w-3" />In
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => openUse(p)} title="Use / issue">
+                            <ArrowUpFromLine className="h-3 w-3" />Use
+                          </Button>
+                          <button onClick={() => openEdit(p)} className="p-1 text-gray-400 hover:text-gray-700 rounded" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>
+                          <button onClick={() => setDeleteId(p.id)} className="p-1 text-gray-400 hover:text-red-500 rounded" title="Remove"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {/* Movement History */}
+      {view === "history" && (
+        movements.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <History className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+            <p className="font-medium text-gray-500">No movements recorded yet</p>
+            <p className="text-sm">Stock receipts and usage will appear here.</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-gray-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  {["Date", "Part", "Type", "Qty Change", "Reference", "Performed By", "Notes"].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {movements.map(m => {
+                  const qty = parseFloat(m.quantityChange);
+                  const isIn = qty > 0;
+                  return (
+                    <tr key={m.id} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmtDate(m.movedAt)}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{m.partName}</td>
+                      <td className="px-4 py-3">
+                        <span className={cn("inline-flex items-center gap-1 text-xs font-medium rounded-full px-2 py-0.5", isIn ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700")}>
+                          {isIn ? <ArrowDownToLine className="h-3 w-3" /> : <ArrowUpFromLine className="h-3 w-3" />}
+                          {isIn ? "Received" : "Issued"}
+                        </span>
+                      </td>
+                      <td className={cn("px-4 py-3 font-semibold tabular-nums", isIn ? "text-green-700" : "text-blue-700")}>
+                        {isIn ? "+" : ""}{qty}{m.unit ? ` ${m.unit}` : ""}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">
+                        {m.referenceType === "workshop_job" && m.referenceId ? `Job #${m.referenceId}` : m.referenceType === "workshop_delivery" ? "Delivery" : m.referenceType || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{m.performedBy || "—"}</td>
+                      <td className="px-4 py-3 text-gray-500">{m.notes || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {/* Add / Edit Part Dialog */}
+      {addOpen && (
+        <Dialog open onOpenChange={() => { setAddOpen(false); setEditing(null); setForm(EMPTY_PART); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>{editing ? "Edit Part" : "Add New Part"}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-2">
+              <div className="col-span-2"><Label>Part Name *</Label><Input value={form.name} onChange={e => setF("name", e.target.value)} placeholder="e.g. Oil Filter — Massey 5710" /></div>
+              <div>
+                <Label>Category</Label>
+                <Select value={form.category} onValueChange={v => setF("category", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>{PART_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Part / Product Code</Label><Input value={form.productCode} onChange={e => setF("productCode", e.target.value)} placeholder="e.g. OFS-1234" /></div>
+              <div>
+                <Label>Unit</Label>
+                <Select value={form.unit} onValueChange={v => setF("unit", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>{["each", "pair", "set", "litre", "kg", "metre", "box"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Unit Cost (£)</Label><Input type="number" step="0.01" min="0" value={form.unitCostPence} onChange={e => setF("unitCostPence", e.target.value)} placeholder="0.00" /></div>
+              <div><Label>Reorder Level</Label><Input type="number" step="1" min="0" value={form.reorderLevel} onChange={e => setF("reorderLevel", e.target.value)} placeholder="e.g. 2" /></div>
+              <div><Label>Storage Location</Label><Input value={form.storageLocation} onChange={e => setF("storageLocation", e.target.value)} placeholder="e.g. Shelf A3, Drawer 2" /></div>
+              <div className="col-span-2">
+                <Label>Default Supplier</Label>
+                <Select value={form.defaultSupplierId || "__none__"} onValueChange={v => setF("defaultSupplierId", v === "__none__" ? "" : v)}>
+                  <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {suppliers.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setF("notes", e.target.value)} rows={2} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setAddOpen(false); setEditing(null); }}>Cancel</Button>
+              <Button onClick={() => savePart.mutate(form)} disabled={!form.name || savePart.isPending}>{savePart.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editing ? "Save Changes" : "Add Part"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Receive Stock Dialog */}
+      {receiveOpen && receivePart && (
+        <Dialog open onOpenChange={() => setReceiveOpen(false)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Receive Stock — {receivePart.name}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-2">
+              <div><Label>Quantity Received *</Label><Input type="number" step="0.01" min="0.01" value={receiveForm.qty} onChange={e => setReceiveForm(f => ({ ...f, qty: e.target.value }))} placeholder={`e.g. 4 ${receivePart.unit ?? ""}`} /></div>
+              <div><Label>Unit Cost (£ per {receivePart.unit ?? "unit"})</Label><Input type="number" step="0.01" min="0" value={receiveForm.unitCostPence} onChange={e => setReceiveForm(f => ({ ...f, unitCostPence: e.target.value }))} placeholder="0.00" /></div>
+              <div><Label>Delivery Date</Label><Input type="date" value={receiveForm.date} onChange={e => setReceiveForm(f => ({ ...f, date: e.target.value }))} /></div>
+              <div>
+                <Label>Supplier</Label>
+                <Select value={receiveForm.supplierId || "__none__"} onValueChange={v => setReceiveForm(f => ({ ...f, supplierId: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {suppliers.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2"><Label>Invoice / Order Reference</Label><Input value={receiveForm.invoiceRef} onChange={e => setReceiveForm(f => ({ ...f, invoiceRef: e.target.value }))} placeholder="e.g. INV-2025-001" /></div>
+              <div className="col-span-2"><Label>Received By</Label><Input value={receiveForm.performedBy} onChange={e => setReceiveForm(f => ({ ...f, performedBy: e.target.value }))} placeholder="Name of person" /></div>
+              <div className="col-span-2"><Label>Notes</Label><Textarea value={receiveForm.notes} onChange={e => setReceiveForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReceiveOpen(false)}>Cancel</Button>
+              <Button onClick={() => receive.mutate(receiveForm)} disabled={!receiveForm.qty || receive.isPending}>{receive.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ArrowDownToLine className="h-4 w-4 mr-1" />Receive Stock</>}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Use / Issue Parts Dialog */}
+      {useOpen && usePart && (
+        <Dialog open onOpenChange={() => setUseOpen(false)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Issue Parts — {usePart.name}</DialogTitle></DialogHeader>
+            <div className="mb-3 flex items-center gap-2 text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+              <Package className="h-4 w-4 text-gray-400" />
+              Current stock: <span className="font-semibold text-gray-900">{fmtQty(usePart.currentQuantity, usePart.unit)}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4 py-2">
+              <div><Label>Quantity Used *</Label><Input type="number" step="0.01" min="0.01" value={useForm.qty} onChange={e => setUseForm(f => ({ ...f, qty: e.target.value }))} placeholder={`e.g. 1 ${usePart.unit ?? ""}`} /></div>
+              <div>
+                <Label>Link to Job Card</Label>
+                <Select value={useForm.jobId || "__none__"} onValueChange={v => setUseForm(f => ({ ...f, jobId: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No job</SelectItem>
+                    {openJobs.map(j => <SelectItem key={j.job.id} value={String(j.job.id)}>{j.job.jobNumber} — {j.job.title}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2"><Label>Issued By</Label><Input value={useForm.performedBy} onChange={e => setUseForm(f => ({ ...f, performedBy: e.target.value }))} placeholder="Name of person" /></div>
+              <div className="col-span-2"><Label>Notes</Label><Textarea value={useForm.notes} onChange={e => setUseForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setUseOpen(false)}>Cancel</Button>
+              <Button onClick={() => useParts.mutate(useForm)} disabled={!useForm.qty || useParts.isPending}>{useParts.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ArrowUpFromLine className="h-4 w-4 mr-1" />Issue Parts</>}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete confirm */}
+      {deleteId !== null && (
+        <Dialog open onOpenChange={() => setDeleteId(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Remove Part</DialogTitle></DialogHeader>
+            <p className="text-sm text-gray-600 py-2">This will remove the part from the catalogue. Stock movement history is retained.</p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deletePart.mutate(deleteId!)} disabled={deletePart.isPending}>{deletePart.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Remove"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
 type Tab = "assets" | "jobs" | "schedule" | "overview" | "parts";
 
 export default function WorkshopPage() {
