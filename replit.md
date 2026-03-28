@@ -25,6 +25,7 @@ The monorepo is structured with `pnpm workspaces`, using Node.js 24 and TypeScri
 - Utilizes PostgreSQL with Drizzle ORM.
 - Comprises 60+ tables across multiple schema files covering authentication, core tenant data, leads, support, and all farm-specific modules (e.g., fields, crops, livestock, equipment, financial).
 - `farm_locations` table provides a named registry of farm buildings and areas.
+- `workshop_goods_returns` table stores RTN register with auto-generated RTN-YYYYMM-NNN refs, reason codes, status workflow (raised → dispatched → awaiting-credit → credit-received → closed), credit tracking, and links to stock items.
 
 **Dashboard (`artifacts/dashboard`):**
 - React + Vite application with `wouter` for routing and TanStack React Query for data fetching.

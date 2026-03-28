@@ -204,6 +204,31 @@ export const workshopJobDocumentsTable = pgTable("workshop_job_documents", {
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const workshopGoodsReturnsTable = pgTable("workshop_goods_returns", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  returnRef: text("return_ref").notNull(),
+  supplierRtnNumber: text("supplier_rtn_number"),
+  stockItemId: integer("stock_item_id").references(() => stockItemsTable.id),
+  stockItemName: text("stock_item_name"),
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
+  quantity: numeric("quantity").notNull(),
+  unit: text("unit"),
+  unitCostPence: integer("unit_cost_pence"),
+  returnReasonCode: text("return_reason_code").notNull().default("faulty"),
+  returnReason: text("return_reason"),
+  status: text("status").notNull().default("raised"),
+  raisedBy: text("raised_by"),
+  raisedAt: timestamp("raised_at", { withTimezone: true }).notNull().defaultNow(),
+  dispatchedAt: timestamp("dispatched_at", { withTimezone: true }),
+  creditAmountPence: integer("credit_amount_pence"),
+  creditReceivedAt: timestamp("credit_received_at", { withTimezone: true }),
+  originalDeliveryRef: text("original_delivery_ref"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const equipmentDefectReportsTable = pgTable("equipment_defect_reports", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

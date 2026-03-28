@@ -763,6 +763,342 @@ interface Movement {
 
 const PART_CATEGORIES = ["Filters", "Belts & Drives", "Bearings", "Seals & Gaskets", "Fasteners", "Electrical", "Hydraulics", "Tyres & Wheels", "Lubricants & Oils", "Welding Supplies", "Safety Equipment", "Tools", "Other"];
 
+const RETURN_REASON_CODES: Record<string, string> = {
+  "faulty": "Faulty / Defective",
+  "wrong-part": "Wrong Part Supplied",
+  "damaged-transit": "Damaged in Transit",
+  "over-delivery": "Over-Delivery",
+  "not-required": "No Longer Required",
+  "other": "Other",
+};
+
+const RETURN_STATUS: Record<string, { label: string; colour: string }> = {
+  "raised": { label: "Raised", colour: "bg-blue-100 text-blue-700" },
+  "dispatched": { label: "Dispatched", colour: "bg-amber-100 text-amber-700" },
+  "awaiting-credit": { label: "Awaiting Credit", colour: "bg-purple-100 text-purple-700" },
+  "credit-received": { label: "Credit Received", colour: "bg-green-100 text-green-700" },
+  "closed": { label: "Closed", colour: "bg-gray-100 text-gray-600" },
+};
+
+interface GoodsReturn {
+  id: number;
+  returnRef: string;
+  supplierRtnNumber: string | null;
+  stockItemId: number | null;
+  stockItemName: string | null;
+  supplierId: number | null;
+  supplierName: string | null;
+  quantity: string;
+  unit: string | null;
+  unitCostPence: number | null;
+  returnReasonCode: string;
+  returnReason: string | null;
+  status: string;
+  raisedBy: string | null;
+  raisedAt: string;
+  dispatchedAt: string | null;
+  creditAmountPence: number | null;
+  creditReceivedAt: string | null;
+  originalDeliveryRef: string | null;
+  notes: string | null;
+}
+
+function GoodsReturnsView({ farmId, parts }: { farmId: number; parts: Part[] }) {
+  const qc = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [newOpen, setNewOpen] = useState(false);
+  const [editReturn, setEditReturn] = useState<GoodsReturn | null>(null);
+
+  // Create form state
+  const [form, setForm] = useState({ stockItemId: "", stockItemName: "", supplierId: "", quantity: "", unit: "", unitCostPence: "", returnReasonCode: "faulty", returnReason: "", raisedBy: "", originalDeliveryRef: "", notes: "" });
+  // Edit/update form state
+  const [editForm, setEditForm] = useState({ supplierRtnNumber: "", status: "raised", dispatchedAt: "", creditAmountPence: "", creditReceivedAt: "", notes: "" });
+
+  const { data: returns = [], isLoading } = useQuery<GoodsReturn[]>({
+    queryKey: ["workshop-returns", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/returns`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const { data: suppliers = [] } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["suppliers-list", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/suppliers`), { credentials: "include" }).then(r => r.json().then(d => d.records ?? [])),
+  });
+
+  const createReturn = useMutation({
+    mutationFn: (body: Record<string, string>) => fetch(api(`farms/${farmId}/workshop/returns`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workshop-returns", farmId] });
+      qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] });
+      setNewOpen(false);
+      setForm({ stockItemId: "", stockItemName: "", supplierId: "", quantity: "", unit: "", unitCostPence: "", returnReasonCode: "faulty", returnReason: "", raisedBy: "", originalDeliveryRef: "", notes: "" });
+    },
+  });
+
+  const updateReturn = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, string | null> }) => fetch(api(`farms/${farmId}/workshop/returns/${id}`), { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-returns", farmId] }); setEditReturn(null); },
+  });
+
+  const deleteReturn = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/returns/${id}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workshop-returns", farmId] }),
+  });
+
+  function setF(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+  function setEF(k: string, v: string) { setEditForm(f => ({ ...f, [k]: v })); }
+
+  function openEdit(r: GoodsReturn) {
+    setEditReturn(r);
+    setEditForm({
+      supplierRtnNumber: r.supplierRtnNumber ?? "",
+      status: r.status,
+      dispatchedAt: r.dispatchedAt ? r.dispatchedAt.slice(0, 10) : "",
+      creditAmountPence: r.creditAmountPence ? (r.creditAmountPence / 100).toFixed(2) : "",
+      creditReceivedAt: r.creditReceivedAt ? r.creditReceivedAt.slice(0, 10) : "",
+      notes: r.notes ?? "",
+    });
+  }
+
+  // Auto-fill unit from selected part
+  function handlePartSelect(partId: string) {
+    const p = parts.find(x => String(x.id) === partId);
+    setForm(f => ({ ...f, stockItemId: partId, stockItemName: p?.name ?? "", unit: p?.unit ?? f.unit, supplierId: p?.defaultSupplierId ? String(p.defaultSupplierId) : f.supplierId, unitCostPence: p?.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : f.unitCostPence }));
+  }
+
+  const filtered = statusFilter === "all" ? returns : returns.filter(r => r.status === statusFilter);
+  const totalCreditPending = returns.filter(r => ["raised", "dispatched", "awaiting-credit"].includes(r.status) && r.unitCostPence && r.quantity)
+    .reduce((sum, r) => sum + Math.round((r.unitCostPence! / 100) * parseFloat(r.quantity)), 0);
+
+  if (isLoading) return <div className="py-12 text-center text-gray-400"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>;
+
+  return (
+    <div className="space-y-4">
+      {/* Header bar */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex gap-2 flex-wrap">
+          {(["all", ...Object.keys(RETURN_STATUS)] as string[]).map(s => {
+            const badge = RETURN_STATUS[s];
+            const count = s === "all" ? returns.length : returns.filter(r => r.status === s).length;
+            return (
+              <button key={s} onClick={() => setStatusFilter(s)}
+                className={cn("px-3 py-1 rounded-full text-xs font-medium border transition-colors", statusFilter === s ? "bg-primary text-white border-primary" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300")}>
+                {badge?.label ?? "All Returns"} {count > 0 && <span className={cn("ml-1 rounded-full px-1.5 py-0.5 text-xs", statusFilter === s ? "bg-white/20" : "bg-gray-100")}>{count}</span>}
+              </button>
+            );
+          })}
+        </div>
+        <Button size="sm" onClick={() => setNewOpen(true)}><Plus className="h-4 w-4 mr-1" />New Return</Button>
+      </div>
+
+      {/* Credit pending banner */}
+      {totalCreditPending > 0 && (
+        <div className="flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg px-4 py-2.5 text-sm text-purple-800">
+          <Info className="h-4 w-4 text-purple-500 shrink-0" />
+          <span>Outstanding credit due from suppliers: <strong>~£{totalCreditPending.toFixed(2)}</strong></span>
+        </div>
+      )}
+
+      {/* Register table */}
+      {filtered.length === 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <ArrowUpFromLine className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+          <p className="font-medium text-gray-500 mb-1">{statusFilter === "all" ? "No goods returns logged yet" : `No returns with status "${RETURN_STATUS[statusFilter]?.label}"`}</p>
+          <p className="text-sm">Use "New Return" to log a return to a supplier and track the credit.</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-gray-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                {["RTN Ref", "Date", "Part / Item", "Qty", "Supplier", "Reason", "Status", "Supplier RTN", "Credit Due", ""].map(h => (
+                  <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filtered.map(r => {
+                const st = RETURN_STATUS[r.status] ?? { label: r.status, colour: "bg-gray-100 text-gray-600" };
+                const creditDue = r.unitCostPence && r.quantity ? `£${((r.unitCostPence / 100) * parseFloat(r.quantity)).toFixed(2)}` : "—";
+                return (
+                  <tr key={r.id} className="hover:bg-gray-50/80 cursor-pointer" onClick={() => openEdit(r)}>
+                    <td className="px-3 py-3"><span className="font-mono text-xs font-semibold text-primary">{r.returnRef}</span></td>
+                    <td className="px-3 py-3 text-gray-500 text-xs whitespace-nowrap">{new Date(r.raisedAt).toLocaleDateString("en-GB")}</td>
+                    <td className="px-3 py-3">
+                      <p className="font-medium text-gray-900 text-xs">{r.stockItemName || "—"}</p>
+                      {r.originalDeliveryRef && <p className="text-xs text-gray-400 font-mono">{r.originalDeliveryRef}</p>}
+                    </td>
+                    <td className="px-3 py-3 text-gray-600 text-xs">{r.quantity}{r.unit ? ` ${r.unit}` : ""}</td>
+                    <td className="px-3 py-3 text-gray-600 text-xs">{r.supplierName || "—"}</td>
+                    <td className="px-3 py-3 text-gray-600 text-xs">{RETURN_REASON_CODES[r.returnReasonCode] ?? r.returnReasonCode}</td>
+                    <td className="px-3 py-3"><span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", st.colour)}>{st.label}</span></td>
+                    <td className="px-3 py-3 text-gray-500 text-xs font-mono">{r.supplierRtnNumber || <span className="text-gray-300">—</span>}</td>
+                    <td className="px-3 py-3 text-gray-600 text-xs">{r.creditAmountPence ? `£${(r.creditAmountPence / 100).toFixed(2)}` : creditDue}</td>
+                    <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => deleteReturn.mutate(r.id)} className="p-1 text-gray-400 hover:text-red-500 rounded" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── New Return dialog ── */}
+      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+        <DialogContent style={{ maxWidth: "48rem" }}>
+          <DialogHeader><DialogTitle>Raise Goods Return</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="col-span-2">
+              <Label>Part from Store</Label>
+              <Select value={form.stockItemId || "__none__"} onValueChange={v => v === "__none__" ? setF("stockItemId", "") : handlePartSelect(v)}>
+                <SelectTrigger><SelectValue placeholder="Select part…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select a part —</SelectItem>
+                  {parts.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}{p.productCode ? ` (${p.productCode})` : ""}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {!form.stockItemId && (
+              <div className="col-span-2">
+                <Label>Part / Item Description <span className="text-gray-400 font-normal">(if not in parts store)</span></Label>
+                <Input value={form.stockItemName} onChange={e => setF("stockItemName", e.target.value)} placeholder="e.g. Hydraulic hose assembly" />
+              </div>
+            )}
+            <div>
+              <Label>Quantity to Return *</Label>
+              <Input type="number" step="0.01" min="0.01" value={form.quantity} onChange={e => setF("quantity", e.target.value)} placeholder="0" />
+            </div>
+            <div>
+              <Label>Unit</Label>
+              <Input value={form.unit} onChange={e => setF("unit", e.target.value)} placeholder="e.g. each, kg, m" />
+            </div>
+            <div>
+              <Label>Unit Cost (£)</Label>
+              <Input type="number" step="0.01" value={form.unitCostPence} onChange={e => setF("unitCostPence", e.target.value)} placeholder="0.00" />
+            </div>
+            <div>
+              <Label>Supplier</Label>
+              <Select value={form.supplierId || "__none__"} onValueChange={v => setF("supplierId", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Select supplier…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— None —</SelectItem>
+                  {suppliers.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Return Reason *</Label>
+              <Select value={form.returnReasonCode} onValueChange={v => setF("returnReasonCode", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(RETURN_REASON_CODES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Original Delivery Ref <span className="text-gray-400 font-normal">(GRN number)</span></Label>
+              <Input value={form.originalDeliveryRef} onChange={e => setF("originalDeliveryRef", e.target.value)} placeholder="e.g. GRN-WS-202603-001" />
+            </div>
+            <div className="col-span-2">
+              <Label>Reason Details</Label>
+              <Textarea value={form.returnReason} onChange={e => setF("returnReason", e.target.value)} rows={2} placeholder="Describe the specific issue, e.g. bearing seized on first use" />
+            </div>
+            <div>
+              <Label>Raised By</Label>
+              <Input value={form.raisedBy} onChange={e => setF("raisedBy", e.target.value)} />
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Input value={form.notes} onChange={e => setF("notes", e.target.value)} />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400">Stock level will be automatically decremented when the return is raised.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewOpen(false)}>Cancel</Button>
+            <Button onClick={() => createReturn.mutate({ ...form, unitCostPence: form.unitCostPence ? String(Math.round(parseFloat(form.unitCostPence) * 100)) : "" })}
+              disabled={createReturn.isPending || !form.quantity || !form.returnReasonCode || (!form.stockItemId && !form.stockItemName)}>
+              {createReturn.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Raise Return
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Update Return dialog ── */}
+      <Dialog open={!!editReturn} onOpenChange={open => { if (!open) setEditReturn(null); }}>
+        <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Update Return
+              {editReturn && <span className="font-mono text-primary text-base">{editReturn.returnRef}</span>}
+            </DialogTitle>
+          </DialogHeader>
+          {editReturn && (
+            <>
+              {/* Read-only summary */}
+              <div className="rounded-lg bg-gray-50 border px-4 py-3 text-sm space-y-1">
+                <div className="flex gap-4 flex-wrap text-xs text-gray-500">
+                  <span><strong className="text-gray-700">Part:</strong> {editReturn.stockItemName || "—"}</span>
+                  <span><strong className="text-gray-700">Qty:</strong> {editReturn.quantity}{editReturn.unit ? ` ${editReturn.unit}` : ""}</span>
+                  <span><strong className="text-gray-700">Reason:</strong> {RETURN_REASON_CODES[editReturn.returnReasonCode] ?? editReturn.returnReasonCode}</span>
+                  {editReturn.supplierName && <span><strong className="text-gray-700">Supplier:</strong> {editReturn.supplierName}</span>}
+                </div>
+                {editReturn.returnReason && <p className="text-xs text-gray-500 italic">{editReturn.returnReason}</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-4 py-2">
+                <div className="col-span-2">
+                  <Label>Supplier RTN Number</Label>
+                  <Input value={editForm.supplierRtnNumber} onChange={e => setEF("supplierRtnNumber", e.target.value)} placeholder="Supplier's own return reference" />
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={editForm.status} onValueChange={v => setEF("status", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(RETURN_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Dispatched Date</Label>
+                  <Input type="date" value={editForm.dispatchedAt} onChange={e => setEF("dispatchedAt", e.target.value)} />
+                </div>
+                <div>
+                  <Label>Credit Amount Received (£)</Label>
+                  <Input type="number" step="0.01" value={editForm.creditAmountPence} onChange={e => setEF("creditAmountPence", e.target.value)} placeholder="0.00" />
+                </div>
+                <div>
+                  <Label>Credit Received Date</Label>
+                  <Input type="date" value={editForm.creditReceivedAt} onChange={e => setEF("creditReceivedAt", e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <Label>Notes</Label>
+                  <Textarea value={editForm.notes} onChange={e => setEF("notes", e.target.value)} rows={2} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditReturn(null)}>Cancel</Button>
+                <Button onClick={() => updateReturn.mutate({ id: editReturn.id, body: {
+                  supplierRtnNumber: editForm.supplierRtnNumber || null,
+                  status: editForm.status,
+                  dispatchedAt: editForm.dispatchedAt || null,
+                  creditAmountPence: editForm.creditAmountPence ? String(Math.round(parseFloat(editForm.creditAmountPence) * 100)) : null,
+                  creditReceivedAt: editForm.creditReceivedAt || null,
+                  notes: editForm.notes || null,
+                }})} disabled={updateReturn.isPending}>
+                  {updateReturn.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 const EMPTY_PART = { name: "", category: "", productCode: "", unit: "", reorderLevel: "", unitCostPence: "", storageLocation: "", defaultSupplierId: "", notes: "" };
 
 interface PartDoc {
@@ -1003,7 +1339,7 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
 function PartsStoreTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
 
-  const [view, setView] = useState<"catalogue" | "history">("catalogue");
+  const [view, setView] = useState<"catalogue" | "history" | "returns">("catalogue");
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("all");
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
@@ -1077,12 +1413,16 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
     <div className="space-y-4">
       {/* Sub-nav + actions */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex gap-2">
-          {(["catalogue", "history"] as const).map(v => (
-            <button key={v} onClick={() => setView(v)} className={cn("px-3 py-1 rounded-full text-xs font-medium border transition-colors", view === v ? "bg-primary text-white border-primary" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300")}>
-              {v === "catalogue" ? <><Package className="h-3 w-3 inline-block mr-1" />Parts Catalogue</> : <><History className="h-3 w-3 inline-block mr-1" />Movement History</>}
-            </button>
-          ))}
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setView("catalogue")} className={cn("px-3 py-1 rounded-full text-xs font-medium border transition-colors", view === "catalogue" ? "bg-primary text-white border-primary" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300")}>
+            <Package className="h-3 w-3 inline-block mr-1" />Parts Catalogue
+          </button>
+          <button onClick={() => setView("history")} className={cn("px-3 py-1 rounded-full text-xs font-medium border transition-colors", view === "history" ? "bg-primary text-white border-primary" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300")}>
+            <History className="h-3 w-3 inline-block mr-1" />Movement History
+          </button>
+          <button onClick={() => setView("returns")} className={cn("px-3 py-1 rounded-full text-xs font-medium border transition-colors", view === "returns" ? "bg-primary text-white border-primary" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300")}>
+            <ArrowUpFromLine className="h-3 w-3 inline-block mr-1" />Goods Returns
+          </button>
         </div>
         {view === "catalogue" && <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Part</Button>}
       </div>
@@ -1264,6 +1604,9 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
           </div>
         )
       )}
+
+      {/* Goods Returns View */}
+      {view === "returns" && <GoodsReturnsView farmId={farmId} parts={parts} />}
 
       {/* Add / Edit Part Dialog */}
       {addOpen && (

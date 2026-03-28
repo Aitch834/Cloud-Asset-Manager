@@ -28,6 +28,7 @@ import {
   workshopFireExtinguishersTable,
   workshopPartDocumentsTable,
   workshopJobDocumentsTable,
+  workshopGoodsReturnsTable,
   equipmentCalibrationRecordsTable,
   herdFlockRegisterTable,
   livestockAnimalsTable,
@@ -8740,6 +8741,105 @@ router.delete("/farms/:farmId/workshop/jobs/:jobId/documents/:docId", requireAut
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const docId = parseInt(req.params.docId); if (isNaN(docId)) { res.status(400).json({ error: "Invalid doc ID" }); return; }
   await db.delete(workshopJobDocumentsTable).where(eq(workshopJobDocumentsTable.id, docId));
+  res.json({ success: true });
+});
+
+// ── Goods Returns ────────────────────────────────────────────
+router.get("/farms/:farmId/workshop/returns", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db
+    .select({
+      id: workshopGoodsReturnsTable.id,
+      returnRef: workshopGoodsReturnsTable.returnRef,
+      supplierRtnNumber: workshopGoodsReturnsTable.supplierRtnNumber,
+      stockItemId: workshopGoodsReturnsTable.stockItemId,
+      stockItemName: workshopGoodsReturnsTable.stockItemName,
+      supplierId: workshopGoodsReturnsTable.supplierId,
+      supplierName: suppliersTable.name,
+      quantity: workshopGoodsReturnsTable.quantity,
+      unit: workshopGoodsReturnsTable.unit,
+      unitCostPence: workshopGoodsReturnsTable.unitCostPence,
+      returnReasonCode: workshopGoodsReturnsTable.returnReasonCode,
+      returnReason: workshopGoodsReturnsTable.returnReason,
+      status: workshopGoodsReturnsTable.status,
+      raisedBy: workshopGoodsReturnsTable.raisedBy,
+      raisedAt: workshopGoodsReturnsTable.raisedAt,
+      dispatchedAt: workshopGoodsReturnsTable.dispatchedAt,
+      creditAmountPence: workshopGoodsReturnsTable.creditAmountPence,
+      creditReceivedAt: workshopGoodsReturnsTable.creditReceivedAt,
+      originalDeliveryRef: workshopGoodsReturnsTable.originalDeliveryRef,
+      notes: workshopGoodsReturnsTable.notes,
+    })
+    .from(workshopGoodsReturnsTable)
+    .leftJoin(suppliersTable, eq(workshopGoodsReturnsTable.supplierId, suppliersTable.id))
+    .where(eq(workshopGoodsReturnsTable.farmId, farmId))
+    .orderBy(desc(workshopGoodsReturnsTable.raisedAt));
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/workshop/returns", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { stockItemId, stockItemName, supplierId, quantity, unit, unitCostPence, returnReasonCode, returnReason, raisedBy, originalDeliveryRef, notes } = req.body;
+  if (!quantity || !returnReasonCode) { res.status(400).json({ error: "quantity and returnReasonCode are required" }); return; }
+  const qty = parseFloat(String(quantity));
+  if (isNaN(qty) || qty <= 0) { res.status(400).json({ error: "Invalid quantity" }); return; }
+
+  // Auto-generate RTN reference
+  const now = new Date();
+  const yyyymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [countRow] = await db.select({ count: sql<number>`count(*)::int` }).from(workshopGoodsReturnsTable).where(eq(workshopGoodsReturnsTable.farmId, farmId));
+  const seq = String((countRow?.count ?? 0) + 1).padStart(3, "0");
+  const returnRef = `RTN-${yyyymm}-${seq}`;
+
+  const [row] = await db.insert(workshopGoodsReturnsTable).values({
+    farmId, returnRef, supplierRtnNumber: null,
+    stockItemId: stockItemId ? parseInt(stockItemId) : null,
+    stockItemName: stockItemName || null,
+    supplierId: supplierId ? parseInt(supplierId) : null,
+    quantity: String(qty), unit: unit || null,
+    unitCostPence: unitCostPence ? parseInt(unitCostPence) : null,
+    returnReasonCode, returnReason: returnReason || null,
+    raisedBy: raisedBy || null,
+    originalDeliveryRef: originalDeliveryRef || null,
+    notes: notes || null,
+  }).returning();
+
+  // Record outbound stock movement and decrement level
+  if (stockItemId) {
+    const itemId = parseInt(stockItemId);
+    await db.insert(stockMovementsTable).values({
+      farmId, stockItemId: itemId,
+      movementType: "return",
+      quantityChange: String(-qty),
+      referenceType: "workshop_return",
+      referenceId: row.id,
+      performedBy: raisedBy || null,
+      notes: `Goods return ${returnRef}${returnReason ? `: ${returnReason}` : ""}`,
+    });
+    const [existing] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, itemId))).limit(1);
+    if (existing) {
+      const newQty = Math.max(0, parseFloat(existing.currentQuantity) - qty);
+      await db.update(stockLevelsTable).set({ currentQuantity: String(newQty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id));
+    }
+  }
+
+  res.json(row);
+});
+
+router.put("/farms/:farmId/workshop/returns/:returnId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const returnId = parseInt(req.params.returnId); if (isNaN(returnId)) { res.status(400).json({ error: "Invalid return ID" }); return; }
+  const allowed = ["supplierRtnNumber", "returnReason", "status", "raisedBy", "dispatchedAt", "creditAmountPence", "creditReceivedAt", "originalDeliveryRef", "notes"];
+  const updates: Record<string, unknown> = {};
+  for (const k of allowed) { if (k in req.body) updates[k] = req.body[k] ?? null; }
+  const [row] = await db.update(workshopGoodsReturnsTable).set({ ...updates, updatedAt: new Date() }).where(and(eq(workshopGoodsReturnsTable.id, returnId), eq(workshopGoodsReturnsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/workshop/returns/:returnId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const returnId = parseInt(req.params.returnId); if (isNaN(returnId)) { res.status(400).json({ error: "Invalid return ID" }); return; }
+  await db.delete(workshopGoodsReturnsTable).where(and(eq(workshopGoodsReturnsTable.id, returnId), eq(workshopGoodsReturnsTable.farmId, farmId)));
   res.json({ success: true });
 });
 
