@@ -1,5 +1,4 @@
 import React, { useState, useRef } from "react";
-import { printHtml } from "@/lib/utils";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
@@ -665,8 +664,12 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
 }
 
 function PrintTab({ applications, farm }: any) {
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const previewRef = useRef<HTMLDivElement>(null);
+
+  const printApplications = applications.filter((r: any) => isInCropYear(r.applicationDate, cropYear));
+  const yearLabel = cropYearLabel(cropYear);
 
   const handlePrint = () => {
     if (!previewRef.current) return;
@@ -675,16 +678,13 @@ function PrintTab({ applications, farm }: any) {
     const win = window.open("", "_blank", "width=1400,height=900");
     if (!win) return;
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
-      <title>Spray Records — ${farmName}</title>
+      <title>Spray Records — ${farmName} — ${yearLabel}</title>
       <style>
         @page { size: A4 landscape; margin: 1cm 1.2cm; }
         *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         body { margin: 0; padding: 0; background: #fff; font-family: Arial, Helvetica, sans-serif; }
-        /* Remove the screen-only overflow scroll on the table wrapper */
         div[style*="overflow"] { overflow: visible !important; }
-        /* Prevent rows splitting across pages */
         tr { page-break-inside: avoid; }
-        /* Strip the screen drop-shadow and border-radius for a clean print */
         div[style*="box-shadow"] { box-shadow: none !important; border-radius: 0 !important; }
       </style>
     </head><body>${content}</body></html>`);
@@ -703,35 +703,39 @@ function PrintTab({ applications, farm }: any) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
-        <div>
-          <p style={{ fontSize: "0.8rem", color: "#6b7280", margin: 0 }}>
-            Preview of the printed report. Prints landscape A4 — fits all columns on a single page row.
-          </p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem", gap: 12, flexWrap: "wrap" }}>
+        <p style={{ fontSize: "0.8rem", color: "#6b7280", margin: 0 }}>
+          Select a crop year to preview and print. Prints landscape A4 — all columns fit on a single row.
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <CropYearSelector value={cropYear} onChange={setCropYear} />
+          <Button size="sm" onClick={handlePrint} disabled={printApplications.length === 0}>
+            <Printer size={14} className="mr-1.5" />Print / Export PDF
+          </Button>
         </div>
-        <Button size="sm" onClick={handlePrint}>
-          <Printer size={14} className="mr-1.5" />Print / Export PDF
-        </Button>
       </div>
 
-      <div style={{ background: "#e5e7eb", padding: "1.5rem", borderRadius: 10 }}>
-        <div ref={previewRef} style={{ background: "#fff", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", padding: "1.5rem 1.75rem", fontFamily: "Arial, Helvetica, sans-serif" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #1a3a1a", paddingBottom: 10, marginBottom: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1a3a1a", margin: "0 0 2px" }}>Spray Application Records</h2>
-              {farmName && <p style={{ fontSize: "0.75rem", color: "#374151", margin: "1px 0" }}><strong>{farmName}</strong>{meta ? `  ·  ${meta}` : ""}</p>}
-              <p style={{ fontSize: "0.7rem", color: "#6b7280", margin: "1px 0" }}>Red Tractor Crop Inputs Compliance Register</p>
+      {printApplications.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#9ca3af", background: "#f9fafb", borderRadius: 10, border: "1px dashed #e5e7eb" }}>
+          <p style={{ fontSize: "0.875rem", fontWeight: 600, color: "#6b7280", margin: "0 0 4px" }}>No records for {yearLabel}</p>
+          <p style={{ fontSize: "0.8rem", margin: 0 }}>Select a different crop year above, or log applications in the Applications Log tab.</p>
+        </div>
+      ) : (
+        <div style={{ background: "#e5e7eb", padding: "1.5rem", borderRadius: 10 }}>
+          <div ref={previewRef} style={{ background: "#fff", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", padding: "1.5rem 1.75rem", fontFamily: "Arial, Helvetica, sans-serif" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #1a3a1a", paddingBottom: 10, marginBottom: 12 }}>
+              <div>
+                <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1a3a1a", margin: "0 0 2px" }}>Spray Application Records — {yearLabel}</h2>
+                {farmName && <p style={{ fontSize: "0.75rem", color: "#374151", margin: "1px 0" }}><strong>{farmName}</strong>{meta ? `  ·  ${meta}` : ""}</p>}
+                <p style={{ fontSize: "0.7rem", color: "#6b7280", margin: "1px 0" }}>Red Tractor Crop Inputs Compliance Register</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ display: "inline-block", background: "#dc2626", color: "#fff", fontSize: "0.6rem", fontWeight: 700, padding: "2px 8px", borderRadius: 3, letterSpacing: "0.05em", marginBottom: 4 }}>RED TRACTOR</div>
+                <p style={{ fontSize: "0.65rem", color: "#6b7280", margin: "1px 0" }}>Printed: {today}</p>
+                <p style={{ fontSize: "0.65rem", color: "#6b7280", margin: "1px 0" }}>{printApplications.length} record{printApplications.length !== 1 ? "s" : ""}</p>
+              </div>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ display: "inline-block", background: "#dc2626", color: "#fff", fontSize: "0.6rem", fontWeight: 700, padding: "2px 8px", borderRadius: 3, letterSpacing: "0.05em", marginBottom: 4 }}>RED TRACTOR</div>
-              <p style={{ fontSize: "0.65rem", color: "#6b7280", margin: "1px 0" }}>Printed: {today}</p>
-              <p style={{ fontSize: "0.65rem", color: "#6b7280", margin: "1px 0" }}>{applications.length} record{applications.length !== 1 ? "s" : ""}</p>
-            </div>
-          </div>
 
-          {applications.length === 0 ? (
-            <p style={{ fontSize: "0.8rem", color: "#9ca3af", textAlign: "center", padding: "2rem 0" }}>No spray applications on record.</p>
-          ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.7rem" }}>
                 <thead>
@@ -742,7 +746,7 @@ function PrintTab({ applications, farm }: any) {
                   </tr>
                 </thead>
                 <tbody>
-                  {applications.map((r: any, i: number) => {
+                  {printApplications.map((r: any, i: number) => {
                     const conditions = [
                       r.windSpeedKmh ? `${r.windSpeedKmh} km/h ${r.windDirection || ""}`.trim() : null,
                       r.temperatureC != null ? `${r.temperatureC}°C` : null,
@@ -768,14 +772,14 @@ function PrintTab({ applications, farm }: any) {
                 </tbody>
               </table>
             </div>
-          )}
 
-          <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid #d1d5db", display: "flex", justifyContent: "space-between", fontSize: "0.6rem", color: "#9ca3af" }}>
-            <span>Retain records for a minimum of 3 years and make available at Red Tractor audit inspection.</span>
-            <span>BDE Farm Trac · {today}</span>
+            <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid #d1d5db", display: "flex", justifyContent: "space-between", fontSize: "0.6rem", color: "#9ca3af" }}>
+              <span>Retain records for a minimum of 3 years and make available at Red Tractor audit inspection.</span>
+              <span>BDE Farm Trac · {today}</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
