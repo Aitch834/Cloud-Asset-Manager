@@ -210,6 +210,124 @@ interface WorkshopJob {
 
 const EMPTY_JOB = { jobType: "repair", title: "", priority: "medium", status: "open" };
 
+function JobDocumentsSection({ farmId, jobId }: { farmId: number; jobId: number }) {
+  const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedBy, setUploadedBy] = useState("");
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const { data: docs = [], isLoading: docsLoading } = useQuery<PartDoc[]>({
+    queryKey: ["job-docs", jobId],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs/${jobId}/documents`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const deleteDoc = useMutation({
+    mutationFn: (docId: number) => fetch(api(`farms/${farmId}/workshop/jobs/${jobId}/documents/${docId}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["job-docs", jobId] }),
+  });
+
+  const saveDocMeta = useMutation({
+    mutationFn: (body: { filename: string; storageKey: string; mimeType: string | null; fileSizeBytes: number | null; uploadedBy: string }) =>
+      fetch(api(`farms/${farmId}/workshop/jobs/${jobId}/documents`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["job-docs", jobId] });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+  });
+
+  const { uploadFile, isUploading, progress } = useUpload({
+    onSuccess: useCallback((response: { objectPath: string; metadata: { name: string; size: number; contentType: string } }) => {
+      setUploadError(null);
+      saveDocMeta.mutate({
+        filename: response.metadata.name,
+        storageKey: response.objectPath,
+        mimeType: response.metadata.contentType || null,
+        fileSizeBytes: response.metadata.size || null,
+        uploadedBy: uploadedBy.trim() || "",
+      });
+    }, [uploadedBy, saveDocMeta]),
+    onError: useCallback((err: Error) => setUploadError(err.message), []),
+  });
+
+  return (
+    <div className="border-t pt-4 mt-1 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+          <FileText className="h-4 w-4 text-gray-500" />Job Documents & Photos
+        </p>
+        <p className="text-xs text-gray-400">Warranty claims, inspection photos, invoices, delivery notes</p>
+      </div>
+
+      {/* Existing docs */}
+      {docsLoading ? (
+        <div className="py-3 text-center"><Loader2 className="h-4 w-4 animate-spin text-gray-300 mx-auto" /></div>
+      ) : docs.length === 0 ? (
+        <div className="py-4 text-center border-2 border-dashed rounded-lg text-gray-400">
+          <Upload className="h-6 w-6 mx-auto mb-1 text-gray-300" />
+          <p className="text-xs">No documents attached yet. Add photos, invoices, or warranty docs below.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          {docs.map(doc => (
+            <div key={doc.id} className="flex items-center gap-2 p-2 rounded-lg border bg-gray-50 hover:bg-white transition-colors group">
+              <div className="shrink-0">{fileIcon(doc.mimeType)}</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-900 truncate">{doc.filename}</p>
+                <p className="text-xs text-gray-400">
+                  {doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{new Date(doc.uploadedAt).toLocaleDateString("en-GB")}
+                  {doc.fileSizeBytes ? ` · ${fmtFileSize(doc.fileSizeBytes)}` : ""}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <a href={`/api/storage${doc.storageKey}`} target="_blank" rel="noopener noreferrer"
+                  className="p-1 text-gray-400 hover:text-blue-600 rounded" title="Open / download">
+                  <Download className="h-3.5 w-3.5" />
+                </a>
+                <button className="p-1 text-gray-400 hover:text-red-500 rounded opacity-0 group-hover:opacity-100"
+                  title="Remove" onClick={() => deleteDoc.mutate(doc.id)}>
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Upload row */}
+      <div className="flex items-end gap-3 bg-gray-50 rounded-lg border px-3 py-2.5">
+        <div className="shrink-0">
+          <Label className="text-xs">Uploaded By</Label>
+          <Input className="h-7 text-xs mt-1 w-36" value={uploadedBy} onChange={e => setUploadedBy(e.target.value)} placeholder="Your name (optional)" />
+        </div>
+        <div className="flex-1">
+          <Label className="text-xs">Attach file <span className="text-gray-400 font-normal">(photo, PDF, Word, Excel)</span></Label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="mt-1 block w-full text-xs text-gray-600 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt,.heic,.mp4,.mov"
+            disabled={isUploading || saveDocMeta.isPending}
+            onChange={e => { const file = e.target.files?.[0]; if (file) { setUploadError(null); uploadFile(file); } }}
+          />
+        </div>
+        {isUploading && (
+          <div className="shrink-0 text-xs text-primary flex items-center gap-1.5 pb-1">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {progress > 0 ? `${Math.round(progress)}%` : "Uploading…"}
+          </div>
+        )}
+        {saveDocMeta.isPending && (
+          <div className="shrink-0 text-xs text-gray-400 flex items-center gap-1 pb-1">
+            <Loader2 className="h-3 w-3 animate-spin" />Saving…
+          </div>
+        )}
+        {uploadError && <p className="shrink-0 text-xs text-red-600 pb-1">{uploadError}</p>}
+      </div>
+      <p className="text-xs text-gray-400">Photos added via AirDrop to this device will appear in your Downloads — select them using the file picker above.</p>
+    </div>
+  );
+}
+
 function JobCardsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -447,6 +565,16 @@ function JobCardsTab({ farmId }: { farmId: number }) {
               <div><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
             </div>
           </div>
+          {/* Documents section — only for existing jobs */}
+          {editing && (
+            <JobDocumentsSection farmId={farmId} jobId={editing.id} />
+          )}
+          {!editing && (
+            <p className="text-xs text-gray-400 text-center py-1 border-t">
+              Save the job card first to attach photos and documents.
+            </p>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.title}>

@@ -27,6 +27,7 @@ import {
   workshopPatTestsTable,
   workshopFireExtinguishersTable,
   workshopPartDocumentsTable,
+  workshopJobDocumentsTable,
   equipmentCalibrationRecordsTable,
   herdFlockRegisterTable,
   livestockAnimalsTable,
@@ -8715,6 +8716,30 @@ router.delete("/farms/:farmId/workshop/parts/:partId/documents/:docId", requireA
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const docId = parseInt(req.params.docId); if (isNaN(docId)) { res.status(400).json({ error: "Invalid doc ID" }); return; }
   await db.delete(workshopPartDocumentsTable).where(eq(workshopPartDocumentsTable.id, docId));
+  res.json({ success: true });
+});
+
+// ── Job Card Documents ──────────────────────────────────────
+router.get("/farms/:farmId/workshop/jobs/:jobId/documents", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const jobId = parseInt(req.params.jobId); if (isNaN(jobId)) { res.status(400).json({ error: "Invalid job ID" }); return; }
+  const docs = await db.select().from(workshopJobDocumentsTable).where(eq(workshopJobDocumentsTable.jobId, jobId)).orderBy(desc(workshopJobDocumentsTable.uploadedAt));
+  res.json(docs);
+});
+
+router.post("/farms/:farmId/workshop/jobs/:jobId/documents", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const jobId = parseInt(req.params.jobId); if (isNaN(jobId)) { res.status(400).json({ error: "Invalid job ID" }); return; }
+  const { filename, storageKey, mimeType, fileSizeBytes, uploadedBy } = req.body;
+  if (!filename || !storageKey) { res.status(400).json({ error: "filename and storageKey are required" }); return; }
+  const [doc] = await db.insert(workshopJobDocumentsTable).values({ jobId, filename, storageKey, mimeType: mimeType ?? null, fileSizeBytes: fileSizeBytes ?? null, uploadedBy: uploadedBy ?? null }).returning();
+  res.json(doc);
+});
+
+router.delete("/farms/:farmId/workshop/jobs/:jobId/documents/:docId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const docId = parseInt(req.params.docId); if (isNaN(docId)) { res.status(400).json({ error: "Invalid doc ID" }); return; }
+  await db.delete(workshopJobDocumentsTable).where(eq(workshopJobDocumentsTable.id, docId));
   res.json({ success: true });
 });
 

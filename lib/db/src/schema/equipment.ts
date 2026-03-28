@@ -193,6 +193,17 @@ export const workshopPartDocumentsTable = pgTable("workshop_part_documents", {
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const workshopJobDocumentsTable = pgTable("workshop_job_documents", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").notNull().references(() => workshopJobsTable.id, { onDelete: "cascade" }),
+  filename: text("filename").notNull(),
+  storageKey: text("storage_key").notNull(),
+  mimeType: text("mime_type"),
+  fileSizeBytes: integer("file_size_bytes"),
+  uploadedBy: text("uploaded_by"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const equipmentDefectReportsTable = pgTable("equipment_defect_reports", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
