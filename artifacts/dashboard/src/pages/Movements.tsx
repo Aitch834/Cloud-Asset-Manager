@@ -78,7 +78,7 @@ function printMovementsRegister(movements: Movement[], farm: { name: string; cph
   const rows = movements.map(m => {
     const isExempt = m.movementType === "birth" || m.movementType === "between";
     const notified = isExempt
-      ? "<em style='color:#9ca3af'>N/A</em>"
+      ? "<em style='color:#555'>N/A</em>"
       : m.legalNotificationSubmitted
       ? "<span style='color:#065f46;font-weight:700'>✓ Notified</span>"
       : "<span style='color:#991b1b;font-weight:700'>⚠ Pending</span>";
@@ -289,12 +289,12 @@ function PrintRecord({ movement, farm, onClose }: {
   const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   const handlePrint = () => {
-    const farmBlock = farm ? `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px;margin-bottom:12px"><p style="font-weight:600;margin:0 0 2px">${farm.name}</p>${farm.address ? `<p style="font-size:10px;color:#555;margin:1px 0">${farm.address}${farm.postcode ? ", " + farm.postcode : ""}</p>` : ""}${farm.cphNumber ? `<p style="font-size:10px;color:#555;margin:1px 0">CPH: <span style="font-family:monospace;font-weight:600">${farm.cphNumber}</span></p>` : ""}</div>` : "";
-    const field = (label: string, value: string, cls = "") => `<div style="margin-bottom:10px"><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin:0 0 2px">${label}</p><p style="font-weight:500;margin:0;${cls}">${value}</p></div>`;
+    const farmBlock = farm ? `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px;margin-bottom:12px"><p style="font-weight:600;margin:0 0 4px">${farm.name}</p>${farm.address ? `<p style="font-size:10px;color:#374151;margin:4px 0">${farm.address}${farm.postcode ? ", " + farm.postcode : ""}</p>` : ""}${farm.cphNumber ? `<p style="font-size:10px;color:#374151;margin:4px 0">CPH: <span style="font-family:monospace;font-weight:600">${farm.cphNumber}</span></p>` : ""}</div>` : "";
+    const field = (label: string, value: string, cls = "") => `<div style="margin-bottom:10px"><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin:0 0 2px">${label}</p><p style="font-weight:500;margin:0;${cls}">${value}</p></div>`;
     const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>Livestock Movement Record #${movement.id}</title>
-<style>body{font-family:Arial,sans-serif;font-size:11px;color:#000;margin:0;padding:24px}.hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:12px;margin-bottom:12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 32px}.col2{grid-column:span 2}.sig{border-top:1px solid #e5e7eb;padding-top:12px;margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:32px}.sigline{border-bottom:1px solid #999;height:32px;margin:16px 0 4px}.note{font-size:9px;color:#888;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}@media print{@page{margin:1.5cm}}</style>
-</head><body><div class="hdr"><div><h2 style="font-size:14px;font-weight:700;margin:0 0 2px">Livestock Movement Record</h2><p style="font-size:10px;color:#666;margin:0">BDE Farm Trac — On-Farm Compliance Record</p></div><div style="text-align:right;font-size:10px;color:#666"><p style="margin:0">Printed: ${printedDate}</p><p style="margin:0">Record ID: #${movement.id}</p></div></div>
+<style>body{font-family:Arial,sans-serif;font-size:11px;color:#000;margin:0;padding:24px}.hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:12px;margin-bottom:12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 32px}.col2{grid-column:span 2}.sig{border-top:1px solid #e5e7eb;padding-top:12px;margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:32px}.sigline{border-bottom:1px solid #999;height:32px;margin:16px 0 4px}.note{font-size:9px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}@media print{@page{margin:1.5cm}}</style>
+</head><body><div class="hdr"><div><h2 style="font-size:14px;font-weight:700;margin:0 0 4px">Livestock Movement Record</h2><p style="font-size:10px;color:#374151;margin:0">BDE Farm Trac — On-Farm Compliance Record</p></div><div style="text-align:right;font-size:10px;color:#374151;line-height:1.8"><p style="margin:4px 0">Printed: ${printedDate}</p><p style="margin:4px 0">Record ID: #${movement.id}</p></div></div>
 ${farmBlock}
 <div class="grid">
 ${field("Movement Type", typeLabels[movement.movementType] ?? movement.movementType)}
@@ -308,7 +308,7 @@ ${field("To Location / CPH", movement.toLocation || "—")}
 ${movement.transporterDetails ? `<div class="col2">${field("Transporter / Haulier", movement.transporterDetails)}</div>` : ""}
 ${movement.reason ? `<div class="col2">${field("Reason", movement.reason)}</div>` : ""}
 ${movement.notes ? `<div class="col2">${field("Notes", movement.notes)}</div>` : ""}
-</div><div class="sig"><div><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af">Recorded By</p><div class="sigline"></div><p style="font-size:9px;color:#9ca3af">Signature / Name</p></div><div><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af">Date Recorded</p><div class="sigline"></div><p style="font-size:9px;color:#9ca3af">Date</p></div></div>
+</div><div class="sig"><div><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555">Recorded By</p><div class="sigline"></div><p style="font-size:9px;color:#555">Signature / Name</p></div><div><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555">Date Recorded</p><div class="sigline"></div><p style="font-size:9px;color:#555">Date</p></div></div>
 <div class="note">This is an on-farm record for Red Tractor compliance purposes. Official livestock movement documents (AML1/AML2/eAML2) must be submitted separately to APHA/BCMS as required by UK livestock movement regulations. Records must be kept for a minimum of 3 years.</div>
 </body></html>`;
     openPrintWindow(html);

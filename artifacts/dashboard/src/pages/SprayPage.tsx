@@ -725,14 +725,14 @@ function PrintTab({ applications, farm }: any) {
           <div ref={previewRef} style={{ background: "#fff", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", padding: "1.5rem 1.75rem", fontFamily: "Arial, Helvetica, sans-serif" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #1a3a1a", paddingBottom: 10, marginBottom: 12 }}>
               <div>
-                <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1a3a1a", margin: "0 0 2px" }}>Spray Application Records — {yearLabel}</h2>
-                {farmName && <p style={{ fontSize: "0.75rem", color: "#374151", margin: "1px 0" }}><strong>{farmName}</strong>{meta ? `  ·  ${meta}` : ""}</p>}
-                <p style={{ fontSize: "0.7rem", color: "#6b7280", margin: "1px 0" }}>Red Tractor Crop Inputs Compliance Register</p>
+                <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1a3a1a", margin: "0 0 4px" }}>Spray Application Records — {yearLabel}</h2>
+                {farmName && <p style={{ fontSize: "0.75rem", color: "#374151", margin: "4px 0", lineHeight: 1.5 }}><strong>{farmName}</strong>{meta ? `  ·  ${meta}` : ""}</p>}
+                <p style={{ fontSize: "0.7rem", color: "#444", margin: "4px 0", lineHeight: 1.5 }}>Red Tractor Crop Inputs Compliance Register</p>
               </div>
-              <div style={{ textAlign: "right" }}>
+              <div style={{ textAlign: "right", lineHeight: 1.8 }}>
                 <div style={{ display: "inline-block", background: "#dc2626", color: "#fff", fontSize: "0.6rem", fontWeight: 700, padding: "2px 8px", borderRadius: 3, letterSpacing: "0.05em", marginBottom: 4 }}>RED TRACTOR</div>
-                <p style={{ fontSize: "0.65rem", color: "#6b7280", margin: "1px 0" }}>Printed: {today}</p>
-                <p style={{ fontSize: "0.65rem", color: "#6b7280", margin: "1px 0" }}>{printApplications.length} record{printApplications.length !== 1 ? "s" : ""}</p>
+                <p style={{ fontSize: "0.65rem", color: "#374151", margin: "4px 0" }}>Printed: {today}</p>
+                <p style={{ fontSize: "0.65rem", color: "#374151", margin: "4px 0" }}>{printApplications.length} record{printApplications.length !== 1 ? "s" : ""}</p>
               </div>
             </div>
 
@@ -757,7 +757,7 @@ function PrintTab({ applications, farm }: any) {
                         <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", color: "#374151" }}>{r.fieldName || "—"}</td>
                         <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0" }}>
                           <span style={{ fontWeight: 600, color: "#111827" }}>{r.productName || "—"}</span>
-                          {r.productCategory && <span style={{ display: "block", fontSize: "0.6rem", color: "#9ca3af" }}>{r.productCategory}</span>}
+                          {r.productCategory && <span style={{ display: "block", fontSize: "0.6rem", color: "#555" }}>{r.productCategory}</span>}
                         </td>
                         <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", whiteSpace: "nowrap", color: "#374151" }}>{r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}`.trim() : "—"}</td>
                         <td style={{ padding: "4px 7px", borderBottom: "1px solid #e5e7eb", borderRight: "1px solid #f0f0f0", whiteSpace: "nowrap", color: "#374151" }}>{r.areaSprayedHa ? `${r.areaSprayedHa} ha` : "—"}</td>
@@ -773,7 +773,7 @@ function PrintTab({ applications, farm }: any) {
               </table>
             </div>
 
-            <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid #d1d5db", display: "flex", justifyContent: "space-between", fontSize: "0.6rem", color: "#9ca3af" }}>
+            <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid #d1d5db", display: "flex", justifyContent: "space-between", fontSize: "0.6rem", color: "#555" }}>
               <span>Retain records for a minimum of 3 years and make available at Red Tractor audit inspection.</span>
               <span>BDE Farm Trac · {today}</span>
             </div>

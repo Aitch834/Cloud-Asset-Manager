@@ -634,10 +634,10 @@ function PrintTab({ farmId }: { farmId: number }) {
     const farmLine = `<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a3a1a;padding-bottom:6px;margin-bottom:8px">
       <div>
         <h1 style="font-size:12px;font-weight:700;color:#1a3a1a;margin:0 0 2px">Soil Sample Register</h1>
-        ${farm ? `<p style="font-size:7.5px;color:#374151;margin:1px 0"><strong>${farm.name}</strong>${meta ? "  ·  " + meta : ""}</p>` : ""}
-        ${printYear !== "all" ? `<p style="font-size:7.5px;color:#6b7280;margin:1px 0">Year: ${printYear}</p>` : ""}
+        ${farm ? `<p style="font-size:7.5px;color:#374151;margin:4px 0;line-height:1.5"><strong>${farm.name}</strong>${meta ? "  ·  " + meta : ""}</p>` : ""}
+        ${printYear !== "all" ? `<p style="font-size:7.5px;color:#444;margin:4px 0;line-height:1.5">Year: ${printYear}</p>` : ""}
       </div>
-      <div style="text-align:right;font-size:7px;color:#6b7280;line-height:1.6">
+      <div style="text-align:right;font-size:7px;color:#374151;line-height:1.8">
         <div style="display:inline-block;background:#dc2626;color:#fff;font-size:6.5px;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.05em;margin-bottom:3px">RED TRACTOR</div><br>
         <span>Printed: ${today}</span><br>
         <span>${filteredTests.length} sample${filteredTests.length !== 1 ? "s" : ""}</span>
@@ -655,14 +655,14 @@ function PrintTab({ farmId }: { farmId: number }) {
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div>
               <p style="font-size:12px;font-weight:700;margin:0 0 2px">${fieldName} — <span style="font-family:monospace">${test.sampleReference ?? "—"}</span></p>
-              <p style="font-size:10px;color:#6b7280;margin:0">${formatDateLong(test.sampleDate)}${test.sampleDepthCm ? ` · ${test.sampleDepthCm}cm depth` : ""}${test.laboratory ? ` · ${test.laboratory}` : ""}${test.sampledBy ? ` · Sampled by ${test.sampledBy}` : ""}</p>
+              <p style="font-size:10px;color:#374151;margin:0">${formatDateLong(test.sampleDate)}${test.sampleDepthCm ? ` · ${test.sampleDepthCm}cm depth` : ""}${test.laboratory ? ` · ${test.laboratory}` : ""}${test.sampledBy ? ` · Sampled by ${test.sampledBy}` : ""}</p>
             </div>
             <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:12px;border:1px solid #d1d5db;background:#fff">${statusLabel(test.status ?? "sampled")}</span>
           </div>
-          ${test.sentToLabDate ? `<p style="font-size:9px;color:#9ca3af;margin:4px 0 0">Sent to lab: ${formatDate(test.sentToLabDate)}${test.resultsReceivedDate ? ` · Results received: ${formatDate(test.resultsReceivedDate)}` : ""}</p>` : ""}
+          ${test.sentToLabDate ? `<p style="font-size:9px;color:#555;margin:4px 0 0">Sent to lab: ${formatDate(test.sentToLabDate)}${test.resultsReceivedDate ? ` · Results received: ${formatDate(test.resultsReceivedDate)}` : ""}</p>` : ""}
         </div>
-        ${hasResults ? `<table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="background:#f3f4f6"><th style="border:1px solid #e5e7eb;padding:4px 8px;text-align:left">Nutrient</th><th style="border:1px solid #e5e7eb;padding:4px 8px;text-align:left">Value</th><th style="border:1px solid #e5e7eb;padding:4px 8px;text-align:left">Unit</th><th style="border:1px solid #e5e7eb;padding:4px 8px;text-align:left">AHDB Index</th><th style="border:1px solid #e5e7eb;padding:4px 8px;text-align:left">Status</th></tr></thead><tbody>${resultsRows}</tbody></table>` : `<p style="font-size:10px;color:#9ca3af;font-style:italic;margin:4px 0">Lab results pending</p>`}
-        ${test.notes ? `<p style="font-size:9px;color:#6b7280;font-style:italic;margin:4px 0 0">Notes: ${test.notes}</p>` : ""}
+        ${hasResults ? `<table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="background:#f3f4f6"><th style="border:1px solid #e5e7eb;padding:4px 8px;text-align:left">Nutrient</th><th style="border:1px solid #e5e7eb;padding:4px 8px;text-align:left">Value</th><th style="border:1px solid #e5e7eb;padding:4px 8px;text-align:left">Unit</th><th style="border:1px solid #e5e7eb;padding:4px 8px;text-align:left">AHDB Index</th><th style="border:1px solid #e5e7eb;padding:4px 8px;text-align:left">Status</th></tr></thead><tbody>${resultsRows}</tbody></table>` : `<p style="font-size:10px;color:#555;font-style:italic;margin:4px 0">Lab results pending</p>`}
+        ${test.notes ? `<p style="font-size:9px;color:#444;font-style:italic;margin:4px 0 0">Notes: ${test.notes}</p>` : ""}
       </div>`;
     }).join("");
     openPrintWindow(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Soil Sample Register</title><style>
@@ -673,7 +673,7 @@ function PrintTab({ farmId }: { farmId: number }) {
       th { background: #1a3a1a; padding: 4px 5px; color: #fff; font-weight: 700; font-size: 6.5px; text-transform: uppercase; letter-spacing: .05em; text-align: left; }
       td { padding: 3px 5px; border-bottom: 1px solid #e5e7eb; border-right: 1px solid #f0f0f0; vertical-align: top; }
       tr:nth-child(even) { background: #f8fafc; }
-      .footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid #d1d5db; display: flex; justify-content: space-between; font-size: 6.5px; color: #9ca3af; }
+      .footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid #d1d5db; display: flex; justify-content: space-between; font-size: 6.5px; color: #555; }
     </style></head><body>
     ${farmLine}${testBlocks}
     <div class="footer">
