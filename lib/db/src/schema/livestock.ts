@@ -103,10 +103,27 @@ export const livestockWaterRecordsTable = pgTable("livestock_water_records", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const fallenStockContractorsTable = pgTable("fallen_stock_contractors", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  approvalNumber: text("approval_number").notNull(),
+  operatorType: text("operator_type").notNull().default("nfas-collector"),
+  contactName: text("contact_name"),
+  phone: text("phone"),
+  email: text("email"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const livestockMortalityTable = pgTable("livestock_mortality", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  animalId: integer("animal_id").references(() => livestockAnimalsTable.id),
+  contractorId: integer("contractor_id").references(() => fallenStockContractorsTable.id),
   tagNumber: text("tag_number"),
   species: text("species").notNull(),
   breed: text("breed"),

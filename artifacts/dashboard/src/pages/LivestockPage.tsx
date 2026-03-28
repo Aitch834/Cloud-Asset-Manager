@@ -74,6 +74,10 @@ interface MortalityRecord {
   id: number;
   farmId: number;
   herdId: number | null;
+  animalId: number | null;
+  contractorId: number | null;
+  contractorName: string | null;
+  contractorApprovalNumber: string | null;
   tagNumber: string | null;
   species: string;
   breed: string | null;
@@ -90,6 +94,19 @@ interface MortalityRecord {
   bcmsNotificationRef: string | null;
   notes: string | null;
   createdAt: string;
+}
+
+interface FallenStockContractor {
+  id: number;
+  farmId: number;
+  name: string;
+  approvalNumber: string;
+  operatorType: string;
+  contactName: string | null;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
+  isActive: boolean;
 }
 
 interface FeedRecord {
@@ -937,7 +954,18 @@ const DISPOSAL_LABELS: Record<string, string> = {
   rendering: "Rendering Plant", other: "Other",
 };
 
+const CONTRACTOR_TYPES: Record<string, string> = {
+  "nfas-collector": "NFAS Fallen Stock Collector",
+  "hunt-kennel": "Hunt Kennel",
+  "knacker": "Knacker / Slaughterer",
+  "rendering": "Rendering Plant",
+  "incinerator": "Licensed Incinerator",
+  "other": "Other",
+};
+
 const EMPTY_MORTALITY = {
+  animalId: "" as string,
+  contractorId: "" as string,
   tagNumber: "", species: "", breed: "", dateOfDeath: new Date().toISOString().slice(0, 10),
   causeOfDeath: "", disposalMethod: "", disposalOperator: "", disposalRef: "",
   veterinaryAttended: false, vetName: "", postMortemCarriedOut: false, postMortemFindings: "",
@@ -953,6 +981,18 @@ function MortalitySection({ farmId }: { farmId: number }) {
   });
   const records = data?.records ?? [];
 
+  const { data: animals = [] } = useQuery<Animal[]>({
+    queryKey: ["livestock-animals", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/livestock-animals`).then(r => r.json()).then(d => d.records ?? []),
+  });
+  const activeAnimals = animals.filter(a => a.status === "active");
+
+  const { data: contractors = [] } = useQuery<FallenStockContractor[]>({
+    queryKey: ["fallen-stock-contractors", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fallen-stock-contractors`).then(r => r.json()),
+  });
+  const activeContractors = contractors.filter(c => c.isActive);
+
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<MortalityRecord | null>(null);
@@ -961,9 +1001,38 @@ function MortalitySection({ farmId }: { farmId: number }) {
 
   function setField(k: string, v: string | boolean) { setForm(f => ({ ...f, [k]: v })); }
 
+  function handleAnimalSelect(animalId: string) {
+    if (animalId === "__none__") {
+      setForm(f => ({ ...f, animalId: "", tagNumber: "", species: "", breed: "" }));
+      return;
+    }
+    const a = activeAnimals.find(x => String(x.id) === animalId);
+    if (a) {
+      setForm(f => ({
+        ...f,
+        animalId,
+        tagNumber: a.earTagNumber ?? a.tagNumber ?? "",
+        species: a.species,
+        breed: a.breed ?? "",
+      }));
+    }
+  }
+
+  function handleContractorSelect(contractorId: string) {
+    if (contractorId === "__none__") { setForm(f => ({ ...f, contractorId: "", disposalOperator: "", disposalRef: "" })); return; }
+    const c = activeContractors.find(x => String(x.id) === contractorId);
+    if (c) setForm(f => ({ ...f, contractorId, disposalOperator: c.name, disposalRef: f.disposalRef || "" }));
+  }
+
+  const selectedContractor = activeContractors.find(c => String(c.id) === form.contractorId);
+
   const createMut = useMutation({
     mutationFn: (body: typeof EMPTY_MORTALITY) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["mortality", farmId] }); setShowForm(false); setForm(EMPTY_MORTALITY); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mortality", farmId] });
+      qc.invalidateQueries({ queryKey: ["livestock-animals", farmId] });
+      setShowForm(false); setForm(EMPTY_MORTALITY);
+    },
   });
   const updateMut = useMutation({
     mutationFn: (body: typeof EMPTY_MORTALITY & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
@@ -977,6 +1046,8 @@ function MortalitySection({ farmId }: { farmId: number }) {
   function openEdit(r: MortalityRecord) {
     setEditing(r);
     setForm({
+      animalId: r.animalId ? String(r.animalId) : "",
+      contractorId: r.contractorId ? String(r.contractorId) : "",
       tagNumber: r.tagNumber ?? "", species: r.species, breed: r.breed ?? "",
       dateOfDeath: r.dateOfDeath?.slice(0, 10) ?? "", causeOfDeath: r.causeOfDeath,
       disposalMethod: r.disposalMethod, disposalOperator: r.disposalOperator ?? "",
@@ -993,6 +1064,8 @@ function MortalitySection({ farmId }: { farmId: number }) {
     if (editing) updateMut.mutate({ ...form, id: editing.id });
     else createMut.mutate(form);
   }
+
+  const animalLinked = !!form.animalId;
 
   const filtered = records.filter(r =>
     (r.tagNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
@@ -1074,17 +1147,45 @@ function MortalitySection({ farmId }: { farmId: number }) {
               <DialogDescription>Required for Red Tractor and BCMS compliance. Retain for 3 years.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+              {/* ── Animal lookup ── */}
+              <div>
+                <Label>Animal from Register</Label>
+                <Select value={form.animalId || "__none__"} onValueChange={handleAnimalSelect}>
+                  <SelectTrigger><SelectValue placeholder="Search by ear tag or select animal…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Not in register / manual entry —</SelectItem>
+                    {activeAnimals.map(a => (
+                      <SelectItem key={a.id} value={String(a.id)}>
+                        {a.earTagNumber ?? a.tagNumber ?? `#${a.id}`} — {a.species}{a.breed ? ` (${a.breed})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {animalLinked && <p className="text-xs text-green-700 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Linked to animal record — tag, species and breed locked from register</p>}
+              </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div><Label>Ear Tag / Tag Number</Label><Input value={form.tagNumber} onChange={e => setField("tagNumber", e.target.value)} placeholder="e.g. UK123456 78901" /></div>
-                <div><Label>Species *</Label>
-                  <Select value={form.species} onValueChange={v => setField("species", v)}>
-                    <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
-                    <SelectContent>
-                      {["Cattle","Sheep","Pigs","Poultry","Goats","Deer","Other"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                <div>
+                  <Label>Ear Tag / Tag Number</Label>
+                  <Input value={form.tagNumber} onChange={e => setField("tagNumber", e.target.value)} placeholder="e.g. UK123456 78901" readOnly={animalLinked} className={animalLinked ? "bg-gray-50 text-gray-500" : ""} />
                 </div>
-                <div><Label>Breed</Label><Input value={form.breed} onChange={e => setField("breed", e.target.value)} placeholder="e.g. Limousin × Friesian" /></div>
+                <div>
+                  <Label>Species *</Label>
+                  {animalLinked ? (
+                    <Input value={form.species} readOnly className="bg-gray-50 text-gray-500" />
+                  ) : (
+                    <Select value={form.species} onValueChange={v => setField("species", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
+                      <SelectContent>
+                        {["Cattle","Sheep","Pigs","Poultry","Goats","Deer","Other"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <div>
+                  <Label>Breed</Label>
+                  <Input value={form.breed} onChange={e => setField("breed", e.target.value)} placeholder="e.g. Limousin × Friesian" readOnly={animalLinked} className={animalLinked ? "bg-gray-50 text-gray-500" : ""} />
+                </div>
                 <div><Label>Date of Death *</Label><Input type="date" value={form.dateOfDeath} onChange={e => setField("dateOfDeath", e.target.value)} required /></div>
                 <div><Label>Cause of Death *</Label>
                   <Select value={form.causeOfDeath} onValueChange={v => setField("causeOfDeath", v)}>
@@ -1102,8 +1203,35 @@ function MortalitySection({ farmId }: { farmId: number }) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Disposal Operator / Collector</Label><Input value={form.disposalOperator} onChange={e => setField("disposalOperator", e.target.value)} placeholder="e.g. ABC Fallen Stock Ltd" /></div>
-                <div><Label>Disposal Reference</Label><Input value={form.disposalRef} onChange={e => setField("disposalRef", e.target.value)} placeholder="NFAS certificate no." /></div>
+
+                {/* ── Contractor lookup ── */}
+                <div className="col-span-2">
+                  <Label>Disposal Operator / Collector</Label>
+                  {activeContractors.length > 0 ? (
+                    <Select value={form.contractorId || "__none__"} onValueChange={handleContractorSelect}>
+                      <SelectTrigger><SelectValue placeholder="Select registered contractor…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Select contractor —</SelectItem>
+                        {activeContractors.map(c => (
+                          <SelectItem key={c.id} value={String(c.id)}>
+                            {c.name} <span className="text-gray-400">({CONTRACTOR_TYPES[c.operatorType] ?? c.operatorType})</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input value={form.disposalOperator} onChange={e => setField("disposalOperator", e.target.value)} placeholder="Operator name — add contractors in the Contractors tab" />
+                  )}
+                  {selectedContractor && (
+                    <div className="mt-1.5 rounded bg-purple-50 border border-purple-100 px-3 py-2 text-xs text-purple-800 flex items-center gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                      <span>APHA Approval No: <strong className="font-mono">{selectedContractor.approvalNumber}</strong></span>
+                      {selectedContractor.phone && <span>· {selectedContractor.phone}</span>}
+                    </div>
+                  )}
+                </div>
+
+                <div className="col-span-2"><Label>Disposal Reference / Certificate No.</Label><Input value={form.disposalRef} onChange={e => setField("disposalRef", e.target.value)} placeholder="NFAS certificate no. or collection note ref" /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -1165,6 +1293,169 @@ const EMPTY_FEED = {
   feedType: "", supplier: "", batchNumber: "", quantityKg: "",
   feedDate: new Date().toISOString().slice(0, 10), notes: "",
 };
+
+function FallenStockContractorsSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<FallenStockContractor | null>(null);
+  const [form, setForm] = useState({ name: "", approvalNumber: "", operatorType: "nfas-collector", contactName: "", phone: "", email: "", notes: "" });
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data: contractors = [], isLoading } = useQuery<FallenStockContractor[]>({
+    queryKey: ["fallen-stock-contractors", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fallen-stock-contractors`).then(r => r.json()),
+  });
+
+  function setF(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/fallen-stock-contractors`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fallen-stock-contractors", farmId] }); setShowForm(false); setForm({ name: "", approvalNumber: "", operatorType: "nfas-collector", contactName: "", phone: "", email: "", notes: "" }); },
+  });
+  const updateMut = useMutation({
+    mutationFn: (body: typeof form & { id: number }) => fetch(`/api/farms/${farmId}/fallen-stock-contractors/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fallen-stock-contractors", farmId] }); setEditing(null); setShowForm(false); },
+  });
+  const toggleActive = useMutation({
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) => fetch(`/api/farms/${farmId}/fallen-stock-contractors/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive }) }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fallen-stock-contractors", farmId] }),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fallen-stock-contractors/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fallen-stock-contractors", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(c: FallenStockContractor) {
+    setEditing(c);
+    setForm({ name: c.name, approvalNumber: c.approvalNumber, operatorType: c.operatorType, contactName: c.contactName ?? "", phone: c.phone ?? "", email: c.email ?? "", notes: c.notes ?? "" });
+    setShowForm(true);
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4 gap-4">
+        <div>
+          <h3 className="font-semibold text-gray-900">Fallen Stock Contractors</h3>
+          <p className="text-sm text-gray-500 mt-0.5">Registered ABP-approved collectors and disposal operators. Only contractors listed here can be selected on mortality records.</p>
+        </div>
+        <Button onClick={() => { setEditing(null); setForm({ name: "", approvalNumber: "", operatorType: "nfas-collector", contactName: "", phone: "", email: "", notes: "" }); setShowForm(true); }}>
+          <Plus className="h-4 w-4 mr-1" /> Add Contractor
+        </Button>
+      </div>
+
+      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+        <strong>Regulatory note:</strong> Under the Animal By-Products Regulations, fallen stock must be collected by an APHA-approved operator. Record their official approval/registration number here to ensure your mortality records are audit-ready.
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+      ) : contractors.length === 0 ? (
+        <Card><CardContent className="py-16 text-center">
+          <AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+          <p className="font-medium text-gray-700 mb-1">No contractors added yet</p>
+          <p className="text-sm text-muted-foreground">Add your fallen stock collectors and disposal operators so they appear on mortality records.</p>
+        </CardContent></Card>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Contractor</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Type</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">APHA Approval No.</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Contact</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {contractors.map(c => (
+                <tr key={c.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-900">{c.name}</div>
+                    {c.email && <div className="text-xs text-muted-foreground">{c.email}</div>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-600">{CONTRACTOR_TYPES[c.operatorType] ?? c.operatorType}</td>
+                  <td className="px-4 py-3 font-mono text-xs font-semibold text-primary">{c.approvalNumber}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600">{[c.contactName, c.phone].filter(Boolean).join(" · ") || "—"}</td>
+                  <td className="px-4 py-3">
+                    <button onClick={() => toggleActive.mutate({ id: c.id, isActive: !c.isActive })}
+                      className={`inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5 font-medium transition-colors ${c.isActive ? "bg-green-50 text-green-700 hover:bg-green-100" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                      {c.isActive ? <><CheckCircle2 className="h-3 w-3" /> Active</> : <><XCircle className="h-3 w-3" /> Inactive</>}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(c)}><Pencil className="h-3 w-3" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteId(c.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Edit Contractor" : "Add Fallen Stock Contractor"}</DialogTitle>
+              <DialogDescription>Record the contractor's APHA approval number for audit compliance.</DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 mt-2">
+              <div className="col-span-2">
+                <Label>Contractor / Company Name *</Label>
+                <Input value={form.name} onChange={e => setF("name", e.target.value)} placeholder="e.g. ABC Fallen Stock Services Ltd" required />
+              </div>
+              <div className="col-span-2">
+                <Label>APHA Approval / Registration Number *</Label>
+                <Input value={form.approvalNumber} onChange={e => setF("approvalNumber", e.target.value)} placeholder="e.g. ABP-XXXX-XXXX" required className="font-mono" />
+                <p className="text-xs text-gray-400 mt-1">Required under Animal By-Products Regulations. Available on operator's APHA certificate.</p>
+              </div>
+              <div>
+                <Label>Operator Type</Label>
+                <Select value={form.operatorType} onValueChange={v => setF("operatorType", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(CONTRACTOR_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Contact Name</Label><Input value={form.contactName} onChange={e => setF("contactName", e.target.value)} /></div>
+              <div><Label>Phone</Label><Input value={form.phone} onChange={e => setF("phone", e.target.value)} type="tel" /></div>
+              <div><Label>Email</Label><Input value={form.email} onChange={e => setF("email", e.target.value)} type="email" /></div>
+              <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setF("notes", e.target.value)} rows={2} /></div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
+              <Button onClick={() => editing ? updateMut.mutate({ ...form, id: editing.id }) : createMut.mutate(form)}
+                disabled={!form.name || !form.approvalNumber || createMut.isPending || updateMut.isPending}>
+                {(createMut.isPending || updateMut.isPending) ? <Loader2 className="animate-spin h-4 w-4 mr-1" /> : null}
+                {editing ? "Update" : "Add Contractor"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteId !== null && (
+        <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Remove Contractor?</DialogTitle><DialogDescription>This will remove them from the register. Existing mortality records won't be affected.</DialogDescription></DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>
+                {deleteMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Remove"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
 
 function FeedSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
@@ -2267,7 +2558,7 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
 
 export default function LivestockPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx">("herds");
+  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx">("herds");
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -2281,6 +2572,9 @@ export default function LivestockPage() {
         <TabButton active={tab === "vet-plans"} onClick={() => setTab("vet-plans")}>Vet Health Plans</TabButton>
         <TabButton active={tab === "mortality"} onClick={() => setTab("mortality")}>
           <span className="flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> Mortality</span>
+        </TabButton>
+        <TabButton active={tab === "contractors"} onClick={() => setTab("contractors")}>
+          <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5" /> Contractors</span>
         </TabButton>
         <TabButton active={tab === "feed"} onClick={() => setTab("feed")}>
           <span className="flex items-center gap-1"><Package className="h-3.5 w-3.5" /> Feed Records</span>
@@ -2299,6 +2593,7 @@ export default function LivestockPage() {
       {tab === "animals" && <AnimalsSection farmId={farmId} />}
       {tab === "vet-plans" && <VetHealthPlansSection farmId={farmId} />}
       {tab === "mortality" && <MortalitySection farmId={farmId} />}
+      {tab === "contractors" && <FallenStockContractorsSection farmId={farmId} />}
       {tab === "feed" && <FeedSection farmId={farmId} />}
       {tab === "water" && <WaterSection farmId={farmId} />}
       {tab === "ai-repro" && <AIReproductionSection farmId={farmId} />}

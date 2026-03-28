@@ -37,6 +37,7 @@ import {
   livestockFeedRecordsTable,
   livestockWaterRecordsTable,
   livestockMortalityTable,
+  fallenStockContractorsTable,
   livestockDailyChecksTable,
   vetHealthPlansTable,
   dairyMilkRecordsTable,
@@ -6929,22 +6930,98 @@ router.get("/farms/:farmId/compliance-export", requireAuth, requireTenant, async
   res.json(exportData);
 });
 
+// ─── Fallen Stock Contractors ────────────────────────
+router.get("/farms/:farmId/fallen-stock-contractors", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(fallenStockContractorsTable).where(eq(fallenStockContractorsTable.farmId, farmId)).orderBy(fallenStockContractorsTable.name);
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/fallen-stock-contractors", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { name, approvalNumber, operatorType, contactName, phone, email, notes } = req.body;
+  if (!name || !approvalNumber) { res.status(400).json({ error: "name and approvalNumber are required" }); return; }
+  const [row] = await db.insert(fallenStockContractorsTable).values({ farmId, name, approvalNumber, operatorType: operatorType || "nfas-collector", contactName: contactName || null, phone: phone || null, email: email || null, notes: notes || null }).returning();
+  res.json(row);
+});
+
+router.put("/farms/:farmId/fallen-stock-contractors/:contractorId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const contractorId = parseInt(req.params.contractorId); if (isNaN(contractorId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const allowed = ["name", "approvalNumber", "operatorType", "contactName", "phone", "email", "notes", "isActive"];
+  const updates: Record<string, unknown> = {};
+  for (const k of allowed) { if (k in req.body) updates[k] = req.body[k] ?? null; }
+  const [row] = await db.update(fallenStockContractorsTable).set({ ...updates, updatedAt: new Date() }).where(and(eq(fallenStockContractorsTable.id, contractorId), eq(fallenStockContractorsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/fallen-stock-contractors/:contractorId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const contractorId = parseInt(req.params.contractorId); if (isNaN(contractorId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(fallenStockContractorsTable).where(and(eq(fallenStockContractorsTable.id, contractorId), eq(fallenStockContractorsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Mortality Records ────────────────────────────────
 router.get("/farms/:farmId/mortality-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const records = await db.select().from(livestockMortalityTable).where(eq(livestockMortalityTable.farmId, farmId)).orderBy(desc(livestockMortalityTable.dateOfDeath));
+  const records = await db
+    .select({
+      id: livestockMortalityTable.id,
+      farmId: livestockMortalityTable.farmId,
+      herdId: livestockMortalityTable.herdId,
+      animalId: livestockMortalityTable.animalId,
+      contractorId: livestockMortalityTable.contractorId,
+      contractorName: fallenStockContractorsTable.name,
+      contractorApprovalNumber: fallenStockContractorsTable.approvalNumber,
+      tagNumber: livestockMortalityTable.tagNumber,
+      species: livestockMortalityTable.species,
+      breed: livestockMortalityTable.breed,
+      dateOfDeath: livestockMortalityTable.dateOfDeath,
+      causeOfDeath: livestockMortalityTable.causeOfDeath,
+      disposalMethod: livestockMortalityTable.disposalMethod,
+      disposalOperator: livestockMortalityTable.disposalOperator,
+      disposalRef: livestockMortalityTable.disposalRef,
+      veterinaryAttended: livestockMortalityTable.veterinaryAttended,
+      vetName: livestockMortalityTable.vetName,
+      postMortemCarriedOut: livestockMortalityTable.postMortemCarriedOut,
+      postMortemFindings: livestockMortalityTable.postMortemFindings,
+      bcmsNotified: livestockMortalityTable.bcmsNotified,
+      bcmsNotificationRef: livestockMortalityTable.bcmsNotificationRef,
+      notes: livestockMortalityTable.notes,
+      createdAt: livestockMortalityTable.createdAt,
+    })
+    .from(livestockMortalityTable)
+    .leftJoin(fallenStockContractorsTable, eq(livestockMortalityTable.contractorId, fallenStockContractorsTable.id))
+    .where(eq(livestockMortalityTable.farmId, farmId))
+    .orderBy(desc(livestockMortalityTable.dateOfDeath));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/mortality-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const [record] = await db.insert(livestockMortalityTable).values({ ...req.body, farmId }).returning();
+  const { animalId, contractorId, ...rest } = req.body;
+  const [record] = await db.insert(livestockMortalityTable).values({
+    ...rest, farmId,
+    animalId: animalId ? parseInt(animalId) : null,
+    contractorId: contractorId ? parseInt(contractorId) : null,
+  }).returning();
+  // Auto-mark animal as deceased
+  if (animalId) {
+    await db.update(livestockAnimalsTable).set({ status: "deceased", updatedAt: new Date() }).where(and(eq(livestockAnimalsTable.id, parseInt(animalId)), eq(livestockAnimalsTable.farmId, farmId)));
+  }
   res.json({ record });
 });
 
 router.put("/farms/:farmId/mortality-records/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const recordId = Number(req.params.recordId);
-  const [record] = await db.update(livestockMortalityTable).set(req.body).where(and(eq(livestockMortalityTable.id, recordId), eq(livestockMortalityTable.farmId, farmId))).returning();
+  const { animalId, contractorId, ...rest } = req.body;
+  const [record] = await db.update(livestockMortalityTable).set({
+    ...rest,
+    animalId: animalId ? parseInt(animalId) : null,
+    contractorId: contractorId ? parseInt(contractorId) : null,
+  }).where(and(eq(livestockMortalityTable.id, recordId), eq(livestockMortalityTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
