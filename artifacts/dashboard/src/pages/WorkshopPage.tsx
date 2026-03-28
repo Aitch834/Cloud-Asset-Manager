@@ -1,7 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Package, ArrowDownToLine, ArrowUpFromLine, History, TriangleAlert } from "lucide-react";
+import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Package, ArrowDownToLine, ArrowUpFromLine, History, TriangleAlert, Search, X, FileText, Download, Upload, ChevronRight, Info } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -636,10 +637,248 @@ const PART_CATEGORIES = ["Filters", "Belts & Drives", "Bearings", "Seals & Gaske
 
 const EMPTY_PART = { name: "", category: "", productCode: "", unit: "", reorderLevel: "", unitCostPence: "", storageLocation: "", defaultSupplierId: "", notes: "" };
 
+interface PartDoc {
+  id: number;
+  stockItemId: number;
+  filename: string;
+  storageKey: string;
+  mimeType: string | null;
+  fileSizeBytes: number | null;
+  uploadedBy: string | null;
+  uploadedAt: string;
+}
+
+function fileIcon(mimeType: string | null) {
+  if (!mimeType) return <FileText className="h-4 w-4 text-gray-400" />;
+  if (mimeType.startsWith("image/")) return <FileText className="h-4 w-4 text-blue-400" />;
+  if (mimeType === "application/pdf") return <FileText className="h-4 w-4 text-red-400" />;
+  return <FileText className="h-4 w-4 text-gray-400" />;
+}
+
+function fmtFileSize(bytes: number | null) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function PartPanel({ farmId, part, onClose, onEdit }: {
+  farmId: number;
+  part: Part;
+  onClose: () => void;
+  onEdit: (p: Part) => void;
+}) {
+  const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedBy, setUploadedBy] = useState("");
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const { data: docs = [], isLoading: docsLoading } = useQuery<PartDoc[]>({
+    queryKey: ["part-docs", part.id],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/parts/${part.id}/documents`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const deleteDoc = useMutation({
+    mutationFn: (docId: number) => fetch(api(`farms/${farmId}/workshop/parts/${part.id}/documents/${docId}`), { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["part-docs", part.id] }),
+  });
+
+  const saveDocMeta = useMutation({
+    mutationFn: (body: { filename: string; storageKey: string; mimeType: string | null; fileSizeBytes: number | null; uploadedBy: string }) =>
+      fetch(api(`farms/${farmId}/workshop/parts/${part.id}/documents`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["part-docs", part.id] });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+  });
+
+  const { uploadFile, isUploading, progress } = useUpload({
+    onSuccess: useCallback((response: { objectPath: string; metadata: { name: string; size: number; contentType: string } }) => {
+      setUploadError(null);
+      saveDocMeta.mutate({
+        filename: response.metadata.name,
+        storageKey: response.objectPath,
+        mimeType: response.metadata.contentType || null,
+        fileSizeBytes: response.metadata.size || null,
+        uploadedBy: uploadedBy.trim() || "",
+      });
+    }, [uploadedBy, saveDocMeta]),
+    onError: useCallback((err: Error) => setUploadError(err.message), []),
+  });
+
+  const qty = parseFloat(part.currentQuantity);
+  const reorder = part.reorderLevel ? parseFloat(part.reorderLevel) : null;
+  const isLow = reorder !== null && qty <= reorder;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
+
+      {/* Panel */}
+      <div className="fixed top-0 right-0 h-full w-[440px] bg-white shadow-2xl z-50 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-start justify-between px-5 py-4 border-b bg-gray-50 shrink-0">
+          <div className="min-w-0 pr-2">
+            <h2 className="font-semibold text-gray-900 leading-snug truncate">{part.name}</h2>
+            {part.productCode && <p className="text-xs font-mono text-gray-400 mt-0.5">{part.productCode}</p>}
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => onEdit(part)} title="Edit part"><Pencil className="h-4 w-4" /></Button>
+            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={onClose} title="Close panel" aria-label="Close panel"><X className="h-4 w-4" /></Button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {/* Stock level */}
+          <div className={cn("mx-5 mt-4 rounded-lg px-4 py-3 flex items-center justify-between", isLow ? "bg-amber-50 border border-amber-200" : "bg-green-50 border border-green-200")}>
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Current Stock</p>
+              <p className={cn("text-2xl font-bold mt-0.5", isLow ? "text-amber-700" : "text-green-700")}>
+                {isNaN(qty) ? "—" : qty}{part.unit ? ` ${part.unit}` : ""}
+              </p>
+            </div>
+            {isLow && (
+              <div className="text-right">
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-100 rounded-full px-2 py-1">
+                  <TriangleAlert className="h-3 w-3" />Low Stock
+                </span>
+                {reorder && <p className="text-xs text-amber-600 mt-1">Reorder at {reorder}{part.unit ? ` ${part.unit}` : ""}</p>}
+              </div>
+            )}
+          </div>
+
+          {/* Part details */}
+          <div className="px-5 mt-4 space-y-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Details</p>
+            {[
+              { label: "Category", value: part.category },
+              { label: "Location", value: part.storageLocation },
+              { label: "Unit Cost", value: part.unitCostPence ? `£${(part.unitCostPence / 100).toFixed(2)} per ${part.unit ?? "unit"}` : null },
+              { label: "Default Supplier", value: part.supplierName },
+              { label: "Reorder Level", value: reorder ? `${reorder}${part.unit ? ` ${part.unit}` : ""}` : null },
+            ].filter(r => r.value).map(({ label, value }) => (
+              <div key={label} className="flex items-start justify-between text-sm">
+                <span className="text-gray-500 shrink-0 w-32">{label}</span>
+                <span className="text-gray-900 text-right">{value}</span>
+              </div>
+            ))}
+            {part.notes && (
+              <div className="mt-2 text-xs text-gray-500 bg-gray-50 rounded-md px-3 py-2 leading-relaxed">{part.notes}</div>
+            )}
+          </div>
+
+          {/* Documents */}
+          <div className="px-5 mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Parts Documents</p>
+              <span className="text-xs text-gray-400">Spec sheets, data sheets, fitting guides</span>
+            </div>
+
+            {docsLoading ? (
+              <div className="py-4 text-center text-gray-300"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></div>
+            ) : docs.length === 0 ? (
+              <div className="py-6 text-center text-gray-400 border-2 border-dashed rounded-lg">
+                <FileText className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                <p className="text-sm text-gray-500">No documents attached</p>
+                <p className="text-xs mt-1">Upload spec sheets, fitting guides, or data sheets below</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {docs.map(doc => (
+                  <div key={doc.id} className="flex items-center gap-3 p-2.5 rounded-lg border bg-gray-50 hover:bg-white transition-colors group">
+                    <div className="shrink-0">{fileIcon(doc.mimeType)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{doc.filename}</p>
+                      <p className="text-xs text-gray-400">
+                        {doc.uploadedBy ? `Uploaded by ${doc.uploadedBy} · ` : ""}
+                        {new Date(doc.uploadedAt).toLocaleDateString("en-GB")}
+                        {doc.fileSizeBytes ? ` · ${fmtFileSize(doc.fileSizeBytes)}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <a
+                        href={`/api/storage${doc.storageKey}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                        title="Open / download"
+                      >
+                        <Download className="h-4 w-4" />
+                      </a>
+                      <button
+                        className="p-1.5 text-gray-400 hover:text-red-500 rounded transition-colors opacity-0 group-hover:opacity-100"
+                        title="Remove document"
+                        onClick={() => deleteDoc.mutate(doc.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Upload area */}
+            <div className="mt-4 rounded-lg border bg-gray-50 p-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-600 flex items-center gap-1"><Upload className="h-3.5 w-3.5" />Upload Document</p>
+              <div>
+                <Label className="text-xs">Uploaded By <span className="text-gray-400">(optional)</span></Label>
+                <Input className="h-7 text-xs mt-1" value={uploadedBy} onChange={e => setUploadedBy(e.target.value)} placeholder="Your name" />
+              </div>
+              <div>
+                <Label className="text-xs">File</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="mt-1 block w-full text-xs text-gray-600 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt"
+                  disabled={isUploading || saveDocMeta.isPending}
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) { setUploadError(null); uploadFile(file); }
+                  }}
+                />
+              </div>
+              {isUploading && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-xs text-primary">
+                    <Loader2 className="h-3 w-3 animate-spin" />Uploading… {progress > 0 ? `${Math.round(progress)}%` : ""}
+                  </div>
+                  {progress > 0 && (
+                    <div className="h-1 rounded-full bg-gray-200 overflow-hidden">
+                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
+                    </div>
+                  )}
+                </div>
+              )}
+              {saveDocMeta.isPending && <p className="text-xs text-gray-400 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Saving…</p>}
+              {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
+              <p className="text-xs text-gray-400">PDF, Word, Excel, images accepted</p>
+            </div>
+          </div>
+
+          <div className="h-8" />
+        </div>
+      </div>
+    </>
+  );
+}
+
 function PartsStoreTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
 
   const [view, setView] = useState<"catalogue" | "history">("catalogue");
+  const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState("all");
+  const [selectedPart, setSelectedPart] = useState<Part | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<Part | null>(null);
   const [form, setForm] = useState<Record<string, string>>(EMPTY_PART);
@@ -688,8 +927,15 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
 
   const lowStock = parts.filter(p => p.reorderLevel && parseFloat(p.currentQuantity) <= parseFloat(p.reorderLevel));
 
+  const filteredParts = parts.filter(p => {
+    const q = search.toLowerCase();
+    const matchesSearch = !q || p.name.toLowerCase().includes(q) || (p.productCode ?? "").toLowerCase().includes(q) || (p.category ?? "").toLowerCase().includes(q) || (p.storageLocation ?? "").toLowerCase().includes(q);
+    const matchesCat = catFilter === "all" || p.category === catFilter;
+    return matchesSearch && matchesCat;
+  });
+
   function openAdd() { setEditing(null); setForm(EMPTY_PART); setAddOpen(true); }
-  function openEdit(p: Part) { setEditing(p); setForm({ name: p.name, category: p.category ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", reorderLevel: p.reorderLevel ?? "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", storageLocation: p.storageLocation ?? "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes ?? "" }); setAddOpen(true); }
+  function openEdit(p: Part) { setEditing(p); setForm({ name: p.name, category: p.category ?? "", productCode: p.productCode ?? "", unit: p.unit ?? "", reorderLevel: p.reorderLevel ?? "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", storageLocation: p.storageLocation ?? "", defaultSupplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", notes: p.notes ?? "" }); setAddOpen(true); setSelectedPart(null); }
   function openReceive(p: Part) { setReceivePart(p); setReceiveForm({ qty: "", unitCostPence: p.unitCostPence ? (p.unitCostPence / 100).toFixed(2) : "", supplierId: p.defaultSupplierId ? String(p.defaultSupplierId) : "", invoiceRef: "", date: new Date().toISOString().slice(0, 10), notes: "", performedBy: "" }); setReceiveOpen(true); }
   function openUse(p: Part) { setUsePart(p); setUseForm({ qty: "", jobId: "", performedBy: "", notes: "" }); setUseOpen(true); }
 
@@ -721,6 +967,37 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
+      {/* Search + filter bar */}
+      {view === "catalogue" && parts.length > 0 && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+            <Input
+              className="pl-8 h-8 text-sm"
+              placeholder="Search parts by name, code, category or location…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" onClick={() => setSearch("")}>
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <select
+            className="h-8 text-sm border border-gray-200 rounded-md px-2 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-primary"
+            value={catFilter}
+            onChange={e => setCatFilter(e.target.value)}
+          >
+            <option value="all">All categories</option>
+            {PART_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {(search || catFilter !== "all") && (
+            <span className="text-xs text-gray-400">{filteredParts.length} of {parts.length} part{parts.length !== 1 ? "s" : ""}</span>
+          )}
+        </div>
+      )}
+
       {/* Parts Catalogue */}
       {view === "catalogue" && (
         parts.length === 0 ? (
@@ -729,8 +1006,17 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
             <p className="font-medium text-gray-500 mb-1">No parts registered yet</p>
             <p className="text-sm">Add parts to track stock levels, receive deliveries, and log usage against job cards.</p>
           </div>
+        ) : filteredParts.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <Search className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+            <p className="font-medium text-gray-500">No parts match your search</p>
+            <p className="text-sm mt-1">Try adjusting the search term or category filter</p>
+          </div>
         ) : (
           <div className="rounded-xl border border-gray-200 overflow-hidden">
+            <p className="text-xs text-gray-400 px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-1">
+              <Info className="h-3 w-3" />Click a row to view details and manage documents
+            </p>
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
@@ -740,15 +1026,25 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {parts.map(p => {
+                {filteredParts.map(p => {
                   const qty = parseFloat(p.currentQuantity);
                   const reorder = p.reorderLevel ? parseFloat(p.reorderLevel) : null;
                   const isLow = reorder !== null && qty <= reorder;
+                  const isSelected = selectedPart?.id === p.id;
                   return (
-                    <tr key={p.id} className="hover:bg-gray-50/50">
+                    <tr
+                      key={p.id}
+                      className={cn("cursor-pointer transition-colors", isSelected ? "bg-primary/5 ring-1 ring-inset ring-primary/20" : "hover:bg-gray-50/80")}
+                      onClick={() => setSelectedPart(isSelected ? null : p)}
+                    >
                       <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{p.name}</p>
-                        {p.productCode && <p className="text-xs text-gray-400 font-mono">{p.productCode}</p>}
+                        <div className="flex items-center gap-1.5">
+                          <div>
+                            <p className="font-medium text-gray-900">{p.name}</p>
+                            {p.productCode && <p className="text-xs text-gray-400 font-mono">{p.productCode}</p>}
+                          </div>
+                          {isSelected && <ChevronRight className="h-3.5 w-3.5 text-primary ml-1 shrink-0" />}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-gray-600">{p.category || "—"}</td>
                       <td className="px-4 py-3 text-gray-600">{p.storageLocation || "—"}</td>
@@ -761,7 +1057,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
                       <td className="px-4 py-3 text-gray-500">{p.reorderLevel ? fmtQty(p.reorderLevel, p.unit) : "—"}</td>
                       <td className="px-4 py-3 text-gray-600">{fmtCost(p.unitCostPence)}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{p.supplierName || "—"}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => openReceive(p)} title="Receive stock">
                             <ArrowDownToLine className="h-3 w-3" />In
@@ -780,6 +1076,16 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
             </table>
           </div>
         )
+      )}
+
+      {/* Part detail panel */}
+      {selectedPart && (
+        <PartPanel
+          farmId={farmId}
+          part={selectedPart}
+          onClose={() => setSelectedPart(null)}
+          onEdit={openEdit}
+        />
       )}
 
       {/* Movement History */}

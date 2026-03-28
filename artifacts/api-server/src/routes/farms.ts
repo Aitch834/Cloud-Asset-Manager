@@ -26,6 +26,7 @@ import {
   workshopJobsTable,
   workshopPatTestsTable,
   workshopFireExtinguishersTable,
+  workshopPartDocumentsTable,
   equipmentCalibrationRecordsTable,
   herdFlockRegisterTable,
   livestockAnimalsTable,
@@ -8690,6 +8691,31 @@ router.get("/farms/:farmId/workshop/parts/movements", requireAuth, requireTenant
     .orderBy(desc(stockMovementsTable.movedAt))
     .limit(200);
   res.json(movements);
+});
+
+// ─── Workshop Part Documents ────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/workshop/parts/:partId/documents", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const partId = parseInt(req.params.partId); if (isNaN(partId)) { res.status(400).json({ error: "Invalid part ID" }); return; }
+  const docs = await db.select().from(workshopPartDocumentsTable).where(eq(workshopPartDocumentsTable.stockItemId, partId)).orderBy(desc(workshopPartDocumentsTable.uploadedAt));
+  res.json(docs);
+});
+
+router.post("/farms/:farmId/workshop/parts/:partId/documents", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const partId = parseInt(req.params.partId); if (isNaN(partId)) { res.status(400).json({ error: "Invalid part ID" }); return; }
+  const { filename, storageKey, mimeType, fileSizeBytes, uploadedBy } = req.body;
+  if (!filename || !storageKey) { res.status(400).json({ error: "filename and storageKey are required" }); return; }
+  const [doc] = await db.insert(workshopPartDocumentsTable).values({ stockItemId: partId, filename, storageKey, mimeType: mimeType ?? null, fileSizeBytes: fileSizeBytes ?? null, uploadedBy: uploadedBy ?? null }).returning();
+  res.json(doc);
+});
+
+router.delete("/farms/:farmId/workshop/parts/:partId/documents/:docId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const docId = parseInt(req.params.docId); if (isNaN(docId)) { res.status(400).json({ error: "Invalid doc ID" }); return; }
+  await db.delete(workshopPartDocumentsTable).where(eq(workshopPartDocumentsTable.id, docId));
+  res.json({ success: true });
 });
 
 // ============================================================

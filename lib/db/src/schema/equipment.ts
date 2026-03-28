@@ -1,6 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, boolean, numeric, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
-import { suppliersTable } from "./stock-suppliers";
+import { suppliersTable, stockItemsTable } from "./stock-suppliers";
 
 export const equipmentTable = pgTable("equipment", {
   id: serial("id").primaryKey(),
@@ -180,6 +180,17 @@ export const grainTemperatureLogsTable = pgTable("grain_temperature_logs", {
   recordedBy: text("recorded_by"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const workshopPartDocumentsTable = pgTable("workshop_part_documents", {
+  id: serial("id").primaryKey(),
+  stockItemId: integer("stock_item_id").notNull().references(() => stockItemsTable.id, { onDelete: "cascade" }),
+  filename: text("filename").notNull(),
+  storageKey: text("storage_key").notNull(),
+  mimeType: text("mime_type"),
+  fileSizeBytes: integer("file_size_bytes"),
+  uploadedBy: text("uploaded_by"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const equipmentDefectReportsTable = pgTable("equipment_defect_reports", {
