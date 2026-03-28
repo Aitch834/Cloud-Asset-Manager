@@ -8496,6 +8496,201 @@ router.delete("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, req
 });
 
 // ============================================================
+// WORKSHOP PARTS STORE
+// ============================================================
+
+router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const parts = await db
+    .select({
+      id: stockItemsTable.id,
+      name: stockItemsTable.name,
+      stockType: stockItemsTable.stockType,
+      category: stockItemsTable.category,
+      productCode: stockItemsTable.productCode,
+      unit: stockItemsTable.unit,
+      reorderLevel: stockItemsTable.reorderLevel,
+      unitCostPence: stockItemsTable.unitCostPence,
+      storageLocation: stockItemsTable.storageLocation,
+      defaultSupplierId: stockItemsTable.defaultSupplierId,
+      supplierName: suppliersTable.name,
+      notes: stockItemsTable.notes,
+      isActive: stockItemsTable.isActive,
+      createdAt: stockItemsTable.createdAt,
+    })
+    .from(stockItemsTable)
+    .leftJoin(suppliersTable, eq(stockItemsTable.defaultSupplierId, suppliersTable.id))
+    .where(and(eq(stockItemsTable.farmId, farmId), eq(stockItemsTable.stockType, "workshop-part"), eq(stockItemsTable.isActive, true)))
+    .orderBy(asc(stockItemsTable.name));
+
+  const levels = await db
+    .select({ stockItemId: stockLevelsTable.stockItemId, currentQuantity: stockLevelsTable.currentQuantity })
+    .from(stockLevelsTable)
+    .where(eq(stockLevelsTable.farmId, farmId));
+
+  const levelMap = Object.fromEntries(levels.map(l => [l.stockItemId, l.currentQuantity]));
+  res.json(parts.map(p => ({ ...p, currentQuantity: levelMap[p.id] ?? "0" })));
+});
+
+router.post("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { name, category, productCode, unit, reorderLevel, unitCostPence, storageLocation, defaultSupplierId, notes } = req.body;
+  if (!name) { res.status(400).json({ error: "Name required" }); return; }
+  const [record] = await db.insert(stockItemsTable).values({
+    farmId, name, stockType: "workshop-part", category, productCode, unit,
+    reorderLevel: reorderLevel ? String(reorderLevel) : null,
+    unitCostPence: unitCostPence ? parseInt(unitCostPence) : null,
+    storageLocation, defaultSupplierId: defaultSupplierId || null, notes,
+  }).returning();
+  res.json(record);
+});
+
+router.put("/farms/:farmId/workshop/parts/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { name, category, productCode, unit, reorderLevel, unitCostPence, storageLocation, defaultSupplierId, notes } = req.body;
+  const [record] = await db.update(stockItemsTable)
+    .set({
+      name, category, productCode, unit,
+      reorderLevel: reorderLevel ? String(reorderLevel) : null,
+      unitCostPence: unitCostPence ? parseInt(unitCostPence) : null,
+      storageLocation, defaultSupplierId: defaultSupplierId || null, notes,
+    })
+    .where(and(eq(stockItemsTable.id, id), eq(stockItemsTable.farmId, farmId)))
+    .returning();
+  res.json(record);
+});
+
+router.delete("/farms/:farmId/workshop/parts/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.update(stockItemsTable).set({ isActive: false }).where(and(eq(stockItemsTable.id, id), eq(stockItemsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Stock In — receive parts delivery, increment stock level
+router.post("/farms/:farmId/workshop/parts/receive", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { stockItemId, quantity, supplierId, unitCostPence, invoiceReference, deliveryDate, notes, performedBy } = req.body;
+  if (!stockItemId || !quantity) { res.status(400).json({ error: "stockItemId and quantity required" }); return; }
+  const qty = parseFloat(String(quantity));
+  if (isNaN(qty) || qty <= 0) { res.status(400).json({ error: "Invalid quantity" }); return; }
+
+  const grnNumber = `GRN-WS-${Date.now()}`;
+  const [delivery] = await db.insert(stockDeliveriesTable).values({
+    farmId,
+    stockItemId: parseInt(stockItemId),
+    supplierId: supplierId || null,
+    grnNumber,
+    deliveryDate: deliveryDate ? new Date(deliveryDate) : new Date(),
+    quantity: String(qty),
+    costPence: unitCostPence ? Math.round(parseFloat(unitCostPence) * qty) : null,
+    invoiceReference: invoiceReference || null,
+    receivedBy: performedBy || null,
+    notes: notes || null,
+  }).returning();
+
+  await db.insert(stockMovementsTable).values({
+    farmId,
+    stockItemId: parseInt(stockItemId),
+    movementType: "in",
+    quantityChange: String(qty),
+    referenceType: "workshop_delivery",
+    referenceId: delivery.id,
+    deliveryId: delivery.id,
+    performedBy: performedBy || null,
+    notes: notes || null,
+  });
+
+  const [existing] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, parseInt(stockItemId)))).limit(1);
+  if (existing) {
+    await db.update(stockLevelsTable).set({ currentQuantity: String(parseFloat(existing.currentQuantity) + qty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id));
+  } else {
+    await db.insert(stockLevelsTable).values({ farmId, stockItemId: parseInt(stockItemId), currentQuantity: String(qty) });
+  }
+
+  res.json({ success: true, grnNumber, delivery });
+});
+
+// Use parts — consume from stock, optionally link to a workshop job
+router.post("/farms/:farmId/workshop/parts/use", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { stockItemId, quantity, jobId, performedBy, notes } = req.body;
+  if (!stockItemId || !quantity) { res.status(400).json({ error: "stockItemId and quantity required" }); return; }
+  const qty = parseFloat(String(quantity));
+  if (isNaN(qty) || qty <= 0) { res.status(400).json({ error: "Invalid quantity" }); return; }
+
+  await db.insert(stockMovementsTable).values({
+    farmId,
+    stockItemId: parseInt(stockItemId),
+    movementType: "out",
+    quantityChange: String(-qty),
+    referenceType: jobId ? "workshop_job" : "workshop_use",
+    referenceId: jobId ? parseInt(jobId) : null,
+    performedBy: performedBy || null,
+    notes: notes || null,
+  });
+
+  const [existing] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, parseInt(stockItemId)))).limit(1);
+  if (existing) {
+    const newQty = Math.max(0, parseFloat(existing.currentQuantity) - qty);
+    await db.update(stockLevelsTable).set({ currentQuantity: String(newQty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id));
+  } else {
+    await db.insert(stockLevelsTable).values({ farmId, stockItemId: parseInt(stockItemId), currentQuantity: "0" });
+  }
+
+  if (jobId) {
+    const [part] = await db.select({ unitCostPence: stockItemsTable.unitCostPence }).from(stockItemsTable).where(eq(stockItemsTable.id, parseInt(stockItemId))).limit(1);
+    if (part?.unitCostPence) {
+      const costDelta = Math.round(part.unitCostPence * qty);
+      const [job] = await db.select({ partsCostPence: workshopJobsTable.partsCostPence }).from(workshopJobsTable).where(and(eq(workshopJobsTable.id, parseInt(jobId)), eq(workshopJobsTable.farmId, farmId))).limit(1);
+      if (job) {
+        await db.update(workshopJobsTable).set({ partsCostPence: (job.partsCostPence ?? 0) + costDelta }).where(eq(workshopJobsTable.id, parseInt(jobId)));
+      }
+    }
+  }
+
+  res.json({ success: true });
+});
+
+// Movement history for workshop parts
+router.get("/farms/:farmId/workshop/parts/movements", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const partIds = await db.select({ id: stockItemsTable.id }).from(stockItemsTable).where(and(eq(stockItemsTable.farmId, farmId), eq(stockItemsTable.stockType, "workshop-part")));
+  if (partIds.length === 0) { res.json([]); return; }
+  const ids = partIds.map(p => p.id);
+  const movements = await db
+    .select({
+      id: stockMovementsTable.id,
+      stockItemId: stockMovementsTable.stockItemId,
+      partName: stockItemsTable.name,
+      unit: stockItemsTable.unit,
+      movementType: stockMovementsTable.movementType,
+      quantityChange: stockMovementsTable.quantityChange,
+      referenceType: stockMovementsTable.referenceType,
+      referenceId: stockMovementsTable.referenceId,
+      performedBy: stockMovementsTable.performedBy,
+      notes: stockMovementsTable.notes,
+      movedAt: stockMovementsTable.movedAt,
+    })
+    .from(stockMovementsTable)
+    .innerJoin(stockItemsTable, eq(stockMovementsTable.stockItemId, stockItemsTable.id))
+    .where(and(eq(stockMovementsTable.farmId, farmId), inArray(stockMovementsTable.stockItemId, ids)))
+    .orderBy(desc(stockMovementsTable.movedAt))
+    .limit(200);
+  res.json(movements);
+});
+
+// ============================================================
 // PIG PRODUCTION
 // ============================================================
 router.get("/farms/:farmId/pig-flocks", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
