@@ -24,6 +24,9 @@ export const haulageRecordsTable = pgTable("haulage_records", {
   arrivalDate: timestamp("arrival_date", { withTimezone: true }),
   waybillNumber: text("waybill_number"),
   costPence: integer("cost_pence"),
+  deliveryConfirmedAt: timestamp("delivery_confirmed_at", { withTimezone: true }),
+  deliveryConfirmedBy: text("delivery_confirmed_by"),
+  deliveryConfirmationNotes: text("delivery_confirmation_notes"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

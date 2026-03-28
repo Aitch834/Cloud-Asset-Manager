@@ -170,6 +170,15 @@ import {
   feedStockLevelsTable,
   gridEnergyMetersTable,
   gridEnergyReadingsTable,
+  soilMoistureReadingsTable,
+  droughtManagementPlansTable,
+  camsAnnualReturnsTable,
+  renewableEnergyProductionTable,
+  biodiversityNetGainTable,
+  vehicleWeatherReadingsTable,
+  poultryBiosecurityChecklistTable,
+  poultrySchemeRecordsTable,
+  pigRedTractorChecklistTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, lte, inArray } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
@@ -10791,6 +10800,219 @@ router.delete("/farms/:farmId/accident-book/:recordId", requireAuth, requireTena
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(accidentBookTable).where(and(eq(accidentBookTable.id, recordId), eq(accidentBookTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// --- Soil Moisture Readings ---
+router.get("/farms/:farmId/soil-moisture-readings", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const records = await db.select().from(soilMoistureReadingsTable).where(eq(soilMoistureReadingsTable.farmId, farmId)).orderBy(desc(soilMoistureReadingsTable.readingDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/soil-moisture-readings", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.insert(soilMoistureReadingsTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+router.put("/farms/:farmId/soil-moisture-readings/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const id = parseInt(req.params.id);
+  const [record] = await db.update(soilMoistureReadingsTable).set(req.body).where(and(eq(soilMoistureReadingsTable.id, id), eq(soilMoistureReadingsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/soil-moisture-readings/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  await db.delete(soilMoistureReadingsTable).where(and(eq(soilMoistureReadingsTable.id, parseInt(req.params.id)), eq(soilMoistureReadingsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// --- Drought Management Plans ---
+router.get("/farms/:farmId/drought-management-plans", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const records = await db.select().from(droughtManagementPlansTable).where(eq(droughtManagementPlansTable.farmId, farmId)).orderBy(desc(droughtManagementPlansTable.planYear));
+  res.json({ records });
+});
+router.post("/farms/:farmId/drought-management-plans", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.insert(droughtManagementPlansTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+router.put("/farms/:farmId/drought-management-plans/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.update(droughtManagementPlansTable).set(req.body).where(and(eq(droughtManagementPlansTable.id, parseInt(req.params.id)), eq(droughtManagementPlansTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/drought-management-plans/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  await db.delete(droughtManagementPlansTable).where(and(eq(droughtManagementPlansTable.id, parseInt(req.params.id)), eq(droughtManagementPlansTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// --- CAMS Annual Returns ---
+router.get("/farms/:farmId/cams-annual-returns", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const records = await db.select().from(camsAnnualReturnsTable).where(eq(camsAnnualReturnsTable.farmId, farmId)).orderBy(desc(camsAnnualReturnsTable.returnYear));
+  res.json({ records });
+});
+router.post("/farms/:farmId/cams-annual-returns", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.insert(camsAnnualReturnsTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+router.put("/farms/:farmId/cams-annual-returns/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.update(camsAnnualReturnsTable).set(req.body).where(and(eq(camsAnnualReturnsTable.id, parseInt(req.params.id)), eq(camsAnnualReturnsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/cams-annual-returns/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  await db.delete(camsAnnualReturnsTable).where(and(eq(camsAnnualReturnsTable.id, parseInt(req.params.id)), eq(camsAnnualReturnsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// --- Renewable Energy Production ---
+router.get("/farms/:farmId/renewable-energy-production", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const records = await db.select().from(renewableEnergyProductionTable).where(eq(renewableEnergyProductionTable.farmId, farmId)).orderBy(desc(renewableEnergyProductionTable.periodStart));
+  res.json({ records });
+});
+router.post("/farms/:farmId/renewable-energy-production", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.insert(renewableEnergyProductionTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+router.put("/farms/:farmId/renewable-energy-production/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.update(renewableEnergyProductionTable).set(req.body).where(and(eq(renewableEnergyProductionTable.id, parseInt(req.params.id)), eq(renewableEnergyProductionTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/renewable-energy-production/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  await db.delete(renewableEnergyProductionTable).where(and(eq(renewableEnergyProductionTable.id, parseInt(req.params.id)), eq(renewableEnergyProductionTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// --- Biodiversity Net Gain ---
+router.get("/farms/:farmId/biodiversity-net-gain", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const records = await db.select().from(biodiversityNetGainTable).where(eq(biodiversityNetGainTable.farmId, farmId)).orderBy(desc(biodiversityNetGainTable.assessmentDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/biodiversity-net-gain", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.insert(biodiversityNetGainTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+router.put("/farms/:farmId/biodiversity-net-gain/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.update(biodiversityNetGainTable).set(req.body).where(and(eq(biodiversityNetGainTable.id, parseInt(req.params.id)), eq(biodiversityNetGainTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/biodiversity-net-gain/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  await db.delete(biodiversityNetGainTable).where(and(eq(biodiversityNetGainTable.id, parseInt(req.params.id)), eq(biodiversityNetGainTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// --- Vehicle Weather Readings ---
+router.get("/farms/:farmId/vehicle-weather-readings", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const records = await db.select().from(vehicleWeatherReadingsTable).where(eq(vehicleWeatherReadingsTable.farmId, farmId)).orderBy(desc(vehicleWeatherReadingsTable.readingTimestamp));
+  res.json({ records });
+});
+router.post("/farms/:farmId/vehicle-weather-readings", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.insert(vehicleWeatherReadingsTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+router.put("/farms/:farmId/vehicle-weather-readings/:id", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.update(vehicleWeatherReadingsTable).set(req.body).where(and(eq(vehicleWeatherReadingsTable.id, parseInt(req.params.id)), eq(vehicleWeatherReadingsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/vehicle-weather-readings/:id", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  await db.delete(vehicleWeatherReadingsTable).where(and(eq(vehicleWeatherReadingsTable.id, parseInt(req.params.id)), eq(vehicleWeatherReadingsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// --- Delivery Confirmation on Haulage ---
+router.post("/farms/:farmId/haulage/:recordId/confirm-delivery", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const { confirmedBy, notes } = req.body;
+  const [record] = await db.update(haulageRecordsTable).set({
+    deliveryConfirmedAt: new Date(),
+    deliveryConfirmedBy: confirmedBy,
+    deliveryConfirmationNotes: notes,
+    deliveryStatus: "delivered",
+  }).where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+// --- Poultry Biosecurity Checklists ---
+router.get("/farms/:farmId/poultry-biosecurity-checklists", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const records = await db.select().from(poultryBiosecurityChecklistTable).where(eq(poultryBiosecurityChecklistTable.farmId, farmId)).orderBy(desc(poultryBiosecurityChecklistTable.cleanoutStartDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/poultry-biosecurity-checklists", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.insert(poultryBiosecurityChecklistTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+router.put("/farms/:farmId/poultry-biosecurity-checklists/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.update(poultryBiosecurityChecklistTable).set(req.body).where(and(eq(poultryBiosecurityChecklistTable.id, parseInt(req.params.id)), eq(poultryBiosecurityChecklistTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/poultry-biosecurity-checklists/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  await db.delete(poultryBiosecurityChecklistTable).where(and(eq(poultryBiosecurityChecklistTable.id, parseInt(req.params.id)), eq(poultryBiosecurityChecklistTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// --- Poultry Scheme Records ---
+router.get("/farms/:farmId/poultry-scheme-records", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const records = await db.select().from(poultrySchemeRecordsTable).where(eq(poultrySchemeRecordsTable.farmId, farmId)).orderBy(desc(poultrySchemeRecordsTable.assessmentDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/poultry-scheme-records", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.insert(poultrySchemeRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+router.put("/farms/:farmId/poultry-scheme-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.update(poultrySchemeRecordsTable).set(req.body).where(and(eq(poultrySchemeRecordsTable.id, parseInt(req.params.id)), eq(poultrySchemeRecordsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/poultry-scheme-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  await db.delete(poultrySchemeRecordsTable).where(and(eq(poultrySchemeRecordsTable.id, parseInt(req.params.id)), eq(poultrySchemeRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// --- Pig Red Tractor Checklists ---
+router.get("/farms/:farmId/pig-red-tractor-checklists", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const records = await db.select().from(pigRedTractorChecklistTable).where(eq(pigRedTractorChecklistTable.farmId, farmId)).orderBy(desc(pigRedTractorChecklistTable.assessmentDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/pig-red-tractor-checklists", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.insert(pigRedTractorChecklistTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+router.put("/farms/:farmId/pig-red-tractor-checklists/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const [record] = await db.update(pigRedTractorChecklistTable).set(req.body).where(and(eq(pigRedTractorChecklistTable.id, parseInt(req.params.id)), eq(pigRedTractorChecklistTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+router.delete("/farms/:farmId/pig-red-tractor-checklists/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  await db.delete(pigRedTractorChecklistTable).where(and(eq(pigRedTractorChecklistTable.id, parseInt(req.params.id)), eq(pigRedTractorChecklistTable.farmId, farmId)));
   res.json({ success: true });
 });
 

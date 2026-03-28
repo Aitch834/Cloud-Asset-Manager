@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -669,8 +669,95 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
   );
 }
 
+function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string | boolean>>({});
+  const { data: records = [], isLoading } = useQuery({ queryKey: ["pig-rt-checklist", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-red-tractor-checklists`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
+  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/pig-red-tractor-checklists/${editing.id}`) : api(`farms/${farmId}/pig-red-tractor-checklists`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-rt-checklist", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-red-tractor-checklists/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-rt-checklist", farmId] }) });
+
+  const BoolField = ({ label, field }: { label: string; field: string }) => (
+    <div className="flex items-center gap-2">
+      <Checkbox id={field} checked={Boolean(form[field])} onCheckedChange={v => setForm(f => ({ ...f, [field]: Boolean(v) }))} />
+      <Label htmlFor={field} className="text-sm">{label}</Label>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Red Tractor Pig Compliance Checklist</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Record Red Tractor Pigs Standard self-assessment results. Each major standard area is checked to maintain farm assurance status. Assessments should be carried out at least annually or following any significant changes.</p>
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ assessmentDate: new Date().toISOString().slice(0, 10), overallStatus: "pass" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
+        cols={[
+          { key: "assessmentDate", label: "Assessment Date", fmt: r => fmtDate(r.assessmentDate) },
+          { key: "assessorName", label: "Assessor" },
+          { key: "certificateNumber", label: "Certificate No." },
+          { key: "overallStatus", label: "Overall Status" },
+          { key: "nextAssessmentDue", label: "Next Due", fmt: r => fmtDate(r.nextAssessmentDue) },
+          { key: "nonConformances", label: "Non-conformances" },
+        ]}
+        rows={records as Record<string, unknown>[]}
+        onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
+        onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }}
+      />}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "54rem" }}>
+          <DialogHeader><DialogTitle>Red Tractor Pig Self-Assessment</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-3 gap-3">
+            <div><Label>Assessment Date *</Label><Input type="date" value={String(form.assessmentDate ?? "")} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
+            <div><Label>Assessor Name</Label><Input value={String(form.assessorName ?? "")} onChange={e => setForm(f => ({ ...f, assessorName: e.target.value }))} /></div>
+            <div><Label>Certificate Number</Label><Input value={String(form.certificateNumber ?? "")} onChange={e => setForm(f => ({ ...f, certificateNumber: e.target.value }))} /></div>
+            <div><Label>Overall Status</Label>
+              <Select value={String(form.overallStatus ?? "pass")} onValueChange={v => setForm(f => ({ ...f, overallStatus: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["pass", "conditional-pass", "fail", "pending"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Next Assessment Due</Label><Input type="date" value={String(form.nextAssessmentDue ?? "")} onChange={e => setForm(f => ({ ...f, nextAssessmentDue: e.target.value }))} /></div>
+          </div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mt-3 mb-2">RT Pig Standard Compliance Items</p>
+          <div className="grid grid-cols-2 gap-2">
+            <BoolField label="Medicines & veterinary treatments recorded correctly" field="medicinesRecorded" />
+            <BoolField label="Withdrawal periods observed (no residue failures)" field="withdrawalPeriodsObserved" />
+            <BoolField label="Pig movements / eAML2 records up to date" field="movementsRecorded" />
+            <BoolField label="Feed records maintained (source, batch, HACCP)" field="feedRecordsKept" />
+            <BoolField label="Water supply quality checked / tested" field="waterQualityChecked" />
+            <BoolField label="Identification / tagging correct for all pigs" field="identificationCorrect" />
+            <BoolField label="Stockmanship daily checks evidenced" field="stockmanshipChecked" />
+            <BoolField label="Body condition scored and recorded" field="bodyConditionScored" />
+            <BoolField label="Tail biting risk assessment completed" field="tailBitingRiskAssessed" />
+            <BoolField label="Tail docking justification documented (if applicable)" field="tailDockingJustified" />
+            <BoolField label="Boar tusk trimming recorded (if applicable)" field="boarTuskTrimmed" />
+            <BoolField label="Environmental enrichment provided" field="enrichmentProvided" />
+            <BoolField label="Ventilation and thermal environment adequate" field="ventilationAdequate" />
+            <BoolField label="Building / housing structural integrity checked" field="housingStructuralOk" />
+            <BoolField label="Pest and vermin control records current" field="pestControlCurrent" />
+            <BoolField label="Biosecurity protocols in place and enforced" field="biosecurityInPlace" />
+            <BoolField label="Casualty / fallen stock disposal compliant" field="casualtyDisposalCompliant" />
+            <BoolField label="Vet health plan reviewed within 12 months" field="vetHealthPlanReviewed" />
+            <BoolField label="Emergency plan / out-of-hours contact available" field="emergencyPlanInPlace" />
+            <BoolField label="Farm training / competence records maintained" field="trainingRecordsKept" />
+          </div>
+          <div className="grid grid-cols-1 gap-3 mt-2">
+            <div><Label>Non-conformances / Observations</Label><Textarea value={String(form.nonConformances ?? "")} onChange={e => setForm(f => ({ ...f, nonConformances: e.target.value }))} rows={2} /></div>
+            <div><Label>Corrective Actions Required</Label><Textarea value={String(form.correctiveActions ?? "")} onChange={e => setForm(f => ({ ...f, correctiveActions: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save Assessment</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
-type Tab = "flocks" | "movements" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing";
+type Tab = "flocks" | "movements" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor";
 
 export default function PigProductionPage() {
   const { farmId } = useAppStore();
@@ -688,6 +775,7 @@ export default function PigProductionPage() {
           <TabButton active={tab === "stockmanship"} onClick={() => setTab("stockmanship")}><ClipboardCheck className="w-3.5 h-3.5 mr-1" />Stockmanship</TabButton>
           <TabButton active={tab === "tail-biting"} onClick={() => setTab("tail-biting")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Tail Biting Risk</TabButton>
           <TabButton active={tab === "farrowing"} onClick={() => setTab("farrowing")}><Baby className="w-3.5 h-3.5 mr-1" />Farrowing</TabButton>
+          <TabButton active={tab === "red-tractor"} onClick={() => setTab("red-tractor")}><ShieldCheck className="w-3.5 h-3.5 mr-1" />Red Tractor</TabButton>
         </TabBar>
         <Card><CardContent className="pt-4">
           {tab === "flocks" && <FlocksTab farmId={farmId} />}
@@ -698,6 +786,7 @@ export default function PigProductionPage() {
           {tab === "stockmanship" && <StockmanshipChecksTab farmId={farmId} />}
           {tab === "tail-biting" && <TailBitingRisksTab farmId={farmId} />}
           {tab === "farrowing" && <FarrowingRecordsTab farmId={farmId} />}
+          {tab === "red-tractor" && <PigRedTractorChecklistTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>

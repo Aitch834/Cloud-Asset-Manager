@@ -525,12 +525,28 @@ function YearOnYearTab({ farmId }: { farmId: number }) {
   const allHarvests: any[] = data?.harvests ?? [];
   const allTx: any[] = data?.transactions ?? [];
 
-  const years = useMemo(() => {
+  const availableYears = useMemo(() => {
     const s = new Set<number>();
-    for (const h of allHarvests) s.add(new Date(h.harvestDate).getFullYear());
-    for (const t of allTx) s.add(new Date(t.transactionDate).getFullYear());
-    return [...s].sort((a, b) => b - a).slice(0, 5);
+    for (const h of allHarvests) if (h.harvestDate) s.add(new Date(h.harvestDate).getFullYear());
+    for (const t of allTx) if (t.transactionDate) s.add(new Date(t.transactionDate).getFullYear());
+    return [...s].sort((a, b) => b - a);
   }, [allHarvests, allTx]);
+
+  const [selectedYears, setSelectedYears] = useState<number[]>([]);
+  const activeYears = useMemo(() => {
+    const base = selectedYears.length > 0 ? selectedYears : availableYears.slice(0, 5);
+    return base.sort((a, b) => b - a).slice(0, 5);
+  }, [selectedYears, availableYears]);
+
+  const toggleYear = (y: number) => {
+    setSelectedYears(prev => {
+      if (prev.includes(y)) return prev.filter(x => x !== y);
+      if (prev.length >= 5) return prev;
+      return [...prev, y];
+    });
+  };
+
+  const years = activeYears;
 
   const byYear = useMemo(() => years.map(y => {
     const yHarvests = allHarvests.filter(h => new Date(h.harvestDate).getFullYear() === y);
@@ -544,7 +560,7 @@ function YearOnYearTab({ farmId }: { farmId: number }) {
   }), [years, allHarvests, allTx]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
-  if (years.length === 0) return <EmptyState icon={Calendar} message="Add harvest records and financial transactions across multiple years to see trends." />;
+  if (availableYears.length === 0) return <EmptyState icon={Calendar} message="Add harvest records and financial transactions across multiple years to see trends." />;
 
   const changeIcon = (curr: number, prev: number) => {
     if (!prev) return null;
@@ -555,6 +571,26 @@ function YearOnYearTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-6">
+      {availableYears.length > 1 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: "0.8rem", color: "#6b7280", fontWeight: 500 }}>Compare seasons (up to 5):</span>
+          {availableYears.map(y => {
+            const isSelected = selectedYears.length === 0 ? activeYears.includes(y) : selectedYears.includes(y);
+            return (
+              <button
+                key={y}
+                onClick={() => toggleYear(y)}
+                style={{ padding: "0.25rem 0.75rem", borderRadius: 20, fontSize: "0.8rem", fontWeight: 600, cursor: "pointer", border: `1px solid ${isSelected ? "#166534" : "#d1d5db"}`, background: isSelected ? "#dcfce7" : "#fff", color: isSelected ? "#166534" : "#6b7280", transition: "all 0.15s" }}
+              >
+                {y}
+              </button>
+            );
+          })}
+          {selectedYears.length > 0 && (
+            <button onClick={() => setSelectedYears([])} style={{ fontSize: "0.75rem", color: "#9ca3af", background: "none", border: "none", cursor: "pointer", marginLeft: 4 }}>Reset</button>
+          )}
+        </div>
+      )}
       <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
           <thead>

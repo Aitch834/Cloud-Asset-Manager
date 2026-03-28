@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -425,7 +425,157 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "houses" | "flocks" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning";
+function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string | boolean>>({});
+  const { data: houses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
+  const { data: records = [], isLoading } = useQuery({ queryKey: ["poultry-biosecurity", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-biosecurity-checklists`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
+  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/poultry-biosecurity-checklists/${editing.id}`) : api(`farms/${farmId}/poultry-biosecurity-checklists`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["poultry-biosecurity", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/poultry-biosecurity-checklists/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["poultry-biosecurity", farmId] }) });
+
+  const BoolField = ({ label, field }: { label: string; field: string }) => (
+    <div className="flex items-center gap-2">
+      <Checkbox id={field} checked={Boolean(form[field])} onCheckedChange={v => setForm(f => ({ ...f, [field]: Boolean(v) }))} />
+      <Label htmlFor={field} className="text-sm">{label}</Label>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Biosecurity Checklist — Downtime & Cleanout</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Record end-of-flock biosecurity procedures for each house cleanout to demonstrate Red Tractor and RSPCA Assured compliance. All items must be completed before restocking.</p>
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ checklistDate: new Date().toISOString().slice(0, 10) }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Checklist</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
+        cols={[
+          { key: "checklistDate", label: "Date", fmt: r => fmtDate(r.checklistDate) },
+          { key: "houseId", label: "House", fmt: r => { const h = (houses as Record<string, unknown>[]).find(x => String(x.id) === String(r.houseId)); return h ? String(h.houseName ?? h.id) : fmt(r.houseId); } },
+          { key: "previousFlock", label: "Previous Flock" },
+          { key: "depopulationDate", label: "Depopulation", fmt: r => fmtDate(r.depopulationDate) },
+          { key: "cleanoutCompletionDate", label: "Cleanout Complete", fmt: r => fmtDate(r.cleanoutCompletionDate) },
+          { key: "downtimeDays", label: "Downtime (days)" },
+          { key: "allItemsCompleted", label: "All Items Complete", fmt: r => r.allItemsCompleted ? "✓ Yes" : "No" },
+          { key: "completedBy", label: "Completed By" },
+        ]}
+        rows={records as Record<string, unknown>[]}
+        onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
+        onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }}
+      />}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "52rem" }}>
+          <DialogHeader><DialogTitle>Biosecurity Checklist</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-3 gap-3">
+            <div><Label>Checklist Date *</Label><Input type="date" value={String(form.checklistDate ?? "")} onChange={e => setForm(f => ({ ...f, checklistDate: e.target.value }))} /></div>
+            <div><Label>Poultry House *</Label>
+              <Select value={String(form.houseId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, houseId: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select house" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Select —</SelectItem>{(houses as Record<string, unknown>[]).map(h => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.houseName ?? h.id)}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Previous Flock ID / Batch</Label><Input value={String(form.previousFlock ?? "")} onChange={e => setForm(f => ({ ...f, previousFlock: e.target.value }))} /></div>
+            <div><Label>Depopulation Date</Label><Input type="date" value={String(form.depopulationDate ?? "")} onChange={e => setForm(f => ({ ...f, depopulationDate: e.target.value }))} /></div>
+            <div><Label>Cleanout Completion Date</Label><Input type="date" value={String(form.cleanoutCompletionDate ?? "")} onChange={e => setForm(f => ({ ...f, cleanoutCompletionDate: e.target.value }))} /></div>
+            <div><Label>Downtime Days</Label><Input type="number" value={String(form.downtimeDays ?? "")} onChange={e => setForm(f => ({ ...f, downtimeDays: e.target.value }))} /></div>
+          </div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mt-2 mb-1">Biosecurity Items</p>
+          <div className="grid grid-cols-2 gap-2">
+            <BoolField label="All dead birds removed and disposed of correctly" field="deadBirdsRemovedDisposed" />
+            <BoolField label="Litter / manure fully removed from house" field="litterManureRemoved" />
+            <BoolField label="All equipment removed and cleaned" field="equipmentCleanedRemoved" />
+            <BoolField label="House washed out (wet clean)" field="houseWashedOut" />
+            <BoolField label="Disinfection applied (approved disinfectant)" field="disinfectionApplied" />
+            <BoolField label="Disinfectant product logged on spray records" field="disinfectantProductLogged" />
+            <BoolField label="Rodent baiting checked / refreshed" field="rodentBaitingChecked" />
+            <BoolField label="Pest control records up to date" field="pestControlRecordsUpdated" />
+            <BoolField label="Footbaths at entrances replenished" field="footbathsReplenished" />
+            <BoolField label="Entry biosecurity signage in place" field="biosecuritySignageInPlace" />
+            <BoolField label="Downtime period met (minimum requirement)" field="downtimeMet" />
+            <BoolField label="Veterinary sign-off / pre-placement visit completed" field="vetSignOffCompleted" />
+          </div>
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <div><Label>Completed By</Label><Input value={String(form.completedBy ?? "")} onChange={e => setForm(f => ({ ...f, completedBy: e.target.value }))} /></div>
+            <BoolField label="All items completed?" field="allItemsCompleted" />
+            <div className="col-span-2"><Label>Notes / Deficiencies</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function SchemeRecordsTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string | boolean>>({});
+  const { data: records = [], isLoading } = useQuery({ queryKey: ["poultry-schemes", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-scheme-records`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
+  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/poultry-scheme-records/${editing.id}`) : api(`farms/${farmId}/poultry-scheme-records`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["poultry-schemes", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/poultry-scheme-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["poultry-schemes", farmId] }) });
+  const SCHEMES = ["Red Tractor Poultry (Broiler)", "Red Tractor Poultry (Turkey)", "Red Tractor Poultry (Laying Hens)", "Lion Quality", "RSPCA Assured", "Organic (Soil Association)", "Organic (OF&G)", "Free Range", "Higher Welfare", "M&S Select Farms", "Other"];
+  const OUTCOMES = ["Pass", "Conditional Pass", "Fail", "Pending", "Under Review"];
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Assurance Scheme Records</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Log all Red Tractor Poultry, Lion Quality, RSPCA Assured and retailer assurance assessments. Track certificate numbers, assessment dates and non-conformances to maintain compliance status.</p>
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ assessmentYear: String(new Date().getFullYear()), assessmentOutcome: "Pass" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
+        cols={[
+          { key: "schemeName", label: "Scheme" },
+          { key: "certificateNumber", label: "Certificate No." },
+          { key: "assessmentDate", label: "Assessment Date", fmt: r => fmtDate(r.assessmentDate) },
+          { key: "assessorName", label: "Assessor" },
+          { key: "assessmentOutcome", label: "Outcome" },
+          { key: "certificateExpiryDate", label: "Expires", fmt: r => fmtDate(r.certificateExpiryDate) },
+          { key: "nonConformances", label: "Non-conformances" },
+        ]}
+        rows={records as Record<string, unknown>[]}
+        onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
+        onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }}
+      />}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogHeader><DialogTitle>Assurance Scheme Record</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Label>Scheme Name *</Label>
+              <Select value={String(form.schemeName ?? "")} onValueChange={v => setForm(f => ({ ...f, schemeName: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select scheme" /></SelectTrigger>
+                <SelectContent>{SCHEMES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Assessment Date *</Label><Input type="date" value={String(form.assessmentDate ?? "")} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
+            <div><Label>Assessment Year</Label><Input type="number" value={String(form.assessmentYear ?? "")} onChange={e => setForm(f => ({ ...f, assessmentYear: e.target.value }))} /></div>
+            <div><Label>Assessor Name</Label><Input value={String(form.assessorName ?? "")} onChange={e => setForm(f => ({ ...f, assessorName: e.target.value }))} /></div>
+            <div><Label>Outcome</Label>
+              <Select value={String(form.assessmentOutcome ?? "Pass")} onValueChange={v => setForm(f => ({ ...f, assessmentOutcome: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{OUTCOMES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Certificate Number</Label><Input value={String(form.certificateNumber ?? "")} onChange={e => setForm(f => ({ ...f, certificateNumber: e.target.value }))} /></div>
+            <div><Label>Certificate Expiry Date</Label><Input type="date" value={String(form.certificateExpiryDate ?? "")} onChange={e => setForm(f => ({ ...f, certificateExpiryDate: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Non-conformances / Observations</Label><Textarea value={String(form.nonConformances ?? "")} onChange={e => setForm(f => ({ ...f, nonConformances: e.target.value }))} rows={2} /></div>
+            <div className="col-span-2"><Label>Actions Required</Label><Textarea value={String(form.actionsRequired ?? "")} onChange={e => setForm(f => ({ ...f, actionsRequired: e.target.value }))} rows={2} /></div>
+            <div><Label>Actions Completed By Date</Label><Input type="date" value={String(form.actionsCompletedByDate ?? "")} onChange={e => setForm(f => ({ ...f, actionsCompletedByDate: e.target.value }))} /></div>
+            <div><Label>Next Assessment Due</Label><Input type="date" value={String(form.nextAssessmentDate ?? "")} onChange={e => setForm(f => ({ ...f, nextAssessmentDate: e.target.value }))} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+type Tab = "houses" | "flocks" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records";
 
 export default function PoultryProductionPage() {
   const { farmId } = useAppStore();
@@ -444,6 +594,8 @@ export default function PoultryProductionPage() {
           <TabButton active={tab === "fci"} onClick={() => setTab("fci")}><FileText className="w-3.5 h-3.5 mr-1" />FCI Docs</TabButton>
           <TabButton active={tab === "bwi"} onClick={() => setTab("bwi")}><ShieldCheck className="w-3.5 h-3.5 mr-1" />Broiler Welfare</TabButton>
           <TabButton active={tab === "thinning"} onClick={() => setTab("thinning")}><Scissors className="w-3.5 h-3.5 mr-1" />Thinning</TabButton>
+          <TabButton active={tab === "biosecurity"} onClick={() => setTab("biosecurity")}><ClipboardList className="w-3.5 h-3.5 mr-1" />Biosecurity</TabButton>
+          <TabButton active={tab === "scheme-records"} onClick={() => setTab("scheme-records")}><Star className="w-3.5 h-3.5 mr-1" />Scheme Records</TabButton>
         </TabBar>
         <Card><CardContent className="pt-4">
           {tab === "houses" && <HousesTab farmId={farmId} />}
@@ -455,6 +607,8 @@ export default function PoultryProductionPage() {
           {tab === "fci" && <FciTab farmId={farmId} />}
           {tab === "bwi" && <BroilerWelfareTab farmId={farmId} />}
           {tab === "thinning" && <ThinningRecordsTab farmId={farmId} />}
+          {tab === "biosecurity" && <BiosecurityChecklistTab farmId={farmId} />}
+          {tab === "scheme-records" && <SchemeRecordsTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>

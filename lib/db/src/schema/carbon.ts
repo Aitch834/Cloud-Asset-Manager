@@ -72,6 +72,51 @@ export const carbonReductionActionsTable = pgTable("carbon_reduction_actions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const renewableEnergyProductionTable = pgTable("renewable_energy_production", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  productionYear: integer("production_year").notNull(),
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  technologyType: text("technology_type").notNull(),
+  systemName: text("system_name"),
+  installedCapacityKw: numeric("installed_capacity_kw", { precision: 8, scale: 2 }),
+  generationKwh: numeric("generation_kwh", { precision: 10, scale: 2 }).notNull(),
+  selfConsumedKwh: numeric("self_consumed_kwh", { precision: 10, scale: 2 }),
+  exportedKwh: numeric("exported_kwh", { precision: 10, scale: 2 }),
+  exportTariffPencePerKwh: numeric("export_tariff_pence_per_kwh", { precision: 6, scale: 2 }),
+  exportRevenueGbp: numeric("export_revenue_gbp", { precision: 10, scale: 2 }),
+  fitRocReference: text("fit_roc_reference"),
+  co2AvoidedTonnes: numeric("co2_avoided_tonnes", { precision: 8, scale: 3 }),
+  meterReadingStart: numeric("meter_reading_start", { precision: 12, scale: 2 }),
+  meterReadingEnd: numeric("meter_reading_end", { precision: 12, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const biodiversityNetGainTable = pgTable("biodiversity_net_gain", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  assessmentDate: date("assessment_date").notNull(),
+  assessorName: text("assessor_name"),
+  assessmentTool: text("assessment_tool").notNull().default("Defra Metric 4.0"),
+  habitatType: text("habitat_type").notNull(),
+  habitatDescription: text("habitat_description"),
+  areaHa: numeric("area_ha", { precision: 8, scale: 4 }).notNull(),
+  baselineCondition: text("baseline_condition").notNull(),
+  targetCondition: text("target_condition"),
+  baselineUnits: numeric("baseline_units", { precision: 8, scale: 3 }),
+  targetUnits: numeric("target_units", { precision: 8, scale: 3 }),
+  netGainUnits: numeric("net_gain_units", { precision: 8, scale: 3 }),
+  recordType: text("record_type").notNull().default("baseline"),
+  planningReference: text("planning_reference"),
+  managementCommitmentYears: integer("management_commitment_years"),
+  legalAgreementType: text("legal_agreement_type"),
+  status: text("status").notNull().default("active"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const sustainabilityReportsTable = pgTable("sustainability_reports", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

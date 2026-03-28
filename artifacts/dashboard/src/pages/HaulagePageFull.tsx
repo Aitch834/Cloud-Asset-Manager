@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil } from "lucide-react";
+import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, CheckCircle2 } from "lucide-react";
 
 type Tab = "records" | "grain-position" | "directory";
 
@@ -112,6 +112,12 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
+  const confirmMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulage/${id}/confirm-delivery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }),
+    onSuccess: () => { toast({ title: "Delivery confirmed" }); invalidate(); },
+    onError: () => toast({ title: "Failed to confirm delivery", variant: "destructive" }),
+  });
+
   const records: any[] = q.data ?? [];
   const hauliers: any[] = hauliersQ.data ?? [];
 
@@ -168,7 +174,13 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
                   </td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmtCost(r.costPence)}</td>
                   <td style={{ padding: "0.5rem" }}>
-                    <div style={{ display: "flex", gap: 4 }}>
+                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      {!r.deliveryConfirmedAt && r.deliveryStatus !== "cancelled" && (
+                        <button onClick={() => confirmMut.mutate(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#16a34a", padding: 4 }} title="Confirm delivery received"><CheckCircle2 size={14} /></button>
+                      )}
+                      {r.deliveryConfirmedAt && (
+                        <span title={`Confirmed ${new Date(r.deliveryConfirmedAt).toLocaleDateString("en-GB")}${r.deliveryConfirmedBy ? ` by ${r.deliveryConfirmedBy}` : ""}`} style={{ color: "#16a34a", padding: 4, lineHeight: 1, display: "inline-flex" }}><CheckCircle2 size={14} /></span>
+                      )}
                       <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
                       <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                     </div>

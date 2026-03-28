@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, ScrollText, BarChart3, Drill, Droplets, Tractor } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, ScrollText, BarChart3, Drill, Droplets, Tractor, CloudRain, AlertTriangle, FileCheck } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -254,7 +254,172 @@ function IrrigationEquipmentTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "licences" | "readings" | "borehole" | "records" | "equipment";
+function SoilMoistureTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const { data: records = [], isLoading } = useQuery({ queryKey: ["soil-moisture", farmId], queryFn: () => fetch(api(`farms/${farmId}/soil-moisture-readings`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
+  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/soil-moisture-readings/${editing.id}`) : api(`farms/${farmId}/soil-moisture-readings`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["soil-moisture", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/soil-moisture-readings/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["soil-moisture", farmId] }) });
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Soil Moisture Monitoring</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Log soil moisture readings to optimise irrigation scheduling and evidence good water management. Compatible sensor data can be entered manually or imported from Sentek, METER Group (TEROS) or AquaSpy platforms.</p>
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ readingMethod: "manual" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Reading</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "fieldOrBlockDescription", label: "Field / Block" }, { key: "sensorType", label: "Sensor Type" }, { key: "depthCm", label: "Depth (cm)" }, { key: "moisturePercent", label: "Moisture %" }, { key: "soilMoistureDeficitMm", label: "SMD (mm)" }, { key: "readingMethod", label: "Method" }, { key: "recordedBy", label: "Recorded By" }]} rows={records as Record<string, unknown>[]} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }} />}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "40rem" }}>
+          <DialogHeader><DialogTitle>Soil Moisture Reading</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Reading Date *</Label><Input type="date" value={form.readingDate ?? ""} onChange={e => setForm(f => ({ ...f, readingDate: e.target.value }))} /></div>
+            <div><Label>Depth (cm)</Label><Input type="number" value={form.depthCm ?? ""} onChange={e => setForm(f => ({ ...f, depthCm: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Field / Block *</Label><Input value={form.fieldOrBlockDescription ?? ""} onChange={e => setForm(f => ({ ...f, fieldOrBlockDescription: e.target.value }))} /></div>
+            <div><Label>Sensor ID</Label><Input value={form.sensorId ?? ""} onChange={e => setForm(f => ({ ...f, sensorId: e.target.value }))} /></div>
+            <div><Label>Sensor Type</Label>
+              <Select value={form.sensorType ?? ""} onValueChange={v => setForm(f => ({ ...f, sensorType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{["Sentek EnviroScan", "METER TEROS 12", "AquaSpy", "Vegetronix", "Tensiometer", "Capacitance Probe", "Neutron Probe", "Manual / Gravimetric"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Moisture (%)</Label><Input type="number" step="0.1" value={form.moisturePercent ?? ""} onChange={e => setForm(f => ({ ...f, moisturePercent: e.target.value }))} /></div>
+            <div><Label>Soil Moisture Deficit (mm)</Label><Input type="number" step="0.1" value={form.soilMoistureDeficitMm ?? ""} onChange={e => setForm(f => ({ ...f, soilMoistureDeficitMm: e.target.value }))} /></div>
+            <div><Label>Field Capacity (mm)</Label><Input type="number" step="0.1" value={form.fieldCapacityMm ?? ""} onChange={e => setForm(f => ({ ...f, fieldCapacityMm: e.target.value }))} /></div>
+            <div><Label>Wilting Point (mm)</Label><Input type="number" step="0.1" value={form.wiltingPointMm ?? ""} onChange={e => setForm(f => ({ ...f, wiltingPointMm: e.target.value }))} /></div>
+            <div><Label>Reading Method</Label>
+              <Select value={form.readingMethod ?? "manual"} onValueChange={v => setForm(f => ({ ...f, readingMethod: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["manual", "sensor-auto", "sensor-manual-import"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Recorded By</Label><Input value={form.recordedBy ?? ""} onChange={e => setForm(f => ({ ...f, recordedBy: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function DroughtManagementTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string | boolean>>({});
+  const { data: licences = [] } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
+  const { data: records = [], isLoading } = useQuery({ queryKey: ["drought-plans", farmId], queryFn: () => fetch(api(`farms/${farmId}/drought-management-plans`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
+  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/drought-management-plans/${editing.id}`) : api(`farms/${farmId}/drought-management-plans`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["drought-plans", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/drought-management-plans/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["drought-plans", farmId] }) });
+  const STAGES = ["normal", "prolonged dry spell", "drought", "severe drought", "exceptional drought"];
+  const RESTRICTIONS = ["none", "voluntary reduction", "stage 1 restriction", "stage 2 restriction", "temporary use ban", "drought permit needed"];
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Drought Management Plans</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Record drought stages and restriction levels aligned to EA Drought Management Plans. Log actions taken and alternative water sources to demonstrate responsible management.</p>
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ droughtStage: "normal", restrictionLevel: "none", isActive: true }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Plan</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "planYear", label: "Year" }, { key: "planTitle", label: "Plan Title" }, { key: "droughtStage", label: "Drought Stage" }, { key: "restrictionLevel", label: "Restriction Level" }, { key: "isActive", label: "Active", fmt: r => r.isActive ? "Yes" : "No" }, { key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) }]} rows={records as Record<string, unknown>[]} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }} />}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "44rem" }}>
+          <DialogHeader><DialogTitle>Drought Management Plan</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Plan Year *</Label><Input type="number" value={String(form.planYear ?? "")} onChange={e => setForm(f => ({ ...f, planYear: e.target.value }))} /></div>
+            <div><Label>Review Date</Label><Input type="date" value={String(form.reviewDate ?? "")} onChange={e => setForm(f => ({ ...f, reviewDate: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Plan Title *</Label><Input value={String(form.planTitle ?? "")} onChange={e => setForm(f => ({ ...f, planTitle: e.target.value }))} /></div>
+            <div><Label>Drought Stage</Label>
+              <Select value={String(form.droughtStage ?? "normal")} onValueChange={v => setForm(f => ({ ...f, droughtStage: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{STAGES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Restriction Level</Label>
+              <Select value={String(form.restrictionLevel ?? "none")} onValueChange={v => setForm(f => ({ ...f, restrictionLevel: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{RESTRICTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2"><Label>Trigger Conditions</Label><Textarea value={String(form.triggerCondition ?? "")} onChange={e => setForm(f => ({ ...f, triggerCondition: e.target.value }))} rows={2} /></div>
+            <div className="col-span-2"><Label>Actions Taken</Label><Textarea value={String(form.actionsTaken ?? "")} onChange={e => setForm(f => ({ ...f, actionsTaken: e.target.value }))} rows={2} /></div>
+            <div><Label>Linked Licence</Label>
+              <Select value={String(form.licenceId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, licenceId: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select licence" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— None —</SelectItem>{(licences as Record<string, unknown>[]).map(l => <SelectItem key={String(l.id)} value={String(l.id)}>{String(l.licenceNumber)}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>EA Contact Name</Label><Input value={String(form.eaContactName ?? "")} onChange={e => setForm(f => ({ ...f, eaContactName: e.target.value }))} /></div>
+            <div><Label>EA Contact Reference</Label><Input value={String(form.eaContactRef ?? "")} onChange={e => setForm(f => ({ ...f, eaContactRef: e.target.value }))} /></div>
+            <div><Label>Alternative Water Source</Label><Input value={String(form.alternativeSourceDescription ?? "")} onChange={e => setForm(f => ({ ...f, alternativeSourceDescription: e.target.value }))} /></div>
+            <div className="flex items-center gap-2"><Checkbox id="altSrc" checked={Boolean(form.alternativeSourceAvailable)} onCheckedChange={v => setForm(f => ({ ...f, alternativeSourceAvailable: Boolean(v) }))} /><Label htmlFor="altSrc">Alternative source available?</Label></div>
+            <div className="flex items-center gap-2"><Checkbox id="isAct" checked={form.isActive !== "false" && form.isActive !== false} onCheckedChange={v => setForm(f => ({ ...f, isActive: Boolean(v) }))} /><Label htmlFor="isAct">Currently active?</Label></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function CamsReturnsTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string | boolean>>({});
+  const { data: licences = [] } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
+  const { data: records = [], isLoading } = useQuery({ queryKey: ["cams-returns", farmId], queryFn: () => fetch(api(`farms/${farmId}/cams-annual-returns`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
+  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/cams-annual-returns/${editing.id}`) : api(`farms/${farmId}/cams-annual-returns`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["cams-returns", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
+  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/cams-annual-returns/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["cams-returns", farmId] }) });
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">CAMS Annual Returns — EA Abstraction Compliance</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Record annual abstraction returns submitted to the Environment Agency under Catchment Abstraction Management Strategies (CAMS). Annual returns must be submitted by the deadline stated on your licence.</p>
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ submittedToEa: false, complianceStatus: "compliant", returnYear: String(new Date().getFullYear()) }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Return</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "returnYear", label: "Year" }, { key: "licenceId", label: "Licence", fmt: r => { const l = (licences as Record<string, unknown>[]).find(x => String(x.id) === String(r.licenceId)); return l ? String(l.licenceNumber) : fmt(r.licenceId); } }, { key: "totalAbstractedM3", label: "Total (m³)" }, { key: "submittedToEa", label: "Submitted", fmt: r => r.submittedToEa ? "Yes" : "No" }, { key: "submissionDate", label: "Submission Date", fmt: r => fmtDate(r.submissionDate) }, { key: "eaReturnReference", label: "EA Ref" }, { key: "complianceStatus", label: "Compliance" }]} rows={records as Record<string, unknown>[]} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }} />}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogHeader><DialogTitle>CAMS Annual Return</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Return Year *</Label><Input type="number" value={String(form.returnYear ?? "")} onChange={e => setForm(f => ({ ...f, returnYear: e.target.value }))} /></div>
+            <div><Label>Licence *</Label>
+              <Select value={String(form.licenceId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, licenceId: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select licence" /></SelectTrigger>
+                <SelectContent><SelectItem value="__none__">— Select —</SelectItem>{(licences as Record<string, unknown>[]).map(l => <SelectItem key={String(l.id)} value={String(l.id)}>{String(l.licenceNumber)}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Period Start *</Label><Input type="date" value={String(form.returnPeriodStart ?? "")} onChange={e => setForm(f => ({ ...f, returnPeriodStart: e.target.value }))} /></div>
+            <div><Label>Period End *</Label><Input type="date" value={String(form.returnPeriodEnd ?? "")} onChange={e => setForm(f => ({ ...f, returnPeriodEnd: e.target.value }))} /></div>
+            <div><Label>Total Abstracted (m³)</Label><Input type="number" step="1" value={String(form.totalAbstractedM3 ?? "")} onChange={e => setForm(f => ({ ...f, totalAbstractedM3: e.target.value }))} /></div>
+            <div><Label>Compliance Status</Label>
+              <Select value={String(form.complianceStatus ?? "compliant")} onValueChange={v => setForm(f => ({ ...f, complianceStatus: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["compliant", "minor exceedance", "significant exceedance", "enforcement notice"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2 col-span-2 mt-1"><Checkbox id="subEA" checked={Boolean(form.submittedToEa)} onCheckedChange={v => setForm(f => ({ ...f, submittedToEa: Boolean(v) }))} /><Label htmlFor="subEA">Submitted to Environment Agency?</Label></div>
+            <div><Label>Submission Date</Label><Input type="date" value={String(form.submissionDate ?? "")} onChange={e => setForm(f => ({ ...f, submissionDate: e.target.value }))} /></div>
+            <div><Label>EA Return Reference</Label><Input value={String(form.eaReturnReference ?? "")} onChange={e => setForm(f => ({ ...f, eaReturnReference: e.target.value }))} /></div>
+            <div><Label>Submitted By</Label><Input value={String(form.submittedBy ?? "")} onChange={e => setForm(f => ({ ...f, submittedBy: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Exceedance / Non-compliance Notes</Label><Textarea value={String(form.exceedanceNotes ?? "")} onChange={e => setForm(f => ({ ...f, exceedanceNotes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+type Tab = "licences" | "readings" | "borehole" | "records" | "equipment" | "soil-moisture" | "drought" | "cams";
 
 export default function WaterIrrigationPage() {
   const { farmId } = useAppStore();
@@ -269,6 +434,9 @@ export default function WaterIrrigationPage() {
           <TabButton active={tab === "borehole"} onClick={() => setTab("borehole")}><Drill className="w-3.5 h-3.5 mr-1" />Borehole Tests</TabButton>
           <TabButton active={tab === "records"} onClick={() => setTab("records")}><Droplets className="w-3.5 h-3.5 mr-1" />Applications</TabButton>
           <TabButton active={tab === "equipment"} onClick={() => setTab("equipment")}><Tractor className="w-3.5 h-3.5 mr-1" />Equipment</TabButton>
+          <TabButton active={tab === "soil-moisture"} onClick={() => setTab("soil-moisture")}><CloudRain className="w-3.5 h-3.5 mr-1" />Soil Moisture</TabButton>
+          <TabButton active={tab === "drought"} onClick={() => setTab("drought")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Drought Plans</TabButton>
+          <TabButton active={tab === "cams"} onClick={() => setTab("cams")}><FileCheck className="w-3.5 h-3.5 mr-1" />CAMS Returns</TabButton>
         </TabBar>
         <Card><CardContent className="pt-4">
           {tab === "licences" && <LicencesTab farmId={farmId} />}
@@ -276,6 +444,9 @@ export default function WaterIrrigationPage() {
           {tab === "borehole" && <BoreholeTestsTab farmId={farmId} />}
           {tab === "records" && <IrrigationRecordsTab farmId={farmId} />}
           {tab === "equipment" && <IrrigationEquipmentTab farmId={farmId} />}
+          {tab === "soil-moisture" && <SoilMoistureTab farmId={farmId} />}
+          {tab === "drought" && <DroughtManagementTab farmId={farmId} />}
+          {tab === "cams" && <CamsReturnsTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>
