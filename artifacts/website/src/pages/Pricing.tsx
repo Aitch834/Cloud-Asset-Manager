@@ -17,7 +17,7 @@ const MODULES = [
   { id: "livestock-management", name: "Livestock Management", price: 30 },
   { id: "biosecurity", name: "Biosecurity & Visitors", price: 10 },
   { id: "staff-training", name: "Staff & Training", price: 10 },
-  { id: "risk-waste", name: "Risk & Waste Management", price: 10 },
+  { id: "risk-waste", name: "Health, Safety & Risk Management", price: 10 },
   { id: "inspections", name: "Inspections & Audits", price: 15 },
   { id: "environmental", name: "Environmental Management", price: 10 },
   { id: "haulage-transport", name: "Transport & Haulage", price: 10 },

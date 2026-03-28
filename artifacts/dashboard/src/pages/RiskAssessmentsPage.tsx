@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { FarmLocationSelect } from "@/components/ui/FarmLocationSelect";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -9,12 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown } from "lucide-react";
+import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown, Flame, Loader2, Paperclip, File as FileIcon } from "lucide-react";
 
-type Tab = "risk" | "coshh";
+type Tab = "risk" | "coshh" | "pat" | "fire";
 type RiskLevel = "low" | "medium" | "high" | "critical";
 type Status = "active" | "under-review" | "archived";
 
@@ -661,6 +662,367 @@ function CoshhTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Shared helpers ────────────────────────────────────────────────────────────
+
+function cn(...classes: (string | undefined | false | null)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function StatusBadge({ value, map }: { value: string; map: Record<string, { label: string; colour: string }> }) {
+  const entry = map[value] ?? { label: value, colour: "bg-gray-100 text-gray-600" };
+  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${entry.colour}`}>{entry.label}</span>;
+}
+
+function DocCell({ endpoint, queryKey, documentPath, documentName }: {
+  endpoint: string;
+  queryKey: unknown[];
+  documentPath: string | null;
+  documentName: string | null;
+}) {
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      const urlRes = await fetch("/api/storage/uploads/request-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream" }) });
+      const { uploadURL, objectPath } = await urlRes.json();
+      await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
+      const fileName = objectPath.split("/").pop() ?? file.name;
+      await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ documentPath: objectPath, documentName: fileName }) });
+      qc.invalidateQueries({ queryKey });
+    } finally { setUploading(false); }
+  }
+
+  async function handleRemove() {
+    await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ documentPath: null, documentName: null }) });
+    qc.invalidateQueries({ queryKey });
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      {documentPath ? (
+        <>
+          <a href={`/api/storage${documentPath}`} target="_blank" rel="noopener noreferrer" title={documentName || "View document"} className="flex items-center text-blue-600 p-1"><FileIcon className="h-3.5 w-3.5" /></a>
+          <button onClick={handleRemove} title="Remove document" className="text-gray-300 hover:text-gray-500 p-1 leading-none" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem" }}>×</button>
+        </>
+      ) : (
+        <>
+          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" /> : <button onClick={() => fileRef.current?.click()} title="Attach certificate copy" className="text-gray-300 hover:text-gray-500 p-1" style={{ background: "none", border: "none", cursor: "pointer" }}><Paperclip className="h-3.5 w-3.5" /></button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── PAT Testing tab ───────────────────────────────────────────────────────────
+
+interface PatTest {
+  id: number; farmId: number; itemName: string; location: string | null; testDate: string;
+  testerName: string | null; testerCompany: string | null; certificateNumber: string | null;
+  result: string; nextDueDate: string | null; notes: string | null;
+  documentPath: string | null; documentName: string | null; createdAt: string;
+}
+
+const PAT_RESULT: Record<string, { label: string; colour: string }> = {
+  pass:     { label: "Pass",     colour: "bg-green-100 text-green-700" },
+  fail:     { label: "Fail",     colour: "bg-red-100 text-red-700" },
+  advisory: { label: "Advisory", colour: "bg-amber-100 text-amber-700" },
+};
+
+const EMPTY_PAT = { itemName: "", location: "", testDate: "", testerName: "", testerCompany: "", certificateNumber: "", result: "pass", nextDueDate: "", notes: "" };
+
+function PatTestingTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<PatTest | null>(null);
+  const [form, setForm] = useState(EMPTY_PAT);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery<{ records: PatTest[] }>({
+    queryKey: ["pat-tests", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/workshop/pat-tests`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/pat-tests`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-tests", farmId] }); setShowForm(false); setForm(EMPTY_PAT); },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/pat-tests/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-tests", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_PAT); },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/workshop/pat-tests/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-tests", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(r: PatTest) {
+    setEditing(r);
+    setForm({ itemName: r.itemName, location: r.location ?? "", testDate: r.testDate ? r.testDate.slice(0, 10) : "", testerName: r.testerName ?? "", testerCompany: r.testerCompany ?? "", certificateNumber: r.certificateNumber ?? "", result: r.result, nextDueDate: r.nextDueDate ? r.nextDueDate.slice(0, 10) : "", notes: r.notes ?? "" });
+    setShowForm(true);
+  }
+
+  const today = new Date();
+  const records = data?.records ?? [];
+  const overdue = records.filter(r => r.nextDueDate && new Date(r.nextDueDate) < today).length;
+
+  if (isLoading) return <div className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500">Track Portable Appliance Testing for all electrical equipment on the holding. Required under the Electricity at Work Regulations 1989 and Health & Safety at Work Act 1974.</p>
+          {overdue > 0 && <p className="text-xs text-red-600 font-medium mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {overdue} item{overdue !== 1 ? "s" : ""} overdue for testing</p>}
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_PAT); setShowForm(true); }} className="gap-1"><Plus className="h-4 w-4" />Log PAT Test</Button>
+      </div>
+
+      {records.length === 0 ? (
+        <Card><CardContent className="py-10 text-center text-gray-400 text-sm">No PAT test records yet. Log the first test to start tracking compliance.</CardContent></Card>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border bg-white">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 border-b text-xs uppercase tracking-wide text-gray-500">
+              <tr>{["Item / Appliance", "Location", "Test Date", "Tester", "Cert No.", "Result", "Next Due", "Cert Doc", ""].map(h => <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map(r => {
+                const due = r.nextDueDate ? new Date(r.nextDueDate) : null;
+                const isOverdue = due && due < today;
+                return (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium">{r.itemName}</td>
+                    <td className="px-4 py-3 text-gray-500">{r.location || "—"}</td>
+                    <td className="px-4 py-3 text-gray-500">{r.testDate ? new Date(r.testDate).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="px-4 py-3 text-gray-500">{[r.testerName, r.testerCompany].filter(Boolean).join(", ") || "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.certificateNumber || "—"}</td>
+                    <td className="px-4 py-3"><StatusBadge value={r.result} map={PAT_RESULT} /></td>
+                    <td className="px-4 py-3">
+                      {due ? <span className={cn("text-xs font-medium", isOverdue ? "text-red-600" : "text-gray-500")}>{isOverdue && <AlertTriangle className="h-3 w-3 inline mr-1" />}{due.toLocaleDateString("en-GB")}</span> : "—"}
+                    </td>
+                    <td className="px-2 py-3"><DocCell endpoint={`/api/farms/${farmId}/workshop/pat-tests/${r.id}`} queryKey={["pat-tests", farmId]} documentPath={r.documentPath ?? null} documentName={r.documentName ?? null} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent style={{ maxWidth: "40rem" }} aria-describedby={undefined}>
+            <DialogHeader><DialogTitle>{editing ? "Edit PAT Test" : "Log PAT Test"}</DialogTitle></DialogHeader>
+            <form onSubmit={e => { e.preventDefault(); editing ? updateMut.mutate(form) : createMut.mutate(form); }} className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2"><Label>Item / Appliance Name *</Label><Input required value={form.itemName} onChange={e => setForm(f => ({ ...f, itemName: e.target.value }))} placeholder="e.g. Angle Grinder, Extension Lead, Welder" /></div>
+                <div><Label>Location</Label><Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop, Store room" /></div>
+                <div>
+                  <Label>Result</Label>
+                  <Select value={form.result} onValueChange={v => setForm(f => ({ ...f, result: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="pass">Pass</SelectItem><SelectItem value="fail">Fail</SelectItem><SelectItem value="advisory">Advisory</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Test Date</Label><Input type="date" value={form.testDate} onChange={e => setForm(f => ({ ...f, testDate: e.target.value }))} /></div>
+                <div><Label>Next Test Due</Label><Input type="date" value={form.nextDueDate} onChange={e => setForm(f => ({ ...f, nextDueDate: e.target.value }))} /></div>
+                <div><Label>Tester Name</Label><Input value={form.testerName} onChange={e => setForm(f => ({ ...f, testerName: e.target.value }))} /></div>
+                <div><Label>Tester Company</Label><Input value={form.testerCompany} onChange={e => setForm(f => ({ ...f, testerCompany: e.target.value }))} /></div>
+                <div className="col-span-2"><Label>Certificate Number</Label><Input value={form.certificateNumber} onChange={e => setForm(f => ({ ...f, certificateNumber: e.target.value }))} className="font-mono" /></div>
+                <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? "Save" : "Add Record"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Delete PAT Record?</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-500">This will permanently remove the PAT test record. This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Fire Safety tab ───────────────────────────────────────────────────────────
+
+interface FireExtinguisher {
+  id: number; farmId: number; location: string; type: string;
+  capacityKg: string | null; serialNumber: string | null;
+  lastServiceDate: string | null; engineerName: string | null;
+  engineerCompany: string | null; nextServiceDue: string | null; notes: string | null; createdAt: string;
+}
+
+const FIRE_TYPES: { value: string; label: string }[] = [
+  { value: "co2",          label: "CO₂ (Red/Black) — electrical fires" },
+  { value: "dry_powder",   label: "Dry Powder (Red/Blue) — general purpose" },
+  { value: "water",        label: "Water (Red) — paper/wood fires" },
+  { value: "foam",         label: "Foam (Red/Cream) — liquid fires" },
+  { value: "wet_chemical", label: "Wet Chemical (Red/Yellow) — cooking oils" },
+];
+
+const FIRE_TYPE_LABEL: Record<string, string> = { co2: "CO₂", dry_powder: "Dry Powder", water: "Water", foam: "Foam", wet_chemical: "Wet Chemical" };
+const EMPTY_FIRE = { location: "", type: "co2", capacityKg: "", serialNumber: "", lastServiceDate: "", engineerName: "", engineerCompany: "", nextServiceDue: "", notes: "" };
+
+function FireSafetyTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<FireExtinguisher | null>(null);
+  const [form, setForm] = useState(EMPTY_FIRE);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery<{ records: FireExtinguisher[] }>({
+    queryKey: ["fire-extinguishers", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setShowForm(false); setForm(EMPTY_FIRE); },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_FIRE); },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setDeleteId(null); },
+  });
+
+  function openEdit(r: FireExtinguisher) {
+    setEditing(r);
+    setForm({ location: r.location, type: r.type, capacityKg: r.capacityKg ?? "", serialNumber: r.serialNumber ?? "", lastServiceDate: r.lastServiceDate ? r.lastServiceDate.slice(0, 10) : "", engineerName: r.engineerName ?? "", engineerCompany: r.engineerCompany ?? "", nextServiceDue: r.nextServiceDue ? r.nextServiceDue.slice(0, 10) : "", notes: r.notes ?? "" });
+    setShowForm(true);
+  }
+
+  const today = new Date();
+  const records = data?.records ?? [];
+  const overdue = records.filter(r => r.nextServiceDue && new Date(r.nextServiceDue) < today).length;
+  const dueSoon = records.filter(r => { if (!r.nextServiceDue) return false; const d = new Date(r.nextServiceDue); const diff = Math.ceil((d.getTime() - today.getTime()) / 86400000); return diff >= 0 && diff <= 60; }).length;
+
+  if (isLoading) return <div className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500">Register all fire extinguishers on the holding. Required under the Regulatory Reform (Fire Safety) Order 2005. Extinguishers must be serviced annually by a competent person.</p>
+          {overdue > 0 && <p className="text-xs text-red-600 font-medium mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {overdue} extinguisher{overdue !== 1 ? "s" : ""} overdue for service</p>}
+          {overdue === 0 && dueSoon > 0 && <p className="text-xs text-amber-600 font-medium mt-1 flex items-center gap-1"><Clock className="h-3 w-3" /> {dueSoon} extinguisher{dueSoon !== 1 ? "s" : ""} due for service within 60 days</p>}
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_FIRE); setShowForm(true); }} className="gap-1"><Plus className="h-4 w-4" />Add Extinguisher</Button>
+      </div>
+
+      {records.length === 0 ? (
+        <Card><CardContent className="py-10 text-center text-gray-400 text-sm">No extinguishers registered yet. Add each extinguisher on the holding to track annual service dates.</CardContent></Card>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border bg-white">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 border-b text-xs uppercase tracking-wide text-gray-500">
+              <tr>{["Location", "Type", "Capacity", "Serial No.", "Last Service", "Engineer", "Next Service Due", ""].map(h => <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y">
+              {records.map(r => {
+                const due = r.nextServiceDue ? new Date(r.nextServiceDue) : null;
+                const isOverdue = due && due < today;
+                const diff = due ? Math.ceil((due.getTime() - today.getTime()) / 86400000) : null;
+                const isSoon = diff !== null && diff >= 0 && diff <= 60;
+                return (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium">{r.location}</td>
+                    <td className="px-4 py-3">{FIRE_TYPE_LABEL[r.type] ?? r.type}</td>
+                    <td className="px-4 py-3 text-gray-500">{r.capacityKg ? `${r.capacityKg} kg` : "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.serialNumber || "—"}</td>
+                    <td className="px-4 py-3 text-gray-500">{r.lastServiceDate ? new Date(r.lastServiceDate).toLocaleDateString("en-GB") : "—"}</td>
+                    <td className="px-4 py-3 text-gray-500">{[r.engineerName, r.engineerCompany].filter(Boolean).join(", ") || "—"}</td>
+                    <td className="px-4 py-3">
+                      {due ? <span className={cn("text-xs font-medium", isOverdue ? "text-red-600" : isSoon ? "text-amber-600" : "text-gray-500")}>{(isOverdue || isSoon) && <AlertTriangle className="h-3 w-3 inline mr-1" />}{due.toLocaleDateString("en-GB")}</span> : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && (
+        <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
+          <DialogContent style={{ maxWidth: "40rem" }} aria-describedby={undefined}>
+            <DialogHeader><DialogTitle>{editing ? "Edit Extinguisher" : "Add Fire Extinguisher"}</DialogTitle></DialogHeader>
+            <form onSubmit={e => { e.preventDefault(); editing ? updateMut.mutate(form) : createMut.mutate(form); }} className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2"><Label>Location *</Label><Input required value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop entrance, Grain store" /></div>
+                <div className="col-span-2">
+                  <Label>Extinguisher Type</Label>
+                  <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{FIRE_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Capacity (kg)</Label><Input value={form.capacityKg} onChange={e => setForm(f => ({ ...f, capacityKg: e.target.value }))} placeholder="e.g. 6" /></div>
+                <div><Label>Serial Number</Label><Input value={form.serialNumber} onChange={e => setForm(f => ({ ...f, serialNumber: e.target.value }))} className="font-mono" /></div>
+                <div><Label>Last Service Date</Label><Input type="date" value={form.lastServiceDate} onChange={e => setForm(f => ({ ...f, lastServiceDate: e.target.value }))} /></div>
+                <div><Label>Next Service Due</Label><Input type="date" value={form.nextServiceDue} onChange={e => setForm(f => ({ ...f, nextServiceDue: e.target.value }))} /></div>
+                <div><Label>Engineer Name</Label><Input value={form.engineerName} onChange={e => setForm(f => ({ ...f, engineerName: e.target.value }))} /></div>
+                <div><Label>Engineer Company</Label><Input value={form.engineerCompany} onChange={e => setForm(f => ({ ...f, engineerCompany: e.target.value }))} /></div>
+                <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>{editing ? "Save" : "Add Extinguisher"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Remove Extinguisher?</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-500">This will permanently remove this extinguisher record. This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Page shell ────────────────────────────────────────────────────────────────
+
 export default function RiskAssessmentsPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("risk");
@@ -673,16 +1035,20 @@ export default function RiskAssessmentsPage() {
             <ShieldAlert className="w-5 h-5 text-red-700" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">Risk & COSHH</h1>
-            <p className="text-sm text-gray-500">Health, safety & hazard risk records, and COSHH substance assessments for Red Tractor compliance</p>
+            <h1 className="text-xl font-semibold text-gray-900">Health, Safety & Risk</h1>
+            <p className="text-sm text-gray-500">Risk assessments, COSHH records, PAT testing, and fire safety — covering your legal obligations under UK health & safety law and Red Tractor requirements</p>
           </div>
         </div>
         <TabBar className="mb-2">
-          <TabButton active={tab === "risk"} onClick={() => setTab("risk")}>Risk Assessments</TabButton>
-          <TabButton active={tab === "coshh"} onClick={() => setTab("coshh")}>COSHH Records</TabButton>
+          <TabButton active={tab === "risk"} onClick={() => setTab("risk")}><ShieldAlert className="h-3.5 w-3.5 mr-1 inline-block" />Risk Assessments</TabButton>
+          <TabButton active={tab === "coshh"} onClick={() => setTab("coshh")}><FlaskConical className="h-3.5 w-3.5 mr-1 inline-block" />COSHH Records</TabButton>
+          <TabButton active={tab === "pat"} onClick={() => setTab("pat")}><Zap className="h-3.5 w-3.5 mr-1 inline-block" />PAT Testing</TabButton>
+          <TabButton active={tab === "fire"} onClick={() => setTab("fire")}><Flame className="h-3.5 w-3.5 mr-1 inline-block" />Fire Safety</TabButton>
         </TabBar>
         {farmId && tab === "risk" && <RiskAssessmentTab farmId={farmId} />}
         {farmId && tab === "coshh" && <CoshhTab farmId={farmId} />}
+        {farmId && tab === "pat" && <PatTestingTab farmId={farmId} />}
+        {farmId && tab === "fire" && <FireSafetyTab farmId={farmId} />}
       </div>
     </AppLayout>
   );

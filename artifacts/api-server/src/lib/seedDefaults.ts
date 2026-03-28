@@ -18,7 +18,7 @@ const MODULES = [
   { key: "livestock-management", name: "Livestock Management", description: "Herd/flock register, movements, medicines, feed, water quality testing with lab certificate storage, mortality and vet health plans", monthlyPricePence: 3000 },
   { key: "biosecurity", name: "Biosecurity & Visitors", description: "Visitor log, pest control, cleaning and disinfection records", monthlyPricePence: 1000 },
   { key: "staff-training", name: "Staff & Training", description: "Training records, certificates, competency tracking", monthlyPricePence: 1000 },
-  { key: "risk-waste", name: "Risk & Waste Management", description: "Risk assessments, COSHH, waste disposal records", monthlyPricePence: 1000 },
+  { key: "risk-waste", name: "Health, Safety & Risk Management", description: "Risk assessments, COSHH records, PAT testing, fire extinguisher register, accident book, waste disposal, fly-tipping and encampment records", monthlyPricePence: 1000 },
   { key: "inspections", name: "Inspections & Audits", description: "Inspection records, non-conformances, corrective actions", monthlyPricePence: 1500 },
   { key: "environmental", name: "Environmental Features", description: "Environmental features mapping, agri-environment scheme records", monthlyPricePence: 1000 },
   { key: "haulage-transport", name: "Transport & Haulage", description: "Haulage records, load tracking", monthlyPricePence: 1000 },

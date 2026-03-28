@@ -4858,22 +4858,24 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       id: 42,
       title: "Workshop & Asset Management — Overview",
       category: "Workshop",
-      summary: "How to use the Workshop module to manage job cards, service schedules, and QR code labels for your farm equipment.",
+      summary: "How to use the Workshop module to manage job cards, service schedules, parts store, and QR code labels for your farm equipment.",
       content: `<img src="/api/help-images/field-register.png" alt="Workshop Overview" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
 <p>The <strong>Workshop &amp; Asset Management</strong> module gives farm managers a complete maintenance control centre for all machinery, vehicles, and fixed assets. It is designed around the reality of modern farm workshops — reactive repairs, planned servicing, and the need to prove to Red Tractor assessors that equipment is kept in safe working order.</p>
 
-<h3>The Eight Workshop Tabs</h3>
+<h3>The Five Workshop Tabs</h3>
 <ul>
-<li><strong>Assets & QR Codes</strong> — Register every piece of equipment with a unique <strong>EQ-XXXX</strong> code. Generate and print a scannable QR label for instant mobile access from the field or workshop.</li>
+<li><strong>Assets &amp; QR Codes</strong> — Register every piece of equipment with a unique <strong>EQ-XXXX</strong> code. Generate and print a scannable QR label for instant mobile access from the field or workshop.</li>
 <li><strong>Job Cards</strong> — Raise a job card for any repair, scheduled service, inspection, or investigation. Set the priority (Low, Medium, High, Critical) and track progress through Open → In Progress → Awaiting Parts → Completed. Record labour time, parts used, root cause analysis, and total cost per job.</li>
 <li><strong>Service Schedule</strong> — Log every maintenance event against an asset and set the next-due date. The system automatically flags assets as <em>Overdue</em> (red), <em>Due Soon</em> (amber), or <em>OK</em> (green) based on today's date.</li>
 <li><strong>Fleet Overview</strong> — A live summary of every registered asset: status (Operational, Broken Down, In Service, Retired, Sold), hours or odometer reading, and current location. Assets with overdue maintenance are highlighted automatically.</li>
-<li><strong>PAT Testing</strong> — Log annual portable appliance tests for all workshop electrical equipment. Records the tester, certificate number, pass / fail / advisory result, and next test due date, with automatic overdue alerts.</li>
-<li><strong>Fire Safety</strong> — Register all fire extinguishers on the holding. Track type, capacity, serial number, engineer details, and annual service dates. The system warns you when a service is overdue or due within 60 days.</li>
-<li><strong>Risk Assessments</strong> — Document and maintain workshop-specific risk assessments for welding, grinding, lifting, compressed air use, and other significant hazards, with control measures and review date tracking.</li>
-<li><strong>COSHH</strong> — Record COSHH assessments for every hazardous substance used or stored in the workshop — oils, fuels, solvents, welding gases, and more — including PPE requirements and emergency procedures.</li>
+<li><strong>Parts Store</strong> — A catalogue of workshop parts and consumables with stock levels, unit cost, and low-stock warnings. Receive deliveries and issue stock directly to job cards, with a full movement history for traceability.</li>
 </ul>
+
+<p><strong>Note:</strong> PAT Testing, Fire Safety, Risk Assessments, and COSHH records have moved to the <strong>Health, Safety &amp; Risk</strong> section in the left-hand sidebar. This better reflects that these are farm-wide legal requirements, not just workshop obligations.</p>
+
+<h3>Parts Store and the Stock &amp; Suppliers Module</h3>
+<p>The Parts Store works as a standalone feature — you can receive stock, issue it to jobs, and track movements without any other modules. However, if your subscription also includes the <strong>Stock &amp; Suppliers</strong> module, you gain the ability to link parts deliveries to supplier records and route purchase orders through the full goods-received workflow. Without Stock &amp; Suppliers, the supplier dropdown in the Receive Stock dialog will show <em>None</em> as the only option, and deliveries are recorded without a supplier link.</p>
 
 <h3>Raising a Job Card</h3>
 <p>Go to <strong>Workshop</strong> in the left-hand sidebar and click the <strong>Job Cards</strong> tab. Select <strong>Raise Job Card</strong>. Choose the asset, the job type (Repair, Scheduled Service, Inspection, Commissioning, Investigation, or Modification), and set the priority. Add a description of the fault or work required. Assign to a person if relevant. Save — the card status is set to <strong>Open</strong> automatically.</p>
@@ -4985,18 +4987,18 @@ BDE Farm Trac includes a secure external access system that lets you share read-
     {
       id: 45,
       title: "PAT Testing & Fire Extinguisher Records",
-      category: "Workshop",
-      summary: "How to use the PAT Testing and Fire Safety tabs to meet Red Tractor electrical safety and fire safety requirements.",
+      category: "Health, Safety & Risk",
+      summary: "How to use the PAT Testing and Fire Safety tabs in the Health, Safety & Risk module to meet your legal electrical safety and fire safety obligations.",
       content: `<img src="/api/help-images/field-register.png" alt="PAT Testing and Fire Safety" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
-<p>Two of Red Tractor's workshop health and safety requirements are often overlooked until an inspection: <strong>portable appliance testing (PAT)</strong> for electrical equipment, and annual <strong>fire extinguisher servicing</strong>. BDE Farm Trac gives each its own dedicated tab within the Workshop module so that evidence is immediately at hand when an assessor asks for it.</p>
+<p>Two of your legal health and safety requirements as an employer — regardless of whether you have a workshop — are <strong>portable appliance testing (PAT)</strong> for electrical equipment and annual <strong>fire extinguisher servicing</strong>. BDE Farm Trac gives each its own dedicated tab within the <strong>Health, Safety &amp; Risk</strong> module so that evidence is immediately at hand when a Red Tractor assessor asks for it.</p>
 
 <h3>PAT Testing</h3>
 <p>Portable appliances — angle grinders, extension leads, welders, power drills, inspection lights — must be tested by a competent person at appropriate intervals. The frequency depends on the environment and level of use; in a working farm workshop, annual testing is standard best practice. Records must show the item tested, the result, and the name of the tester.</p>
 
 <h4>Adding a PAT Test Record</h4>
 <ol>
-<li>Go to <strong>Workshop</strong> and click the <strong>PAT Testing</strong> tab.</li>
+<li>Go to <strong>Health, Safety &amp; Risk</strong> in the sidebar and click the <strong>PAT Testing</strong> tab.</li>
 <li>Click <strong>Log PAT Test</strong>.</li>
 <li>Enter the item or appliance name (e.g. "Angle Grinder — Makita 9558HN"), the location in the workshop, and the test date.</li>
 <li>Set the result: <em>Pass</em>, <em>Fail</em>, or <em>Advisory</em>. A <em>Fail</em> means the appliance must be taken out of service immediately. An <em>Advisory</em> means it can continue in use but remedial action is recommended.</li>
@@ -5021,7 +5023,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h4>Adding an Extinguisher Record</h4>
 <ol>
-<li>Click the <strong>Fire Safety</strong> tab and select <strong>Add Extinguisher</strong>.</li>
+<li>In <strong>Health, Safety &amp; Risk</strong>, click the <strong>Fire Safety</strong> tab and select <strong>Add Extinguisher</strong>.</li>
 <li>Enter the location (e.g. "Main workshop entrance — left of roller door"), the type, and the capacity in kg.</li>
 <li>Record the serial number from the extinguisher label, the last service date, and the engineer and company who carried out the service.</li>
 <li>Set the <em>Next Service Due</em> date. The system will warn you 60 days in advance and mark it as overdue if the date passes without an update.</li>
@@ -8032,11 +8034,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   }
   for (const r of patTestRows) {
     if (!r.nextDueDate) continue;
-    tasks.push({ id: `pat-${r.id}`, type: "pat_test_due", title: `PAT Test Due — ${r.itemName}`, description: `Portable appliance test is due for '${r.itemName}'${r.location ? ` at ${r.location}` : ""}. Arrange testing via Workshop.`, dueDate: toISO(r.nextDueDate)!, module: "Workshop", href: "/equipment", colour: "orange" });
+    tasks.push({ id: `pat-${r.id}`, type: "pat_test_due", title: `PAT Test Due — ${r.itemName}`, description: `Portable appliance test is due for '${r.itemName}'${r.location ? ` at ${r.location}` : ""}. Log the result in Health, Safety & Risk → PAT Testing.`, dueDate: toISO(r.nextDueDate)!, module: "Health & Safety", href: "/risks", colour: "orange" });
   }
   for (const r of fireExtRows) {
     if (!r.nextServiceDue) continue;
-    tasks.push({ id: `fireext-${r.id}`, type: "fire_extinguisher_service", title: `Fire Extinguisher Service Due — ${r.location}`, description: `${r.type} extinguisher at ${r.location} is due for its annual service. Book a qualified engineer via Workshop.`, dueDate: toISO(r.nextServiceDue)!, module: "Workshop", href: "/equipment", colour: "orange" });
+    tasks.push({ id: `fireext-${r.id}`, type: "fire_extinguisher_service", title: `Fire Extinguisher Service Due — ${r.location}`, description: `${r.type} extinguisher at ${r.location} is due for its annual service. Book a qualified engineer and update the record in Health, Safety & Risk → Fire Safety.`, dueDate: toISO(r.nextServiceDue)!, module: "Health & Safety", href: "/risks", colour: "orange" });
   }
   for (const r of workshopJobRows) {
     if (!r.estimatedCompletionDate || r.status === "completed" || r.status === "closed") continue;
@@ -8430,21 +8432,21 @@ router.get("/farms/:farmId/workshop/schedule", requireAuth, requireTenant, requi
 });
 
 // ─── Workshop PAT Testing ──────────────────────────────────────────────────────
-router.get("/farms/:farmId/workshop/pat-tests", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/workshop/pat-tests", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(workshopPatTestsTable).where(eq(workshopPatTestsTable.farmId, farmId)).orderBy(desc(workshopPatTestsTable.testDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/workshop/pat-tests", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/workshop/pat-tests", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(workshopPatTestsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/workshop/pat-tests/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/workshop/pat-tests/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const id = parseInt(req.params.id);
@@ -8453,7 +8455,7 @@ router.put("/farms/:farmId/workshop/pat-tests/:id", requireAuth, requireTenant, 
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/workshop/pat-tests/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/workshop/pat-tests/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const id = parseInt(req.params.id);
@@ -8463,21 +8465,21 @@ router.delete("/farms/:farmId/workshop/pat-tests/:id", requireAuth, requireTenan
 });
 
 // ─── Workshop Fire Extinguishers ───────────────────────────────────────────────
-router.get("/farms/:farmId/workshop/fire-extinguishers", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/workshop/fire-extinguishers", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(workshopFireExtinguishersTable).where(eq(workshopFireExtinguishersTable.farmId, farmId)).orderBy(workshopFireExtinguishersTable.nextServiceDue);
   res.json({ records });
 });
 
-router.post("/farms/:farmId/workshop/fire-extinguishers", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/workshop/fire-extinguishers", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(workshopFireExtinguishersTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
 
-router.put("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const id = parseInt(req.params.id);
@@ -8486,7 +8488,7 @@ router.put("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, requir
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const id = parseInt(req.params.id);

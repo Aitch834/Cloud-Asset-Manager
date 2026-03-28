@@ -36,7 +36,7 @@ const AVAILABLE_MODULES = [
   { id: "livestock-management", label: "Livestock Management" },
   { id: "biosecurity", label: "Biosecurity & Visitors" },
   { id: "staff-training", label: "Staff & Training" },
-  { id: "risk-waste", label: "Risk & Waste Management" },
+  { id: "risk-waste", label: "Health, Safety & Risk Management" },
   { id: "inspections", label: "Inspections & Audits" },
   { id: "environmental", label: "Environmental Management" },
   { id: "haulage-transport", label: "Transport & Haulage" },
