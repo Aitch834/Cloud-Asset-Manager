@@ -3643,6 +3643,45 @@ router.post("/farms/:farmId/stock-movements", requireAuth, requireTenant, requir
       } else {
         await db.insert(stockLevelsTable).values({ farmId, stockItemId: record.stockItemId, currentQuantity: String(qtyChange) });
       }
+      // Auto-draft PO: trigger when stock decreases and drops to/below reorder level
+      if (qtyChange < 0) {
+        const newLevel = existing ? parseFloat(existing.currentQuantity) + qtyChange : qtyChange;
+        const [stockItem] = await db.select().from(stockItemsTable).where(eq(stockItemsTable.id, record.stockItemId)).limit(1);
+        if (stockItem?.reorderLevel && newLevel <= parseFloat(stockItem.reorderLevel)) {
+          const [existingPOLine] = await db.select({ id: purchaseOrderLinesTable.id })
+            .from(purchaseOrderLinesTable)
+            .innerJoin(purchaseOrdersTable, eq(purchaseOrderLinesTable.poId, purchaseOrdersTable.id))
+            .where(and(
+              eq(purchaseOrdersTable.farmId, farmId),
+              eq(purchaseOrderLinesTable.stockItemId, record.stockItemId),
+              inArray(purchaseOrdersTable.status, ["draft", "submitted"])
+            ))
+            .limit(1);
+          if (!existingPOLine) {
+            const year = new Date().getFullYear();
+            const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(purchaseOrdersTable).where(eq(purchaseOrdersTable.farmId, farmId));
+            const seq = String((Number(countRow?.count ?? 0) + 1)).padStart(4, "0");
+            const reorderQty = parseFloat(stockItem.reorderLevel);
+            const suggestedQty = Math.max(reorderQty * 2 - newLevel, reorderQty);
+            const [autoPo] = await db.insert(purchaseOrdersTable).values({
+              farmId,
+              poNumber: `AUTO-${year}-${seq}`,
+              orderDate: new Date(),
+              status: "draft",
+              supplierId: stockItem.defaultSupplierId ?? null,
+              notes: `Auto-generated: ${stockItem.name} dropped below reorder level (${newLevel.toFixed(2)} ${stockItem.unit ?? "units"} in stock, reorder at ${stockItem.reorderLevel} ${stockItem.unit ?? "units"}).`,
+            }).returning();
+            if (autoPo) {
+              await db.insert(purchaseOrderLinesTable).values({
+                poId: autoPo.id,
+                stockItemId: record.stockItemId,
+                quantityOrdered: String(suggestedQty.toFixed(2)),
+                notes: "Auto-suggested quantity to return to 2× reorder level",
+              });
+            }
+          }
+        }
+      }
     }
   }
   res.status(201).json({ record });
@@ -3659,10 +3698,13 @@ router.get("/farms/:farmId/stock-levels", requireAuth, requireTenant, requireMod
     stockItemCategory: stockItemsTable.category,
     stockItemUnit: stockItemsTable.unit,
     stockItemReorderLevel: stockItemsTable.reorderLevel,
+    defaultSupplierId: stockItemsTable.defaultSupplierId,
+    defaultSupplierName: suppliersTable.name,
     currentQuantity: stockLevelsTable.currentQuantity,
     lastUpdated: stockLevelsTable.lastUpdated,
   }).from(stockLevelsTable)
     .leftJoin(stockItemsTable, eq(stockLevelsTable.stockItemId, stockItemsTable.id))
+    .leftJoin(suppliersTable, eq(stockItemsTable.defaultSupplierId, suppliersTable.id))
     .where(eq(stockLevelsTable.farmId, farmId))
     .orderBy(stockItemsTable.name);
   res.json({ records });

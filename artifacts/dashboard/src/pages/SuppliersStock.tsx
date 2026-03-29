@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 import { useAppStore } from "@/hooks/use-app-store";
+import { useUserRole } from "@/hooks/use-user-role";
 import { AppLayout } from "@/components/layout/AppLayout";
 
 import { Button } from "@/components/ui/button";
@@ -104,9 +105,27 @@ function EmptyState({ icon: Icon, title, subtitle }: { icon: React.ElementType; 
 
 export default function SuppliersStockPage() {
   const [tab, setTab] = useState<"suppliers" | "products" | "purchase-orders" | "received" | "levels" | "movements">("levels");
+  const [prefilledPo, setPrefilledPo] = useState<{ form: any; lines: any[] } | null>(null);
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  const handleRaisePo = (level: any) => {
+    const reorder = level.stockItemReorderLevel ? parseFloat(level.stockItemReorderLevel) : 0;
+    const current = parseFloat(level.currentQuantity ?? "0");
+    const suggestedQty = Math.max(reorder * 2 - current, reorder).toFixed(2);
+    setPrefilledPo({
+      form: {
+        supplierId: level.defaultSupplierId ? String(level.defaultSupplierId) : "",
+        orderDate: new Date().toISOString().split("T")[0],
+        expectedDeliveryDate: "",
+        status: "draft",
+        notes: `Raised from stock card: ${level.stockItemName} is at or below reorder level.`,
+      },
+      lines: [{ stockItemId: String(level.stockItemId), quantityOrdered: suggestedQty, unitPricePence: "", notes: "" }],
+    });
+    setTab("purchase-orders");
+  };
 
   const suppliersQ = useQuery({
     queryKey: ["suppliers", farmId],
@@ -174,6 +193,7 @@ export default function SuppliersStockPage() {
           toast={toast}
           qc={qc}
           onGoToProducts={() => setTab("products")}
+          onRaisePo={handleRaisePo}
         />
       )}
       {tab === "purchase-orders" && (
@@ -187,6 +207,8 @@ export default function SuppliersStockPage() {
           toast={toast}
           qc={qc}
           onGoToGRN={() => setTab("received")}
+          prefilledPo={prefilledPo}
+          onClearPrefilledPo={() => setPrefilledPo(null)}
         />
       )}
       {tab === "received" && (
@@ -236,7 +258,7 @@ export default function SuppliersStockPage() {
   );
 }
 
-function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, qc, onGoToProducts }: any) {
+function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, qc, onGoToProducts, onRaisePo }: any) {
   const [adjOpen, setAdjOpen] = useState(false);
   const [adjForm, setAdjForm] = useState({ stockItemId: "", quantityChange: "", movementType: "adjustment", notes: "" });
   const [search, setSearch] = useState("");
@@ -300,6 +322,14 @@ function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, q
                   <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 4 }}>Reorder at: {reorder} {l.stockItemUnit}</p>
                 )}
                 <p style={{ fontSize: "0.7rem", color: "#d1d5db", marginTop: 6 }}>Updated {fmt(l.lastUpdated)}</p>
+                {isLow && onRaisePo && (
+                  <button
+                    onClick={() => onRaisePo(l)}
+                    style={{ marginTop: 8, width: "100%", fontSize: "0.75rem", fontWeight: 600, color: "#92400e", background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 6, padding: "4px 0", cursor: "pointer" }}
+                  >
+                    + Raise Purchase Order
+                  </button>
+                )}
               </div>
             );
           })}
@@ -850,6 +880,7 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
 function poStatusBadge(status: string) {
   const styles: Record<string, { bg: string; color: string; label: string }> = {
     draft: { bg: "#f3f4f6", color: "#374151", label: "Draft" },
+    submitted: { bg: "#ede9fe", color: "#6d28d9", label: "Awaiting Approval" },
     sent: { bg: "#dbeafe", color: "#1e40af", label: "Sent" },
     partially_received: { bg: "#fef3c7", color: "#92400e", label: "Part. Received" },
     fully_received: { bg: "#d1fae5", color: "#065f46", label: "Fully Received" },
@@ -859,13 +890,23 @@ function poStatusBadge(status: string) {
   return <span style={{ display: "inline-block", background: s.bg, color: s.color, borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}>{s.label}</span>;
 }
 
-function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRefresh, toast, qc, onGoToGRN }: any) {
-  const [open, setOpen] = useState(false);
+function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRefresh, toast, qc, onGoToGRN, prefilledPo, onClearPrefilledPo }: any) {
+  const { isAtLeast } = useUserRole();
+  const emptyForm = { supplierId: "", orderDate: "", expectedDeliveryDate: "", status: "draft", notes: "" };
+  const [open, setOpen] = useState(!!prefilledPo);
   const [viewPo, setViewPo] = useState<any>(null);
   const [search, setSearch] = useState("");
-  const emptyForm = { supplierId: "", orderDate: "", expectedDeliveryDate: "", status: "draft", notes: "" };
-  const [form, setForm] = useState<any>(emptyForm);
-  const [lines, setLines] = useState<any[]>([{ stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]);
+  const [form, setForm] = useState<any>(prefilledPo ? prefilledPo.form : emptyForm);
+  const [lines, setLines] = useState<any[]>(prefilledPo ? prefilledPo.lines : [{ stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]);
+
+  useEffect(() => {
+    if (prefilledPo) {
+      setForm(prefilledPo.form);
+      setLines(prefilledPo.lines);
+      setOpen(true);
+      onClearPrefilledPo?.();
+    }
+  }, []);
 
   const viewQ = useQuery({
     queryKey: ["purchase-order-detail", viewPo?.id],
@@ -939,7 +980,12 @@ function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRef
             <tbody>
               {filtered.map((po: any, i: number) => (
                 <tr key={po.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                  <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: 700, color: "#166534" }}>{po.poNumber}</td>
+                  <td style={{ padding: "0.625rem 0.875rem" }}>
+                    <span style={{ fontFamily: "monospace", fontSize: "0.85rem", fontWeight: 700, color: "#166534" }}>{po.poNumber}</span>
+                    {po.poNumber?.startsWith("AUTO-") && (
+                      <span style={{ marginLeft: 6, fontSize: "0.65rem", background: "#fef3c7", color: "#92400e", borderRadius: 4, padding: "1px 5px", fontWeight: 600, verticalAlign: "middle" }}>auto</span>
+                    )}
+                  </td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#374151" }}>{po.supplierName || "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>{fmt(po.orderDate)}</td>
                   <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap", color: po.expectedDeliveryDate ? "#374151" : "#9ca3af" }}>{po.expectedDeliveryDate ? fmt(po.expectedDeliveryDate) : "Not set"}</td>
@@ -976,7 +1022,8 @@ function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRef
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="sent">Sent to Supplier</SelectItem>
+                    <SelectItem value="submitted">Submit for Approval</SelectItem>
+                    {isAtLeast("manager") && <SelectItem value="sent">Sent to Supplier</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
@@ -1059,6 +1106,14 @@ function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRef
                 <div><span style={{ color: "#6b7280", fontSize: "0.75rem" }}>Order Date</span><br /><strong>{fmt(detail.record?.orderDate)}</strong></div>
                 <div><span style={{ color: "#6b7280", fontSize: "0.75rem" }}>Expected Delivery</span><br /><strong>{detail.record?.expectedDeliveryDate ? fmt(detail.record.expectedDeliveryDate) : "—"}</strong></div>
               </div>
+              {viewPo?.poNumber?.startsWith("AUTO-") && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 8, padding: "0.625rem 0.875rem" }}>
+                  <AlertTriangle size={14} color="#92400e" style={{ flexShrink: 0, marginTop: 2 }} />
+                  <p style={{ fontSize: "0.8rem", color: "#78350f", margin: 0 }}>
+                    <strong>Auto-generated PO</strong> — this draft was created automatically when stock dropped below reorder level. Review the suggested quantity and submit for approval or edit as needed before sending to the supplier.
+                  </p>
+                </div>
+              )}
               {detail.record?.notes && <p style={{ fontSize: "0.85rem", color: "#6b7280", background: "#f9fafb", borderRadius: 6, padding: "0.5rem 0.75rem" }}>{detail.record.notes}</p>}
 
               <div>
@@ -1131,7 +1186,27 @@ function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRef
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {viewPo?.status === "draft" && (
+                  <Button size="sm" variant="outline" style={{ background: "#ede9fe", color: "#6d28d9", borderColor: "#c4b5fd" }} onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "submitted" })} disabled={updateStatusMut.isPending}>
+                    Submit for Approval
+                  </Button>
+                )}
+                {viewPo?.status === "draft" && isAtLeast("manager") && (
                   <Button size="sm" variant="outline" onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "sent" })} disabled={updateStatusMut.isPending}>Mark as Sent</Button>
+                )}
+                {viewPo?.status === "submitted" && isAtLeast("manager") && (
+                  <>
+                    <Button size="sm" style={{ background: "#166534", color: "#fff" }} onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "sent" })} disabled={updateStatusMut.isPending}>
+                      Approve &amp; Send to Supplier
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "draft" })} disabled={updateStatusMut.isPending}>
+                      Return to Draft
+                    </Button>
+                  </>
+                )}
+                {viewPo?.status === "submitted" && !isAtLeast("manager") && (
+                  <p style={{ fontSize: "0.8rem", color: "#6d28d9", background: "#ede9fe", borderRadius: 6, padding: "4px 12px", margin: 0 }}>
+                    Awaiting manager approval
+                  </p>
                 )}
                 {viewPo?.status !== "cancelled" && viewPo?.status !== "fully_received" && (
                   <>
@@ -1139,7 +1214,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRef
                     <Button size="sm" variant="outline" style={{ color: "#b91c1c", borderColor: "#fecaca" }} onClick={() => updateStatusMut.mutate({ poId: viewPo.id, status: "cancelled" })} disabled={updateStatusMut.isPending}>Cancel PO</Button>
                   </>
                 )}
-                {viewPo?.status === "draft" && (
+                {(viewPo?.status === "draft" || viewPo?.status === "submitted") && (
                   <Button size="sm" variant="outline" style={{ color: "#b91c1c", borderColor: "#fecaca" }} onClick={() => deleteMut.mutate(viewPo.id)} disabled={deleteMut.isPending}>Delete Draft</Button>
                 )}
               </div>
