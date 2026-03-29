@@ -41,8 +41,8 @@ export default function Home() {
       icon: FileText,
     },
     {
-      title: "Financial Records",
-      desc: "Log transactions and export seamlessly to CSV or Xero formats.",
+      title: "Sales & Trading",
+      desc: "Full sales records for every enterprise — grain, livestock kill sheets, milk statements, direct & farm gate. Sync from mobile, view reports on desktop.",
       icon: LineChart,
     },
   ];
