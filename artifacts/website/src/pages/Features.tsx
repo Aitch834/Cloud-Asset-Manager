@@ -179,7 +179,7 @@ const sections: Section[] = [
           "Awaiting-parts workflow — pause job cards mid-repair and resume when parts arrive",
           "Asset onboarding / offboarding — retirement, sale, and disposal records",
           "Parts Store — catalogue of workshop parts and consumables with stock levels, unit cost, and low-stock warnings; receive deliveries and issue stock to job cards with full movement history",
-          "Parts Store supplier integration — when the Stock & Suppliers module is also active, parts can be linked to supplier records and deliveries tracked through the full goods-received workflow",
+          "Parts Store supplier integration — when the Trade Contacts & Stock module is also active, parts can be linked to trade contact records and deliveries tracked through the full goods-received workflow",
         ],
       },
       {
@@ -399,7 +399,7 @@ const sections: Section[] = [
     description: "From input costs and grant applications through to management accounts and business reports.",
     modules: [
       {
-        title: "Stock & Suppliers",
+        title: "Trade Contacts & Stock",
         icon: Package,
         color: "bg-earth-cream text-earth-brown border-earth-tan/30",
         badge: "module",

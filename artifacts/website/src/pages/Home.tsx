@@ -26,7 +26,7 @@ export default function Home() {
       icon: MapIcon,
     },
     {
-      title: "Stock & Suppliers",
+      title: "Trade Contacts & Stock",
       desc: "Track deliveries, manage suppliers, and monitor live stock levels.",
       icon: Package,
     },

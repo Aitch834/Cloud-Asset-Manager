@@ -40,7 +40,7 @@ const AVAILABLE_MODULES = [
   { id: "inspections", label: "Inspections & Audits" },
   { id: "environmental", label: "Environmental Management" },
   { id: "haulage-transport", label: "Transport & Haulage" },
-  { id: "stock-suppliers", label: "Stock & Suppliers" },
+  { id: "stock-suppliers", label: "Trade Contacts & Stock" },
   { id: "financial-records", label: "Financial Records" },
   { id: "document-management", label: "Document Management" },
   { id: "weather-tracking", label: "Weather Tracking" },

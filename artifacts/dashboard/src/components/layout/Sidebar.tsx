@@ -125,7 +125,7 @@ const specialistNav: NavItem[] = [
 ];
 
 const otherNav: NavItem[] = [
-  { name: "Suppliers & Stock", href: "/stock", icon: Package, moduleKeys: ["stock-suppliers"] },
+  { name: "Trade Contacts & Stock", href: "/stock", icon: Package, moduleKeys: ["stock-suppliers"] },
   { name: "Grants & Funding", href: "/grants", icon: Landmark },
   { name: "Financial", href: "/financial", icon: PoundSterling, moduleKeys: ["financial-records"], minRole: "manager" },
   { name: "Sales & Trading", href: "/sales-trading", icon: TrendingUp, moduleKeys: ["financial-records"], minRole: "manager" },

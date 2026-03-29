@@ -160,7 +160,7 @@ const MODULE_GUIDES: Record<string, ModuleGuide> = {
       "Input cost records help reconcile purchases against applied quantities — a check inspectors sometimes carry out against your chemical store.",
     steps: [
       "Set up your main input cost categories: seeds, fertilisers, pesticides, feed, veterinary medicines, fuel, and contract services.",
-      "Add your principal suppliers to the Suppliers & Stock register — link each supplier to the relevant cost category.",
+      "Add your principal trade contacts to the Trade Contacts & Stock register — link each contact to the relevant cost category.",
       "Enter input purchases made so far in the current financial year: product, quantity, unit cost, and supplier.",
       "For agri-environment scheme payments, log each payment with the scheme name, payment reference, and the period covered.",
       "Link grant payments to the relevant field or activity record where possible — this creates an audit trail for scheme compliance.",

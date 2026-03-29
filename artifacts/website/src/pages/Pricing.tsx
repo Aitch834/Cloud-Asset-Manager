@@ -21,7 +21,7 @@ const MODULES = [
   { id: "inspections", name: "Inspections & Audits", price: 15 },
   { id: "environmental", name: "Environmental Management", price: 10 },
   { id: "haulage-transport", name: "Transport & Haulage", price: 10 },
-  { id: "stock-suppliers", name: "Stock & Suppliers", price: 15 },
+  { id: "stock-suppliers", name: "Trade Contacts & Stock", price: 15 },
   { id: "financial-records", name: "Financial Records", price: 20 },
   { id: "document-management", name: "Document Management", price: 10 },
   { id: "weather-tracking", name: "Weather Tracking", price: 15 },

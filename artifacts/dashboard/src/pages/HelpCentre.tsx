@@ -42,7 +42,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Farm Diversification": "bg-indigo-50 text-indigo-800",
   "Water & Irrigation": "bg-sky-50 text-sky-800",
   "Environmental": "bg-teal-50 text-teal-800",
-  "Stock & Suppliers": "bg-amber-50 text-amber-800",
+  "Trade Contacts & Stock": "bg-amber-50 text-amber-800",
   "Sales & Trading": "bg-teal-50 text-teal-700",
   "Grants & Funding": "bg-violet-50 text-violet-700",
   "Crop Trials": "bg-lime-50 text-lime-700",
@@ -83,7 +83,7 @@ const CATEGORY_TO_MODULE: Record<string, string> = {
   "Farm Diversification": "farm_diversification",
   "Water & Irrigation": "water_irrigation",
   "Environmental": "soil-management",
-  "Stock & Suppliers": "stock-suppliers",
+  "Trade Contacts & Stock": "stock-suppliers",
   "Sales & Trading": "financial-records",
   "Crop Trials": "crop-trials",
 };

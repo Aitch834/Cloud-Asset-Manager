@@ -28,7 +28,7 @@ const MODULE_LABELS: Record<string, string> = {
   "inspections": "Inspections",
   "environmental": "Environmental",
   "haulage-transport": "Haulage",
-  "stock-suppliers": "Stock & Suppliers",
+  "stock-suppliers": "Trade Contacts & Stock",
   "financial-records": "Financial",
   "document-management": "Documents",
   "weather-tracking": "Weather",

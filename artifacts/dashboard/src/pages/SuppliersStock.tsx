@@ -149,7 +149,7 @@ export default function SuppliersStockPage() {
   };
 
   return (
-    <AppLayout title="Suppliers & Stock">
+    <AppLayout title="Trade Contacts & Stock">
     <div style={{ maxWidth: 1100, margin: "0 auto" }}>
       <div className="mb-4">
         <p className="text-sm text-gray-500">Product catalogue, goods received, live stock levels and full movement history</p>
@@ -161,7 +161,7 @@ export default function SuppliersStockPage() {
         <TabButton active={tab === "received"} onClick={() => setTab("received")}>Goods Received (GRN)</TabButton>
         <TabButton active={tab === "movements"} onClick={() => setTab("movements")}>Movements</TabButton>
         <TabButton active={tab === "products"} onClick={() => setTab("products")}>Product Catalogue</TabButton>
-        <TabButton active={tab === "suppliers"} onClick={() => setTab("suppliers")}>Suppliers</TabButton>
+        <TabButton active={tab === "suppliers"} onClick={() => setTab("suppliers")}>Trade Contacts</TabButton>
       </TabBar>
 
       {tab === "levels" && (
@@ -1193,12 +1193,12 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/suppliers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Supplier added" }); onRefresh(); setOpen(false); resetForm(); },
+    onSuccess: () => { toast({ title: "Trade contact added" }); onRefresh(); setOpen(false); resetForm(); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
   const updateMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/suppliers/${editItem.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Supplier updated" }); onRefresh(); setOpen(false); setEditItem(null); resetForm(); },
+    onSuccess: () => { toast({ title: "Trade contact updated" }); onRefresh(); setOpen(false); setEditItem(null); resetForm(); },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
@@ -1234,7 +1234,7 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
         <div style={{ background: "#fef3c7", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: "1rem", display: "flex", alignItems: "flex-start", gap: 8 }}>
           <AlertTriangle size={16} color="#92400e" style={{ marginTop: 2, flexShrink: 0 }} />
           <div>
-            <p style={{ fontSize: "0.875rem", color: "#92400e", fontWeight: 600, marginBottom: 2 }}>Supplier certifications require attention:</p>
+            <p style={{ fontSize: "0.875rem", color: "#92400e", fontWeight: 600, marginBottom: 2 }}>Trade contact certifications require attention:</p>
             {expiringSoon.map((s: any) => {
               const st = certExpiryStatus(s.certificationExpiry);
               return (
@@ -1250,7 +1250,7 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-          <Input placeholder="Search suppliers..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+          <Input placeholder="Search trade contacts..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
         </div>
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
@@ -1259,11 +1259,11 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
             {SUPPLIER_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button size="sm" onClick={() => { resetForm(); setEditItem(null); setOpen(true); }}><Plus size={14} className="mr-1" />Add Supplier</Button>
+        <Button size="sm" onClick={() => { resetForm(); setEditItem(null); setOpen(true); }}><Plus size={14} className="mr-1" />Add Trade Contact</Button>
       </div>
 
       {loading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : filtered.length === 0 ? (
-        <EmptyState icon={Building2} title="No suppliers found" subtitle="Add approved suppliers and link them to products" />
+        <EmptyState icon={Building2} title="No trade contacts found" subtitle="Add trade contacts — buyers, processors, input suppliers and more" />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
           {filtered.map((s: any) => {
@@ -1310,7 +1310,7 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
 
       <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditItem(null); resetForm(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editItem ? "Edit Supplier" : "Add Supplier"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editItem ? "Edit Trade Contact" : "Add Trade Contact"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div>
               <Label>Company Name <span style={{ color: "#ef4444" }}>*</span></Label>
@@ -1318,7 +1318,7 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Supplier Type</Label>
+                <Label>Contact Type</Label>
                 <Select value={form.supplierType || "general"} onValueChange={v => setForm((f: any) => ({ ...f, supplierType: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{SUPPLIER_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>

@@ -22,7 +22,7 @@ const MODULES = [
   { key: "inspections", name: "Inspections & Audits", description: "Inspection records, non-conformances, corrective actions", monthlyPricePence: 1500 },
   { key: "environmental", name: "Environmental Features", description: "Environmental features mapping, agri-environment scheme records", monthlyPricePence: 1000 },
   { key: "haulage-transport", name: "Transport & Haulage", description: "Haulage records, load tracking", monthlyPricePence: 1000 },
-  { key: "stock-suppliers", name: "Stock & Supplier Tracking", description: "Supplier management, stock deliveries, stock levels", monthlyPricePence: 1500 },
+  { key: "stock-suppliers", name: "Trade Contacts & Stock", description: "Trade contact management, stock deliveries, stock levels", monthlyPricePence: 1500 },
   { key: "financial-records", name: "Financial Records", description: "Financial transactions, VAT tracking, export reports", monthlyPricePence: 2000 },
   { key: "document-management", name: "Document Management", description: "Document storage, linked records, object storage", monthlyPricePence: 1000 },
   { key: "weather-tracking", name: "Weather Tracking", description: "Weather stations, automated readings, field-level data", monthlyPricePence: 1500 },

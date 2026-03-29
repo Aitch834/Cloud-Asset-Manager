@@ -594,7 +594,7 @@ function QuickAccessGrid({ activeSubs, dashboard }: QuickAccessGridProps) {
     { href: "/biosecurity", title: "Biosecurity", icon: ShieldAlert, color: "bg-red-50 text-red-600", moduleKey: "biosecurity" },
     { href: "/staff", title: "Staff & Training", icon: GraduationCap, color: "bg-indigo-50 text-indigo-600", moduleKey: "staff-training" },
     { href: "/inspections", title: "Inspections", icon: ClipboardList, count: dashboard.inspectionCount ?? 0, color: "bg-violet-50 text-violet-600", moduleKey: "inspections" },
-    { href: "/stock", title: "Stock & Suppliers", icon: Package, color: "bg-amber-50 text-amber-700", moduleKey: "stock-suppliers" },
+    { href: "/stock", title: "Trade Contacts & Stock", icon: Package, color: "bg-amber-50 text-amber-700", moduleKey: "stock-suppliers" },
     { href: "/financial", title: "Financial Records", icon: LineChart, color: "bg-emerald-50 text-emerald-700", moduleKey: "financial-records" },
     { href: "/reports", title: "Business Reports", icon: BarChart3, color: "bg-green-50 text-green-700", moduleKey: "business-reports" },
     { href: "/environmental", title: "Environment", icon: Leaf, color: "bg-green-50 text-green-600", moduleKey: "environmental" },

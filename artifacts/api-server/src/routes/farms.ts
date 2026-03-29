@@ -4712,7 +4712,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li><strong>Biofuel Certifications</strong> — expiry dates for RTFO scheme certifications logged in Biofuel / RTFO</li>
 </ul>
 
-<h4>Suppliers &amp; Stock <span style="color:#f59e0b">(amber)</span></h4>
+<h4>Trade Contacts &amp; Stock <span style="color:#f59e0b">(amber)</span></h4>
 <ul>
 <li><strong>Purchase Order Deliveries</strong> — expected delivery dates for open purchase orders, so you can plan staff and storage accordingly</li>
 </ul>
@@ -4953,8 +4953,8 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <p><strong>Note:</strong> PAT Testing, Fire Safety, Risk Assessments, and COSHH records have moved to the <strong>Health, Safety &amp; Risk</strong> section in the left-hand sidebar. This better reflects that these are farm-wide legal requirements, not just workshop obligations.</p>
 
-<h3>Parts Store and the Stock &amp; Suppliers Module</h3>
-<p>The Parts Store works as a standalone feature — you can receive stock, issue it to jobs, and track movements without any other modules. However, if your subscription also includes the <strong>Stock &amp; Suppliers</strong> module, you gain the ability to link parts deliveries to supplier records and route purchase orders through the full goods-received workflow. Without Stock &amp; Suppliers, the supplier dropdown in the Receive Stock dialog will show <em>None</em> as the only option, and deliveries are recorded without a supplier link.</p>
+<h3>Parts Store and the Trade Contacts &amp; Stock Module</h3>
+<p>The Parts Store works as a standalone feature — you can receive stock, issue it to jobs, and track movements without any other modules. However, if your subscription also includes the <strong>Trade Contacts &amp; Stock</strong> module, you gain the ability to link parts deliveries to supplier records and route purchase orders through the full goods-received workflow. Without Trade Contacts &amp; Stock, the supplier dropdown in the Receive Stock dialog will show <em>None</em> as the only option, and deliveries are recorded without a supplier link.</p>
 
 <h3>Raising a Job Card</h3>
 <p>Go to <strong>Workshop</strong> in the left-hand sidebar and click the <strong>Job Cards</strong> tab. Select <strong>Raise Job Card</strong>. Choose the asset, the job type (Repair, Scheduled Service, Inspection, Commissioning, Investigation, or Modification), and set the priority. Add a description of the fault or work required. Assign to a person if relevant. Save — the card status is set to <strong>Open</strong> automatically.</p>
@@ -5987,7 +5987,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Assured schemes require that analytical tests used for compliance purposes — soil pH for fertiliser planning, grain mycotoxin screens, or irrigation water bacteriological results — are carried out by an accredited laboratory. Simply noting "Lab X" in a free text field is not enough; the laboratory needs to be registered with its credentials so that an auditor can verify accreditation. BDE Farm Trac stores the lab's UKAS number alongside every linked test record.</p>
 
 <h3>Registering a Testing Laboratory</h3>
-<p>Labs are added within the <strong>Stock &amp; Suppliers</strong> section. Click <strong>Add Supplier</strong>, set the category to <strong>Laboratory</strong>, and complete the name, contact details, and UKAS accreditation number. The laboratory is now available for selection across all modules that record analytical test results.</p>
+<p>Labs are added within the <strong>Trade Contacts &amp; Stock</strong> section. Click <strong>Add Supplier</strong>, set the category to <strong>Laboratory</strong>, and complete the name, contact details, and UKAS accreditation number. The laboratory is now available for selection across all modules that record analytical test results.</p>
 
 <h3>Linking a Lab to a Soil Sample</h3>
 <p>When adding a soil sample record (under <strong>Soil Management → Soil Tests</strong> or via the mobile app), a <strong>Testing Laboratory</strong> picker appears. Tap or click to select the accredited lab that will be analysing the sample. The lab name and UKAS number are recorded against the sample and carried through to printed reports.</p>
@@ -5999,7 +5999,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Water quality tests — whether in the Livestock module (herd drinking water) or the Water &amp; Irrigation module (irrigation source) — include a laboratory selector. For Red Tractor Fresh Produce, irrigation water microbiological tests must be carried out by a UKAS-accredited laboratory; linking the lab to the test record provides the required audit evidence.</p>
 
 <h3>If No Labs Are Registered Yet</h3>
-<p>If you have not yet added any laboratories, the picker will show an empty list with a prompt to add a lab in Stock &amp; Suppliers first. The lab field is optional on individual records — you can complete the test data and add the lab link later once it has been registered — but for audit purposes it is best practice to link the lab before submitting the record.</p>`,
+<p>If you have not yet added any laboratories, the picker will show an empty list with a prompt to add a lab in Trade Contacts &amp; Stock first. The lab field is optional on individual records — you can complete the test data and add the lab link later once it has been registered — but for audit purposes it is best practice to link the lab before submitting the record.</p>`,
     },
     {
       id: 10020,
@@ -6267,11 +6267,11 @@ BDE Farm Trac includes a secure external access system that lets you share read-
     {
       id: 10032,
       title: "Purchase Orders — Raising and Managing POs",
-      category: "Stock & Suppliers",
-      content: `<p>The <strong>Purchase Orders</strong> tab in Suppliers &amp; Stock lets you raise formal purchase orders (POs) against your registered suppliers, track what has been ordered, and automatically reconcile quantities as goods arrive via Goods Received Notes.</p>
+      category: "Trade Contacts & Stock",
+      content: `<p>The <strong>Purchase Orders</strong> tab in Trade Contacts &amp; Stock lets you raise formal purchase orders (POs) against your registered suppliers, track what has been ordered, and automatically reconcile quantities as goods arrive via Goods Received Notes.</p>
 
 <h3>Raising a Purchase Order</h3>
-<p>Navigate to <strong>Suppliers &amp; Stock</strong> and click the <strong>Purchase Orders</strong> tab. Click <strong>Raise Purchase Order</strong> and complete the form:</p>
+<p>Navigate to <strong>Trade Contacts &amp; Stock</strong> and click the <strong>Purchase Orders</strong> tab. Click <strong>Raise Purchase Order</strong> and complete the form:</p>
 <ul>
 <li><strong>Supplier</strong> — select from your registered supplier directory</li>
 <li><strong>Order Date</strong> — defaults to today</li>
@@ -6303,11 +6303,11 @@ BDE Farm Trac includes a secure external access system that lets you share read-
     {
       id: 10033,
       title: "Goods Received Notes (GRN) — Logging Deliveries and Linking to POs",
-      category: "Stock & Suppliers",
+      category: "Trade Contacts & Stock",
       content: `<p>Every time goods arrive on your farm, you should record a <strong>Goods Received Note (GRN)</strong>. GRNs update your live stock levels, record the supplier and delivery date, and optionally link to an open Purchase Order to update the quantities received.</p>
 
 <h3>Logging a Delivery</h3>
-<p>Go to <strong>Suppliers &amp; Stock → Goods Received (GRN)</strong> and click <strong>Log Goods Received</strong>. Complete the form fields:</p>
+<p>Go to <strong>Trade Contacts &amp; Stock → Goods Received (GRN)</strong> and click <strong>Log Goods Received</strong>. Complete the form fields:</p>
 <ul>
 <li><strong>Supplier</strong> — who delivered the goods</li>
 <li><strong>Product</strong> — select from your stock catalogue</li>
@@ -6329,7 +6329,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
     {
       id: 10034,
       title: "Batch & Lot Traceability in Spray Application Records",
-      category: "Stock & Suppliers",
+      category: "Trade Contacts & Stock",
       content: `<p>BDE Farm Trac allows you to trace pesticide and input products from the specific <strong>Goods Received Note (GRN) delivery</strong> through to the <strong>spray application</strong> where they were used. This gives you a full chain of custody from supplier batch to treated field — a requirement if a product is ever subject to a batch recall or a Red Tractor traceability audit.</p>
 
 <h3>How Traceability Works</h3>
@@ -6347,7 +6347,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Red Tractor and UK law require pesticide records to be kept for at least three years. If a product is subject to a voluntary or mandatory recall by the manufacturer or HSE, you need to be able to identify quickly which fields were treated using that batch. With batch numbers linked through from GRNs to spray records, you can filter your spray history by product and identify all affected applications within seconds.</p>
 
 <h3>Setting Up the Link</h3>
-<p>To enable automatic batch/lot population from GRNs, ensure your spray products are linked to <strong>Stock Items</strong> in the Stock catalogue. Open <strong>Suppliers &amp; Stock → Products</strong>, find the relevant product, and confirm it has a stock item association. Once linked, the traceability picker will appear automatically in the spray form whenever that product is selected.</p>`,
+<p>To enable automatic batch/lot population from GRNs, ensure your spray products are linked to <strong>Stock Items</strong> in the Stock catalogue. Open <strong>Trade Contacts &amp; Stock → Products</strong>, find the relevant product, and confirm it has a stock item association. Once linked, the traceability picker will appear automatically in the spray form whenever that product is selected.</p>`,
     },
     {
       id: 10036,
@@ -6372,7 +6372,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li><strong>Compliance</strong> (blue) — insurance policy expiry dates (Employers Liability, Public Liability, and all other policies)</li>
 <li><strong>Water &amp; Irrigation</strong> (blue) — water abstraction licence expiry dates</li>
 <li><strong>Biofuel / RTFO</strong> (blue) — biofuel certification expiry dates</li>
-<li><strong>Suppliers &amp; Stock</strong> (amber) — expected purchase order delivery dates</li>
+<li><strong>Trade Contacts &amp; Stock</strong> (amber) — expected purchase order delivery dates</li>
 </ul>
 <p>Each card in the planner shows the item title, a brief description, the module it belongs to (as a colour-coded badge), and whether it is overdue or due today. Clicking any system-generated card takes you directly to the relevant record in that module.</p>
 
@@ -6836,7 +6836,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>The Feed Stock Levels tab maintains a current stock level for each feed type at each storage location. Stock levels are automatically reduced when delivery records are flagged as consumed, or you can update them manually after a physical stock check. When stock falls below your configured reorder level, a warning card appears prompting you to arrange a delivery. This prevents unexpected feed shortages, particularly for livestock operations where feed availability is a welfare requirement.</p>
 
 <h3>Supplier Certification Tracking</h3>
-<p>In the Supplier Register (accessible from Stock &amp; Suppliers), feed suppliers are given a dedicated compliance section where you record:</p>
+<p>In the Supplier Register (accessible from Trade Contacts &amp; Stock), feed suppliers are given a dedicated compliance section where you record:</p>
 <ul>
 <li>Supplier type — Feed (and other types such as Veterinary, Agricultural Chemicals, Fuel)</li>
 <li>UFAS registration number</li>
@@ -6876,7 +6876,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 </ul>
 
 <h3>Buyer, Processor &amp; Integrator Lookups</h3>
-<p>Each sale form includes a searchable <strong>buyer / processor / integrator</strong> field rather than a plain text box. This field is linked directly to your <strong>Suppliers &amp; Contacts</strong> register, filtered to show only contacts of the relevant type (grain merchant, milk buyer, livestock processor, etc.).</p>
+<p>Each sale form includes a searchable <strong>buyer / processor / integrator</strong> field rather than a plain text box. This field is linked directly to your <strong>Trade Contacts</strong> register, filtered to show only contacts of the relevant type (grain merchant, milk buyer, livestock processor, etc.).</p>
 <p>When you select a contact from the dropdown:</p>
 <ul>
 <li>The buyer's name is filled into the record automatically.</li>
@@ -6885,11 +6885,11 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 </ul>
 
 <h3>Searching the Dropdown</h3>
-<p>Click the buyer field to open a searchable list. Start typing any part of the buyer's name to filter the list instantly. If the buyer you need is not yet in your contacts, select <strong>Quick add new [type]</strong> at the bottom of the dropdown. A small dialog appears — enter the name and an optional account reference, then click <strong>Add &amp; Select</strong>. The new contact is saved to your Suppliers &amp; Contacts register and immediately selected in the form.</p>
+<p>Click the buyer field to open a searchable list. Start typing any part of the buyer's name to filter the list instantly. If the buyer you need is not yet in your contacts, select <strong>Quick add new [type]</strong> at the bottom of the dropdown. A small dialog appears — enter the name and an optional account reference, then click <strong>Add &amp; Select</strong>. The new contact is saved to your Trade Contacts register and immediately selected in the form.</p>
 <p>To clear a selected buyer and start again, click the small <strong>×</strong> button that appears to the right of the dropdown.</p>
 
 <h3>Managing Buyer Contacts</h3>
-<p>Contacts added via the Quick Add dialog in a sales form are also visible in <strong>Suppliers &amp; Contacts</strong> (accessible from the sidebar under Stock &amp; Suppliers). From there you can add further detail such as a contact name, phone number, email address, and certification information. To add a buyer type contact directly, open Suppliers &amp; Contacts and set the <strong>Supplier Type</strong> to one of the buyer categories: Grain Merchant / Buyer, Milk Buyer / Processor, Livestock Processor / Abattoir, Livestock Mart / Auction, Poultry Integrator, Egg Packing Station, Pig Processor, or Direct Customer / Wholesale Account.</p>
+<p>Contacts added via the Quick Add dialog in a sales form are also visible in <strong>Trade Contacts</strong> (accessible from the sidebar under Trade Contacts &amp; Stock). From there you can add further detail such as a contact name, phone number, email address, and certification information. To add a buyer type contact directly, open Trade Contacts and set the <strong>Supplier Type</strong> to one of the buyer categories: Grain Merchant / Buyer, Milk Buyer / Processor, Livestock Processor / Abattoir, Livestock Mart / Auction, Poultry Integrator, Egg Packing Station, Pig Processor, or Direct Customer / Wholesale Account.</p>
 
 <h3>Mobile App</h3>
 <p>The <strong>BDE Farm Trac Mobile App</strong> includes four sales recording screens — Grain Sale, Livestock Sale, Milk Statement, and Direct Sale — designed for offline use in the field. These screens use a free-text name field for the buyer or processor, so you can record a sale without connectivity. When the record syncs to the server, the buyer name is stored in the sale record. To link that record to a contact in your Supplier directory, open the record on the desktop dashboard and re-select the buyer from the combobox — the link is then saved. This workflow is designed for situations where your internet connection is intermittent.</p>
@@ -8289,7 +8289,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   }
   for (const r of poDeliveryRows) {
     if (!r.expectedDeliveryDate || r.status === "delivered" || r.status === "cancelled") continue;
-    tasks.push({ id: `pod-${r.id}`, type: "po_delivery_due", title: `Delivery Expected — ${r.poNumber || "PO"}`, description: `${r.supplierName ? `Delivery from ${r.supplierName}` : "Delivery"} is expected${r.poNumber ? ` on PO ${r.poNumber}` : ""}. Check in Suppliers & Stock → Purchase Orders.`, dueDate: toISO(r.expectedDeliveryDate)!, module: "Suppliers & Stock", href: "/suppliers-stock", colour: "amber" });
+    tasks.push({ id: `pod-${r.id}`, type: "po_delivery_due", title: `Delivery Expected — ${r.poNumber || "PO"}`, description: `${r.supplierName ? `Delivery from ${r.supplierName}` : "Delivery"} is expected${r.poNumber ? ` on PO ${r.poNumber}` : ""}. Check in Trade Contacts & Stock → Purchase Orders.`, dueDate: toISO(r.expectedDeliveryDate)!, module: "Trade Contacts & Stock", href: "/suppliers-stock", colour: "amber" });
   }
   for (const r of plannerEventRows) {
     tasks.push({ id: `planner-${r.id}`, type: "planner_event", title: r.title, description: r.description || "Custom reminder added by you.", dueDate: toISO(r.eventDate)!, module: "Custom", href: "#", colour: r.colour || "slate" });
