@@ -69,6 +69,7 @@ import InsurancePage from "@/pages/InsurancePage";
 import GrantsPage from "@/pages/GrantsPage";
 import FuelEnergyPage from "@/pages/FuelEnergyPage";
 import FeedManagementPage from "@/pages/FeedManagementPage";
+import SalesTradingPage from "@/pages/SalesTradingPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -198,6 +199,7 @@ function Router() {
       <Route path="/training" component={TrainingPage} />
       <Route path="/stock" component={StockPage} />
       <Route path="/financial" component={FinancialPage} />
+      <Route path="/sales-trading" component={SalesTradingPage} />
       <Route path="/business-reports" component={BusinessReportsPage} />
       <Route path="/field-operations" component={FieldOperationsPage} />
       <Route path="/field-inspections" component={FieldInspectionsPage} />

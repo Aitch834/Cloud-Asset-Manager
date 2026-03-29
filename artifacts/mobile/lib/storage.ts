@@ -170,4 +170,8 @@ export const STORAGE_KEYS = {
   HAULAGE_CONFIRMATIONS: "bde_haulage_confirmations",
   POULTRY_BIOSECURITY_CLEANOUTS: "bde_poultry_biosecurity_cleanouts",
   PIG_RED_TRACTOR_CHECKLISTS: "bde_pig_red_tractor_checklists",
+  GRAIN_SALE_RECORDS: "bde_grain_sale_records",
+  LIVESTOCK_SALE_RECORDS: "bde_livestock_sale_records",
+  DIRECT_SALE_RECORDS: "bde_direct_sale_records",
+  MILK_STATEMENT_RECORDS: "bde_milk_statement_records",
 } as const;

@@ -1240,3 +1240,96 @@ export interface PigRedTractorChecklist {
   createdAt: string;
   synced: boolean;
 }
+
+export interface GrainSaleRecord {
+  id: string;
+  farmId: string;
+  saleDate: string;
+  saleType: "spot" | "forward" | "pool" | "ex-store";
+  buyer: string;
+  merchantRef: string;
+  commodity: string;
+  variety: string;
+  tonnage: string;
+  pricePerTonne: string;
+  grossValue: string;
+  deductions: string;
+  netValue: string;
+  moisture: string;
+  specificWeight: string;
+  protein: string;
+  gradeAchieved: string;
+  deliveryDate: string;
+  deliveryLocation: string;
+  weighbridgeTicket: string;
+  invoiceNumber: string;
+  cropYear: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface LivestockSaleRecord {
+  id: string;
+  farmId: string;
+  saleDate: string;
+  saleType: "deadweight" | "mart";
+  species: string;
+  headCount: string;
+  processor: string;
+  martName: string;
+  grade: string;
+  totalDeadweightKg: string;
+  averageDeadweightKg: string;
+  pricePerKg: string;
+  grossValue: string;
+  deductions: string;
+  netPayment: string;
+  killSheetRef: string;
+  vendorDeclarationRef: string;
+  animalIds: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface DirectSaleRecord {
+  id: string;
+  farmId: string;
+  saleDate: string;
+  channel: string;
+  productName: string;
+  productCategory: string;
+  quantity: string;
+  unit: string;
+  unitPrice: string;
+  grossValue: string;
+  paymentMethod: string;
+  paymentStatus: "paid" | "pending" | "overdue";
+  customerName: string;
+  invoiceNumber: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface MilkStatementRecord {
+  id: string;
+  farmId: string;
+  statementMonth: string;
+  buyer: string;
+  litresSupplied: string;
+  pencePerLitre: string;
+  grossValue: string;
+  butterfatPct: string;
+  proteinPct: string;
+  scc: string;
+  qualityBonus: string;
+  qualityPenalty: string;
+  transportDeduction: string;
+  netPayment: string;
+  statementRef: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}

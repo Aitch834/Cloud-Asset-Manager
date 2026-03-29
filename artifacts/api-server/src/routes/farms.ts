@@ -182,6 +182,14 @@ import {
   poultryBiosecurityChecklistTable,
   poultrySchemeRecordsTable,
   pigRedTractorChecklistTable,
+  grainSalesTable,
+  livestockDeadweightSalesTable,
+  livestockMartSalesTable,
+  milkStatementsTable,
+  poultryBatchSettlementsTable,
+  eggSalesTable,
+  pigKillRecordsTable,
+  directSalesRecordsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, lte, inArray } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
@@ -11085,6 +11093,226 @@ router.put("/farms/:farmId/pig-red-tractor-checklists/:id", requireAuth, require
 router.delete("/farms/:farmId/pig-red-tractor-checklists/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
   await db.delete(pigRedTractorChecklistTable).where(and(eq(pigRedTractorChecklistTable.id, parseInt(req.params.id)), eq(pigRedTractorChecklistTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SALES & TRADING MODULE
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Grain Sales ────────────────────────────────────────────────────────────
+router.get("/farms/:farmId/grain-sales", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(grainSalesTable).where(eq(grainSalesTable.farmId, farmId)).orderBy(desc(grainSalesTable.saleDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/grain-sales", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(grainSalesTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/grain-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(grainSalesTable).set(req.body).where(and(eq(grainSalesTable.id, parseInt(req.params.id)), eq(grainSalesTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/grain-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(grainSalesTable).where(and(eq(grainSalesTable.id, parseInt(req.params.id)), eq(grainSalesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Livestock Deadweight Sales ─────────────────────────────────────────────
+router.get("/farms/:farmId/livestock-deadweight-sales", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(livestockDeadweightSalesTable).where(eq(livestockDeadweightSalesTable.farmId, farmId)).orderBy(desc(livestockDeadweightSalesTable.killDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/livestock-deadweight-sales", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(livestockDeadweightSalesTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/livestock-deadweight-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(livestockDeadweightSalesTable).set(req.body).where(and(eq(livestockDeadweightSalesTable.id, parseInt(req.params.id)), eq(livestockDeadweightSalesTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/livestock-deadweight-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(livestockDeadweightSalesTable).where(and(eq(livestockDeadweightSalesTable.id, parseInt(req.params.id)), eq(livestockDeadweightSalesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Livestock Mart Sales ───────────────────────────────────────────────────
+router.get("/farms/:farmId/livestock-mart-sales", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(livestockMartSalesTable).where(eq(livestockMartSalesTable.farmId, farmId)).orderBy(desc(livestockMartSalesTable.saleDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/livestock-mart-sales", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(livestockMartSalesTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/livestock-mart-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(livestockMartSalesTable).set(req.body).where(and(eq(livestockMartSalesTable.id, parseInt(req.params.id)), eq(livestockMartSalesTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/livestock-mart-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(livestockMartSalesTable).where(and(eq(livestockMartSalesTable.id, parseInt(req.params.id)), eq(livestockMartSalesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Milk Statements ────────────────────────────────────────────────────────
+router.get("/farms/:farmId/milk-statements", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(milkStatementsTable).where(eq(milkStatementsTable.farmId, farmId)).orderBy(desc(milkStatementsTable.statementMonth));
+  res.json({ records });
+});
+router.post("/farms/:farmId/milk-statements", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(milkStatementsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/milk-statements/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(milkStatementsTable).set(req.body).where(and(eq(milkStatementsTable.id, parseInt(req.params.id)), eq(milkStatementsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/milk-statements/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(milkStatementsTable).where(and(eq(milkStatementsTable.id, parseInt(req.params.id)), eq(milkStatementsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Poultry Batch Settlements ──────────────────────────────────────────────
+router.get("/farms/:farmId/poultry-batch-settlements", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(poultryBatchSettlementsTable).where(eq(poultryBatchSettlementsTable.farmId, farmId)).orderBy(desc(poultryBatchSettlementsTable.catchDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/poultry-batch-settlements", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(poultryBatchSettlementsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/poultry-batch-settlements/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(poultryBatchSettlementsTable).set(req.body).where(and(eq(poultryBatchSettlementsTable.id, parseInt(req.params.id)), eq(poultryBatchSettlementsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/poultry-batch-settlements/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(poultryBatchSettlementsTable).where(and(eq(poultryBatchSettlementsTable.id, parseInt(req.params.id)), eq(poultryBatchSettlementsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Egg Sales ──────────────────────────────────────────────────────────────
+router.get("/farms/:farmId/egg-sales", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(eggSalesTable).where(eq(eggSalesTable.farmId, farmId)).orderBy(desc(eggSalesTable.weekEnding));
+  res.json({ records });
+});
+router.post("/farms/:farmId/egg-sales", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(eggSalesTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/egg-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(eggSalesTable).set(req.body).where(and(eq(eggSalesTable.id, parseInt(req.params.id)), eq(eggSalesTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/egg-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(eggSalesTable).where(and(eq(eggSalesTable.id, parseInt(req.params.id)), eq(eggSalesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Pig Kill Records ────────────────────────────────────────────────────────
+router.get("/farms/:farmId/pig-kill-records", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(pigKillRecordsTable).where(eq(pigKillRecordsTable.farmId, farmId)).orderBy(desc(pigKillRecordsTable.killDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/pig-kill-records", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(pigKillRecordsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/pig-kill-records/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(pigKillRecordsTable).set(req.body).where(and(eq(pigKillRecordsTable.id, parseInt(req.params.id)), eq(pigKillRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/pig-kill-records/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(pigKillRecordsTable).where(and(eq(pigKillRecordsTable.id, parseInt(req.params.id)), eq(pigKillRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Direct Sales Records ────────────────────────────────────────────────────
+router.get("/farms/:farmId/direct-sales", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(directSalesRecordsTable).where(eq(directSalesRecordsTable.farmId, farmId)).orderBy(desc(directSalesRecordsTable.saleDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/direct-sales", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(directSalesRecordsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/direct-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(directSalesRecordsTable).set(req.body).where(and(eq(directSalesRecordsTable.id, parseInt(req.params.id)), eq(directSalesRecordsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/direct-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(directSalesRecordsTable).where(and(eq(directSalesRecordsTable.id, parseInt(req.params.id)), eq(directSalesRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

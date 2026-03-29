@@ -46,6 +46,7 @@ import {
   Landmark,
   AlertTriangle,
   BookOpen,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -127,6 +128,7 @@ const otherNav: NavItem[] = [
   { name: "Suppliers & Stock", href: "/stock", icon: Package, moduleKeys: ["stock-suppliers"] },
   { name: "Grants & Funding", href: "/grants", icon: Landmark },
   { name: "Financial", href: "/financial", icon: PoundSterling, moduleKeys: ["financial-records"], minRole: "manager" },
+  { name: "Sales & Trading", href: "/sales-trading", icon: TrendingUp, moduleKeys: ["financial-records"], minRole: "manager" },
   { name: "Business Reports", href: "/business-reports", icon: BarChart3, moduleKeys: ["business-reports"], minRole: "manager" },
   { name: "Environmental", href: "/environmental", icon: Leaf, moduleKeys: ["environmental"] },
   { name: "Haulage", href: "/haulage", icon: Truck, moduleKeys: ["haulage-transport"] },
