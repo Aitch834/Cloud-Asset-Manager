@@ -11,6 +11,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -84,6 +85,10 @@ export default function WeatherEntryScreen() {
   const [pressure, setPressure] = useState("");
   const [conditions, setConditions] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [vehicleMode, setVehicleMode] = useState(false);
+  const [vehicleName, setVehicleName] = useState("");
+  const [vehicleReg, setVehicleReg] = useState("");
 
   const [fetchingStation, setFetchingStation] = useState(false);
   const [stationError, setStationError] = useState<string | null>(null);
@@ -187,6 +192,9 @@ export default function WeatherEntryScreen() {
       pressure: pressure.trim(),
       conditions,
       entryMode,
+      vehicleMode,
+      vehicleName: vehicleName.trim(),
+      vehicleReg: vehicleReg.trim(),
       notes: notes.trim(),
       latitude,
       longitude,
@@ -392,6 +400,46 @@ export default function WeatherEntryScreen() {
             />
           </View>
 
+          <View style={styles.sectionLabel}>
+            <Feather name="truck" size={14} color="#0284c7" />
+            <Text style={styles.sectionTitle}>Vehicle / Sprayer Reading</Text>
+          </View>
+          <Pressable
+            style={styles.vehicleToggle}
+            onPress={() => { Haptics.selectionAsync(); setVehicleMode((v) => !v); }}
+          >
+            <View style={styles.vehicleToggleLeft}>
+              <Text style={styles.vehicleToggleLabel}>Link to vehicle / spray run</Text>
+              <Text style={styles.vehicleToggleSub}>
+                Tag this reading to a specific vehicle or spray application for the vehicle weather log
+              </Text>
+            </View>
+            <Switch
+              value={vehicleMode}
+              onValueChange={(v) => { Haptics.selectionAsync(); setVehicleMode(v); }}
+              trackColor={{ false: colors.borderLight, true: "#0284c7" }}
+              thumbColor={colors.surface}
+            />
+          </Pressable>
+          {vehicleMode && (
+            <View style={styles.row}>
+              <Input
+                label="Vehicle / Machine Name"
+                placeholder="e.g. Amazone sprayer"
+                value={vehicleName}
+                onChangeText={setVehicleName}
+                containerStyle={styles.flex}
+              />
+              <Input
+                label="Registration"
+                placeholder="e.g. YX21 ABC"
+                value={vehicleReg}
+                onChangeText={setVehicleReg}
+                containerStyle={styles.flex}
+              />
+            </View>
+          )}
+
           <Input
             label="Notes"
             placeholder="Any additional observations..."
@@ -568,5 +616,31 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     gap: spacing.md,
+  },
+  vehicleToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  vehicleToggleLeft: {
+    flex: 1,
+  },
+  vehicleToggleLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  vehicleToggleSub: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
   },
 });

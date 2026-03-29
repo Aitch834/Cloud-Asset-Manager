@@ -55,6 +55,9 @@ export interface WeatherEntry {
   pressure: string;
   conditions: string;
   entryMode: "manual" | "station";
+  vehicleMode: boolean;
+  vehicleName: string;
+  vehicleReg: string;
   notes: string;
   latitude?: number;
   longitude?: number;
@@ -422,6 +425,7 @@ export interface PestControlVisit {
   baitUsed: string;
   carriedOutBy: string;
   notes: string;
+  photoUris: string[];
   latitude?: number;
   longitude?: number;
   createdAt: string;
@@ -459,6 +463,7 @@ export interface FieldInspection {
   recommendedAction: string;
   inspector: string;
   notes: string;
+  photoUris: string[];
   latitude?: number;
   longitude?: number;
   createdAt: string;
@@ -1133,6 +1138,105 @@ export interface CoshhAssessment {
   emergencyProcedure: string;
   reviewDate: string;
   notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface AccidentReport {
+  id: string;
+  farmId: string;
+  incidentType: "accident" | "near_miss" | "dangerous_occurrence" | "occupational_disease";
+  severityLevel: "minor" | "over_3_day" | "major" | "fatal";
+  incidentDate: string;
+  locationDescription: string;
+  descriptionOfIncident: string;
+  injuredPersonName: string;
+  bodyPartInjured: string;
+  natureOfInjury: string;
+  firstAidGiven: boolean;
+  firstAidDetails: string;
+  witnessNames: string;
+  reportableRiddor: boolean;
+  immediateActionsTaken: string;
+  reportedBy: string;
+  photoUris: string[];
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface HaulageConfirmation {
+  id: string;
+  farmId: string;
+  confirmationDate: string;
+  haulierName: string;
+  vehicleReg: string;
+  driverName: string;
+  cropType: string;
+  quantityTonnes: string;
+  deliveryNotes: string;
+  confirmedBy: string;
+  photoUris: string[];
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PoultryBiosecurityCleanout {
+  id: string;
+  farmId: string;
+  houseName: string;
+  cleanoutDate: string;
+  flockRef: string;
+  supervisedBy: string;
+  litterRemoval: boolean;
+  dryClean: boolean;
+  prewash: boolean;
+  mainWash: boolean;
+  disinfectantApplied: boolean;
+  disinfectantContactTimeMet: boolean;
+  fumigationCarriedOut: boolean;
+  verminControlChecked: boolean;
+  waterSystemFlushed: boolean;
+  feedSystemCleaned: boolean;
+  footbathsSetUp: boolean;
+  biosecuritySignsInPlace: boolean;
+  changeRoomSetUp: boolean;
+  eggEquipmentCleaned: boolean;
+  downtime: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PigRedTractorChecklist {
+  id: string;
+  farmId: string;
+  assessmentDate: string;
+  assessedBy: string;
+  animalWelfarePlan: boolean;
+  medicineRecordsCompliant: boolean;
+  feedRecordsComplete: boolean;
+  movementRecordsComplete: boolean;
+  biosecurityPlanCurrent: boolean;
+  tailBitingRiskAssessment: boolean;
+  enrichmentProvided: boolean;
+  spaceAllowanceCompliant: boolean;
+  mortalityRecordsComplete: boolean;
+  waterQualityTested: boolean;
+  ventilationWorking: boolean;
+  temperatureMonitoring: boolean;
+  beddingAdequate: boolean;
+  farrowingFacilitiesCompliant: boolean;
+  weanerCareDocumented: boolean;
+  vetHealthPlanCurrent: boolean;
+  zoonosisRiskCurrent: boolean;
+  staffTrainingCurrent: boolean;
+  haccp: boolean;
+  notes: string;
+  nonConformances: string;
   createdAt: string;
   synced: boolean;
 }

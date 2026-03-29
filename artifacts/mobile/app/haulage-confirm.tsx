@@ -19,51 +19,38 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { FieldPicker } from "@/components/ui/FieldPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
-import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
-import type { FieldInspection } from "@/lib/types";
+import type { HaulageConfirmation } from "@/lib/types";
 
-type ActionRequired = FieldInspection["actionRequired"];
-
-const ACTIONS: { key: ActionRequired; label: string; color: string }[] = [
-  { key: "none", label: "No Action", color: colors.success },
-  { key: "monitor", label: "Monitor", color: colors.accent },
-  { key: "treat", label: "Treatment Recommended", color: colors.error },
-  { key: "urgent", label: "Urgent Action", color: "#7C3AED" },
+const CROP_TYPES = [
+  "Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley",
+  "Oilseed Rape", "Oats", "Peas / Beans", "Maize", "Sugar Beet", "Potatoes", "Other",
 ];
 
-const GROWTH_STAGES = [
-  "Germination", "GS10–19", "GS20–29", "GS30–39",
-  "GS40–49", "GS50–59", "GS60–69", "GS70–79", "GS80–89", "Harvest",
-];
-
-export default function FieldInspectionScreen() {
+export default function HaulageConfirmScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
-  const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
-  const [fieldName, setFieldName] = useState("");
+  const [haulierName, setHaulierName] = useState("");
+  const [vehicleReg, setVehicleReg] = useState("");
+  const [driverName, setDriverName] = useState("");
   const [cropType, setCropType] = useState("");
-  const [growthStage, setGrowthStage] = useState("");
-  const [pestDiseaseObservations, setPestDiseaseObservations] = useState("");
-  const [actionRequired, setActionRequired] = useState<ActionRequired>("none");
-  const [recommendedAction, setRecommendedAction] = useState("");
-  const [inspector, setInspector] = useState(user?.name || "");
-  const [notes, setNotes] = useState("");
+  const [quantityTonnes, setQuantityTonnes] = useState("");
+  const [deliveryNotes, setDeliveryNotes] = useState("");
+  const [confirmedBy, setConfirmedBy] = useState(user?.name || "");
   const [photoUris, setPhotoUris] = useState<string[]>([]);
 
   const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Required", "Camera access is needed to take photos.");
+      Alert.alert("Permission Required", "Camera access is needed.");
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: false });
@@ -81,7 +68,7 @@ export default function FieldInspectionScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       quality: 0.8,
       allowsMultipleSelection: true,
-      selectionLimit: 10,
+      selectionLimit: 6,
     });
     if (!result.canceled) {
       setPhotoUris((p) => [...p, ...result.assets.map((a) => a.uri)]);
@@ -89,8 +76,12 @@ export default function FieldInspectionScreen() {
   };
 
   const handleSave = async () => {
-    if (!fieldName.trim()) {
-      Alert.alert("Required Fields", "Please select a field.");
+    if (!haulierName.trim()) {
+      Alert.alert("Required", "Please enter the haulier or haulage company name.");
+      return;
+    }
+    if (!confirmedBy.trim()) {
+      Alert.alert("Required", "Please enter who is confirming this delivery.");
       return;
     }
 
@@ -110,18 +101,17 @@ export default function FieldInspectionScreen() {
       console.warn("Location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
     }
 
-    const record: FieldInspection = {
+    const record: HaulageConfirmation = {
       id: generateId(),
       farmId: currentFarm?.id || "",
-      fieldName: fieldName.trim(),
-      inspectionDate: new Date().toISOString(),
-      cropType: cropType.trim(),
-      growthStage,
-      pestDiseaseObservations: pestDiseaseObservations.trim(),
-      actionRequired,
-      recommendedAction: recommendedAction.trim(),
-      inspector: inspector.trim(),
-      notes: notes.trim(),
+      confirmationDate: new Date().toISOString(),
+      haulierName: haulierName.trim(),
+      vehicleReg: vehicleReg.trim(),
+      driverName: driverName.trim(),
+      cropType,
+      quantityTonnes: quantityTonnes.trim(),
+      deliveryNotes: deliveryNotes.trim(),
+      confirmedBy: confirmedBy.trim(),
       photoUris,
       latitude,
       longitude,
@@ -129,10 +119,10 @@ export default function FieldInspectionScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.FIELD_INSPECTIONS, record);
+    await appendToList(STORAGE_KEYS.HAULAGE_CONFIRMATIONS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "Field inspection saved successfully.", [
+    Alert.alert("Confirmed", "Delivery confirmed and logged successfully.", [
       { text: "OK", onPress: () => router.back() },
     ]);
   };
@@ -141,7 +131,7 @@ export default function FieldInspectionScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Button title="" icon="arrow-left" variant="ghost" size="sm" onPress={() => router.back()} />
-        <Text style={styles.title}>Field Crop Inspection</Text>
+        <Text style={styles.title}>Confirm Delivery</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -151,96 +141,72 @@ export default function FieldInspectionScreen() {
           contentContainerStyle={styles.form}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.sectionLabel}>
-            <Feather name="map-pin" size={14} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Field</Text>
+          <View style={styles.infoBanner}>
+            <Feather name="truck" size={16} color="#0284c7" />
+            <Text style={styles.infoText}>
+              Use this form when a lorry arrives to collect crop. Your confirmation is logged against the haulage record.
+            </Text>
           </View>
-          <FieldPicker
-            label="Field"
-            value={fieldName}
-            onChange={setFieldName}
-            fields={fields}
-            loading={fieldsLoading}
-            error={fieldsError}
-          />
 
           <View style={styles.sectionLabel}>
-            <Feather name="layers" size={14} color={colors.fieldGreen} />
-            <Text style={styles.sectionTitle}>Crop & Growth Stage</Text>
+            <Feather name="truck" size={14} color="#0284c7" />
+            <Text style={styles.sectionTitle}>Haulier Details <Text style={styles.required}>*</Text></Text>
           </View>
           <Input
-            label="Crop Type"
-            placeholder="e.g. Winter wheat, OSR"
-            value={cropType}
-            onChangeText={setCropType}
+            label="Haulier / Haulage Company"
+            placeholder="e.g. Smith's Transport Ltd"
+            value={haulierName}
+            onChangeText={setHaulierName}
           />
-          <View style={styles.stageGrid}>
-            {GROWTH_STAGES.map((gs) => (
-              <Pressable
-                key={gs}
-                onPress={() => { Haptics.selectionAsync(); setGrowthStage(gs); }}
-                style={[
-                  styles.stageChip,
-                  growthStage === gs && { backgroundColor: colors.primary, borderColor: colors.primary },
-                ]}
-              >
-                <Text style={[styles.stageText, growthStage === gs && { color: colors.textInverse }]}>{gs}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <View style={styles.sectionLabel}>
-            <Feather name="search" size={14} color={colors.error} />
-            <Text style={styles.sectionTitle}>Observations</Text>
-          </View>
-          <Input
-            label="Pest / Disease Observations"
-            placeholder="e.g. Septoria on lower leaves (5-15%), aphid pressure moderate, slugs in headlands"
-            value={pestDiseaseObservations}
-            onChangeText={setPestDiseaseObservations}
-            multiline
-            numberOfLines={4}
-          />
-
-          <View style={styles.sectionLabel}>
-            <Feather name="flag" size={14} color={colors.accent} />
-            <Text style={styles.sectionTitle}>Action Required</Text>
-          </View>
-          <View style={styles.actionGrid}>
-            {ACTIONS.map((a) => (
-              <Pressable
-                key={a.key}
-                onPress={() => { Haptics.selectionAsync(); setActionRequired(a.key); }}
-                style={[
-                  styles.actionCard,
-                  actionRequired === a.key && { borderColor: a.color, backgroundColor: a.color + "18" },
-                ]}
-              >
-                <View style={[styles.actionDot, { backgroundColor: actionRequired === a.key ? a.color : colors.border }]} />
-                <Text style={[styles.actionLabel, actionRequired === a.key && { color: a.color }]}>
-                  {a.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {actionRequired !== "none" && (
+          <View style={styles.row}>
             <Input
-              label="Recommended Action"
-              placeholder="e.g. Apply T1 fungicide, target BBCH 31–32"
-              value={recommendedAction}
-              onChangeText={setRecommendedAction}
-              multiline
-              numberOfLines={2}
+              label="Vehicle Registration"
+              placeholder="e.g. SN23 XYZ"
+              value={vehicleReg}
+              onChangeText={setVehicleReg}
+              containerStyle={styles.flex}
             />
-          )}
+            <Input
+              label="Driver Name"
+              placeholder="Driver's name"
+              value={driverName}
+              onChangeText={setDriverName}
+              containerStyle={styles.flex}
+            />
+          </View>
+
+          <View style={styles.sectionLabel}>
+            <Feather name="package" size={14} color={colors.fieldGold} />
+            <Text style={styles.sectionTitle}>Commodity</Text>
+          </View>
+          <View style={styles.chipGrid}>
+            {CROP_TYPES.map((c) => (
+              <Pressable
+                key={c}
+                onPress={() => { Haptics.selectionAsync(); setCropType(c); }}
+                style={[
+                  styles.chip,
+                  cropType === c && { backgroundColor: "#fef3c7", borderColor: "#d97706" },
+                ]}
+              >
+                <Text style={[styles.chipText, cropType === c && { color: "#d97706", fontFamily: fonts.semiBold }]}>{c}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Input
+            label="Quantity (tonnes)"
+            placeholder="e.g. 28.4"
+            value={quantityTonnes}
+            onChangeText={setQuantityTonnes}
+            keyboardType="decimal-pad"
+          />
 
           <View style={styles.sectionLabel}>
             <Feather name="camera" size={14} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Photo Evidence</Text>
+            <Text style={styles.sectionTitle}>Delivery Photos</Text>
           </View>
           <Text style={styles.photoHint}>
-            Photograph crop damage, disease symptoms, pest pressure or any observations noted above.
+            Photograph the vehicle, ticket, docket or load for traceability records.
           </Text>
           {photoUris.length > 0 && (
             <View style={styles.photoGrid}>
@@ -266,30 +232,30 @@ export default function FieldInspectionScreen() {
           </View>
 
           <View style={styles.sectionLabel}>
-            <Feather name="user" size={14} color={colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Inspector</Text>
+            <Feather name="edit-3" size={14} color={colors.textSecondary} />
+            <Text style={styles.sectionTitle}>Notes & Sign-off <Text style={styles.required}>*</Text></Text>
           </View>
           <Input
-            label="Inspector Name"
-            value={inspector}
-            onChangeText={setInspector}
-            placeholder="Your name"
-          />
-          <Input
-            label="Notes"
-            placeholder="Any additional observations..."
-            value={notes}
-            onChangeText={setNotes}
+            label="Delivery Notes"
+            placeholder="Any discrepancies, damage, weight queries, or special instructions noted..."
+            value={deliveryNotes}
+            onChangeText={setDeliveryNotes}
             multiline
             numberOfLines={3}
           />
+          <Input
+            label="Confirmed By"
+            value={confirmedBy}
+            onChangeText={setConfirmedBy}
+            placeholder="Your name — person authorising this confirmation"
+          />
 
           <Button
-            title="Save Inspection"
+            title="Confirm Delivery"
             onPress={handleSave}
             loading={saving}
             fullWidth
-            icon="check"
+            icon="check-circle"
           />
 
           <View style={{ height: insets.bottom + spacing.xxxl }} />
@@ -311,6 +277,24 @@ const styles = StyleSheet.create({
   },
   title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text },
   form: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  infoBanner: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "flex-start",
+    backgroundColor: "#EFF6FF",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  infoText: {
+    flex: 1,
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: "#0284c7",
+    lineHeight: 18,
+  },
   sectionLabel: {
     flexDirection: "row",
     alignItems: "center",
@@ -325,49 +309,23 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  stageGrid: {
+  required: { color: colors.error },
+  row: { flexDirection: "row", gap: spacing.md },
+  chipGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
     marginBottom: spacing.lg,
   },
-  stageChip: {
+  chip: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.sm,
     borderRadius: radius.full,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  stageText: {
-    fontFamily: fonts.medium,
-    fontSize: fontSize.sm,
-    color: colors.text,
-  },
-  actionGrid: {
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  actionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  actionDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  actionLabel: {
-    fontFamily: fonts.medium,
-    fontSize: fontSize.md,
-    color: colors.text,
-  },
+  chipText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
   photoHint: {
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
@@ -381,16 +339,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.md,
   },
-  photoThumb: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.md,
-    overflow: "hidden",
-  },
-  thumbImg: {
-    width: "100%",
-    height: "100%",
-  },
+  photoThumb: { width: 72, height: 72, borderRadius: radius.md, overflow: "hidden" },
+  thumbImg: { width: "100%", height: "100%" },
   removePhoto: {
     position: "absolute",
     top: 4,
@@ -419,9 +369,5 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  photoBtnText: {
-    fontFamily: fonts.medium,
-    fontSize: fontSize.sm,
-    color: colors.text,
-  },
+  photoBtnText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
 });

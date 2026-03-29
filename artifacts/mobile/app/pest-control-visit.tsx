@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -55,6 +57,35 @@ export default function PestControlVisitScreen() {
   const [baitUsed, setBaitUsed] = useState("");
   const [carriedOutBy, setCarriedOutBy] = useState(user?.name || "");
   const [notes, setNotes] = useState("");
+  const [photoUris, setPhotoUris] = useState<string[]>([]);
+
+  const handleTakePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Camera access is needed to take photos.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: false });
+    if (!result.canceled && result.assets.length > 0) {
+      setPhotoUris((p) => [...p, result.assets[0].uri]);
+    }
+  };
+
+  const handleChoosePhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Photo library access is needed.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      quality: 0.8,
+      allowsMultipleSelection: true,
+      selectionLimit: 10,
+    });
+    if (!result.canceled) {
+      setPhotoUris((p) => [...p, ...result.assets.map((a) => a.uri)]);
+    }
+  };
 
   const handleSave = async () => {
     if (!location.trim() || !pestType) {
@@ -89,6 +120,7 @@ export default function PestControlVisitScreen() {
       baitUsed: baitUsed.trim(),
       carriedOutBy: carriedOutBy.trim(),
       notes: notes.trim(),
+      photoUris,
       latitude,
       longitude,
       createdAt: new Date().toISOString(),
@@ -193,6 +225,36 @@ export default function PestControlVisitScreen() {
           />
 
           <View style={styles.sectionLabel}>
+            <Feather name="camera" size={14} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Photo Evidence</Text>
+          </View>
+          <Text style={styles.photoHint}>
+            Photograph pest activity, bait taken, droppings, burrows or any infestation evidence.
+          </Text>
+          {photoUris.length > 0 && (
+            <View style={styles.photoGrid}>
+              {photoUris.map((uri, i) => (
+                <View key={uri} style={styles.photoThumb}>
+                  <Image source={{ uri }} style={styles.thumbImg} />
+                  <Pressable style={styles.removePhoto} onPress={() => setPhotoUris((p) => p.filter((_, j) => j !== i))}>
+                    <Feather name="x" size={12} color={colors.textInverse} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+          <View style={styles.photoRow}>
+            <Pressable style={styles.photoBtn} onPress={handleTakePhoto}>
+              <Feather name="camera" size={14} color={colors.text} />
+              <Text style={styles.photoBtnText}>Camera</Text>
+            </Pressable>
+            <Pressable style={styles.photoBtn} onPress={handleChoosePhoto}>
+              <Feather name="image" size={14} color={colors.text} />
+              <Text style={styles.photoBtnText}>Choose from Library</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.sectionLabel}>
             <Feather name="user" size={14} color={colors.textSecondary} />
             <Text style={styles.sectionTitle}>Carried Out By</Text>
           </View>
@@ -275,4 +337,60 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   required: { color: colors.error },
+  photoHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+    lineHeight: 18,
+  },
+  photoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  photoThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.md,
+    overflow: "hidden",
+  },
+  thumbImg: {
+    width: "100%",
+    height: "100%",
+  },
+  removePhoto: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 8,
+    width: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  photoBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  photoBtnText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
 });
