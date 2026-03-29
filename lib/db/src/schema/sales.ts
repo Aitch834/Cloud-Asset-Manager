@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { suppliersTable } from "./stock-suppliers";
 
 // ─── Grain Sales ──────────────────────────────────────────────────────────────
 // Covers spot sales, contract call-offs, and pool scheme allocations
@@ -8,6 +9,7 @@ export const grainSalesTable = pgTable("grain_sales", {
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   saleDate: timestamp("sale_date", { withTimezone: true }).notNull(),
   saleType: text("sale_type").notNull().default("spot"), // spot | forward | pool | ex-store
+  buyerId: integer("buyer_id").references(() => suppliersTable.id),
   buyer: text("buyer").notNull(),
   merchantRef: text("merchant_ref"),
   commodity: text("commodity").notNull(),
@@ -46,6 +48,7 @@ export const livestockDeadweightSalesTable = pgTable("livestock_deadweight_sales
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   killDate: timestamp("kill_date", { withTimezone: true }).notNull(),
+  processorId: integer("processor_id").references(() => suppliersTable.id),
   processor: text("processor").notNull(),
   species: text("species").notNull(), // cattle | sheep | pigs | deer
   breed: text("breed"),
@@ -80,6 +83,7 @@ export const livestockMartSalesTable = pgTable("livestock_mart_sales", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   saleDate: timestamp("sale_date", { withTimezone: true }).notNull(),
+  martId: integer("mart_id").references(() => suppliersTable.id),
   martName: text("mart_name").notNull(),
   martLocation: text("mart_location"),
   species: text("species").notNull(),
@@ -112,6 +116,7 @@ export const milkStatementsTable = pgTable("milk_statements", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   statementMonth: text("statement_month").notNull(), // e.g. "2025-03"
+  buyerId: integer("buyer_id").references(() => suppliersTable.id),
   buyer: text("buyer").notNull(),
   cphNumber: text("cph_number"),
   litresSupplied: numeric("litres_supplied", { precision: 12, scale: 2 }),
@@ -146,6 +151,7 @@ export const poultryBatchSettlementsTable = pgTable("poultry_batch_settlements",
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   flockRef: text("flock_ref").notNull(),
+  integratorId: integer("integrator_id").references(() => suppliersTable.id),
   integratorName: text("integrator_name").notNull(),
   species: text("species").notNull().default("broiler"), // broiler | turkey | duck | layers
   placementDate: timestamp("placement_date", { withTimezone: true }),
@@ -179,6 +185,7 @@ export const eggSalesTable = pgTable("egg_sales", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   weekEnding: timestamp("week_ending", { withTimezone: true }).notNull(),
+  packingStationId: integer("packing_station_id").references(() => suppliersTable.id),
   packingStation: text("packing_station"),
   salesChannel: text("sales_channel").notNull().default("packing_station"), // packing_station | direct | farm_gate | processor
   flockRef: text("flock_ref"),
@@ -206,6 +213,7 @@ export const pigKillRecordsTable = pgTable("pig_kill_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   killDate: timestamp("kill_date", { withTimezone: true }).notNull(),
+  processorId: integer("processor_id").references(() => suppliersTable.id),
   processor: text("processor").notNull(),
   headCount: integer("head_count").notNull(),
   totalDeadweightKg: numeric("total_deadweight_kg", { precision: 10, scale: 2 }),
@@ -239,6 +247,7 @@ export const directSalesRecordsTable = pgTable("direct_sales_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   saleDate: timestamp("sale_date", { withTimezone: true }).notNull(),
+  customerId: integer("customer_id").references(() => suppliersTable.id),
   channel: text("channel").notNull(), // farm_shop | box_scheme | farmers_market | wholesale | online | veg_box | restaurant | school
   productName: text("product_name").notNull(),
   productCategory: text("product_category"), // veg | fruit | meat | dairy | eggs | grain | honey | other

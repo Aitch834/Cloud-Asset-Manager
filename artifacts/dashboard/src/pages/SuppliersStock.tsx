@@ -1160,6 +1160,14 @@ const SUPPLIER_TYPES = [
   { value: "seed", label: "Seeds" },
   { value: "machinery", label: "Machinery / Parts" },
   { value: "waste", label: "Waste Carrier" },
+  { value: "grain_merchant", label: "Grain Merchant / Buyer" },
+  { value: "milk_buyer", label: "Milk Buyer / Processor" },
+  { value: "livestock_processor", label: "Livestock Processor / Abattoir" },
+  { value: "livestock_mart", label: "Livestock Mart / Auction" },
+  { value: "poultry_integrator", label: "Poultry Integrator" },
+  { value: "egg_packer", label: "Egg Packing Station" },
+  { value: "pig_processor", label: "Pig Processor" },
+  { value: "direct_customer", label: "Direct Customer / Wholesale Account" },
   { value: "other", label: "Other" },
 ];
 

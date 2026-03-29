@@ -2381,6 +2381,38 @@ router.get("/farms/:farmId/suppliers", requireAuth, requireTenant, requireModule
   res.json({ records });
 });
 
+// Buyer/customer lookup for Sales & Trading forms — uses financial-records module key
+router.get("/farms/:farmId/buyers", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rawTypes = req.query.types ? String(req.query.types).split(",").map(t => t.trim()).filter(Boolean) : [];
+  const baseConditions = [eq(suppliersTable.farmId, farmId), eq(suppliersTable.isActive, true)];
+  const whereClause = rawTypes.length > 0
+    ? and(...baseConditions, inArray(suppliersTable.supplierType, rawTypes))
+    : and(...baseConditions);
+  const records = await db
+    .select({
+      id: suppliersTable.id,
+      name: suppliersTable.name,
+      supplierType: suppliersTable.supplierType,
+      contactName: suppliersTable.contactName,
+      phone: suppliersTable.phone,
+      email: suppliersTable.email,
+      accountNumber: suppliersTable.accountNumber,
+    })
+    .from(suppliersTable)
+    .where(whereClause)
+    .orderBy(suppliersTable.name);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/buyers", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(suppliersTable).values({ ...req.body, farmId, isApproved: false }).returning();
+  res.status(201).json({ record });
+});
+
 router.post("/farms/:farmId/suppliers", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;

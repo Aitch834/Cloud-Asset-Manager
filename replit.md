@@ -24,6 +24,7 @@ The monorepo is structured with `pnpm workspaces`, using Node.js 24 and TypeScri
 **Database Layer (`lib/db`):**
 - Utilizes PostgreSQL with Drizzle ORM.
 - Comprises 60+ tables across multiple schema files covering authentication, core tenant data, leads, support, and all farm-specific modules (e.g., fields, crops, livestock, equipment, financial).
+- **Sales tables** (`lib/db/src/schema/sales.ts`): 8 tables — `grain_sales`, `livestock_deadweight_sales`, `livestock_mart_sales`, `milk_statements`, `poultry_batch_settlements`, `egg_sales`, `pig_kill_records`, `direct_sales_records`. Each has a nullable FK column (`buyerId`, `processorId`, `martId`, `integratorId`, `packingStationId`, `customerId`) referencing `suppliers` for buyer/processor contact linking.
 - `farm_locations` table provides a named registry of farm buildings and areas.
 - `workshop_goods_returns` table stores RTN register with auto-generated RTN-YYYYMM-NNN refs, reason codes, status workflow (raised → dispatched → awaiting-credit → credit-received → closed), credit tracking, and links to stock items.
 

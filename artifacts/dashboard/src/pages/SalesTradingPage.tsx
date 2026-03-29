@@ -16,6 +16,7 @@ import {
   Plus, Trash2, Pencil, TrendingUp, Wheat, PiggyBank, Bird, Milk,
   ShoppingCart, BarChart3, Package, Scale, CheckCircle2, DollarSign, AlertCircle
 } from "lucide-react";
+import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmtDate = (d: string | null | undefined) =>
@@ -64,7 +65,7 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const empty = {
-    saleDate: "", saleType: "spot", buyer: "", merchantRef: "", commodity: "", variety: "",
+    saleDate: "", saleType: "spot", buyerId: null as number | null, buyer: "", merchantRef: "", commodity: "", variety: "",
     tonnage: "", pricePerTonnePence: "", grossValuePence: "", deductionsPence: "", netValuePence: "",
     moisture: "", specificWeight: "", protein: "", gradeAchieved: "", qualitySpec: "",
     deliveryDate: "", deliveryLocation: "", haulierName: "", vehicleReg: "",
@@ -204,8 +205,17 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div>
-                <Label>Buyer / Merchant *</Label>
-                <Input value={form.buyer} onChange={e => setForm((f: any) => ({ ...f, buyer: e.target.value }))} required placeholder="e.g. Frontier Agriculture" />
+                <Label>Buyer / Merchant {form.buyer ? "" : "*"}</Label>
+                <BuyerCombobox
+                  farmId={farmId}
+                  types={["grain_merchant"]}
+                  valueId={form.buyerId}
+                  valueName={form.buyer}
+                  onChange={(id, name) => setForm((f: any) => ({ ...f, buyerId: id, buyer: name }))}
+                  required
+                  placeholder="Search or add grain merchant..."
+                  typeLabel="Grain Merchant"
+                />
               </div>
               <div>
                 <Label>Merchant Ref</Label>
@@ -336,7 +346,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
   const [deleteMartId, setDeleteMartId] = useState<number | null>(null);
 
   const emptyDW = {
-    killDate: "", processor: "", species: "", breed: "", headCount: "",
+    killDate: "", processorId: null as number | null, processor: "", species: "", breed: "", headCount: "",
     totalDeadweightKg: "", averageDeadweightKg: "", pricePerKgPence: "",
     gradeClassification: "", fatClass: "", conformationClass: "", killSheetRef: "",
     grossValuePence: "", transportDeductionPence: "", levyDeductionPence: "", otherDeductionsPence: "", netPaymentPence: "",
@@ -346,7 +356,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
   const [formDW, setFormDW] = useState<any>(emptyDW);
 
   const emptyMart = {
-    saleDate: "", martName: "", martLocation: "", species: "", category: "store",
+    saleDate: "", martId: null as number | null, martName: "", martLocation: "", species: "", category: "store",
     lotNumber: "", headCount: "", averageLiveweightKg: "", priceType: "per_head",
     pricePerUnitPence: "", grossValuePence: "", commissionPence: "", levyPence: "",
     transportCostPence: "", otherCostsPence: "", netPaymentPence: "",
@@ -541,7 +551,19 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
           <form onSubmit={submitDW}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div><Label>Kill Date *</Label><Input type="date" value={formDW.killDate} onChange={e => setFormDW((f: any) => ({ ...f, killDate: e.target.value }))} required /></div>
-              <div><Label>Processor *</Label><Input value={formDW.processor} onChange={e => setFormDW((f: any) => ({ ...f, processor: e.target.value }))} required placeholder="e.g. ABP, Dawn Meats" /></div>
+              <div>
+                <Label>Processor {formDW.processor ? "" : "*"}</Label>
+                <BuyerCombobox
+                  farmId={farmId}
+                  types={["livestock_processor"]}
+                  valueId={formDW.processorId}
+                  valueName={formDW.processor}
+                  onChange={(id, name) => setFormDW((f: any) => ({ ...f, processorId: id, processor: name }))}
+                  required
+                  placeholder="Search or add processor..."
+                  typeLabel="Processor"
+                />
+              </div>
               <div>
                 <Label>Species *</Label>
                 <Select value={formDW.species} onValueChange={v => setFormDW((f: any) => ({ ...f, species: v }))}>
@@ -595,7 +617,19 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
           <form onSubmit={submitMart}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div><Label>Sale Date *</Label><Input type="date" value={formMart.saleDate} onChange={e => setFormMart((f: any) => ({ ...f, saleDate: e.target.value }))} required /></div>
-              <div><Label>Mart Name *</Label><Input value={formMart.martName} onChange={e => setFormMart((f: any) => ({ ...f, martName: e.target.value }))} required placeholder="e.g. Carlisle Auction Mart" /></div>
+              <div>
+                <Label>Mart Name {formMart.martName ? "" : "*"}</Label>
+                <BuyerCombobox
+                  farmId={farmId}
+                  types={["livestock_mart"]}
+                  valueId={formMart.martId}
+                  valueName={formMart.martName}
+                  onChange={(id, name) => setFormMart((f: any) => ({ ...f, martId: id, martName: name }))}
+                  required
+                  placeholder="Search or add mart..."
+                  typeLabel="Livestock Mart"
+                />
+              </div>
               <div><Label>Mart Location</Label><Input value={formMart.martLocation} onChange={e => setFormMart((f: any) => ({ ...f, martLocation: e.target.value }))} /></div>
               <div>
                 <Label>Species *</Label>
@@ -678,7 +712,7 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const empty = {
-    statementMonth: "", buyer: "", cphNumber: "", litresSupplied: "", pencePerLitre: "",
+    statementMonth: "", buyerId: null as number | null, buyer: "", cphNumber: "", litresSupplied: "", pencePerLitre: "",
     grossValuePence: "", butterfatPct: "", proteinPct: "", scc: "", bactoscan: "",
     butterfatBonusPence: "", proteinBonusPence: "", qualityBonusPence: "", qualityPenaltyPence: "",
     sccPenaltyPence: "", bactoscanPenaltyPence: "", transportDeductionPence: "",
@@ -799,7 +833,19 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
           <form onSubmit={handleSubmit}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div><Label>Statement Month *</Label><Input type="month" value={form.statementMonth} onChange={e => setForm((f: any) => ({ ...f, statementMonth: e.target.value }))} required /></div>
-              <div><Label>Buyer *</Label><Input value={form.buyer} onChange={e => setForm((f: any) => ({ ...f, buyer: e.target.value }))} required placeholder="e.g. Arla, Müller, First Milk" /></div>
+              <div>
+                <Label>Milk Buyer {form.buyer ? "" : "*"}</Label>
+                <BuyerCombobox
+                  farmId={farmId}
+                  types={["milk_buyer"]}
+                  valueId={form.buyerId}
+                  valueName={form.buyer}
+                  onChange={(id, name) => setForm((f: any) => ({ ...f, buyerId: id, buyer: name }))}
+                  required
+                  placeholder="Search or add milk buyer..."
+                  typeLabel="Milk Buyer"
+                />
+              </div>
               <div><Label>CPH Number</Label><Input value={form.cphNumber} onChange={e => setForm((f: any) => ({ ...f, cphNumber: e.target.value }))} /></div>
               <div><Label>Statement Ref</Label><Input value={form.statementRef} onChange={e => setForm((f: any) => ({ ...f, statementRef: e.target.value }))} /></div>
               <div><Label>Litres Supplied</Label><Input type="number" step="0.01" value={form.litresSupplied} onChange={e => setForm((f: any) => ({ ...f, litresSupplied: e.target.value }))} /></div>
@@ -854,7 +900,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
   const [deleteEggId, setDeleteEggId] = useState<number | null>(null);
 
   const emptyBatch = {
-    flockRef: "", integratorName: "", species: "broiler", placementDate: "", catchDate: "",
+    flockRef: "", integratorId: null as number | null, integratorName: "", species: "broiler", placementDate: "", catchDate: "",
     birdsPlaced: "", birdsDelivered: "", mortalityPct: "", averageLiveweightKg: "", totalLiveweightKg: "",
     fcr: "", ebi: "", settlementRatePence: "", grossValuePence: "", bonusPence: "", penaltyPence: "",
     catchingCostPence: "", otherDeductionsPence: "", netPaymentPence: "", paymentDate: "",
@@ -863,7 +909,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
   const [formBatch, setFormBatch] = useState<any>(emptyBatch);
 
   const emptyEgg = {
-    weekEnding: "", packingStation: "", salesChannel: "packing_station", flockRef: "",
+    weekEnding: "", packingStationId: null as number | null, packingStation: "", salesChannel: "packing_station", flockRef: "",
     dozensCollected: "", dozensDelivered: "", gradeADozens: "", gradeBDozens: "", crackWasteDozens: "",
     layRatePct: "", pricePerDozenPence: "", grossValuePence: "", deductionsPence: "", netValuePence: "",
     paymentDate: "", eggType: "free_range", packingRef: "", notes: "",
@@ -1036,7 +1082,19 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
           <form onSubmit={submitBatch}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div><Label>Flock Ref *</Label><Input value={formBatch.flockRef} onChange={e => setFormBatch((f: any) => ({ ...f, flockRef: e.target.value }))} required /></div>
-              <div><Label>Integrator *</Label><Input value={formBatch.integratorName} onChange={e => setFormBatch((f: any) => ({ ...f, integratorName: e.target.value }))} required placeholder="e.g. Cargill, Moy Park" /></div>
+              <div>
+                <Label>Integrator {formBatch.integratorName ? "" : "*"}</Label>
+                <BuyerCombobox
+                  farmId={farmId}
+                  types={["poultry_integrator"]}
+                  valueId={formBatch.integratorId}
+                  valueName={formBatch.integratorName}
+                  onChange={(id, name) => setFormBatch((f: any) => ({ ...f, integratorId: id, integratorName: name }))}
+                  required
+                  placeholder="Search or add integrator..."
+                  typeLabel="Integrator"
+                />
+              </div>
               <div>
                 <Label>Species</Label>
                 <Select value={formBatch.species} onValueChange={v => setFormBatch((f: any) => ({ ...f, species: v }))}>
@@ -1095,7 +1153,18 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Packing Station</Label><Input value={formEgg.packingStation} onChange={e => setFormEgg((f: any) => ({ ...f, packingStation: e.target.value }))} placeholder="e.g. Noble Foods" /></div>
+              <div>
+                <Label>Packing Station</Label>
+                <BuyerCombobox
+                  farmId={farmId}
+                  types={["egg_packer"]}
+                  valueId={formEgg.packingStationId}
+                  valueName={formEgg.packingStation ?? ""}
+                  onChange={(id, name) => setFormEgg((f: any) => ({ ...f, packingStationId: id, packingStation: name }))}
+                  placeholder="Search or add packing station..."
+                  typeLabel="Packing Station"
+                />
+              </div>
               <div><Label>Flock Ref</Label><Input value={formEgg.flockRef} onChange={e => setFormEgg((f: any) => ({ ...f, flockRef: e.target.value }))} /></div>
               <div>
                 <Label>Egg Type</Label>
@@ -1162,7 +1231,7 @@ function PigSalesTab({ farmId }: { farmId: number }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const empty = {
-    killDate: "", processor: "", headCount: "", totalDeadweightKg: "", averageDeadweightKg: "",
+    killDate: "", processorId: null as number | null, processor: "", headCount: "", totalDeadweightKg: "", averageDeadweightKg: "",
     pricePerKgPence: "", grossValuePence: "", levyDeductionPence: "", transportDeductionPence: "",
     otherDeductionsPence: "", netPaymentPence: "", paymentDate: "",
     averageP2BackfatMm: "", averageMuscleDepthMm: "", leanMeatPct: "", gradeOut: "",
@@ -1288,7 +1357,19 @@ function PigSalesTab({ farmId }: { farmId: number }) {
           <form onSubmit={handleSubmit}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div><Label>Kill Date *</Label><Input type="date" value={form.killDate} onChange={e => setForm((f: any) => ({ ...f, killDate: e.target.value }))} required /></div>
-              <div><Label>Processor *</Label><Input value={form.processor} onChange={e => setForm((f: any) => ({ ...f, processor: e.target.value }))} required placeholder="e.g. Cranswick, Pilgrim's Pride" /></div>
+              <div>
+                <Label>Processor {form.processor ? "" : "*"}</Label>
+                <BuyerCombobox
+                  farmId={farmId}
+                  types={["pig_processor"]}
+                  valueId={form.processorId}
+                  valueName={form.processor}
+                  onChange={(id, name) => setForm((f: any) => ({ ...f, processorId: id, processor: name }))}
+                  required
+                  placeholder="Search or add processor..."
+                  typeLabel="Pig Processor"
+                />
+              </div>
               <div><Label>Head Count *</Label><Input type="number" value={form.headCount} onChange={e => setForm((f: any) => ({ ...f, headCount: e.target.value }))} required /></div>
               <div><Label>Herd Mark</Label><Input value={form.herdMark} onChange={e => setForm((f: any) => ({ ...f, herdMark: e.target.value }))} /></div>
               <div><Label>Total Deadweight (kg)</Label><Input type="number" step="0.1" value={form.totalDeadweightKg} onChange={e => setForm((f: any) => ({ ...f, totalDeadweightKg: e.target.value }))} /></div>
@@ -1353,7 +1434,7 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
   const [channelFilter, setChannelFilter] = useState("all");
 
   const empty = {
-    saleDate: "", channel: "farm_shop", productName: "", productCategory: "",
+    saleDate: "", customerId: null as number | null, channel: "farm_shop", productName: "", productCategory: "",
     quantity: "", unit: "kg", unitPricePence: "", grossValuePence: "", vatPence: "", vatRate: "0",
     netValuePence: "", paymentMethod: "cash", paymentStatus: "paid",
     customerName: "", customerRef: "", invoiceNumber: "", marketName: "", notes: "",
@@ -1531,7 +1612,18 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Customer Name</Label><Input value={form.customerName} onChange={e => setForm((f: any) => ({ ...f, customerName: e.target.value }))} /></div>
+              <div>
+                <Label>Customer Name</Label>
+                <BuyerCombobox
+                  farmId={farmId}
+                  types={["direct_customer"]}
+                  valueId={form.customerId}
+                  valueName={form.customerName ?? ""}
+                  onChange={(id, name) => setForm((f: any) => ({ ...f, customerId: id, customerName: name }))}
+                  placeholder="Search or add customer..."
+                  typeLabel="Customer"
+                />
+              </div>
               <div><Label>Invoice Number</Label><Input value={form.invoiceNumber} onChange={e => setForm((f: any) => ({ ...f, invoiceNumber: e.target.value }))} /></div>
               {form.channel === "farmers_market" && <div><Label>Market Name</Label><Input value={form.marketName} onChange={e => setForm((f: any) => ({ ...f, marketName: e.target.value }))} /></div>}
               <div style={{ gridColumn: "1/-1" }}><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
