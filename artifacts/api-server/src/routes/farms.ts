@@ -6856,6 +6856,47 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 </ul>
 <p>BDE Farm Trac's Feed Management module holds all of this in one place, with print-ready records that can be presented on a tablet or laptop during an inspection.</p>`,
     },
+    {
+      id: 10046,
+      title: "Sales & Trading — Recording Farm Output",
+      category: "Sales & Trading",
+      content: `<p>The <strong>Sales &amp; Trading</strong> module provides a single place to record all farm output sales — from grain and livestock to milk, eggs, pigs, poultry, and direct retail. Every sale type generates a structured record that satisfies Red Tractor traceability requirements and feeds into your farm's financial overview.</p>
+
+<h3>The Eight Sale Types</h3>
+<p>Use the tab bar at the top of the Sales &amp; Trading page to switch between sale types:</p>
+<ul>
+<li><strong>Grain Sales</strong> — spot sales, forward contract call-offs, pool scheme allocations, and ex-store contracts. Records capture commodity, variety, tonnage, price per tonne, moisture, specific weight, and delivery details.</li>
+<li><strong>Livestock — Deadweight</strong> — processor kill sheets for beef, sheep, pigs, and deer. Captures kill date, species, grade classification, fat class, and individual deadweight payments including Red Tractor and organic premiums.</li>
+<li><strong>Livestock — Mart / Auction</strong> — live weight sales through auction marts. Records lot number, head count, average liveweight, and commission deductions alongside the Vendor Declaration reference.</li>
+<li><strong>Milk Statements</strong> — monthly statements from your milk buyer. Captures litres supplied, pence per litre, butterfat and protein percentages, quality bonuses and penalties, SCC, and Bactoscan readings. Only visible for dairy-sector farms.</li>
+<li><strong>Poultry — Batch Settlements</strong> — integrator settlement sheets for broiler, turkey, duck, and layer batches. Records birds placed and delivered, FCR, EBI, and the settlement rate breakdown.</li>
+<li><strong>Poultry — Egg Sales</strong> — weekly egg sales or packing station returns. Captures dozens by grade, lay rate, price per dozen, and packing reference.</li>
+<li><strong>Pig Kill Records</strong> — processor kill sheets for pigs. Records head count, deadweight, P2 backfat, muscle depth, lean meat percentage, grade-out, and SPP variance.</li>
+<li><strong>Direct Sales</strong> — farm shop, box scheme, farmers market, wholesale, online, and restaurant sales. Records product, quantity, unit price, VAT rate, and payment method and status.</li>
+</ul>
+
+<h3>Buyer, Processor &amp; Integrator Lookups</h3>
+<p>Each sale form includes a searchable <strong>buyer / processor / integrator</strong> field rather than a plain text box. This field is linked directly to your <strong>Suppliers &amp; Contacts</strong> register, filtered to show only contacts of the relevant type (grain merchant, milk buyer, livestock processor, etc.).</p>
+<p>When you select a contact from the dropdown:</p>
+<ul>
+<li>The buyer's name is filled into the record automatically.</li>
+<li>A database link is created between the sale record and the contact — meaning you can later filter or report all sales to a particular buyer across any time period.</li>
+<li>The contact's account number (if set) is shown beneath their name in the dropdown to help you confirm the right buyer.</li>
+</ul>
+
+<h3>Searching the Dropdown</h3>
+<p>Click the buyer field to open a searchable list. Start typing any part of the buyer's name to filter the list instantly. If the buyer you need is not yet in your contacts, select <strong>Quick add new [type]</strong> at the bottom of the dropdown. A small dialog appears — enter the name and an optional account reference, then click <strong>Add &amp; Select</strong>. The new contact is saved to your Suppliers &amp; Contacts register and immediately selected in the form.</p>
+<p>To clear a selected buyer and start again, click the small <strong>×</strong> button that appears to the right of the dropdown.</p>
+
+<h3>Managing Buyer Contacts</h3>
+<p>Contacts added via the Quick Add dialog in a sales form are also visible in <strong>Suppliers &amp; Contacts</strong> (accessible from the sidebar under Stock &amp; Suppliers). From there you can add further detail such as a contact name, phone number, email address, and certification information. To add a buyer type contact directly, open Suppliers &amp; Contacts and set the <strong>Supplier Type</strong> to one of the buyer categories: Grain Merchant / Buyer, Milk Buyer / Processor, Livestock Processor / Abattoir, Livestock Mart / Auction, Poultry Integrator, Egg Packing Station, Pig Processor, or Direct Customer / Wholesale Account.</p>
+
+<h3>Mobile App</h3>
+<p>The <strong>BDE Farm Trac Mobile App</strong> includes four sales recording screens — Grain Sale, Livestock Sale, Milk Statement, and Direct Sale — designed for offline use in the field. These screens use a free-text name field for the buyer or processor, so you can record a sale without connectivity. When the record syncs to the server, the buyer name is stored in the sale record. To link that record to a contact in your Supplier directory, open the record on the desktop dashboard and re-select the buyer from the combobox — the link is then saved. This workflow is designed for situations where your internet connection is intermittent.</p>
+
+<h3>Why This Matters for Red Tractor</h3>
+<p>Red Tractor standards require evidence of traceability from farm to processor or buyer. Linking sale records to verified contact entries — complete with account number and type — provides a clear chain of custody. During an inspection, you can print or export a list of all sales to a given buyer within any date range, showing the full sale details alongside the buyer's registered contact information.</p>`,
+    },
   ];
 
   const { search, category } = _req.query;
