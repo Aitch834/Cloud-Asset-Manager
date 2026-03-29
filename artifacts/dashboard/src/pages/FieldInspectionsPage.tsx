@@ -12,9 +12,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardCheck, Search, CheckCircle2, AlertTriangle, AlertCircle, Eye, Filter } from "lucide-react";
+import { ClipboardCheck, Search, CheckCircle2, AlertTriangle, AlertCircle, Eye, Filter, Camera, File, Trash2, Loader2 } from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
 
 type ActionRequired = "none" | "monitor" | "treat" | "urgent";
+
+interface Photo { id: number; objectPath: string; fileName: string | null; }
 
 interface FieldInspection {
   id: number;
@@ -33,6 +36,54 @@ interface FieldInspection {
   resolvedBy: string | null;
   resolutionNotes: string | null;
   createdAt: string;
+  photos: Photo[];
+}
+
+function InspectionPhotoPanel({ recordId, farmId, photos }: { recordId: number; farmId: number; photos: Photo[] }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const deleteMut = useMutation({
+    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/field-inspections/${recordId}/photos/${photoId}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["field-inspections", farmId] }),
+  });
+
+  const { uploadFile, isUploading, progress } = useUpload({
+    onSuccess: async (response) => {
+      await fetch(`/api/farms/${farmId}/field-inspections/${recordId}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ objectPath: response.objectPath, fileName: response.objectPath.split("/").pop() }),
+      });
+      qc.invalidateQueries({ queryKey: ["field-inspections", farmId] });
+      toast({ title: "Photo uploaded" });
+    },
+  });
+
+  return (
+    <div className="border-t border-gray-100 bg-gray-50 px-5 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Evidence Photos</p>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {photos.map(p => (
+          <div key={p.id} className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-md px-2.5 py-1">
+            <File size={11} className="text-blue-500" />
+            <a href={`/api/storage${p.objectPath}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+              {p.fileName ?? "photo"}
+            </a>
+            <button onClick={() => deleteMut.mutate(p.id)} className="text-red-400 hover:text-red-600 ml-1" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+              <Trash2 size={11} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-md px-3 py-1.5 cursor-pointer hover:bg-gray-50">
+        {isUploading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
+        {isUploading ? `Uploading… ${progress}%` : "Add Photo"}
+        <input type="file" accept="image/*,application/pdf" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = ""; }} />
+      </label>
+    </div>
+  );
 }
 
 const fmt = (d: string | null | undefined) => {
@@ -320,6 +371,7 @@ export default function FieldInspectionsPage() {
                 </div>
               )}
             </div>
+            {farmId && <InspectionPhotoPanel recordId={detailRecord.id} farmId={farmId} photos={detailRecord.photos ?? []} />}
             <DialogFooter>
               {!detailRecord.isResolved && (detailRecord.actionRequired === "treat" || detailRecord.actionRequired === "urgent" || detailRecord.actionRequired === "monitor") && (
                 <Button variant="outline" className="text-green-700 border-green-300 hover:bg-green-50" onClick={() => { setResolveOpen(true); }}>

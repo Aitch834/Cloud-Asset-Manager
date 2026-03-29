@@ -170,3 +170,12 @@ export const encampmentPhotosTable = pgTable("encampment_photos", {
   fileName: text("file_name"),
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const accidentBookPhotosTable = pgTable("accident_book_photos", {
+  id: serial("id").primaryKey(),
+  recordId: integer("record_id").notNull().references(() => accidentBookTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  objectPath: text("object_path").notNull(),
+  fileName: text("file_name"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+});

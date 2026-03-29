@@ -195,6 +195,15 @@ export const fieldInspectionsTable = pgTable("field_inspections", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const fieldInspectionPhotosTable = pgTable("field_inspection_photos", {
+  id: serial("id").primaryKey(),
+  recordId: integer("record_id").notNull().references(() => fieldInspectionsTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  objectPath: text("object_path").notNull(),
+  fileName: text("file_name"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const nvzRiskAssessmentsTable = pgTable("nvz_risk_assessments", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

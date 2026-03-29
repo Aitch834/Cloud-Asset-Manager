@@ -50,6 +50,7 @@ import {
   seedDrillingRecordsTable,
   visitorContractorLogTable,
   pestControlRecordsTable,
+  pestControlPhotosTable,
   cleaningDisinfectionRecordsTable,
   staffTrainingRecordsTable,
   staffCertificatesTable,
@@ -64,6 +65,7 @@ import {
   unauthorizedEncampmentsTable,
   encampmentPhotosTable,
   accidentBookTable,
+  accidentBookPhotosTable,
   inspectionRecordsTable,
   nonconformanceRecordsTable,
   correctiveActionsTable,
@@ -96,6 +98,7 @@ import {
   biosecurityPlansTable,
   nvzRiskAssessmentsTable,
   fieldInspectionsTable,
+  fieldInspectionPhotosTable,
   fieldOperationsTable,
   farmAdvisorsTable,
   farmInspectionSessionsTable,
@@ -1650,7 +1653,10 @@ router.get("/farms/:farmId/pest-control", requireAuth, requireTenant, requireMod
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(pestControlRecordsTable).where(eq(pestControlRecordsTable.farmId, farmId)).orderBy(desc(pestControlRecordsTable.treatmentDate));
-  res.json({ records });
+  const photos = await db.select().from(pestControlPhotosTable).where(eq(pestControlPhotosTable.farmId, farmId));
+  const photosByRecord: Record<number, typeof photos> = {};
+  for (const p of photos) { if (!photosByRecord[p.recordId]) photosByRecord[p.recordId] = []; photosByRecord[p.recordId].push(p); }
+  res.json({ records: records.map(r => ({ ...r, photos: photosByRecord[r.id] ?? [] })) });
 });
 
 router.post("/farms/:farmId/pest-control", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -3143,6 +3149,26 @@ router.delete("/farms/:farmId/pest-control/:recordId", requireAuth, requireTenan
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(pestControlRecordsTable).where(and(eq(pestControlRecordsTable.id, recordId), eq(pestControlRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.post("/farms/:farmId/pest-control/:recordId/photos", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { objectPath, fileName } = req.body;
+  if (!objectPath) { res.status(400).json({ error: "objectPath is required" }); return; }
+  const [photo] = await db.insert(pestControlPhotosTable).values({ recordId, farmId, objectPath, fileName: fileName || null }).returning();
+  res.json({ photo });
+});
+
+router.delete("/farms/:farmId/pest-control/:recordId/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const photoId = parseInt(req.params.photoId);
+  if (!photoId) { res.status(400).json({ error: "Invalid photo ID" }); return; }
+  await db.delete(pestControlPhotosTable).where(and(eq(pestControlPhotosTable.id, photoId), eq(pestControlPhotosTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -7758,7 +7784,10 @@ router.get("/farms/:farmId/field-inspections", requireAuth, requireTenant, requi
       : eq(fieldInspectionsTable.farmId, farmId)
   ).$dynamic();
   const records = await query.orderBy(desc(fieldInspectionsTable.inspectionDate));
-  res.json({ records });
+  const photos = await db.select().from(fieldInspectionPhotosTable).where(eq(fieldInspectionPhotosTable.farmId, farmId));
+  const photosByRecord: Record<number, typeof photos> = {};
+  for (const p of photos) { if (!photosByRecord[p.recordId]) photosByRecord[p.recordId] = []; photosByRecord[p.recordId].push(p); }
+  res.json({ records: records.map(r => ({ ...r, photos: photosByRecord[r.id] ?? [] })) });
 });
 
 router.post("/farms/:farmId/field-inspections", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -7820,6 +7849,26 @@ router.patch("/farms/:farmId/field-inspections/:recordId/resolve", requireAuth, 
   }).where(and(eq(fieldInspectionsTable.id, recordId), eq(fieldInspectionsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
+});
+
+router.post("/farms/:farmId/field-inspections/:recordId/photos", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { objectPath, fileName } = req.body;
+  if (!objectPath) { res.status(400).json({ error: "objectPath is required" }); return; }
+  const [photo] = await db.insert(fieldInspectionPhotosTable).values({ recordId, farmId, objectPath, fileName: fileName || null }).returning();
+  res.json({ photo });
+});
+
+router.delete("/farms/:farmId/field-inspections/:recordId/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const photoId = parseInt(req.params.photoId);
+  if (!photoId) { res.status(400).json({ error: "Invalid photo ID" }); return; }
+  await db.delete(fieldInspectionPhotosTable).where(and(eq(fieldInspectionPhotosTable.id, photoId), eq(fieldInspectionPhotosTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 // ─── Advisors & Access ────────────────────────────────────────────────────────
@@ -10775,7 +10824,10 @@ router.get("/farms/:farmId/accident-book", requireAuth, requireTenant, requireMo
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(accidentBookTable).where(eq(accidentBookTable.farmId, farmId)).orderBy(desc(accidentBookTable.incidentDate));
-  res.json({ records });
+  const photos = await db.select().from(accidentBookPhotosTable).where(eq(accidentBookPhotosTable.farmId, farmId));
+  const photosByRecord: Record<number, typeof photos> = {};
+  for (const p of photos) { if (!photosByRecord[p.recordId]) photosByRecord[p.recordId] = []; photosByRecord[p.recordId].push(p); }
+  res.json({ records: records.map(r => ({ ...r, photos: photosByRecord[r.id] ?? [] })) });
 });
 
 router.post("/farms/:farmId/accident-book", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -10800,6 +10852,26 @@ router.delete("/farms/:farmId/accident-book/:recordId", requireAuth, requireTena
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(accidentBookTable).where(and(eq(accidentBookTable.id, recordId), eq(accidentBookTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.post("/farms/:farmId/accident-book/:recordId/photos", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { objectPath, fileName } = req.body;
+  if (!objectPath) { res.status(400).json({ error: "objectPath is required" }); return; }
+  const [photo] = await db.insert(accidentBookPhotosTable).values({ recordId, farmId, objectPath, fileName: fileName || null }).returning();
+  res.json({ photo });
+});
+
+router.delete("/farms/:farmId/accident-book/:recordId/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const photoId = parseInt(req.params.photoId);
+  if (!photoId) { res.status(400).json({ error: "Invalid photo ID" }); return; }
+  await db.delete(accidentBookPhotosTable).where(and(eq(accidentBookPhotosTable.id, photoId), eq(accidentBookPhotosTable.farmId, farmId)));
   res.json({ success: true });
 });
 

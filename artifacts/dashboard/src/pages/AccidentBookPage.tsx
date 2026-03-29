@@ -13,8 +13,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  BookOpen, Plus, Printer, Trash2, Pencil, AlertTriangle, CheckCircle, ChevronDown, ChevronUp, AlertCircle,
+  BookOpen, Plus, Printer, Trash2, Pencil, AlertTriangle, CheckCircle, ChevronDown, ChevronUp, AlertCircle, Camera, File, Loader2,
 } from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
 
 const PERSON_TYPES = ["Employee", "Contractor", "Self-employed", "Visitor", "Member of public"];
 
@@ -37,6 +38,8 @@ const RIDDOR_CATEGORIES = [
   "Occupational disease",
   "Death",
 ];
+
+interface Photo { id: number; objectPath: string; fileName: string | null; }
 
 interface AccidentRecord {
   id: number;
@@ -65,6 +68,54 @@ interface AccidentRecord {
   signOffDate: string | null;
   notes: string | null;
   createdAt: string;
+  photos: Photo[];
+}
+
+function AccidentPhotoPanel({ recordId, farmId, photos }: { recordId: number; farmId: number; photos: Photo[] }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const deleteMut = useMutation({
+    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/accident-book/${recordId}/photos/${photoId}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["accident-book", farmId] }),
+  });
+
+  const { uploadFile, isUploading, progress } = useUpload({
+    onSuccess: async (response) => {
+      await fetch(`/api/farms/${farmId}/accident-book/${recordId}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ objectPath: response.objectPath, fileName: response.objectPath.split("/").pop() }),
+      });
+      qc.invalidateQueries({ queryKey: ["accident-book", farmId] });
+      toast({ title: "Photo uploaded" });
+    },
+  });
+
+  return (
+    <div style={{ padding: "10px 14px 12px", background: "#f9fafb", borderTop: "1px solid #f3f4f6" }}>
+      <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 8 }}>Scene / Evidence Photos</p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: photos.length ? 8 : 0 }}>
+        {photos.map(p => (
+          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, padding: "4px 10px 4px 8px" }}>
+            <File size={12} style={{ color: "#2563eb" }} />
+            <a href={`/api/storage${p.objectPath}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.8125rem", color: "#2563eb", textDecoration: "none" }}>
+              {p.fileName ?? "photo"}
+            </a>
+            <button onClick={() => deleteMut.mutate(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 0 }}>
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", color: "#374151", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+        {isUploading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+        {isUploading ? `Uploading… ${progress}%` : "Add Photo"}
+        <input type="file" accept="image/*,application/pdf" style={{ display: "none" }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = ""; }} />
+      </label>
+    </div>
+  );
 }
 
 const EMPTY_FORM = {
@@ -113,7 +164,7 @@ function RiddorBadge({ record }: { record: AccidentRecord }) {
   );
 }
 
-function RecordCard({ record, onEdit, onDelete }: { record: AccidentRecord; onEdit: () => void; onDelete: () => void }) {
+function RecordCard({ record, farmId, onEdit, onDelete }: { record: AccidentRecord; farmId: number; onEdit: () => void; onDelete: () => void }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -149,23 +200,26 @@ function RecordCard({ record, onEdit, onDelete }: { record: AccidentRecord; onEd
 
       {/* Expanded detail */}
       {expanded && (
-        <div style={{ borderTop: "1px solid #f3f4f6", padding: "14px 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px", fontSize: "0.8125rem", color: "#374151" }}>
-          <DetailRow label="Nature of Injury" value={record.natureOfInjury} />
-          <DetailRow label="Body Part Affected" value={record.bodyPartAffected} />
-          <DetailRow label="First Aid Given" value={record.firstAidGiven ? (record.firstAidDetails || "Yes") : "No"} />
-          <DetailRow label="First Aider" value={record.firstAiderName} />
-          <DetailRow label="Hospital Attended" value={record.hospitalAttended ? (record.hospitalName || "Yes") : "No"} />
-          <DetailRow label="Time Lost" value={record.timeLostDays ? `${record.timeLostDays} day(s)` : "None recorded"} />
-          {record.riddorReportable && <>
-            <DetailRow label="RIDDOR Category" value={record.riddorCategory} />
-            <DetailRow label="RIDDOR Reference" value={record.riddorReference} />
-            <DetailRow label="Date Reported to HSE" value={record.riddorReportedDate ? fmt(record.riddorReportedDate) : null} />
-          </>}
-          <DetailRow label="Witnesses" value={record.witnesses} span />
-          <DetailRow label="Corrective Action Taken" value={record.correctiveAction} span />
-          <DetailRow label="Signed Off By" value={record.signedOffBy ? `${record.signedOffBy}${record.signOffDate ? ` on ${fmt(record.signOffDate)}` : ""}` : null} />
-          <DetailRow label="Notes" value={record.notes} span />
-        </div>
+        <>
+          <div style={{ borderTop: "1px solid #f3f4f6", padding: "14px 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px", fontSize: "0.8125rem", color: "#374151" }}>
+            <DetailRow label="Nature of Injury" value={record.natureOfInjury} />
+            <DetailRow label="Body Part Affected" value={record.bodyPartAffected} />
+            <DetailRow label="First Aid Given" value={record.firstAidGiven ? (record.firstAidDetails || "Yes") : "No"} />
+            <DetailRow label="First Aider" value={record.firstAiderName} />
+            <DetailRow label="Hospital Attended" value={record.hospitalAttended ? (record.hospitalName || "Yes") : "No"} />
+            <DetailRow label="Time Lost" value={record.timeLostDays ? `${record.timeLostDays} day(s)` : "None recorded"} />
+            {record.riddorReportable && <>
+              <DetailRow label="RIDDOR Category" value={record.riddorCategory} />
+              <DetailRow label="RIDDOR Reference" value={record.riddorReference} />
+              <DetailRow label="Date Reported to HSE" value={record.riddorReportedDate ? fmt(record.riddorReportedDate) : null} />
+            </>}
+            <DetailRow label="Witnesses" value={record.witnesses} span />
+            <DetailRow label="Corrective Action Taken" value={record.correctiveAction} span />
+            <DetailRow label="Signed Off By" value={record.signedOffBy ? `${record.signedOffBy}${record.signOffDate ? ` on ${fmt(record.signOffDate)}` : ""}` : null} />
+            <DetailRow label="Notes" value={record.notes} span />
+          </div>
+          <AccidentPhotoPanel recordId={record.id} farmId={farmId} photos={record.photos} />
+        </>
       )}
     </div>
   );
@@ -387,7 +441,7 @@ export default function AccidentBookPage() {
             ) : (
               <div style={{ display: "grid", gap: 10 }}>
                 {filtered.map(record => (
-                  <RecordCard key={record.id} record={record} onEdit={() => openEdit(record)} onDelete={() => setDeleteId(record.id)} />
+                  <RecordCard key={record.id} record={record} farmId={farmId!} onEdit={() => openEdit(record)} onDelete={() => setDeleteId(record.id)} />
                 ))}
               </div>
             )}

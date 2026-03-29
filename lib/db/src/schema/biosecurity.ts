@@ -49,6 +49,15 @@ export const cleaningDisinfectionRecordsTable = pgTable("cleaning_disinfection_r
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const pestControlPhotosTable = pgTable("pest_control_photos", {
+  id: serial("id").primaryKey(),
+  recordId: integer("record_id").notNull().references(() => pestControlRecordsTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  objectPath: text("object_path").notNull(),
+  fileName: text("file_name"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const biosecurityPlansTable = pgTable("biosecurity_plans", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

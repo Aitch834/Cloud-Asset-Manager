@@ -12,7 +12,9 @@ import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, Users, Bug, ShieldCheck,
   CheckCircle2, XCircle, AlertTriangle, Calendar, Printer, FileText,
+  Camera, File, ChevronDown, ChevronUp,
 } from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -281,10 +283,62 @@ function VisitorTab({ farmId }: { farmId: number }) {
 
 // ─── Pest Control ─────────────────────────────────────────────────────────────
 
+interface PestPhoto { id: number; objectPath: string; fileName: string | null; }
+
 interface PestRecord {
   id: number; farmId: number; pestType: string; location: string | null; treatmentMethod: string | null;
   productUsed: string | null; treatmentDate: string; treatedBy: string | null;
   followUpDate: string | null; outcome: string | null; notes: string | null; createdAt: string;
+  photos: PestPhoto[];
+}
+
+function PestPhotoPanel({ recordId, farmId, photos }: { recordId: number; farmId: number; photos: PestPhoto[] }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const deleteMut = useMutation({
+    mutationFn: (photoId: number) => fetch(`/api/farms/${farmId}/pest-control/${recordId}/photos/${photoId}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pest-control", farmId] }),
+  });
+
+  const { uploadFile, isUploading, progress } = useUpload({
+    onSuccess: async (response) => {
+      await fetch(`/api/farms/${farmId}/pest-control/${recordId}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ objectPath: response.objectPath, fileName: response.objectPath.split("/").pop() }),
+      });
+      qc.invalidateQueries({ queryKey: ["pest-control", farmId] });
+      toast({ title: "Photo uploaded" });
+    },
+  });
+
+  return (
+    <td colSpan={8} style={{ padding: 0, background: "#f9fafb", borderBottom: "1px solid #f3f4f6" }}>
+      <div style={{ padding: "10px 16px 12px" }}>
+        <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 8 }}>Evidence Photos</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: photos.length ? 8 : 0 }}>
+          {photos.map(p => (
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, padding: "4px 10px 4px 8px" }}>
+              <File size={12} style={{ color: "#2563eb" }} />
+              <a href={`/api/storage${p.objectPath}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.8125rem", color: "#2563eb", textDecoration: "none" }}>
+                {p.fileName ?? "photo"}
+              </a>
+              <button onClick={() => deleteMut.mutate(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 0 }}>
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", color: "#374151", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+          {isUploading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+          {isUploading ? `Uploading… ${progress}%` : "Add Photo"}
+          <input type="file" accept="image/*,application/pdf" style={{ display: "none" }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = ""; }} />
+        </label>
+      </div>
+    </td>
+  );
 }
 
 const EMPTY_PEST = { pestType: "", location: "", treatmentMethod: "", productUsed: "", treatmentDate: new Date().toISOString().slice(0, 10), treatedBy: "", followUpDate: "", outcome: "", notes: "" };
@@ -297,6 +351,7 @@ function PestControlTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<PestRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_PEST>(EMPTY_PEST);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery<{ records: PestRecord[] }>({
     queryKey: ["pest-control", farmId],
@@ -372,28 +427,42 @@ function PestControlTab({ farmId }: { farmId: number }) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(p => (
-                  <tr key={p.id} className="border-b border-border/50 hover:bg-black/[0.02] transition-colors">
-                    <td className="p-4 text-sm font-medium">{p.pestType}</td>
-                    <td className="p-4 text-sm text-foreground/70">{p.location || "—"}</td>
-                    <td className="p-4 text-sm text-foreground/70">{p.productUsed || p.treatmentMethod || "—"}</td>
-                    <td className="p-4 text-sm text-foreground/70 whitespace-nowrap">{formatDate(p.treatmentDate)}</td>
-                    <td className="p-4 text-sm text-foreground/70">{p.treatedBy || "—"}</td>
-                    <td className="p-4 text-sm">
-                      <div className="flex flex-col gap-1">
-                        {p.followUpDate && <span className="text-foreground/70">{formatDate(p.followUpDate)}</span>}
-                        {dueBadge(p.followUpDate)}
-                      </div>
-                    </td>
-                    <td className="p-4 text-sm text-foreground/70 max-w-[120px] truncate">{p.outcome || "—"}</td>
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(p)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-primary"><Pencil className="w-4 h-4" /></button>
-                        <button onClick={() => setDeleteId(p.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/40 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map(p => {
+                  const expanded = expandedId === p.id;
+                  return (
+                    <React.Fragment key={p.id}>
+                      <tr className="border-b border-border/50 hover:bg-black/[0.02] transition-colors">
+                        <td className="p-4 text-sm font-medium">{p.pestType}</td>
+                        <td className="p-4 text-sm text-foreground/70">{p.location || "—"}</td>
+                        <td className="p-4 text-sm text-foreground/70">{p.productUsed || p.treatmentMethod || "—"}</td>
+                        <td className="p-4 text-sm text-foreground/70 whitespace-nowrap">{formatDate(p.treatmentDate)}</td>
+                        <td className="p-4 text-sm text-foreground/70">{p.treatedBy || "—"}</td>
+                        <td className="p-4 text-sm">
+                          <div className="flex flex-col gap-1">
+                            {p.followUpDate && <span className="text-foreground/70">{formatDate(p.followUpDate)}</span>}
+                            {dueBadge(p.followUpDate)}
+                          </div>
+                        </td>
+                        <td className="p-4 text-sm text-foreground/70 max-w-[120px] truncate">{p.outcome || "—"}</td>
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => setExpandedId(expanded ? null : p.id)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-primary" title="Photos">
+                              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                              {(p.photos?.length ?? 0) > 0 && <span style={{ fontSize: "0.65rem", background: "#2563eb", color: "#fff", borderRadius: 8, padding: "1px 5px", marginLeft: 2 }}>{p.photos.length}</span>}
+                            </button>
+                            <button onClick={() => openEdit(p)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-primary"><Pencil className="w-4 h-4" /></button>
+                            <button onClick={() => setDeleteId(p.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/40 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                      {expanded && (
+                        <tr>
+                          <PestPhotoPanel recordId={p.id} farmId={farmId} photos={p.photos ?? []} />
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
