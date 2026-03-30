@@ -11431,5 +11431,147 @@ router.delete("/farms/:farmId/direct-sales/:id", requireAuth, requireTenant, req
   res.json({ success: true });
 });
 
+// ─── Trade History: Purchase History ─────────────────────────────────────────
+router.get("/farms/:farmId/purchase-history", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { from, to } = req.query as { from?: string; to?: string };
+  const conditions: any[] = [eq(stockDeliveriesTable.farmId, farmId)];
+  if (from) conditions.push(gte(stockDeliveriesTable.deliveryDate, new Date(from)));
+  if (to) {
+    const toDate = new Date(to);
+    toDate.setHours(23, 59, 59, 999);
+    conditions.push(lte(stockDeliveriesTable.deliveryDate, toDate));
+  }
+  const records = await db.select({
+    id: stockDeliveriesTable.id,
+    deliveryDate: stockDeliveriesTable.deliveryDate,
+    quantity: stockDeliveriesTable.quantity,
+    costPence: stockDeliveriesTable.costPence,
+    stockItemId: stockDeliveriesTable.stockItemId,
+    stockItemName: stockItemsTable.name,
+    stockItemUnit: stockItemsTable.unit,
+    supplierId: stockDeliveriesTable.supplierId,
+    supplierName: suppliersTable.name,
+    batchNumber: stockDeliveriesTable.batchNumber,
+    invoiceReference: stockDeliveriesTable.invoiceReference,
+    notes: stockDeliveriesTable.notes,
+  }).from(stockDeliveriesTable)
+    .leftJoin(stockItemsTable, eq(stockDeliveriesTable.stockItemId, stockItemsTable.id))
+    .leftJoin(suppliersTable, eq(stockDeliveriesTable.supplierId, suppliersTable.id))
+    .where(and(...conditions))
+    .orderBy(desc(stockDeliveriesTable.deliveryDate));
+  res.json({ records });
+});
+
+// ─── Trade History: Sales History ────────────────────────────────────────────
+router.get("/farms/:farmId/sales-history", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { from, to } = req.query as { from?: string; to?: string };
+  const fromDate = from ? new Date(from) : undefined;
+  const toDate = to ? (() => { const d = new Date(to); d.setHours(23,59,59,999); return d; })() : undefined;
+
+  const [grain, deadweight, mart, milk, direct, pigKill, egg, poultry] = await Promise.all([
+    db.select({
+      id: grainSalesTable.id, date: grainSalesTable.saleDate, buyer: grainSalesTable.buyer,
+      commodity: grainSalesTable.commodity, variety: grainSalesTable.variety,
+      tonnage: grainSalesTable.tonnage, pricePerTonnePence: grainSalesTable.pricePerTonnePence,
+      grossValuePence: grainSalesTable.grossValuePence, netValuePence: grainSalesTable.netValuePence,
+      saleType: grainSalesTable.saleType, invoiceNumber: grainSalesTable.invoiceNumber,
+    }).from(grainSalesTable).where(and(
+      eq(grainSalesTable.farmId, farmId),
+      ...(fromDate ? [gte(grainSalesTable.saleDate, fromDate)] : []),
+      ...(toDate ? [lte(grainSalesTable.saleDate, toDate)] : []),
+    )).orderBy(desc(grainSalesTable.saleDate)),
+
+    db.select({
+      id: livestockDeadweightSalesTable.id, date: livestockDeadweightSalesTable.killDate,
+      processor: livestockDeadweightSalesTable.processor, species: livestockDeadweightSalesTable.species,
+      headCount: livestockDeadweightSalesTable.headCount, totalDeadweightKg: livestockDeadweightSalesTable.totalDeadweightKg,
+      pricePerKgPence: livestockDeadweightSalesTable.pricePerKgPence, netPaymentPence: livestockDeadweightSalesTable.netPaymentPence,
+      gradeClassification: livestockDeadweightSalesTable.gradeClassification, killSheetRef: livestockDeadweightSalesTable.killSheetRef,
+    }).from(livestockDeadweightSalesTable).where(and(
+      eq(livestockDeadweightSalesTable.farmId, farmId),
+      ...(fromDate ? [gte(livestockDeadweightSalesTable.killDate, fromDate)] : []),
+      ...(toDate ? [lte(livestockDeadweightSalesTable.killDate, toDate)] : []),
+    )).orderBy(desc(livestockDeadweightSalesTable.killDate)),
+
+    db.select({
+      id: livestockMartSalesTable.id, date: livestockMartSalesTable.saleDate,
+      martName: livestockMartSalesTable.martName, species: livestockMartSalesTable.species,
+      headCount: livestockMartSalesTable.headCount, pricePerUnitPence: livestockMartSalesTable.pricePerUnitPence,
+      netPaymentPence: livestockMartSalesTable.netPaymentPence, buyerName: livestockMartSalesTable.buyerName,
+      auctioneerRef: livestockMartSalesTable.auctioneerRef,
+    }).from(livestockMartSalesTable).where(and(
+      eq(livestockMartSalesTable.farmId, farmId),
+      ...(fromDate ? [gte(livestockMartSalesTable.saleDate, fromDate)] : []),
+      ...(toDate ? [lte(livestockMartSalesTable.saleDate, toDate)] : []),
+    )).orderBy(desc(livestockMartSalesTable.saleDate)),
+
+    db.select({
+      id: milkStatementsTable.id, statementMonth: milkStatementsTable.statementMonth,
+      buyer: milkStatementsTable.buyer, litresSupplied: milkStatementsTable.litresSupplied,
+      pencePerLitre: milkStatementsTable.pencePerLitre, netPaymentPence: milkStatementsTable.netPaymentPence,
+      grossValuePence: milkStatementsTable.grossValuePence, statementRef: milkStatementsTable.statementRef,
+    }).from(milkStatementsTable).where(and(
+      eq(milkStatementsTable.farmId, farmId),
+      ...(fromDate ? [gte(sql`(${milkStatementsTable.statementMonth} || '-01')::date`, sql`${fromDate.toISOString().slice(0,10)}::date`)] : []),
+      ...(toDate ? [lte(sql`(${milkStatementsTable.statementMonth} || '-01')::date`, sql`${toDate.toISOString().slice(0,10)}::date`)] : []),
+    )).orderBy(desc(milkStatementsTable.statementMonth)),
+
+    db.select({
+      id: directSalesRecordsTable.id, date: directSalesRecordsTable.saleDate,
+      channel: directSalesRecordsTable.channel, productName: directSalesRecordsTable.productName,
+      productCategory: directSalesRecordsTable.productCategory, quantity: directSalesRecordsTable.quantity,
+      unit: directSalesRecordsTable.unit, unitPricePence: directSalesRecordsTable.unitPricePence,
+      grossValuePence: directSalesRecordsTable.grossValuePence, netValuePence: directSalesRecordsTable.netValuePence,
+      customerName: directSalesRecordsTable.customerName, invoiceNumber: directSalesRecordsTable.invoiceNumber,
+    }).from(directSalesRecordsTable).where(and(
+      eq(directSalesRecordsTable.farmId, farmId),
+      ...(fromDate ? [gte(directSalesRecordsTable.saleDate, fromDate)] : []),
+      ...(toDate ? [lte(directSalesRecordsTable.saleDate, toDate)] : []),
+    )).orderBy(desc(directSalesRecordsTable.saleDate)),
+
+    db.select({
+      id: pigKillRecordsTable.id, date: pigKillRecordsTable.killDate,
+      processor: pigKillRecordsTable.processor, headCount: pigKillRecordsTable.headCount,
+      totalDeadweightKg: pigKillRecordsTable.totalDeadweightKg, pricePerKgPence: pigKillRecordsTable.pricePerKgPence,
+      netPaymentPence: pigKillRecordsTable.netPaymentPence, killSheetRef: pigKillRecordsTable.killSheetRef,
+      gradeOut: pigKillRecordsTable.gradeOut,
+    }).from(pigKillRecordsTable).where(and(
+      eq(pigKillRecordsTable.farmId, farmId),
+      ...(fromDate ? [gte(pigKillRecordsTable.killDate, fromDate)] : []),
+      ...(toDate ? [lte(pigKillRecordsTable.killDate, toDate)] : []),
+    )).orderBy(desc(pigKillRecordsTable.killDate)),
+
+    db.select({
+      id: eggSalesTable.id, date: eggSalesTable.weekEnding,
+      packingStation: eggSalesTable.packingStation, salesChannel: eggSalesTable.salesChannel,
+      dozensDelivered: eggSalesTable.dozensDelivered, pricePerDozenPence: eggSalesTable.pricePerDozenPence,
+      grossValuePence: eggSalesTable.grossValuePence, netValuePence: eggSalesTable.netValuePence,
+      eggType: eggSalesTable.eggType,
+    }).from(eggSalesTable).where(and(
+      eq(eggSalesTable.farmId, farmId),
+      ...(fromDate ? [gte(eggSalesTable.weekEnding, fromDate)] : []),
+      ...(toDate ? [lte(eggSalesTable.weekEnding, toDate)] : []),
+    )).orderBy(desc(eggSalesTable.weekEnding)),
+
+    db.select({
+      id: poultryBatchSettlementsTable.id, date: poultryBatchSettlementsTable.catchDate,
+      integratorName: poultryBatchSettlementsTable.integratorName, species: poultryBatchSettlementsTable.species,
+      birdsDelivered: poultryBatchSettlementsTable.birdsDelivered, totalLiveweightKg: poultryBatchSettlementsTable.totalLiveweightKg,
+      settlementRatePence: poultryBatchSettlementsTable.settlementRatePence, netPaymentPence: poultryBatchSettlementsTable.netPaymentPence,
+      settlementRef: poultryBatchSettlementsTable.settlementRef,
+    }).from(poultryBatchSettlementsTable).where(and(
+      eq(poultryBatchSettlementsTable.farmId, farmId),
+      ...(fromDate ? [gte(poultryBatchSettlementsTable.catchDate, fromDate)] : []),
+      ...(toDate ? [lte(poultryBatchSettlementsTable.catchDate, toDate)] : []),
+    )).orderBy(desc(poultryBatchSettlementsTable.catchDate)),
+  ]);
+
+  res.json({ grain, deadweight, mart, milk, direct, pigKill, egg, poultry });
+});
+
 export default router;
 

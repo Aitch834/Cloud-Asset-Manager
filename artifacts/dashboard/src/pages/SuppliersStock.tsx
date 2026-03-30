@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { TradeHistoryTab } from "./TradeHistory";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -104,7 +105,7 @@ function EmptyState({ icon: Icon, title, subtitle }: { icon: React.ElementType; 
 }
 
 export default function SuppliersStockPage() {
-  const [tab, setTab] = useState<"suppliers" | "products" | "purchase-orders" | "received" | "levels" | "movements">("levels");
+  const [tab, setTab] = useState<"suppliers" | "products" | "purchase-orders" | "received" | "levels" | "movements" | "trade-history">("levels");
   const [prefilledPo, setPrefilledPo] = useState<{ form: any; lines: any[] } | null>(null);
   const { farmId } = useAppStore();
   const { toast } = useToast();
@@ -181,6 +182,7 @@ export default function SuppliersStockPage() {
         <TabButton active={tab === "movements"} onClick={() => setTab("movements")}>Movements</TabButton>
         <TabButton active={tab === "products"} onClick={() => setTab("products")}>Product Catalogue</TabButton>
         <TabButton active={tab === "suppliers"} onClick={() => setTab("suppliers")}>Trade Contacts</TabButton>
+        <TabButton active={tab === "trade-history"} onClick={() => setTab("trade-history")}>Trade History & Prices</TabButton>
       </TabBar>
 
       {tab === "levels" && (
@@ -252,6 +254,9 @@ export default function SuppliersStockPage() {
           onRefresh={invalidate}
           toast={toast}
         />
+      )}
+      {tab === "trade-history" && farmId && (
+        <TradeHistoryTab farmId={farmId} />
       )}
     </div>
     </AppLayout>
