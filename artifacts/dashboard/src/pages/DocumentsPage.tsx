@@ -140,11 +140,25 @@ function getExpiryStatus(expiryDate: string | null | undefined): "expired" | "ex
   return "valid";
 }
 
-function StatCard({ icon, label, value, bg, iconBg }: any) {
+function StatCard({ icon, label, value, bg, iconBg, onClick, active }: any) {
   return (
-    <div style={{ background: bg, border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
+    <div
+      onClick={onClick}
+      style={{
+        background: bg, border: active ? "2px solid #dc2626" : "1px solid #e5e7eb", borderRadius: 10,
+        padding: active ? "calc(1rem - 1px) calc(1.25rem - 1px)" : "1rem 1.25rem",
+        display: "flex", alignItems: "center", gap: 12,
+        cursor: onClick ? "pointer" : "default",
+        boxShadow: active ? "0 0 0 3px #fee2e2" : undefined,
+        transition: "box-shadow 0.15s, border 0.15s",
+      }}
+    >
       <div style={{ background: iconBg, borderRadius: 8, padding: 8 }}>{icon}</div>
-      <div><p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>{label}</p><p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{value}</p></div>
+      <div>
+        <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>{label}</p>
+        <p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{value}</p>
+        {onClick && <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 1 }}>{active ? "Filtered — click to clear" : "Click to filter"}</p>}
+      </div>
     </div>
   );
 }
@@ -214,6 +228,7 @@ export default function DocumentsPage() {
       if (typeFilter !== "all" && d.documentType !== typeFilter) return false;
       if (statusFilter !== "all") {
         const s = getExpiryStatus(d.expiryDate);
+        if (statusFilter === "attention" && s !== "expired" && s !== "expiring") return false;
         if (statusFilter === "expired" && s !== "expired") return false;
         if (statusFilter === "expiring" && s !== "expiring") return false;
         if (statusFilter === "valid" && (s !== "valid" && s !== "none")) return false;
@@ -311,7 +326,15 @@ export default function DocumentsPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
             <StatCard icon={<FileText size={18} color="#1d4ed8" />} label="Total Documents" value={docs.length} bg="#eff6ff" iconBg="#dbeafe" />
             <StatCard icon={<CheckCircle size={18} color="#166534" />} label="Valid / No Expiry" value={docs.filter(d => { const s = getExpiryStatus(d.expiryDate); return s === "valid" || s === "none"; }).length} bg="#f0fdf4" iconBg="#dcfce7" />
-            <StatCard icon={<AlertTriangle size={18} color="#991b1b" />} label="Expired or Expiring" value={expired + expiringSoon} bg={expired + expiringSoon > 0 ? "#fef2f2" : "#f9fafb"} iconBg={expired + expiringSoon > 0 ? "#fee2e2" : "#f3f4f6"} />
+            <StatCard
+              icon={<AlertTriangle size={18} color="#991b1b" />}
+              label="Expired or Expiring"
+              value={expired + expiringSoon}
+              bg={expired + expiringSoon > 0 ? "#fef2f2" : "#f9fafb"}
+              iconBg={expired + expiringSoon > 0 ? "#fee2e2" : "#f3f4f6"}
+              active={statusFilter === "attention"}
+              onClick={expired + expiringSoon > 0 ? () => setStatusFilter(s => s === "attention" ? "all" : "attention") : undefined}
+            />
           </div>
         </div>
 
@@ -335,10 +358,11 @@ export default function DocumentsPage() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger style={{ width: 150 }}><SelectValue /></SelectTrigger>
+            <SelectTrigger style={{ width: 175 }}><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="expired">Expired</SelectItem>
+              <SelectItem value="attention">Expired or Expiring</SelectItem>
+              <SelectItem value="expired">Expired Only</SelectItem>
               <SelectItem value="expiring">Expiring Soon</SelectItem>
               <SelectItem value="valid">Valid</SelectItem>
             </SelectContent>

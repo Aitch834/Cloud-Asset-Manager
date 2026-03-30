@@ -137,6 +137,7 @@ function RiskAssessmentTab({ farmId }: { farmId: number }) {
   const [search, setSearch] = useState("");
   const [filterRisk, setFilterRisk] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [quickFilter, setQuickFilter] = useState<"none" | "overdue" | "due-soon" | "high-critical">("none");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<RiskAssessment | null>(null);
   const [editing, setEditing] = useState<RiskAssessment | null>(null);
@@ -164,6 +165,14 @@ function RiskAssessmentTab({ farmId }: { farmId: number }) {
   }).length;
 
   const filtered = records.filter(r => {
+    if (quickFilter === "overdue") return r.status === "active" && isOverdue(r.reviewDate);
+    if (quickFilter === "due-soon") {
+      if (!r.reviewDate || r.status !== "active") return false;
+      const d = new Date(r.reviewDate), now = new Date(), soon = new Date();
+      soon.setDate(soon.getDate() + 30);
+      return d >= now && d <= soon;
+    }
+    if (quickFilter === "high-critical") return r.status === "active" && (r.riskLevel === "high" || r.riskLevel === "critical");
     const matchSearch = !search || r.title.toLowerCase().includes(search.toLowerCase()) || r.area?.toLowerCase().includes(search.toLowerCase()) || r.assessedBy?.toLowerCase().includes(search.toLowerCase());
     const matchRisk = filterRisk === "all" || r.riskLevel === filterRisk;
     const matchStatus = filterStatus === "all" || r.status === filterStatus;
@@ -215,29 +224,51 @@ function RiskAssessmentTab({ farmId }: { farmId: number }) {
           <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">Active Assessments</p>
           <p className="text-2xl font-bold text-gray-900">{totalActive}</p>
         </div>
-        <div className="bg-white rounded-lg border border-red-200 p-4">
+        <button
+          onClick={() => setQuickFilter(q => q === "high-critical" ? "none" : "high-critical")}
+          className={`rounded-lg p-4 text-left border transition-all ${quickFilter === "high-critical" ? "bg-red-50 border-red-500 ring-2 ring-red-100" : "bg-white border-red-200 hover:border-red-400"}`}
+        >
           <div className="flex items-center gap-1.5 mb-1"><AlertTriangle className="w-3.5 h-3.5 text-red-600" /><p className="text-xs text-red-600 uppercase tracking-wide font-medium">High / Critical</p></div>
           <p className="text-2xl font-bold text-red-700">{highCritical}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Require priority controls</p>
-        </div>
-        <div className="bg-white rounded-lg border border-orange-200 p-4">
+          <p className="text-xs text-gray-400 mt-0.5">{quickFilter === "high-critical" ? "Filtered — click to clear" : "Click to filter"}</p>
+        </button>
+        <button
+          onClick={() => setQuickFilter(q => q === "overdue" ? "none" : "overdue")}
+          className={`rounded-lg p-4 text-left border transition-all ${quickFilter === "overdue" ? "bg-orange-50 border-orange-500 ring-2 ring-orange-100" : "bg-white border-orange-200 hover:border-orange-400"}`}
+        >
           <div className="flex items-center gap-1.5 mb-1"><Clock className="w-3.5 h-3.5 text-orange-600" /><p className="text-xs text-orange-600 uppercase tracking-wide font-medium">Overdue Reviews</p></div>
           <p className="text-2xl font-bold text-orange-700">{overdueReviews}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Review date passed</p>
-        </div>
-        <div className="bg-white rounded-lg border border-yellow-200 p-4">
+          <p className="text-xs text-gray-400 mt-0.5">{quickFilter === "overdue" ? "Filtered — click to clear" : "Click to filter"}</p>
+        </button>
+        <button
+          onClick={() => setQuickFilter(q => q === "due-soon" ? "none" : "due-soon")}
+          className={`rounded-lg p-4 text-left border transition-all ${quickFilter === "due-soon" ? "bg-yellow-50 border-yellow-500 ring-2 ring-yellow-100" : "bg-white border-yellow-200 hover:border-yellow-400"}`}
+        >
           <div className="flex items-center gap-1.5 mb-1"><ShieldCheck className="w-3.5 h-3.5 text-yellow-600" /><p className="text-xs text-yellow-600 uppercase tracking-wide font-medium">Due in 30 Days</p></div>
           <p className="text-2xl font-bold text-yellow-700">{reviewDueSoon}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Upcoming reviews</p>
-        </div>
+          <p className="text-xs text-gray-400 mt-0.5">{quickFilter === "due-soon" ? "Filtered — click to clear" : "Click to filter"}</p>
+        </button>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-4 flex flex-wrap gap-3 items-center mb-4">
-        <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input placeholder="Search by title, area or assessor…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+      {quickFilter !== "none" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, marginBottom: 16, fontSize: "0.875rem", color: "#92400e" }}>
+          <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+          <span>
+            Showing <strong>{filtered.length}</strong> {quickFilter === "overdue" ? "overdue review" : quickFilter === "due-soon" ? "review due within 30 days" : "high / critical"} record{filtered.length !== 1 ? "s" : ""} — all statuses
+          </span>
+          <button onClick={() => setQuickFilter("none")} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#92400e", fontWeight: 600, fontSize: "0.875rem", padding: "0 4px" }}>✕ Clear</button>
         </div>
-        <Select value={filterRisk} onValueChange={setFilterRisk}>
+      )}
+
+      <div className={`bg-white rounded-lg border p-4 flex flex-wrap gap-3 items-center mb-4 transition-colors ${quickFilter !== "none" ? "border-amber-300 bg-amber-50/30" : "border-gray-200"}`}>
+        {quickFilter !== "none" ? (
+          <p className="text-xs text-amber-700 font-medium w-full -mb-1">Quick filter active — search and dropdowns are bypassed</p>
+        ) : null}
+        <div className="relative flex-1 min-w-48">
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${quickFilter !== "none" ? "text-gray-300" : "text-gray-400"}`} />
+          <Input placeholder="Search by title, area or assessor…" value={search} onChange={e => { setSearch(e.target.value); setQuickFilter("none"); }} className="pl-9" disabled={quickFilter !== "none"} />
+        </div>
+        <Select value={filterRisk} onValueChange={v => { setFilterRisk(v); setQuickFilter("none"); }} disabled={quickFilter !== "none"}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Risk level" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All levels</SelectItem>
@@ -247,7 +278,7 @@ function RiskAssessmentTab({ farmId }: { farmId: number }) {
             <SelectItem value="low">Low</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
+        <Select value={filterStatus} onValueChange={v => { setFilterStatus(v); setQuickFilter("none"); }} disabled={quickFilter !== "none"}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>

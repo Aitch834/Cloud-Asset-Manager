@@ -258,6 +258,7 @@ export default function AccidentBookPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [filter, setFilter] = useState<"all" | "riddor-pending" | "riddor-reported" | "unsigned">("all");
   const [cropYear, setCropYear] = useState(currentCropYear());
+  const [allYears, setAllYears] = useState(false);
   const [form, setForm] = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM });
 
   function openAdd() { setEditItem(null); setForm({ ...EMPTY_FORM, incidentDate: new Date().toISOString().slice(0, 10) }); setAddOpen(true); }
@@ -301,7 +302,7 @@ export default function AccidentBookPage() {
   }
 
   const filtered = records.filter(r => {
-    if (!isInCropYear(r.incidentDate, cropYear)) return false;
+    if (!allYears && !isInCropYear(r.incidentDate, cropYear)) return false;
     if (filter === "riddor-pending") return r.riddorReportable && !r.riddorReference;
     if (filter === "riddor-reported") return r.riddorReportable && !!r.riddorReference;
     if (filter === "unsigned") return !r.signedOffBy;
@@ -389,16 +390,31 @@ export default function AccidentBookPage() {
             {records.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
                 {[
-                  { label: "Total Entries", value: String(records.length), bg: "#f9fafb", border: "#e5e7eb", color: "#111827" },
-                  { label: "RIDDOR Reportable", value: String(records.filter(r => r.riddorReportable).length), bg: "#fef2f2", border: "#fecaca", color: "#dc2626" },
-                  { label: "Awaiting HSE Report", value: String(pendingRiddor), bg: pendingRiddor > 0 ? "#fef2f2" : "#f0fdf4", border: pendingRiddor > 0 ? "#fca5a5" : "#bbf7d0", color: pendingRiddor > 0 ? "#dc2626" : "#16a34a" },
-                  { label: "Total Days Lost", value: totalTimeLost > 0 ? totalTimeLost.toFixed(1) : "0", bg: "#fffbeb", border: "#fde68a", color: "#92400e" },
-                ].map(s => (
-                  <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 8, padding: "12px 16px" }}>
-                    <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>{s.label}</p>
-                    <p style={{ fontSize: "1.5rem", fontWeight: 700, color: s.color }}>{s.value}</p>
-                  </div>
-                ))}
+                  { label: "Total Entries", value: String(records.length), bg: "#f9fafb", border: "#e5e7eb", color: "#111827", clickable: false },
+                  { label: "RIDDOR Reportable", value: String(records.filter(r => r.riddorReportable).length), bg: "#fef2f2", border: "#fecaca", color: "#dc2626", clickable: false },
+                  { label: "Awaiting HSE Report", value: String(pendingRiddor), bg: pendingRiddor > 0 ? "#fef2f2" : "#f0fdf4", border: pendingRiddor > 0 ? (allYears && filter === "riddor-pending" ? "#dc2626" : "#fca5a5") : "#bbf7d0", color: pendingRiddor > 0 ? "#dc2626" : "#16a34a", clickable: pendingRiddor > 0 },
+                  { label: "Total Days Lost", value: totalTimeLost > 0 ? totalTimeLost.toFixed(1) : "0", bg: "#fffbeb", border: "#fde68a", color: "#92400e", clickable: false },
+                ].map(s => {
+                  const isActive = s.label === "Awaiting HSE Report" && allYears && filter === "riddor-pending";
+                  return (
+                    <div key={s.label}
+                      onClick={s.clickable ? () => { if (isActive) { setAllYears(false); setFilter("all"); } else { setFilter("riddor-pending"); setAllYears(true); } } : undefined}
+                      style={{ background: s.bg, border: isActive ? `2px solid #dc2626` : `1px solid ${s.border}`, borderRadius: 8, padding: isActive ? "11px 15px" : "12px 16px", cursor: s.clickable ? "pointer" : "default", boxShadow: isActive ? "0 0 0 3px #fee2e2" : undefined, transition: "box-shadow 0.15s" }}>
+                      <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>{s.label}</p>
+                      <p style={{ fontSize: "1.5rem", fontWeight: 700, color: s.color }}>{s.value}</p>
+                      {s.clickable && <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 1 }}>{isActive ? "All years — click to clear" : "Click to filter"}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* All-years banner */}
+            {allYears && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, marginBottom: 12, fontSize: "0.875rem", color: "#92400e" }}>
+                <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+                <span>Showing all years — RIDDOR Pending ({filtered.length} record{filtered.length !== 1 ? "s" : ""})</span>
+                <button onClick={() => { setAllYears(false); setFilter("all"); }} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#92400e", fontWeight: 600, fontSize: "0.875rem", padding: "0 4px" }}>✕ Clear</button>
               </div>
             )}
 
@@ -410,14 +426,14 @@ export default function AccidentBookPage() {
                 ["riddor-reported", `RIDDOR Reported (${records.filter(r => r.riddorReportable && !!r.riddorReference).length})`],
                 ["unsigned", `Awaiting Sign-Off (${records.filter(r => !r.signedOffBy).length})`],
               ] as const).map(([key, label]) => (
-                <button key={key} onClick={() => setFilter(key)}
+                <button key={key} onClick={() => { setFilter(key); if (key !== "riddor-pending") setAllYears(false); }}
                   style={{ padding: "4px 12px", borderRadius: 20, fontSize: "0.8125rem", cursor: "pointer", fontWeight: filter === key ? 600 : 400,
                     background: filter === key ? "#111827" : "#f3f4f6", color: filter === key ? "#fff" : "#374151",
                     border: "1px solid " + (filter === key ? "#111827" : "#e5e7eb") }}>
                   {label}
                 </button>
               ))}
-              <div style={{ marginLeft: "auto" }}><CropYearSelector value={cropYear} onChange={setCropYear} /></div>
+              <div style={{ marginLeft: "auto" }}><CropYearSelector value={cropYear} onChange={v => { setCropYear(v); setAllYears(false); }} /></div>
             </div>
 
             {/* Records */}
