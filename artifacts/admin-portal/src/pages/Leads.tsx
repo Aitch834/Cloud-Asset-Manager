@@ -4,7 +4,7 @@ import { api, type Lead } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import {
   Search, TrendingUp, Users, Mail, Calendar, ChevronRight,
-  X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save,
+  X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save, Tag,
 } from "lucide-react";
 
 const STATUSES = [
@@ -13,6 +13,22 @@ const STATUSES = [
   { value: "demo-booked", label: "Demo Booked", color: "bg-purple-100 text-purple-700", icon: Presentation },
   { value: "signed-up", label: "Signed Up", color: "bg-green-100 text-green-700", icon: CheckCircle },
   { value: "not-interested", label: "Not Interested", color: "bg-red-100 text-red-700", icon: XCircle },
+];
+
+const SOURCES = [
+  "Farmers Weekly",
+  "Farmers Guardian",
+  "NFU",
+  "AHDB",
+  "Royal Welsh Show",
+  "Royal Highland Show",
+  "Cereals Event",
+  "Referral",
+  "Word of Mouth",
+  "Social Media",
+  "Google Search",
+  "Direct Mail",
+  "Other",
 ];
 
 const MODULE_LABELS: Record<string, string> = {
@@ -72,13 +88,14 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
   const [, navigate] = useLocation();
   const [status, setStatus] = useState(lead.status);
   const [notes, setNotes] = useState(lead.notes ?? "");
+  const [source, setSource] = useState(lead.source ?? "");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const result = await api.updateLead(lead.id, { status, notes }, secret);
+      const result = await api.updateLead(lead.id, { status, notes, source: source || undefined }, secret);
       onSaved(result.lead);
       setDirty(false);
     } catch (e) {
@@ -167,6 +184,24 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
               </div>
             </div>
           )}
+
+          {/* Source */}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <Tag className="w-3 h-3" />
+              Lead Source
+            </p>
+            <select
+              value={source}
+              onChange={(e) => { setSource(e.target.value); setDirty(true); }}
+              className="w-full h-10 px-3 pr-8 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">— Not set —</option>
+              {SOURCES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
 
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Pipeline Status</p>
@@ -346,6 +381,12 @@ export default function Leads() {
                   {lead.contactName} · {lead.email}
                 </p>
               </div>
+              {lead.source && (
+                <span className="hidden lg:inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded shrink-0">
+                  <Tag className="w-3 h-3" />
+                  {lead.source}
+                </span>
+              )}
               <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
                 <TrendingUp className="w-3.5 h-3.5" />
                 {lead.farmCount} farm{lead.farmCount !== 1 ? "s" : ""}

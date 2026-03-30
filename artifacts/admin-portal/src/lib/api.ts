@@ -62,12 +62,27 @@ async function del<T>(path: string, secret: string): Promise<T> {
   return res.json();
 }
 
+export interface LeadSourceEntry {
+  source: string;
+  count: number;
+}
+
+export interface ModuleAdoptionEntry {
+  moduleKey: string;
+  moduleName: string;
+  activeCount: number;
+}
+
 export interface Stats {
   totalTenants: number;
   totalFarms: number;
   activeSubscriptions: number;
   totalUsers: number;
   mrrPence: number;
+  churnedTenants: number;
+  churnRatePct: number;
+  leadSourceBreakdown: LeadSourceEntry[];
+  moduleAdoption: ModuleAdoptionEntry[];
 }
 
 export interface Tenant {
@@ -79,6 +94,10 @@ export interface Tenant {
   address?: string;
   isActive: boolean;
   stripeCustomerId?: string;
+  referralCode?: string | null;
+  referredBy?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
   createdAt: string;
 }
 
@@ -237,10 +256,23 @@ export interface Lead {
   farmCount: number;
   modulesInterested: string[];
   message?: string | null;
+  source?: string | null;
   status: string;
   notes?: string | null;
   lastContactedAt?: string | null;
   createdAt: string;
+}
+
+export interface ReferralTenant {
+  id: number;
+  name: string;
+  slug: string;
+  referralCode: string | null;
+  referredBy: string | null;
+  isActive: boolean;
+  cancelledAt: string | null;
+  createdAt: string;
+  referralCount: number;
 }
 
 export const api = {
@@ -332,8 +364,17 @@ export const api = {
   getLeads: (secret: string) =>
     get<{ leads: Lead[] }>("/admin/leads", secret),
 
-  updateLead: (id: number, data: { status?: string; notes?: string }, secret: string) =>
+  updateLead: (id: number, data: { status?: string; notes?: string; source?: string }, secret: string) =>
     patch<{ lead: Lead }>(`/admin/leads/${id}`, data, secret),
+
+  updateTenant: (id: number, data: { isActive?: boolean; cancelReason?: string; cancelledAt?: string | null; referredBy?: string | null }, secret: string) =>
+    patch<{ tenant: Tenant }>(`/admin/tenants/${id}`, data, secret),
+
+  generateReferralCode: (tenantId: number, secret: string) =>
+    post<{ referralCode: string }>(`/admin/tenants/${tenantId}/referral-code`, {}, secret),
+
+  getReferrals: (secret: string) =>
+    get<{ tenants: ReferralTenant[] }>("/admin/referrals", secret),
 
   listInvoices: (status: string | undefined, tenantId: number | undefined, secret: string) => {
     const params = new URLSearchParams();

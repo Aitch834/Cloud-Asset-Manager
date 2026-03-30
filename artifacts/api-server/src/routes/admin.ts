@@ -123,6 +123,38 @@ router.get("/admin/stats", requireAuth, async (req: Request, res: Response): Pro
   `);
   const mrrPence = Number((mrrResult.rows[0] as { mrr_pence: string })?.mrr_pence ?? 0);
 
+  const churnedResult = await db.execute(sql`
+    SELECT COUNT(*) AS churned FROM tenants WHERE cancelled_at IS NOT NULL
+  `);
+  const churnedTenants = Number((churnedResult.rows[0] as { churned: string })?.churned ?? 0);
+  const total = Number(tenantCount.count);
+  const churnRatePct = total > 0 ? Math.round((churnedTenants / total) * 1000) / 10 : 0;
+
+  const sourceResult = await db.execute(sql`
+    SELECT COALESCE(source, 'Unknown') AS source, COUNT(*) AS cnt
+    FROM registration_leads
+    GROUP BY source
+    ORDER BY cnt DESC
+  `);
+  const leadSourceBreakdown = (sourceResult.rows as { source: string; cnt: string }[]).map((r) => ({
+    source: r.source,
+    count: Number(r.cnt),
+  }));
+
+  const moduleResult = await db.execute(sql`
+    SELECT m.key AS module_key, m.name AS module_name, COUNT(s.id)::int AS active_count
+    FROM modules m
+    LEFT JOIN subscriptions s ON s.module_id = m.id AND s.status = 'active'
+    WHERE m.is_active = true
+    GROUP BY m.id, m.key, m.name
+    ORDER BY active_count DESC, m.name ASC
+  `);
+  const moduleAdoption = (moduleResult.rows as { module_key: string; module_name: string; active_count: number }[]).map((r) => ({
+    moduleKey: r.module_key,
+    moduleName: r.module_name,
+    activeCount: Number(r.active_count),
+  }));
+
   res.json({
     stats: {
       totalTenants: tenantCount.count,
@@ -130,6 +162,10 @@ router.get("/admin/stats", requireAuth, async (req: Request, res: Response): Pro
       activeSubscriptions: activeSubCount.count,
       totalUsers: userCount.count,
       mrrPence,
+      churnedTenants,
+      churnRatePct,
+      leadSourceBreakdown,
+      moduleAdoption,
     },
   });
 });
@@ -686,7 +722,7 @@ router.patch("/admin/leads/:id", async (req: Request, res: Response): Promise<vo
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid lead ID" }); return; }
 
-  const { status, notes } = req.body as { status?: string; notes?: string };
+  const { status, notes, source } = req.body as { status?: string; notes?: string; source?: string };
   const allowed = ["new", "contacted", "demo-booked", "signed-up", "not-interested"];
   if (status && !allowed.includes(status)) {
     res.status(400).json({ error: "Invalid status" });
@@ -699,10 +735,110 @@ router.patch("/admin/leads/:id", async (req: Request, res: Response): Promise<vo
     if (status !== "new") updates.lastContactedAt = new Date();
   }
   if (notes !== undefined) updates.notes = notes;
+  if (source !== undefined) updates.source = source || null;
 
   const [updated] = await db.update(leadsTable).set(updates).where(eq(leadsTable.id, id)).returning();
   if (!updated) { res.status(404).json({ error: "Lead not found" }); return; }
   res.json({ lead: updated });
+});
+
+// ─── Tenant Management (churn, referral, etc.) ───────────────────────────────
+
+function generateReferralCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+
+router.patch("/admin/tenants/:tenantId", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const tenantId = parseInt(req.params.tenantId, 10);
+  if (isNaN(tenantId)) { res.status(400).json({ error: "Invalid tenant ID" }); return; }
+
+  const { isActive, cancelReason, cancelledAt, referredBy } = req.body as {
+    isActive?: boolean;
+    cancelReason?: string;
+    cancelledAt?: string | null;
+    referredBy?: string | null;
+  };
+
+  const updates: Record<string, unknown> = {};
+  if (isActive !== undefined) updates.isActive = isActive;
+  if (cancelReason !== undefined) updates.cancelReason = cancelReason || null;
+  if (cancelledAt !== undefined) updates.cancelledAt = cancelledAt ? new Date(cancelledAt) : null;
+  if (referredBy !== undefined) updates.referredBy = referredBy || null;
+
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No valid fields to update" });
+    return;
+  }
+
+  const [updated] = await db.update(tenantsTable).set(updates).where(eq(tenantsTable.id, tenantId)).returning();
+  if (!updated) { res.status(404).json({ error: "Tenant not found" }); return; }
+  res.json({ tenant: updated });
+});
+
+router.post("/admin/tenants/:tenantId/referral-code", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const tenantId = parseInt(req.params.tenantId, 10);
+  if (isNaN(tenantId)) { res.status(400).json({ error: "Invalid tenant ID" }); return; }
+
+  const [existing] = await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1);
+  if (!existing) { res.status(404).json({ error: "Tenant not found" }); return; }
+
+  if (existing.referralCode) {
+    res.json({ referralCode: existing.referralCode });
+    return;
+  }
+
+  let code = generateReferralCode();
+  let attempts = 0;
+  while (attempts < 10) {
+    const conflict = await db.select({ id: tenantsTable.id }).from(tenantsTable).where(eq(tenantsTable.referralCode, code)).limit(1);
+    if (conflict.length === 0) break;
+    code = generateReferralCode();
+    attempts++;
+  }
+
+  const [updated] = await db.update(tenantsTable).set({ referralCode: code }).where(eq(tenantsTable.id, tenantId)).returning();
+  res.json({ referralCode: updated.referralCode });
+});
+
+router.get("/admin/referrals", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const tenants = await db.select({
+    id: tenantsTable.id,
+    name: tenantsTable.name,
+    slug: tenantsTable.slug,
+    referralCode: tenantsTable.referralCode,
+    referredBy: tenantsTable.referredBy,
+    isActive: tenantsTable.isActive,
+    cancelledAt: tenantsTable.cancelledAt,
+    createdAt: tenantsTable.createdAt,
+  }).from(tenantsTable).orderBy(asc(tenantsTable.name));
+
+  const referralMap: Record<string, number> = {};
+  for (const t of tenants) {
+    if (t.referralCode) referralMap[t.referralCode] = 0;
+  }
+  for (const t of tenants) {
+    if (t.referredBy && referralMap[t.referredBy] !== undefined) {
+      referralMap[t.referredBy]++;
+    }
+  }
+
+  const result = tenants.map((t) => ({
+    ...t,
+    referralCount: t.referralCode ? (referralMap[t.referralCode] ?? 0) : 0,
+  }));
+
+  res.json({ tenants: result });
 });
 
 // ─── Invoices ────────────────────────────────────────────────────────────────

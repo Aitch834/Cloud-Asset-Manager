@@ -11,6 +11,7 @@ export const leadsTable = pgTable("registration_leads", {
   farmCount: integer("farm_count").notNull(),
   modulesInterested: text("modules_interested").array().notNull(),
   message: text("message"),
+  source: text("source"),
   status: text("status").notNull().default("new"),
   notes: text("notes"),
   lastContactedAt: timestamp("last_contacted_at", { withTimezone: true }),

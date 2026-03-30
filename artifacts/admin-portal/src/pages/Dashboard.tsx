@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { api, type Stats } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
-import { Users, Building2, CreditCard, UserCheck, TrendingUp } from "lucide-react";
+import {
+  Users, Building2, CreditCard, UserCheck, TrendingUp,
+  TrendingDown, BarChart3, Puzzle, AlertTriangle,
+} from "lucide-react";
 
 function StatCard({
   label,
@@ -9,26 +12,33 @@ function StatCard({
   icon: Icon,
   color,
   sub,
+  alert,
 }: {
   label: string;
   value: string;
   icon: React.ElementType;
   color: string;
   sub?: string;
+  alert?: boolean;
 }) {
   return (
-    <div className="bg-card border border-border rounded-xl p-6 flex items-start gap-4">
+    <div className={`bg-card border rounded-xl p-6 flex items-start gap-4 ${alert ? "border-red-200 bg-red-50/50" : "border-border"}`}>
       <div className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
         <Icon className="w-5 h-5" />
       </div>
       <div>
         <p className="text-sm text-muted-foreground font-medium">{label}</p>
-        <p className="text-2xl font-bold text-foreground mt-0.5">{value}</p>
+        <p className={`text-2xl font-bold mt-0.5 ${alert ? "text-red-700" : "text-foreground"}`}>{value}</p>
         {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
       </div>
     </div>
   );
 }
+
+const SOURCE_COLORS = [
+  "bg-blue-500", "bg-violet-500", "bg-emerald-500", "bg-amber-500",
+  "bg-rose-500", "bg-cyan-500", "bg-orange-500", "bg-indigo-500",
+];
 
 export default function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -45,6 +55,9 @@ export default function Dashboard() {
   const mrr = stats ? (stats.mrrPence / 100).toFixed(2) : "—";
   const arr = stats ? ((stats.mrrPence * 12) / 100).toFixed(2) : "—";
 
+  const totalLeads = stats?.leadSourceBreakdown?.reduce((s, e) => s + e.count, 0) ?? 0;
+  const topModules = stats?.moduleAdoption?.filter((m) => m.activeCount > 0) ?? [];
+
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <div className="mb-8">
@@ -53,14 +66,17 @@ export default function Dashboard() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="bg-card border border-border rounded-xl p-6 h-24 animate-pulse" />
-          ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-card border border-border rounded-xl p-6 h-24 animate-pulse" />
+            ))}
+          </div>
         </div>
       ) : stats ? (
-        <>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div className="space-y-8">
+          {/* Key metrics */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             <StatCard
               label="Customer Accounts"
               value={String(stats.totalTenants)}
@@ -96,17 +112,98 @@ export default function Dashboard() {
               color="bg-emerald-50 text-emerald-600"
               sub={`ARR: £${arr}`}
             />
+            <StatCard
+              label="Churned Customers"
+              value={`${stats.churnedTenants} (${stats.churnRatePct}%)`}
+              icon={TrendingDown}
+              color={stats.churnedTenants > 0 ? "bg-red-100 text-red-600" : "bg-muted text-muted-foreground"}
+              sub="Accounts cancelled to date"
+              alert={stats.churnedTenants > 0}
+            />
           </div>
 
           {stats.mrrPence === 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-800">
-              <strong>Stripe not yet connected.</strong> MRR will show here once customer subscriptions are active.
-              Add your <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-xs">STRIPE_SECRET_KEY</code> and{" "}
-              <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-xs">STRIPE_WEBHOOK_SECRET</code> to the
-              Replit Secrets panel to enable billing.
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-800 flex items-start gap-3">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+              <p>
+                <strong>Stripe not yet connected.</strong> MRR will show here once customer subscriptions are active.
+                Add your <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-xs">STRIPE_SECRET_KEY</code> and{" "}
+                <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-xs">STRIPE_WEBHOOK_SECRET</code> to the
+                Replit Secrets panel to enable billing.
+              </p>
             </div>
           )}
-        </>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Lead Source Breakdown */}
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="flex items-center gap-2 mb-5">
+                <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                <h2 className="text-sm font-semibold text-foreground">Lead Source Breakdown</h2>
+                <span className="ml-auto text-xs text-muted-foreground">{totalLeads} total</span>
+              </div>
+              {(stats.leadSourceBreakdown?.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  No lead source data yet. Set sources on the Leads Pipeline page.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {stats.leadSourceBreakdown.map((entry, i) => {
+                    const pct = totalLeads > 0 ? Math.round((entry.count / totalLeads) * 100) : 0;
+                    const color = SOURCE_COLORS[i % SOURCE_COLORS.length];
+                    return (
+                      <div key={entry.source}>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="font-medium text-foreground">{entry.source}</span>
+                          <span className="text-muted-foreground">{entry.count} ({pct}%)</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${color} transition-all`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Module Adoption */}
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="flex items-center gap-2 mb-5">
+                <Puzzle className="w-4 h-4 text-muted-foreground" />
+                <h2 className="text-sm font-semibold text-foreground">Module Adoption</h2>
+                <span className="ml-auto text-xs text-muted-foreground">active subscriptions</span>
+              </div>
+              {topModules.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  No active module subscriptions yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {topModules.slice(0, 10).map((m) => {
+                    const maxCount = topModules[0]?.activeCount ?? 1;
+                    const pct = maxCount > 0 ? Math.round((m.activeCount / maxCount) * 100) : 0;
+                    return (
+                      <div key={m.moduleKey} className="flex items-center gap-3">
+                        <span className="text-xs text-foreground font-medium w-44 truncate shrink-0">{m.moduleName}</span>
+                        <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary/70 transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground w-6 text-right shrink-0">{m.activeCount}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       ) : (
         <p className="text-destructive">Failed to load stats.</p>
       )}

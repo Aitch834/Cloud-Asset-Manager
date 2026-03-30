@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { api, type Tenant, type Farm, type Subscription, type TenantUser } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
-import { ArrowLeft, MapPin, CreditCard, Users, CheckCircle, XCircle, Building2, FileDown, Loader2, Mail, MailCheck, Bell, BellOff } from "lucide-react";
+import {
+  ArrowLeft, MapPin, CreditCard, Users, CheckCircle, XCircle, Building2,
+  FileDown, Loader2, Mail, MailCheck, Bell, BellOff, Gift, Share2, Copy,
+  TrendingDown, RotateCcw, AlertTriangle,
+} from "lucide-react";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -94,6 +98,88 @@ function statusVariant(status: string): "success" | "destructive" | "warning" | 
   return "default";
 }
 
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+interface ChurnDialogProps {
+  tenantId: number;
+  tenant: Tenant;
+  onClose: () => void;
+  onSaved: (t: Tenant) => void;
+}
+
+function ChurnDialog({ tenantId, onClose, onSaved }: ChurnDialogProps) {
+  const secret = getSecret()!;
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleChurn() {
+    setSaving(true);
+    try {
+      const result = await api.updateTenant(tenantId, {
+        cancelledAt: new Date().toISOString(),
+        cancelReason: reason.trim() || undefined,
+        isActive: false,
+      }, secret);
+      onSaved(result.tenant);
+      onClose();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-md p-6 mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+            <TrendingDown className="w-5 h-5 text-red-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-foreground">Mark as Churned</h3>
+            <p className="text-xs text-muted-foreground">This will deactivate the account and record a cancellation date.</p>
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+            Cancellation Reason (optional)
+          </label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            placeholder="e.g. Found an alternative, price concerns, switching away from Red Tractor…"
+            className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+          />
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 h-10 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleChurn}
+            disabled={saving}
+            className="flex-1 h-10 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? "Saving…" : "Confirm Churn"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const tenantId = parseInt(id, 10);
@@ -108,6 +194,10 @@ export default function CustomerDetail() {
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [emailingFarmId, setEmailingFarmId] = useState<number | null>(null);
   const [emailResult, setEmailResult] = useState<{ farmId: number; success: boolean; to?: string } | null>(null);
+  const [showChurnDialog, setShowChurnDialog] = useState(false);
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [reinstating, setReinstating] = useState(false);
 
   useEffect(() => {
     api.getTenantDetail(tenantId, secret)
@@ -147,10 +237,46 @@ export default function CustomerDetail() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err) {
+    } catch {
       setDownloadError(`Failed to generate guide for ${farm.name}. Please try again.`);
     } finally {
       setDownloadingFarmId(null);
+    }
+  };
+
+  const handleGenerateReferralCode = async () => {
+    setGeneratingCode(true);
+    try {
+      const result = await api.generateReferralCode(tenantId, secret);
+      setTenant((prev) => prev ? { ...prev, referralCode: result.referralCode } : prev);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
+
+  const handleCopyCode = () => {
+    if (tenant?.referralCode) {
+      navigator.clipboard.writeText(tenant.referralCode);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    }
+  };
+
+  const handleReinstate = async () => {
+    setReinstating(true);
+    try {
+      const result = await api.updateTenant(tenantId, {
+        cancelledAt: null,
+        cancelReason: undefined,
+        isActive: true,
+      }, secret);
+      setTenant(result.tenant);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setReinstating(false);
     }
   };
 
@@ -175,6 +301,9 @@ export default function CustomerDetail() {
     );
   }
 
+  const isChurned = !!tenant.cancelledAt;
+  const activeModules = subscriptions.filter((s) => s.status === "active");
+
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
       <div>
@@ -185,24 +314,28 @@ export default function CustomerDetail() {
           </div>
         </Link>
 
-        <div className="bg-card border border-border rounded-xl p-6">
+        <div className={`bg-card border rounded-xl p-6 ${isChurned ? "border-red-200 bg-red-50/30" : "border-border"}`}>
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <span className="text-primary font-bold text-lg">{tenant.name.charAt(0)}</span>
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isChurned ? "bg-red-100" : "bg-primary/10"}`}>
+              <span className={`font-bold text-lg ${isChurned ? "text-red-500" : "text-primary"}`}>{tenant.name.charAt(0)}</span>
             </div>
             <div className="flex-1">
-              <div className="flex items-center gap-3 mb-1">
+              <div className="flex items-center gap-3 mb-1 flex-wrap">
                 <h1 className="text-xl font-bold text-foreground">{tenant.name}</h1>
-                <Badge variant={tenant.isActive ? "success" : "destructive"}>
-                  {tenant.isActive ? "Active" : "Suspended"}
-                </Badge>
+                {isChurned ? (
+                  <Badge variant="destructive">Churned</Badge>
+                ) : (
+                  <Badge variant={tenant.isActive ? "success" : "destructive"}>
+                    {tenant.isActive ? "Active" : "Suspended"}
+                  </Badge>
+                )}
               </div>
               <p className="text-sm text-muted-foreground">{tenant.contactEmail}</p>
               {tenant.contactPhone && (
                 <p className="text-sm text-muted-foreground">{tenant.contactPhone}</p>
               )}
             </div>
-            <div className="text-right text-xs text-muted-foreground">
+            <div className="text-right text-xs text-muted-foreground shrink-0">
               <p className="font-mono bg-muted px-2 py-1 rounded mb-1">{tenant.slug}</p>
               <p>Joined {new Date(tenant.createdAt).toLocaleDateString("en-GB", { month: "short", year: "numeric" })}</p>
               {tenant.stripeCustomerId && (
@@ -210,6 +343,42 @@ export default function CustomerDetail() {
               )}
             </div>
           </div>
+
+          {/* Churn banner */}
+          {isChurned && (
+            <div className="mt-4 pt-4 border-t border-red-200 flex items-start gap-3">
+              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-700">
+                  Cancelled {fmtDate(tenant.cancelledAt!)}
+                </p>
+                {tenant.cancelReason && (
+                  <p className="text-xs text-red-600 mt-0.5">{tenant.cancelReason}</p>
+                )}
+              </div>
+              <button
+                onClick={handleReinstate}
+                disabled={reinstating}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 border border-green-300 rounded-lg px-3 py-1.5 bg-green-50 hover:bg-green-100 transition-colors disabled:opacity-50"
+              >
+                {reinstating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                Reinstate Account
+              </button>
+            </div>
+          )}
+
+          {/* Actions */}
+          {!isChurned && (
+            <div className="mt-4 pt-4 border-t border-border flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setShowChurnDialog(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-50 transition-colors"
+              >
+                <TrendingDown className="w-3.5 h-3.5" />
+                Mark as Churned
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -218,6 +387,87 @@ export default function CustomerDetail() {
           {downloadError}
         </div>
       )}
+
+      {/* Referral Programme */}
+      <Section title="Referral Programme">
+        <div className="bg-card border border-border rounded-xl p-5">
+          <div className="flex items-start gap-3 mb-4">
+            <Gift className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground mb-1">Referral Code</p>
+              <p className="text-xs text-muted-foreground">
+                Share this code with the customer so they can refer other farms. When a new customer signs up using their code, it will be attributed here.
+              </p>
+            </div>
+          </div>
+
+          {tenant.referralCode ? (
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 bg-muted rounded-lg px-4 py-2.5">
+                <Share2 className="w-4 h-4 text-muted-foreground" />
+                <span className="font-mono font-bold text-lg tracking-widest text-foreground">{tenant.referralCode}</span>
+              </div>
+              <button
+                onClick={handleCopyCode}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-3 py-2 hover:bg-primary/5 transition-colors"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                {codeCopied ? "Copied!" : "Copy Code"}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleGenerateReferralCode}
+              disabled={generatingCode}
+              className="inline-flex items-center gap-2 text-sm font-medium text-primary border border-primary/30 rounded-lg px-4 py-2 hover:bg-primary/5 transition-colors disabled:opacity-50"
+            >
+              {generatingCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
+              {generatingCode ? "Generating…" : "Generate Referral Code"}
+            </button>
+          )}
+
+          {tenant.referredBy && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Referred by code:</span>{" "}
+                <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-foreground">{tenant.referredBy}</span>
+              </p>
+            </div>
+          )}
+        </div>
+      </Section>
+
+      {/* Module Adoption */}
+      <Section title={`Active Modules (${activeModules.length})`}>
+        {activeModules.length === 0 ? (
+          <div className="bg-card border border-border rounded-xl p-5 text-sm text-muted-foreground">
+            No active module subscriptions.
+          </div>
+        ) : (
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            {activeModules.map((sub, i) => {
+              const farm = farms.find((f) => f.id === sub.farmId);
+              return (
+                <div
+                  key={sub.id}
+                  className={`px-5 py-3 flex items-center gap-3 ${i < activeModules.length - 1 ? "border-b border-border" : ""}`}
+                >
+                  <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{sub.moduleName}</p>
+                    {farm && <p className="text-xs text-muted-foreground">{farm.name}</p>}
+                  </div>
+                  {sub.currentPeriodEnd && (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      Renews {new Date(sub.currentPeriodEnd).toLocaleDateString("en-GB")}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Section>
 
       <Section title={`Farms (${farms.length})`}>
         {farms.length === 0 ? (
@@ -255,7 +505,6 @@ export default function CustomerDetail() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0 mt-0.5">
-                    {/* Download PDF */}
                     <button
                       onClick={() => handleDownloadGuide(farm)}
                       disabled={isDownloading}
@@ -269,7 +518,6 @@ export default function CustomerDetail() {
                       {isDownloading ? "Generating…" : "Setup Guide"}
                     </button>
 
-                    {/* Email setup guide */}
                     {(() => {
                       const isSending = emailingFarmId === farm.id;
                       const sentResult = emailResult?.farmId === farm.id ? emailResult : null;
@@ -307,7 +555,7 @@ export default function CustomerDetail() {
         )}
       </Section>
 
-      <Section title={`Subscriptions (${subscriptions.length})`}>
+      <Section title={`All Subscriptions (${subscriptions.length})`}>
         {subscriptions.length === 0 ? (
           <p className="text-sm text-muted-foreground">No subscriptions active.</p>
         ) : (
@@ -356,6 +604,15 @@ export default function CustomerDetail() {
           </div>
         )}
       </Section>
+
+      {showChurnDialog && tenant && (
+        <ChurnDialog
+          tenantId={tenantId}
+          tenant={tenant}
+          onClose={() => setShowChurnDialog(false)}
+          onSaved={(updated) => setTenant(updated)}
+        />
+      )}
     </div>
   );
 }

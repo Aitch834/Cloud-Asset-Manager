@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { api, type Tenant } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
-import { Search, ChevronRight, CheckCircle, XCircle, Building2 } from "lucide-react";
+import { Search, ChevronRight, CheckCircle, XCircle, Building2, TrendingDown } from "lucide-react";
+
+type Filter = "all" | "active" | "churned";
 
 export default function Customers() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
   const secret = getSecret()!;
 
   useEffect(() => {
@@ -17,9 +20,15 @@ export default function Customers() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = tenants.filter((t) =>
-    `${t.name} ${t.contactEmail} ${t.slug}`.toLowerCase().includes(query.toLowerCase())
-  );
+  const filtered = tenants.filter((t) => {
+    const matchesQuery = `${t.name} ${t.contactEmail} ${t.slug}`.toLowerCase().includes(query.toLowerCase());
+    if (!matchesQuery) return false;
+    if (filter === "active") return t.isActive && !t.cancelledAt;
+    if (filter === "churned") return !!t.cancelledAt;
+    return true;
+  });
+
+  const churnedCount = tenants.filter((t) => t.cancelledAt).length;
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -28,15 +37,32 @@ export default function Customers() {
         <p className="text-muted-foreground text-sm mt-1">All tenant accounts registered on the platform.</p>
       </div>
 
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input
-          type="search"
-          placeholder="Search by name, email or slug…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="w-full pl-9 pr-4 h-10 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        />
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="search"
+            placeholder="Search by name, email or slug…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full pl-9 pr-4 h-10 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div className="flex rounded-lg border border-input overflow-hidden shrink-0">
+          {(["all", "active", "churned"] as Filter[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 h-10 text-sm font-medium transition-colors capitalize ${
+                filter === f
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {f === "churned" ? `Churned${churnedCount > 0 ? ` (${churnedCount})` : ""}` : f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -55,39 +81,50 @@ export default function Customers() {
         </div>
       ) : (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-          {filtered.map((tenant, i) => (
-            <Link key={tenant.id} href={`/customers/${tenant.id}`}>
-              <div
-                className={`flex items-center gap-4 px-5 py-4 hover:bg-muted/50 cursor-pointer transition-colors ${
-                  i < filtered.length - 1 ? "border-b border-border" : ""
-                }`}
-              >
-                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <span className="text-primary font-semibold text-sm">
-                    {tenant.name.charAt(0).toUpperCase()}
-                  </span>
+          {filtered.map((tenant, i) => {
+            const isChurned = !!tenant.cancelledAt;
+            return (
+              <Link key={tenant.id} href={`/customers/${tenant.id}`}>
+                <div
+                  className={`flex items-center gap-4 px-5 py-4 hover:bg-muted/50 cursor-pointer transition-colors ${
+                    i < filtered.length - 1 ? "border-b border-border" : ""
+                  } ${isChurned ? "opacity-70" : ""}`}
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isChurned ? "bg-red-100" : "bg-primary/10"}`}>
+                    <span className={`font-semibold text-sm ${isChurned ? "text-red-500" : "text-primary"}`}>
+                      {tenant.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-foreground">{tenant.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{tenant.contactEmail}</p>
+                  </div>
+                  <div className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
+                    {tenant.slug}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {isChurned ? (
+                      <>
+                        <TrendingDown className="w-4 h-4 text-red-500" />
+                        <span className="text-xs font-medium text-red-600">Churned</span>
+                      </>
+                    ) : tenant.isActive ? (
+                      <>
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        <span className="text-xs font-medium text-green-600">Active</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-4 h-4 text-destructive" />
+                        <span className="text-xs font-medium text-destructive">Suspended</span>
+                      </>
+                    )}
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-foreground">{tenant.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{tenant.contactEmail}</p>
-                </div>
-                <div className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
-                  {tenant.slug}
-                </div>
-                <div className="flex items-center gap-1">
-                  {tenant.isActive ? (
-                    <CheckCircle className="w-4 h-4 text-green-500" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-destructive" />
-                  )}
-                  <span className={`text-xs font-medium ${tenant.isActive ? "text-green-600" : "text-destructive"}`}>
-                    {tenant.isActive ? "Active" : "Suspended"}
-                  </span>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

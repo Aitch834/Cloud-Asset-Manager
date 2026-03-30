@@ -8,6 +8,7 @@ import Dashboard from "@/pages/Dashboard";
 import Customers from "@/pages/Customers";
 import CustomerDetail from "@/pages/CustomerDetail";
 import Leads from "@/pages/Leads";
+import Referrals from "@/pages/Referrals";
 import SupportTickets from "@/pages/SupportTickets";
 import Email from "@/pages/Email";
 import Database from "@/pages/Database";
@@ -25,6 +26,7 @@ function PortalRouter() {
         <Route path="/customers" component={Customers} />
         <Route path="/customers/:id" component={CustomerDetail} />
         <Route path="/leads" component={Leads} />
+        <Route path="/referrals" component={Referrals} />
         <Route path="/support" component={SupportTickets} />
         <Route path="/invoices" component={Invoices} />
         <Route path="/email" component={Email} />

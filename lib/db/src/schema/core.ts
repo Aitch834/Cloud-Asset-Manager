@@ -10,6 +10,10 @@ export const tenantsTable = pgTable("tenants", {
   address: text("address"),
   isActive: boolean("is_active").notNull().default(true),
   stripeCustomerId: text("stripe_customer_id"),
+  referralCode: text("referral_code"),
+  referredBy: text("referred_by"),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  cancelReason: text("cancel_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
