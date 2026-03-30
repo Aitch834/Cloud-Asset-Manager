@@ -4509,12 +4509,13 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Dashboard — Field Inspections Page</h3>
 <p>Navigate to <strong>Field Inspections</strong> in the left sidebar (under Fields &amp; Crops). The page shows four summary cards at the top:</p>
 <ul>
-<li><strong>Total Inspections</strong> — all inspections on record for this farm</li>
-<li><strong>Open Actions</strong> — unresolved treat or urgent inspections requiring a response</li>
-<li><strong>Monitoring</strong> — active monitor-flagged inspections not yet resolved</li>
-<li><strong>Resolved This Month</strong> — inspections resolved in the current calendar month</li>
+<li><strong>Total Inspections</strong> — all inspections on record for this farm (informational only)</li>
+<li><strong>Open Actions</strong> — unresolved treat or urgent inspections requiring a response. <em>Click this card</em> to immediately filter the table to show all open actions across every crop year, highlighted in red</li>
+<li><strong>Monitoring</strong> — active monitor-flagged inspections not yet resolved. <em>Click this card</em> to filter the table to all monitoring flags across every crop year, highlighted in amber</li>
+<li><strong>Resolved This Month</strong> — inspections resolved in the current calendar month. <em>Click this card</em> to filter the table to only those records, spanning all crop years (an inspection logged in autumn but resolved in spring will still appear here even if it falls outside the current crop year). The card and filter banner highlight in green when active</li>
 </ul>
-<p>The table below lists all inspections with field name, date, crop type, observation summary, action badge, and inspector name. Use the search box to filter by field name or inspector, and use the status and action filters to narrow the list to open actions, monitoring flags, or resolved records.</p>
+<p>When a card filter is active, a coloured banner appears above the search bar confirming the active filter and the number of matching records. Click <strong>✕ Clear</strong> on the banner to return to the normal crop-year view. You can also clear the card filter by changing the Status or Crop Year dropdowns.</p>
+<p>The table below lists all inspections with field name, date, crop type, observation summary, action badge, and inspector name. Use the search box to filter by field name or inspector, the status dropdown to narrow to open actions, monitoring flags, or resolved records, and the crop year selector to view a specific season.</p>
 
 <h3>Viewing an Inspection</h3>
 <p>Click <strong>View</strong> on any row to open a detail panel showing all fields recorded during the inspection, including the full observation text, recommended action, growth stage, and — if the inspection has been resolved — the resolution details. Use this panel to review an inspection before deciding whether to resolve it or escalate further.</p>
