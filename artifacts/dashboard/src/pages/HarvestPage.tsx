@@ -764,16 +764,50 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
 
 function PrintTab({ harvests, transports, storages, farm }: any) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [reportType, setReportType] = useState<"summary" | "detail">("summary");
+
+  const isDetail = reportType === "detail";
 
   const handlePrint = () => {
-    printFromRef(printRef, "Harvest Records — Red Tractor Audit");
+    printFromRef(printRef, "Harvest Records — Red Tractor Audit", !isDetail);
   };
 
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
 
+  const SECTION_HEAD: React.CSSProperties = {
+    fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+    color: "#fff", background: "#1a3a1a", padding: "3px 8px", marginBottom: 6, borderRadius: 3,
+  };
+  const FIELD_LABEL: React.CSSProperties = { fontSize: "0.68rem", color: "#6b7280", display: "block", marginBottom: 1 };
+  const FIELD_VALUE: React.CSSProperties = { fontSize: "0.8rem", fontWeight: 500, color: "#111827" };
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151" }}>Format</span>
+          <div style={{ display: "flex", gap: 0, borderRadius: 6, overflow: "hidden", border: "1px solid #d1d5db" }}>
+            {(["summary", "detail"] as const).map(type => (
+              <button
+                key={type}
+                onClick={() => setReportType(type)}
+                style={{
+                  padding: "5px 14px", fontSize: "0.8125rem", fontWeight: 600, cursor: "pointer",
+                  background: reportType === type ? "#1a3a1a" : "#fff",
+                  color: reportType === type ? "#fff" : "#374151",
+                  border: "none", borderRight: type === "summary" ? "1px solid #d1d5db" : "none",
+                }}
+              >
+                {type === "summary" ? "Summary Table" : "Full Detail Report"}
+              </button>
+            ))}
+          </div>
+          <span style={{ fontSize: "0.72rem", color: "#9ca3af" }}>
+            {isDetail
+              ? "Portrait A4 · full card per harvest record (includes equipment serial, season, notes)"
+              : "Landscape A4 · one row per harvest record"}
+          </span>
+        </div>
         <Button size="sm" onClick={handlePrint}>
           <Printer size={14} className="mr-1" />Print / Export PDF
         </Button>
@@ -781,7 +815,7 @@ function PrintTab({ harvests, transports, storages, farm }: any) {
 
       <div ref={printRef} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "2rem" }}>
         <h1 style={{ fontSize: "1.125rem", fontWeight: 700, borderBottom: "2px solid #333", paddingBottom: 8, marginBottom: 4 }}>
-          Harvest Records — Red Tractor Compliance Report
+          Harvest Records — Red Tractor Compliance Report{isDetail ? " (Full Detail)" : ""}
         </h1>
         {farm && (
           <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#111827", marginBottom: 2 }}>
@@ -795,8 +829,106 @@ function PrintTab({ harvests, transports, storages, farm }: any) {
         <h2 style={{ fontSize: "0.9rem", fontWeight: 600, color: "#166534", borderBottom: "1px solid #e5e7eb", paddingBottom: 4, marginBottom: 8, marginTop: 20 }}>
           Harvest Log ({harvests.length} records)
         </h2>
+
         {harvests.length === 0 ? (
           <p style={{ fontSize: "0.8rem", color: "#9ca3af", marginBottom: 16 }}>No harvests recorded.</p>
+        ) : isDetail ? (
+          <div>
+            {harvests.map((r: any, idx: number) => (
+              <div key={r.id} className="record-card" style={{
+                border: "1px solid #d1d5db", borderRadius: 6, marginBottom: 14,
+                pageBreakInside: "avoid", breakInside: "avoid", overflow: "hidden",
+              }}>
+                <div style={{ background: "#f3f4f6", borderBottom: "1px solid #d1d5db", padding: "6px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "#111827" }}>
+                    #{idx + 1} &nbsp;{fmt(r.harvestDate)} — {r.field?.name || "Unknown Field"} — {r.crop?.name || "Unknown Crop"}{r.crop?.variety ? ` (${r.crop.variety})` : ""}
+                  </span>
+                  {r.qualityGrade && (
+                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "1px 8px", borderRadius: 10, background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0" }}>
+                      Grade: {r.qualityGrade}
+                    </span>
+                  )}
+                </div>
+                <div style={{ padding: "10px 12px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 24px" }}>
+
+                  <div>
+                    <p style={SECTION_HEAD}>Harvest Details</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px" }}>
+                      {[
+                        ["Date", fmt(r.harvestDate)],
+                        ["Field", r.field?.name || "—"],
+                        ["Field Reference", r.field?.fieldReference || "—"],
+                        ["Season / Year", r.fieldCropAssignment?.season && r.fieldCropAssignment?.year ? `${r.fieldCropAssignment.season} ${r.fieldCropAssignment.year}` : "—"],
+                        ["Crop", r.crop?.name || "—"],
+                        ["Variety", r.crop?.variety || "—"],
+                      ].map(([label, value]) => (
+                        <div key={label}>
+                          <span style={FIELD_LABEL}>{label}</span>
+                          <span style={FIELD_VALUE}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p style={SECTION_HEAD}>Harvest Results</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px" }}>
+                      {[
+                        ["Yield (t)", r.yieldTonnes ? `${r.yieldTonnes} t` : "—"],
+                        ["Area Harvested", r.areaHarvestedHa ? `${r.areaHarvestedHa} ha` : "—"],
+                        ["Moisture %", r.moisturePercent ? `${r.moisturePercent}%` : "—"],
+                        ["Quality Grade", r.qualityGrade || "—"],
+                      ].map(([label, value]) => (
+                        <div key={label}>
+                          <span style={FIELD_LABEL}>{label}</span>
+                          <span style={FIELD_VALUE}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p style={SECTION_HEAD}>Equipment Used</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px" }}>
+                      {[
+                        ["Machine Name", r.equipment?.name || "—"],
+                        ["Type", r.equipment?.type || "—"],
+                        ["Registration", r.equipment?.registrationNumber || "—"],
+                        ["Serial Number", r.equipment?.serialNumber || "—"],
+                      ].map(([label, value]) => (
+                        <div key={label}>
+                          <span style={FIELD_LABEL}>{label}</span>
+                          <span style={FIELD_VALUE}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p style={SECTION_HEAD}>Personnel</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px" }}>
+                      {[
+                        ["Operator", r.operatorName || "—"],
+                        ["Recorded By", r.recordedBy || "—"],
+                      ].map(([label, value]) => (
+                        <div key={label}>
+                          <span style={FIELD_LABEL}>{label}</span>
+                          <span style={FIELD_VALUE}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {r.notes && (
+                      <div style={{ marginTop: 10 }}>
+                        <p style={SECTION_HEAD}>Notes</p>
+                        <p style={{ fontSize: "0.78rem", color: "#374151", margin: 0, lineHeight: 1.5 }}>{r.notes}</p>
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 20, fontSize: "0.8rem" }}>
             <thead>
