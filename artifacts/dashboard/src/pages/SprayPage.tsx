@@ -665,6 +665,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
 
 function PrintTab({ applications, farm }: any) {
   const [cropYear, setCropYear] = useState(currentCropYear());
+  const [reportType, setReportType] = useState<"summary" | "detail">("summary");
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const previewRef = useRef<HTMLDivElement>(null);
 
@@ -675,17 +676,19 @@ function PrintTab({ applications, farm }: any) {
     if (!previewRef.current) return;
     const content = previewRef.current.innerHTML;
     const farmName = farm?.name || "Spray Records";
-    const win = window.open("", "_blank", "width=1400,height=900");
+    const isDetail = reportType === "detail";
+    const win = window.open("", "_blank", "width=1200,height=900");
     if (!win) return;
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
       <title>Spray Records — ${farmName} — ${yearLabel}</title>
       <style>
-        @page { size: A4 landscape; margin: 1cm 1.2cm; }
+        @page { size: A4 ${isDetail ? "portrait" : "landscape"}; margin: ${isDetail ? "1.2cm 1.5cm" : "1cm 1.2cm"}; }
         *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         body { margin: 0; padding: 0; background: #fff; font-family: Arial, Helvetica, sans-serif; }
         div[style*="overflow"] { overflow: visible !important; }
         tr { page-break-inside: avoid; }
         div[style*="box-shadow"] { box-shadow: none !important; border-radius: 0 !important; }
+        .record-card { page-break-inside: avoid; }
       </style>
     </head><body>${content}</body></html>`);
     win.document.close();
@@ -701,12 +704,50 @@ function PrintTab({ applications, farm }: any) {
 
   const COLS = ["Date", "Field", "Product", "Rate", "Area", "Water Vol.", "Wind / Temp", "Operator", "PA Cert No.", "Reason / Notes"];
 
+  const toggleBtnStyle = (active: boolean): React.CSSProperties => ({
+    padding: "5px 14px", borderRadius: 6, border: "1px solid",
+    borderColor: active ? "#1a3a1a" : "#d1d5db",
+    background: active ? "#1a3a1a" : "#fff",
+    color: active ? "#fff" : "#374151",
+    fontSize: "0.8rem", fontWeight: active ? 600 : 400, cursor: "pointer",
+    transition: "all 0.15s",
+  });
+
+  const docHeader = (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #1a3a1a", paddingBottom: 10, marginBottom: 14 }}>
+      <div>
+        <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1a3a1a", margin: "0 0 4px" }}>
+          Spray Application Records — {yearLabel}{reportType === "detail" ? " (Full Detail)" : ""}
+        </h2>
+        {farmName && <p style={{ fontSize: "0.75rem", color: "#374151", margin: "4px 0", lineHeight: 1.5 }}><strong>{farmName}</strong>{meta ? `  ·  ${meta}` : ""}</p>}
+        <p style={{ fontSize: "0.7rem", color: "#444", margin: "4px 0", lineHeight: 1.5 }}>Red Tractor Crop Inputs Compliance Register</p>
+      </div>
+      <div style={{ textAlign: "right", lineHeight: 1.8 }}>
+        <div style={{ display: "inline-block", background: "#dc2626", color: "#fff", fontSize: "0.6rem", fontWeight: 700, padding: "2px 8px", borderRadius: 3, letterSpacing: "0.05em", marginBottom: 4 }}>RED TRACTOR</div>
+        <p style={{ fontSize: "0.65rem", color: "#374151", margin: "4px 0" }}>Printed: {today}</p>
+        <p style={{ fontSize: "0.65rem", color: "#374151", margin: "4px 0" }}>{printApplications.length} record{printApplications.length !== 1 ? "s" : ""}</p>
+      </div>
+    </div>
+  );
+
+  const docFooter = (
+    <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid #d1d5db", display: "flex", justifyContent: "space-between", fontSize: "0.6rem", color: "#555" }}>
+      <span>Retain records for a minimum of 3 years and make available at Red Tractor audit inspection.</span>
+      <span>BDE Farm Trac · {today}</span>
+    </div>
+  );
+
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem", gap: 12, flexWrap: "wrap" }}>
-        <p style={{ fontSize: "0.8rem", color: "#6b7280", margin: 0 }}>
-          Select a crop year to preview and print. Prints landscape A4 — all columns fit on a single row.
-        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151" }}>Format:</span>
+          <button style={toggleBtnStyle(reportType === "summary")} onClick={() => setReportType("summary")}>Summary Table</button>
+          <button style={toggleBtnStyle(reportType === "detail")} onClick={() => setReportType("detail")}>Full Detail Report</button>
+          <span style={{ fontSize: "0.75rem", color: "#9ca3af", marginLeft: 4 }}>
+            {reportType === "summary" ? "Landscape A4 · one row per application" : "Portrait A4 · full card per application"}
+          </span>
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <CropYearSelector value={cropYear} onChange={setCropYear} />
           <Button size="sm" onClick={handlePrint} disabled={printApplications.length === 0}>
@@ -720,22 +761,10 @@ function PrintTab({ applications, farm }: any) {
           <p style={{ fontSize: "0.875rem", fontWeight: 600, color: "#6b7280", margin: "0 0 4px" }}>No records for {yearLabel}</p>
           <p style={{ fontSize: "0.8rem", margin: 0 }}>Select a different crop year above, or log applications in the Applications Log tab.</p>
         </div>
-      ) : (
+      ) : reportType === "summary" ? (
         <div style={{ background: "#e5e7eb", padding: "1.5rem", borderRadius: 10 }}>
           <div ref={previewRef} style={{ background: "#fff", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", padding: "1.5rem 1.75rem", fontFamily: "Arial, Helvetica, sans-serif" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #1a3a1a", paddingBottom: 10, marginBottom: 12 }}>
-              <div>
-                <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1a3a1a", margin: "0 0 4px" }}>Spray Application Records — {yearLabel}</h2>
-                {farmName && <p style={{ fontSize: "0.75rem", color: "#374151", margin: "4px 0", lineHeight: 1.5 }}><strong>{farmName}</strong>{meta ? `  ·  ${meta}` : ""}</p>}
-                <p style={{ fontSize: "0.7rem", color: "#444", margin: "4px 0", lineHeight: 1.5 }}>Red Tractor Crop Inputs Compliance Register</p>
-              </div>
-              <div style={{ textAlign: "right", lineHeight: 1.8 }}>
-                <div style={{ display: "inline-block", background: "#dc2626", color: "#fff", fontSize: "0.6rem", fontWeight: 700, padding: "2px 8px", borderRadius: 3, letterSpacing: "0.05em", marginBottom: 4 }}>RED TRACTOR</div>
-                <p style={{ fontSize: "0.65rem", color: "#374151", margin: "4px 0" }}>Printed: {today}</p>
-                <p style={{ fontSize: "0.65rem", color: "#374151", margin: "4px 0" }}>{printApplications.length} record{printApplications.length !== 1 ? "s" : ""}</p>
-              </div>
-            </div>
-
+            {docHeader}
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.7rem" }}>
                 <thead>
@@ -772,11 +801,124 @@ function PrintTab({ applications, farm }: any) {
                 </tbody>
               </table>
             </div>
+            {docFooter}
+          </div>
+        </div>
+      ) : (
+        /* ── Full Detail Report ─────────────────────────────────── */
+        <div style={{ background: "#e5e7eb", padding: "1.5rem", borderRadius: 10 }}>
+          <div ref={previewRef} style={{ background: "#fff", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", padding: "1.5rem 1.75rem", fontFamily: "Arial, Helvetica, sans-serif" }}>
+            {docHeader}
+            <div>
+              {printApplications.map((r: any, i: number) => {
+                const equipment = r.equipmentName
+                  ? `${r.equipmentName}${r.equipmentUsed && r.equipmentUsed !== r.equipmentName ? ` — ${r.equipmentUsed}` : ""}`
+                  : r.equipmentUsed || null;
+                const traceability = [
+                  r.supplierName ? `Supplier: ${r.supplierName}` : null,
+                  r.batchNumber ? `Batch: ${r.batchNumber}` : null,
+                  r.lotNumber ? `Lot: ${r.lotNumber}` : null,
+                ].filter(Boolean);
 
-            <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid #d1d5db", display: "flex", justifyContent: "space-between", fontSize: "0.6rem", color: "#555" }}>
-              <span>Retain records for a minimum of 3 years and make available at Red Tractor audit inspection.</span>
-              <span>BDE Farm Trac · {today}</span>
+                const cellLabel: React.CSSProperties = { fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.06em", color: "#6b7280", display: "block", marginBottom: 3 };
+                const cellValue: React.CSSProperties = { fontSize: "0.72rem", color: "#111827", fontWeight: 500 };
+                const sectionHead: React.CSSProperties = { fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.07em", color: "#fff", background: "#374151", padding: "3px 8px" };
+                const sectionBody: React.CSSProperties = { padding: "8px 10px" };
+                const halfCell: React.CSSProperties = { padding: "7px 10px", flex: 1 };
+
+                return (
+                  <div key={r.id} className="record-card" style={{
+                    border: "1px solid #d1d5db", borderRadius: 4, marginBottom: i < printApplications.length - 1 ? 16 : 0,
+                    overflow: "hidden", fontSize: "0.72rem",
+                  }}>
+                    {/* Record header */}
+                    <div style={{ background: "#1a3a1a", padding: "7px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+                        <div>
+                          <span style={{ fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#86efac", display: "block" }}>Date</span>
+                          <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#fff" }}>{fmt(r.applicationDate)}</span>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#86efac", display: "block" }}>Field</span>
+                          <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#fff" }}>{r.fieldName || "—"}</span>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#86efac", display: "block" }}>Product</span>
+                          <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#fff" }}>
+                            {r.productName || "—"}{r.productCategory ? <span style={{ fontSize: "0.65rem", color: "#a3e635", marginLeft: 6 }}>({r.productCategory})</span> : null}
+                          </span>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: "0.6rem", color: "#86efac" }}>Record #{i + 1} of {printApplications.length}</span>
+                    </div>
+
+                    {/* Application + Weather */}
+                    <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb" }}>
+                      <div style={{ flex: 1, borderRight: "1px solid #e5e7eb" }}>
+                        <div style={sectionHead}>Application Details</div>
+                        <div style={{ ...sectionBody, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px 12px" }}>
+                          <div><span style={cellLabel}>Rate</span><span style={cellValue}>{r.applicationRate ? `${r.applicationRate} ${r.rateUnit || ""}`.trim() : "—"}</span></div>
+                          <div><span style={cellLabel}>Area Sprayed</span><span style={cellValue}>{r.areaSprayedHa ? `${r.areaSprayedHa} ha` : "—"}</span></div>
+                          <div><span style={cellLabel}>Water Volume</span><span style={cellValue}>{r.waterVolumeLitres ? `${r.waterVolumeLitres} L/ha` : "—"}</span></div>
+                        </div>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={sectionHead}>Weather Conditions</div>
+                        <div style={{ ...sectionBody, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px 12px" }}>
+                          <div><span style={cellLabel}>Wind Speed</span><span style={cellValue}>{r.windSpeedKmh ? `${r.windSpeedKmh} km/h` : "—"}</span></div>
+                          <div><span style={cellLabel}>Wind Direction</span><span style={cellValue}>{r.windDirection || "—"}</span></div>
+                          <div><span style={cellLabel}>Temperature</span><span style={cellValue}>{r.temperatureC != null ? `${r.temperatureC}°C` : "—"}</span></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Operator + Equipment */}
+                    <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb" }}>
+                      <div style={{ flex: 1, borderRight: "1px solid #e5e7eb" }}>
+                        <div style={sectionHead}>Operator</div>
+                        <div style={{ ...sectionBody, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px" }}>
+                          <div><span style={cellLabel}>Name</span><span style={cellValue}>{r.operatorName || "—"}</span></div>
+                          <div><span style={cellLabel}>PA1/PA6 Certificate No.</span><span style={{ ...cellValue, fontFamily: "monospace", fontSize: "0.68rem" }}>{r.certificateNumber || "—"}</span></div>
+                        </div>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={sectionHead}>Equipment Used</div>
+                        <div style={sectionBody}>
+                          <span style={cellValue}>{equipment || "—"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Traceability */}
+                    {(traceability.length > 0 || r.supplierName || r.batchNumber || r.lotNumber) && (
+                      <div style={{ borderBottom: "1px solid #e5e7eb" }}>
+                        <div style={sectionHead}>Product Traceability</div>
+                        <div style={{ ...sectionBody, display: "flex", gap: 24, flexWrap: "wrap" as const }}>
+                          <div><span style={cellLabel}>Supplier</span><span style={cellValue}>{r.supplierName || "—"}</span></div>
+                          <div><span style={cellLabel}>Batch Number</span><span style={{ ...cellValue, fontFamily: "monospace" }}>{r.batchNumber || "—"}</span></div>
+                          <div><span style={cellLabel}>Lot Number</span><span style={{ ...cellValue, fontFamily: "monospace" }}>{r.lotNumber || "—"}</span></div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reason + Notes */}
+                    <div style={{ display: "flex" }}>
+                      <div style={{ flex: r.notes ? 1 : undefined, width: r.notes ? undefined : "100%", borderRight: r.notes ? "1px solid #e5e7eb" : undefined }}>
+                        <div style={sectionHead}>Reason for Application</div>
+                        <div style={sectionBody}><span style={cellValue}>{r.reasonForApplication || "—"}</span></div>
+                      </div>
+                      {r.notes && (
+                        <div style={{ flex: 1 }}>
+                          <div style={sectionHead}>Notes</div>
+                          <div style={sectionBody}><span style={{ ...cellValue, color: "#374151" }}>{r.notes}</span></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+            {docFooter}
           </div>
         </div>
       )}
