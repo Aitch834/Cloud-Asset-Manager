@@ -115,6 +115,7 @@ export default function FieldInspectionsPage() {
   const [filterAction, setFilterAction] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [cropYear, setCropYear] = useState(currentCropYear());
+  const [allYears, setAllYears] = useState(false);
 
   const [detailRecord, setDetailRecord] = useState<FieldInspection | null>(null);
   const [resolveOpen, setResolveOpen] = useState(false);
@@ -138,7 +139,7 @@ export default function FieldInspectionsPage() {
   })();
 
   const filtered = records.filter((r) => {
-    if (!isInCropYear(r.inspectionDate, cropYear)) return false;
+    if (!allYears && !isInCropYear(r.inspectionDate, cropYear)) return false;
     const matchSearch = !search || r.fieldName.toLowerCase().includes(search.toLowerCase()) || r.inspector?.toLowerCase().includes(search.toLowerCase());
     const matchAction = filterAction === "all" || r.actionRequired === filterAction;
     const matchStatus = filterStatus === "all"
@@ -196,22 +197,46 @@ export default function FieldInspectionsPage() {
             <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">Total Inspections</p>
             <p className="text-2xl font-bold text-gray-900">{records.length}</p>
           </div>
-          <div className="bg-white rounded-lg border border-red-200 p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <AlertCircle className="w-3.5 h-3.5 text-red-600" />
-              <p className="text-xs text-red-600 uppercase tracking-wide font-medium">Open Actions</p>
+          <button
+            onClick={() => { setFilterStatus("open"); setAllYears(true); setFilterAction("all"); setSearch(""); }}
+            className="bg-white rounded-lg border p-4 text-left transition-all"
+            style={{
+              borderColor: allYears && filterStatus === "open" ? "#dc2626" : "#fecaca",
+              background: allYears && filterStatus === "open" ? "#fff1f1" : "#fff",
+              cursor: "pointer",
+              boxShadow: allYears && filterStatus === "open" ? "0 0 0 2px #fca5a5" : "none",
+            }}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                <p className="text-xs text-red-600 uppercase tracking-wide font-medium">Open Actions</p>
+              </div>
+              <span style={{ fontSize: "0.65rem", color: "#9ca3af", fontStyle: "italic" }}>click to view all</span>
             </div>
             <p className="text-2xl font-bold text-red-700">{openActions}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Treat or urgent — unresolved</p>
-          </div>
-          <div className="bg-white rounded-lg border border-yellow-200 p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Eye className="w-3.5 h-3.5 text-yellow-600" />
-              <p className="text-xs text-yellow-600 uppercase tracking-wide font-medium">Monitoring</p>
+            <p className="text-xs text-gray-500 mt-0.5">Treat or urgent — unresolved · all years</p>
+          </button>
+          <button
+            onClick={() => { setFilterStatus("monitor"); setAllYears(true); setFilterAction("all"); setSearch(""); }}
+            className="bg-white rounded-lg border p-4 text-left transition-all"
+            style={{
+              borderColor: allYears && filterStatus === "monitor" ? "#d97706" : "#fde68a",
+              background: allYears && filterStatus === "monitor" ? "#fffbeb" : "#fff",
+              cursor: "pointer",
+              boxShadow: allYears && filterStatus === "monitor" ? "0 0 0 2px #fcd34d" : "none",
+            }}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <Eye className="w-3.5 h-3.5 text-yellow-600" />
+                <p className="text-xs text-yellow-600 uppercase tracking-wide font-medium">Monitoring</p>
+              </div>
+              <span style={{ fontSize: "0.65rem", color: "#9ca3af", fontStyle: "italic" }}>click to view all</span>
             </div>
             <p className="text-2xl font-bold text-yellow-700">{monitored}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Active monitoring flags</p>
-          </div>
+            <p className="text-xs text-gray-500 mt-0.5">Active monitoring flags · all years</p>
+          </button>
           <div className="bg-white rounded-lg border border-green-200 p-4">
             <div className="flex items-center gap-2 mb-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
@@ -223,6 +248,27 @@ export default function FieldInspectionsPage() {
 
         {/* Filters */}
         <div className="bg-white rounded-lg border border-gray-200 p-4">
+          {allYears && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8,
+              background: filterStatus === "open" ? "#fff1f1" : "#fffbeb",
+              border: `1px solid ${filterStatus === "open" ? "#fca5a5" : "#fcd34d"}`,
+              fontSize: "0.8125rem", color: filterStatus === "open" ? "#991b1b" : "#92400e",
+              fontWeight: 500, marginBottom: 8,
+            }}>
+              <span>
+                {filterStatus === "open" ? "🔴" : "🟡"}{" "}
+                Showing all years — {filterStatus === "open" ? "Open Actions" : "Monitoring"} ({filtered.length} records)
+              </span>
+              <button
+                onClick={() => { setAllYears(false); setFilterStatus("all"); }}
+                style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem", color: "inherit", padding: "0 2px", lineHeight: 1 }}
+                title="Clear — return to crop year view"
+              >
+                ✕ Clear
+              </button>
+            </div>
+          )}
           <div className="flex flex-wrap gap-3 items-center">
             <div className="relative flex-1 min-w-48">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -233,7 +279,7 @@ export default function FieldInspectionsPage() {
                 className="pl-9"
               />
             </div>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setAllYears(false); }}>
               <SelectTrigger className="w-44">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -244,7 +290,7 @@ export default function FieldInspectionsPage() {
                 <SelectItem value="resolved">Resolved</SelectItem>
               </SelectContent>
             </Select>
-            <CropYearSelector value={cropYear} onChange={setCropYear} />
+            <CropYearSelector value={cropYear} onChange={(y) => { setCropYear(y); setAllYears(false); }} />
             <Select value={filterAction} onValueChange={setFilterAction}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Action" />
