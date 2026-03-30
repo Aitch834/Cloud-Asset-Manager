@@ -116,6 +116,7 @@ export default function FieldInspectionsPage() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [allYears, setAllYears] = useState(false);
+  const [resolvedThisMonthMode, setResolvedThisMonthMode] = useState(false);
 
   const [detailRecord, setDetailRecord] = useState<FieldInspection | null>(null);
   const [resolveOpen, setResolveOpen] = useState(false);
@@ -138,8 +139,14 @@ export default function FieldInspectionsPage() {
     return records.filter((r) => r.isResolved && r.resolvedAt && new Date(r.resolvedAt) >= start).length;
   })();
 
+  const thisMonthStart = (() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); })();
+  const thisMonthLabel = new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+
   const filtered = records.filter((r) => {
     if (!allYears && !isInCropYear(r.inspectionDate, cropYear)) return false;
+    if (resolvedThisMonthMode) {
+      if (!r.isResolved || !r.resolvedAt || new Date(r.resolvedAt) < thisMonthStart) return false;
+    }
     const matchSearch = !search || r.fieldName.toLowerCase().includes(search.toLowerCase()) || r.inspector?.toLowerCase().includes(search.toLowerCase());
     const matchAction = filterAction === "all" || r.actionRequired === filterAction;
     const matchStatus = filterStatus === "all"
@@ -237,31 +244,48 @@ export default function FieldInspectionsPage() {
             <p className="text-2xl font-bold text-yellow-700">{monitored}</p>
             <p className="text-xs text-gray-500 mt-0.5">Active monitoring flags · all years</p>
           </button>
-          <div className="bg-white rounded-lg border border-green-200 p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-              <p className="text-xs text-green-600 uppercase tracking-wide font-medium">Resolved This Month</p>
+          <button
+            onClick={() => { setResolvedThisMonthMode(true); setFilterStatus("resolved"); setAllYears(true); setFilterAction("all"); setSearch(""); }}
+            className="bg-white rounded-lg border p-4 text-left transition-all"
+            style={{
+              borderColor: resolvedThisMonthMode ? "#16a34a" : "#bbf7d0",
+              background: resolvedThisMonthMode ? "#f0fdf4" : "#fff",
+              cursor: "pointer",
+              boxShadow: resolvedThisMonthMode ? "0 0 0 2px #86efac" : "none",
+            }}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                <p className="text-xs text-green-600 uppercase tracking-wide font-medium">Resolved This Month</p>
+              </div>
+              <span style={{ fontSize: "0.65rem", color: "#9ca3af", fontStyle: "italic" }}>click to view</span>
             </div>
             <p className="text-2xl font-bold text-green-700">{resolvedThisMonth}</p>
-          </div>
+            <p className="text-xs text-gray-500 mt-0.5">Resolved in {thisMonthLabel} · all years</p>
+          </button>
         </div>
 
         {/* Filters */}
         <div className="bg-white rounded-lg border border-gray-200 p-4">
-          {allYears && (
+          {(allYears || resolvedThisMonthMode) && (
             <div style={{
               display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 8,
-              background: filterStatus === "open" ? "#fff1f1" : "#fffbeb",
-              border: `1px solid ${filterStatus === "open" ? "#fca5a5" : "#fcd34d"}`,
-              fontSize: "0.8125rem", color: filterStatus === "open" ? "#991b1b" : "#92400e",
+              background: resolvedThisMonthMode ? "#f0fdf4" : filterStatus === "open" ? "#fff1f1" : "#fffbeb",
+              border: `1px solid ${resolvedThisMonthMode ? "#86efac" : filterStatus === "open" ? "#fca5a5" : "#fcd34d"}`,
+              fontSize: "0.8125rem",
+              color: resolvedThisMonthMode ? "#15803d" : filterStatus === "open" ? "#991b1b" : "#92400e",
               fontWeight: 500, marginBottom: 8,
             }}>
               <span>
-                {filterStatus === "open" ? "🔴" : "🟡"}{" "}
-                Showing all years — {filterStatus === "open" ? "Open Actions" : "Monitoring"} ({filtered.length} records)
+                {resolvedThisMonthMode
+                  ? `🟢 Resolved in ${thisMonthLabel} — all years (${filtered.length} record${filtered.length !== 1 ? "s" : ""})`
+                  : filterStatus === "open"
+                    ? `🔴 Showing all years — Open Actions (${filtered.length} records)`
+                    : `🟡 Showing all years — Monitoring (${filtered.length} records)`}
               </span>
               <button
-                onClick={() => { setAllYears(false); setFilterStatus("all"); }}
+                onClick={() => { setAllYears(false); setFilterStatus("all"); setResolvedThisMonthMode(false); }}
                 style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem", color: "inherit", padding: "0 2px", lineHeight: 1 }}
                 title="Clear — return to crop year view"
               >
@@ -279,7 +303,7 @@ export default function FieldInspectionsPage() {
                 className="pl-9"
               />
             </div>
-            <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setAllYears(false); }}>
+            <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setAllYears(false); setResolvedThisMonthMode(false); }}>
               <SelectTrigger className="w-44">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -290,7 +314,7 @@ export default function FieldInspectionsPage() {
                 <SelectItem value="resolved">Resolved</SelectItem>
               </SelectContent>
             </Select>
-            <CropYearSelector value={cropYear} onChange={(y) => { setCropYear(y); setAllYears(false); }} />
+            <CropYearSelector value={cropYear} onChange={(y) => { setCropYear(y); setAllYears(false); setResolvedThisMonthMode(false); }} />
             <Select value={filterAction} onValueChange={setFilterAction}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Action" />
