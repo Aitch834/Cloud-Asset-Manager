@@ -4378,7 +4378,13 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Go to <strong>Livestock</strong> in the sidebar and select the <strong>Feed Records</strong> tab. Click <strong>Add Feed Record</strong>. Select the feed type from the drop-down list, enter the supplier name and batch/lot number, and enter the quantity in kilograms. Click <strong>Save Record</strong>. All feed records are listed in date order so that you can cross-reference them against medicine records and welfare checks for any given period.</p>
 
 <h3>Adding a Feed Record — Mobile App</h3>
-<p>Tap <strong>Record</strong> in the bottom navigation bar and select <strong>Feed Record</strong>. Enter the herd/flock name, choose the feed type, and fill in the supplier and batch number fields before saving. The record is saved locally and synced automatically when a connection is available — ideal for recording at the point of delivery, before paperwork is misplaced.</p>
+<p>Tap <strong>Record</strong> in the bottom navigation bar and select <strong>Feed Record</strong>. The form uses searchable lookup pickers for the three key traceability fields:</p>
+<ul>
+<li><strong>Herd / Flock</strong> — select from your registered herds and flocks, cached on the device</li>
+<li><strong>Supplier</strong> — select from your registered suppliers; the batch picker below will automatically filter to that supplier's GRN deliveries</li>
+<li><strong>Batch / Lot Number</strong> — select a GRN delivery batch; the batch number is carried through to the saved record automatically</li>
+</ul>
+<p>If a supplier or herd is not yet in the list, tap <strong>Enter manually</strong> inside the picker to type the name directly — the record will still save without being blocked. Choose the feed type, enter the quantity in kg and the date, then save. The record is stored locally and synced automatically when a connection is available — ideal for recording at the point of delivery, before paperwork is misplaced.</p>
 
 <h3>Feed Records vs Daily Welfare Checks</h3>
 <p>The <strong>Livestock Health Check</strong> screen in the mobile app includes a quick "Feed OK" toggle — this is a daily observation record, not a traceability record. The dedicated <strong>Feed Record</strong> is what satisfies the Red Tractor feed traceability requirement and should be completed for each distinct delivery or batch change.</p>`,
@@ -6771,19 +6777,27 @@ BDE Farm Trac includes a secure external access system that lets you share read-
       category: "Mobile App",
       content: `<img src="/api/help-images/help-centre.png" alt="Mobile App Offline Data" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
-<p>The BDE Farm Trac mobile app is designed to work reliably on farm — where mobile signal is patchy and internet connectivity can drop at any moment. This article explains how reference data (field lists, herd lists, laboratory lists) is handled offline, and what the indicators you see in the app mean.</p>
+<p>The BDE Farm Trac mobile app is designed to work reliably on farm — where mobile signal is patchy and internet connectivity can drop at any moment. This article explains how reference data (herd lists, supplier lists, GRN batch lists, field lists, laboratory lists) is handled offline, and what the indicators you see in the app mean.</p>
 
-<h3>How the App Stores Reference Lists</h3>
-<p>Every time the app connects to the internet, it automatically refreshes and saves a copy of your reference lists — your registered fields, your herd / flock names, and your testing laboratories — to the device's local storage. This happens silently in the background with no action required from you. The stored copy remains on the device until the next refresh, so it is available even when there is no signal.</p>
+<h3>What Reference Data Is Cached</h3>
+<p>Every time the app connects to the internet, it automatically refreshes and saves a local copy of the following reference lists to the device's built-in SQLite database:</p>
+<ul>
+<li><strong>Herds &amp; Flocks</strong> — all groups registered in your Livestock module</li>
+<li><strong>Suppliers</strong> — all suppliers in your Stock &amp; Suppliers register</li>
+<li><strong>GRN Batches / Lot Numbers</strong> — recent goods-received deliveries, used to look up batch and lot numbers when recording feed deliveries</li>
+<li><strong>Fields</strong> — registered field boundaries used in spray and field records</li>
+<li><strong>Laboratories</strong> — testing labs registered against your farm</li>
+</ul>
+<p>Caching happens silently in the background each time you open the app or switch farm — no action is needed from you. Each picker shows a <em>"Synced X mins ago"</em> timestamp so you can see how fresh the local copy is.</p>
 
 <h3>What Happens When You're Offline</h3>
-<p>When you open a form that requires you to select a field, herd, or laboratory and the device is offline, the app will load the list from its local cache instead of fetching from the server. You will see a small indicator message below the field — for example, <em>"Offline — showing cached fields list"</em> — confirming that the data is being served from the saved copy. You can continue selecting and saving records exactly as normal; they will be queued and synced to the server the next time connectivity is restored.</p>
+<p>When you open a form that uses a picker (herd, supplier, batch, field, or laboratory) and the device is offline, the app loads the list from its local cache instead of fetching from the server. You can continue selecting and saving records exactly as normal; they will be queued and synced to the server the next time connectivity is restored.</p>
 
-<h3>Why There Is No Longer a "Type Manually" Option</h3>
-<p>Earlier versions of the app allowed you to type a field name, herd name, or laboratory name as free text if the picker list was empty. This was removed because typed text cannot be linked to the actual database record — a small typo (e.g. "Main Dairy Herd" vs "Main Dairy herd") would store an unlinked value that would never resolve in reports, compliance registers, or audit exports. The cached picker approach means you always select from real registered records, maintaining full data integrity even when offline.</p>
+<h3>Free-Text Fallback for Unlisted Items</h3>
+<p>If the item you need is not in the cached list — for example a new supplier not yet registered on the web dashboard — you can switch to manual entry by tapping <strong>Enter manually</strong> inside the picker. This lets you type a name directly so that the record is never blocked. Manually entered values are saved as plain text against the record; they will not create a new registered supplier or herd automatically, so you should add the missing item through the web dashboard and re-sync when connected to keep data clean.</p>
 
 <h3>If the Cached List Is Empty</h3>
-<p>If no cache exists (for example on first use before the app has connected, or after clearing app data) and the device is offline, the picker will show an empty list with a message explaining the situation. In this case: connect to Wi-Fi or a mobile data signal, open the app, and wait a few seconds for the lists to load and be saved. Once cached, they will be available for future offline use.</p>
+<p>If no cache exists yet (for example on first use before the app has connected, or if a module is not subscribed) the picker will show an empty list with a message explaining the situation. Connect to Wi-Fi or mobile data, open the app, and wait a few seconds for the lists to be refreshed. Once cached, they will be available for future offline use. If the list for a particular data type is empty because the relevant module is not active on your subscription (e.g. suppliers require Stock &amp; Suppliers), the picker will note this and the manual-entry fallback remains available.</p>
 
 <h3>Sync Queue</h3>
 <p>Records saved offline are held in a sync queue and uploaded automatically once connectivity is restored. You can check the sync queue status from the home screen. Partial or failed syncs are shown with a warning badge — tap to see which records are pending. Do not uninstall or log out of the app while records are pending sync as this will clear the queue.</p>`,
