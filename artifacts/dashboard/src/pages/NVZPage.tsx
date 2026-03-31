@@ -228,6 +228,7 @@ export default function NVZPage() {
   const [nvzEditForm, setNvzEditForm] = useState({ isNvz: false, nvzLandType: "" });
 
   const [raAddOpen, setRaAddOpen] = useState(false);
+  const [raViewItem, setRaViewItem] = useState<any>(null);
   const [raEditItem, setRaEditItem] = useState<any>(null);
   const [raDeleteId, setRaDeleteId] = useState<number | null>(null);
   const emptyRaForm = { assessmentDate: "", assessedBy: "", soilType: "", drainageRisk: "", slopeRisk: "", distanceToWatercourse: "", floodRisk: "", organicMatterLevel: "", applicationRestrictionsIdentified: "", mitigationMeasures: "", overallRiskLevel: "", nextReviewDate: "", notes: "" };
@@ -723,10 +724,7 @@ export default function NVZPage() {
                         <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{r.nextReviewDate ? new Date(r.nextReviewDate).toLocaleDateString("en-GB") : "—"}</td>
                         <td style={{ padding: "0.625rem 0.75rem" }}>
                           <div style={{ display: "flex", gap: 4 }}>
-                            <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => {
-                              setRaEditItem(r);
-                              setRaForm({ assessmentDate: r.assessmentDate ? r.assessmentDate.slice(0, 10) : "", assessedBy: r.assessedBy ?? "", soilType: r.soilType ?? "", drainageRisk: r.drainageRisk ?? "", slopeRisk: r.slopeRisk ?? "", distanceToWatercourse: r.distanceToWatercourse ?? "", floodRisk: r.floodRisk ?? "", organicMatterLevel: r.organicMatterLevel ?? "", applicationRestrictionsIdentified: r.applicationRestrictionsIdentified ?? "", mitigationMeasures: r.mitigationMeasures ?? "", overallRiskLevel: r.overallRiskLevel ?? "", nextReviewDate: r.nextReviewDate ? r.nextReviewDate.slice(0, 10) : "", notes: r.notes ?? "" });
-                            }}>Edit</Button>
+                            <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => setRaViewItem(r)}>View</Button>
                             <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setRaDeleteId(r.id)}>Del</Button>
                           </div>
                         </td>
@@ -739,6 +737,69 @@ export default function NVZPage() {
           )}
         </div>
       )}
+
+      {/* ── RISK ASSESSMENT VIEW DIALOG ── */}
+      <Dialog open={!!raViewItem} onOpenChange={open => { if (!open) setRaViewItem(null); }}>
+        <DialogContent style={{ maxWidth: 600 }}>
+          <DialogHeader>
+            <DialogTitle>NVZ Risk Assessment</DialogTitle>
+            <DialogDescription>
+              {raViewItem?.assessmentDate ? new Date(raViewItem.assessmentDate).toLocaleDateString("en-GB") : ""} — {raViewItem?.assessedBy}
+            </DialogDescription>
+          </DialogHeader>
+          {raViewItem && (() => {
+            const riskColor = raViewItem.overallRiskLevel === "High" ? "#dc2626" : raViewItem.overallRiskLevel === "Medium" ? "#d97706" : "#16a34a";
+            const riskBg = raViewItem.overallRiskLevel === "High" ? "#fef2f2" : raViewItem.overallRiskLevel === "Medium" ? "#fffbeb" : "#f0fdf4";
+            const Field = ({ label, value }: { label: string; value?: string | null }) => (
+              <div>
+                <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div>
+              </div>
+            );
+            return (
+              <div style={{ display: "grid", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <Field label="Assessment Date" value={raViewItem.assessmentDate ? new Date(raViewItem.assessmentDate).toLocaleDateString("en-GB") : null} />
+                  <Field label="Assessed By" value={raViewItem.assessedBy} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <Field label="Soil Type" value={raViewItem.soilType} />
+                  <Field label="Organic Matter Level" value={raViewItem.organicMatterLevel} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                  <Field label="Drainage Risk" value={raViewItem.drainageRisk} />
+                  <Field label="Slope Risk" value={raViewItem.slopeRisk} />
+                  <Field label="Flood Risk" value={raViewItem.floodRisk} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <Field label="Distance to Watercourse" value={raViewItem.distanceToWatercourse} />
+                  <div>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>Overall Risk Level</div>
+                    {raViewItem.overallRiskLevel
+                      ? <span style={{ background: riskBg, color: riskColor, border: `1px solid ${riskColor}33`, borderRadius: 4, padding: "2px 10px", fontSize: "0.8rem", fontWeight: 600 }}>{raViewItem.overallRiskLevel}</span>
+                      : <span style={{ color: "#d1d5db", fontSize: "0.875rem" }}>—</span>}
+                  </div>
+                </div>
+                <Field label="Application Restrictions Identified" value={raViewItem.applicationRestrictionsIdentified} />
+                <Field label="Mitigation Measures" value={raViewItem.mitigationMeasures} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <Field label="Next Review Date" value={raViewItem.nextReviewDate ? new Date(raViewItem.nextReviewDate).toLocaleDateString("en-GB") : null} />
+                </div>
+                {raViewItem.notes && <Field label="Notes" value={raViewItem.notes} />}
+              </div>
+            );
+          })()}
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setRaViewItem(null)}>Close</Button>
+            <Button onClick={() => {
+              const r = raViewItem;
+              setRaViewItem(null);
+              setRaEditItem(r);
+              setRaForm({ assessmentDate: r.assessmentDate ? r.assessmentDate.slice(0, 10) : "", assessedBy: r.assessedBy ?? "", soilType: r.soilType ?? "", drainageRisk: r.drainageRisk ?? "", slopeRisk: r.slopeRisk ?? "", distanceToWatercourse: r.distanceToWatercourse ?? "", floodRisk: r.floodRisk ?? "", organicMatterLevel: r.organicMatterLevel ?? "", applicationRestrictionsIdentified: r.applicationRestrictionsIdentified ?? "", mitigationMeasures: r.mitigationMeasures ?? "", overallRiskLevel: r.overallRiskLevel ?? "", nextReviewDate: r.nextReviewDate ? r.nextReviewDate.slice(0, 10) : "", notes: r.notes ?? "" });
+            }}>Edit Assessment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── RISK ASSESSMENT ADD/EDIT DIALOG ── */}
       <Dialog open={raAddOpen || !!raEditItem} onOpenChange={open => { if (!open) { setRaAddOpen(false); setRaEditItem(null); } }}>
