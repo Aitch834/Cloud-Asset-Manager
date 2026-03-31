@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { Link } from "wouter";
 import { printFromRef } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
@@ -304,9 +305,9 @@ export default function WasteDisposalPage() {
           <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: "0.625rem 0.875rem", marginBottom: "1rem", fontSize: "0.8rem", color: "#0c4a6e", display: "flex", alignItems: "center", gap: 8 }}>
             <Truck size={13} color="#0284c7" />
             <span><strong>{wasteCarriers.length} registered waste carrier{wasteCarriers.length !== 1 ? "s" : ""}</strong> available from your supplier register. Select them in the Add Record form to auto-fill carrier details.</span>
-            <a href="/suppliers-stock" style={{ marginLeft: "auto", color: "#0284c7", textDecoration: "none", display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem" }}>
+            <Link href="/suppliers-stock" style={{ marginLeft: "auto", color: "#0284c7", textDecoration: "none", display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem" }}>
               Manage carriers <ExternalLink size={11} />
-            </a>
+            </Link>
           </div>
         )}
 
