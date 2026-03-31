@@ -267,7 +267,7 @@ export default function FieldOperationsPage() {
     const hasDbField = r.fieldId && r.fieldId.toString() !== "" && r.fieldId.toString() !== "0";
     setForm({
       fieldName: r.fieldName ?? "",
-      fieldId: hasDbField ? r.fieldId.toString() : (r.fieldName ? "__manual__" : ""),
+      fieldId: hasDbField ? r.fieldId.toString() : "",
       operationDate: r.operationDate ? new Date(r.operationDate).toISOString().slice(0, 10) : "",
       operationType: r.operationType ?? "",
       vehicleId: r.vehicleId?.toString() ?? "",
@@ -286,10 +286,6 @@ export default function FieldOperationsPage() {
   }
 
   function handleFieldSelect(fid: string) {
-    if (fid === "__manual__") {
-      setForm((f) => ({ ...f, fieldId: "__manual__", fieldName: "" }));
-      return;
-    }
     const field = (fieldsQ.data ?? []).find((f: any) => f.id.toString() === fid);
     setForm((f) => ({
       ...f,
@@ -315,7 +311,7 @@ export default function FieldOperationsPage() {
     }
     const payload = {
       ...form,
-      fieldId: form.fieldId === "__manual__" || form.fieldId === "__select__" ? "" : form.fieldId,
+      fieldId: form.fieldId === "__select__" ? "" : form.fieldId,
       vehicleId: form.vehicleId && form.vehicleId !== "__none__" ? form.vehicleId : "",
       implementId: form.implementId && form.implementId !== "__none__" ? form.implementId : "",
     };
@@ -591,27 +587,20 @@ export default function FieldOperationsPage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div className="space-y-1.5">
                 <Label>Field <span className="text-red-500">*</span></Label>
-                {(fieldsQ.data ?? []).length > 0 ? (
-                  <Select value={form.fieldId || "__select__"} onValueChange={handleFieldSelect}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select field…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__select__" disabled>Select field…</SelectItem>
-                      <SelectItem value="__manual__">— Enter name manually —</SelectItem>
-                      {(fieldsQ.data ?? []).map((f: any) => (
-                        <SelectItem key={f.id} value={f.id.toString()}>{f.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : null}
-                {(form.fieldId === "__manual__" || (fieldsQ.data ?? []).length === 0) && (
-                  <Input
-                    placeholder="Field name"
-                    value={form.fieldName}
-                    onChange={(e) => setForm((f) => ({ ...f, fieldName: e.target.value }))}
-                  />
-                )}
+                <Select value={form.fieldId || "__select__"} onValueChange={handleFieldSelect}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select field…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__select__" disabled>Select field…</SelectItem>
+                    {(fieldsQ.data ?? []).length === 0 && (
+                      <SelectItem value="__noop__" disabled>No fields registered — add fields in Fields &amp; Crops</SelectItem>
+                    )}
+                    {(fieldsQ.data ?? []).map((f: any) => (
+                      <SelectItem key={f.id} value={f.id.toString()}>{f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Area (ha)</Label>

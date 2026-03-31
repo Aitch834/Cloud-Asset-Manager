@@ -1260,6 +1260,11 @@ function SlurryTab({ farmId }: { farmId: number }) {
   const [storeForm, setStoreForm] = useState<Record<string, string>>({});
   const [spreadForm, setSpreadForm] = useState<Record<string, string>>({});
 
+  const slurryFieldsQ = useQuery({
+    queryKey: ["fields", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`, { credentials: "include" }).then(r => r.json()).then((d: any) => d.records ?? []),
+  });
+
   const storesQ = useQuery({
     queryKey: ["slurry-stores", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/slurry-stores`, { credentials: "include" }).then(r => r.json()),
@@ -1403,7 +1408,33 @@ function SlurryTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Log Slurry / Manure Spreading</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Spreading Date *</Label><Input type="date" value={spreadForm.spreadingDate ?? ""} onChange={e => setSpreadForm(f => ({ ...f, spreadingDate: e.target.value }))} /></div>
-            <div><Label>Field Name *</Label><Input value={spreadForm.fieldName ?? ""} onChange={e => setSpreadForm(f => ({ ...f, fieldName: e.target.value }))} /></div>
+            <div>
+              <Label>Field *</Label>
+              <Select
+                value={spreadForm.fieldId || "__select__"}
+                onValueChange={v => {
+                  if (v === "__select__" || v === "__noop__") return;
+                  const field = (slurryFieldsQ.data ?? []).find((f: any) => f.id.toString() === v);
+                  setSpreadForm(f => ({
+                    ...f,
+                    fieldId: v,
+                    fieldName: field?.name ?? "",
+                    fieldAreaHa: f.fieldAreaHa || (field?.areaHectares ? parseFloat(field.areaHectares).toFixed(2) : ""),
+                  }));
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Select field…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__select__" disabled>Select field…</SelectItem>
+                  {(slurryFieldsQ.data ?? []).length === 0 && (
+                    <SelectItem value="__noop__" disabled>No fields registered — add in Fields &amp; Crops</SelectItem>
+                  )}
+                  {(slurryFieldsQ.data ?? []).map((f: any) => (
+                    <SelectItem key={f.id} value={f.id.toString()}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div><Label>Field Area (ha)</Label><Input type="number" step="0.01" value={spreadForm.fieldAreaHa ?? ""} onChange={e => setSpreadForm(f => ({ ...f, fieldAreaHa: e.target.value }))} /></div>
             <div><Label>Material Type *</Label>
               <Select value={spreadForm.materialType ?? ""} onValueChange={v => setSpreadForm(f => ({ ...f, materialType: v }))}>
