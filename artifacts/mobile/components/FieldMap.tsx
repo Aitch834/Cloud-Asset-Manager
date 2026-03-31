@@ -1,10 +1,13 @@
 import React from "react";
 import { StyleSheet } from "react-native";
-import MapView, { Polygon, Marker } from "react-native-maps";
+import MapView, { Polygon, Marker, UrlTile } from "react-native-maps";
 
 import { colors } from "@/constants/colors";
 
 import type { FieldBoundary } from "@/lib/types";
+
+const NVZ_TILE_URL =
+  "https://environment.data.gov.uk/arcgis/rest/services/EA/NVZ2017/MapServer/tile/{z}/{y}/{x}";
 
 interface FieldMapProps {
   fields: FieldBoundary[];
@@ -16,9 +19,10 @@ interface FieldMapProps {
     latitudeDelta: number;
     longitudeDelta: number;
   };
+  showNvzLayer?: boolean;
 }
 
-export function FieldMap({ fields, recordedPoints, isRecording, initialRegion }: FieldMapProps) {
+export function FieldMap({ fields, recordedPoints, isRecording, initialRegion, showNvzLayer }: FieldMapProps) {
   return (
     <MapView
       style={styles.map}
@@ -27,6 +31,16 @@ export function FieldMap({ fields, recordedPoints, isRecording, initialRegion }:
       showsMyLocationButton
       mapType="hybrid"
     >
+      {showNvzLayer && (
+        <UrlTile
+          urlTemplate={NVZ_TILE_URL}
+          opacity={0.5}
+          zIndex={1}
+          shouldReplaceMapContent={false}
+          maximumZ={16}
+        />
+      )}
+
       {fields.map((field: FieldBoundary) =>
         field.coordinates.length >= 3 ? (
           <Polygon
@@ -35,6 +49,7 @@ export function FieldMap({ fields, recordedPoints, isRecording, initialRegion }:
             fillColor="rgba(46, 125, 50, 0.25)"
             strokeColor={colors.primary}
             strokeWidth={2}
+            zIndex={2}
           />
         ) : null,
       )}
@@ -44,7 +59,8 @@ export function FieldMap({ fields, recordedPoints, isRecording, initialRegion }:
             key={`label-${field.id}`}
             coordinate={field.coordinates[0]}
             title={field.fieldName}
-            description={`${field.coordinates.length} points${field.areaHectares ? ` \u00B7 ${field.areaHectares} ha` : ""}`}
+            description={`${field.coordinates.length} points${field.areaHectares ? ` · ${field.areaHectares} ha` : ""}`}
+            zIndex={3}
           />
         ) : null,
       )}
@@ -55,6 +71,7 @@ export function FieldMap({ fields, recordedPoints, isRecording, initialRegion }:
             coordinate={point}
             pinColor={colors.error}
             title={`Point ${i + 1}`}
+            zIndex={3}
           />
         ))}
       {isRecording && recordedPoints.length >= 3 && (
@@ -63,6 +80,7 @@ export function FieldMap({ fields, recordedPoints, isRecording, initialRegion }:
           fillColor="rgba(239, 68, 68, 0.15)"
           strokeColor={colors.error}
           strokeWidth={2}
+          zIndex={2}
         />
       )}
     </MapView>

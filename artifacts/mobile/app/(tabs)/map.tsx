@@ -7,6 +7,7 @@ import {
   Linking,
   Modal,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -80,6 +81,7 @@ export default function MapScreen() {
   const [fieldNameInput, setFieldNameInput] = useState("");
   const [calculatedArea, setCalculatedArea] = useState(0);
   const [syncing, setSyncing] = useState(false);
+  const [showNvzLayer, setShowNvzLayer] = useState(false);
 
   const loadFields = useCallback(async () => {
     const allFields = await getList<FieldBoundary>(STORAGE_KEYS.FIELD_BOUNDARIES, currentFarm?.id);
@@ -242,7 +244,18 @@ export default function MapScreen() {
           recordedPoints={recordedPoints}
           isRecording={isRecording}
           initialRegion={initialRegion}
+          showNvzLayer={showNvzLayer}
         />
+
+        {/* NVZ layer toggle */}
+        <Pressable
+          onPress={() => setShowNvzLayer(v => !v)}
+          style={[styles.nvzToggle, showNvzLayer && styles.nvzToggleActive]}
+        >
+          <Text style={[styles.nvzToggleText, showNvzLayer && styles.nvzToggleTextActive]}>
+            NVZ
+          </Text>
+        </Pressable>
 
         {isRecording && (
           <View style={styles.recordingOverlay}>
@@ -426,6 +439,30 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     marginTop: spacing.sm,
+  },
+  nvzToggle: {
+    position: "absolute",
+    top: spacing.md,
+    right: spacing.md,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  nvzToggleActive: {
+    backgroundColor: "rgba(239, 68, 68, 0.8)",
+    borderColor: "rgba(239, 68, 68, 0.5)",
+  },
+  nvzToggleText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.xs,
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  nvzToggleTextActive: {
+    color: "#fff",
   },
   modalOverlay: {
     flex: 1,

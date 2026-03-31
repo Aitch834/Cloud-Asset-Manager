@@ -62,7 +62,7 @@ interface FieldCropAssignment {
   year?: number;
 }
 
-interface FieldFormData { name: string; areaHectares: number; soilType: string; }
+interface FieldFormData { name: string; areaHectares: number; soilType: string; fieldReference?: string; }
 interface CropFormData { name: string; variety: string; category: string; }
 interface AssignCropFormData { cropId: number; plantingDate: string; expectedHarvestDate: string; season: string; }
 
@@ -277,7 +277,7 @@ function FieldCardMenu({
   };
 
   const { register, handleSubmit, reset } = useForm<FieldFormData>({
-    defaultValues: { name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "" },
+    defaultValues: { name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "", fieldReference: (field as any).fieldReference ?? "" },
   });
 
   const handleEdit = (values: FieldFormData) => {
@@ -313,7 +313,7 @@ function FieldCardMenu({
             {displayCode ? "View QR label" : "Generate QR label"}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => { setEditOpen(true); reset({ name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "" }); }}>
+          <DropdownMenuItem onClick={() => { setEditOpen(true); reset({ name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "", fieldReference: (field as any).fieldReference ?? "" }); }}>
             <Pencil className="w-4 h-4 text-foreground/50" />
             Edit field
           </DropdownMenuItem>
@@ -376,6 +376,17 @@ function FieldCardMenu({
                 <label className="text-sm font-medium mb-1.5 block">Soil Type</label>
                 <Input {...register("soilType")} placeholder="e.g. Clay loam" />
               </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">RPA Parcel Reference</label>
+              <Input {...register("fieldReference")} placeholder="e.g. TF 1234 5678" />
+              <p className="text-xs text-muted-foreground mt-1">
+                Find this in the{" "}
+                <a href="https://www.ruralpayments.service.gov.uk" target="_blank" rel="noopener noreferrer" className="underline text-primary">
+                  Rural Payments portal
+                </a>{" "}
+                or on any RPA correspondence.
+              </p>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
@@ -918,6 +929,17 @@ export default function FieldsPage() {
                       <Input {...fieldForm.register("soilType")} placeholder="e.g. Clay loam" />
                     </div>
                   </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">RPA Parcel Reference</label>
+                    <Input {...fieldForm.register("fieldReference")} placeholder="e.g. TF 1234 5678" />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Find this in the{" "}
+                      <a href="https://www.ruralpayments.service.gov.uk" target="_blank" rel="noopener noreferrer" className="underline text-primary">
+                        Rural Payments portal
+                      </a>{" "}
+                      or on any RPA correspondence. Leave blank if not registered for scheme payments.
+                    </p>
+                  </div>
                   <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => setIsAddFieldOpen(false)}>Cancel</Button>
                     <Button type="submit" disabled={creatingField}>{creatingField ? "Saving..." : "Save Field"}</Button>
@@ -1010,6 +1032,15 @@ export default function FieldsPage() {
                         <p className="text-xs text-foreground/50 uppercase font-semibold mb-0.5">Soil</p>
                         <p className="text-sm font-medium text-foreground">{field.soilType || '—'}</p>
                       </div>
+                      {(field as any).fieldReference && (
+                        <>
+                          <div className="w-px h-8 bg-border" />
+                          <div className="flex-1">
+                            <p className="text-xs text-foreground/50 uppercase font-semibold mb-0.5">RPA Ref</p>
+                            <p className="text-sm font-medium text-foreground font-mono">{(field as any).fieldReference}</p>
+                          </div>
+                        </>
+                      )}
                       <div className="w-px h-8 bg-border" />
                       <div className="flex-1">
                         <p className="text-xs text-foreground/50 uppercase font-semibold mb-0.5">Area</p>

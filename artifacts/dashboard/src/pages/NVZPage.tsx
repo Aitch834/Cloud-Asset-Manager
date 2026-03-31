@@ -381,6 +381,14 @@ export default function NVZPage() {
             <p className="text-green-700 text-xs leading-relaxed">
               Fields in Nitrate Vulnerable Zones must not exceed <strong>170 kg organic N/ha/year</strong> from livestock manures, or <strong>250 kg total N/ha/year</strong> from all sources. Slurry and digestate are subject to closed spreading periods: arable land <strong>1 Aug – 31 Jan</strong>, grassland <strong>15 Oct – 31 Jan</strong>. Records are required under the Nitrates Action Programme.
             </p>
+            <p className="text-green-700 text-xs pt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+              <a href="https://www.gov.uk/guidance/nitrate-vulnerable-zones" target="_blank" rel="noopener noreferrer" className="underline hover:text-green-900 inline-flex items-center gap-1">
+                NVZ guidance on GOV.UK ↗
+              </a>
+              <a href="https://magic.defra.gov.uk/MagicMap.aspx" target="_blank" rel="noopener noreferrer" className="underline hover:text-green-900 inline-flex items-center gap-1">
+                Check NVZ boundaries on DEFRA MAGIC map ↗
+              </a>
+            </p>
           </div>
         </div>
 
