@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { Link } from "wouter";
 import { printFromRef } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -756,7 +757,8 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
-                Set up locations in <a href="/storage-locations" target="_blank" className="underline hover:text-foreground">Storage Locations</a>
+                Manage locations in{" "}
+                <Link href="/storage-locations" className="underline hover:text-foreground">Storage Locations</Link>
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
