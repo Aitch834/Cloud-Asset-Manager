@@ -6,7 +6,7 @@ import { colors } from "@/constants/colors";
 
 import type { FieldBoundary } from "@/lib/types";
 
-const NVZ_TILE_URL =
+const NVZ_TILE_URL_DEFAULT =
   "https://environment.data.gov.uk/arcgis/rest/services/EA/NVZ2017/MapServer/tile/{z}/{y}/{x}";
 
 interface FieldMapProps {
@@ -20,9 +20,11 @@ interface FieldMapProps {
     longitudeDelta: number;
   };
   showNvzLayer?: boolean;
+  nvzTileUrl?: string;
 }
 
-export function FieldMap({ fields, recordedPoints, isRecording, initialRegion, showNvzLayer }: FieldMapProps) {
+export function FieldMap({ fields, recordedPoints, isRecording, initialRegion, showNvzLayer, nvzTileUrl }: FieldMapProps) {
+  const activeTileUrl = nvzTileUrl ?? NVZ_TILE_URL_DEFAULT;
   return (
     <MapView
       style={styles.map}
@@ -33,7 +35,7 @@ export function FieldMap({ fields, recordedPoints, isRecording, initialRegion, s
     >
       {showNvzLayer && (
         <UrlTile
-          urlTemplate={NVZ_TILE_URL}
+          urlTemplate={activeTileUrl}
           opacity={0.5}
           zIndex={1}
           shouldReplaceMapContent={false}

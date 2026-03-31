@@ -275,6 +275,15 @@ export interface ReferralTenant {
   referralCount: number;
 }
 
+export interface PlatformConfigItem {
+  key: string;
+  label: string;
+  description: string;
+  defaultValue: string;
+  currentValue: string | null;
+  updatedAt: string | null;
+}
+
 export const api = {
   verifySecret: (secret: string) =>
     get<{ stats: Stats }>("/admin/stats", secret),
@@ -395,4 +404,13 @@ export const api = {
 
   deleteInvoice: (id: number, secret: string) =>
     del<{ success: boolean }>(`/admin/invoices/${id}`, secret),
+
+  getPlatformConfig: (secret: string) =>
+    get<{ items: PlatformConfigItem[] }>("/admin/platform-config", secret),
+
+  setPlatformConfig: (key: string, value: string, secret: string) =>
+    put<{ success: boolean; key: string; value: string }>(`/admin/platform-config/${key}`, { value }, secret),
+
+  resetPlatformConfig: (key: string, secret: string) =>
+    del<{ success: boolean }>(`/admin/platform-config/${key}`, secret),
 };

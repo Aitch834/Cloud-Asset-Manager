@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable } from "@workspace/db";
+import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable } from "@workspace/db";
 import { eq, and, count, desc, sql, asc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
@@ -1007,6 +1007,68 @@ router.delete("/admin/invoices/:id", requireAuth, async (req: Request, res: Resp
     res.status(400).json({ error: "Only draft or void invoices can be deleted" }); return;
   }
   await db.delete(invoicesTable).where(eq(invoicesTable.id, id));
+  res.json({ success: true });
+});
+
+const PLATFORM_CONFIG_DEFAULTS: Record<string, { label: string; description: string; value: string }> = {
+  nvz_tile_url: {
+    label: "NVZ Map Tile URL",
+    description: "ArcGIS tile template URL for the Environment Agency Nitrate Vulnerable Zone overlay. Use {z}, {y}, {x} placeholders. Change this here if the EA service path changes without redeploying the app.",
+    value: "https://environment.data.gov.uk/arcgis/rest/services/EA/NVZ2017/MapServer/tile/{z}/{y}/{x}",
+  },
+};
+
+router.get("/platform-config", async (_req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  const merged: Record<string, string> = {};
+  for (const [key, def] of Object.entries(PLATFORM_CONFIG_DEFAULTS)) {
+    merged[key] = byKey[key] ?? def.value;
+  }
+  res.json({ config: merged });
+});
+
+router.get("/admin/platform-config", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, { value: string; updatedAt: Date }> = {};
+  for (const row of rows) byKey[row.key] = { value: row.value, updatedAt: row.updatedAt };
+  const items = Object.entries(PLATFORM_CONFIG_DEFAULTS).map(([key, def]) => ({
+    key,
+    label: def.label,
+    description: def.description,
+    defaultValue: def.value,
+    currentValue: byKey[key]?.value ?? null,
+    updatedAt: byKey[key]?.updatedAt ?? null,
+  }));
+  res.json({ items });
+});
+
+router.put("/admin/platform-config/:key", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { key } = req.params as { key: string };
+  if (!PLATFORM_CONFIG_DEFAULTS[key]) {
+    res.status(400).json({ error: "Unknown config key" });
+    return;
+  }
+  const { value } = req.body as { value?: string };
+  if (typeof value !== "string" || !value.trim()) {
+    res.status(400).json({ error: "value is required" });
+    return;
+  }
+  const def = PLATFORM_CONFIG_DEFAULTS[key];
+  await db.insert(platformConfigTable)
+    .values({ key, value: value.trim(), label: def.label, description: def.description, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: platformConfigTable.key, set: { value: value.trim(), updatedAt: new Date() } });
+  res.json({ success: true, key, value: value.trim() });
+});
+
+router.delete("/admin/platform-config/:key", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { key } = req.params as { key: string };
+  if (!PLATFORM_CONFIG_DEFAULTS[key]) { res.status(400).json({ error: "Unknown config key" }); return; }
+  await db.delete(platformConfigTable).where(eq(platformConfigTable.key, key));
   res.json({ success: true });
 });
 

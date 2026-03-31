@@ -82,6 +82,7 @@ export default function MapScreen() {
   const [calculatedArea, setCalculatedArea] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [showNvzLayer, setShowNvzLayer] = useState(false);
+  const [nvzTileUrl, setNvzTileUrl] = useState<string | undefined>(undefined);
 
   const loadFields = useCallback(async () => {
     const allFields = await getList<FieldBoundary>(STORAGE_KEYS.FIELD_BOUNDARIES, currentFarm?.id);
@@ -92,6 +93,18 @@ export default function MapScreen() {
   useEffect(() => {
     loadFields();
   }, [loadFields]);
+
+  useEffect(() => {
+    const domain = process.env.EXPO_PUBLIC_DOMAIN;
+    const base = domain ? `https://${domain}` : "";
+    fetch(`${base}/api/platform-config`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: { config?: Record<string, string> } | null) => {
+        const url = data?.config?.nvz_tile_url;
+        if (url) setNvzTileUrl(url);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (permission?.granted) {
@@ -245,6 +258,7 @@ export default function MapScreen() {
           isRecording={isRecording}
           initialRegion={initialRegion}
           showNvzLayer={showNvzLayer}
+          nvzTileUrl={nvzTileUrl}
         />
 
         {/* NVZ layer toggle */}

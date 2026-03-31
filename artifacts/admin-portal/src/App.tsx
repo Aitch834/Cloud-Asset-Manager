@@ -13,6 +13,7 @@ import SupportTickets from "@/pages/SupportTickets";
 import Email from "@/pages/Email";
 import Database from "@/pages/Database";
 import Invoices from "@/pages/Invoices";
+import PlatformConfig from "@/pages/PlatformConfig";
 import NotFound from "@/pages/not-found";
 import { getSecret } from "@/lib/auth";
 
@@ -31,6 +32,7 @@ function PortalRouter() {
         <Route path="/invoices" component={Invoices} />
         <Route path="/email" component={Email} />
         <Route path="/database" component={Database} />
+        <Route path="/platform-config" component={PlatformConfig} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
