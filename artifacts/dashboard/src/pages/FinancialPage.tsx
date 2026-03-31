@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -330,6 +331,7 @@ function TransactionsTab({ farmId }: { farmId: number }) {
 function CropContractsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const commodityTypes = useLookupStrings("commodity_types", ["Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley", "Malting Barley", "Oilseed Rape", "Winter Oats", "Spring Oats", "Winter Beans", "Spring Beans", "Peas", "Maize", "Sugar Beet", "Potatoes", "Other"]);
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -471,7 +473,7 @@ function CropContractsTab({ farmId }: { farmId: number }) {
                 <Select value={form.commodity} onValueChange={v => setForm((f: any) => ({ ...f, commodity: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select crop…" /></SelectTrigger>
                   <SelectContent>
-                    {["Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley", "Malting Barley", "Oilseed Rape", "Winter Oats", "Spring Oats", "Winter Beans", "Spring Beans", "Peas", "Maize", "Sugar Beet", "Potatoes", "Other"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {commodityTypes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

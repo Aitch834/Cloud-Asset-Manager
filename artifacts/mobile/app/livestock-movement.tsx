@@ -26,6 +26,7 @@ import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { LivestockMovement } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { livestockMovementHtml } from "@/lib/printTemplates";
+import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
 
 type MovType = LivestockMovement["movementType"];
 
@@ -35,13 +36,14 @@ const MOVEMENT_TYPES: { key: MovType; label: string; icon: keyof typeof Feather.
   { key: "between", label: "Between Holdings", icon: "repeat", color: colors.info },
 ];
 
-const SPECIES_OPTIONS = ["Cattle", "Sheep", "Pigs", "Goats", "Deer", "Horses", "Poultry", "Other"];
+const SPECIES_OPTIONS_FALLBACK = ["Cattle", "Sheep", "Pigs", "Goats", "Deer", "Horses", "Poultry", "Other"];
 
 export default function LivestockMovementScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user: _user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
+  const speciesOptions = useMobileLookup("livestock_species", SPECIES_OPTIONS_FALLBACK);
   const [saving, setSaving] = useState(false);
 
   const [herdName, setHerdName] = useState("");
@@ -164,7 +166,7 @@ export default function LivestockMovementScreen() {
             <Text style={styles.sectionTitle}>Species</Text>
           </View>
           <View style={styles.chipRow}>
-            {SPECIES_OPTIONS.map((s) => (
+            {speciesOptions.map((s) => (
               <Pressable
                 key={s}
                 onPress={() => { Haptics.selectionAsync(); setSpecies(s); }}

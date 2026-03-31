@@ -275,6 +275,35 @@ export interface ReferralTenant {
   referralCount: number;
 }
 
+export interface LookupMasterItem {
+  id: number;
+  value: string;
+  label: string;
+  groupLabel: string | null;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface LookupReviewEntry {
+  id: number;
+  reviewedBy: string;
+  notes: string | null;
+  nextReviewDue: string | null;
+  reviewedAt: string;
+}
+
+export interface LookupGroup {
+  key: string;
+  label: string;
+  description: string;
+  authority: string;
+  authorityUrl: string | null;
+  reviewFrequency: string;
+  masterItems: LookupMasterItem[];
+  customCount: number;
+  lastReview: LookupReviewEntry | null;
+}
+
 export interface PlatformConfigItem {
   key: string;
   label: string;
@@ -413,4 +442,25 @@ export const api = {
 
   resetPlatformConfig: (key: string, secret: string) =>
     del<{ success: boolean }>(`/admin/platform-config/${key}`, secret),
+
+  getLookups: (secret: string) =>
+    get<{ groups: LookupGroup[] }>("/admin/lookups", secret),
+
+  addLookupItem: (key: string, label: string, groupLabel: string | undefined, secret: string) =>
+    post<{ item: LookupMasterItem }>(`/admin/lookups/${key}`, { label, groupLabel }, secret),
+
+  updateLookupItem: (key: string, id: number, updates: { label?: string; isActive?: boolean; displayOrder?: number; groupLabel?: string }, secret: string) =>
+    put<{ item: LookupMasterItem }>(`/admin/lookups/${key}/${id}`, updates, secret),
+
+  deleteLookupItem: (key: string, id: number, secret: string) =>
+    del<{ success: boolean }>(`/admin/lookups/${key}/${id}`, secret),
+
+  reorderLookupItems: (key: string, orderedIds: number[], secret: string) =>
+    post<{ success: boolean }>(`/admin/lookups/${key}/reorder`, { orderedIds }, secret),
+
+  getLookupReviews: (key: string, secret: string) =>
+    get<{ reviews: LookupReviewEntry[] }>(`/admin/lookups/${key}/review`, secret),
+
+  logLookupReview: (key: string, data: { reviewedBy: string; notes?: string; nextReviewDue?: string }, secret: string) =>
+    post<{ log: LookupReviewEntry }>(`/admin/lookups/${key}/review`, data, secret),
 };

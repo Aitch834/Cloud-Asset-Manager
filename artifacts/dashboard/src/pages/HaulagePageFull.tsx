@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -61,6 +62,8 @@ function DeliveryStatusBadge({ status }: { status: string }) {
 function HaulageRecordsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const commodityTypes = useLookupStrings("commodity_types", GRAIN_COMMODITIES);
+  const loadTypes = useLookupStrings("load_types", LOAD_TYPES);
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -204,7 +207,7 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
               <div><Label>Load Type <span style={{ color: "#ef4444" }}>*</span></Label>
                 <Select value={form.loadType} onValueChange={v => setForm((f: any) => ({ ...f, loadType: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>{LOAD_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                  <SelectContent>{loadTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div><Label>Weight (tonnes)</Label><Input type="number" step="0.01" min="0" value={form.weightTonnes} onChange={e => setForm((f: any) => ({ ...f, weightTonnes: e.target.value }))} /></div>
@@ -223,7 +226,7 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
                   <div><Label>Commodity</Label>
                     <Select value={form.commodity} onValueChange={v => setForm((f: any) => ({ ...f, commodity: v }))}>
                       <SelectTrigger><SelectValue placeholder="Select commodity..." /></SelectTrigger>
-                      <SelectContent>{GRAIN_COMMODITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                      <SelectContent>{commodityTypes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div><Label>Variety</Label><Input placeholder="e.g. KWS Zyatt, Skyfall" value={form.variety} onChange={e => setForm((f: any) => ({ ...f, variety: e.target.value }))} /></div>

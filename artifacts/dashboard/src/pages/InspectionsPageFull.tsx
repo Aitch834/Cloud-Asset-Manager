@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -205,7 +206,7 @@ function InspectionsTab({ farmId }: { farmId: number }) {
                 <Select value={form.inspectionType} onValueChange={v => setForm((f: any) => ({ ...f, inspectionType: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
-                    {["Red Tractor", "Internal Audit", "EHO", "Trading Standards", "Organic", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    {inspectionTypes.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -784,6 +785,7 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
 
 export default function InspectionsPageFull() {
   const { farmId } = useAppStore();
+  const inspectionTypes = useLookupStrings("inspection_types", ["Red Tractor", "Internal Audit", "EHO", "Trading Standards", "Organic", "Other"]);
   const [tab, setTab] = useState<Tab>("inspections");
 
   return (

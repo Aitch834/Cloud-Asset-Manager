@@ -26,13 +26,14 @@ import type { BiofuelDeliveryRecord } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { biofuelDeclarationHtml } from "@/lib/printTemplates";
 import { Pressable } from "react-native";
+import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
 
 const CROP_TYPES = [
   "Feed Wheat", "Milling Wheat", "Oilseed Rape (OSR)", "Sugar Beet",
   "Maize / Corn", "Barley", "Miscanthus", "Short Rotation Coppice", "Other",
 ];
 
-const SUSTAINABILITY_SCHEMES = [
+const SUSTAINABILITY_SCHEMES_FALLBACK = [
   "ISCC UK", "ISCC EU", "Bonsucro", "REDcert", "RTRS", "Other",
 ];
 
@@ -41,6 +42,7 @@ export default function BiofuelDeliveryScreen() {
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
+  const sustainabilitySchemes = useMobileLookup("biofuel_cert_schemes", SUSTAINABILITY_SCHEMES_FALLBACK);
   const [saving, setSaving] = useState(false);
 
   const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split("T")[0]);
@@ -189,7 +191,7 @@ export default function BiofuelDeliveryScreen() {
           <Text style={styles.sectionTitle}>Sustainability &amp; Certification</Text>
           <Text style={styles.hint}>Sustainability scheme used for this consignment</Text>
           <View style={styles.chipGrid}>
-            {SUSTAINABILITY_SCHEMES.map(s => (
+            {sustainabilitySchemes.map(s => (
               <Pressable
                 key={s}
                 onPress={() => { setSustainabilityScheme(s); Haptics.selectionAsync(); }}

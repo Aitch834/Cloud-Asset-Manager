@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -215,6 +216,7 @@ function NvzFieldCard({ fs, onEdit }: { fs: FieldSummary; onEdit: (fs: FieldSumm
 
 export default function NVZPage() {
   const { farmId } = useAppStore();
+  const appMethods = useLookupStrings("nvz_application_methods", APP_METHODS);
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = useState<"summary" | "log" | "risk-assessments">("summary");
@@ -629,7 +631,7 @@ export default function NVZPage() {
               <Select value={form.applicationMethod} onValueChange={(v) => setForm((f) => ({ ...f, applicationMethod: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select method…" /></SelectTrigger>
                 <SelectContent>
-                  {APP_METHODS.map((m) => (
+                  {appMethods.map((m) => (
                     <SelectItem key={m} value={m}>{m}</SelectItem>
                   ))}
                 </SelectContent>

@@ -23,13 +23,15 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { LivestockSaleRecord } from "@/lib/types";
+import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
 
-const SPECIES = ["Cattle", "Sheep", "Pigs", "Deer", "Goats", "Other"];
+const SPECIES_FALLBACK = ["Cattle", "Sheep", "Pigs", "Deer", "Goats", "Other"];
 
 export default function LivestockSaleScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const speciesOptions = useMobileLookup("livestock_species", SPECIES_FALLBACK);
   const [saving, setSaving] = useState(false);
 
   const [saleType, setSaleType] = useState<"deadweight" | "mart">("deadweight");
@@ -146,7 +148,7 @@ export default function LivestockSaleScreen() {
 
           <Text style={styles.sectionLabel}>Species *</Text>
           <View style={styles.pillRow}>
-            {SPECIES.map(s => (
+            {speciesOptions.map(s => (
               <Pressable
                 key={s}
                 style={[styles.pill, species === s && styles.pillActive]}

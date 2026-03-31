@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { useLookupStrings } from "@/hooks/use-lookup";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
@@ -30,11 +31,12 @@ const fmt = (d: string | null | undefined) => {
 
 const RATE_UNITS = ["L/ha", "kg/ha", "g/ha", "mL/ha", "kg/1000L", "L/1000L"];
 const WIND_DIRS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-const PRODUCT_CATEGORIES = ["Herbicide", "Fungicide", "Insecticide", "Molluscicide", "Growth Regulator", "Foliar Feed", "Adjuvant", "Other"];
+const PRODUCT_CATEGORIES_FALLBACK = ["Herbicide", "Fungicide", "Insecticide", "Molluscicide", "Growth Regulator", "Foliar Feed", "Adjuvant", "Other"];
 
 
 export default function SprayPage() {
   const { farmId } = useAppStore();
+  const productCategories = useLookupStrings("spray_product_categories", PRODUCT_CATEGORIES_FALLBACK);
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print">("applications");
@@ -609,7 +611,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
                 <Label>Category</Label>
                 <Select value={form.category} onValueChange={v => setForm((f: any) => ({ ...f, category: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>{PRODUCT_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                  <SelectContent>{productCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>

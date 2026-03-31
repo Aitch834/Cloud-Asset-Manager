@@ -28,6 +28,7 @@ import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { NvzApplication } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { nvzApplicationHtml } from "@/lib/printTemplates";
+import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
 
 const PRODUCT_TYPES = [
   { key: "synthetic-n", label: "Synthetic N", color: colors.info },
@@ -38,7 +39,7 @@ const PRODUCT_TYPES = [
   { key: "other-organic", label: "Other Organic", color: colors.textSecondary },
 ];
 
-const APPLICATION_METHODS = [
+const APPLICATION_METHODS_FALLBACK = [
   "Trailing shoe", "Dribble bar", "Injected", "Broadcast", "Splash plate", "Irrigation", "Other",
 ];
 
@@ -48,6 +49,7 @@ export default function NvzApplicationScreen() {
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
   const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
+  const applicationMethods = useMobileLookup("nvz_application_methods", APPLICATION_METHODS_FALLBACK);
   const [saving, setSaving] = useState(false);
 
   const [fieldName, setFieldName] = useState("");
@@ -196,7 +198,7 @@ export default function NvzApplicationScreen() {
             <Text style={styles.sectionTitle}>Application Method</Text>
           </View>
           <View style={styles.chipRow}>
-            {APPLICATION_METHODS.map((m) => (
+            {applicationMethods.map((m) => (
               <Pressable
                 key={m}
                 onPress={() => { Haptics.selectionAsync(); setApplicationMethod(m); }}

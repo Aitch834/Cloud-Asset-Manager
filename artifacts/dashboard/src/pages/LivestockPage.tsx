@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useLookupStrings } from "@/hooks/use-lookup";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -455,6 +456,7 @@ ${sections.length === 0 ? `<p style="color:#555;font-style:italic;text-align:cen
 
 function HerdsSection({ farmId }: { farmId: number }) {
   const queryClient = useQueryClient();
+  const livestockSpecies = useLookupStrings("livestock_species", ANIMAL_SPECIES_FALLBACK);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingHerd, setEditingHerd] = useState<Herd | null>(null);
@@ -549,7 +551,7 @@ function HerdsSection({ farmId }: { farmId: number }) {
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Species <span className="text-red-500">*</span></label>
                   <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.type} onChange={e => setFormData(f => ({ ...f, type: e.target.value }))} required>
                     <option value="">Select species...</option>
-                    {["Cattle", "Sheep", "Pigs", "Poultry", "Goats", "Other"].map(s => <option key={s} value={s.toLowerCase()}>{s}</option>)}
+                    {livestockSpecies.map(s => <option key={s} value={s.toLowerCase()}>{s}</option>)}
                   </select>
                 </div>
                 <div>
@@ -974,6 +976,7 @@ const EMPTY_MORTALITY = {
 
 function MortalitySection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const mortalitySpecies = useLookupStrings("livestock_species", ANIMAL_SPECIES_FALLBACK);
   const base = `/api/farms/${farmId}/mortality-records`;
   const { data, isLoading } = useQuery<{ records: MortalityRecord[] }>({
     queryKey: ["mortality", farmId],
@@ -1192,7 +1195,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
                     <Select value={form.species} onValueChange={v => setField("species", v)}>
                       <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
                       <SelectContent>
-                        {["Cattle","Sheep","Pigs","Poultry","Goats","Deer","Other"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        {mortalitySpecies.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   )}
@@ -2050,13 +2053,14 @@ function WaterSection({ farmId }: { farmId: number }) {
   );
 }
 
-const ANIMAL_SPECIES = ["Cattle", "Sheep", "Pigs", "Goats", "Deer", "Horses", "Poultry", "Other"];
+const ANIMAL_SPECIES_FALLBACK = ["Cattle", "Sheep", "Pigs", "Goats", "Deer", "Horses", "Poultry", "Other"];
 const ANIMAL_STATUS_LABELS: Record<string, string> = {
   active: "On Farm", sold: "Sold / Moved Off", dead: "Deceased", removed: "Removed",
 };
 
 function AnimalsSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const animalSpecies = useLookupStrings("livestock_species", ANIMAL_SPECIES_FALLBACK);
   const base = `/api/farms/${farmId}/animals`;
 
   const { data: animalsData, isLoading } = useQuery<{ records: Animal[] }>({
@@ -2278,7 +2282,7 @@ function AnimalsSection({ farmId }: { farmId: number }) {
                   <Label>Species <span className="text-red-500">*</span></Label>
                   <Select value={form.species} onValueChange={v => setField("species", v)}>
                     <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
-                    <SelectContent>{ANIMAL_SPECIES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                    <SelectContent>{animalSpecies.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div>

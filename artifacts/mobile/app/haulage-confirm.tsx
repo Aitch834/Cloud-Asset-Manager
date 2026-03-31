@@ -26,8 +26,9 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { HaulageConfirmation } from "@/lib/types";
+import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
 
-const CROP_TYPES = [
+const CROP_TYPES_FALLBACK = [
   "Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley",
   "Oilseed Rape", "Oats", "Peas / Beans", "Maize", "Sugar Beet", "Potatoes", "Other",
 ];
@@ -36,6 +37,7 @@ export default function HaulageConfirmScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const cropTypes = useMobileLookup("commodity_types", CROP_TYPES_FALLBACK);
   const [saving, setSaving] = useState(false);
 
   const [haulierName, setHaulierName] = useState("");
@@ -180,7 +182,7 @@ export default function HaulageConfirmScreen() {
             <Text style={styles.sectionTitle}>Commodity</Text>
           </View>
           <View style={styles.chipGrid}>
-            {CROP_TYPES.map((c) => (
+            {cropTypes.map((c) => (
               <Pressable
                 key={c}
                 onPress={() => { Haptics.selectionAsync(); setCropType(c); }}

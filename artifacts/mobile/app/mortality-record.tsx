@@ -25,8 +25,9 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { AnimalMortality } from "@/lib/types";
+import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
 
-const SPECIES = ["Cattle", "Sheep", "Pigs", "Poultry", "Goats", "Deer", "Other"];
+const SPECIES_FALLBACK = ["Cattle", "Sheep", "Pigs", "Poultry", "Goats", "Deer", "Other"];
 
 const CAUSES = [
   { key: "disease", label: "Disease / Illness" },
@@ -79,10 +80,10 @@ function OptionRow<T extends { key: string; label: string }>({
   );
 }
 
-function SpeciesRow({ value, onSelect }: { value: string; onSelect: (s: string) => void }) {
+function SpeciesRow({ value, onSelect, options }: { value: string; onSelect: (s: string) => void; options: string[] }) {
   return (
     <View style={styles.optionGrid}>
-      {SPECIES.map((s) => {
+      {options.map((s) => {
         const selected = value === s;
         return (
           <Pressable
@@ -140,6 +141,7 @@ export default function MortalityRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const speciesOptions = useMobileLookup("livestock_species", SPECIES_FALLBACK);
   const [saving, setSaving] = useState(false);
 
   const [herdName, setHerdName] = useState("");
@@ -274,7 +276,7 @@ export default function MortalityRecordScreen() {
             autoCapitalize="characters"
           />
           <Text style={styles.label}>Species *</Text>
-          <SpeciesRow value={species} onSelect={setSpecies} />
+          <SpeciesRow value={species} onSelect={setSpecies} options={speciesOptions} />
           <Text style={styles.label}>Breed</Text>
           <Input placeholder="e.g. Limousin × Friesian" value={breed} onChangeText={setBreed} />
         </Section>

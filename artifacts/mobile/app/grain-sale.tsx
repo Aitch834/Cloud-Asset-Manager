@@ -23,8 +23,9 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { GrainSaleRecord } from "@/lib/types";
+import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
 
-const COMMODITIES = [
+const COMMODITIES_FALLBACK = [
   "Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley",
   "Malting Barley", "Winter Oats", "Spring Oats", "Oilseed Rape",
   "Winter Beans", "Spring Beans", "Peas", "Maize", "Linseed", "Other",
@@ -41,6 +42,7 @@ export default function GrainSaleScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const commodities = useMobileLookup("commodity_types", COMMODITIES_FALLBACK);
   const [saving, setSaving] = useState(false);
 
   const [saleDate, setSaleDate] = useState(new Date().toISOString().slice(0, 10));
@@ -157,7 +159,7 @@ export default function GrainSaleScreen() {
 
           <Text style={styles.sectionLabel}>Commodity *</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.commodityScroll}>
-            {COMMODITIES.map(c => (
+            {commodities.map(c => (
               <Pressable
                 key={c}
                 style={[styles.commodityPill, commodity === c && styles.commodityPillActive]}

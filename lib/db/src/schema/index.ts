@@ -23,6 +23,7 @@ export * from "./biofuel";
 export * from "./access";
 export * from "./admin-emails";
 export * from "./platform-config";
+export * from "./lookups";
 export * from "./pig-production";
 export * from "./poultry-production";
 export * from "./horticulture";

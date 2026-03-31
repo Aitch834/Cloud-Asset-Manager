@@ -28,8 +28,9 @@ import { useApiFields } from "@/lib/hooks/useApiFields";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { HarvestRecord } from "@/lib/types";
+import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
 
-const CROP_TYPES = [
+const CROP_TYPES_FALLBACK = [
   "Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley",
   "Oats", "OSR", "Peas", "Beans", "Maize", "Rye", "Triticale", "Other",
 ];
@@ -47,6 +48,7 @@ export default function HarvestRecordScreen() {
   const { refreshPendingCount } = useSync();
   const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
   const { members, loading: membersLoading, error: membersError } = useApiFarmMembers(currentFarm?.id);
+  const cropTypes = useMobileLookup("commodity_types", CROP_TYPES_FALLBACK);
   const [saving, setSaving] = useState(false);
 
   const [selectedOperator, setSelectedOperator] = useState<ApiFarmMember | null>(null);
@@ -159,7 +161,7 @@ export default function HarvestRecordScreen() {
             <Text style={styles.sectionTitle}>Crop Type</Text>
           </View>
           <View style={styles.chipGrid}>
-            {CROP_TYPES.map((c) => (
+            {cropTypes.map((c) => (
               <Pressable
                 key={c}
                 onPress={() => { Haptics.selectionAsync(); setCropType(c); }}

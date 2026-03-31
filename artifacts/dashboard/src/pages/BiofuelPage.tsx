@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Leaf,
@@ -726,6 +727,7 @@ function CertificationDialog({ open, onClose, initial, onSave, saving }: {
   open: boolean; onClose: () => void; initial: Certification | null;
   onSave: (data: Partial<Certification>) => void; saving: boolean;
 }) {
+  const biofuelSchemes = useLookupStrings("biofuel_cert_schemes", ["ISCC EU", "ISCC UK", "Bonsucro", "RTRS", "REDcert", "RSB", "Other"]);
   const [form, setForm] = useState<Partial<Certification>>({});
   const set = (k: keyof Certification, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -741,12 +743,7 @@ function CertificationDialog({ open, onClose, initial, onSave, saving }: {
             <Select value={val("scheme")} onValueChange={v => set("scheme", v)}>
               <SelectTrigger><SelectValue placeholder="Select scheme" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="ISCC EU">ISCC EU</SelectItem>
-                <SelectItem value="ISCC UK">ISCC UK</SelectItem>
-                <SelectItem value="Bonsucro">Bonsucro</SelectItem>
-                <SelectItem value="RTRS">RTRS</SelectItem>
-                <SelectItem value="REDcert">REDcert</SelectItem>
-                <SelectItem value="Other">Other</SelectItem>
+                {biofuelSchemes.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

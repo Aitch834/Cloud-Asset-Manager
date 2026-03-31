@@ -1,5 +1,6 @@
 import app from "./app";
 import { seedDefaults } from "./lib/seedDefaults";
+import { seedLookupDefaults } from "./lib/seedLookups";
 import { startAlertingJob } from "./lib/alertingJob";
 
 interface EnvSpec {
@@ -61,6 +62,9 @@ app.listen(port, () => {
   console.log(`[SERVER] Listening on port ${port}`);
   seedDefaults().catch((err) => {
     console.error("[SEED] Failed to seed defaults:", err);
+  });
+  seedLookupDefaults().catch((err) => {
+    console.error("[SEED] Failed to seed lookup defaults:", err);
   });
   startAlertingJob();
 });
