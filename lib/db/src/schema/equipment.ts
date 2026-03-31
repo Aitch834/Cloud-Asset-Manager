@@ -136,6 +136,8 @@ export const grainStorageBinsTable = pgTable("grain_storage_bins", {
   aerationSystem: boolean("aeration_system").default(false),
   temperatureMonitoring: boolean("temperature_monitoring").default(false),
   sensorCount: integer("sensor_count"),
+  latitude: numeric("latitude", { precision: 10, scale: 7 }),
+  longitude: numeric("longitude", { precision: 10, scale: 7 }),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

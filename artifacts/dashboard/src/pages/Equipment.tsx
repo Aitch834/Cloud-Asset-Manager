@@ -11,11 +11,9 @@ import {
 } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Card, CardContent } from "@/components/ui/card";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useEquipment, useAddEquipment } from "@/hooks/use-equipment";
-import { Plus, Search, Tractor, Calendar, Camera, X, Pencil, Loader2, Printer, Trash2, Thermometer, FlaskConical, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown } from "lucide-react";
-import { LabSelector } from "@/components/ui/LabSelector";
+import { Plus, Search, Tractor, Calendar, Camera, X, Pencil, Loader2, Printer, Trash2, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -125,283 +123,10 @@ function PhotoUploader({
   );
 }
 
-// ─── Grain Storage Quality Section ──────────────────────────────────────────────
-function GrainStorageSection({ farmId }: { farmId: number }) {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const [binOpen, setBinOpen] = useState(false);
-  const [testOpen, setTestOpen] = useState(false);
-  const [tempOpen, setTempOpen] = useState(false);
-  const [editingBin, setEditingBin] = useState<Record<string, unknown> | null>(null);
-  const [binForm, setBinForm] = useState<Record<string, string>>({});
-  const [testForm, setTestForm] = useState<Record<string, string>>({});
-  const [testLabSupplierId, setTestLabSupplierId] = useState<number | null>(null);
-  const [tempForm, setTempForm] = useState<Record<string, string>>({});
-  const [selectedBinId, setSelectedBinId] = useState<number | null>(null);
-
-  const binsQ = useQuery({
-    queryKey: ["grain-storage-bins", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/grain-storage-bins`, { credentials: "include" }).then(r => r.json()),
-    select: (d: any) => d.records ?? [],
-  });
-
-  const testsQ = useQuery({
-    queryKey: ["grain-quality-tests", farmId, selectedBinId],
-    queryFn: () => fetch(`/api/farms/${farmId}/grain-storage-quality-tests${selectedBinId ? `?binId=${selectedBinId}` : ""}`, { credentials: "include" }).then(r => r.json()),
-    select: (d: any) => d.records ?? [],
-  });
-
-  const tempsQ = useQuery({
-    queryKey: ["grain-temp-logs", farmId, selectedBinId],
-    queryFn: () => fetch(`/api/farms/${farmId}/grain-storage-temperature-logs${selectedBinId ? `?binId=${selectedBinId}` : ""}`, { credentials: "include" }).then(r => r.json()),
-    select: (d: any) => d.records ?? [],
-  });
-
-  const saveBin = useMutation({
-    mutationFn: (body: Record<string, unknown>) => {
-      const url = editingBin ? `/api/farms/${farmId}/grain-storage-bins/${editingBin.id}` : `/api/farms/${farmId}/grain-storage-bins`;
-      return fetch(url, { method: editingBin ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-storage-bins", farmId] }); setBinOpen(false); setBinForm({}); setEditingBin(null); toast({ title: "Bin saved" }); },
-    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
-  });
-
-  const saveTest = useMutation({
-    mutationFn: (body: Record<string, unknown>) => fetch(`/api/farms/${farmId}/grain-storage-quality-tests`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-quality-tests", farmId, selectedBinId] }); setTestOpen(false); setTestForm({}); setTestLabSupplierId(null); toast({ title: "Quality test saved" }); },
-    onError: () => toast({ title: "Failed", variant: "destructive" }),
-  });
-
-  const saveTemp = useMutation({
-    mutationFn: (body: Record<string, unknown>) => fetch(`/api/farms/${farmId}/grain-storage-temperature-logs`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["grain-temp-logs", farmId, selectedBinId] }); setTempOpen(false); setTempForm({}); toast({ title: "Temperature log saved" }); },
-    onError: () => toast({ title: "Failed", variant: "destructive" }),
-  });
-
-  const bins = (binsQ.data ?? []) as Record<string, unknown>[];
-  const tests = (testsQ.data ?? []) as Record<string, unknown>[];
-  const temps = (tempsQ.data ?? []) as Record<string, unknown>[];
-
-  return (
-    <div className="space-y-6">
-      {/* Bin Register */}
-      <div className="space-y-3">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="font-semibold">Grain Storage Bins & Stores</h3>
-            <p className="text-sm text-muted-foreground">Register each bin, flat store or grain silo and track crop, variety and harvest year.</p>
-          </div>
-          <Button size="sm" onClick={() => { setEditingBin(null); setBinForm({ binType: "Bin" }); setBinOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" /> Add Bin / Store
-          </Button>
-        </div>
-        {binsQ.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
-          <div className="bg-white rounded-xl border border-border/50 shadow-sm overflow-x-auto">
-            {bins.length === 0 ? <p className="text-sm text-muted-foreground italic py-6 text-center">No grain stores registered.</p> : (
-              <table className="w-full text-sm">
-                <thead className="bg-black/5 border-b">
-                  <tr>{["Bin / Store", "Type", "Capacity (t)", "Crop", "Variety", "Harvest Year", "Moisture %", ""].map(h => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>)}</tr>
-                </thead>
-                <tbody className="divide-y">{bins.map((r, i) => (
-                  <tr key={i} className={`hover:bg-black/5 cursor-pointer ${selectedBinId === (r.id as number) ? "bg-green-50" : ""}`} onClick={() => setSelectedBinId(selectedBinId === (r.id as number) ? null : (r.id as number))}>
-                    <td className="px-4 py-3 font-medium">{String(r.binName ?? "—")}</td>
-                    <td className="px-4 py-3">{String(r.binType ?? "—")}</td>
-                    <td className="px-4 py-3">{String(r.capacityTonnes ?? "—")}</td>
-                    <td className="px-4 py-3">{String(r.cropType ?? "—")}</td>
-                    <td className="px-4 py-3">{String(r.cropVariety ?? "—")}</td>
-                    <td className="px-4 py-3">{String(r.harvestYear ?? "—")}</td>
-                    <td className="px-4 py-3">{r.moisture != null ? `${r.moisture}%` : "—"}</td>
-                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                      <Button size="icon" variant="ghost" onClick={() => { setEditingBin(r); setBinForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))); setBinOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                    </td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            )}
-          </div>
-        )}
-        {selectedBinId && <p className="text-xs text-muted-foreground">Showing quality tests and temperature logs for selected bin. Click again to deselect.</p>}
-      </div>
-
-      {/* Quality Tests */}
-      <div className="space-y-3">
-        <div className="flex justify-between items-center">
-          <h3 className="font-semibold flex items-center gap-2"><FlaskConical className="w-4 h-4 text-blue-600" /> Quality Tests</h3>
-          <Button size="sm" variant="outline" onClick={() => { setTestForm({ binId: selectedBinId ? String(selectedBinId) : "" }); setTestOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" /> Add Test
-          </Button>
-        </div>
-        {testsQ.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
-          <Card><CardContent className="pt-4">
-            {tests.length === 0 ? <p className="text-sm text-muted-foreground italic py-4 text-center">No quality tests recorded.</p> : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead><tr className="border-b">{["Date", "Bin", "Lab", "Moisture %", "Sp. Weight", "Protein %", "Screenings %", "Mycotoxin", "Result"].map(h => <th key={h} className="text-left py-2 pr-4 font-medium text-muted-foreground text-xs">{h}</th>)}</tr></thead>
-                  <tbody>{tests.map((t, i) => (
-                    <tr key={i} className="border-b last:border-0">
-                      <td className="py-2 pr-4">{t.testDate ? new Date(t.testDate as string).toLocaleDateString("en-GB") : "—"}</td>
-                      <td className="py-2 pr-4">{String(t.binName ?? t.binId ?? "—")}</td>
-                      <td className="py-2 pr-4">{String(t.laboratory ?? "—")}</td>
-                      <td className="py-2 pr-4">{t.moisture != null ? `${t.moisture}%` : "—"}</td>
-                      <td className="py-2 pr-4">{t.specificWeight ? `${t.specificWeight} kg/hl` : "—"}</td>
-                      <td className="py-2 pr-4">{t.protein != null ? `${t.protein}%` : "—"}</td>
-                      <td className="py-2 pr-4">{t.screenings != null ? `${t.screenings}%` : "—"}</td>
-                      <td className="py-2 pr-4">{t.mycotoxinPresent === true ? "Present" : t.mycotoxinPresent === false ? "Not detected" : "—"}</td>
-                      <td className="py-2 pr-4">{String(t.mycoResult ?? "—")}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-              </div>
-            )}
-          </CardContent></Card>
-        )}
-      </div>
-
-      {/* Temperature Logs */}
-      <div className="space-y-3">
-        <div className="flex justify-between items-center">
-          <h3 className="font-semibold flex items-center gap-2"><Thermometer className="w-4 h-4 text-red-600" /> Temperature Monitoring</h3>
-          <Button size="sm" variant="outline" onClick={() => { setTempForm({ binId: selectedBinId ? String(selectedBinId) : "" }); setTempOpen(true); }}>
-            <Plus className="w-4 h-4 mr-2" /> Log Temperature
-          </Button>
-        </div>
-        {tempsQ.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
-          <Card><CardContent className="pt-4">
-            {temps.length === 0 ? <p className="text-sm text-muted-foreground italic py-4 text-center">No temperature readings recorded.</p> : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead><tr className="border-b">{["Date", "Bin", "Probe 1 (°C)", "Probe 2 (°C)", "Probe 3 (°C)", "Average (°C)", "Trend", "Aeration"].map(h => <th key={h} className="text-left py-2 pr-4 font-medium text-muted-foreground text-xs">{h}</th>)}</tr></thead>
-                  <tbody>{temps.map((t, i) => (
-                    <tr key={i} className="border-b last:border-0">
-                      <td className="py-2 pr-4">{t.logDate ? new Date(t.logDate as string).toLocaleDateString("en-GB") : "—"}</td>
-                      <td className="py-2 pr-4">{String(t.binName ?? t.binId ?? "—")}</td>
-                      <td className="py-2 pr-4">{t.probe1 != null ? `${t.probe1}°C` : "—"}</td>
-                      <td className="py-2 pr-4">{t.probe2 != null ? `${t.probe2}°C` : "—"}</td>
-                      <td className="py-2 pr-4">{t.probe3 != null ? `${t.probe3}°C` : "—"}</td>
-                      <td className="py-2 pr-4 font-medium">{t.average != null ? `${t.average}°C` : "—"}</td>
-                      <td className="py-2 pr-4">{String(t.trend ?? "—")}</td>
-                      <td className="py-2 pr-4">{t.aeration === true ? "On" : t.aeration === false ? "Off" : "—"}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-              </div>
-            )}
-          </CardContent></Card>
-        )}
-      </div>
-
-      {/* Bin Dialog */}
-      <Dialog open={binOpen} onOpenChange={setBinOpen}>
-        <DialogContent style={{ maxWidth: "40rem" }}>
-          <DialogHeader><DialogTitle>{editingBin ? "Edit Bin / Store" : "Add Grain Bin / Store"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Name *</Label><Input value={binForm.binName ?? ""} onChange={e => setBinForm(f => ({ ...f, binName: e.target.value }))} placeholder="e.g. Bin 1 — Wheat" /></div>
-            <div><Label>Type *</Label>
-              <Select value={binForm.binType ?? "Bin"} onValueChange={v => setBinForm(f => ({ ...f, binType: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{["Bin", "Flat Store", "Grain Silo", "Bag Store", "Tower Silo", "Bunker"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Capacity (tonnes)</Label><Input type="number" step="0.1" value={binForm.capacityTonnes ?? ""} onChange={e => setBinForm(f => ({ ...f, capacityTonnes: e.target.value }))} /></div>
-            <div><Label>Current Occupancy (tonnes)</Label><Input type="number" step="0.1" value={binForm.currentOccupancy ?? ""} onChange={e => setBinForm(f => ({ ...f, currentOccupancy: e.target.value }))} /></div>
-            <div><Label>Crop Type</Label><Input value={binForm.cropType ?? ""} onChange={e => setBinForm(f => ({ ...f, cropType: e.target.value }))} placeholder="e.g. Wheat, Barley" /></div>
-            <div><Label>Crop Variety</Label><Input value={binForm.cropVariety ?? ""} onChange={e => setBinForm(f => ({ ...f, cropVariety: e.target.value }))} /></div>
-            <div><Label>Harvest Year</Label><Input type="number" value={binForm.harvestYear ?? ""} onChange={e => setBinForm(f => ({ ...f, harvestYear: e.target.value }))} /></div>
-            <div><Label>Moisture % at intake</Label><Input type="number" step="0.1" value={binForm.moisture ?? ""} onChange={e => setBinForm(f => ({ ...f, moisture: e.target.value }))} /></div>
-            <div><Label>Specific Weight (kg/hl)</Label><Input type="number" step="0.1" value={binForm.specificWeight ?? ""} onChange={e => setBinForm(f => ({ ...f, specificWeight: e.target.value }))} /></div>
-            <div><Label>Protein %</Label><Input type="number" step="0.1" value={binForm.protein ?? ""} onChange={e => setBinForm(f => ({ ...f, protein: e.target.value }))} /></div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={binForm.notes ?? ""} onChange={e => setBinForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBinOpen(false)}>Cancel</Button>
-            <Button onClick={() => saveBin.mutate(binForm)} disabled={saveBin.isPending}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Quality Test Dialog */}
-      <Dialog open={testOpen} onOpenChange={setTestOpen}>
-        <DialogContent style={{ maxWidth: "38rem" }}>
-          <DialogHeader><DialogTitle>Add Quality Test Result</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Bin / Store *</Label>
-              <Select value={testForm.binId ?? ""} onValueChange={v => setTestForm(f => ({ ...f, binId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select bin" /></SelectTrigger>
-                <SelectContent>{bins.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.binName ?? `Bin ${b.id}`)}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Test Date *</Label><Input type="date" value={testForm.testDate ?? ""} onChange={e => setTestForm(f => ({ ...f, testDate: e.target.value }))} /></div>
-            <div className="col-span-2">
-              <LabSelector
-                farmId={farmId}
-                value={testLabSupplierId}
-                labName={testForm.laboratory ?? null}
-                onChange={(id, name) => { setTestLabSupplierId(id); setTestForm(f => ({ ...f, laboratory: name ?? "" })); }}
-              />
-            </div>
-            <div><Label>Moisture %</Label><Input type="number" step="0.1" value={testForm.moisture ?? ""} onChange={e => setTestForm(f => ({ ...f, moisture: e.target.value }))} /></div>
-            <div><Label>Specific Weight (kg/hl)</Label><Input type="number" step="0.1" value={testForm.specificWeight ?? ""} onChange={e => setTestForm(f => ({ ...f, specificWeight: e.target.value }))} /></div>
-            <div><Label>Protein %</Label><Input type="number" step="0.1" value={testForm.protein ?? ""} onChange={e => setTestForm(f => ({ ...f, protein: e.target.value }))} /></div>
-            <div><Label>Screenings %</Label><Input type="number" step="0.1" value={testForm.screenings ?? ""} onChange={e => setTestForm(f => ({ ...f, screenings: e.target.value }))} /></div>
-            <div><Label>Mycotoxin</Label>
-              <Select value={testForm.mycotoxinPresent ?? ""} onValueChange={v => setTestForm(f => ({ ...f, mycotoxinPresent: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent><SelectItem value="false">Not detected</SelectItem><SelectItem value="true">Present</SelectItem></SelectContent>
-              </Select>
-            </div>
-            <div><Label>Mycotoxin Result (ppb)</Label><Input type="number" step="0.1" value={testForm.mycoResult ?? ""} onChange={e => setTestForm(f => ({ ...f, mycoResult: e.target.value }))} /></div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={testForm.notes ?? ""} onChange={e => setTestForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTestOpen(false)}>Cancel</Button>
-            <Button onClick={() => saveTest.mutate({ ...testForm, labSupplierId: testLabSupplierId ?? null })} disabled={saveTest.isPending}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Temperature Log Dialog */}
-      <Dialog open={tempOpen} onOpenChange={setTempOpen}>
-        <DialogContent style={{ maxWidth: "36rem" }}>
-          <DialogHeader><DialogTitle>Log Temperature Reading</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Bin / Store *</Label>
-              <Select value={tempForm.binId ?? ""} onValueChange={v => setTempForm(f => ({ ...f, binId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select bin" /></SelectTrigger>
-                <SelectContent>{bins.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.binName ?? `Bin ${b.id}`)}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Date *</Label><Input type="date" value={tempForm.logDate ?? ""} onChange={e => setTempForm(f => ({ ...f, logDate: e.target.value }))} /></div>
-            <div><Label>Probe 1 (°C)</Label><Input type="number" step="0.1" value={tempForm.probe1 ?? ""} onChange={e => setTempForm(f => ({ ...f, probe1: e.target.value }))} /></div>
-            <div><Label>Probe 2 (°C)</Label><Input type="number" step="0.1" value={tempForm.probe2 ?? ""} onChange={e => setTempForm(f => ({ ...f, probe2: e.target.value }))} /></div>
-            <div><Label>Probe 3 (°C)</Label><Input type="number" step="0.1" value={tempForm.probe3 ?? ""} onChange={e => setTempForm(f => ({ ...f, probe3: e.target.value }))} /></div>
-            <div><Label>Average (°C)</Label><Input type="number" step="0.1" value={tempForm.average ?? ""} onChange={e => setTempForm(f => ({ ...f, average: e.target.value }))} /></div>
-            <div><Label>Trend</Label>
-              <Select value={tempForm.trend ?? ""} onValueChange={v => setTempForm(f => ({ ...f, trend: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["Rising", "Stable", "Falling"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Aeration</Label>
-              <Select value={tempForm.aeration ?? ""} onValueChange={v => setTempForm(f => ({ ...f, aeration: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent><SelectItem value="true">On</SelectItem><SelectItem value="false">Off</SelectItem></SelectContent>
-              </Select>
-            </div>
-            <div><Label>Fan Runtime (hrs)</Label><Input type="number" step="0.5" value={tempForm.fanRuntime ?? ""} onChange={e => setTempForm(f => ({ ...f, fanRuntime: e.target.value }))} /></div>
-            <div><Label>CO₂ ppm</Label><Input type="number" step="1" value={tempForm.co2Ppm ?? ""} onChange={e => setTempForm(f => ({ ...f, co2Ppm: e.target.value }))} /></div>
-            <div className="col-span-2"><Label>Notes</Label><Textarea value={tempForm.notes ?? ""} onChange={e => setTempForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTempOpen(false)}>Cancel</Button>
-            <Button onClick={() => saveTemp.mutate(tempForm)} disabled={saveTemp.isPending}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+// ─── (Grain Storage Quality moved to StorageLocationsPage) ─────────────────────
 
 interface FarmRecord { name?: string; address?: string; postcode?: string; cphNumber?: string; }
+
 
 interface DefectReport {
   id: number; defectRef: string | null; farmId: number; equipmentId: number | null;
@@ -499,17 +224,15 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
       {defectQ.isLoading ? (
         <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
       ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-16 px-6">
-            <div className="w-14 h-14 mx-auto rounded-full bg-green-50 flex items-center justify-center mb-4">
-              <CheckCircle2 className="w-7 h-7 text-green-500" />
-            </div>
-            <h3 className="text-base font-semibold text-foreground/80 mb-1">
-              {statusFilter === "all" ? "No defect reports" : `No ${statusLabel(statusFilter).toLowerCase()} defects`}
-            </h3>
-            <p className="text-foreground/50 text-sm">{statusFilter === "all" ? "Report equipment faults here. Unresolved defects must be tracked until repaired." : `No defects in this status category.`}</p>
-          </CardContent>
-        </Card>
+        <div className="border rounded-xl text-center py-16 px-6 bg-white">
+          <div className="w-14 h-14 mx-auto rounded-full bg-green-50 flex items-center justify-center mb-4">
+            <CheckCircle2 className="w-7 h-7 text-green-500" />
+          </div>
+          <h3 className="text-base font-semibold text-foreground/80 mb-1">
+            {statusFilter === "all" ? "No defect reports" : `No ${statusLabel(statusFilter).toLowerCase()} defects`}
+          </h3>
+          <p className="text-foreground/50 text-sm">{statusFilter === "all" ? "Report equipment faults here. Unresolved defects must be tracked until repaired." : `No defects in this status category.`}</p>
+        </div>
       ) : (
         <div className="space-y-3">
           {filtered.map(d => {
@@ -610,7 +333,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
 
 export default function EquipmentPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"equipment" | "grain-storage" | "defects">("equipment");
+  const [tab, setTab] = useState<"equipment" | "defects">("equipment");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [managingItem, setManagingItem] = useState<EquipmentRecord | null>(null);
   const [addPhotos, setAddPhotos] = useState<string[]>([]);
@@ -746,11 +469,7 @@ export default function EquipmentPage() {
         <TabButton active={tab === "defects"} onClick={() => setTab("defects")}>
           <span className="flex items-center gap-1"><Wrench className="h-3.5 w-3.5" /> Defect Reports</span>
         </TabButton>
-        <TabButton active={tab === "grain-storage"} onClick={() => setTab("grain-storage")}>
-          <span className="flex items-center gap-1"><FlaskConical className="h-3.5 w-3.5" /> Grain Storage Quality</span>
-        </TabButton>
       </TabBar>
-      {tab === "grain-storage" && farmId && <GrainStorageSection farmId={farmId} />}
       {tab === "defects" && farmId && <EquipmentDefectsSection farmId={farmId} />}
       {tab === "equipment" && <>
       <div className="flex flex-col sm:flex-row justify-between mb-6 gap-4">
