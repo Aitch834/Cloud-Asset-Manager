@@ -4,6 +4,7 @@ import { getRefCache, getRefCacheUpdatedAt, saveRefCache } from "./database";
 
 export type RefHerd = { id: string; label: string; type: string };
 export type RefSupplier = { id: string; label: string; supplierType: string };
+export type RefGrainBin = { id: string; label: string; binType: string; sublabel: string };
 export type RefBatch = {
   id: string;
   supplierId: string;
@@ -65,6 +66,7 @@ export async function syncRefData(farmId: string): Promise<void> {
     syncHerds(farmId, token, base),
     syncSuppliers(farmId, token, base),
     syncBatches(farmId, token, base),
+    syncGrainBins(farmId, token, base),
   ]);
 }
 
@@ -147,6 +149,32 @@ async function syncBatches(farmId: string, token: string, base: string): Promise
     });
 
   await saveRefCache("batches", farmId, batches);
+}
+
+async function syncGrainBins(farmId: string, token: string, base: string): Promise<void> {
+  type RawBin = { id: number; binName: string; binType: string; capacityTonnes: string | null };
+  try {
+    const res = await fetch(`${base}/api/farms/${farmId}/grain-storage-bins`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json() as RawBin[];
+    const bins: RefGrainBin[] = (Array.isArray(data) ? data : []).map((b) => ({
+      id: String(b.id),
+      label: b.binName,
+      binType: b.binType ?? "",
+      sublabel: [b.binType, b.capacityTonnes ? `${b.capacityTonnes}t` : ""].filter(Boolean).join(" · "),
+    }));
+    if (bins.length > 0) {
+      await saveRefCache("grain-bins", farmId, bins);
+    }
+  } catch {
+    // silently ignore
+  }
+}
+
+export async function getCachedGrainBins(farmId: string): Promise<RefGrainBin[]> {
+  return getRefCache<RefGrainBin>("grain-bins", farmId);
 }
 
 export async function getCachedHerds(farmId: string): Promise<RefHerd[]> {

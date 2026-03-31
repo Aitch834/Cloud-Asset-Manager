@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -16,11 +16,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import {
+  getCachedGrainBins,
+  getRefCacheSyncedMinsAgo,
+  type RefGrainBin,
+} from "@/lib/refCache";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { GrainQualityTest } from "@/lib/types";
 
@@ -56,9 +62,21 @@ export default function GrainQualityTestScreen() {
   const [passOrFail, setPassOrFail] = useState<PassFail>("pass");
   const [notes, setNotes] = useState("");
 
+  const [binOptions, setBinOptions] = useState<LookupOption[]>([]);
+  const [binsSyncedMinsAgo, setBinsSyncedMinsAgo] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    const farmId = String(currentFarm.id);
+    getCachedGrainBins(farmId).then((bins: RefGrainBin[]) => {
+      setBinOptions(bins.map((b) => ({ id: b.id, label: b.label, sublabel: b.sublabel || undefined })));
+    });
+    getRefCacheSyncedMinsAgo("grain-bins", farmId).then(setBinsSyncedMinsAgo);
+  }, [currentFarm?.id]);
+
   const handleSave = async () => {
     if (!binReference.trim() || !cropType.trim()) {
-      Alert.alert("Required Fields", "Please enter the bin reference and crop type.");
+      Alert.alert("Required Fields", "Please select a bin / store and crop type.");
       return;
     }
     setSaving(true);
@@ -108,7 +126,18 @@ export default function GrainQualityTestScreen() {
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.sectionTitle}>Bin / Store</Text>
-          <Input label="Bin / Store Reference *" value={binReference} onChangeText={setBinReference} placeholder="e.g. Bin 3 / Flat Store A" />
+          <Text style={styles.label}>Bin / Store Reference *</Text>
+          <LookupPicker
+            label="Select Bin / Store"
+            value={binReference}
+            options={binOptions}
+            onSelect={(_id, label) => setBinReference(label)}
+            placeholder="Select or search bins…"
+            allowFreeText
+            syncedMinsAgo={binsSyncedMinsAgo}
+            emptyMessage="No bins cached yet — sync when online to populate, or enter manually."
+            icon="package"
+          />
           <Input label="Sample Date" value={sampleDate} onChangeText={setSampleDate} placeholder="YYYY-MM-DD" />
 
           <Text style={styles.sectionTitle}>Crop</Text>
