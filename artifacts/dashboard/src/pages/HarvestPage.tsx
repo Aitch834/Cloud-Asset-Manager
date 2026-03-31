@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -609,6 +609,21 @@ function TransportTab({ transports, harvests, farmId, loading, onRefresh, toast 
 function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: any) {
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const locationsQ = useQuery<{ records: { id: number; name: string; isActive: boolean }[] }>({
+    queryKey: ["storage-locations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/storage-locations`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const activeLocations = (locationsQ.data?.records ?? []).filter(l => l.isActive);
+
+  const binsQ = useQuery<{ id: number; binName: string }[]>({
+    queryKey: ["grain-storage-bins", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/grain-storage-bins`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const bins = Array.isArray(binsQ.data) ? binsQ.data : [];
+
   const emptyForm = {
     harvestRecordId: "",
     storageFacility: "",
@@ -710,7 +725,39 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
             </div>
             <div>
               <Label>Storage Facility / Location <span style={{ color: "#ef4444" }}>*</span></Label>
-              <Input placeholder="e.g. Grain Store A, Barn 2, On-farm Bin 3" value={form.storageFacility} onChange={e => setForm((f: any) => ({ ...f, storageFacility: e.target.value }))} />
+              <Select
+                value={form.storageFacility || "__none__"}
+                onValueChange={v => setForm((f: any) => ({ ...f, storageFacility: v === "__none__" ? "" : v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a storage location or bin…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Select a location…</SelectItem>
+                  {activeLocations.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-xs text-muted-foreground font-semibold px-2 py-1">Storage Locations</SelectLabel>
+                      {activeLocations.map(l => (
+                        <SelectItem key={`loc-${l.id}`} value={l.name}>{l.name}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {bins.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-xs text-muted-foreground font-semibold px-2 py-1">Grain Storage Bins</SelectLabel>
+                      {bins.map(b => (
+                        <SelectItem key={`bin-${b.id}`} value={b.binName}>{b.binName}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {activeLocations.length === 0 && bins.length === 0 && (
+                    <SelectItem value="__loading__" disabled>No locations set up yet</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Set up locations in <a href="/storage-locations" target="_blank" className="underline hover:text-foreground">Storage Locations</a>
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
