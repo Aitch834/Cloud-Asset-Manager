@@ -38,6 +38,10 @@ The monorepo is structured with `pnpm workspaces`, using Node.js 24 and TypeScri
 - **Offline-first architecture:** Uses SQLite (native) or AsyncStorage (web) with a sync queue that includes ordered processing, connectivity detection, and exponential backoff retries.
 - Features GPS-tagged records, visitor logging, Red Tractor compliance forms, and field boundary mapping.
 - Platform-aware code splits for native and web functionalities.
+- **ref_cache SQLite layer** (`lib/database.ts` + `lib/refCache.ts`): `ref_cache` table (PRIMARY KEY: data_type + farm_id) stores herds, suppliers, and GRN batches synced from the API. Functions: `syncRefData(farmId)` (fetches all three, gracefully 403s on missing modules), `getCachedHerds`, `getCachedSuppliers`, `getCachedBatches`, `getRefCacheSyncedMinsAgo`. `FarmContext.tsx` triggers a background `syncRefData` call after every successful farm load.
+- **`LookupPicker` component** (`components/ui/LookupPicker.tsx`): Searchable modal picker with FlatList, free-text/manual entry fallback (id `__manual__`), last-synced timestamp footer, active item highlight, clear button, and empty-state message. Used in Feed Record, COSHH Assessment screens.
+- **Feed Record** (`app/feed-record.tsx`): All three lookup fields (Herd/Flock, Supplier, Batch/Lot) use `LookupPicker`. Batch list cascades when a supplier is selected (filtered by `supplierId`). Extracted batch number stored as raw text for backward sync compatibility.
+- **COSHH Assessment** (`app/coshh-assessment.tsx`): Supplier/Manufacturer field replaced with `LookupPicker` backed by `getCachedSuppliers`.
 
 **Marketing Website (`artifacts/website`):**
 - React + Vite application with `wouter` for routing.

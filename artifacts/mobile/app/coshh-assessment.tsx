@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
@@ -21,6 +22,11 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import {
+  getCachedSuppliers,
+  getRefCacheSyncedMinsAgo,
+  syncRefData,
+} from "@/lib/refCache";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { CoshhAssessment } from "@/lib/types";
 
@@ -55,6 +61,7 @@ export default function CoshhAssessmentScreen() {
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
 
+  const farmId = currentFarm?.id ?? "";
   const today = new Date().toISOString().split("T")[0];
   const nextYear = new Date();
   nextYear.setFullYear(nextYear.getFullYear() + 1);
@@ -63,6 +70,32 @@ export default function CoshhAssessmentScreen() {
   const [substanceName, setSubstanceName] = useState("");
   const [productReference, setProductReference] = useState("");
   const [supplier, setSupplier] = useState("");
+  const [supplierOptions, setSupplierOptions] = useState<LookupOption[]>([]);
+  const [supplierSyncMins, setSupplierSyncMins] = useState<number | null>(null);
+
+  const loadSuppliers = useCallback(async () => {
+    if (!farmId) return;
+    const suppliers = await getCachedSuppliers(farmId);
+    const mins = await getRefCacheSyncedMinsAgo("suppliers", farmId);
+    setSupplierOptions(
+      suppliers.map((s) => ({
+        id: s.id,
+        label: s.label,
+        sublabel: s.supplierType !== "general" ? s.supplierType : undefined,
+      })),
+    );
+    setSupplierSyncMins(mins);
+  }, [farmId]);
+
+  useEffect(() => {
+    loadSuppliers();
+    if (farmId) {
+      syncRefData(farmId)
+        .then(() => loadSuppliers())
+        .catch(() => {});
+    }
+  }, [farmId, loadSuppliers]);
+
   const [assessmentDate, setAssessmentDate] = useState(today);
   const [assessedBy, setAssessedBy] = useState(user?.name || "");
   const [hazardClassification, setHazardClassification] = useState("");
@@ -138,7 +171,17 @@ export default function CoshhAssessmentScreen() {
           <Text style={styles.sectionTitle}>Substance</Text>
           <Input label="Substance / Product Name *" value={substanceName} onChangeText={setSubstanceName} placeholder="e.g. Roundup ProActive" />
           <Input label="Product Reference / Reg Number" value={productReference} onChangeText={setProductReference} placeholder="MAPP or registration number" />
-          <Input label="Supplier / Manufacturer" value={supplier} onChangeText={setSupplier} placeholder="Company name" />
+          <Text style={styles.label}>Supplier / Manufacturer</Text>
+          <LookupPicker
+            label="Select Supplier / Manufacturer"
+            value={supplier}
+            onSelect={(_id, label) => setSupplier(label)}
+            options={supplierOptions}
+            placeholder="Select or type supplier name…"
+            syncedMinsAgo={supplierSyncMins}
+            icon="truck"
+            emptyMessage="No suppliers cached. Add suppliers via the Stock & Suppliers module on the web dashboard, then open this screen while connected."
+          />
 
           <Text style={styles.sectionTitle}>Hazard Classification</Text>
           <Text style={styles.label}>GHS Hazard Category (from SDS)</Text>

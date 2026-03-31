@@ -64,6 +64,14 @@ async function initSQLite(): Promise<boolean> {
       );
 
       CREATE INDEX IF NOT EXISTS idx_records_type_farm ON records(record_type, farm_id);
+
+      CREATE TABLE IF NOT EXISTS ref_cache (
+        data_type TEXT NOT NULL,
+        farm_id TEXT NOT NULL,
+        data_json TEXT NOT NULL,
+        last_synced_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (data_type, farm_id)
+      );
     `);
     usingSQLite = true;
     return true;
@@ -381,4 +389,49 @@ export async function clearCompletedSyncItems(): Promise<void> {
   if (!raw) return;
   const queue: SyncQueueRow[] = JSON.parse(raw);
   await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue.filter((i) => i.status !== "completed")));
+}
+
+export async function saveRefCache(dataType: string, farmId: string, data: unknown): Promise<void> {
+  await ensureInit();
+  const json = JSON.stringify(data);
+  const now = new Date().toISOString();
+  if (usingSQLite) {
+    await db().runAsync(
+      "INSERT OR REPLACE INTO ref_cache (data_type, farm_id, data_json, last_synced_at) VALUES (?, ?, ?, ?)",
+      [dataType, farmId, json, now],
+    );
+    return;
+  }
+  await AsyncStorage.setItem(`bde_ref_${dataType}_${farmId}`, JSON.stringify({ data, syncedAt: now }));
+}
+
+export async function getRefCache<T>(dataType: string, farmId: string): Promise<T[]> {
+  await ensureInit();
+  if (usingSQLite) {
+    const row = await db().getFirstAsync<{ data_json: string }>(
+      "SELECT data_json FROM ref_cache WHERE data_type = ? AND farm_id = ?",
+      [dataType, farmId],
+    );
+    if (!row) return [];
+    return JSON.parse(row.data_json) as T[];
+  }
+  const raw = await AsyncStorage.getItem(`bde_ref_${dataType}_${farmId}`);
+  if (!raw) return [];
+  const parsed = JSON.parse(raw) as { data: T[] };
+  return parsed.data ?? [];
+}
+
+export async function getRefCacheUpdatedAt(dataType: string, farmId: string): Promise<Date | null> {
+  await ensureInit();
+  if (usingSQLite) {
+    const row = await db().getFirstAsync<{ last_synced_at: string }>(
+      "SELECT last_synced_at FROM ref_cache WHERE data_type = ? AND farm_id = ?",
+      [dataType, farmId],
+    );
+    return row ? new Date(row.last_synced_at) : null;
+  }
+  const raw = await AsyncStorage.getItem(`bde_ref_${dataType}_${farmId}`);
+  if (!raw) return null;
+  const parsed = JSON.parse(raw) as { syncedAt: string };
+  return parsed.syncedAt ? new Date(parsed.syncedAt) : null;
 }

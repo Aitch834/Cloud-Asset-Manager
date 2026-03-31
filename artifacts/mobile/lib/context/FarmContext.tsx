@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
 
 import { getItem, setItem, STORAGE_KEYS } from "@/lib/storage";
+import { syncRefData } from "@/lib/refCache";
 import type { Farm, UserProfile } from "@/lib/types";
 
 async function getAuthToken(): Promise<string | null> {
@@ -125,6 +126,7 @@ const [FarmProviderInner, useFarm] = createContextHook(
             setCurrentFarmState(currentApiFarm);
             setUser(resolvedUser);
             setIsLoading(false);
+            syncRefData(currentApiFarm.id).catch(() => {});
             return;
           }
         }
