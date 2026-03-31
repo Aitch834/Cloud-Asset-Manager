@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import { getRefCache, getRefCacheUpdatedAt, saveRefCache } from "./database";
 
 export type RefHerd = { id: string; label: string; type: string };
+export type RefStaffMember = { id: string; label: string; role: string };
 export type RefSupplier = { id: string; label: string; supplierType: string };
 export type RefGrainBin = { id: string; label: string; binType: string; sublabel: string };
 export type RefBatch = {
@@ -67,6 +68,7 @@ export async function syncRefData(farmId: string): Promise<void> {
     syncSuppliers(farmId, token, base),
     syncBatches(farmId, token, base),
     syncGrainBins(farmId, token, base),
+    syncStaffMembers(farmId, token, base),
   ]);
 }
 
@@ -149,6 +151,35 @@ async function syncBatches(farmId: string, token: string, base: string): Promise
     });
 
   await saveRefCache("batches", farmId, batches);
+}
+
+async function syncStaffMembers(farmId: string, token: string, base: string): Promise<void> {
+  type RawMember = { id: number; firstName: string; lastName: string; jobTitle: string | null; isActive: boolean };
+  try {
+    const res = await fetch(`${base}/api/farms/${farmId}/members`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json() as { members?: RawMember[] };
+    const rawMembers = data.members ?? [];
+    const members: RefStaffMember[] = rawMembers
+      .filter((m) => m.isActive !== false)
+      .map((m) => ({
+        id: String(m.id),
+        label: [m.firstName, m.lastName].filter(Boolean).join(" "),
+        role: m.jobTitle ?? "",
+      }))
+      .filter((m) => m.label.trim());
+    if (members.length > 0) {
+      await saveRefCache("staff", farmId, members);
+    }
+  } catch {
+    // silently ignore
+  }
+}
+
+export async function getCachedStaffMembers(farmId: string): Promise<RefStaffMember[]> {
+  return getRefCache<RefStaffMember>("staff", farmId);
 }
 
 async function syncGrainBins(farmId: string, token: string, base: string): Promise<void> {

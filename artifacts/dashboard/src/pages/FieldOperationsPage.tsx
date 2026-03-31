@@ -14,6 +14,8 @@ import { Shovel, Plus, Search, Trash2, Pencil, Filter, CalendarDays, MapPin, Wre
 import { printProReport } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
+import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -136,6 +138,8 @@ type FormState = ReturnType<typeof blank>;
 // ─── Main component ────────────────────────────────
 export default function FieldOperationsPage() {
   const { farmId } = useAppStore();
+  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
+  const staffNames = (membersData?.members ?? []).map((m: any) => memberFullName(m));
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -759,10 +763,11 @@ export default function FieldOperationsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Operator</Label>
-                <Input
-                  placeholder="Name"
+                <StaffSelect
                   value={form.operator}
-                  onChange={(e) => setForm((f) => ({ ...f, operator: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, operator: v }))}
+                  staffNames={staffNames}
+                  loading={membersLoading}
                 />
               </div>
             </div>

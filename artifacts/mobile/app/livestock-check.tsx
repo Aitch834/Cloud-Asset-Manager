@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -18,11 +18,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import {
+  getCachedStaffMembers,
+  getRefCacheSyncedMinsAgo,
+  type RefStaffMember,
+} from "@/lib/refCache";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { LivestockCheck } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
@@ -43,6 +49,18 @@ export default function LivestockCheckScreen() {
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
   const [saving, setSaving] = useState(false);
+
+  const [staffOptions, setStaffOptions] = useState<LookupOption[]>([]);
+  const [staffSyncedMinsAgo, setStaffSyncedMinsAgo] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    const farmId = String(currentFarm.id);
+    getCachedStaffMembers(farmId).then((members: RefStaffMember[]) => {
+      setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
+    });
+    getRefCacheSyncedMinsAgo("staff", farmId).then(setStaffSyncedMinsAgo);
+  }, [currentFarm?.id]);
 
   const [herdName, setHerdName] = useState("");
   const [checkedBy, setCheckedBy] = useState(user?.name || "");
@@ -132,11 +150,17 @@ export default function LivestockCheckScreen() {
             onChangeText={setHerdName}
             required
           />
-          <Input
-            label="Checked By"
-            placeholder="Operator name"
+          <Text style={styles.fieldLabel}>Checked By</Text>
+          <LookupPicker
+            label="Select Staff Member"
             value={checkedBy}
-            onChangeText={setCheckedBy}
+            options={staffOptions}
+            onSelect={(_id, label) => setCheckedBy(label)}
+            placeholder="Select or search staff…"
+            allowFreeText
+            syncedMinsAgo={staffSyncedMinsAgo}
+            emptyMessage="No staff cached yet — sync when online to populate, or enter manually."
+            icon="user"
           />
 
           <View style={styles.sectionLabel}>
@@ -285,6 +309,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  fieldLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    marginBottom: spacing.xs,
   },
   row: { flexDirection: "row", gap: spacing.md },
   chipRow: {

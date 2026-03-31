@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -781,6 +783,8 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
 function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; features: any[]; schemes: any[] }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
+  const staffNames = (membersData?.members ?? []).map((m: any) => memberFullName(m));
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -1073,9 +1077,12 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div className="space-y-1.5">
                 <Label>Carried out by</Label>
-                <input value={form.operator} onChange={e => setForm((f: any) => ({ ...f, operator: e.target.value }))}
-                  placeholder="Operator name"
-                  style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.375rem 0.75rem", fontSize: "0.875rem" }} />
+                <StaffSelect
+                  value={form.operator}
+                  onChange={(v) => setForm((f: any) => ({ ...f, operator: v }))}
+                  staffNames={staffNames}
+                  loading={membersLoading}
+                />
               </div>
               <div className="space-y-1.5">
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", fontWeight: 500, cursor: "pointer", marginTop: "1.4rem" }}>
@@ -1245,6 +1252,8 @@ function SFIActionsTab({ farmId }: { farmId: number }) {
 function SlurryTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { data: slurryMembersData, isLoading: slurryMembersLoading } = useFarmMembers(farmId);
+  const slurryStaffNames = (slurryMembersData?.members ?? []).map((m: any) => memberFullName(m));
   const [storeOpen, setStoreOpen] = useState(false);
   const [spreadOpen, setSpreadOpen] = useState(false);
   const [editingStore, setEditingStore] = useState<Record<string, unknown> | null>(null);
@@ -1415,7 +1424,7 @@ function SlurryTab({ farmId }: { farmId: number }) {
                 <SelectContent>{["Not applicable", "Ploughed in (6 hrs)", "Cultivated (12 hrs)", "Applied to bare soil"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Operator Name</Label><Input value={spreadForm.operatorName ?? ""} onChange={e => setSpreadForm(f => ({ ...f, operatorName: e.target.value }))} /></div>
+            <div><Label>Operator Name</Label><StaffSelect value={spreadForm.operatorName ?? ""} onChange={v => setSpreadForm(f => ({ ...f, operatorName: v }))} staffNames={slurryStaffNames} loading={slurryMembersLoading} /></div>
             <div><Label>Soil Temperature (°C)</Label><Input type="number" step="0.1" value={spreadForm.soilTemperature ?? ""} onChange={e => setSpreadForm(f => ({ ...f, soilTemperature: e.target.value }))} /></div>
             <div><Label>Weather Conditions</Label><Input value={spreadForm.weatherConditions ?? ""} onChange={e => setSpreadForm(f => ({ ...f, weatherConditions: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={spreadForm.notes ?? ""} onChange={e => setSpreadForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
