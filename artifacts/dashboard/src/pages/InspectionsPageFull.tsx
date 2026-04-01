@@ -121,9 +121,13 @@ function InspectionsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const inspectionTypes = useLookupStrings("inspection_types", ["Red Tractor", "Internal Audit", "EHO", "Trading Standards", "Organic", "Other"]);
+  const certificationBodies = useLookupStrings("certification_bodies", ["Red Tractor Assurance", "LEAF Marque", "Organic Farmers & Growers", "Soil Association", "RSPCA Assured", "Linking Environment and Farming", "Other"]);
   const [addOpen, setAddOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<any | null>(null);
+  const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState<any>({ inspectionDate: "", inspectorName: "", inspectionBody: "", inspectionType: "", overallResult: "", summary: "", nextInspectionDue: "", notes: "" });
+  const emptyForm = { inspectionDate: "", inspectorName: "", inspectionBody: "", inspectionType: "", overallResult: "", summary: "", nextInspectionDue: "", notes: "" };
+  const [form, setForm] = useState<any>(emptyForm);
 
   const q = useQuery({
     queryKey: ["inspections", farmId],
@@ -136,8 +140,14 @@ function InspectionsTab({ farmId }: { farmId: number }) {
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/inspections`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Inspection saved" }); invalidate(); setAddOpen(false); resetForm(); },
+    onSuccess: () => { toast({ title: "Inspection saved" }); invalidate(); setAddOpen(false); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/inspections/${editRecord?.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => { toast({ title: "Inspection updated" }); invalidate(); setEditRecord(null); setForm(emptyForm); },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -146,13 +156,14 @@ function InspectionsTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  const resetForm = () => setForm({ inspectionDate: "", inspectorName: "", inspectionBody: "", inspectionType: "", overallResult: "", summary: "", nextInspectionDue: "", notes: "" });
+  const openEdit = (r: any) => { setForm({ inspectionDate: r.inspectionDate?.slice(0, 10) ?? "", inspectorName: r.inspectorName ?? "", inspectionBody: r.inspectionBody ?? "", inspectionType: r.inspectionType ?? "", overallResult: r.overallResult ?? "", summary: r.summary ?? "", nextInspectionDue: r.nextInspectionDue?.slice(0, 10) ?? "", notes: r.notes ?? "" }); setEditRecord(r); };
   const records: any[] = q.data ?? [];
+  const formOpen = addOpen || !!editRecord;
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Inspection</Button>
+        <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Inspection</Button>
       </div>
       {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
@@ -188,7 +199,10 @@ function InspectionsTab({ farmId }: { farmId: number }) {
                     />
                   </td>
                   <td style={{ padding: "0.5rem" }}>
-                    <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
+                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -197,9 +211,50 @@ function InspectionsTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 560 }}>
+            <DialogHeader><DialogTitle>Inspection Record</DialogTitle></DialogHeader>
+            {(() => {
+              const r = viewRecord;
+              const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+              const F = ({ label, value }: { label: string; value?: string | null }) => (
+                <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
+              );
+              return (
+                <div style={{ display: "grid", gap: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Date" value={fmtD(r.inspectionDate)} />
+                    <F label="Type" value={r.inspectionType} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Inspector Name" value={r.inspectorName} />
+                    <F label="Inspection Body" value={r.inspectionBody} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <div>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Overall Result</div>
+                      {r.overallResult ? <StatusBadge status={r.overallResult} /> : <span style={{ color: "#d1d5db", fontSize: "0.875rem" }}>—</span>}
+                    </div>
+                    <F label="Next Inspection Due" value={fmtD(r.nextInspectionDue)} />
+                  </div>
+                  {r.summary && <F label="Summary" value={r.summary} />}
+                  {r.notes && <F label="Notes" value={r.notes} />}
+                </div>
+              );
+            })()}
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Inspection</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={formOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
-          <DialogHeader><DialogTitle>Record Inspection</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editRecord ? "Edit Inspection" : "Record Inspection"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.inspectionDate} onChange={e => setForm((f: any) => ({ ...f, inspectionDate: e.target.value }))} /></div>
@@ -214,13 +269,22 @@ function InspectionsTab({ farmId }: { farmId: number }) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Inspector Name <span style={{ color: "#ef4444" }}>*</span></Label><Input value={form.inspectorName} onChange={e => setForm((f: any) => ({ ...f, inspectorName: e.target.value }))} /></div>
-              <div><Label>Inspection Body</Label><Input placeholder="e.g. Red Tractor Assurance" value={form.inspectionBody} onChange={e => setForm((f: any) => ({ ...f, inspectionBody: e.target.value }))} /></div>
+              <div><Label>Inspection Body</Label>
+                <Select value={form.inspectionBody || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, inspectionBody: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select body..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {certificationBodies.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Overall Result</Label>
-                <Select value={form.overallResult} onValueChange={v => setForm((f: any) => ({ ...f, overallResult: v }))}>
+                <Select value={form.overallResult || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, overallResult: v === "__none__" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
                     <SelectItem value="pass">Pass</SelectItem>
                     <SelectItem value="conditional_pass">Conditional Pass</SelectItem>
                     <SelectItem value="fail">Fail</SelectItem>
@@ -234,8 +298,11 @@ function InspectionsTab({ farmId }: { farmId: number }) {
             <div><Label>Notes</Label><Textarea placeholder="Additional notes..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={() => createMut.mutate(form)} disabled={!form.inspectionDate || !form.inspectorName || createMut.isPending}>Save Inspection</Button>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
+            <Button
+              onClick={() => editRecord ? updateMut.mutate(form) : createMut.mutate(form)}
+              disabled={!form.inspectionDate || !form.inspectorName || createMut.isPending || updateMut.isPending}
+            >{editRecord ? "Save Changes" : "Save Inspection"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
