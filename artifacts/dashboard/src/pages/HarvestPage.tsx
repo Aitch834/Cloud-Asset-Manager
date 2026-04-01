@@ -28,6 +28,7 @@ import {
   Wheat,
   ChevronDown,
   ChevronRight,
+  Pencil,
 } from "lucide-react";
 
 const fmt = (d: string | null | undefined) => {
@@ -181,6 +182,7 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const emptyForm = {
@@ -196,6 +198,23 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
     notes: "",
   };
   const [form, setForm] = useState<any>(emptyForm);
+  const formOpen = addOpen || !!editRecord;
+  function openEdit(r: any) {
+    setEditRecord(r);
+    setForm({
+      fieldCropAssignmentId: r.fieldCropAssignmentId ? String(r.fieldCropAssignmentId) : "",
+      harvestDate: r.harvestDate ? r.harvestDate.slice(0, 10) : "",
+      equipmentId: r.equipmentId ? String(r.equipmentId) : "",
+      operatorName: r.operatorName || "",
+      yieldTonnes: r.yieldTonnes != null ? String(r.yieldTonnes) : "",
+      areaHarvestedHa: r.areaHarvestedHa != null ? String(r.areaHarvestedHa) : "",
+      moisturePercent: r.moisturePercent != null ? String(r.moisturePercent) : "",
+      qualityGrade: r.qualityGrade || "",
+      recordedBy: r.recordedBy || "",
+      notes: r.notes || "",
+    });
+  }
+  function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }
 
   const createMut = useMutation({
     mutationFn: (body: any) =>
@@ -207,10 +226,24 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
     onSuccess: () => {
       toast({ title: "Harvest record saved" });
       onRefresh();
-      setAddOpen(false);
-      setForm(emptyForm);
+      closeForm();
     },
     onError: () => toast({ title: "Failed to save harvest record", variant: "destructive" }),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) =>
+      fetch(`/api/farms/${farmId}/harvests/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      toast({ title: "Harvest record updated" });
+      onRefresh();
+      closeForm();
+    },
+    onError: () => toast({ title: "Failed to update harvest record", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -244,7 +277,7 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
           <Input placeholder="Search harvests..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
         </div>
         <CropYearSelector value={cropYear} onChange={setCropYear} />
-        <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}>
+        <Button size="sm" onClick={() => { setForm(emptyForm); setEditRecord(null); setAddOpen(true); }}>
           <Plus size={14} className="mr-1" />Log Harvest
         </Button>
       </div>
@@ -295,9 +328,10 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
                       {r.qualityGrade ? <GradeBadge grade={r.qualityGrade} /> : <span style={{ color: "#d1d5db" }}>—</span>}
                     </td>
                     <td style={{ padding: "0.5rem" }} onClick={e => e.stopPropagation()}>
-                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete">
-                        <Trash2 size={14} />
-                      </button>
+                      <div style={{ display: "flex", gap: 2 }}>
+                        <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                        <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                      </div>
                     </td>
                   </tr>
                   {expandedId === r.id && (
@@ -329,9 +363,9 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setForm(emptyForm); }}>
+      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) closeForm(); }}>
         <DialogContent style={{ maxWidth: 580 }}>
-          <DialogHeader><DialogTitle>Log Harvest Record</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editRecord ? "Edit Harvest Record" : "Log Harvest Record"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -420,12 +454,12 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={closeForm}>Cancel</Button>
             <Button
-              onClick={() => createMut.mutate(form)}
-              disabled={!form.fieldCropAssignmentId || !form.harvestDate || createMut.isPending}
+              onClick={() => editRecord ? updateMut.mutate({ id: editRecord.id, body: form }) : createMut.mutate(form)}
+              disabled={!form.fieldCropAssignmentId || !form.harvestDate || createMut.isPending || updateMut.isPending}
             >
-              Save Harvest Record
+              {editRecord ? (updateMut.isPending ? "Saving…" : "Save Changes") : (createMut.isPending ? "Saving…" : "Save Harvest Record")}
             </Button>
           </DialogFooter>
         </DialogContent>

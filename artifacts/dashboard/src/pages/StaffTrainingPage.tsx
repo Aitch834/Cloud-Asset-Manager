@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Printer, GraduationCap, Award, AlertTriangle, File, Trash2, Paperclip, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw } from "lucide-react";
+import { Plus, Printer, GraduationCap, Award, AlertTriangle, File, Trash2, Paperclip, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw, Eye, Pencil } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
 import { CropYearSelector } from "@/components/CropYearSelector";
@@ -190,6 +190,7 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<TrainingRecord | null>(null);
+  const [viewItem, setViewItem] = useState<TrainingRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [search, setSearch] = useState(defaultMember ?? "");
   const [cropYear, setCropYear] = useState(currentCropYear());
@@ -348,6 +349,7 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", fontSize: "0.8125rem" }}>{r.competencyAchieved || "—"}</td>
                   <td style={{ padding: "0.625rem 0.75rem" }}>
                     <div style={{ display: "flex", gap: 4 }}>
+                      <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0, color: "#9ca3af" }} onClick={() => setViewItem(r)} title="View"><Eye size={13} /></Button>
                       <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => openEdit(r)}>Edit</Button>
                       <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setDeleteId(r.id)}>Del</Button>
                     </div>
@@ -357,6 +359,30 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewItem && (
+        <Dialog open onOpenChange={() => setViewItem(null)}>
+          <DialogContent style={{ maxWidth: 500 }}>
+            <DialogHeader><DialogTitle>Training Record</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gap: 12, padding: "4px 0", fontSize: "0.875rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Staff Member</p><p>{resolveStaffName(viewItem.userId)}</p></div>
+                <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Training Date</p><p>{fmt(viewItem.trainingDate)}</p></div>
+                <div style={{ gridColumn: "1 / -1" }}><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Training Title</p><p style={{ fontWeight: 600 }}>{viewItem.trainingTitle}</p></div>
+                <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Provider</p><p>{viewItem.trainingProvider || "—"}</p></div>
+                <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Expiry</p><p>{viewItem.expiryDate ? fmt(viewItem.expiryDate) : "No expiry"}</p></div>
+                <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Competency</p><p>{viewItem.competencyAchieved || "—"}</p></div>
+                <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Assessor</p><p>{viewItem.assessorName || "—"}</p></div>
+              </div>
+              {viewItem.notes && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Notes</p><p style={{ whiteSpace: "pre-line", color: "#374151" }}>{viewItem.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}><Pencil size={13} style={{ marginRight: 4 }} />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewItem(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {[addOpen, !!editItem].includes(true) && (

@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer } from "lucide-react";
+import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil } from "lucide-react";
 
 const SPRAY_EQUIPMENT_TYPES = ["sprayer", "spot-sprayer", "knapsack", "boom sprayer", "tractor", "uas", "drone", "other"];
 
@@ -111,12 +111,43 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const emptyForm = { fieldId: "", productId: "", applicationDate: "", applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", operatorMemberId: "", certificateNumber: "", equipmentUsed: "", equipmentId: "", supplierId: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const [weatherAutoFilled, setWeatherAutoFilled] = useState(false);
   const [deliveryStockItemId, setDeliveryStockItemId] = useState<string | null>(null);
+  const formOpen = addOpen || !!editRecord;
+  function openEdit(r: any) {
+    setEditRecord(r);
+    setDeliveryStockItemId(r.stockDeliveryId ? String(r.stockDeliveryId) : null);
+    setWeatherAutoFilled(false);
+    setForm({
+      fieldId: r.fieldId ? String(r.fieldId) : "",
+      productId: r.productId ? String(r.productId) : "",
+      applicationDate: r.applicationDate ? r.applicationDate.slice(0, 10) : "",
+      applicationRate: r.applicationRate != null ? String(r.applicationRate) : "",
+      rateUnit: r.rateUnit || "L/ha",
+      areaSprayedHa: r.areaSprayedHa != null ? String(r.areaSprayedHa) : "",
+      waterVolumeLitres: r.waterVolumeLitres != null ? String(r.waterVolumeLitres) : "",
+      windSpeedKmh: r.windSpeedKmh != null ? String(r.windSpeedKmh) : "",
+      windDirection: r.windDirection || "",
+      temperatureC: r.temperatureC != null ? String(r.temperatureC) : "",
+      operatorName: r.operatorName || "",
+      operatorMemberId: r.operatorMemberId ? String(r.operatorMemberId) : "",
+      certificateNumber: r.certificateNumber || "",
+      equipmentUsed: r.equipmentUsed || "",
+      equipmentId: r.equipmentId ? String(r.equipmentId) : "",
+      supplierId: r.supplierId ? String(r.supplierId) : "",
+      reasonForApplication: r.reasonForApplication || "",
+      batchNumber: r.batchNumber || "",
+      lotNumber: r.lotNumber || "",
+      stockDeliveryId: r.stockDeliveryId ? String(r.stockDeliveryId) : "",
+      notes: r.notes || "",
+    });
+  }
+  function closeForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setDeliveryStockItemId(null); setWeatherAutoFilled(false); }
 
   const deliveriesQ = useQuery({
     queryKey: ["spray-batch-deliveries", farmId, deliveryStockItemId],
@@ -202,21 +233,27 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
     } catch { /* ignore */ }
   }
 
+  const buildPayload = (body: any) => ({
+    ...body,
+    stockDeliveryId: body.stockDeliveryId ? Number(body.stockDeliveryId) : null,
+    equipmentId: body.equipmentId ? Number(body.equipmentId) : null,
+    supplierId: body.supplierId ? Number(body.supplierId) : null,
+    operatorMemberId: body.operatorMemberId ? Number(body.operatorMemberId) : null,
+    batchNumber: body.batchNumber || null,
+    lotNumber: body.lotNumber || null,
+  });
+
   const createMut = useMutation({
-    mutationFn: (body: any) => {
-      const payload = {
-        ...body,
-        stockDeliveryId: body.stockDeliveryId ? Number(body.stockDeliveryId) : null,
-        equipmentId: body.equipmentId ? Number(body.equipmentId) : null,
-        supplierId: body.supplierId ? Number(body.supplierId) : null,
-        operatorMemberId: body.operatorMemberId ? Number(body.operatorMemberId) : null,
-        batchNumber: body.batchNumber || null,
-        lotNumber: body.lotNumber || null,
-      };
-      return fetch(`/api/farms/${farmId}/spray-applications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    },
-    onSuccess: () => { toast({ title: "Application recorded" }); onRefresh(); setAddOpen(false); setForm(emptyForm); setDeliveryStockItemId(null); },
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/spray-applications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPayload(body)) }),
+    onSuccess: () => { toast({ title: "Application recorded" }); onRefresh(); closeForm(); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) =>
+      fetch(`/api/farms/${farmId}/spray-applications/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPayload(body)) }),
+    onSuccess: () => { toast({ title: "Application updated" }); onRefresh(); closeForm(); },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -240,7 +277,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
           <Input placeholder="Search applications..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
         </div>
         <CropYearSelector value={cropYear} onChange={setCropYear} />
-        <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}><Plus size={14} className="mr-1" />Log Application</Button>
+        <Button size="sm" onClick={() => { setForm(emptyForm); setDeliveryStockItemId(null); setAddOpen(true); }}><Plus size={14} className="mr-1" />Log Application</Button>
       </div>
 
       {loading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : filtered.length === 0 ? (
@@ -280,7 +317,10 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                       ) : <span style={{ color: "#d1d5db" }}>—</span>}
                     </td>
                     <td style={{ padding: "0.5rem" }} onClick={e => e.stopPropagation()}>
-                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                      <div style={{ display: "flex", gap: 2 }}>
+                        <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                        <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                      </div>
                     </td>
                   </tr>
                   {expandedId === r.id && (
@@ -312,9 +352,9 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) setForm(emptyForm); }}>
+      <Dialog open={formOpen} onOpenChange={o => { if (!o) closeForm(); }}>
         <DialogContent style={{ maxWidth: 600 }}>
-          <DialogHeader><DialogTitle>Log Spray Application</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editRecord ? "Edit Spray Application" : "Log Spray Application"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2" style={{ maxHeight: "70vh", overflowY: "auto" }}>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -523,8 +563,13 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={() => createMut.mutate(form)} disabled={!form.fieldId || !form.applicationDate || !form.productId || !form.operatorName || !form.reasonForApplication || createMut.isPending}>Save Record</Button>
+            <Button variant="outline" onClick={closeForm}>Cancel</Button>
+            <Button
+              onClick={() => editRecord ? updateMut.mutate({ id: editRecord.id, body: form }) : createMut.mutate(form)}
+              disabled={!form.fieldId || !form.applicationDate || !form.productId || !form.operatorName || !form.reasonForApplication || createMut.isPending || updateMut.isPending}
+            >
+              {editRecord ? (updateMut.isPending ? "Saving…" : "Save Changes") : (createMut.isPending ? "Saving…" : "Save Record")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

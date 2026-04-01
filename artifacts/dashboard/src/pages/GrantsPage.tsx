@@ -3,12 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
-import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info } from "lucide-react";
+import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info, Eye } from "lucide-react";
 
 // ─── FETF Item Reference Data ──────────────────────
 const FETF_ITEMS: { code: string; description: string; category: string }[] = [
@@ -145,6 +145,7 @@ export default function GrantsPage() {
   const [statusFilter, setStatusFilter] = useState<GrantStatus | "all">("all");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<GrantRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<GrantRecord | null>(null);
   const [deleting, setDeleting] = useState<GrantRecord | null>(null);
   const [form, setForm] = useState({ ...BLANK_FORM });
   const [fetfPickerOpen, setFetfPickerOpen] = useState(false);
@@ -456,6 +457,9 @@ export default function GrantsPage() {
                       </td>
                       <td style={{ padding: "12px 16px" }}>
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4, borderRadius: 4 }} title="View">
+                            <Eye size={15} />
+                          </button>
                           <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: 4, borderRadius: 4 }}
                             onMouseEnter={e => (e.currentTarget.style.color = "#111827")}
                             onMouseLeave={e => (e.currentTarget.style.color = "#6b7280")}>
@@ -472,6 +476,37 @@ export default function GrantsPage() {
               </table>
             </div>
           </div>
+        )}
+
+        {/* View dialog */}
+        {viewRecord && (
+          <Dialog open onOpenChange={() => setViewRecord(null)}>
+            <DialogContent style={{ maxWidth: 540 }}>
+              <DialogHeader><DialogTitle>Grant / Funding Record</DialogTitle></DialogHeader>
+              <div className="space-y-3 text-sm py-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Scheme</p><p className="font-medium">{viewRecord.schemeName}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Type</p><p>{viewRecord.schemeType || "—"}</p></div>
+                  {viewRecord.itemReferenceCode && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Item Ref</p><p className="font-mono text-xs">{viewRecord.itemReferenceCode}</p></div>}
+                  {viewRecord.applicationReference && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Application Ref</p><p className="font-mono text-xs">{viewRecord.applicationReference}</p></div>}
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Status</p><p className="capitalize">{viewRecord.status}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Application Date</p><p>{formatDate(viewRecord.applicationDate)}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Approval Date</p><p>{formatDate(viewRecord.approvalDate)}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Claim Deadline</p><p>{formatDate(viewRecord.claimDeadline)}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Purchase Deadline</p><p>{formatDate(viewRecord.purchaseDeadline)}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Grant Amount</p><p>{formatGBP(viewRecord.grantAmountPence)}</p></div>
+                  <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Actual Cost</p><p>{formatGBP(viewRecord.actualCostPence)}</p></div>
+                </div>
+                {viewRecord.itemDescription && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Item Description</p><p className="text-gray-700">{viewRecord.itemDescription}</p></div>}
+                {viewRecord.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewRecord.notes}</p></div>}
+                {viewRecord.documentPath && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Document</p><a href={`/api/storage${viewRecord.documentPath}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-600 text-sm"><FileText size={14} />{viewRecord.documentName ?? "View Document"}</a></div>}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil size={14} className="mr-1" />Edit</Button>
+                <Button variant="ghost" onClick={() => setViewRecord(null)}>Close</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
 
         {/* Add / Edit dialog */}

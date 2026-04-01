@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { TabButton } from "@/components/ui/tab-button";
 import {
   AlertTriangle, CheckCircle2, Info, Plus, Trash2,
-  Leaf, FlaskConical, Droplets,
+  Leaf, FlaskConical, Droplets, Eye, Pencil,
 } from "lucide-react";
 
 const PRODUCT_TYPES: { value: string; label: string; isOrganic: boolean; isLiquid: boolean }[] = [
@@ -221,9 +221,26 @@ export default function NVZPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"summary" | "log" | "risk-assessments">("summary");
   const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<NvzApplication | null>(null);
+  const [viewRecord, setViewRecord] = useState<NvzApplication | null>(null);
   const [form, setForm] = useState<typeof emptyForm>(emptyForm);
   const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const formOpen = addOpen || !!editRecord;
+  function openEditApp(r: NvzApplication) {
+    setEditRecord(r);
+    setForm({
+      fieldId: String(r.fieldId),
+      applicationDate: r.applicationDate ? r.applicationDate.slice(0, 10) : "",
+      productName: r.productName,
+      productType: r.productType,
+      nitrogenKgHa: String(r.nitrogenKgHa),
+      areaAppliedHa: String(r.areaAppliedHa),
+      applicationMethod: r.applicationMethod ?? "",
+      notes: r.notes ?? "",
+    });
+  }
+  function closeAppForm() { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }
   const [nvzEditField, setNvzEditField] = useState<FieldSummary | null>(null);
   const [nvzEditForm, setNvzEditForm] = useState({ isNvz: false, nvzLandType: "" });
 
@@ -296,6 +313,17 @@ export default function NVZPage() {
       (f.totalNKgHa > TOTAL_N_LIMIT * 0.85 || f.organicNKgHa > ORGANIC_N_LIMIT * 0.85)
   ).length;
 
+  const buildNvzPayload = (f: typeof emptyForm) => ({
+    fieldId: parseInt(f.fieldId),
+    applicationDate: f.applicationDate,
+    productName: f.productName,
+    productType: f.productType,
+    nitrogenKgHa: parseFloat(f.nitrogenKgHa),
+    areaAppliedHa: parseFloat(f.areaAppliedHa),
+    applicationMethod: f.applicationMethod || undefined,
+    notes: f.notes || undefined,
+  });
+
   const addMut = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       fetch(`/api/farms/${farmId}/nvz-applications`, {
@@ -307,10 +335,25 @@ export default function NVZPage() {
       toast({ title: "Application logged" });
       qc.invalidateQueries({ queryKey: ["nvz-applications", farmId] });
       qc.invalidateQueries({ queryKey: ["nvz-summary", farmId] });
-      setAddOpen(false);
-      setForm(emptyForm);
+      closeAppForm();
     },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      fetch(`/api/farms/${farmId}/nvz-applications/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      toast({ title: "Application updated" });
+      qc.invalidateQueries({ queryKey: ["nvz-applications", farmId] });
+      qc.invalidateQueries({ queryKey: ["nvz-summary", farmId] });
+      closeAppForm();
+    },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -346,16 +389,11 @@ export default function NVZPage() {
       toast({ title: "Please fill in all required fields", variant: "destructive" });
       return;
     }
-    addMut.mutate({
-      fieldId: parseInt(form.fieldId),
-      applicationDate: form.applicationDate,
-      productName: form.productName,
-      productType: form.productType,
-      nitrogenKgHa: parseFloat(form.nitrogenKgHa),
-      areaAppliedHa: parseFloat(form.areaAppliedHa),
-      applicationMethod: form.applicationMethod || undefined,
-      notes: form.notes || undefined,
-    });
+    if (editRecord) {
+      updateMut.mutate({ id: editRecord.id, body: buildNvzPayload(form) });
+    } else {
+      addMut.mutate(buildNvzPayload(form));
+    }
   };
 
   const totalNApplied = applications.reduce((s, a) => s + parseFloat(a.totalNitrogenKg ?? "0"), 0);
@@ -523,13 +561,11 @@ export default function NVZPage() {
                           <td className="px-4 py-2.5 text-right tabular-nums">{parseFloat(a.areaAppliedHa).toFixed(2)}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums font-medium">{parseFloat(a.totalNitrogenKg).toFixed(1)}</td>
                           <td className="px-4 py-2.5">
-                            <button
-                              onClick={() => setDeleteId(a.id)}
-                              className="text-foreground/30 hover:text-red-500 transition-colors p-1 rounded"
-                              title="Delete record"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => setViewRecord(a)} className="text-foreground/30 hover:text-blue-500 transition-colors p-1 rounded" title="View details"><Eye className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => openEditApp(a)} className="text-foreground/30 hover:text-primary transition-colors p-1 rounded" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setDeleteId(a.id)} className="text-foreground/30 hover:text-red-500 transition-colors p-1 rounded" title="Delete record"><Trash2 className="w-3.5 h-3.5" /></button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -542,13 +578,54 @@ export default function NVZPage() {
         )}
       </div>
 
-      {/* ── ADD APPLICATION DIALOG ── */}
-      <Dialog open={addOpen} onOpenChange={(o) => { if (!o) setAddOpen(false); }}>
+      {/* ── VIEW APPLICATION DIALOG ── */}
+      <Dialog open={!!viewRecord} onOpenChange={o => { if (!o) setViewRecord(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Log Fertiliser Application</DialogTitle>
+            <DialogTitle>NVZ Application Record</DialogTitle>
+            {viewRecord && <DialogDescription>{viewRecord.fieldName ?? `Field #${viewRecord.fieldId}`} — {viewRecord.applicationDate ? new Date(viewRecord.applicationDate).toLocaleDateString("en-GB") : "—"}</DialogDescription>}
+          </DialogHeader>
+          {viewRecord && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ["Field", viewRecord.fieldName ?? `Field #${viewRecord.fieldId}`],
+                  ["Date", viewRecord.applicationDate ? new Date(viewRecord.applicationDate).toLocaleDateString("en-GB") : "—"],
+                  ["Product Name", viewRecord.productName],
+                  ["Product Type", PRODUCT_TYPES.find(p => p.value === viewRecord.productType)?.label ?? viewRecord.productType],
+                  ["N Rate (kg/ha)", parseFloat(viewRecord.nitrogenKgHa).toFixed(1)],
+                  ["Area Applied (ha)", parseFloat(viewRecord.areaAppliedHa).toFixed(2)],
+                  ["Total N Applied", `${parseFloat(viewRecord.totalNitrogenKg).toFixed(1)} kg`],
+                  ["Application Method", viewRecord.applicationMethod ?? "—"],
+                ].map(([k, v]) => (
+                  <div key={k}>
+                    <p className="text-xs text-foreground/50 font-medium uppercase tracking-wide mb-0.5">{k}</p>
+                    <p className="font-medium text-foreground">{v || "—"}</p>
+                  </div>
+                ))}
+              </div>
+              {viewRecord.notes && (
+                <div>
+                  <p className="text-xs text-foreground/50 font-medium uppercase tracking-wide mb-0.5">Notes</p>
+                  <p className="text-foreground/80">{viewRecord.notes}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+            <Button onClick={() => { const r = viewRecord!; setViewRecord(null); openEditApp(r); }}>Edit</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── ADD / EDIT APPLICATION DIALOG ── */}
+      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) closeAppForm(); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editRecord ? "Edit Fertiliser Application" : "Log Fertiliser Application"}</DialogTitle>
             <DialogDescription>
-              Record a fertiliser or manure application for NVZ compliance tracking.
+              {editRecord ? "Update this NVZ application record." : "Record a fertiliser or manure application for NVZ compliance tracking."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 mt-2">
@@ -648,9 +725,9 @@ export default function NVZPage() {
             </div>
           </div>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={handleAdd} disabled={addMut.isPending}>
-              {addMut.isPending ? "Saving…" : "Save Application"}
+            <Button variant="outline" onClick={closeAppForm}>Cancel</Button>
+            <Button onClick={handleAdd} disabled={addMut.isPending || updateMut.isPending}>
+              {(addMut.isPending || updateMut.isPending) ? "Saving…" : editRecord ? "Save Changes" : "Save Application"}
             </Button>
           </DialogFooter>
         </DialogContent>

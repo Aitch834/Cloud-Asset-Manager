@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import {
-  Plus, Trash2, Pencil, TrendingUp, Wheat, PiggyBank, Bird, Milk,
+  Plus, Trash2, Pencil, Eye, TrendingUp, Wheat, PiggyBank, Bird, Milk,
   ShoppingCart, BarChart3, Package, Scale, CheckCircle2, DollarSign, AlertCircle
 } from "lucide-react";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
@@ -62,6 +62,7 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
+  const [viewSale, setViewSale] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const empty = {
@@ -177,6 +178,7 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
                 <td style={{ padding: "8px 12px", color: "#6b7280", fontSize: "0.8rem" }}>{r.invoiceNumber ?? "—"}</td>
                 <td style={{ padding: "8px 12px" }}>
                   <div style={{ display: "flex", gap: 4 }}>
+                    <Button size="sm" variant="ghost" onClick={() => setViewSale(r)}><Eye size={14} /></Button>
                     <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil size={14} /></Button>
                     <Button size="sm" variant="ghost" style={{ color: "#dc2626" }} onClick={() => setDeleteId(r.id)}><Trash2 size={14} /></Button>
                   </div>
@@ -186,6 +188,34 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
           </tbody>
         </table>
       </div>
+
+      {viewSale && (
+        <Dialog open onOpenChange={() => setViewSale(null)}>
+          <DialogContent style={{ maxWidth: 560 }}>
+            <DialogHeader><DialogTitle>Grain Sale</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: "0.875rem", padding: "4px 0" }}>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Sale Date</p><p>{fmtDate(viewSale.saleDate)}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Type</p><p>{SALE_TYPES.find((t: any) => t.value === viewSale.saleType)?.label ?? viewSale.saleType}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Buyer</p><p style={{ fontWeight: 600 }}>{viewSale.buyer}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Commodity</p><p>{viewSale.commodity}</p></div>
+              {viewSale.variety && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Variety</p><p>{viewSale.variety}</p></div>}
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Tonnage</p><p>{viewSale.tonnage ? `${parseFloat(viewSale.tonnage).toFixed(2)} t` : "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Price/t</p><p>{viewSale.pricePerTonnePence ? `£${(viewSale.pricePerTonnePence / 100).toFixed(2)}` : "—"}</p></div>
+              <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Net Value</p><p style={{ fontWeight: 600, color: "#16a34a" }}>{pToGBP(viewSale.netValuePence ?? viewSale.grossValuePence)}</p></div>
+              {viewSale.invoiceNumber && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Invoice</p><p className="font-mono text-xs">{viewSale.invoiceNumber}</p></div>}
+              {viewSale.merchantRef && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Merchant Ref</p><p>{viewSale.merchantRef}</p></div>}
+              {viewSale.deliveryDate && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Delivery Date</p><p>{fmtDate(viewSale.deliveryDate)}</p></div>}
+              {viewSale.deliveryLocation && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Delivery Location</p><p>{viewSale.deliveryLocation}</p></div>}
+              {viewSale.gradeAchieved && <div><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Grade</p><p>{viewSale.gradeAchieved}</p></div>}
+            </div>
+            {viewSale.notes && <div style={{ marginTop: 8 }}><p style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Notes</p><p style={{ fontSize: "0.875rem", whiteSpace: "pre-line", color: "#374151" }}>{viewSale.notes}</p></div>}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewSale); setViewSale(null); }}><Pencil size={13} style={{ marginRight: 4 }} />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewSale(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Add/Edit Dialog */}
       <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm(empty); } }}>

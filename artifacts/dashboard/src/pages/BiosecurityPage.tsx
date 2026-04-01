@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Redirect } from "wouter";
 import {
-  Plus, Search, Loader2, Pencil, Trash2, Users, Bug, ShieldCheck,
+  Plus, Search, Loader2, Pencil, Trash2, Users, Bug, ShieldCheck, Eye,
   CheckCircle2, XCircle, AlertTriangle, Calendar, Printer, FileText,
   Camera, File, ChevronDown, ChevronUp,
 } from "lucide-react";
@@ -71,6 +71,7 @@ function VisitorTab({ farmId }: { farmId: number }) {
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Visitor | null>(null);
+  const [viewVisitor, setViewVisitor] = useState<Visitor | null>(null);
   const [form, setForm] = useState<typeof EMPTY_VISITOR>(EMPTY_VISITOR);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
@@ -181,6 +182,7 @@ function VisitorTab({ farmId }: { farmId: number }) {
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setViewVisitor(v)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-green-600"><Eye className="w-4 h-4" /></button>
                         <button onClick={() => openEdit(v)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-primary"><Pencil className="w-4 h-4" /></button>
                         <button onClick={() => setDeleteId(v.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/40 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                       </div>
@@ -191,6 +193,33 @@ function VisitorTab({ farmId }: { farmId: number }) {
             </table>
           </div>
         </Card>
+      )}
+
+      {viewVisitor && (
+        <Dialog open onOpenChange={() => setViewVisitor(null)}>
+          <DialogContent style={{ maxWidth: 520 }}>
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><Users className="w-4 h-4 text-primary" />Visitor Record</DialogTitle></DialogHeader>
+            <div className="space-y-3 text-sm py-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Visitor / Contractor</p><p className="font-medium">{viewVisitor.visitorName}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Company</p><p>{viewVisitor.company || "—"}</p></div>
+                <div style={{ gridColumn: "1 / -1" }}><p className="text-xs text-gray-500 uppercase font-medium mb-1">Purpose of Visit</p><p>{viewVisitor.purpose}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Arrival</p><p>{viewVisitor.arrivalTime ? new Date(viewVisitor.arrivalTime).toLocaleString("en-GB") : "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Departure</p><p>{viewVisitor.departureTime ? new Date(viewVisitor.departureTime).toLocaleString("en-GB") : <span className="text-amber-600 text-xs font-medium">Still on site</span>}</p></div>
+                {viewVisitor.vehicleRegistration && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Vehicle Reg</p><p className="font-mono">{viewVisitor.vehicleRegistration}</p></div>}
+                {viewVisitor.escortedBy && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Escorted By</p><p>{viewVisitor.escortedBy}</p></div>}
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Biosec Declaration</p><p>{viewVisitor.biosecurityDeclarationSigned ? "✓ Signed" : "Not signed"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Health Declaration</p><p>{viewVisitor.healthDeclarationSigned ? "✓ Signed" : "Not signed"}</p></div>
+              </div>
+              {viewVisitor.areasVisited && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Areas Visited</p><p className="text-gray-700">{viewVisitor.areasVisited}</p></div>}
+              {viewVisitor.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewVisitor.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewVisitor); setViewVisitor(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewVisitor(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_VISITOR); } }}>

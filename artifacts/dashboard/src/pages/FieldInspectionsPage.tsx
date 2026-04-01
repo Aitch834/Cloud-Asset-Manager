@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardCheck, Search, CheckCircle2, AlertTriangle, AlertCircle, Eye, Filter, Camera, File, Trash2, Loader2 } from "lucide-react";
+import { ClipboardCheck, Search, CheckCircle2, AlertTriangle, AlertCircle, Eye, Filter, Camera, File, Trash2, Loader2, Plus, Pencil } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
 type ActionRequired = "none" | "monitor" | "treat" | "urgent";
@@ -122,6 +122,52 @@ export default function FieldInspectionsPage() {
   const [resolveOpen, setResolveOpen] = useState(false);
   const [resolvedBy, setResolvedBy] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<FieldInspection | null>(null);
+  const emptyForm = { fieldName: "", inspectionDate: new Date().toISOString().slice(0, 10), cropType: "", growthStage: "", pestDiseaseObservations: "", actionRequired: "none" as ActionRequired, recommendedAction: "", inspector: "", notes: "" };
+  const [form, setForm] = useState({ ...emptyForm });
+  const formOpen = addOpen || !!editRecord;
+  function openEditInspection(r: FieldInspection) {
+    setEditRecord(r);
+    setForm({
+      fieldName: r.fieldName,
+      inspectionDate: r.inspectionDate ? r.inspectionDate.slice(0, 10) : "",
+      cropType: r.cropType ?? "",
+      growthStage: r.growthStage ?? "",
+      pestDiseaseObservations: r.pestDiseaseObservations ?? "",
+      actionRequired: r.actionRequired,
+      recommendedAction: r.recommendedAction ?? "",
+      inspector: r.inspector ?? "",
+      notes: r.notes ?? "",
+    });
+  }
+  function closeInspectionForm() { setAddOpen(false); setEditRecord(null); setForm({ ...emptyForm }); }
+
+  const createInspMut = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      fetch(`/api/farms/${farmId}/field-inspections`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["field-inspections", farmId] }); toast({ title: "Inspection logged" }); closeInspectionForm(); },
+    onError: () => toast({ title: "Failed to save inspection", variant: "destructive" }),
+  });
+
+  const updateInspMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      fetch(`/api/farms/${farmId}/field-inspections/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["field-inspections", farmId] }); toast({ title: "Inspection updated" }); closeInspectionForm(); },
+    onError: () => toast({ title: "Failed to update inspection", variant: "destructive" }),
+  });
+
+  const deleteInspMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/field-inspections/${id}`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["field-inspections", farmId] }); toast({ title: "Inspection deleted" }); },
+    onError: () => toast({ title: "Failed to delete inspection", variant: "destructive" }),
+  });
+
+  function submitInspectionForm() {
+    if (!form.fieldName || !form.inspectionDate) { toast({ title: "Field name and date are required", variant: "destructive" }); return; }
+    const body = { fieldName: form.fieldName, inspectionDate: form.inspectionDate, cropType: form.cropType || null, growthStage: form.growthStage || null, pestDiseaseObservations: form.pestDiseaseObservations || null, actionRequired: form.actionRequired, recommendedAction: form.recommendedAction || null, inspector: form.inspector || null, notes: form.notes || null };
+    if (editRecord) { updateInspMut.mutate({ id: editRecord.id, body }); } else { createInspMut.mutate(body); }
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["field-inspections", farmId],
@@ -192,10 +238,13 @@ export default function FieldInspectionsPage() {
           <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
             <ClipboardCheck className="w-5 h-5 text-green-700" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-xl font-semibold text-gray-900">Field Inspections</h1>
             <p className="text-sm text-gray-500">Track crop inspection findings and resolve field actions</p>
           </div>
+          <Button size="sm" onClick={() => { setForm({ ...emptyForm }); setEditRecord(null); setAddOpen(true); }}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" />Log Inspection
+          </Button>
         </div>
 
         {/* Stats strip */}
@@ -369,7 +418,10 @@ export default function FieldInspectionsPage() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Button variant="ghost" size="sm" onClick={() => { setDetailRecord(r); setResolveOpen(false); }}>
-                          View
+                          <Eye className="w-3.5 h-3.5 mr-1" />View
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => openEditInspection(r)}>
+                          <Pencil className="w-3.5 h-3.5 mr-1" />Edit
                         </Button>
                         {!r.isResolved && (r.actionRequired === "treat" || r.actionRequired === "urgent" || r.actionRequired === "monitor") && (
                           <Button size="sm" variant="outline" className="text-green-700 border-green-300 hover:bg-green-50" onClick={() => openResolve(r)}>
@@ -448,6 +500,9 @@ export default function FieldInspectionsPage() {
                   Mark as Resolved
                 </Button>
               )}
+              <Button variant="outline" onClick={() => { openEditInspection(detailRecord); setDetailRecord(null); }}>
+                <Pencil className="w-3.5 h-3.5 mr-1" />Edit
+              </Button>
               <Button variant="ghost" onClick={() => setDetailRecord(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
@@ -502,6 +557,70 @@ export default function FieldInspectionsPage() {
           </DialogContent>
         </Dialog>
       )}
+      {/* Add / Edit Inspection dialog */}
+      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) closeInspectionForm(); }}>
+        <DialogContent style={{ maxWidth: 560 }}>
+          <DialogHeader>
+            <DialogTitle>{editRecord ? "Edit Inspection" : "Log Field Inspection"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Field Name <span className="text-red-500">*</span></Label>
+                <Input placeholder="e.g. North Field" value={form.fieldName} onChange={e => setForm(f => ({ ...f, fieldName: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Inspection Date <span className="text-red-500">*</span></Label>
+                <Input type="date" value={form.inspectionDate} onChange={e => setForm(f => ({ ...f, inspectionDate: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Crop Type</Label>
+                <Input placeholder="e.g. Winter Wheat" value={form.cropType} onChange={e => setForm(f => ({ ...f, cropType: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Growth Stage</Label>
+                <Input placeholder="e.g. BBCH 30" value={form.growthStage} onChange={e => setForm(f => ({ ...f, growthStage: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label>Pest / Disease Observations</Label>
+              <Textarea rows={3} placeholder="Describe what was observed in the field…" value={form.pestDiseaseObservations} onChange={e => setForm(f => ({ ...f, pestDiseaseObservations: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Action Required</Label>
+                <Select value={form.actionRequired} onValueChange={(v) => setForm(f => ({ ...f, actionRequired: v as ActionRequired }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No action</SelectItem>
+                    <SelectItem value="monitor">Monitor</SelectItem>
+                    <SelectItem value="treat">Treat</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Inspector</Label>
+                <Input placeholder="Inspector name" value={form.inspector} onChange={e => setForm(f => ({ ...f, inspector: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label>Recommended Action</Label>
+              <Input placeholder="e.g. Apply fungicide within 48 hours" value={form.recommendedAction} onChange={e => setForm(f => ({ ...f, recommendedAction: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea rows={2} placeholder="Additional notes…" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeInspectionForm}>Cancel</Button>
+            <Button onClick={submitInspectionForm} disabled={!form.fieldName || !form.inspectionDate || createInspMut.isPending || updateInspMut.isPending}>
+              {createInspMut.isPending || updateInspMut.isPending ? "Saving…" : editRecord ? "Save Changes" : "Log Inspection"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

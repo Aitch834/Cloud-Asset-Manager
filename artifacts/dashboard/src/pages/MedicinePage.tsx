@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, HeartPulse, Printer,
-  AlertTriangle, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp,
+  AlertTriangle, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp, Eye,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -93,7 +93,7 @@ function StatusBadge({ record }: { record: MedicineRecord }) {
   );
 }
 
-function RecordCard({ record, herds, onEdit, onDelete }: { record: MedicineRecord; herds: Herd[]; onEdit: (r: MedicineRecord) => void; onDelete: (id: number) => void; }) {
+function RecordCard({ record, herds, onEdit, onDelete, onView }: { record: MedicineRecord; herds: Herd[]; onEdit: (r: MedicineRecord) => void; onDelete: (id: number) => void; onView: (r: MedicineRecord) => void; }) {
   const [expanded, setExpanded] = useState(false);
   const herdName = herds.find(h => h.id === record.herdId)?.name ?? (record.herdId ? `Herd #${record.herdId}` : "—");
   const status = getRecordStatus(record);
@@ -122,6 +122,9 @@ function RecordCard({ record, herds, onEdit, onDelete }: { record: MedicineRecor
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          <button onClick={() => onView(record)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/30 hover:text-blue-600">
+            <Eye className="w-3.5 h-3.5" />
+          </button>
           <button onClick={() => onEdit(record)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/30 hover:text-primary">
             <Pencil className="w-3.5 h-3.5" />
           </button>
@@ -219,6 +222,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MedicineRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<MedicineRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
@@ -372,9 +376,45 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       ) : (
         <div className="space-y-3">
           {filtered.map(r => (
-            <RecordCard key={r.id} record={r} herds={herds} onEdit={openEdit} onDelete={setDeleteId} />
+            <RecordCard key={r.id} record={r} herds={herds} onEdit={openEdit} onDelete={setDeleteId} onView={setViewRecord} />
           ))}
         </div>
+      )}
+
+      {/* View dialog */}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 520 }}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <HeartPulse className="w-5 h-5 text-primary" />
+                Medicine Record
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 text-sm py-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Medicine</p><p className="font-semibold">{viewRecord.medicineName}</p></div>
+                {viewRecord.medicineRef && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Reference</p><p className="font-mono text-xs">{viewRecord.medicineRef}</p></div>}
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Status</p><StatusBadge record={viewRecord} /></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Administered Date</p><p>{formatDate(viewRecord.administeredDate)}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Administered By</p><p>{viewRecord.administeredBy || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Herd / Group</p><p>{herds.find(h => h.id === viewRecord.herdId)?.name ?? (viewRecord.herdId ? `Herd #${viewRecord.herdId}` : "—")}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Dosage</p><p>{viewRecord.dosage || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Route</p><p>{viewRecord.administrationRoute || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Batch Number</p><p className="font-mono text-xs">{viewRecord.batchNumber || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Vet</p><p>{viewRecord.vetName || "—"}</p></div>
+                {viewRecord.withdrawalPeriodDays != null && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Withdrawal Period</p><p>{viewRecord.withdrawalPeriodDays} days</p></div>}
+                {viewRecord.withdrawalEndDate && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Withdrawal End</p><p>{formatDate(viewRecord.withdrawalEndDate)}</p></div>}
+              </div>
+              {viewRecord.reason && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Reason</p><p className="text-gray-700 whitespace-pre-line">{viewRecord.reason}</p></div>}
+              {viewRecord.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewRecord.notes}</p></div>}
+            </div>
+            <div className="flex justify-end gap-2 mt-2">
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil size={14} className="mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewRecord(null)}>Close</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_FORM); } }}>

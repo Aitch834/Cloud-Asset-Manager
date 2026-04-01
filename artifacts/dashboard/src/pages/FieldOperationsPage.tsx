@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Shovel, Plus, Search, Trash2, Pencil, Filter, CalendarDays, MapPin, Wrench, Printer, Tractor } from "lucide-react";
+import { Shovel, Plus, Search, Trash2, Pencil, Eye, Filter, CalendarDays, MapPin, Wrench, Printer, Tractor } from "lucide-react";
 import { printProReport } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -148,6 +148,7 @@ export default function FieldOperationsPage() {
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [showDialog, setShowDialog] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [viewRecord, setViewRecord] = useState<any>(null);
   const [form, setForm] = useState<FormState>(blank());
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
@@ -514,6 +515,14 @@ export default function FieldOperationsPage() {
                             <Button
                               size="sm"
                               variant="ghost"
+                              onClick={() => setViewRecord(r)}
+                              className="h-7 w-7 p-0 text-gray-400 hover:text-green-600"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
                               onClick={() => openEdit(r)}
                               className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600"
                             >
@@ -544,6 +553,34 @@ export default function FieldOperationsPage() {
           </p>
         )}
       </div>
+
+      {/* View Dialog */}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 520 }}>
+            <DialogHeader><DialogTitle>Field Operation</DialogTitle></DialogHeader>
+            <div className="space-y-3 text-sm py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Date</p><p>{fmt(viewRecord.operationDate)}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Field</p><p>{viewRecord.fieldName || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Operation</p><p>{labelForType(viewRecord.operationType)}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Operator</p><p>{viewRecord.operator || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Vehicle</p><p>{viewRecord.vehicleDescription || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Implement</p><p>{viewRecord.implement || "—"}</p></div>
+                {viewRecord.workingDepthCm && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Working Depth</p><p>{viewRecord.workingDepthCm} cm</p></div>}
+                {viewRecord.passes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Passes</p><p>{viewRecord.passes}</p></div>}
+                {viewRecord.areaHa && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Area (ha)</p><p>{parseFloat(viewRecord.areaHa).toFixed(2)}</p></div>}
+                {viewRecord.quantity && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Quantity</p><p>{viewRecord.quantity}{viewRecord.quantityUnit ? ` ${viewRecord.quantityUnit}` : ""}</p></div>}
+              </div>
+              {viewRecord.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewRecord.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Add / Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>

@@ -3,12 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
-import { Plus, AlertTriangle, ShieldCheck, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, Info } from "lucide-react";
+import { Plus, AlertTriangle, ShieldCheck, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, Info, Eye } from "lucide-react";
 
 const POLICY_TYPES = [
   { value: "employers_liability", label: "Employers Liability", critical: true, legalNote: "Legally required under the Employers' Liability (Compulsory Insurance) Act 1969" },
@@ -291,6 +291,7 @@ export default function InsurancePage() {
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<InsuranceRecord | null>(null);
+  const [viewItem, setViewItem] = useState<InsuranceRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery<{ records: InsuranceRecord[] }>({
@@ -400,6 +401,9 @@ export default function InsurancePage() {
                       <td style={{ padding: "11px 14px" }}><DocCell record={r} farmId={farmId!} onRefresh={onRefresh} /></td>
                       <td style={{ padding: "11px 14px" }}>
                         <div style={{ display: "flex", gap: 4 }}>
+                          <button onClick={() => setViewItem(r)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="View">
+                            <Eye style={{ width: 14, height: 14 }} />
+                          </button>
                           <button onClick={() => setEditItem(r)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="Edit">
                             <Pencil style={{ width: 14, height: 14 }} />
                           </button>
@@ -424,6 +428,32 @@ export default function InsurancePage() {
           </p>
         </div>
       </div>
+
+      {/* View dialog */}
+      {viewItem && (
+        <Dialog open onOpenChange={() => setViewItem(null)}>
+          <DialogContent style={{ maxWidth: 480 }}>
+            <DialogHeader><DialogTitle>Insurance Policy</DialogTitle></DialogHeader>
+            <div className="space-y-3 text-sm py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Policy Type</p><p className="font-medium">{policyLabel(viewItem.policyType)}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Insurer</p><p>{viewItem.insurer || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Policy Number</p><p className="font-mono text-xs">{viewItem.policyNumber || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Policyholder</p><p>{viewItem.policyholderName || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Cover Level</p><p>{formatCover(viewItem.coverLevelPence)}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Start Date</p><p>{viewItem.startDate ? new Date(viewItem.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Expiry Date</p><ExpiryBadge dateStr={viewItem.expiryDate} /></div>
+              </div>
+              {viewItem.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewItem.notes}</p></div>}
+              {viewItem.documentPath && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Certificate</p><a href={`/api/storage${viewItem.documentPath}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-600 text-sm"><FileText size={14} />{viewItem.documentName ?? "View Certificate"}</a></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setEditItem(viewItem); setViewItem(null); }}><Pencil size={14} className="mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewItem(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <InsuranceDialog
         open={addOpen}

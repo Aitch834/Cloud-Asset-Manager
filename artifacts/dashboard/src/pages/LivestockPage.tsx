@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle, FileText, Upload, Paperclip, QrCode } from "lucide-react";
+import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle, FileText, Upload, Paperclip, QrCode, Eye } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -460,6 +460,7 @@ function HerdsSection({ farmId }: { farmId: number }) {
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingHerd, setEditingHerd] = useState<Herd | null>(null);
+  const [viewHerd, setViewHerd] = useState<Herd | null>(null);
   const [formData, setFormData] = useState<typeof EMPTY_HERD>(EMPTY_HERD);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [printOpen, setPrintOpen] = useState(false);
@@ -611,6 +612,7 @@ function HerdsSection({ farmId }: { farmId: number }) {
                     <td className="p-4 text-sm font-mono text-foreground/70">{h.herdNumber || "—"}</td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setViewHerd(h)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-blue-600"><Eye className="w-4 h-4" /></button>
                         <button onClick={() => openEdit(h)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-primary"><Pencil className="w-4 h-4" /></button>
                         <button onClick={() => setDeleteId(h.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/50 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                       </div>
@@ -622,6 +624,28 @@ function HerdsSection({ farmId }: { farmId: number }) {
           )}
         </div>
       </Card>
+
+      {viewHerd && (
+        <Dialog open onOpenChange={() => setViewHerd(null)}>
+          <DialogContent style={{ maxWidth: 440 }}>
+            <DialogHeader><DialogTitle>Herd Record</DialogTitle></DialogHeader>
+            <div className="space-y-3 text-sm py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Name</p><p className="font-medium">{viewHerd.name}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Type</p><p className="capitalize">{viewHerd.type || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Breed</p><p>{viewHerd.breed || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Herd Number</p><p className="font-mono text-xs">{viewHerd.herdNumber || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Status</p><p>{viewHerd.isActive ? "Active" : "Inactive"}</p></div>
+              </div>
+              {viewHerd.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewHerd.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewHerd); setViewHerd(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewHerd(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
         <DialogContent>
@@ -651,6 +675,7 @@ function VetHealthPlansSection({ farmId }: { farmId: number }) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingPlan, setEditingPlan] = useState<VetHealthPlan | null>(null);
+  const [viewPlan, setViewPlan] = useState<VetHealthPlan | null>(null);
   const [formData, setFormData] = useState<typeof EMPTY_PLAN>(EMPTY_PLAN);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [printPlan, setPrintPlan] = useState<VetHealthPlan | null>(null);
@@ -877,6 +902,7 @@ function VetHealthPlansSection({ farmId }: { farmId: number }) {
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => setViewPlan(p)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-blue-600"><Eye className="w-4 h-4" /></button>
                 <button
                   onClick={() => setPrintPlan(p)}
                   className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-green-600"
@@ -919,6 +945,35 @@ function VetHealthPlansSection({ farmId }: { farmId: number }) {
           </Card>
         ))}
       </div>
+
+      {viewPlan && (
+        <Dialog open onOpenChange={() => setViewPlan(null)}>
+          <DialogContent style={{ maxWidth: 540, maxHeight: "90vh", overflowY: "auto" }}>
+            <DialogHeader><DialogTitle>Vet Health Plan {viewPlan.planYear}</DialogTitle></DialogHeader>
+            <div className="space-y-3 text-sm py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Year</p><p>{viewPlan.planYear}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Vet Name</p><p>{viewPlan.vetName}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Practice</p><p>{viewPlan.practiceName || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Practice Phone</p><p>{viewPlan.practicePhone || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Plan Date</p><p>{formatDate(viewPlan.planDate)}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Review Date</p><p>{formatDate(viewPlan.reviewDate)}</p></div>
+              </div>
+              {viewPlan.healthPriorities && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Health Priorities</p><p className="text-gray-700 whitespace-pre-line">{viewPlan.healthPriorities}</p></div>}
+              {viewPlan.vaccinationProtocol && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Vaccination Protocol</p><p className="text-gray-700 whitespace-pre-line">{viewPlan.vaccinationProtocol}</p></div>}
+              {viewPlan.wormingProtocol && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Worming Protocol</p><p className="text-gray-700 whitespace-pre-line">{viewPlan.wormingProtocol}</p></div>}
+              {viewPlan.flukeTreatment && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Fluke Treatment</p><p className="text-gray-700 whitespace-pre-line">{viewPlan.flukeTreatment}</p></div>}
+              {viewPlan.biosecurityMeasures && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Biosecurity</p><p className="text-gray-700 whitespace-pre-line">{viewPlan.biosecurityMeasures}</p></div>}
+              {viewPlan.mastitisPrevention && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Mastitis Prevention</p><p className="text-gray-700 whitespace-pre-line">{viewPlan.mastitisPrevention}</p></div>}
+              {viewPlan.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewPlan.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewPlan); setViewPlan(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewPlan(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
         <DialogContent>
@@ -1010,6 +1065,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<MortalityRecord | null>(null);
+  const [viewMortality, setViewMortality] = useState<MortalityRecord | null>(null);
   const [form, setForm] = useState(EMPTY_MORTALITY);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [useOtherVet, setUseOtherVet] = useState(false);
@@ -1146,6 +1202,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
                   <td className="px-4 py-3 text-xs text-muted-foreground">{r.veterinaryAttended ? r.vetName || "Yes" : "—"}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => setViewMortality(r)}><Eye className="h-3 w-3" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
                     </div>
@@ -1155,6 +1212,33 @@ function MortalitySection({ farmId }: { farmId: number }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewMortality && (
+        <Dialog open onOpenChange={() => setViewMortality(null)}>
+          <DialogContent style={{ maxWidth: 520 }}>
+            <DialogHeader><DialogTitle>Mortality Record</DialogTitle></DialogHeader>
+            <div className="space-y-3 text-sm py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Date of Death</p><p>{formatDate(viewMortality.dateOfDeath)}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Tag Number</p><p className="font-mono text-xs">{viewMortality.tagNumber || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Species</p><p className="capitalize">{viewMortality.species}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Breed</p><p>{viewMortality.breed || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Cause of Death</p><p>{CAUSE_LABELS[viewMortality.causeOfDeath] ?? viewMortality.causeOfDeath}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Disposal Method</p><p>{DISPOSAL_LABELS[viewMortality.disposalMethod] ?? viewMortality.disposalMethod}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Disposal Operator</p><p>{viewMortality.disposalOperator || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Disposal Ref</p><p className="font-mono text-xs">{viewMortality.disposalRef || "—"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">BCMS Notified</p><p>{viewMortality.bcmsNotified ? "Yes" : "Pending"}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Vet Attended</p><p>{viewMortality.veterinaryAttended ? (viewMortality.vetName || "Yes") : "No"}</p></div>
+              </div>
+              {viewMortality.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewMortality.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewMortality); setViewMortality(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
+              <Button variant="ghost" onClick={() => setViewMortality(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {showForm && (
