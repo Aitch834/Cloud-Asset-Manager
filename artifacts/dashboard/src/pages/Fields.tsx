@@ -934,6 +934,7 @@ export default function FieldsPage() {
   const [selectedFieldForHistory, setSelectedFieldForHistory] = useState<FieldRecord | null>(null);
   const [drawerTab, setDrawerTab] = useState<"overview" | "history" | "nmp">("overview");
   const [printOpen, setPrintOpen] = useState(false);
+  const [expandedCropId, setExpandedCropId] = useState<number | null>(null);
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -1282,27 +1283,94 @@ export default function FieldsPage() {
               <p className="text-sm mt-1">Add your crop types above, then assign them to fields each season.</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {crops.map(crop => {
                 const assignedFields = assignments.filter(a => a.cropId === crop.id && (a.year === CURRENT_YEAR || !a.year));
+                const isExpanded = expandedCropId === crop.id;
+                const hasAssignments = assignedFields.length > 0;
                 return (
-                  <div key={crop.id} className="flex items-center gap-4 bg-white border border-border/50 rounded-xl px-5 py-4 hover:shadow-sm transition-shadow">
-                    <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
-                      <Wheat className="w-5 h-5 text-green-700" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground">{crop.name}</p>
-                      <p className="text-sm text-foreground/50">
-                        {[crop.variety, crop.category].filter(Boolean).join(" · ") || "No variety / category set"}
-                      </p>
-                    </div>
-                    {assignedFields.length > 0 && (
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-full flex-shrink-0">
-                        <Leaf className="w-3 h-3" />
-                        {assignedFields.length} field{assignedFields.length !== 1 ? "s" : ""} this season
+                  <div key={crop.id} className="bg-white border border-border/50 rounded-xl overflow-hidden transition-shadow hover:shadow-sm">
+                    {/* Header row — always visible, fully clickable */}
+                    <button
+                      onClick={() => setExpandedCropId(isExpanded ? null : crop.id)}
+                      className="w-full flex items-center gap-4 px-5 py-4 text-left"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
+                        <Wheat className="w-5 h-5 text-green-700" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-foreground">{crop.name}</p>
+                        <p className="text-sm text-foreground/50">
+                          {[crop.variety, crop.category].filter(Boolean).join(" · ") || "No variety / category set"}
+                        </p>
+                      </div>
+                      {hasAssignments ? (
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-full flex-shrink-0">
+                          <Leaf className="w-3 h-3" />
+                          {assignedFields.length} field{assignedFields.length !== 1 ? "s" : ""} this season
+                        </div>
+                      ) : (
+                        <span className="text-xs text-foreground/30 flex-shrink-0">No fields this season</span>
+                      )}
+                      <ChevronDown className={`w-4 h-4 text-foreground/30 flex-shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {/* Expanded field list */}
+                    {isExpanded && (
+                      <div className="border-t border-border/50 bg-green-50/30 px-5 py-3">
+                        {!hasAssignments ? (
+                          <p className="text-xs text-foreground/40 py-2 text-center">
+                            No fields are currently growing {crop.name} this season.
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wide mb-2">
+                              Fields growing {crop.name} — {CURRENT_YEAR} season
+                            </p>
+                            {assignedFields.map(a => {
+                              const field = fields.find(f => f.id === a.fieldId);
+                              const varianceDays = harvestVarianceDays(a.expectedHarvestDate, a.actualHarvestDate);
+                              return (
+                                <div key={a.id} className="bg-white rounded-lg border border-border/50 px-3 py-2.5">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="font-semibold text-sm text-foreground">{field?.name || `Field #${a.fieldId}`}</span>
+                                    {field?.areaHectares && (
+                                      <span className="text-xs text-foreground/40">{parseFloat(String(field.areaHectares)).toFixed(1)} ha</span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-foreground/60">
+                                    {a.plantingDate && (
+                                      <span className="flex items-center gap-1">
+                                        <CalendarDays className="w-3 h-3 text-green-600" />
+                                        Planted {formatDate(a.plantingDate)}
+                                      </span>
+                                    )}
+                                    {a.expectedHarvestDate && (
+                                      <span className="flex items-center gap-1">
+                                        <Wheat className="w-3 h-3 text-amber-500" />
+                                        Exp. {formatDate(a.expectedHarvestDate)}
+                                      </span>
+                                    )}
+                                    {a.actualHarvestDate && (
+                                      <span className="flex items-center gap-2">
+                                        <Wheat className="w-3 h-3 text-green-700" />
+                                        Actual {formatDate(a.actualHarvestDate)}
+                                        {varianceDays !== null && <VarianceBadge days={varianceDays} size="xs" />}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {a.notes && (
+                                    <p className="text-xs text-foreground/40 italic mt-1 flex items-center gap-1">
+                                      <StickyNote className="w-2.5 h-2.5" />{a.notes}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
-                    <ChevronRight className="w-4 h-4 text-foreground/20 flex-shrink-0" />
                   </div>
                 );
               })}
@@ -1570,8 +1638,29 @@ export default function FieldsPage() {
                                 {a.expectedHarvestDate && (
                                   <p className="text-xs text-foreground/60 flex items-center gap-1.5 mt-0.5">
                                     <Wheat className="w-3 h-3 flex-shrink-0 text-amber-500" />
-                                    Harvest {formatDate(a.expectedHarvestDate)}
+                                    Expected harvest {formatDate(a.expectedHarvestDate)}
                                   </p>
+                                )}
+                                {a.actualHarvestDate && (() => {
+                                  const days = harvestVarianceDays(a.expectedHarvestDate, a.actualHarvestDate);
+                                  return (
+                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                      <p className="text-xs text-foreground/60 flex items-center gap-1.5">
+                                        <Wheat className="w-3 h-3 flex-shrink-0 text-green-700" />
+                                        Actual harvest {formatDate(a.actualHarvestDate)}
+                                      </p>
+                                      {days !== null && <VarianceBadge days={days} size="xs" />}
+                                    </div>
+                                  );
+                                })()}
+                                {a.actualHarvestDate && (
+                                  <div className="mt-1.5">
+                                    <HarvestNoteEditor
+                                      assignmentId={a.id}
+                                      farmId={farmId}
+                                      initialNote={a.notes}
+                                    />
+                                  </div>
                                 )}
                               </div>
                             </div>
