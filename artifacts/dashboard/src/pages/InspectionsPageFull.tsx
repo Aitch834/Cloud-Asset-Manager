@@ -128,6 +128,9 @@ function InspectionsTab({ farmId }: { farmId: number }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const emptyForm = { inspectionDate: "", inspectorName: "", inspectionBody: "", inspectionType: "", overallResult: "", summary: "", nextInspectionDue: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [docUploading, setDocUploading] = useState(false);
+  const addFileRef = useRef<HTMLInputElement>(null);
 
   const q = useQuery({
     queryKey: ["inspections", farmId],
@@ -138,9 +141,23 @@ function InspectionsTab({ farmId }: { farmId: number }) {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["inspections", farmId] });
 
+  const uploadDoc = async (recordId: number, file: File) => {
+    const urlRes = await fetch("/api/storage/uploads/request-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream" }) });
+    const { uploadURL, objectPath } = await urlRes.json();
+    await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
+    const fileName = objectPath.split("/").pop() ?? file.name;
+    await fetch(`/api/farms/${farmId}/inspections/${recordId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentPath: objectPath, documentName: fileName }) });
+  };
+
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/inspections`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Inspection saved" }); invalidate(); setAddOpen(false); setForm(emptyForm); },
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/inspections`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: async (data) => {
+      if (pendingFile && data.record?.id) {
+        setDocUploading(true);
+        try { await uploadDoc(data.record.id, pendingFile); } finally { setDocUploading(false); }
+      }
+      toast({ title: "Inspection saved" }); invalidate(); setAddOpen(false); setForm(emptyForm); setPendingFile(null);
+    },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
@@ -241,6 +258,16 @@ function InspectionsTab({ farmId }: { farmId: number }) {
                   </div>
                   {r.summary && <F label="Summary" value={r.summary} />}
                   {r.notes && <F label="Notes" value={r.notes} />}
+                  <div>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Report Document</div>
+                    {r.documentPath ? (
+                      <a href={`/api/storage${r.documentPath}`} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.875rem", color: "#2563eb", textDecoration: "none" }}>
+                        <FileIcon size={14} />{r.documentName || "View Report"}
+                      </a>
+                    ) : (
+                      <span style={{ fontSize: "0.875rem", color: "#d1d5db" }}>No report document attached</span>
+                    )}
+                  </div>
                 </div>
               );
             })()}
@@ -296,13 +323,35 @@ function InspectionsTab({ farmId }: { farmId: number }) {
             </div>
             <div><Label>Summary</Label><Textarea placeholder="Summary of findings..." value={form.summary} onChange={e => setForm((f: any) => ({ ...f, summary: e.target.value }))} rows={2} /></div>
             <div><Label>Notes</Label><Textarea placeholder="Additional notes..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            <div>
+              <Label>Report Document</Label>
+              {editRecord ? (
+                <div className="mt-1">
+                  <DocCell
+                    endpoint={`/api/farms/${farmId}/inspections/${editRecord.id}`}
+                    queryKey={["inspections", farmId]}
+                    documentPath={editRecord.documentPath ?? null}
+                    documentName={editRecord.documentName ?? null}
+                  />
+                </div>
+              ) : (
+                <div className="mt-1" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input ref={addFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: "none" }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) setPendingFile(f); e.target.value = ""; }} />
+                  <button type="button" onClick={() => addFileRef.current?.click()} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#f9fafb", cursor: "pointer", fontSize: "0.8rem", color: "#374151" }}>
+                    <Paperclip size={13} />{pendingFile ? pendingFile.name : "Attach report…"}
+                  </button>
+                  {pendingFile && <button type="button" onClick={() => setPendingFile(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: "0.75rem" }}>Remove</button>}
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setPendingFile(null); }}>Cancel</Button>
             <Button
               onClick={() => editRecord ? updateMut.mutate(form) : createMut.mutate(form)}
-              disabled={!form.inspectionDate || !form.inspectorName || createMut.isPending || updateMut.isPending}
-            >{editRecord ? "Save Changes" : "Save Inspection"}</Button>
+              disabled={!form.inspectionDate || !form.inspectorName || createMut.isPending || updateMut.isPending || docUploading}
+            >{docUploading ? "Uploading…" : editRecord ? "Save Changes" : "Save Inspection"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
