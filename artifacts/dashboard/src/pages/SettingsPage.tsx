@@ -32,7 +32,7 @@ function SettingRow({ icon: Icon, label, description, href }: {
 
 export default function SettingsPage() {
   const { farmId } = useAppStore();
-  const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } });
+  const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } as any });
   const activeModules = dashboardData?.activeSubscriptions ?? [];
   const farm = dashboardData?.farm as Record<string, unknown> | undefined;
 
@@ -85,7 +85,7 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground pl-6">No modules loaded yet — visit the Dashboard to see your subscription.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  {(activeModules as Array<Record<string, unknown>>).map((m, i) => (
+                  {(activeModules as unknown as Array<Record<string, unknown>>).map((m, i) => (
                     <div key={i} className="flex items-center gap-2 text-sm text-foreground/80">
                       <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
                       <span className="truncate">{String(m.moduleName ?? m.moduleKey ?? "Module")}</span>

@@ -338,7 +338,7 @@ export default function AccidentBookPage() {
       subtitle: "UK Health & Safety Law · RIDDOR 2013",
       farmName: farm?.name,
       cphNumber: farm?.cphNumber ?? undefined,
-      redTractorId: farm?.redTractorId ?? undefined,
+      redTractorId: (farm as any)?.redTractorId ?? undefined,
       recordCount: records.length,
       recordLabel: "entry",
       extraMeta: `Total days lost: ${totalTimeLost > 0 ? totalTimeLost.toFixed(1) : "0"}`,

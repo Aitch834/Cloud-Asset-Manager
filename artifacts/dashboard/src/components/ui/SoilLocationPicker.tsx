@@ -29,9 +29,9 @@ export function SoilLocationPicker({ lat, lng, locationDescription, onLatLngChan
         link.rel = "stylesheet";
         link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
         document.head.appendChild(link);
-        (window as Record<string, unknown>)["_leafletLoaded"] = true;
+        (window as unknown as Record<string, unknown>)["_leafletLoaded"] = true;
       }
-      (window as Record<string, unknown>)["_L"] = L;
+      (window as unknown as Record<string, unknown>)["_L"] = L;
       setLeafletReady(true);
     });
     return () => {
@@ -43,7 +43,7 @@ export function SoilLocationPicker({ lat, lng, locationDescription, onLatLngChan
 
   useEffect(() => {
     if (!leafletReady || !expanded || !mapRef.current) return;
-    const L = (window as Record<string, unknown>)["_L"] as typeof import("leaflet");
+    const L = (window as unknown as Record<string, unknown>)["_L"] as typeof import("leaflet");
 
     if (leafletMapRef.current) {
       leafletMapRef.current.invalidateSize();

@@ -68,9 +68,9 @@ export function FieldBoundaryMapDialog({ fieldId, fieldName, open, onClose, onSa
           link.rel = "stylesheet";
           link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
           document.head.appendChild(link);
-          (window as Record<string, unknown>)["_leafletLoaded"] = true;
+          (window as unknown as Record<string, unknown>)["_leafletLoaded"] = true;
         }
-        (window as Record<string, unknown>)["_L"] = L;
+        (window as unknown as Record<string, unknown>)["_L"] = L;
         setLeafletReady(true);
       });
     } else {
@@ -100,7 +100,7 @@ export function FieldBoundaryMapDialog({ fieldId, fieldName, open, onClose, onSa
 
   useEffect(() => {
     if (!open || !leafletReady || !mapRef.current) return;
-    const L = (window as Record<string, unknown>)["_L"] as typeof import("leaflet");
+    const L = (window as unknown as Record<string, unknown>)["_L"] as typeof import("leaflet");
 
     destroyMap(leafletRef.current);
     leafletRef.current = null;
@@ -181,7 +181,7 @@ export function FieldBoundaryMapDialog({ fieldId, fieldName, open, onClose, onSa
         if (last) (last as unknown as L.CircleMarker).remove();
         if (ctx.polygon) ctx.polygon.remove();
         if (next.length >= 3) {
-          const L = (window as Record<string, unknown>)["_L"] as typeof import("leaflet");
+          const L = (window as unknown as Record<string, unknown>)["_L"] as typeof import("leaflet");
           ctx.polygon = L.polygon(
             next.map((p) => [p.lat, p.lng] as [number, number]),
             { color: "#16a34a", fillOpacity: 0.2 }

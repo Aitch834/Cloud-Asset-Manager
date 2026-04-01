@@ -139,8 +139,7 @@ const BLANK_FORM = {
 export default function GrantsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { selectedFarm } = useAppStore();
-  const farmId = selectedFarm?.id;
+  const { farmId } = useAppStore();
 
   const [statusFilter, setStatusFilter] = useState<GrantStatus | "all">("all");
   const [showForm, setShowForm] = useState(false);
@@ -151,7 +150,7 @@ export default function GrantsPage() {
   const [fetfPickerOpen, setFetfPickerOpen] = useState(false);
   const [fetfSearch, setFetfSearch] = useState("");
   const [uploadingId, setUploadingId] = useState<number | null>(null);
-  const { upload, uploading } = useUpload();
+  const { uploadFile } = useUpload();
 
   const { data, isLoading } = useQuery({
     queryKey: ["grants", farmId],
@@ -258,11 +257,12 @@ export default function GrantsPage() {
   async function handleEvidenceUpload(record: GrantRecord, file: File) {
     setUploadingId(record.id);
     try {
-      const path = await upload(file, { prefix: `farms/${farmId}/grants/` });
+      const response = await uploadFile(file);
+      if (!response) throw new Error("Upload failed");
       await fetch(`/api/farms/${farmId}/grants/${record.id}/document`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documentPath: path, documentName: file.name }),
+        body: JSON.stringify({ documentPath: response.objectPath, documentName: file.name }),
       });
       qc.invalidateQueries({ queryKey: ["grants", farmId] });
       toast({ title: "Evidence uploaded" });

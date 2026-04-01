@@ -257,7 +257,7 @@ export default function FeedManagementPage() {
                         <p className="text-sm font-medium text-gray-700">{String(d.supplierName ?? "—")}</p>
                         <div className="flex gap-2 flex-wrap mt-1">
                           <UfasBadge number={d.ufasNumberOnNote as string} />
-                          {d.femasNumberOnNote && <Badge className="text-xs" style={{ background: "#ede9fe", color: "#5b21b6", border: "none" }}>FEMAS: {d.femasNumberOnNote as string}</Badge>}
+                          {!!d.femasNumberOnNote && <Badge className="text-xs" style={{ background: "#ede9fe", color: "#5b21b6", border: "none" }}>FEMAS: {d.femasNumberOnNote as string}</Badge>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -272,18 +272,18 @@ export default function FeedManagementPage() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-gray-500">
                       <span><span className="text-gray-400">Date:</span> {fmtDate(String(d.deliveryDate ?? ""))}</span>
                       <span><span className="text-gray-400">DN:</span> {String(d.deliveryNoteNumber ?? "—")}</span>
-                      {d.batchNumber && <span><span className="text-gray-400">Batch:</span> {String(d.batchNumber)}</span>}
-                      {d.lotNumber && <span><span className="text-gray-400">Lot:</span> {String(d.lotNumber)}</span>}
-                      {d.storageLocation && <span><span className="text-gray-400">Stored:</span> {String(d.storageLocation)}</span>}
-                      {d.bestBeforeDate && <span><span className="text-gray-400">Best before:</span> {fmtDate(String(d.bestBeforeDate))}</span>}
-                      {d.speciesIntended && <span><span className="text-gray-400">For:</span> {String(d.speciesIntended)}</span>}
-                      {d.receivedBy && <span><span className="text-gray-400">Received by:</span> {String(d.receivedBy)}</span>}
-                      {d.medicatedFeed && d.withdrawalPeriodDays && (
+                      {!!d.batchNumber && <span><span className="text-gray-400">Batch:</span> {String(d.batchNumber)}</span>}
+                      {!!d.lotNumber && <span><span className="text-gray-400">Lot:</span> {String(d.lotNumber)}</span>}
+                      {!!d.storageLocation && <span><span className="text-gray-400">Stored:</span> {String(d.storageLocation)}</span>}
+                      {!!d.bestBeforeDate && <span><span className="text-gray-400">Best before:</span> {fmtDate(String(d.bestBeforeDate))}</span>}
+                      {!!d.speciesIntended && <span><span className="text-gray-400">For:</span> {String(d.speciesIntended)}</span>}
+                      {!!d.receivedBy && <span><span className="text-gray-400">Received by:</span> {String(d.receivedBy)}</span>}
+                      {!!d.medicatedFeed && !!d.withdrawalPeriodDays && (
                         <span className="text-red-600 font-medium col-span-2">Withdrawal period: {String(d.withdrawalPeriodDays)} days</span>
                       )}
                     </div>
-                    {d.notes && <p className="text-xs text-gray-400 mt-2 italic">{String(d.notes)}</p>}
-                    {d.medicationDetails && <p className="text-xs text-red-700 mt-1 font-medium">Medication: {String(d.medicationDetails)}</p>}
+                    {!!d.notes && <p className="text-xs text-gray-400 mt-2 italic">{String(d.notes)}</p>}
+                    {!!d.medicationDetails && <p className="text-xs text-red-700 mt-1 font-medium">Medication: {String(d.medicationDetails)}</p>}
                   </div>
                 ))}
               </div>
@@ -340,7 +340,7 @@ export default function FeedManagementPage() {
                           </div>
                         </div>
                       )}
-                      {s.storageLocation && <p className="text-xs text-gray-500 mt-2"><span className="text-gray-400">Stored:</span> {String(s.storageLocation)}</p>}
+                      {!!s.storageLocation && <p className="text-xs text-gray-500 mt-2"><span className="text-gray-400">Stored:</span> {String(s.storageLocation)}</p>}
                     </div>
                   );
                 })}
@@ -435,7 +435,7 @@ export default function FeedManagementPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeliveryDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
-              if (!deliveryForm.deliveryDate || !deliveryForm.quantityKg || !deliveryForm.supplierName) return toast({ title: "Date, supplier and quantity required", variant: "destructive" });
+              if (!deliveryForm.deliveryDate || !deliveryForm.quantityKg || !deliveryForm.supplierName) { toast({ title: "Date, supplier and quantity required", variant: "destructive" }); return; }
               const costPence = deliveryForm.costPence ? Math.round(parseFloat(deliveryForm.costPence) * 100) : undefined;
               const data: Record<string, unknown> = { ...deliveryForm, costPence, medicatedFeed: deliveryForm.medicatedFeed === "true" };
               if (!data.supplierId) delete data.supplierId;

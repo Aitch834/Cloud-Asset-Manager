@@ -589,6 +589,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
 }
 
 function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
+  const productCategories = useLookupStrings("spray_product_categories", PRODUCT_CATEGORIES_FALLBACK);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const emptyForm = { productName: "", activeIngredient: "", mappaNumber: "", manufacturer: "", category: "", harvestInterval: "", maxApplicationsPerSeason: "", storageRequirements: "" };

@@ -57,7 +57,7 @@ function SmsLevelButton({ value, current, icon: Icon, label, description, onChan
 export default function AccountSettings() {
   const { toast } = useToast();
   const { farmId } = useAppStore();
-  const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } });
+  const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } as any });
 
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,7 +67,7 @@ export default function AccountSettings() {
   const [smsOptIn, setSmsOptIn] = useState<SmsOptIn>("none");
   const [consentChecked, setConsentChecked] = useState(false);
 
-  const activeModules = (dashboardData?.activeSubscriptions ?? []) as Array<Record<string, unknown>>;
+  const activeModules = (dashboardData?.activeSubscriptions ?? []) as unknown as Array<Record<string, unknown>>;
   const hasSmsModule = activeModules.some((m) => m.moduleKey === "sms-alerts");
 
   useEffect(() => {

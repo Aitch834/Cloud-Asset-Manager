@@ -6,6 +6,7 @@ export interface FarmMember {
   lastName: string;
   jobTitle: string | null;
   isActive: boolean;
+  linkedUserId?: string | null;
 }
 
 export function memberFullName(m: FarmMember) {

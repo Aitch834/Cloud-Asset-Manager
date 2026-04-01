@@ -52,7 +52,7 @@ function makeSvgIcon(colour: string): string {
 }
 
 function useFarmMap(
-  containerRef: React.RefObject<HTMLDivElement>,
+  containerRef: React.RefObject<HTMLDivElement | null>,
   locations: FarmLocation[],
   onSelect: (id: number | null) => void
 ) {

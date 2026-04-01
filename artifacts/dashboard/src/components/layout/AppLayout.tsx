@@ -5,7 +5,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useListFarms } from "@workspace/api-client-react/src/generated/api";
 import { NotificationPanel } from "@/components/NotificationPanel";
 
-export function AppLayout({ children, title }: { children: ReactNode, title: string }) {
+export function AppLayout({ children, title }: { children: ReactNode, title?: string }) {
   const { farmId } = useAppStore();
   const { data: farmsData } = useListFarms();
   const currentFarm = farmsData?.farms?.find((f) => f.id === farmId);
@@ -35,7 +35,7 @@ export function AppLayout({ children, title }: { children: ReactNode, title: str
               <Menu className="w-6 h-6" />
             </button>
             <div>
-              <h2 className="text-2xl font-display font-bold text-foreground">{title}</h2>
+              {title && <h2 className="text-2xl font-display font-bold text-foreground">{title}</h2>}
               {farmName && (
                 <p className="text-sm text-muted-foreground -mt-0.5">{farmName}</p>
               )}

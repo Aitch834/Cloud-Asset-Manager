@@ -339,7 +339,7 @@ function VehicleReadingsTab({ farmId }: { farmId: number }) {
             </tr></thead>
             <tbody>{records.map((r: any, i: number) => (
               <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap", color: "#6b7280", fontSize: "0.8rem" }}>{fmtTs(r.readingTimestamp)}</td>
+                <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap", color: "#6b7280", fontSize: "0.8rem" }}>{fmt(r.readingTimestamp)}</td>
                 <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500 }}>{r.vehicleName || "—"}</td>
                 <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280", fontFamily: "monospace", fontSize: "0.8rem" }}>{r.vehicleRegistration || "—"}</td>
                 <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{r.temperatureC ?? "—"}</td>

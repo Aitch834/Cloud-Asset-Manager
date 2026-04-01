@@ -283,7 +283,7 @@ export default function AdvisorsAccessPage() {
                         <Badge variant="secondary" className="text-xs">{ADVISOR_ROLES.find(r => r.value === a.advisorRole)?.label ?? String(a.advisorRole)}</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{String(a.advisorEmail)}</p>
-                      {a.lastAccessAt && (
+                      {!!a.lastAccessAt && (
                         <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                           <Eye className="w-3 h-3" /> Last accessed {new Date(String(a.lastAccessAt)).toLocaleDateString("en-GB")}
                         </p>
@@ -344,7 +344,7 @@ export default function AdvisorsAccessPage() {
                         <span className="font-semibold text-sm">{String(s.accessorName)}</span>
                         <ExpiryBadge expiresAt={String(s.expiresAt)} revokedAt={s.revokedAt ? String(s.revokedAt) : null} />
                       </div>
-                      {s.accessorOrganisation && <p className="text-xs text-muted-foreground mt-0.5">{String(s.accessorOrganisation)}</p>}
+                      {!!s.accessorOrganisation && <p className="text-xs text-muted-foreground mt-0.5">{String(s.accessorOrganisation)}</p>}
                       <p className="text-xs text-muted-foreground mt-0.5">{INSPECTION_PURPOSES.find(p => p.value === s.purpose)?.label ?? String(s.purpose)}</p>
                       <div className="flex items-center gap-3 mt-1">
                         {Number(s.accessCount) > 0 && (
@@ -352,7 +352,7 @@ export default function AdvisorsAccessPage() {
                             <Eye className="w-3 h-3" /> Viewed {Number(s.accessCount)} time{Number(s.accessCount) !== 1 ? "s" : ""}
                           </p>
                         )}
-                        {s.lastAccessAt && (
+                        {!!s.lastAccessAt && (
                           <p className="text-xs text-muted-foreground">Last accessed {new Date(String(s.lastAccessAt)).toLocaleDateString("en-GB")}</p>
                         )}
                       </div>

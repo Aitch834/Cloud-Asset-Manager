@@ -9,7 +9,7 @@ import {
 } from "@workspace/api-client-react/src/generated/api";
 
 export function useCrops(farmId: number) {
-  return useGeneratedListCrops(farmId, { query: { enabled: !!farmId } });
+  return useGeneratedListCrops(farmId, { query: { enabled: !!farmId } as any });
 }
 
 export function useAddCrop(farmId: number) {
@@ -24,7 +24,7 @@ export function useAddCrop(farmId: number) {
 }
 
 export function useFieldCropAssignments(farmId: number) {
-  return useGeneratedListFieldCropAssignments(farmId, { query: { enabled: !!farmId } });
+  return useGeneratedListFieldCropAssignments(farmId, { query: { enabled: !!farmId } as any });
 }
 
 export function useAssignCrop(farmId: number) {

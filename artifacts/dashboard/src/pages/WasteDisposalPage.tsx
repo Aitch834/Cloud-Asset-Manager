@@ -21,6 +21,7 @@ interface WasteRecord {
   farmId: number;
   wasteType: string;
   quantity: string | null;
+  weightTonnes: string | null;
   disposalMethod: string;
   disposalDate: string;
   carrierId: number | null;

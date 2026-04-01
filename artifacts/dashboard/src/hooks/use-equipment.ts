@@ -9,7 +9,7 @@ export function useEquipment(farmId: number) {
   return useGeneratedListEquipment(farmId, {
     query: {
       enabled: !!farmId,
-    }
+    } as any
   });
 }
 

@@ -68,9 +68,9 @@ export function TrialMapView({ trials, cropYear }: Props) {
         link.rel = "stylesheet";
         link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
         document.head.appendChild(link);
-        (window as Record<string, unknown>)["_leafletLoaded"] = true;
+        (window as unknown as Record<string, unknown>)["_leafletLoaded"] = true;
       }
-      (window as Record<string, unknown>)["_L"] = L;
+      (window as unknown as Record<string, unknown>)["_L"] = L;
       setLeafletReady(true);
     });
     return () => { destroyMap(leafletMapRef.current); leafletMapRef.current = null; };
@@ -90,7 +90,7 @@ export function TrialMapView({ trials, cropYear }: Props) {
   // Draw map
   useEffect(() => {
     if (!leafletReady || !mapRef.current || loading) return;
-    const L = (window as Record<string, unknown>)["_L"] as typeof import("leaflet");
+    const L = (window as unknown as Record<string, unknown>)["_L"] as typeof import("leaflet");
 
     destroyMap(leafletMapRef.current);
     leafletMapRef.current = null;
@@ -113,7 +113,7 @@ export function TrialMapView({ trials, cropYear }: Props) {
       const fieldEntry = boundaries.find(b => b.fieldId === trial.fieldId);
       const colors = STATUS_COLORS[trial.status] ?? STATUS_COLORS.planned;
 
-      if (fieldEntry?.boundary?.polygonPoints?.length >= 3) {
+      if (fieldEntry && fieldEntry.boundary && fieldEntry.boundary.polygonPoints && fieldEntry.boundary.polygonPoints.length >= 3) {
         const pts = fieldEntry.boundary.polygonPoints as LatLng[];
         const latlngs = pts.map(p => [p.lat, p.lng] as [number, number]);
         const poly = L.polygon(latlngs, {

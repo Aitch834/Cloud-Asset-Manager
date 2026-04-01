@@ -790,9 +790,9 @@ function MapTab({ farmId }: { farmId: number }) {
         link.rel = "stylesheet";
         link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
         document.head.appendChild(link);
-        (window as Record<string, unknown>)["_leafletLoaded"] = true;
+        (window as unknown as Record<string, unknown>)["_leafletLoaded"] = true;
       }
-      (window as Record<string, unknown>)["_L"] = L;
+      (window as unknown as Record<string, unknown>)["_L"] = L;
       setLeafletReady(true);
     });
     return () => { destroyLeafletMap(leafletMapRef.current); leafletMapRef.current = null; };
@@ -800,7 +800,7 @@ function MapTab({ farmId }: { farmId: number }) {
 
   useEffect(() => {
     if (!leafletReady || !mapRef.current || !allLoaded) return;
-    const L = (window as Record<string, unknown>)["_L"] as typeof import("leaflet");
+    const L = (window as unknown as Record<string, unknown>)["_L"] as typeof import("leaflet");
 
     destroyLeafletMap(leafletMapRef.current);
     leafletMapRef.current = null;
@@ -1089,7 +1089,7 @@ function TrendsTab({ farmId }: { farmId: number }) {
                         <YAxis tick={{ fontSize: 10 }} domain={["auto", "auto"]} />
                         <Tooltip
                           contentStyle={{ fontSize: 11, borderRadius: 8 }}
-                          formatter={(val: unknown) => [typeof val === "number" ? val.toFixed(n.key === "ph" ? 2 : 1) : val, n.label]}
+                          formatter={(val: unknown) => [typeof val === "number" ? val.toFixed(n.key === "ph" ? 2 : 1) : String(val ?? ""), n.label] as [React.ReactNode, string]}
                           labelFormatter={(l) => `Sample: ${l}`}
                         />
                         <ReferenceLine y={n.target} stroke={n.color} strokeDasharray="5 3" opacity={0.5} label={{ value: `Target ${n.target}`, fontSize: 9, fill: n.color }} />

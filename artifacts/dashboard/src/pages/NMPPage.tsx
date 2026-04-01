@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -54,10 +54,11 @@ export default function NMPPage() {
     queryFn: () => fetch(`/api/farms/${farmId}/nmp-plans/${expandedPlanId}/field-entries`).then(r => r.json()),
     enabled: !!farmId && !!expandedPlanId,
     select: d => d.entries ?? [],
-    onSuccess: (data: any[]) => {
-      if (expandedPlanId) setEntryCountByPlan(prev => ({ ...prev, [expandedPlanId]: data.length }));
-    },
   });
+  useEffect(() => {
+    const data: any[] = entriesQ.data ?? [];
+    if (expandedPlanId) setEntryCountByPlan(prev => ({ ...prev, [expandedPlanId]: data.length }));
+  }, [entriesQ.data, expandedPlanId]);
 
   const plans: any[] = plansQ.data ?? [];
   const fields: any[] = fieldsQ.data ?? [];

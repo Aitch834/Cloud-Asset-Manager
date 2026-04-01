@@ -746,7 +746,7 @@ export default function CropTrialsPage() {
       title: "Crop Trials Register",
       farmName: farm?.name,
       cphNumber: farm?.cphNumber ?? undefined,
-      redTractorId: farm?.redTractorId ?? undefined,
+      redTractorId: (farm as any)?.redTractorId ?? undefined,
       recordCount: filtered.length,
       recordLabel: "trial",
       extraMeta: `Crop Year: ${cropYearLabel(cropYear)}`,

@@ -430,7 +430,7 @@ export default function EquipmentPage() {
     });
   };
 
-  const equipment = (data?.records ?? []) as EquipmentRecord[];
+  const equipment = (data?.records ?? []) as unknown as EquipmentRecord[];
   const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   const handleEquipmentPrint = () => {

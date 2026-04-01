@@ -275,8 +275,8 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
 
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const { farmId, clearState } = useAppStore();
-  const { data: farmsData } = useListFarms({ query: { enabled: true } });
-  const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } });
+  const { data: farmsData } = useListFarms({ query: { enabled: true } as any });
+  const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } as any });
   const currentFarm = farmsData?.farms?.find(f => f.id === farmId);
   const { role: userRole } = useUserRole();
 

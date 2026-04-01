@@ -13,7 +13,7 @@ export function useFields(farmId: number) {
   return useGeneratedListFields(farmId, {
     query: {
       enabled: !!farmId,
-    }
+    } as any
   });
 }
 

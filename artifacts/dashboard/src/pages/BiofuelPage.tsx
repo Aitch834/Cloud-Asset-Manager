@@ -85,6 +85,7 @@ interface Delivery {
   certificationRef?: string;
   sustainabilityScheme?: string;
   ghgSavingPercent?: string;
+  sustainabilityDeclarationRef?: string;
   notes?: string;
 }
 

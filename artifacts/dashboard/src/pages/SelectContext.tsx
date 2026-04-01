@@ -75,7 +75,7 @@ export default function SelectContext() {
 
   const { data: tenantsData, isLoading: loadingTenants } = useGetMyTenants();
   const { data: farmsData, isLoading: loadingFarms } = useListFarms({
-    query: { enabled: !!tenantSlug }
+    query: { enabled: !!tenantSlug } as any
   });
 
   const { mutate: createFarm, isPending: isCreating } = useCreateFarm();

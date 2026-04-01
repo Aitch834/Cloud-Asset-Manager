@@ -281,7 +281,7 @@ function FieldCardMenu({
   });
 
   const handleEdit = (values: FieldFormData) => {
-    updateField({ farmId, recordId: field.id, data: values }, { onSuccess: () => { setEditOpen(false); reset(values); } });
+    updateField({ farmId, recordId: field.id, data: values as any }, { onSuccess: () => { setEditOpen(false); reset(values); } });
   };
 
   const handleDelete = () => {
@@ -484,7 +484,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const { data: cropsRegData } = useCrops(farmId);
-  const cropsRegister = (cropsRegData?.records ?? []) as CropRecord[];
+  const cropsRegister = (cropsRegData?.records ?? []) as unknown as CropRecord[];
 
   const baseUrl = `/api/farms/${farmId}/seed-drilling`;
 
@@ -820,9 +820,9 @@ export default function FieldsPage() {
   const cropForm = useForm<CropFormData>();
   const assignForm = useForm<AssignCropFormData>();
 
-  const fields = (fieldsData?.records ?? []) as FieldRecord[];
-  const crops = (cropsData?.records ?? []) as CropRecord[];
-  const assignments = (assignmentsData?.records ?? []) as FieldCropAssignment[];
+  const fields = (fieldsData?.records ?? []) as unknown as FieldRecord[];
+  const crops = (cropsData?.records ?? []) as unknown as CropRecord[];
+  const assignments = (assignmentsData?.records ?? []) as unknown as FieldCropAssignment[];
 
   const availableYears = Array.from(
     new Set([CURRENT_YEAR, ...assignments.map(a => a.year).filter((y): y is number => !!y)])
@@ -841,11 +841,11 @@ export default function FieldsPage() {
   );
 
   const onSubmitField = (values: FieldFormData) => {
-    createField({ farmId, data: values }, { onSuccess: () => { setIsAddFieldOpen(false); fieldForm.reset(); } });
+    createField({ farmId, data: values as any }, { onSuccess: () => { setIsAddFieldOpen(false); fieldForm.reset(); } });
   };
 
   const onSubmitCrop = (values: CropFormData) => {
-    createCrop({ farmId, data: values }, { onSuccess: () => { setIsAddCropOpen(false); cropForm.reset(); } });
+    createCrop({ farmId, data: values as any }, { onSuccess: () => { setIsAddCropOpen(false); cropForm.reset(); } });
   };
 
   const onSubmitAssign = (values: AssignCropFormData) => {

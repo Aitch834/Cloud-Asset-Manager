@@ -422,18 +422,18 @@ export default function FuelEnergyPage() {
                       )}
                       <div className="grid grid-cols-2 gap-1.5 text-xs text-gray-600">
                         <span><span className="text-gray-400">Location:</span> {String(tank.location ?? "—")}</span>
-                        {tank.tankMaterial && <span><span className="text-gray-400">Material:</span> {String(tank.tankMaterial)}</span>}
-                        {tank.nextInspectionDue && (
+                        {!!tank.tankMaterial && <span><span className="text-gray-400">Material:</span> {String(tank.tankMaterial)}</span>}
+                        {!!tank.nextInspectionDue && (
                           <span className={isOverdue ? "text-red-600 font-medium" : ""}>
                             <span className="text-gray-400">Inspect by:</span> {fmtDate(String(tank.nextInspectionDue))}
-                            {isOverdue && " ⚠"}
+                            {!!isOverdue && " ⚠"}
                           </span>
                         )}
-                        {tank.isBunded && tank.bundCapacityLitres && (
+                        {!!tank.isBunded && !!tank.bundCapacityLitres && (
                           <span><span className="text-gray-400">Bund:</span> {fmtL(tank.bundCapacityLitres as string)}</span>
                         )}
                       </div>
-                      {tank.notes && <p className="text-xs text-gray-400 mt-2 italic">{String(tank.notes)}</p>}
+                      {!!tank.notes && <p className="text-xs text-gray-400 mt-2 italic">{String(tank.notes)}</p>}
                     </div>
                   );
                 })}
@@ -586,8 +586,8 @@ export default function FuelEnergyPage() {
                         <CheckRow label="Overfill protection" value={ins.overfillProtectionOk as boolean} />
                         <CheckRow label="Drainage risk managed" value={ins.drainageRiskOk as boolean} />
                       </div>
-                      {ins.issuesFound && <div className="bg-red-50 rounded p-2 mb-2"><p className="text-xs font-medium text-red-800">Issues:</p><p className="text-xs text-red-700">{String(ins.issuesFound)}</p></div>}
-                      {ins.actionsRequired && <div className="bg-amber-50 rounded p-2 mb-2"><p className="text-xs font-medium text-amber-800">Actions:</p><p className="text-xs text-amber-700">{String(ins.actionsRequired)}</p></div>}
+                      {!!ins.issuesFound && <div className="bg-red-50 rounded p-2 mb-2"><p className="text-xs font-medium text-red-800">Issues:</p><p className="text-xs text-red-700">{String(ins.issuesFound)}</p></div>}
+                      {!!ins.actionsRequired && <div className="bg-amber-50 rounded p-2 mb-2"><p className="text-xs font-medium text-amber-800">Actions:</p><p className="text-xs text-amber-700">{String(ins.actionsRequired)}</p></div>}
                       <p className="text-xs text-gray-400 mt-2">Next due: {fmtDate(String(ins.nextInspectionDue ?? ""))}</p>
                     </div>
                   );
@@ -654,13 +654,13 @@ export default function FuelEnergyPage() {
                             <Button size="sm" variant="ghost" onClick={() => delMeterMut.mutate(Number(m.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
                           </div>
                         </div>
-                        {m.location && <p className="text-xs text-gray-500 mb-2">{String(m.location)}</p>}
+                        {!!m.location && <p className="text-xs text-gray-500 mb-2">{String(m.location)}</p>}
                         <div className="grid grid-cols-2 gap-2 text-xs mb-2">
-                          {m.mpan && <div><span className="text-gray-400">MPAN:</span> <span className="font-mono text-gray-700">{String(m.mpan)}</span></div>}
-                          {m.mprn && <div><span className="text-gray-400">MPRN:</span> <span className="font-mono text-gray-700">{String(m.mprn)}</span></div>}
-                          {m.supplier && <div><span className="text-gray-400">Supplier:</span> {String(m.supplier)}</div>}
-                          {m.tariffName && <div><span className="text-gray-400">Tariff:</span> {String(m.tariffName)}</div>}
-                          {m.unitRatePencePerKwh && <div><span className="text-gray-400">Rate:</span> {String(m.unitRatePencePerKwh)}p/kWh</div>}
+                          {!!m.mpan && <div><span className="text-gray-400">MPAN:</span> <span className="font-mono text-gray-700">{String(m.mpan)}</span></div>}
+                          {!!m.mprn && <div><span className="text-gray-400">MPRN:</span> <span className="font-mono text-gray-700">{String(m.mprn)}</span></div>}
+                          {!!m.supplier && <div><span className="text-gray-400">Supplier:</span> {String(m.supplier)}</div>}
+                          {!!m.tariffName && <div><span className="text-gray-400">Tariff:</span> {String(m.tariffName)}</div>}
+                          {!!m.unitRatePencePerKwh && <div><span className="text-gray-400">Rate:</span> {String(m.unitRatePencePerKwh)}p/kWh</div>}
                         </div>
                         <div className="border-t pt-2 mt-2 grid grid-cols-2 gap-2 text-xs">
                           <div><p className="text-gray-400">YTD consumption</p><p className="font-bold text-gray-800">{fmtKwh(ytdKwh || null)}</p></div>
@@ -780,7 +780,7 @@ export default function FuelEnergyPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTankDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
-              if (!tankForm.name) return toast({ title: "Tank name is required", variant: "destructive" });
+              if (!tankForm.name) { toast({ title: "Tank name is required", variant: "destructive" }); return; }
               tankMut.mutate({ ...tankForm, isBunded: tankForm.isBunded === "true" });
             }}>{editTank ? "Save Changes" : "Add Tank"}</Button>
           </DialogFooter>
@@ -830,7 +830,7 @@ export default function FuelEnergyPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeliveryDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
-              if (!deliveryForm.deliveryDate || !deliveryForm.quantityLitres) return toast({ title: "Date and quantity required", variant: "destructive" });
+              if (!deliveryForm.deliveryDate || !deliveryForm.quantityLitres) { toast({ title: "Date and quantity required", variant: "destructive" }); return; }
               const totalCostPence = deliveryForm.unitPricePence && deliveryForm.quantityLitres ? Math.round(parseFloat(deliveryForm.unitPricePence) * parseFloat(deliveryForm.quantityLitres)) : undefined;
               deliveryMut.mutate({ ...deliveryForm, totalCostPence });
             }}>Log Delivery</Button>
@@ -868,7 +868,7 @@ export default function FuelEnergyPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowUsageDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
-              if (!usageForm.usageDate || !usageForm.quantityLitres || !usageForm.purpose) return toast({ title: "Date, quantity and purpose required", variant: "destructive" });
+              if (!usageForm.usageDate || !usageForm.quantityLitres || !usageForm.purpose) { toast({ title: "Date, quantity and purpose required", variant: "destructive" }); return; }
               usageMut.mutate({ ...usageForm });
             }}>Record Usage</Button>
           </DialogFooter>
@@ -926,7 +926,7 @@ export default function FuelEnergyPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowInspDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
-              if (!inspForm.inspectionDate) return toast({ title: "Date required", variant: "destructive" });
+              if (!inspForm.inspectionDate) { toast({ title: "Date required", variant: "destructive" }); return; }
               const boolFields = ["bundingOk", "labellingOk", "spillKitPresent", "spillKitComplete", "tankConditionOk", "pipeworkOk", "fillPointLocked", "overfillProtectionOk", "drainageRiskOk"];
               const data: Record<string, unknown> = { ...inspForm };
               boolFields.forEach(k => { if (data[k] !== undefined && data[k] !== "") data[k] = data[k] === "true"; else delete data[k]; });
@@ -976,7 +976,7 @@ export default function FuelEnergyPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowMeterDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
-              if (!meterForm.name || !meterForm.meterType) return toast({ title: "Name and type required", variant: "destructive" });
+              if (!meterForm.name || !meterForm.meterType) { toast({ title: "Name and type required", variant: "destructive" }); return; }
               const data: Record<string, unknown> = { ...meterForm };
               if (data.unitRatePencePerKwh) data.unitRatePencePerKwh = Math.round(parseFloat(String(data.unitRatePencePerKwh)) * 100) / 100;
               meterMut.mutate(data);
@@ -1030,7 +1030,7 @@ export default function FuelEnergyPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowReadingDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
-              if (!readingForm.readingDate || !readingForm.meterId || !readingForm.meterReading) return toast({ title: "Date, meter and reading required", variant: "destructive" });
+              if (!readingForm.readingDate || !readingForm.meterId || !readingForm.meterReading) { toast({ title: "Date, meter and reading required", variant: "destructive" }); return; }
               const costPence = readingForm.costPounds ? Math.round(parseFloat(readingForm.costPounds) * 100) : undefined;
               const data: Record<string, unknown> = { ...readingForm, costPence };
               delete data.costPounds;

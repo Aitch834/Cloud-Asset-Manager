@@ -2507,7 +2507,7 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
                     <td className="py-2 pr-4">{r.conceptionConfirmed ? "Yes" : "No"}</td>
                     <td className="py-2 pr-4">{r.expectedDueDate ? new Date(r.expectedDueDate as string).toLocaleDateString("en-GB") : "—"}</td>
                     <td className="py-2 text-right space-x-1">
-                      <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""]))); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(r.id as number); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                     </td>
                   </tr>
@@ -2625,7 +2625,7 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
                     <td className="py-2 pr-4">{r.withdrawalPeriodMilk ? `${r.withdrawalPeriodMilk} days` : "—"}</td>
                     <td className="py-2 pr-4">{r.prescriptionValidUntil ? new Date(r.prescriptionValidUntil as string).toLocaleDateString("en-GB") : "—"}</td>
                     <td className="py-2 text-right space-x-1">
-                      <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""]))); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(r.id as number); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                     </td>
                   </tr>
