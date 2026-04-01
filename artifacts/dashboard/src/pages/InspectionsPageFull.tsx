@@ -120,6 +120,7 @@ function StatusBadge({ status }: { status: string }) {
 function InspectionsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const inspectionTypes = useLookupStrings("inspection_types", ["Red Tractor", "Internal Audit", "EHO", "Trading Standards", "Organic", "Other"]);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<any>({ inspectionDate: "", inspectorName: "", inspectionBody: "", inspectionType: "", overallResult: "", summary: "", nextInspectionDue: "", notes: "" });
@@ -833,7 +834,6 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
 
 export default function InspectionsPageFull() {
   const { farmId } = useAppStore();
-  const inspectionTypes = useLookupStrings("inspection_types", ["Red Tractor", "Internal Audit", "EHO", "Trading Standards", "Organic", "Other"]);
   const [tab, setTab] = useState<Tab>("inspections");
 
   return (
