@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2 } from "lucide-react";
+import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink } from "lucide-react";
 
 const SPRAY_EQUIPMENT_TYPES = ["sprayer", "spot-sprayer", "knapsack", "boom sprayer", "tractor", "uas", "drone", "other"];
 
@@ -646,10 +646,33 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
     });
     setDialogOpen(true);
   }
-  function closeDialog() { setDialogOpen(false); setEditRecord(null); setForm(emptyForm); }
+  const [mappaError, setMappaError] = useState<string | null>(null);
+  function closeDialog() { setDialogOpen(false); setEditRecord(null); setForm(emptyForm); setMappaError(null); }
   function formBody() {
-    const { coshhRecordId, ...rest } = form;
-    return { ...rest, coshhRecordId: coshhRecordId && coshhRecordId !== "__none__" ? Number(coshhRecordId) : null };
+    const { coshhRecordId, mappaNumber, ...rest } = form;
+    const paddedMappa = mappaNumber && /^\d{1,5}$/.test(mappaNumber)
+      ? mappaNumber.padStart(5, "0")
+      : mappaNumber;
+    return { ...rest, mappaNumber: paddedMappa || null, coshhRecordId: coshhRecordId && coshhRecordId !== "__none__" ? Number(coshhRecordId) : null };
+  }
+  function hseMappUrl(mapp: string) {
+    return `https://secure.pesticides.gov.uk/pestreg/prodresults.asp?reg=MAPP${mapp.padStart(5, "0")}`;
+  }
+  function handleMappaChange(raw: string) {
+    const digits = raw.replace(/\D/g, "").slice(0, 5);
+    setForm((f: any) => ({ ...f, mappaNumber: digits }));
+    setMappaError(null);
+  }
+  function handleMappaBlur() {
+    const val = form.mappaNumber ?? "";
+    if (!val) return;
+    if (/^\d{1,5}$/.test(val)) {
+      const padded = val.padStart(5, "0");
+      setForm((f: any) => ({ ...f, mappaNumber: padded }));
+      setMappaError(null);
+    } else {
+      setMappaError("Must be up to 5 digits (numbers only)");
+    }
   }
 
   const createMut = useMutation({
@@ -723,7 +746,21 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">MAPP Number</p>
-                  <p>{viewRecord.mappaNumber ? <Badge style={{ background: "#fef3c7", color: "#92400e", border: "none", fontSize: "0.72rem", fontFamily: "monospace" }}>{viewRecord.mappaNumber}</Badge> : <span className="text-gray-400">—</span>}</p>
+                  {viewRecord.mappaNumber ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+                      <Badge style={{ background: "#fef3c7", color: "#92400e", border: "none", fontSize: "0.72rem", fontFamily: "monospace" }}>{viewRecord.mappaNumber}</Badge>
+                      <a
+                        href={`https://secure.pesticides.gov.uk/pestreg/prodresults.asp?reg=MAPP${viewRecord.mappaNumber}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.72rem", color: "#1d4ed8", textDecoration: "none" }}
+                        title="Verify on HSE Pesticide Register"
+                      >
+                        <ExternalLink size={11} />
+                        Verify on HSE
+                      </a>
+                    </div>
+                  ) : <span className="text-gray-400">—</span>}
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">Active Ingredient</p>
@@ -812,7 +849,29 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
               </div>
               <div>
                 <Label>MAPP Number</Label>
-                <Input placeholder="e.g. 15026" value={form.mappaNumber} onChange={e => setForm((f: any) => ({ ...f, mappaNumber: e.target.value }))} />
+                <Input
+                  placeholder="e.g. 15026"
+                  value={form.mappaNumber}
+                  onChange={e => handleMappaChange(e.target.value)}
+                  onBlur={handleMappaBlur}
+                  inputMode="numeric"
+                  maxLength={5}
+                  style={mappaError ? { borderColor: "#ef4444" } : undefined}
+                />
+                {mappaError && (
+                  <p style={{ fontSize: "0.72rem", color: "#ef4444", marginTop: 3 }}>{mappaError}</p>
+                )}
+                {!mappaError && form.mappaNumber && /^\d{5}$/.test(form.mappaNumber) && (
+                  <a
+                    href={hseMappUrl(form.mappaNumber)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.72rem", color: "#1d4ed8", marginTop: 3, textDecoration: "none" }}
+                  >
+                    <ExternalLink size={11} />
+                    Verify on HSE Register
+                  </a>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
