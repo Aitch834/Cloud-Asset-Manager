@@ -1224,13 +1224,26 @@ export default function FieldsPage() {
       {/* ── CROPS REGISTER TAB ── */}
       {tab === "crops" && (
         <>
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
             <div>
               <p className="text-sm text-foreground/60">
                 Your crop catalogue — add crop types here, then assign them to fields each season.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Year selector — same as Fields tab */}
+              <div className="relative flex-shrink-0">
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 pointer-events-none" />
+                <select
+                  value={selectedYear}
+                  onChange={e => { setSelectedYear(Number(e.target.value)); setExpandedCropId(null); }}
+                  className="appearance-none border border-input rounded-lg pl-3 pr-8 py-2 text-sm bg-white font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+                >
+                  {availableYears.map(y => (
+                    <option key={y} value={y}>{y} Season{y === CURRENT_YEAR ? " (Current)" : ""}</option>
+                  ))}
+                </select>
+              </div>
               <Button variant="outline" className="gap-2" onClick={() => setPrintOpen(true)}>
                 <Printer className="w-4 h-4" /> Print Register
               </Button>
@@ -1285,7 +1298,10 @@ export default function FieldsPage() {
           ) : (
             <div className="space-y-2">
               {crops.map(crop => {
-                const assignedFields = assignments.filter(a => a.cropId === crop.id && (a.year === CURRENT_YEAR || !a.year));
+                const assignedFields = assignments.filter(a =>
+                  a.cropId === crop.id &&
+                  (selectedYear === CURRENT_YEAR ? (a.year === CURRENT_YEAR || !a.year) : a.year === selectedYear)
+                );
                 const isExpanded = expandedCropId === crop.id;
                 const hasAssignments = assignedFields.length > 0;
                 return (
@@ -1325,7 +1341,7 @@ export default function FieldsPage() {
                         ) : (
                           <div className="space-y-2">
                             <p className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wide mb-2">
-                              Fields growing {crop.name} — {CURRENT_YEAR} season
+                              Fields growing {crop.name} — {selectedYear} season
                             </p>
                             {assignedFields.map(a => {
                               const field = fields.find(f => f.id === a.fieldId);
