@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil } from "lucide-react";
+import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2 } from "lucide-react";
 
 const SPRAY_EQUIPMENT_TYPES = ["sprayer", "spot-sprayer", "knapsack", "boom sprayer", "tractor", "uas", "drone", "other"];
 
@@ -376,6 +376,37 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                 <SelectContent>{products.length === 0 ? <SelectItem value="__none__" disabled>Add products in the Product Register tab first</SelectItem> : products.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.productName}{p.activeIngredient ? ` (${p.activeIngredient})` : ""}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            {(() => {
+              const selectedProduct = form.productId ? products.find((p: any) => String(p.id) === String(form.productId)) : null;
+              const coshh = selectedProduct?.coshhRecord;
+              if (!coshh) return null;
+              const ppeList = coshh.ppe ? coshh.ppe.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+              return (
+                <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "0.75rem 1rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                    <ShieldAlert size={15} style={{ color: "#b45309", flexShrink: 0 }} />
+                    <span style={{ fontWeight: 700, fontSize: "0.8rem", color: "#b45309", textTransform: "uppercase", letterSpacing: "0.05em" }}>Safety Reminder — COSHH</span>
+                    {coshh.hazardClassification && (
+                      <Badge style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", fontSize: "0.7rem", marginLeft: "auto" }}>{coshh.hazardClassification}</Badge>
+                    )}
+                  </div>
+                  {ppeList.length > 0 && (
+                    <p style={{ fontSize: "0.8rem", color: "#78350f", margin: "0 0 0.3rem" }}>
+                      <strong>PPE required:</strong> {ppeList.join(" · ")}
+                    </p>
+                  )}
+                  {coshh.controlMeasures && (
+                    <p style={{ fontSize: "0.78rem", color: "#92400e", margin: "0 0 0.3rem" }}>{coshh.controlMeasures}</p>
+                  )}
+                  {coshh.emergencyProcedures && (
+                    <p style={{ fontSize: "0.78rem", color: "#dc2626", margin: "0.3rem 0 0", fontWeight: 600 }}>
+                      Emergency: {coshh.emergencyProcedures}
+                    </p>
+                  )}
+                  <p style={{ fontSize: "0.72rem", color: "#a16207", margin: "0.4rem 0 0" }}>Full COSHH assessment in Risk &amp; Safety → Chemical Handling</p>
+                </div>
+              );
+            })()}
             {deliveryStockItemId && (
               <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.75rem" }}>
                 <Label style={{ marginBottom: 6, display: "block", color: "#166534", fontWeight: 600, fontSize: "0.8rem" }}>Batch / Lot Traceability</Label>
@@ -590,11 +621,13 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
 
 function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
   const productCategories = useLookupStrings("spray_product_categories", PRODUCT_CATEGORIES_FALLBACK);
+  const coshhQ = useQuery({ queryKey: ["risk-coshh", farmId], queryFn: () => fetch(`/api/farms/${farmId}/risk-coshh`).then(r => r.json()), enabled: !!farmId });
+  const coshhRecords: any[] = coshhQ.data?.records ?? [];
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [viewRecord, setViewRecord] = useState<any>(null);
-  const emptyForm = { productName: "", activeIngredient: "", mappaNumber: "", manufacturer: "", category: "", harvestInterval: "", maxApplicationsPerSeason: "", storageRequirements: "" };
+  const emptyForm = { productName: "", activeIngredient: "", mappaNumber: "", manufacturer: "", category: "", harvestInterval: "", maxApplicationsPerSeason: "", storageRequirements: "", coshhRecordId: "__none__" };
   const [form, setForm] = useState<any>(emptyForm);
 
   function openAdd() { setEditRecord(null); setForm(emptyForm); setDialogOpen(true); }
@@ -609,10 +642,15 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
       harvestInterval: p.harvestInterval ?? "",
       maxApplicationsPerSeason: p.maxApplicationsPerSeason ?? "",
       storageRequirements: p.storageRequirements ?? "",
+      coshhRecordId: p.coshhRecordId ? String(p.coshhRecordId) : "__none__",
     });
     setDialogOpen(true);
   }
   function closeDialog() { setDialogOpen(false); setEditRecord(null); setForm(emptyForm); }
+  function formBody() {
+    const { coshhRecordId, ...rest } = form;
+    return { ...rest, coshhRecordId: coshhRecordId && coshhRecordId !== "__none__" ? Number(coshhRecordId) : null };
+  }
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/spray-products`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
@@ -710,6 +748,32 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
                   <p className="text-sm text-green-900">{viewRecord.storageRequirements}</p>
                 </div>
               )}
+              {viewRecord.coshhRecord ? (
+                <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "0.75rem 1rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.5rem" }}>
+                    <ShieldAlert size={14} style={{ color: "#b45309" }} />
+                    <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "#b45309" }}>Linked COSHH Record</p>
+                    {viewRecord.coshhRecord.hazardClassification && (
+                      <Badge style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", fontSize: "0.7rem", marginLeft: "auto" }}>{viewRecord.coshhRecord.hazardClassification}</Badge>
+                    )}
+                  </div>
+                  <p className="text-sm font-semibold text-amber-900 mb-1">{viewRecord.coshhRecord.substanceName}</p>
+                  {viewRecord.coshhRecord.ppe && (
+                    <p style={{ fontSize: "0.8rem", color: "#78350f", margin: "0 0 0.25rem" }}><strong>PPE:</strong> {viewRecord.coshhRecord.ppe}</p>
+                  )}
+                  {viewRecord.coshhRecord.controlMeasures && (
+                    <p style={{ fontSize: "0.78rem", color: "#92400e", margin: "0 0 0.25rem" }}>{viewRecord.coshhRecord.controlMeasures}</p>
+                  )}
+                  {viewRecord.coshhRecord.emergencyProcedures && (
+                    <p style={{ fontSize: "0.78rem", color: "#dc2626", fontWeight: 600, margin: 0 }}>Emergency: {viewRecord.coshhRecord.emergencyProcedures}</p>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px dashed #e5e7eb" }}>
+                  <Link2 size={13} style={{ color: "#d1d5db" }} />
+                  <p style={{ fontSize: "0.78rem", color: "#9ca3af", margin: 0 }}>No COSHH record linked — use Edit to link one</p>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter className="gap-2">
@@ -769,12 +833,35 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
               <Label>Storage Requirements</Label>
               <Textarea placeholder="e.g. Store in original container, locked chemical store, above 5°C" value={form.storageRequirements} onChange={e => setForm((f: any) => ({ ...f, storageRequirements: e.target.value }))} rows={2} />
             </div>
+            <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "0.75rem", marginTop: "0.25rem" }}>
+              <Label style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <Link2 size={13} style={{ color: "#6b7280" }} />
+                Link COSHH Record
+              </Label>
+              <p style={{ fontSize: "0.75rem", color: "#9ca3af", margin: "0.2rem 0 0.4rem" }}>
+                Linking a COSHH record will show a safety reminder when this product is selected in the Applications Log.
+              </p>
+              <Select value={form.coshhRecordId} onValueChange={v => setForm((f: any) => ({ ...f, coshhRecordId: v }))}>
+                <SelectTrigger><SelectValue placeholder="No COSHH record linked" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No COSHH record linked</SelectItem>
+                  {coshhRecords.map((c: any) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.substanceName}{c.hazardClassification ? ` — ${c.hazardClassification}` : ""}
+                    </SelectItem>
+                  ))}
+                  {coshhRecords.length === 0 && (
+                    <SelectItem value="__empty__" disabled>No COSHH records — add one in Risk &amp; Safety first</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             {editRecord
-              ? <Button onClick={() => updateMut.mutate({ id: editRecord.id, body: form })} disabled={!form.productName || updateMut.isPending}>Save Changes</Button>
-              : <Button onClick={() => createMut.mutate(form)} disabled={!form.productName || createMut.isPending}>Add Product</Button>
+              ? <Button onClick={() => updateMut.mutate({ id: editRecord.id, body: formBody() })} disabled={!form.productName || updateMut.isPending}>Save Changes</Button>
+              : <Button onClick={() => createMut.mutate(formBody())} disabled={!form.productName || createMut.isPending}>Add Product</Button>
             }
           </DialogFooter>
         </DialogContent>

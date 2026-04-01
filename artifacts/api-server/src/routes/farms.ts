@@ -837,7 +837,46 @@ router.delete("/farms/:farmId/field-operations/:recordId", requireAuth, requireT
 router.get("/farms/:farmId/spray-products", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(sprayProductsTable).where(eq(sprayProductsTable.farmId, farmId)).orderBy(desc(sprayProductsTable.createdAt));
+  const rows = await db
+    .select({
+      id: sprayProductsTable.id,
+      farmId: sprayProductsTable.farmId,
+      productName: sprayProductsTable.productName,
+      activeIngredient: sprayProductsTable.activeIngredient,
+      mappaNumber: sprayProductsTable.mappaNumber,
+      manufacturer: sprayProductsTable.manufacturer,
+      category: sprayProductsTable.category,
+      harvestInterval: sprayProductsTable.harvestInterval,
+      maxApplicationsPerSeason: sprayProductsTable.maxApplicationsPerSeason,
+      storageRequirements: sprayProductsTable.storageRequirements,
+      coshhRecordId: sprayProductsTable.coshhRecordId,
+      stockItemId: sprayProductsTable.stockItemId,
+      createdAt: sprayProductsTable.createdAt,
+      coshhSubstanceName: coshhRecordsTable.substanceName,
+      coshhHazardClassification: coshhRecordsTable.hazardClassification,
+      coshhPpe: coshhRecordsTable.ppe,
+      coshhEmergencyProcedures: coshhRecordsTable.emergencyProcedures,
+      coshhControlMeasures: coshhRecordsTable.controlMeasures,
+    })
+    .from(sprayProductsTable)
+    .leftJoin(coshhRecordsTable, eq(sprayProductsTable.coshhRecordId, coshhRecordsTable.id))
+    .where(eq(sprayProductsTable.farmId, farmId))
+    .orderBy(desc(sprayProductsTable.createdAt));
+  const records = rows.map(r => ({
+    id: r.id, farmId: r.farmId, productName: r.productName, activeIngredient: r.activeIngredient,
+    mappaNumber: r.mappaNumber, manufacturer: r.manufacturer, category: r.category,
+    harvestInterval: r.harvestInterval, maxApplicationsPerSeason: r.maxApplicationsPerSeason,
+    storageRequirements: r.storageRequirements, coshhRecordId: r.coshhRecordId,
+    stockItemId: r.stockItemId, createdAt: r.createdAt,
+    coshhRecord: r.coshhRecordId ? {
+      id: r.coshhRecordId,
+      substanceName: r.coshhSubstanceName,
+      hazardClassification: r.coshhHazardClassification,
+      ppe: r.coshhPpe,
+      emergencyProcedures: r.coshhEmergencyProcedures,
+      controlMeasures: r.coshhControlMeasures,
+    } : null,
+  }));
   res.json({ records });
 });
 

@@ -3,6 +3,7 @@ import { farmsTable, farmMembersTable } from "./core";
 import { fieldsTable } from "./fields-crops";
 import { stockItemsTable, stockDeliveriesTable, suppliersTable } from "./stock-suppliers";
 import { equipmentTable } from "./equipment";
+import { coshhRecordsTable } from "./risk-waste";
 
 export const sprayProductsTable = pgTable("spray_products", {
   id: serial("id").primaryKey(),
@@ -15,6 +16,7 @@ export const sprayProductsTable = pgTable("spray_products", {
   harvestInterval: integer("harvest_interval"),
   maxApplicationsPerSeason: integer("max_applications_per_season"),
   storageRequirements: text("storage_requirements"),
+  coshhRecordId: integer("coshh_record_id").references(() => coshhRecordsTable.id),
   stockItemId: integer("stock_item_id").references(() => stockItemsTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
