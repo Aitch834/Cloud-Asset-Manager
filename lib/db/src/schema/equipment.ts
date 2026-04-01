@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, boolean, numeric, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { suppliersTable, stockItemsTable } from "./stock-suppliers";
+import { storageLocationsTable } from "./fields-crops";
 
 export const equipmentTable = pgTable("equipment", {
   id: serial("id").primaryKey(),
@@ -145,6 +146,7 @@ export const grainStorageBinsTable = pgTable("grain_storage_bins", {
 export const grainQualityTestsTable = pgTable("grain_quality_tests", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  locationId: integer("location_id").references(() => storageLocationsTable.id),
   binId: integer("bin_id").references(() => grainStorageBinsTable.id),
   testDate: date("test_date").notNull(),
   cropType: text("crop_type").notNull(),
@@ -171,7 +173,8 @@ export const grainQualityTestsTable = pgTable("grain_quality_tests", {
 export const grainTemperatureLogsTable = pgTable("grain_temperature_logs", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
-  binId: integer("bin_id").notNull().references(() => grainStorageBinsTable.id),
+  locationId: integer("location_id").references(() => storageLocationsTable.id),
+  binId: integer("bin_id").references(() => grainStorageBinsTable.id),
   logDate: date("log_date").notNull(),
   logTime: text("log_time"),
   temperatureC: numeric("temperature_c", { precision: 5, scale: 1 }).notNull(),

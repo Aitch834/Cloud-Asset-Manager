@@ -10162,7 +10162,10 @@ router.delete("/farms/:farmId/equipment-defect-reports/:recordId", requireAuth, 
 
 router.get("/farms/:farmId/grain-quality-tests", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(grainQualityTestsTable).where(eq(grainQualityTestsTable.farmId, farmId)).orderBy(desc(grainQualityTestsTable.testDate));
+  const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : undefined;
+  const conditions = [eq(grainQualityTestsTable.farmId, farmId)];
+  if (locationId) conditions.push(eq(grainQualityTestsTable.locationId, locationId));
+  const rows = await db.select().from(grainQualityTestsTable).where(and(...conditions)).orderBy(desc(grainQualityTestsTable.testDate));
   res.json(rows);
 });
 router.post("/farms/:farmId/grain-quality-tests", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -10185,7 +10188,10 @@ router.delete("/farms/:farmId/grain-quality-tests/:id", requireAuth, requireTena
 
 router.get("/farms/:farmId/grain-temperature-logs", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(grainTemperatureLogsTable).where(eq(grainTemperatureLogsTable.farmId, farmId)).orderBy(desc(grainTemperatureLogsTable.logDate));
+  const locationId = req.query.locationId ? parseInt(req.query.locationId as string) : undefined;
+  const conditions = [eq(grainTemperatureLogsTable.farmId, farmId)];
+  if (locationId) conditions.push(eq(grainTemperatureLogsTable.locationId, locationId));
+  const rows = await db.select().from(grainTemperatureLogsTable).where(and(...conditions)).orderBy(desc(grainTemperatureLogsTable.logDate));
   res.json(rows);
 });
 router.post("/farms/:farmId/grain-temperature-logs", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {

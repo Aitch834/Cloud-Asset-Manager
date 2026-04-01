@@ -116,6 +116,11 @@ export const storageLocationsTable = pgTable("storage_locations", {
   notes: text("notes"),
   storageCode: text("storage_code"),
   isActive: boolean("is_active").notNull().default(true),
+  binType: text("bin_type"),
+  dryingSystem: text("drying_system"),
+  aerationSystem: boolean("aeration_system").default(false),
+  temperatureMonitoring: boolean("temperature_monitoring").default(false),
+  sensorCount: integer("sensor_count"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
