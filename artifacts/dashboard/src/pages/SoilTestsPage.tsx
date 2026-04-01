@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { SoilSensorsTab } from "./SoilSensorsTab";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, ReferenceLine,
@@ -18,7 +19,7 @@ import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, ChevronDown, ChevronUp,
   TestTube, Printer, FlaskConical, ArrowRight, CheckCircle, Clock, Archive,
-  MoreHorizontal, MapPin, Map, TrendingUp, TrendingDown, Minus,
+  MoreHorizontal, MapPin, Map, TrendingUp, TrendingDown, Minus, Activity,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import {
@@ -28,7 +29,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
-type PageTab = "register" | "map" | "trends" | "print";
+type PageTab = "register" | "map" | "trends" | "sensors" | "print";
 type StatusFilter = "all" | "sampled" | "sent_to_lab" | "results_received" | "archived";
 
 function formatDate(val: string | null | undefined): string {
@@ -1172,12 +1173,16 @@ export default function SoilTestsPage() {
         <TabButton active={tab === "trends"} onClick={() => setTab("trends")}>
           <TrendingUp className="w-3.5 h-3.5 mr-1 inline-block" />Soil Trends
         </TabButton>
+        <TabButton active={tab === "sensors"} onClick={() => setTab("sensors")}>
+          <Activity className="w-3.5 h-3.5 mr-1 inline-block" />Sensors
+        </TabButton>
         <TabButton active={tab === "print"} onClick={() => setTab("print")}>Print / Export</TabButton>
       </TabBar>
       <div className="mt-6">
         {tab === "register" && <RegisterTab farmId={farmId} />}
         {tab === "map" && <MapTab farmId={farmId} />}
         {tab === "trends" && <TrendsTab farmId={farmId} />}
+        {tab === "sensors" && <SoilSensorsTab farmId={farmId} />}
         {tab === "print" && <PrintTab farmId={farmId} />}
       </div>
     </AppLayout>

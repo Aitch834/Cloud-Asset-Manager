@@ -21,6 +21,8 @@ import {
   nvzFertiliserApplicationsTable,
   soilTestRecordsTable,
   soilTestResultsTable,
+  soilSensorProbesTable,
+  soilSensorReadingsTable,
   equipmentTable,
   equipmentMaintenanceLogsTable,
   workshopJobsTable,
@@ -1325,6 +1327,131 @@ router.delete("/farms/:farmId/soil-tests/:recordId/results/:resultId", requireAu
   const resultId = parseInt(req.params.resultId, 10);
   if (isNaN(resultId)) { res.status(400).json({ error: "Invalid result ID" }); return; }
   await db.delete(soilTestResultsTable).where(eq(soilTestResultsTable.id, resultId));
+  res.json({ success: true });
+});
+
+// ─── Soil Sensor Probes ──────────────────────────────────────
+router.get("/farms/:farmId/soil-sensors", requireAuth, requireTenant, requireModuleByKey("soil-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(soilSensorProbesTable).where(eq(soilSensorProbesTable.farmId, farmId)).orderBy(soilSensorProbesTable.name);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/soil-sensors", requireAuth, requireTenant, requireModuleByKey("soil-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { name, manufacturer, model, sensorType, depthsCm, fieldId, latitude, longitude, installDate, notes, isActive } = req.body;
+  if (!name) { res.status(400).json({ error: "name is required" }); return; }
+  const [record] = await db.insert(soilSensorProbesTable).values({
+    farmId, name, manufacturer: manufacturer || null, model: model || null,
+    sensorType: sensorType || "moisture", depthsCm: depthsCm || null,
+    fieldId: fieldId ? parseInt(fieldId, 10) : null,
+    latitude: latitude || null, longitude: longitude || null,
+    installDate: installDate ? new Date(installDate) : null,
+    notes: notes || null, isActive: isActive !== false,
+  }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/soil-sensors/:probeId", requireAuth, requireTenant, requireModuleByKey("soil-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const probeId = parseInt(req.params.probeId, 10);
+  if (isNaN(probeId)) { res.status(400).json({ error: "Invalid probe ID" }); return; }
+  const { name, manufacturer, model, sensorType, depthsCm, fieldId, latitude, longitude, installDate, notes, isActive } = req.body;
+  const updates: Record<string, unknown> = {};
+  if (name !== undefined) updates.name = name;
+  if (manufacturer !== undefined) updates.manufacturer = manufacturer || null;
+  if (model !== undefined) updates.model = model || null;
+  if (sensorType !== undefined) updates.sensorType = sensorType;
+  if (depthsCm !== undefined) updates.depthsCm = depthsCm || null;
+  if (fieldId !== undefined) updates.fieldId = fieldId ? parseInt(fieldId, 10) : null;
+  if (latitude !== undefined) updates.latitude = latitude || null;
+  if (longitude !== undefined) updates.longitude = longitude || null;
+  if (installDate !== undefined) updates.installDate = installDate ? new Date(installDate) : null;
+  if (notes !== undefined) updates.notes = notes || null;
+  if (isActive !== undefined) updates.isActive = isActive !== false;
+  const [record] = await db.update(soilSensorProbesTable).set(updates).where(and(eq(soilSensorProbesTable.id, probeId), eq(soilSensorProbesTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Probe not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/soil-sensors/:probeId", requireAuth, requireTenant, requireModuleByKey("soil-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const probeId = parseInt(req.params.probeId, 10);
+  if (isNaN(probeId)) { res.status(400).json({ error: "Invalid probe ID" }); return; }
+  await db.delete(soilSensorReadingsTable).where(and(eq(soilSensorReadingsTable.probeId, probeId), eq(soilSensorReadingsTable.farmId, farmId)));
+  await db.delete(soilSensorProbesTable).where(and(eq(soilSensorProbesTable.id, probeId), eq(soilSensorProbesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Soil Sensor Readings ──────────────────────────────────────
+router.get("/farms/:farmId/soil-sensors/:probeId/readings", requireAuth, requireTenant, requireModuleByKey("soil-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const probeId = parseInt(req.params.probeId, 10);
+  if (isNaN(probeId)) { res.status(400).json({ error: "Invalid probe ID" }); return; }
+  const { from, to, limit } = req.query;
+  const conditions = [eq(soilSensorReadingsTable.probeId, probeId), eq(soilSensorReadingsTable.farmId, farmId)];
+  if (from) conditions.push(sql`${soilSensorReadingsTable.readingAt} >= ${new Date(String(from))}`);
+  if (to)   conditions.push(sql`${soilSensorReadingsTable.readingAt} <= ${new Date(String(to))}`);
+  const maxRows = limit ? Math.min(parseInt(String(limit), 10), 5000) : 1000;
+  const records = await db.select().from(soilSensorReadingsTable).where(and(...conditions)).orderBy(desc(soilSensorReadingsTable.readingAt)).limit(maxRows);
+  res.json({ records: records.reverse() });
+});
+
+router.post("/farms/:farmId/soil-sensors/:probeId/readings", requireAuth, requireTenant, requireModuleByKey("soil-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const probeId = parseInt(req.params.probeId, 10);
+  if (isNaN(probeId)) { res.status(400).json({ error: "Invalid probe ID" }); return; }
+  const [probe] = await db.select({ id: soilSensorProbesTable.id }).from(soilSensorProbesTable).where(and(eq(soilSensorProbesTable.id, probeId), eq(soilSensorProbesTable.farmId, farmId)));
+  if (!probe) { res.status(404).json({ error: "Probe not found" }); return; }
+  const { readingAt, depthCm, moisturePercent, temperatureCelsius, ecUsPerCm, notes } = req.body;
+  if (!readingAt) { res.status(400).json({ error: "readingAt is required" }); return; }
+  const [record] = await db.insert(soilSensorReadingsTable).values({
+    probeId, farmId, readingAt: new Date(readingAt),
+    depthCm: depthCm ? parseInt(depthCm, 10) : null,
+    moisturePercent: moisturePercent || null,
+    temperatureCelsius: temperatureCelsius || null,
+    ecUsPerCm: ecUsPerCm || null,
+    entryMethod: "manual",
+    notes: notes || null,
+  }).returning();
+  res.status(201).json({ record });
+});
+
+router.post("/farms/:farmId/soil-sensors/:probeId/readings/bulk", requireAuth, requireTenant, requireModuleByKey("soil-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const probeId = parseInt(req.params.probeId, 10);
+  if (isNaN(probeId)) { res.status(400).json({ error: "Invalid probe ID" }); return; }
+  const [probe] = await db.select({ id: soilSensorProbesTable.id }).from(soilSensorProbesTable).where(and(eq(soilSensorProbesTable.id, probeId), eq(soilSensorProbesTable.farmId, farmId)));
+  if (!probe) { res.status(404).json({ error: "Probe not found" }); return; }
+  const { rows } = req.body as { rows: Array<{ readingAt: string; depthCm?: number; moisturePercent?: string; temperatureCelsius?: string; ecUsPerCm?: string; notes?: string }> };
+  if (!Array.isArray(rows) || rows.length === 0) { res.status(400).json({ error: "rows array is required" }); return; }
+  if (rows.length > 5000) { res.status(400).json({ error: "Maximum 5000 rows per import" }); return; }
+  const values = rows.map(r => ({
+    probeId, farmId, readingAt: new Date(r.readingAt),
+    depthCm: r.depthCm ?? null,
+    moisturePercent: r.moisturePercent || null,
+    temperatureCelsius: r.temperatureCelsius || null,
+    ecUsPerCm: r.ecUsPerCm || null,
+    entryMethod: "csv" as const,
+    notes: r.notes || null,
+  }));
+  const inserted = await db.insert(soilSensorReadingsTable).values(values).returning({ id: soilSensorReadingsTable.id });
+  res.status(201).json({ inserted: inserted.length });
+});
+
+router.delete("/farms/:farmId/soil-sensors/:probeId/readings/:readingId", requireAuth, requireTenant, requireModuleByKey("soil-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const readingId = parseInt(req.params.readingId, 10);
+  if (isNaN(readingId)) { res.status(400).json({ error: "Invalid reading ID" }); return; }
+  await db.delete(soilSensorReadingsTable).where(and(eq(soilSensorReadingsTable.id, readingId), eq(soilSensorReadingsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

@@ -1,7 +1,7 @@
 # Workspace
 
 ## Overview
-This project is a pnpm workspace monorepo using TypeScript, designed for BDE Farm Trac, a comprehensive farm management and compliance platform. It provides a multi-tenant solution for farmers to manage operations, including field, crop, livestock, financial, and regulatory compliance (e.g., Red Tractor). The platform features a React web dashboard, an Expo React Native mobile app for field use, a marketing website, and an Express API server. The business vision is to streamline farm operations, ensure compliance, provide valuable insights, and capture a significant share of the agricultural technology market.
+This project is a pnpm workspace monorepo for BDE Farm Trac, a multi-tenant farm management and compliance platform. It provides tools for field, crop, livestock, financial, and regulatory compliance (e.g., Red Tractor) for farmers. The platform includes a React web dashboard, an Expo React Native mobile app, a marketing website, and an Express API server. The goal is to streamline farm operations, ensure compliance, offer valuable insights, and capture a significant share of the agricultural technology market.
 
 ## User Preferences
 I prefer clear and direct communication. When making changes, prioritize iterative development and explain the high-level approach before diving into code. Ask for confirmation before implementing significant architectural changes or adding new external dependencies. For code, I appreciate well-structured, maintainable TypeScript.
@@ -9,84 +9,68 @@ I prefer clear and direct communication. When making changes, prioritize iterati
 ## System Architecture
 
 ### UI/UX Decisions
-The platform uses React with Vite for the dashboard and marketing website. The dashboard features comprehensive sidebar navigation for 17+ compliance modules and a generic `ModulePage` for consistent CRUD interfaces. The mobile app, built with Expo React Native, prioritizes an offline-first experience with a native-like UI, GPS-enabled features, and Red Tractor compliance forms. Design tokens and a Tailwind preset are shared via `lib/shared-assets`. Error boundaries are implemented for graceful error handling in React applications.
+The platform uses React with Vite for the dashboard and marketing website, and Expo React Native for the mobile app. The dashboard features comprehensive sidebar navigation and consistent CRUD interfaces via `ModulePage`. The mobile app prioritizes an offline-first, native-like experience with GPS and Red Tractor compliance forms. Design tokens and a Tailwind preset are shared via `lib/shared-assets`. Error boundaries are implemented for graceful error handling.
 
 ### Technical Implementations
-The monorepo is structured with `pnpm workspaces`, using Node.js 24 and TypeScript 5.9.
+The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 
 **API Server (`artifacts/api-server`):**
-- Built with Express 5, implementing a multi-tenant architecture.
+- Built with Express 5, supporting a multi-tenant architecture.
 - Handles user authentication via Replit Auth (OpenID Connect with PKCE).
-- Resolves tenant context from `x-tenant-slug` header and manages roles and module-based permissions.
-- Features routes for health checks, authentication, leads, support, tenant management, roles, billing, and farm-specific modules.
-- Seeds default roles and modules on startup.
+- Manages tenant context, roles, and module-based permissions.
+- Provides routes for various farm-specific modules, authentication, and administration.
 
 **Database Layer (`lib/db`):**
-- Utilizes PostgreSQL with Drizzle ORM.
-- Comprises 60+ tables across multiple schema files covering authentication, core tenant data, leads, support, and all farm-specific modules (e.g., fields, crops, livestock, equipment, financial).
-- **Sales tables** (`lib/db/src/schema/sales.ts`): 8 tables — `grain_sales`, `livestock_deadweight_sales`, `livestock_mart_sales`, `milk_statements`, `poultry_batch_settlements`, `egg_sales`, `pig_kill_records`, `direct_sales_records`. Each has a nullable FK column (`buyerId`, `processorId`, `martId`, `integratorId`, `packingStationId`, `customerId`) referencing `suppliers` for buyer/processor contact linking.
-- `farm_locations` table provides a named registry of farm buildings and areas.
-- `workshop_goods_returns` table stores RTN register with auto-generated RTN-YYYYMM-NNN refs, reason codes, status workflow (raised → dispatched → awaiting-credit → credit-received → closed), credit tracking, and links to stock items.
+- Utilizes PostgreSQL with Drizzle ORM, comprising over 60 tables.
+- Covers authentication, core tenant data, leads, support, and all farm management modules (e.g., fields, crops, livestock, equipment, financial).
+- Includes specific tables for various sales types, `farm_locations` for building/area registry, and `workshop_goods_returns` for RTN tracking.
 
 **Dashboard (`artifacts/dashboard`):**
-- React + Vite application with `wouter` for routing and TanStack React Query for data fetching.
-- Uses Zustand for managing and persisting tenant/farm selection.
-- Implements a fetch-patch interceptor to automatically attach the `x-tenant-slug` header.
+- React + Vite application using `wouter` for routing and TanStack React Query for data fetching.
+- Zustand manages and persists tenant/farm selection.
+- Implements a fetch-patch interceptor for `x-tenant-slug` header.
+- Features quick access cards, activity feed, and a compliance health panel.
 
 **Mobile App (`artifacts/mobile`):**
-- Expo React Native app (SDK 54) with `expo-router` for file-based routing.
-- **Offline-first architecture:** Uses SQLite (native) or AsyncStorage (web) with a sync queue that includes ordered processing, connectivity detection, and exponential backoff retries.
+- Expo React Native app (SDK 54) with `expo-router` for routing.
+- **Offline-first architecture:** Uses SQLite/AsyncStorage with a sync queue, connectivity detection, and exponential backoff retries.
 - Features GPS-tagged records, visitor logging, Red Tractor compliance forms, and field boundary mapping.
-- Platform-aware code splits for native and web functionalities.
-- **ref_cache SQLite layer** (`lib/database.ts` + `lib/refCache.ts`): `ref_cache` table (PRIMARY KEY: data_type + farm_id) stores herds, suppliers, and GRN batches synced from the API. Functions: `syncRefData(farmId)` (fetches all three, gracefully 403s on missing modules), `getCachedHerds`, `getCachedSuppliers`, `getCachedBatches`, `getRefCacheSyncedMinsAgo`. `FarmContext.tsx` triggers a background `syncRefData` call after every successful farm load.
-- **`LookupPicker` component** (`components/ui/LookupPicker.tsx`): Searchable modal picker with FlatList, free-text/manual entry fallback (id `__manual__`), last-synced timestamp footer, active item highlight, clear button, and empty-state message. Used in Feed Record, COSHH Assessment screens.
-- **Feed Record** (`app/feed-record.tsx`): All three lookup fields (Herd/Flock, Supplier, Batch/Lot) use `LookupPicker`. Batch list cascades when a supplier is selected (filtered by `supplierId`). Extracted batch number stored as raw text for backward sync compatibility.
-- **COSHH Assessment** (`app/coshh-assessment.tsx`): Supplier/Manufacturer field replaced with `LookupPicker` backed by `getCachedSuppliers`.
+- Includes a `ref_cache` SQLite layer for syncing reference data (herds, suppliers, batches).
+- Employs a `LookupPicker` component for searchable selections in forms like Feed Record and COSHH Assessment.
 
 **Marketing Website (`artifacts/website`):**
 - React + Vite application with `wouter` for routing.
-- Includes marketing pages, pricing, and contact information.
-- Cookie consent banner with granular preferences.
-- Privacy policy and cookies policy pages for GDPR compliance.
+- Includes marketing pages, pricing, contact information, cookie consent, and GDPR-compliant privacy policies.
 
 **Test Dashboard (`artifacts/test-dashboard`):**
-- A login-free copy of the dashboard for development and testing, sharing the same React source code.
-- Uses environment variables for authentication bypass during development, injecting mock super-admin access.
+- A login-free development and testing version of the dashboard, sharing the same React source.
+- Uses environment variables for authentication bypass and mock admin access.
 
 **Production Readiness:**
-- API server performs a detailed environment variable audit at startup.
-- Error boundaries are implemented in React apps at top-level and per-route.
-- ModulePage components include loading skeletons and error states with retry functionality.
-- Provides Xero-compatible CSV export for financial data and Red Tractor compliance export (CSV/JSON).
-- Dashboard features include an activity feed, quick access cards with live record counts, and a compliance health panel with live checks.
-- Specific modules like **SprayPage**, **NMPPage**, **NVZPage**, **DocumentsPage**, **SoilTestsPage**, **BiosecurityPage**, **MedicinePage**, and **Stock & Supplier Management** have dedicated implementations with advanced features and compliance-specific functionalities.
-- **Grain Storage restructured**: Grain bins, quality tests, and temperature logs have been moved from the Equipment module (`equipment-management` gate) to the Storage Locations page (`field-crop-management` gate). `StorageLocationsPage.tsx` now has a `GrainStorageSection` component below the locations table with 3 sub-tabs: Bin Register, Quality Tests, Temperature Logs. Equipment.tsx no longer has a "Grain Storage Quality" tab. DB schema: `grain_storage_bins` now has `latitude` and `longitude` columns. API routes for all three grain tables (`grain-storage-bins`, `grain-quality-tests`, `grain-temperature-logs`) are gated by `field-crop-management` module. API returns arrays directly (not `{ records: [] }`).
-- **WorkshopPage now has 5 tabs only**: Assets & QR Codes, Job Cards, Service Schedule, Fleet Overview, Parts Store. PAT Testing, Fire Safety, Risk Assessments, and COSHH have been moved to the `risk-waste` module (RiskAssessmentsPage at `/risks`).
-- **Workshop Parts Store** (5th tab in WorkshopPage): self-contained parts inventory within the Workshop module. `stock_items` table now has `stockType` (chemical | workshop-part | consumable) and `unitCostPence` columns. API routes: `GET/POST/PUT/DELETE /api/farms/:farmId/workshop/parts`, `POST /api/farms/:farmId/workshop/parts/receive` (creates GRN-WS-* delivery + movement + increments stock level), `POST /api/farms/:farmId/workshop/parts/use` (issues parts, decrements level, auto-updates job `partsCostPence`), `GET /api/farms/:farmId/workshop/parts/movements`. Job card dialog has an inline "Issue Parts from Store" panel (shows when editing an existing job, queries workshop parts, posts to /use endpoint). When `stock-suppliers` module is not subscribed, supplier dropdown gracefully shows "None" only. Parts catalogue now has **client-side search/filter** (text + category dropdown). Clicking a part row opens a **right-side detail panel** showing stock level, details fields, and a **Documents section** (list + upload via object storage). Document schema: `workshop_part_documents` table (id, stockItemId FK w/ cascade, filename, storageKey, mimeType, fileSizeBytes, uploadedBy, uploadedAt). Document API routes: `GET/POST /api/farms/:farmId/workshop/parts/:partId/documents`, `DELETE /api/farms/:farmId/workshop/parts/:partId/documents/:docId`. Storage download URL: `/api/storage${storageKey}`. Panel closes on Escape key or X button (aria-label="Close panel"). **Job Cards also support document attachment**: `workshop_job_documents` table (id, jobId FK w/ cascade, filename, storageKey, mimeType, fileSizeBytes, uploadedBy, uploadedAt). API: `GET/POST /api/farms/:farmId/workshop/jobs/:jobId/documents`, `DELETE /…/:docId`. `JobDocumentsSection` component renders in the edit dialog (below the 2-col form, above footer) — shows document grid + inline upload row. New job dialog shows a "save first" prompt instead. MIME types accepted include HEIC and video for photos/videos from mobile.
-- **Health, Safety & Risk Management** (`risk-waste` module, DB key unchanged): RiskAssessmentsPage (`/risks`) now has 4 tabs — Risk Assessments, COSHH Records, PAT Testing, Fire Safety. PAT Testing routes (`/api/farms/:farmId/workshop/pat-tests`) and Fire Extinguisher routes (`/api/farms/:farmId/workshop/fire-extinguishers`) are now gated by `risk-waste` module (previously `workshop-management`). Module renamed in DB and seedDefaults.ts. Sidebar label updated to "Health, Safety & Risk". Week-ahead task hrefs for PAT/fire now point to `/risks`.
-- **Crop Trials** module supports full trial lifecycle: plot design with GPS lat/lng coordinates, treatment logging, growth stage observations, yield comparisons. Includes a **Map View** tab (Leaflet, satellite tiles, field boundaries coloured by trial status, numbered GPS plot pins, click-through popups) and a **Full Trial Report** print function (available on harvested/completed trials). Crop year filter spans all event-log pages.
-- **`GET /api/farms/:farmId/fields/boundaries/all`** endpoint returns all field boundaries in one request (used by TrialMapView and future map features).
-- `cropTrialPlotsTable` stores `latitude` and `longitude` (nullable numeric) for GPS-located plots.
-- **Mobile GPS screen** (`artifacts/mobile/app/crop-trials.tsx`): walk-up-to-plot flow — select trial → select plot → capture GPS with expo-location → save coordinates back to API. Shows GPS-saved status per plot.
-- An admin panel supports full support ticket workflow.
-- **BDE Admin Portal** (`/admin-portal`) is a standalone management portal (auth via `x-admin-secret` / `ADMIN_PORTAL_SECRET` env var). Features: Dashboard (MRR, ARR, churn rate, lead source breakdown chart, module adoption chart), Customers list (active/churned filter, churn status display), Customer Detail (referral code generation/copy, referred-by tracking, churn management dialog with reason capture, reinstate button, module adoption per farm), Leads Pipeline (source field — Farmers Weekly, NFU, referral, etc. — displayed and editable in slide-out panel, shown in lead list), Referrals page (all customers, referral codes, attributed sign-ups, referral count, leaderboard), Invoices, Support Tickets, Email (IMAP + compose + templates), SQL Console. Admin portal nav: Dashboard, Customers, Leads Pipeline, Referrals, Invoices, Support Tickets, Email, SQL Console. DB schema: `tenantsTable` now has `referralCode`, `referredBy`, `cancelledAt`, `cancelReason` columns. `leadsTable` now has `source` column. Admin API routes added: `PATCH /admin/tenants/:tenantId` (churn/reinstate/referredBy), `POST /admin/tenants/:tenantId/referral-code` (generate unique 6-char code), `GET /admin/referrals` (referral stats and attribution). `/admin/stats` now includes `churnedTenants`, `churnRatePct`, `leadSourceBreakdown`, `moduleAdoption`.
-- OpenAPI specification and generated TypeScript client are kept in sync.
+- API server performs an environment variable audit.
+- React apps use error boundaries, loading skeletons, and error states with retry.
+- Supports Xero-compatible CSV export and Red Tractor compliance export (CSV/JSON).
+- Modules like Spray, NMP, NVZ, Documents, Soil Tests, Biosecurity, Medicine, Stock & Supplier Management have advanced features.
+- Soil Tests page has a "Sensors" tab (SoilSensorsTab) for continuous soil monitoring: register sensor probes (manufacturer, model, depths, GPS, field), add manual readings (moisture %, temperature °C, EC μS/cm), import from CSV (bulk up to 5,000 rows), and view readings as a time-series chart or table. DB tables: soil_sensor_probes, soil_sensor_readings. API: /api/farms/:farmId/soil-sensors and /readings sub-routes.
+- Grain Storage, Workshop, and Health & Safety modules have been restructured and enhanced with specific functionalities, including document management and detailed inventory tracking.
+- Crop Trials module supports the full trial lifecycle, including plot design with GPS, treatment logging, yield comparisons, and a Leaflet-based Map View.
+- An admin panel supports full support ticket workflow and a dedicated BDE Admin Portal (`/admin-portal`) provides extensive management features for customers, leads, referrals, invoices, and support, with its own API routes and database schema additions for referral tracking and churn management.
 
 ### Multi-Tenant Architecture
-- Each client organization is a tenant, potentially managing multiple farms.
+- Each client is a tenant managing multiple farms.
 - Users are authenticated via Replit Auth and linked to tenants.
-- System roles (BDE Super Admin, Client Admin, Farm Manager, Farm Staff) are seeded with module-based permissions.
+- System roles (BDE Super Admin, Client Admin, Farm Manager, Farm Staff) define module-based permissions.
 - Subscriptions are managed per-farm and per-module, integrated with Stripe.
-- API requests are scoped to a tenant using the `x-tenant-slug` header.
+- API requests are tenant-scoped using the `x-tenant-slug` header.
 
 ### System Roles
-1. BDE Super Admin: Full platform access (internal).
+1. BDE Super Admin: Full internal platform access.
 2. Client Admin: Full tenant management access.
 3. Farm Manager: Full access to assigned farms.
 4. Farm Staff: Limited module-based access.
 
 ### Modules
-The platform supports 17 core compliance modules, each with monthly pricing, covering areas such as Field & Crop Management, Sprays & Inputs, Soil Management, Livestock Management, Biosecurity, and Financial Records. A dedicated **Dairy Management module** includes detailed tracking for milk, mastitis, calving, body condition scoring, mobility scoring, bulk tank records, and dry cow therapy, with corresponding mobile app forms and Help Centre articles.
+The platform supports 17 core compliance modules with monthly pricing, covering areas like Field & Crop Management, Sprays & Inputs, Soil Management, Livestock Management, Biosecurity, and Financial Records. A dedicated Dairy Management module provides detailed tracking for milk, mastitis, calving, and other dairy-specific metrics.
 
 ## External Dependencies
 
@@ -100,11 +84,11 @@ The platform supports 17 core compliance modules, each with monthly pricing, cov
 - **Build Tool:** esbuild
 - **Payments:** Stripe
 - **Authentication:** Replit Auth (OpenID Connect with PKCE)
-- **AI Integration:** OpenAI (gpt-5-mini for support chat)
-- **SMS Notifications:** Twilio (paid add-on module)
+- **AI Integration:** OpenAI (gpt-5-mini)
+- **SMS Notifications:** Twilio
 - **Mobile Development:** Expo SDK 54, expo-router, expo-auth-session, expo-location, expo-image-picker, expo-haptics, expo-crypto
-- **Mobile Storage:** SQLite (native), AsyncStorage (web), SecureStore (native)
-- **Mapping:** react-native-maps (native)
-- **State Management:** Zustand (for dashboard)
-- **Data Fetching:** TanStack React Query (for dashboard)
-- **Routing:** wouter (for web apps), expo-router (for mobile)
+- **Mobile Storage:** SQLite, AsyncStorage, SecureStore
+- **Mapping:** react-native-maps
+- **State Management:** Zustand
+- **Data Fetching:** TanStack React Query
+- **Routing:** wouter, expo-router
