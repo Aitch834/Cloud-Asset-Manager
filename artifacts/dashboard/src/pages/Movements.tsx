@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Redirect } from "wouter";
 import {
-  Plus, Search, RefreshCw, Loader2, Pencil, Trash2, X, Printer,
+  Plus, Search, RefreshCw, Loader2, Pencil, Eye, Trash2, X, Printer,
   ArrowRight, Paperclip, CheckCircle2, AlertTriangle, Upload, File, Skull, Download, ExternalLink,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -472,6 +472,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [viewRecord, setViewRecord] = useState<MortalityRecord | null>(null);
   const [editingRecord, setEditingRecord] = useState<MortalityRecord | null>(null);
   const [formData, setFormData] = useState<typeof EMPTY_MORTALITY>(EMPTY_MORTALITY);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -574,6 +575,50 @@ function MortalitySection({ farmId }: { farmId: number }) {
           <Plus className="w-4 h-4" /> Record Death
         </Button>
       </div>
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 540 }}>
+            <DialogHeader><DialogTitle>Mortality Record</DialogTitle></DialogHeader>
+            {(() => {
+              const r = viewRecord;
+              const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+              const F = ({ label, value }: { label: string; value?: string | null }) => (
+                <div><div className="text-xs font-semibold uppercase tracking-widest text-foreground/40 mb-0.5">{label}</div>
+                <div className="text-sm" style={{ color: value ? undefined : "#d1d5db" }}>{value || "—"}</div></div>
+              );
+              return (
+                <div className="grid gap-3.5">
+                  <div className="grid grid-cols-3 gap-3.5">
+                    <F label="Date of Death" value={fmt(r.dateOfDeath)} />
+                    <F label="Species" value={r.species} />
+                    <F label="Breed" value={r.breed} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <F label="Tag Number" value={r.tagNumber} />
+                    <F label="Cause of Death" value={r.causeOfDeath} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3.5">
+                    <F label="Disposal Method" value={r.disposalMethod} />
+                    <F label="Disposal Operator" value={r.disposalOperator} />
+                    <F label="Disposal Ref." value={r.disposalRef} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <F label="Vet Attended" value={r.veterinaryAttended ? `Yes${r.vetName ? ` — ${r.vetName}` : ""}` : "No"} />
+                    <F label="Post-Mortem" value={r.postMortemCarriedOut ? `Yes${r.postMortemFindings ? ` — ${r.postMortemFindings}` : ""}` : "No"} />
+                  </div>
+                  <F label="BCMS Notified" value={r.bcmsNotified ? `Yes${r.bcmsNotificationRef ? ` — Ref: ${r.bcmsNotificationRef}` : ""}` : "Not yet notified"} />
+                  {r.notes && <F label="Notes" value={r.notes} />}
+                </div>
+              );
+            })()}
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Record</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {showForm && (
         <Card className="mb-6 border-primary/20">
@@ -722,7 +767,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(r)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-primary"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => setViewRecord(r)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-primary" title="View"><Eye className="w-4 h-4" /></button>
                         <button onClick={() => setDeleteId(r.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/50 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
@@ -809,6 +854,7 @@ export default function Movements() {
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [showForm, setShowForm] = useState(false);
+  const [viewMovement, setViewMovement] = useState<Movement | null>(null);
   const [editingRecord, setEditingRecord] = useState<Movement | null>(null);
   const [formData, setFormData] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
@@ -1152,6 +1198,50 @@ export default function Movements() {
         </div>
       </div>
 
+      {viewMovement && (
+        <Dialog open onOpenChange={() => setViewMovement(null)}>
+          <DialogContent style={{ maxWidth: 560 }}>
+            <DialogHeader><DialogTitle>Movement Record</DialogTitle></DialogHeader>
+            {(() => {
+              const r = viewMovement;
+              const typeLabels: Record<string, string> = { "on": "On (Purchase)", "off": "Off (Sale)", "birth": "Birth", "death": "Death", "between": "Between Holdings" };
+              const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+              const F = ({ label, value }: { label: string; value?: string | null }) => (
+                <div><div className="text-xs font-semibold uppercase tracking-widest text-foreground/40 mb-0.5">{label}</div>
+                <div className="text-sm" style={{ color: value ? undefined : "#d1d5db" }}>{value || "—"}</div></div>
+              );
+              return (
+                <div className="grid gap-3.5">
+                  <div className="grid grid-cols-3 gap-3.5">
+                    <F label="Date" value={fmt(r.movementDate)} />
+                    <F label="Type" value={typeLabels[r.movementType] ?? r.movementType} />
+                    <F label="Species" value={r.species} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <F label="From" value={r.fromLocation} />
+                    <F label="To" value={r.toLocation} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3.5">
+                    <F label="Number of Animals" value={r.numberOfAnimals != null ? String(r.numberOfAnimals) : null} />
+                    <F label="AML / Licence Ref." value={r.licenceNumber} />
+                    <F label="BCMS Ref." value={r.bcmsSubmissionRef} />
+                  </div>
+                  {r.earTagNumbers && <F label="Ear Tag Numbers" value={r.earTagNumbers} />}
+                  <F label="BCMS / APHA Notified" value={r.legalNotificationSubmitted ? `Yes${r.legalNotificationDate ? ` — ${fmt(r.legalNotificationDate)}` : ""}` : "⚠ Not yet notified"} />
+                  {r.transporterDetails && <F label="Transporter" value={r.transporterDetails} />}
+                  {r.reason && <F label="Reason" value={r.reason} />}
+                  {r.notes && <F label="Notes" value={r.notes} />}
+                </div>
+              );
+            })()}
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setViewMovement(null)}>Close</Button>
+              <Button onClick={() => { const r = viewMovement; setViewMovement(null); openEdit(r); }}>Edit Movement</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Add / Edit form */}
       {showingForm && (
         <Card>
@@ -1407,11 +1497,11 @@ export default function Movements() {
                             <Printer className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => openEdit(r)}
+                            onClick={() => setViewMovement(r)}
                             className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-primary transition-colors"
-                            title="Edit"
+                            title="View"
                           >
-                            <Pencil className="w-4 h-4" />
+                            <Eye className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setDeleteConfirmId(r.id)}

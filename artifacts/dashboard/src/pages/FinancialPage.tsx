@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil } from "lucide-react";
+import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil, Eye } from "lucide-react";
 
 type Tab = "transactions" | "crop-contracts" | "grants";
 
@@ -333,6 +333,7 @@ function CropContractsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const commodityTypes = useLookupStrings("commodity_types", ["Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley", "Malting Barley", "Oilseed Rape", "Winter Oats", "Spring Oats", "Winter Beans", "Spring Beans", "Peas", "Maize", "Sugar Beet", "Potatoes", "Other"]);
   const [addOpen, setAddOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const emptyForm = { commodity: "", variety: "", buyer: "", contractDate: "", deliveryWindowStart: "", deliveryWindowEnd: "", quantityTonnes: "", contractedPricePence: "", totalValuePence: "", qualitySpec: "", deliveryLocation: "", status: "pending", notes: "" };
@@ -452,7 +453,7 @@ function CropContractsTab({ farmId }: { farmId: number }) {
                     </td>
                     <td style={{ padding: "0.5rem" }}>
                       <div style={{ display: "flex", gap: 4 }}>
-                        <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                        <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
                         <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                       </div>
                     </td>
@@ -462,6 +463,52 @@ function CropContractsTab({ farmId }: { farmId: number }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 560 }}>
+            <DialogHeader><DialogTitle>Crop Contract</DialogTitle></DialogHeader>
+            {(() => {
+              const r = viewRecord;
+              const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+              const fmtAmt = (p: number | null) => p != null ? `£${(p / 100).toFixed(2)}` : null;
+              const F = ({ label, value }: { label: string; value?: string | null }) => (
+                <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
+              );
+              return (
+                <div style={{ display: "grid", gap: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                    <F label="Commodity" value={r.commodity} />
+                    <F label="Variety" value={r.variety} />
+                    <F label="Buyer" value={r.buyer} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Contract Date" value={fmt(r.contractDate)} />
+                    <F label="Status" value={r.status} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Delivery Window Start" value={fmt(r.deliveryWindowStart)} />
+                    <F label="Delivery Window End" value={fmt(r.deliveryWindowEnd)} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                    <F label="Quantity (t)" value={r.quantityTonnes != null ? `${r.quantityTonnes}t` : null} />
+                    <F label="Price (£/t)" value={r.contractedPricePence != null ? `£${(r.contractedPricePence / 100).toFixed(2)}` : null} />
+                    <F label="Total Value" value={fmtAmt(r.totalValuePence)} />
+                  </div>
+                  {r.qualitySpec && <F label="Quality Spec" value={r.qualitySpec} />}
+                  {r.deliveryLocation && <F label="Delivery Location" value={r.deliveryLocation} />}
+                  {r.notes && <F label="Notes" value={r.notes} />}
+                </div>
+              );
+            })()}
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Contract</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>

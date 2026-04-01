@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2 } from "lucide-react";
 
 type Tab = "records" | "grain-position" | "directory";
 
@@ -65,6 +65,7 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
   const commodityTypes = useLookupStrings("commodity_types", GRAIN_COMMODITIES);
   const loadTypes = useLookupStrings("load_types", LOAD_TYPES);
   const [addOpen, setAddOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<any>(null);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
@@ -184,7 +185,7 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
                       {r.deliveryConfirmedAt && (
                         <span title={`Confirmed ${new Date(r.deliveryConfirmedAt).toLocaleDateString("en-GB")}${r.deliveryConfirmedBy ? ` by ${r.deliveryConfirmedBy}` : ""}`} style={{ color: "#16a34a", padding: 4, lineHeight: 1, display: "inline-flex" }}><CheckCircle2 size={14} /></span>
                       )}
-                      <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                      <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
                       <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                     </div>
                   </td>
@@ -193,6 +194,60 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 600 }}>
+            <DialogHeader><DialogTitle>Haulage Record</DialogTitle></DialogHeader>
+            {(() => {
+              const r = viewRecord;
+              const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+              const fmtCost = (p: number | null) => p != null ? `£${(p / 100).toFixed(2)}` : null;
+              const F = ({ label, value }: { label: string; value?: string | null }) => (
+                <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
+              );
+              return (
+                <div style={{ display: "grid", gap: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                    <F label="Date" value={fmt(r.departureDate)} />
+                    <F label="Load Type" value={r.loadType} />
+                    <F label="Status" value={r.deliveryStatus} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                    <F label="Commodity" value={r.commodity || r.loadDescription} />
+                    <F label="Variety" value={r.variety} />
+                    <F label="Grade" value={r.grade} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                    <F label="Weight (t)" value={r.weightTonnes != null ? String(r.weightTonnes) : null} />
+                    <F label="Moisture %" value={r.moisturePercent != null ? `${r.moisturePercent}%` : null} />
+                    <F label="Sp. Weight (kg/hl)" value={r.specificWeightKgHl != null ? String(r.specificWeightKgHl) : null} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Weighbridge Ticket" value={r.weighbridgeTicketNo} />
+                    <F label="Vehicle Reg." value={r.vehicleRegistration} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Origin" value={r.origin} />
+                    <F label="Destination" value={r.destination} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                    <F label="Waybill Number" value={r.waybillNumber} />
+                    <F label="Storage Location" value={r.storageLocation} />
+                    <F label="Cost" value={fmtCost(r.costPence)} />
+                  </div>
+                  {r.notes && <F label="Notes" value={r.notes} />}
+                </div>
+              );
+            })()}
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Record</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>

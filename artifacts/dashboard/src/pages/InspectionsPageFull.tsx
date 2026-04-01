@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Paperclip, File as FileIcon, Loader2, ExternalLink } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Eye, Paperclip, File as FileIcon, Loader2, ExternalLink } from "lucide-react";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -597,6 +597,7 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const emptyForm = { certificationBody: "", scheme: "", certNumber: "", sectors: "", assessorName: "", assessorMembershipNo: "", issueDate: "", expiryDate: "", status: "active", nextVisitDue: "", notes: "" };
@@ -701,7 +702,7 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
                     </td>
                     <td style={{ padding: "0.5rem" }}>
                       <div style={{ display: "flex", gap: 4 }}>
-                        <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                        <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
                         <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                       </div>
                     </td>
@@ -711,6 +712,53 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 560 }}>
+            <DialogHeader><DialogTitle>Assurance Certificate</DialogTitle></DialogHeader>
+            {(() => {
+              const r = viewRecord;
+              const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+              const now = new Date();
+              const isExpired = r.expiryDate && new Date(r.expiryDate) < now;
+              const F = ({ label, value }: { label: string; value?: string | null }) => (
+                <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
+              );
+              return (
+                <div style={{ display: "grid", gap: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Certification Body" value={r.certificationBody} />
+                    <F label="Scheme / Sector" value={r.sectors || r.scheme} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Certificate Number" value={r.certNumber} />
+                    <F label="Status" value={r.status} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Assessor Name" value={r.assessorName} />
+                    <F label="Assessor Membership No." value={r.assessorMembershipNo} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                    <F label="Issue Date" value={fmt(r.issueDate)} />
+                    <div>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>Expiry Date</div>
+                      <div style={{ fontSize: "0.875rem", fontWeight: isExpired ? 600 : 400, color: isExpired ? "#991b1b" : "#111827" }}>{isExpired ? "⚠ " : ""}{fmt(r.expiryDate)}</div>
+                    </div>
+                    <F label="Next Visit Due" value={fmt(r.nextVisitDue)} />
+                  </div>
+                  {r.notes && <F label="Notes" value={r.notes} />}
+                </div>
+              );
+            })()}
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Certificate</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>

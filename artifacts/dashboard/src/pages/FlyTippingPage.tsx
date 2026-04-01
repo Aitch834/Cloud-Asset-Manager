@@ -166,6 +166,7 @@ export default function FlyTippingPage() {
   const incidents: Incident[] = q.data?.records ?? [];
 
   const [addOpen, setAddOpen] = useState(false);
+  const [viewItem, setViewItem] = useState<Incident | null>(null);
   const [editItem, setEditItem] = useState<Incident | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -419,7 +420,7 @@ export default function FlyTippingPage() {
                                   <Camera size={11} />{inc.photos.length > 0 ? inc.photos.length : ""} Photos
                                   {expandedId === inc.id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                                 </Button>
-                                <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => openEdit(inc)}>Edit</Button>
+                                <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28 }} onClick={() => setViewItem(inc)}>View</Button>
                                 <Button size="sm" variant="outline" style={{ fontSize: "0.75rem", height: 28, color: "#dc2626" }} onClick={() => setDeleteId(inc.id)}>Del</Button>
                               </div>
                             </td>
@@ -439,6 +440,58 @@ export default function FlyTippingPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* View dialog */}
+        {viewItem && (
+          <Dialog open onOpenChange={() => setViewItem(null)}>
+            <DialogContent style={{ maxWidth: 560 }}>
+              <DialogHeader>
+                <DialogTitle>Fly-Tipping Incident</DialogTitle>
+              </DialogHeader>
+              {(() => {
+                const inc = viewItem;
+                const types: string[] = inc.wasteTypes ? JSON.parse(inc.wasteTypes) : [];
+                const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+                const F = ({ label, value }: { label: string; value?: string | null | boolean }) => (
+                  <div>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                    <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value === true ? "Yes" : value === false ? "No" : (value as string) || "—"}</div>
+                  </div>
+                );
+                return (
+                  <div style={{ display: "grid", gap: 14 }}>
+                    {inc.isHazardous && (
+                      <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "6px 12px", color: "#dc2626", fontWeight: 700, fontSize: "0.875rem" }}>⚠ HAZARDOUS WASTE</div>
+                    )}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <F label="Date Discovered" value={fmt(inc.discoveredAt)} />
+                      <F label="Clearance Status" value={inc.clearanceStatus?.replace(/-/g, " ")} />
+                    </div>
+                    <F label="Location" value={inc.locationDescription} />
+                    {inc.accessPoint && <F label="Access Point" value={inc.accessPoint} />}
+                    <div>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Waste Types</div>
+                      <div style={{ fontSize: "0.875rem", color: types.length ? "#111827" : "#d1d5db" }}>{types.length ? types.join(", ") : "—"}</div>
+                    </div>
+                    {inc.estimatedQuantity && <F label="Estimated Quantity" value={inc.estimatedQuantity} />}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                      <F label="Police Reported" value={inc.policeReported ? `Yes${inc.policeRefNumber ? ` — ${inc.policeRefNumber}` : ""}` : "No"} />
+                      <F label="Council Reported" value={inc.councilReported ? `Yes${inc.councilRefNumber ? ` — ${inc.councilRefNumber}` : ""}` : "No"} />
+                      <F label="EA Reported" value={inc.eaReported ? `Yes${inc.eaRefNumber ? ` — ${inc.eaRefNumber}` : ""}` : "No"} />
+                    </div>
+                    {inc.clearanceContractor && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}><F label="Clearance Contractor" value={inc.clearanceContractor} /><F label="Clearance Date" value={fmt(inc.clearanceDate)} /></div>}
+                    {inc.wasteTransferNoteRef && <F label="Waste Transfer Note Ref" value={inc.wasteTransferNoteRef} />}
+                    {inc.notes && <F label="Notes" value={inc.notes} />}
+                  </div>
+                );
+              })()}
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={() => setViewItem(null)}>Close</Button>
+                <Button onClick={() => { const r = viewItem; setViewItem(null); openEdit(r); }}>Edit Incident</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
 
         {/* Add / Edit dialog */}

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil } from "lucide-react";
+import { Plus, Trash2, Leaf, TreePine, MapPin, Printer, ClipboardCheck, CalendarDays, Pencil, Eye } from "lucide-react";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 
 type Tab = "features" | "schemes" | "assessments" | "events" | "sfi" | "slurry";
@@ -786,6 +786,7 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
   const staffNames = (membersData?.members ?? []).map((m: any) => memberFullName(m));
   const [addOpen, setAddOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [filterFeature, setFilterFeature] = useState("__all__");
@@ -1007,7 +1008,7 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", maxWidth: 160, fontSize: "0.8rem" }}>{r.notes || "—"}</td>
                     <td style={{ padding: "0.5rem" }}>
                       <div style={{ display: "flex", gap: 2 }}>
-                        <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                        <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
                         <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={13} /></button>
                       </div>
                     </td>
@@ -1020,6 +1021,42 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
       )}
 
       {/* Add / Edit Dialog */}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 540 }}>
+            <DialogHeader><DialogTitle>Management Event</DialogTitle></DialogHeader>
+            {(() => {
+              const r = viewRecord;
+              const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+              const F = ({ label, value }: { label: string; value?: string | null }) => (
+                <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
+              );
+              return (
+                <div style={{ display: "grid", gap: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Feature" value={r.featureName || r.featureType} />
+                    <F label="Feature Type" value={r.featureType} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Event Date" value={fmt(r.eventDate)} />
+                    <F label="Event Type" value={r.eventType} />
+                  </div>
+                  {r.description && <F label="Description" value={r.description} />}
+                  <F label="Operator" value={r.contractorUsed ? `${r.contractorName || "Contractor"} (contractor)` : r.operator} />
+                  {r.fulfilsSchemeObligation && <F label="Scheme Obligation" value={r.schemeName || "Yes"} />}
+                  {r.notes && <F label="Notes" value={r.notes} />}
+                </div>
+              );
+            })()}
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Event</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={dialogOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm()); } }}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>{dialogTitle}</DialogTitle></DialogHeader>

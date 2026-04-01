@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, Search, Pencil, FileText, Truck, Recycle, Printer, ExternalLink, Paperclip, X, Upload } from "lucide-react";
+import { Trash2, Plus, Search, Pencil, Eye, FileText, Truck, Recycle, Printer, ExternalLink, Paperclip, X, Upload } from "lucide-react";
 
 interface WasteRecord {
   id: number;
@@ -105,6 +105,7 @@ export default function WasteDisposalPage() {
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [addOpen, setAddOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<WasteRecord | null>(null);
   const [editRecord, setEditRecord] = useState<WasteRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
@@ -386,7 +387,7 @@ export default function WasteDisposalPage() {
                     </td>
                     <td style={{ padding: "0.5rem" }}>
                       <div style={{ display: "flex", gap: 4 }}>
-                        <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                        <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
                         <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                       </div>
                     </td>
@@ -395,6 +396,49 @@ export default function WasteDisposalPage() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* ─── View Dialog ─────────────────────────── */}
+        {viewRecord && (
+          <Dialog open onOpenChange={() => setViewRecord(null)}>
+            <DialogContent style={{ maxWidth: 560 }}>
+              <DialogHeader><DialogTitle>Waste Disposal Record</DialogTitle></DialogHeader>
+              {(() => {
+                const r = viewRecord;
+                const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+                const F = ({ label, value }: { label: string; value?: string | null }) => (
+                  <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
+                );
+                return (
+                  <div style={{ display: "grid", gap: 14 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <F label="Disposal Date" value={fmt(r.disposalDate)} />
+                      <F label="Waste Type" value={r.wasteType} />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <F label="EWC Code" value={r.ewcCode} />
+                      <F label="Weight (tonnes)" value={r.weightTonnes != null ? String(r.weightTonnes) : null} />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <F label="Carrier" value={r.carrierName} />
+                      <F label="Carrier Licence" value={r.carrierLicence} />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      <F label="Registration Type" value={r.carrierRegistrationType} />
+                      <F label="Waste Transfer Note" value={r.wasteTransferNote} />
+                    </div>
+                    <F label="Destination Site" value={r.destinationSite} />
+                    {r.notes && <F label="Notes" value={r.notes} />}
+                  </div>
+                );
+              })()}
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+                <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Record</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
 
         {/* ─── Add / Edit Dialog ─────────────────────────── */}
