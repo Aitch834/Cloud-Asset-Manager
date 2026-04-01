@@ -373,9 +373,12 @@ function InspectionsTab({ farmId }: { farmId: number }) {
 function NonconformancesTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const emptyForm = { category: "", description: "", severity: "", identifiedDate: "", identifiedBy: "", status: "open", notes: "" };
   const [addOpen, setAddOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<any | null>(null);
+  const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState<any>({ category: "", description: "", severity: "", identifiedDate: "", identifiedBy: "", status: "open", notes: "" });
+  const [form, setForm] = useState<any>(emptyForm);
 
   const q = useQuery({
     queryKey: ["nonconformances", farmId],
@@ -388,13 +391,13 @@ function NonconformancesTab({ farmId }: { farmId: number }) {
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/nonconformances`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Non-conformance logged" }); invalidate(); setAddOpen(false); resetForm(); },
+    onSuccess: () => { toast({ title: "Non-conformance logged" }); invalidate(); setAddOpen(false); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/nonconformances/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Status updated" }); invalidate(); },
+    onSuccess: (_, vars) => { toast({ title: Object.keys(vars.body).length === 1 && "status" in vars.body ? "Status updated" : "Non-conformance updated" }); invalidate(); setEditRecord(null); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
@@ -404,8 +407,9 @@ function NonconformancesTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  const resetForm = () => setForm({ category: "", description: "", severity: "", identifiedDate: "", identifiedBy: "", status: "open", notes: "" });
+  const openEdit = (r: any) => { setForm({ category: r.category ?? "", description: r.description ?? "", severity: r.severity ?? "", identifiedDate: r.identifiedDate?.slice(0, 10) ?? "", identifiedBy: r.identifiedBy ?? "", status: r.status ?? "open", notes: r.notes ?? "" }); setEditRecord(r); };
   const records: any[] = q.data ?? [];
+  const formOpen = addOpen || !!editRecord;
 
   return (
     <div>
@@ -424,7 +428,7 @@ function NonconformancesTab({ farmId }: { farmId: number }) {
             </div>
           )}
         </div>
-        <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}><Plus size={14} className="mr-1" />Log Non-Conformance</Button>
+        <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}><Plus size={14} className="mr-1" />Log Non-Conformance</Button>
       </div>
 
       {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
@@ -463,7 +467,10 @@ function NonconformancesTab({ farmId }: { farmId: number }) {
                     </Select>
                   </td>
                   <td style={{ padding: "0.5rem" }}>
-                    <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
+                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -472,9 +479,50 @@ function NonconformancesTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 560 }}>
+            <DialogHeader><DialogTitle>Non-Conformance</DialogTitle></DialogHeader>
+            {(() => {
+              const r = viewRecord;
+              const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+              const F = ({ label, value }: { label: string; value?: string | null }) => (
+                <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
+              );
+              return (
+                <div style={{ display: "grid", gap: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Date Identified" value={fmtD(r.identifiedDate)} />
+                    <F label="Identified By" value={r.identifiedBy} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Category" value={r.category} />
+                    <div>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Severity</div>
+                      <SeverityBadge severity={r.severity} />
+                    </div>
+                  </div>
+                  <F label="Description" value={r.description} />
+                  <div>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Status</div>
+                    <StatusBadge status={r.status} />
+                  </div>
+                  {r.notes && <F label="Notes" value={r.notes} />}
+                </div>
+              );
+            })()}
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Non-Conformance</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={formOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
-          <DialogHeader><DialogTitle>Log Non-Conformance</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editRecord ? "Edit Non-Conformance" : "Log Non-Conformance"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Date Identified <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.identifiedDate} onChange={e => setForm((f: any) => ({ ...f, identifiedDate: e.target.value }))} /></div>
@@ -490,9 +538,10 @@ function NonconformancesTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div><Label>Severity</Label>
-                <Select value={form.severity} onValueChange={v => setForm((f: any) => ({ ...f, severity: v }))}>
+                <Select value={form.severity || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, severity: v === "__none__" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
                     <SelectItem value="minor">Minor</SelectItem>
                     <SelectItem value="major">Major</SelectItem>
                     <SelectItem value="critical">Critical</SelectItem>
@@ -501,11 +550,24 @@ function NonconformancesTab({ farmId }: { farmId: number }) {
               </div>
             </div>
             <div><Label>Description <span style={{ color: "#ef4444" }}>*</span></Label><Textarea placeholder="Describe the non-conformance in detail..." value={form.description} onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))} rows={3} /></div>
+            {editRecord && (
+              <div><Label>Status</Label>
+                <Select value={form.status} onValueChange={v => setForm((f: any) => ({ ...f, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div><Label>Notes</Label><Textarea placeholder="Additional context..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={() => createMut.mutate(form)} disabled={!form.identifiedDate || !form.category || !form.description || createMut.isPending}>Save</Button>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
+            <Button onClick={() => editRecord ? updateMut.mutate({ id: editRecord.id, body: form }) : createMut.mutate(form)} disabled={!form.identifiedDate || !form.category || !form.description || createMut.isPending || updateMut.isPending}>{editRecord ? "Save Changes" : "Save"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -527,9 +589,12 @@ function NonconformancesTab({ farmId }: { farmId: number }) {
 function CorrectiveActionsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const emptyForm = { nonconformanceId: "", description: "", assignedTo: "", dueDate: "", status: "open", verifiedBy: "", notes: "" };
   const [addOpen, setAddOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<any | null>(null);
+  const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState<any>({ nonconformanceId: "", description: "", assignedTo: "", dueDate: "", status: "open", notes: "" });
+  const [form, setForm] = useState<any>(emptyForm);
 
   const ncQ = useQuery({
     queryKey: ["nonconformances", farmId],
@@ -549,13 +614,13 @@ function CorrectiveActionsTab({ farmId }: { farmId: number }) {
 
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/corrective-actions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, nonconformanceId: body.nonconformanceId ? parseInt(body.nonconformanceId) : undefined }) }),
-    onSuccess: () => { toast({ title: "Corrective action saved" }); invalidate(); setAddOpen(false); resetForm(); },
+    onSuccess: () => { toast({ title: "Corrective action saved" }); invalidate(); setAddOpen(false); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/corrective-actions/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Status updated" }); invalidate(); },
+    onSuccess: (_, vars) => { toast({ title: Object.keys(vars.body).length === 1 && "status" in vars.body ? "Status updated" : "Corrective action updated" }); invalidate(); setEditRecord(null); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
@@ -565,14 +630,15 @@ function CorrectiveActionsTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  const resetForm = () => setForm({ nonconformanceId: "", description: "", assignedTo: "", dueDate: "", status: "open", notes: "" });
+  const openEdit = (r: any) => { setForm({ nonconformanceId: r.nonconformanceId ? String(r.nonconformanceId) : "", description: r.description ?? "", assignedTo: r.assignedTo ?? "", dueDate: r.dueDate?.slice(0, 10) ?? "", status: r.status ?? "open", verifiedBy: r.verifiedBy ?? "", notes: r.notes ?? "" }); setEditRecord(r); };
   const records: any[] = q.data ?? [];
   const ncs: any[] = ncQ.data ?? [];
+  const formOpen = addOpen || !!editRecord;
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Corrective Action</Button>
+        <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Corrective Action</Button>
       </div>
 
       {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
@@ -617,7 +683,10 @@ function CorrectiveActionsTab({ farmId }: { farmId: number }) {
                   </td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.verifiedBy || "—"}</td>
                   <td style={{ padding: "0.5rem" }}>
-                    <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
+                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -626,15 +695,59 @@ function CorrectiveActionsTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: 560 }}>
+            <DialogHeader><DialogTitle>Corrective Action</DialogTitle></DialogHeader>
+            {(() => {
+              const r = viewRecord;
+              const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+              const F = ({ label, value }: { label: string; value?: string | null }) => (
+                <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
+              );
+              return (
+                <div style={{ display: "grid", gap: 14 }}>
+                  {r.ncDescription && (
+                    <div>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Linked Non-Conformance</div>
+                      <span style={{ background: "#eff6ff", color: "#1e40af", borderRadius: 4, padding: "3px 8px", fontSize: "0.8rem" }}>{r.ncDescription}</span>
+                    </div>
+                  )}
+                  <F label="Action Description" value={r.description} />
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <F label="Assigned To" value={r.assignedTo} />
+                    <F label="Due Date" value={fmtD(r.dueDate)} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <div>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Status</div>
+                      <StatusBadge status={r.status} />
+                    </div>
+                    <F label="Verified By" value={r.verifiedBy} />
+                  </div>
+                  {r.notes && <F label="Notes" value={r.notes} />}
+                </div>
+              );
+            })()}
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Action</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={formOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
-          <DialogHeader><DialogTitle>Add Corrective Action</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editRecord ? "Edit Corrective Action" : "Add Corrective Action"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div>
               <Label>Linked Non-Conformance</Label>
-              <Select value={form.nonconformanceId} onValueChange={v => setForm((f: any) => ({ ...f, nonconformanceId: v }))}>
+              <Select value={form.nonconformanceId || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, nonconformanceId: v === "__none__" ? "" : v }))}>
                 <SelectTrigger><SelectValue placeholder="Select NC..." /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">— None —</SelectItem>
                   {ncs.map((nc: any) => <SelectItem key={nc.id} value={String(nc.id)}>{nc.description.slice(0, 60)}{nc.description.length > 60 ? "…" : ""}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -644,11 +757,27 @@ function CorrectiveActionsTab({ farmId }: { farmId: number }) {
               <div><Label>Assigned To</Label><Input placeholder="Name" value={form.assignedTo} onChange={e => setForm((f: any) => ({ ...f, assignedTo: e.target.value }))} /></div>
               <div><Label>Due Date</Label><Input type="date" value={form.dueDate} onChange={e => setForm((f: any) => ({ ...f, dueDate: e.target.value }))} /></div>
             </div>
+            {editRecord && (
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Status</Label>
+                  <Select value={form.status} onValueChange={v => setForm((f: any) => ({ ...f, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="closed">Closed</SelectItem>
+                      <SelectItem value="verified">Verified</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Verified By</Label><Input placeholder="Name" value={form.verifiedBy} onChange={e => setForm((f: any) => ({ ...f, verifiedBy: e.target.value }))} /></div>
+              </div>
+            )}
             <div><Label>Notes</Label><Textarea placeholder="Additional notes..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={() => createMut.mutate(form)} disabled={!form.description || createMut.isPending}>Save</Button>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
+            <Button onClick={() => editRecord ? updateMut.mutate({ id: editRecord.id, body: { ...form, nonconformanceId: form.nonconformanceId ? parseInt(form.nonconformanceId) : undefined } }) : createMut.mutate(form)} disabled={!form.description || createMut.isPending || updateMut.isPending}>{editRecord ? "Save Changes" : "Save"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -719,6 +848,7 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const emptyForm = { certificationBody: "", scheme: "", certNumber: "", sectors: "", assessorName: "", assessorMembershipNo: "", issueDate: "", expiryDate: "", status: "active", nextVisitDue: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
+  const certificationBodies = useLookupStrings("certification_bodies", CERT_BODIES);
 
   const q = useQuery({
     queryKey: ["assurance-certs", farmId],
@@ -867,6 +997,16 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
                     <F label="Next Visit Due" value={fmt(r.nextVisitDue)} />
                   </div>
                   {r.notes && <F label="Notes" value={r.notes} />}
+                  <div>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Certificate Document</div>
+                    {r.documentPath ? (
+                      <a href={`/api/storage${r.documentPath}`} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.875rem", color: "#2563eb", textDecoration: "none" }}>
+                        <Paperclip size={14} />{r.documentName || "View Certificate"}
+                      </a>
+                    ) : (
+                      <span style={{ fontSize: "0.875rem", color: "#d1d5db" }}>No certificate document attached</span>
+                    )}
+                  </div>
                 </div>
               );
             })()}
@@ -887,7 +1027,7 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
                 <Label>Certification Body <span style={{ color: "#ef4444" }}>*</span></Label>
                 <Select value={form.certificationBody} onValueChange={v => setForm((f: any) => ({ ...f, certificationBody: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>{CERT_BODIES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+                  <SelectContent>{certificationBodies.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
