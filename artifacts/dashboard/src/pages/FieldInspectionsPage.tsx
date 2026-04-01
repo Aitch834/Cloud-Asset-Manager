@@ -254,7 +254,7 @@ export default function FieldInspectionsPage() {
             <p className="text-2xl font-bold text-gray-900">{records.length}</p>
           </div>
           <button
-            onClick={() => { setFilterStatus("open"); setAllYears(true); setFilterAction("all"); setSearch(""); }}
+            onClick={() => { setFilterStatus("open"); setAllYears(true); setFilterAction("all"); setSearch(""); setResolvedThisMonthMode(false); }}
             className="bg-white rounded-lg border p-4 text-left transition-all"
             style={{
               borderColor: allYears && filterStatus === "open" ? "#dc2626" : "#fecaca",
@@ -274,7 +274,7 @@ export default function FieldInspectionsPage() {
             <p className="text-xs text-gray-500 mt-0.5">Treat or urgent — unresolved · all years</p>
           </button>
           <button
-            onClick={() => { setFilterStatus("monitor"); setAllYears(true); setFilterAction("all"); setSearch(""); }}
+            onClick={() => { setFilterStatus("monitor"); setAllYears(true); setFilterAction("all"); setSearch(""); setResolvedThisMonthMode(false); }}
             className="bg-white rounded-lg border p-4 text-left transition-all"
             style={{
               borderColor: allYears && filterStatus === "monitor" ? "#d97706" : "#fde68a",
