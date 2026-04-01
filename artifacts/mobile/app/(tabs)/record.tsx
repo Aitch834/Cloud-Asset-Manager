@@ -116,6 +116,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["soil-management"],
   },
   {
+    id: "soil-sensor",
+    title: "Soil Sensor Reading",
+    description: "Log a timestamped moisture, temperature, or EC reading from a registered continuous monitoring probe",
+    icon: "activity",
+    color: "#16a34a",
+    bgColor: "#f0fdf4",
+    route: "/soil-sensor-reading",
+    moduleKeys: ["soil-management"],
+  },
+  {
     id: "harvest",
     title: "Harvest Record — Combine",
     description: "Combine operator: log the field, crop, yield, moisture and timing for a harvest session",

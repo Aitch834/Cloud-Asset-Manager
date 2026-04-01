@@ -7081,6 +7081,72 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>Why This Matters for Red Tractor</h3>
 <p>Red Tractor standards require evidence of traceability from farm to processor or buyer. Linking sale records to verified contact entries — complete with account number and type — provides a clear chain of custody. During an inspection, you can print or export a list of all sales to a given buyer within any date range, showing the full sale details alongside the buyer's registered contact information.</p>`,
     },
+    {
+      id: 10047,
+      title: "Continuous Soil Monitoring — Sensor Probes and Readings",
+      category: "Nutrient Management",
+      content: `<p>The <strong>Sensors</strong> tab within Soil Tests lets you register physical soil monitoring devices and record timestamped readings of moisture, temperature, and electrical conductivity (EC). This is separate from periodic lab-based soil sampling — it is designed for farms that have installed in-ground sensor probes and want to log data continuously or regularly throughout the season.</p>
+
+<h3>Why Use Continuous Monitoring?</h3>
+<p>Traditional soil testing (pH, P, K, Mg) tells you what nutrients are present — but only at the point in time the sample was taken. Continuous sensor monitoring answers different questions: Is the soil drying out and when should irrigation start? Is a cold spell reducing soil temperature below the threshold for nitrogen uptake? Is EC rising in a specific field, suggesting salinity stress?</p>
+<p>For Red Tractor compliance, continuous monitoring data supports your Soil Management evidence. It shows soil condition is being actively tracked throughout the year, not just at annual sampling events. As the FETF (Farming Equipment &amp; Technology Fund) covers precision monitoring equipment, farms can often offset sensor hardware costs through grant support.</p>
+
+<h3>Registering a Sensor Probe</h3>
+<p>Navigate to <strong>Soil Tests → Sensors</strong> and click <strong>Add Probe</strong>. Fill in:</p>
+<ul>
+<li><strong>Probe Name</strong> — a clear name linking the probe to its physical location, e.g. "North Field — TEROS 12 (30cm)"</li>
+<li><strong>Manufacturer</strong> — choose from METER Group, Pessl Instruments (METOS), Sentek Technologies, Delta-T Devices, Stevens Water, Vegetronix, or Other</li>
+<li><strong>Model</strong> — e.g. TEROS 12, Drill &amp; Drop 60cm, Profile Probe PR2</li>
+<li><strong>Sensor Type</strong> — Moisture only / Moisture + Temperature / Moisture + Temperature + EC / Multi-depth probe</li>
+<li><strong>Monitoring Depths</strong> — comma-separated depths in cm at which this probe measures, e.g. "10, 20, 30, 60"</li>
+<li><strong>Field</strong> — optionally link to a specific field in your register; leave blank for farm-wide probes</li>
+<li><strong>GPS Coordinates</strong> — latitude and longitude for the probe's exact in-ground location; links out to Google Maps</li>
+<li><strong>Install Date</strong> — when the probe was buried or installed</li>
+</ul>
+
+<h3>Expanding a Probe Card</h3>
+<p>Each registered probe appears as a card in the list. Click the <strong>expand arrow</strong> (ChevronDown) on the right side of the card to open the readings panel. The panel has three tabs:</p>
+<ul>
+<li><strong>Chart</strong> — a line chart of readings over the selected date range (30, 90, 180, or 365 days). Moisture % is shown in green on the left axis; temperature °C in orange on the right axis; EC in violet as a dashed line on the left axis.</li>
+<li><strong>Readings</strong> — a table of all readings in the selected period, showing date/time, depth, moisture %, temperature °C, EC, and the entry method (manual / csv / api).</li>
+<li><strong>Import CSV</strong> — shortcut to the CSV import dialog.</li>
+</ul>
+
+<h3>Adding a Manual Reading</h3>
+<p>Click <strong>Add Reading</strong> in the probe panel. Enter:</p>
+<ul>
+<li><strong>Date &amp; Time</strong> — the exact timestamp of the reading (defaults to now)</li>
+<li><strong>Depth (cm)</strong> — which depth this reading corresponds to</li>
+<li><strong>Moisture %</strong> — volumetric water content as a percentage (0–100)</li>
+<li><strong>Temperature °C</strong> — soil temperature in degrees Celsius</li>
+<li><strong>EC (μS/cm)</strong> — electrical conductivity in microsiemens per centimetre</li>
+</ul>
+<p>All measurement fields except Date &amp; Time are optional — record only what your sensor measures. For example, a moisture-only probe does not need temperature or EC values.</p>
+<p>Manual readings can also be entered from the <strong>mobile app</strong> (Soil Sensor Reading screen), useful for walking the field with a portable probe or entering logged values from a paper data sheet.</p>
+
+<h3>Importing from a Data Logger CSV</h3>
+<p>Most data loggers (including METER ZL6, Pessl iMETOS, Sentek DataStore, and Delta-T DL6) can export readings as a CSV file. Click <strong>Import</strong> on any probe to open the import dialog:</p>
+<ol>
+<li>The dialog shows the expected column format — <code>readingat, depthcm, moisturepercent, temperaturecelsius, ecuspercm, notes</code> — with an example. Column names are case-insensitive and the app accepts common variants (e.g. "temperature" or "temp" instead of "temperaturecelsius").</li>
+<li>Select your CSV file. A 5-row preview appears so you can check the data looks correct before importing.</li>
+<li>Click <strong>Import Readings</strong>. Up to 5,000 rows are accepted per import. Imported rows are tagged with entry method "csv" so you can distinguish them from manual entries.</li>
+</ol>
+<p>If your data logger exports data in a format that doesn't match exactly, you can usually rename columns in a spreadsheet before exporting as CSV. The only required column is <strong>readingat</strong> — all measurement columns are optional.</p>
+
+<h3>Entry Method Badges</h3>
+<p>Each reading in the table shows a coloured badge indicating how it was entered:</p>
+<ul>
+<li><strong>manual</strong> (grey) — entered directly via the Add Reading dialog or mobile app</li>
+<li><strong>csv</strong> (blue) — imported from a data logger CSV export</li>
+<li><strong>api</strong> (purple) — will be used by future automated integrations with platforms such as Pessl FieldClimate or METER ZENTRA Cloud</li>
+</ul>
+
+<h3>Deleting Probes and Readings</h3>
+<p>To delete an individual reading, click the red bin icon on the right of any row in the Readings table. To delete an entire probe and all its readings, click the bin icon on the probe card header — you will be asked to confirm before anything is deleted, as this cannot be undone.</p>
+
+<h3>Planning for API Integration</h3>
+<p>If you use Pessl Instruments (METOS/FieldClimate), METER Group (ZENTRA Cloud), or Sentek (DataStore), these platforms offer REST APIs that can export your sensor data automatically. BDE Farm Trac's data model is already structured to receive readings tagged as "api" source — a future integration update will allow you to connect your account with one of these platforms and have readings pulled in automatically on a schedule, eliminating manual CSV exports altogether. Contact your BDE Farm Trac account manager to discuss early access to this integration.</p>`,
+    },
   ];
 
   const { search, category } = _req.query;
