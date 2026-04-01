@@ -54,7 +54,8 @@ export function SoilLocationPicker({ lat, lng, locationDescription, onLatLngChan
     const initLng = lng ? parseFloat(lng) : -1.5;
     const initZoom = lat && lng ? 16 : 6;
 
-    const map = L.map(mapRef.current, { zoomControl: true }).setView([initLat, initLng], initZoom);
+    const map = L.map(mapRef.current, { zoomControl: true, scrollWheelZoom: true }).setView([initLat, initLng], initZoom);
+    map.scrollWheelZoom.enable();
     L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       { attribution: "Tiles &copy; Esri &mdash; Esri, Maxar, Earthstar Geographics", maxZoom: 20 }

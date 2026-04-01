@@ -95,7 +95,8 @@ export function TrialMapView({ trials, cropYear }: Props) {
     destroyMap(leafletMapRef.current);
     leafletMapRef.current = null;
 
-    const map = L.map(mapRef.current, { zoomControl: true }).setView([52.4, -1.5], 11);
+    const map = L.map(mapRef.current, { zoomControl: true, scrollWheelZoom: true }).setView([52.4, -1.5], 11);
+    map.scrollWheelZoom.enable();
     L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       { attribution: "Tiles &copy; Esri &mdash; Esri, Maxar, Earthstar Geographics", maxZoom: 20 }

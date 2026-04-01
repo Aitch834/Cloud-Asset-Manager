@@ -79,7 +79,8 @@ function useFarmMap(
         : [52.8, -1.5];
       const zoom = pinned.length > 0 ? 15 : 6;
 
-      const map = L.map(containerRef.current, { center, zoom });
+      const map = L.map(containerRef.current, { center, zoom, scrollWheelZoom: true });
+      map.scrollWheelZoom.enable();
       mapRef.current = map;
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {

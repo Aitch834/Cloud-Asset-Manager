@@ -68,7 +68,9 @@ export function StorageLocationMapPicker({ value, onChange, mapHeight = 280 }: P
       center: defaultCenter,
       zoom: defaultZoom,
       zoomControl: true,
+      scrollWheelZoom: true,
     });
+    map.scrollWheelZoom.enable();
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',

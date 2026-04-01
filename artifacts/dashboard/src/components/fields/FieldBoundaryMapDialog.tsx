@@ -105,7 +105,8 @@ export function FieldBoundaryMapDialog({ fieldId, fieldName, open, onClose, onSa
     destroyMap(leafletRef.current);
     leafletRef.current = null;
 
-    const map = L.map(mapRef.current, { zoomControl: true }).setView([52.2, -1.0], 13);
+    const map = L.map(mapRef.current, { zoomControl: true, scrollWheelZoom: true }).setView([52.2, -1.0], 13);
+    map.scrollWheelZoom.enable();
 
     L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
