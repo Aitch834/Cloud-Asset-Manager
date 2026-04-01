@@ -183,24 +183,21 @@ export async function getCachedStaffMembers(farmId: string): Promise<RefStaffMem
 }
 
 async function syncGrainBins(farmId: string, token: string, base: string): Promise<void> {
-  type RawBin = { id: number; binName: string; binType: string; capacityTonnes: string | null };
-  try {
-    const res = await fetch(`${base}/api/farms/${farmId}/grain-storage-bins`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return;
-    const data = await res.json() as RawBin[];
-    const bins: RefGrainBin[] = (Array.isArray(data) ? data : []).map((b) => ({
-      id: String(b.id),
-      label: b.binName,
-      binType: b.binType ?? "",
-      sublabel: [b.binType, b.capacityTonnes ? `${b.capacityTonnes}t` : ""].filter(Boolean).join(" · "),
+  type RawLocation = { id: number; name: string; type: string; binType: string | null; capacityTonnes: string | null };
+  const GRAIN_TYPES = ["grain_store", "silo", "bin"];
+  const TYPE_LABELS: Record<string, string> = { grain_store: "Grain Store", silo: "Silo", bin: "Bin" };
+  const records = await safeFetch<RawLocation>(`${base}/api/farms/${farmId}/storage-locations`, token);
+  if (!records) return;
+  const bins: RefGrainBin[] = records
+    .filter((l) => GRAIN_TYPES.includes(l.type))
+    .map((l) => ({
+      id: String(l.id),
+      label: l.name,
+      binType: l.binType ?? TYPE_LABELS[l.type] ?? l.type,
+      sublabel: [l.binType ?? TYPE_LABELS[l.type] ?? l.type, l.capacityTonnes ? `${l.capacityTonnes}t` : ""].filter(Boolean).join(" · "),
     }));
-    if (bins.length > 0) {
-      await saveRefCache("grain-bins", farmId, bins);
-    }
-  } catch {
-    // silently ignore
+  if (bins.length > 0) {
+    await saveRefCache("grain-bins", farmId, bins);
   }
 }
 
