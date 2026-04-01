@@ -590,27 +590,52 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
 
 function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
   const productCategories = useLookupStrings("spray_product_categories", PRODUCT_CATEGORIES_FALLBACK);
-  const [addOpen, setAddOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [viewRecord, setViewRecord] = useState<any>(null);
   const emptyForm = { productName: "", activeIngredient: "", mappaNumber: "", manufacturer: "", category: "", harvestInterval: "", maxApplicationsPerSeason: "", storageRequirements: "" };
   const [form, setForm] = useState<any>(emptyForm);
 
+  function openAdd() { setEditRecord(null); setForm(emptyForm); setDialogOpen(true); }
+  function openEdit(p: any) {
+    setEditRecord(p);
+    setForm({
+      productName: p.productName ?? "",
+      activeIngredient: p.activeIngredient ?? "",
+      mappaNumber: p.mappaNumber ?? "",
+      manufacturer: p.manufacturer ?? "",
+      category: p.category ?? "",
+      harvestInterval: p.harvestInterval ?? "",
+      maxApplicationsPerSeason: p.maxApplicationsPerSeason ?? "",
+      storageRequirements: p.storageRequirements ?? "",
+    });
+    setDialogOpen(true);
+  }
+  function closeDialog() { setDialogOpen(false); setEditRecord(null); setForm(emptyForm); }
+
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/spray-products`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Product added" }); onRefresh(); setAddOpen(false); setForm(emptyForm); },
+    onSuccess: () => { toast({ title: "Product added" }); onRefresh(); closeDialog(); },
     onError: () => toast({ title: "Failed to add product", variant: "destructive" }),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/spray-products/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => { toast({ title: "Product updated" }); onRefresh(); closeDialog(); setViewRecord(null); },
+    onError: () => toast({ title: "Failed to update product", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/spray-products/${id}`, { method: "DELETE" }),
-    onSuccess: () => { toast({ title: "Product deleted" }); onRefresh(); setDeleteId(null); },
+    onSuccess: () => { toast({ title: "Product deleted" }); onRefresh(); setDeleteId(null); setViewRecord(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
   return (
     <>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
-        <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Product</Button>
+        <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Add Product</Button>
       </div>
       {loading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : products.length === 0 ? (
         <EmptyState icon={<FlaskConical size={28} color="#9ca3af" />} title="No products registered" subtitle="Add the pesticides, herbicides and fungicides you use. They'll be available to select when logging applications." />
@@ -626,7 +651,7 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
             </thead>
             <tbody>
               {products.map((p: any, i: number) => (
-                <tr key={p.id} style={{ borderBottom: i < products.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                <tr key={p.id} style={{ borderBottom: i < products.length - 1 ? "1px solid #f3f4f6" : "none", cursor: "pointer" }} onClick={() => setViewRecord(p)}>
                   <td style={{ padding: "0.625rem 0.75rem", fontWeight: 600, color: "#1e40af" }}>{p.productName}</td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "#374151" }}>{p.activeIngredient || "—"}</td>
                   <td style={{ padding: "0.625rem 0.75rem" }}>{p.mappaNumber ? <Badge style={{ background: "#fef3c7", color: "#92400e", border: "none", fontSize: "0.72rem", fontFamily: "monospace" }}>{p.mappaNumber}</Badge> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
@@ -634,7 +659,8 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{p.manufacturer || "—"}</td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{p.harvestInterval ? `${p.harvestInterval} days` : "—"}</td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{p.maxApplicationsPerSeason || "—"}</td>
-                  <td style={{ padding: "0.5rem" }}>
+                  <td style={{ padding: "0.5rem" }} onClick={e => e.stopPropagation()}>
+                    <button onClick={() => openEdit(p)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Edit"><Pencil size={13} /></button>
                     <button onClick={() => setDeleteId(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                   </td>
                 </tr>
@@ -644,9 +670,60 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) setForm(emptyForm); }}>
+      {/* View / detail panel */}
+      <Dialog open={viewRecord !== null && !dialogOpen} onOpenChange={o => { if (!o) setViewRecord(null); }}>
+        <DialogContent style={{ maxWidth: 540 }}>
+          <DialogHeader>
+            <DialogTitle style={{ fontSize: "1.1rem" }}>{viewRecord?.productName}</DialogTitle>
+          </DialogHeader>
+          {viewRecord && (
+            <div className="space-y-3 py-1">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                <div>
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">Category</p>
+                  <p>{viewRecord.category ? <CategoryBadge cat={viewRecord.category} /> : <span className="text-gray-400">—</span>}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">MAPP Number</p>
+                  <p>{viewRecord.mappaNumber ? <Badge style={{ background: "#fef3c7", color: "#92400e", border: "none", fontSize: "0.72rem", fontFamily: "monospace" }}>{viewRecord.mappaNumber}</Badge> : <span className="text-gray-400">—</span>}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">Active Ingredient</p>
+                  <p className="text-gray-700">{viewRecord.activeIngredient || <span className="text-gray-400">—</span>}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">Manufacturer</p>
+                  <p className="text-gray-700">{viewRecord.manufacturer || <span className="text-gray-400">—</span>}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">Harvest Interval</p>
+                  <p className="text-gray-700">{viewRecord.harvestInterval ? `${viewRecord.harvestInterval} days` : <span className="text-gray-400">—</span>}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">Max Applications / Season</p>
+                  <p className="text-gray-700">{viewRecord.maxApplicationsPerSeason || <span className="text-gray-400">—</span>}</p>
+                </div>
+              </div>
+              {viewRecord.storageRequirements && (
+                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.75rem 1rem" }}>
+                  <p className="text-xs font-medium text-green-700 uppercase tracking-wide mb-1">Storage Requirements</p>
+                  <p className="text-sm text-green-900">{viewRecord.storageRequirements}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteId(viewRecord?.id)}>Delete</Button>
+            <Button variant="outline" onClick={() => { openEdit(viewRecord); }}>Edit</Button>
+            <Button onClick={() => setViewRecord(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add / Edit dialog */}
+      <Dialog open={dialogOpen} onOpenChange={o => { if (!o) closeDialog(); }}>
         <DialogContent style={{ maxWidth: 520 }}>
-          <DialogHeader><DialogTitle>Add Spray Product</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editRecord ? "Edit Spray Product" : "Add Spray Product"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -655,9 +732,12 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
               </div>
               <div>
                 <Label>Category</Label>
-                <Select value={form.category} onValueChange={v => setForm((f: any) => ({ ...f, category: v }))}>
+                <Select value={form.category || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, category: v === "__none__" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>{productCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {productCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
             </div>
@@ -691,8 +771,11 @@ function ProductsTab({ products, farmId, loading, onRefresh, toast }: any) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={() => createMut.mutate(form)} disabled={!form.productName || createMut.isPending}>Add Product</Button>
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            {editRecord
+              ? <Button onClick={() => updateMut.mutate({ id: editRecord.id, body: form })} disabled={!form.productName || updateMut.isPending}>Save Changes</Button>
+              : <Button onClick={() => createMut.mutate(form)} disabled={!form.productName || createMut.isPending}>Add Product</Button>
+            }
           </DialogFooter>
         </DialogContent>
       </Dialog>
