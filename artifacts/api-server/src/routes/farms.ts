@@ -5023,8 +5023,66 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 </ul>
 <p>If a task appears in the Overdue section, click through to the relevant module, complete and log the action, then ensure the next due date is set in the new record. The old overdue item will disappear from the planner once it is no longer the most recent record for that area.</p>
 
+<h3>Assigning Tasks to Staff</h3>
+<p>Every task card in the Week Ahead planner has an <strong>Assign →</strong> button. Clicking it opens the assignment dialog:</p>
+<ol>
+<li><strong>Select staff member</strong> — choose from your active staff list. If a staff member has a mobile phone number on their record, they will receive an SMS notification as soon as you save.</li>
+<li><strong>Add a note (optional)</strong> — a free-text note to give the staff member extra context (e.g. "Use the blue quad — gate code is 1234").</li>
+<li><strong>Due date</strong> — pre-filled from the planner task's due date, but you can adjust it.</li>
+<li><strong>Submit</strong> — the assignment is created with status <em>Pending</em>. If the staff member has a phone number, an SMS is sent immediately: "<em>Hi [name], you've been assigned a task: [title]. Due: [date]. Note: [note].</em>"</li>
+</ol>
+<p>You can assign the same planner task to multiple staff members by opening the dialog again. Each assignment is tracked independently.</p>
+
+<h3>Tracking Assignments — Task Board</h3>
+<p>After assigning tasks, use the <strong>Task Board</strong> page (in the sidebar, just below Week Ahead) to monitor progress across the whole team. The Task Board shows every assignment with its current status, the staff member's name, due date, and any completion notes they added. You can:</p>
+<ul>
+<li><strong>Filter by staff member</strong> — see all tasks assigned to a particular person</li>
+<li><strong>Filter by status</strong> — show only Pending, In Progress, or Completed assignments</li>
+<li><strong>Update status</strong> — change status yourself if the staff member does not have mobile access</li>
+<li><strong>Delete</strong> — remove an assignment that is no longer needed</li>
+</ul>
+<p>Staff members with mobile app access see their assigned tasks under <strong>My Task Inbox</strong> (first option in the mobile app's Record tab). They can expand each card, read your note, mark the task In Progress or Complete, and add a completion note — all without needing to log in to the web dashboard.</p>
+
 <h3>Relationship with SMS Alerts</h3>
 <p>The planner is a visual planning tool — it does not replace the SMS alert system. Critical overdue biosecurity items (pest control follow-ups and cleaning schedules) will also trigger SMS text notifications to designated farm managers and opted-in users when the SMS Text Alerts add-on is active. The planner shows all upcoming and overdue tasks across every module, whereas SMS alerts fire only when a date is breached and only for critical categories.</p>`,
+    },
+    {
+      id: 10048,
+      title: "Task Board — Managing Staff Task Assignments",
+      category: "Getting Started",
+      content: `<p>The <strong>Task Board</strong> is the manager's view of every task that has been assigned to a staff member. It sits just below <strong>Week Ahead</strong> in the sidebar and gives you a live, at-a-glance picture of who is doing what, what is overdue, and what has been completed.</p>
+
+<h3>Accessing the Task Board</h3>
+<p>Click <strong>Task Board</strong> in the sidebar. The page loads all task assignments for your farm, most recent first. At the top of the page a status bar shows the total count of Pending, In Progress, and Completed assignments so you can see the team's workload without scrolling.</p>
+
+<h3>Filtering Assignments</h3>
+<p>Use the two dropdowns at the top of the page to narrow the list:</p>
+<ul>
+<li><strong>Filter by staff member</strong> — see only the tasks assigned to one person. Useful when briefing an individual at the start of the day.</li>
+<li><strong>Filter by status</strong> — show only Pending, In Progress, or Completed assignments. Use the Pending filter to find tasks that have not been started, or the Completed filter to review finished work before an audit.</li>
+</ul>
+
+<h3>Assignment Cards</h3>
+<p>Each card shows:</p>
+<ul>
+<li><strong>Task title and module badge</strong> — what needs doing and which area of the farm it relates to</li>
+<li><strong>Staff member's name and due date</strong></li>
+<li><strong>Status badge</strong> — Pending (grey), In Progress (blue), Completed (green), Cancelled (dim)</li>
+<li><strong>SMS indicator</strong> — whether an SMS was sent to the staff member when the task was assigned</li>
+</ul>
+<p>Click the expand icon on any card to see the full details: the original description, your assignment note, the staff member's completion note, and the completion timestamp if applicable.</p>
+
+<h3>Updating an Assignment</h3>
+<p>In the expanded card you can change the status yourself — useful if a staff member does not have mobile app access. Select the new status from the dropdown and click <strong>Update</strong>. You can also add a manager note or adjust the due date without resending an SMS.</p>
+
+<h3>Deleting an Assignment</h3>
+<p>Use the <strong>Delete</strong> button in the expanded card to remove an assignment that is no longer needed. This does not affect the original planner task or any records logged against it — only the assignment itself is removed.</p>
+
+<h3>How Staff See Their Tasks (Mobile)</h3>
+<p>Any staff member with mobile app access can open <strong>My Task Inbox</strong> (first option in the mobile app's Record tab). Their inbox shows two tabs — Open and Completed. Open tasks are those in Pending or In Progress status. Each card shows the task title, due date, and your assignment note. They can tap to expand, mark the task In Progress (if it is still Pending), or mark it Complete with an optional completion note. Status changes appear on the Task Board immediately.</p>
+
+<h3>Relationship with the Week Ahead Planner</h3>
+<p>The Task Board and the Week Ahead planner are complementary. The Week Ahead surfaces what needs to happen and when — the Task Board tracks who is responsible for making it happen. Assign tasks from the Week Ahead, then monitor progress in the Task Board.</p>`,
     },
     {
       id: 37,

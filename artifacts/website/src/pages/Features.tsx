@@ -54,6 +54,8 @@ const sections: Section[] = [
           "Audit history log",
           "One-click print-ready compliance reports",
           "Farm Planner — switch between a 7-day Week Ahead and 30-day Month Ahead view; draws from 21 data sources across every active module including certificate expiries, inspection dates, insurance renewals, medicine withdrawal periods, PAT tests, fire extinguisher services, water abstraction licence renewals, COSHH review dates, and expected deliveries; custom reminders let you add one-off events (contractor visits, farm walks, merchant meetings) with colour-coding directly into the planner timeline",
+          "Task Assignment — assign any planner task to a named staff member directly from the Week Ahead view; the staff member receives an SMS notification instantly with the task title, due date, and any note you add; assignments are tracked with a pending / in progress / completed / cancelled status workflow",
+          "Task Board — dedicated manager view of all open and completed task assignments across the farm; filter by staff member or status; expandable cards show the full assignment history including completion notes and timestamps",
           "Insurance Register — record Employers Liability, Public Liability, and all other farm policies with insurer, policy number, cover level, and expiry date; attach PDF or photo scans of certificates for instant on-screen access during inspections; automatic colour-coded alerts (amber at 60 days, red on expiry) for both legally required and Red Tractor-required policies",
         ],
       },
@@ -278,6 +280,7 @@ const sections: Section[] = [
           "Staff-linked records — cert and training forms use a real-user dropdown so records are tied to the correct person, not a typed name",
           "Post-invite RTW prompt — after inviting a new team member, the system reminds you to carry out a Right to Work check and record their certificates before they start",
           "Print Register — generates a formatted A4 document with training and certificate tables plus sign-off blocks, suitable for presenting to a Red Tractor inspector",
+          "Mobile Task Inbox — staff log in to the mobile app to see all tasks assigned to them; each card shows the task, due date, module, and manager's note; staff can mark tasks in progress or complete with an optional completion note; managers see status updates in real time on the Task Board",
         ],
       },
       {
