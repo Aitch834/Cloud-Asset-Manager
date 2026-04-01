@@ -641,6 +641,25 @@ router.post("/farms/:farmId/field-crops", requireAuth, requireTenant, requireMod
   res.status(201).json({ record });
 });
 
+router.patch("/farms/:farmId/field-crops/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const allowed: Record<string, unknown> = {};
+  if (req.body.notes !== undefined) allowed.notes = req.body.notes || null;
+  if (Object.keys(allowed).length === 0) { res.status(400).json({ error: "No updatable fields provided" }); return; }
+  const [existing] = await db
+    .select({ id: fieldCropAssignmentsTable.id })
+    .from(fieldCropAssignmentsTable)
+    .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+    .where(and(eq(fieldCropAssignmentsTable.id, id), eq(fieldsTable.farmId, farmId)))
+    .limit(1);
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  const [record] = await db.update(fieldCropAssignmentsTable).set(allowed).where(eq(fieldCropAssignmentsTable.id, id)).returning();
+  res.json({ record });
+});
+
 // ─── Harvests ───────────────────────────────────────
 router.get("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);

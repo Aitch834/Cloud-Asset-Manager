@@ -15,11 +15,12 @@ import {
 import { useAppStore } from "@/hooks/use-app-store";
 import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/use-fields";
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
+import { getListFieldCropAssignmentsQueryKey } from "@workspace/api-client-react/src/generated/api";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 import {
   Plus, Search, Map, MoreVertical, Pencil, Trash2, AlertTriangle,
-  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode,
+  Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { FieldBoundaryMapDialog } from "@/components/fields/FieldBoundaryMapDialog";
@@ -60,6 +61,7 @@ interface FieldCropAssignment {
   actualHarvestDate?: string | null;
   season?: string;
   year?: number;
+  notes?: string | null;
 }
 
 interface FieldFormData { name: string; areaHectares: number; soilType: string; fieldReference?: string; }
@@ -69,6 +71,115 @@ interface AssignCropFormData { cropId: number; plantingDate: string; expectedHar
 function formatDate(dateStr?: string | null) {
   if (!dateStr) return null;
   return new Date(dateStr).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function harvestVarianceDays(expected?: string | null, actual?: string | null): number | null {
+  if (!expected || !actual) return null;
+  const e = new Date(expected), a = new Date(actual);
+  if (isNaN(e.getTime()) || isNaN(a.getTime())) return null;
+  return Math.round((a.getTime() - e.getTime()) / 86400000);
+}
+
+function VarianceBadge({ days, size = "sm" }: { days: number | null; size?: "xs" | "sm" }) {
+  if (days === null) return null;
+  const textSize = size === "xs" ? "0.65rem" : "0.7rem";
+  const pad = size === "xs" ? "1px 5px" : "2px 7px";
+  if (days === 0) return (
+    <span style={{ fontSize: textSize, fontWeight: 600, padding: pad, borderRadius: 99, background: "#dcfce7", color: "#15803d", border: "1px solid #bbf7d0", whiteSpace: "nowrap" }}>
+      On time
+    </span>
+  );
+  if (days > 0) return (
+    <span style={{ fontSize: textSize, fontWeight: 600, padding: pad, borderRadius: 99, background: days > 7 ? "#fee2e2" : "#fef3c7", color: days > 7 ? "#b91c1c" : "#92400e", border: `1px solid ${days > 7 ? "#fca5a5" : "#fde68a"}`, whiteSpace: "nowrap" }}>
+      +{days}d late
+    </span>
+  );
+  return (
+    <span style={{ fontSize: textSize, fontWeight: 600, padding: pad, borderRadius: 99, background: "#dbeafe", color: "#1d4ed8", border: "1px solid #bfdbfe", whiteSpace: "nowrap" }}>
+      {days}d early
+    </span>
+  );
+}
+
+function HarvestNoteEditor({ assignmentId, farmId, initialNote }: {
+  assignmentId: number;
+  farmId: number;
+  initialNote?: string | null;
+}) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = React.useState(false);
+  const [text, setText] = React.useState(initialNote ?? "");
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => { setText(initialNote ?? ""); }, [initialNote]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/farms/${farmId}/field-crops/${assignmentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: text.trim() || null }),
+      });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: getListFieldCropAssignmentsQueryKey(farmId) });
+        setEditing(false);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div style={{ marginTop: 6 }}>
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Add a note to explain the harvest variance…"
+          rows={2}
+          style={{
+            width: "100%", fontSize: "0.72rem", borderRadius: 8, border: "1px solid #d1d5db",
+            padding: "5px 8px", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5,
+            backgroundColor: "#fff",
+          }}
+        />
+        <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{ fontSize: "0.7rem", fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: "#16a34a", color: "#fff", border: "none", cursor: "pointer", opacity: saving ? 0.6 : 1 }}
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+          <button
+            onClick={() => { setEditing(false); setText(initialNote ?? ""); }}
+            style={{ fontSize: "0.7rem", fontWeight: 500, padding: "3px 10px", borderRadius: 6, background: "transparent", color: "#6b7280", border: "1px solid #d1d5db", cursor: "pointer" }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 5, marginTop: 5 }}>
+      <StickyNote style={{ width: 11, height: 11, color: "#9ca3af", flexShrink: 0, marginTop: 1 }} />
+      {text ? (
+        <span style={{ fontSize: "0.72rem", color: "#6b7280", fontStyle: "italic", flex: 1, lineHeight: 1.4 }}>{text}</span>
+      ) : (
+        <span style={{ fontSize: "0.72rem", color: "#9ca3af" }}>No harvest note</span>
+      )}
+      <button
+        onClick={() => setEditing(true)}
+        title="Edit harvest note"
+        style={{ background: "none", border: "none", cursor: "pointer", padding: 0, lineHeight: 1, color: "#9ca3af", flexShrink: 0 }}
+      >
+        <Pencil style={{ width: 10, height: 10 }} />
+      </button>
+    </div>
+  );
 }
 
 interface Farm { name?: string; address?: string; postcode?: string; cphNumber?: string; redTractorId?: string | null; }
@@ -117,8 +228,11 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
 
   const handlePrint = () => {
     const tableHtml = `<table><thead><tr>
-      <th>Field Name</th><th>Ref</th><th>Area (ha)</th><th>Soil Type</th><th>Crop</th><th>Season</th><th>Planted</th><th>Exp. Harvest</th>${isHistorical ? "<th>Actual Harvest</th>" : ""}
-    </tr></thead><tbody>${rows.map(row => `<tr>
+      <th>Field Name</th><th>Ref</th><th>Area (ha)</th><th>Soil Type</th><th>Crop</th><th>Season</th><th>Planted</th><th>Exp. Harvest</th>${rows.some(r => r.actualHarvestDate) ? "<th>Actual Harvest</th><th>Variance</th>" : ""}${rows.some(r => r.notes) ? "<th>Notes</th>" : ""}
+    </tr></thead><tbody>${rows.map(row => {
+      const vd = harvestVarianceDays(row.expectedHarvestDate, row.actualHarvestDate);
+      const varianceText = vd === null ? "—" : vd === 0 ? "On time" : vd > 0 ? `+${vd}d late` : `${vd}d early`;
+      return `<tr>
       <td><strong>${row.fieldName || "Field #" + row.fieldId}</strong></td>
       <td style="color:#6b7280">${row.fieldReference || "—"}</td>
       <td>${row.areaHectares ? parseFloat(String(row.areaHectares)).toFixed(2) : "—"}</td>
@@ -127,8 +241,10 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
       <td>${row.season || "—"}</td>
       <td style="white-space:nowrap">${formatDate(row.plantingDate) || "—"}</td>
       <td style="white-space:nowrap">${formatDate(row.expectedHarvestDate) || "—"}</td>
-      ${isHistorical ? `<td style="white-space:nowrap">${formatDate(row.actualHarvestDate) || "—"}</td>` : ""}
-    </tr>`).join("")}</tbody></table>
+      ${rows.some(r => r.actualHarvestDate) ? `<td style="white-space:nowrap">${formatDate(row.actualHarvestDate) || "—"}</td><td>${varianceText}</td>` : ""}
+      ${rows.some(r => r.notes) ? `<td style="color:#6b7280;font-style:italic">${row.notes || "—"}</td>` : ""}
+    </tr>`;
+    }).join("")}</tbody></table>
     <p style="font-size:7px;color:#6b7280;margin:6px 0 0">
       <strong>${fields.length}</strong> field${fields.length !== 1 ? "s" : ""} total  ·
       <strong>${rows.filter(r => r.cropId).length}</strong> with crop assigned  ·
@@ -188,25 +304,44 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
                   <th className="border border-border/60 px-3 py-2 text-left font-semibold">Season</th>
                   <th className="border border-border/60 px-3 py-2 text-left font-semibold">Planted</th>
                   <th className="border border-border/60 px-3 py-2 text-left font-semibold">Exp. Harvest</th>
-                  {isHistorical && <th className="border border-border/60 px-3 py-2 text-left font-semibold">Actual Harvest</th>}
+                  {rows.some(r => r.actualHarvestDate) && (
+                    <>
+                      <th className="border border-border/60 px-3 py-2 text-left font-semibold">Actual Harvest</th>
+                      <th className="border border-border/60 px-3 py-2 text-left font-semibold">Variance</th>
+                    </>
+                  )}
+                  {rows.some(r => r.notes) && (
+                    <th className="border border-border/60 px-3 py-2 text-left font-semibold">Notes</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => (
-                  <tr key={row.fieldId} className={i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}>
-                    <td className="border border-border/60 px-3 py-2 font-medium">{row.fieldName || `Field #${row.fieldId}`}</td>
-                    <td className="border border-border/60 px-3 py-2 text-foreground/60">{row.fieldReference || "—"}</td>
-                    <td className="border border-border/60 px-3 py-2">{row.areaHectares ? parseFloat(String(row.areaHectares)).toFixed(2) : "—"}</td>
-                    <td className="border border-border/60 px-3 py-2">{row.soilType || "—"}</td>
-                    <td className="border border-border/60 px-3 py-2 font-medium">{row.cropName}</td>
-                    <td className="border border-border/60 px-3 py-2">{row.season || "—"}</td>
-                    <td className="border border-border/60 px-3 py-2">{formatDate(row.plantingDate) || "—"}</td>
-                    <td className="border border-border/60 px-3 py-2">{formatDate(row.expectedHarvestDate) || "—"}</td>
-                    {isHistorical && (
-                      <td className="border border-border/60 px-3 py-2">{formatDate(row.actualHarvestDate) || "—"}</td>
-                    )}
-                  </tr>
-                ))}
+                {rows.map((row, i) => {
+                  const varianceDays = harvestVarianceDays(row.expectedHarvestDate, row.actualHarvestDate);
+                  return (
+                    <tr key={row.fieldId} className={i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}>
+                      <td className="border border-border/60 px-3 py-2 font-medium">{row.fieldName || `Field #${row.fieldId}`}</td>
+                      <td className="border border-border/60 px-3 py-2 text-foreground/60">{row.fieldReference || "—"}</td>
+                      <td className="border border-border/60 px-3 py-2">{row.areaHectares ? parseFloat(String(row.areaHectares)).toFixed(2) : "—"}</td>
+                      <td className="border border-border/60 px-3 py-2">{row.soilType || "—"}</td>
+                      <td className="border border-border/60 px-3 py-2 font-medium">{row.cropName}</td>
+                      <td className="border border-border/60 px-3 py-2">{row.season || "—"}</td>
+                      <td className="border border-border/60 px-3 py-2">{formatDate(row.plantingDate) || "—"}</td>
+                      <td className="border border-border/60 px-3 py-2">{formatDate(row.expectedHarvestDate) || "—"}</td>
+                      {rows.some(r => r.actualHarvestDate) && (
+                        <>
+                          <td className="border border-border/60 px-3 py-2">{formatDate(row.actualHarvestDate) || "—"}</td>
+                          <td className="border border-border/60 px-3 py-2">
+                            {varianceDays !== null ? <VarianceBadge days={varianceDays} size="xs" /> : <span className="text-foreground/30">—</span>}
+                          </td>
+                        </>
+                      )}
+                      {rows.some(r => r.notes) && (
+                        <td className="border border-border/60 px-3 py-2 text-foreground/60 italic">{row.notes || "—"}</td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1015,6 +1150,23 @@ export default function FieldsPage() {
                             <span>Expected harvest: <strong>{formatDate(crop.expectedHarvestDate)}</strong></span>
                           </div>
                         )}
+                        {crop.actualHarvestDate && (
+                          <div className="flex items-center gap-2 text-xs text-foreground/70">
+                            <Wheat className="w-3.5 h-3.5 text-green-700 flex-shrink-0" />
+                            <span>Actual harvest: <strong>{formatDate(crop.actualHarvestDate)}</strong></span>
+                            {(() => {
+                              const days = harvestVarianceDays(crop.expectedHarvestDate, crop.actualHarvestDate);
+                              return days !== null ? <VarianceBadge days={days} size="xs" /> : null;
+                            })()}
+                          </div>
+                        )}
+                        {crop.actualHarvestDate && (
+                          <HarvestNoteEditor
+                            assignmentId={crop.id}
+                            farmId={farmId}
+                            initialNote={crop.notes}
+                          />
+                        )}
                       </div>
                     ) : (
                       <button
@@ -1235,6 +1387,25 @@ export default function FieldsPage() {
                             <div className="flex items-center gap-2 text-sm text-foreground/70">
                               <Wheat className="w-4 h-4 text-amber-600 flex-shrink-0" />
                               <span>Expected harvest <strong>{formatDate(currentCropForDrawer.expectedHarvestDate)}</strong></span>
+                            </div>
+                          )}
+                          {currentCropForDrawer.actualHarvestDate && (
+                            <div className="flex items-center gap-2 text-sm text-foreground/70">
+                              <Wheat className="w-4 h-4 text-green-700 flex-shrink-0" />
+                              <span>Actual harvest <strong>{formatDate(currentCropForDrawer.actualHarvestDate)}</strong></span>
+                              {(() => {
+                                const days = harvestVarianceDays(currentCropForDrawer.expectedHarvestDate, currentCropForDrawer.actualHarvestDate);
+                                return days !== null ? <VarianceBadge days={days} /> : null;
+                              })()}
+                            </div>
+                          )}
+                          {currentCropForDrawer.actualHarvestDate && (
+                            <div className="pt-1">
+                              <HarvestNoteEditor
+                                assignmentId={currentCropForDrawer.id}
+                                farmId={farmId}
+                                initialNote={currentCropForDrawer.notes}
+                              />
                             </div>
                           )}
                         </div>

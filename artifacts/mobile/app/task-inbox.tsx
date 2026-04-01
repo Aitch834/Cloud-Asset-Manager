@@ -224,7 +224,7 @@ export default function TaskInboxScreen() {
   const fetchAssignments = useCallback(async () => {
     if (!currentFarm) return;
     try {
-      const res = await fetch(`/api/farms/${currentFarm.id}/task-assignments`);
+      const res = await fetch(`/api/farms/${currentFarm.id}/task-assignments/mine`);
       if (res.ok) {
         const data = await res.json();
         setAssignments(data.records ?? []);
