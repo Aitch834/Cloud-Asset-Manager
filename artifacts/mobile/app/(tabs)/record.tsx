@@ -29,6 +29,15 @@ interface RecordOption {
 
 const recordOptions: RecordOption[] = [
   {
+    id: "task-inbox",
+    title: "My Task Inbox",
+    description: "View tasks assigned to you by the farm manager and mark them as complete",
+    icon: "check-square",
+    color: "#22c55e",
+    bgColor: "#f0fdf4",
+    route: "/task-inbox",
+  },
+  {
     id: "photo",
     title: "Photo Capture",
     description: "Take geotagged photos for evidence and compliance documentation",

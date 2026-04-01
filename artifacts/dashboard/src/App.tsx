@@ -57,6 +57,7 @@ import AccidentBookPage from "@/pages/AccidentBookPage";
 import FarmLocationsPage from "@/pages/FarmLocationsPage";
 import FarmMapPage from "@/pages/FarmMapPage";
 import WeekAheadPage from "@/pages/WeekAheadPage";
+import TaskBoardPage from "@/pages/TaskBoardPage";
 import DairyPage from "@/pages/DairyPage";
 import WorkshopPage from "@/pages/WorkshopPage";
 import PigProductionPage from "@/pages/PigProductionPage";
@@ -172,6 +173,7 @@ function Router() {
       <Route path="/select" component={SelectContext} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/week-ahead" component={WeekAheadPage} />
+      <Route path="/task-board" component={TaskBoardPage} />
       <Route path="/fields" component={FieldsPage} />
       <Route path="/crop-trials" component={CropTrialsPage} />
       <Route path="/harvest" component={HarvestPage} />

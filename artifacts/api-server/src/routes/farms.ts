@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
+import { sendSms } from "../lib/sms";
 import {
   biofuelCertificationsTable,
   biofuelFieldDeclarationsTable,
@@ -165,6 +166,7 @@ import {
   farmInsuranceTable,
   farmPlannerEventsTable,
   farmGrantsTable,
+  farmTaskAssignmentsTable,
   farmAssuranceCertsTable,
   cropContractsTable,
   fuelTanksTable,
@@ -3980,6 +3982,100 @@ router.delete("/farms/:farmId/planner-events/:recordId", requireAuth, requireTen
   const farmId = req.tenantId!;
   const recordId = Number(req.params.recordId);
   await db.delete(farmPlannerEventsTable).where(and(eq(farmPlannerEventsTable.id, recordId), eq(farmPlannerEventsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Task Assignments ──────────────────────────────
+router.get("/farms/:farmId/task-assignments", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const { status, memberId } = req.query as Record<string, string>;
+  const conditions = [eq(farmTaskAssignmentsTable.farmId, farmId)];
+  if (status) conditions.push(eq(farmTaskAssignmentsTable.status, status));
+  if (memberId && !isNaN(Number(memberId))) conditions.push(eq(farmTaskAssignmentsTable.assignedToMemberId, Number(memberId)));
+  const records = await db.select().from(farmTaskAssignmentsTable).where(and(...conditions)).orderBy(desc(farmTaskAssignmentsTable.createdAt));
+  res.json({ records });
+});
+
+router.get("/farms/:farmId/task-assignments/mine", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const userId = req.user?.id;
+  if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const [member] = await db.select({ id: farmMembersTable.id }).from(farmMembersTable)
+    .where(and(eq(farmMembersTable.farmId, farmId), eq(farmMembersTable.linkedUserId, userId)));
+  if (!member) { res.json({ records: [], memberId: null }); return; }
+  const records = await db.select().from(farmTaskAssignmentsTable)
+    .where(and(eq(farmTaskAssignmentsTable.farmId, farmId), eq(farmTaskAssignmentsTable.assignedToMemberId, member.id)))
+    .orderBy(desc(farmTaskAssignmentsTable.createdAt));
+  res.json({ records, memberId: member.id });
+});
+
+router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const userId = req.user?.id ?? "unknown";
+  const tenantId = farmId;
+  const { assignedToMemberId, title, description, dueDate, module: mod, href, assignmentNote, taskType, taskSourceId } = req.body;
+  if (!assignedToMemberId || !title) { res.status(400).json({ error: "assignedToMemberId and title are required" }); return; }
+  const [member] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone })
+    .from(farmMembersTable).where(and(eq(farmMembersTable.id, Number(assignedToMemberId)), eq(farmMembersTable.farmId, farmId)));
+  if (!member) { res.status(404).json({ error: "Staff member not found" }); return; }
+  const staffName = `${member.firstName} ${member.lastName}`.trim();
+  const staffPhone = member.phone ?? null;
+  const [record] = await db.insert(farmTaskAssignmentsTable).values({
+    farmId, tenantId: typeof tenantId === "number" ? tenantId : farmId,
+    assignedToMemberId: Number(assignedToMemberId),
+    assignedByUserId: userId,
+    taskType: taskType || "custom",
+    taskSourceId: taskSourceId || null,
+    title: title.trim(),
+    description: description?.trim() || null,
+    dueDate: dueDate || null,
+    module: mod || null,
+    href: href || null,
+    staffName,
+    staffPhone,
+    assignmentNote: assignmentNote?.trim() || null,
+    status: "pending",
+    smsSent: false,
+  }).returning();
+  let smsSent = false;
+  let smsReason: string | undefined;
+  if (staffPhone) {
+    const duePart = dueDate ? ` Due: ${new Date(dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.` : "";
+    const notePart = assignmentNote ? ` Note: ${assignmentNote}` : "";
+    const body = `Hi ${member.firstName}, you've been assigned a task on BDE Farm Trac: "${title}".${duePart}${notePart} Log in to see details.`;
+    const result = await sendSms(staffPhone, body);
+    smsSent = result.sent;
+    smsReason = result.reason;
+    if (smsSent) {
+      await db.update(farmTaskAssignmentsTable).set({ smsSent: true, smsSentAt: new Date() }).where(eq(farmTaskAssignmentsTable.id, record.id));
+    }
+  }
+  res.json({ record, smsSent, smsReason: smsReason ?? null });
+});
+
+router.patch("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const allowed: Record<string, unknown> = {};
+  const { status, completionNote, assignmentNote, dueDate } = req.body;
+  if (status !== undefined) {
+    allowed.status = status;
+    if (status === "completed") allowed.completedAt = new Date();
+  }
+  if (completionNote !== undefined) allowed.completionNote = completionNote;
+  if (assignmentNote !== undefined) allowed.assignmentNote = assignmentNote;
+  if (dueDate !== undefined) allowed.dueDate = dueDate;
+  const [record] = await db.update(farmTaskAssignmentsTable).set(allowed).where(and(eq(farmTaskAssignmentsTable.id, id), eq(farmTaskAssignmentsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  await db.delete(farmTaskAssignmentsTable).where(and(eq(farmTaskAssignmentsTable.id, id), eq(farmTaskAssignmentsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

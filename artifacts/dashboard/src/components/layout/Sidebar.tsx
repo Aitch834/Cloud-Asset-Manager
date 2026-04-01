@@ -47,6 +47,7 @@ import {
   AlertTriangle,
   BookOpen,
   TrendingUp,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -66,6 +67,7 @@ interface NavItem {
 const coreNav: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Week Ahead", href: "/week-ahead", icon: CalendarDays },
+  { name: "Task Board", href: "/task-board", icon: ClipboardList },
   { name: "Staff", href: "/staff", icon: Users },
   { name: "Training", href: "/training", icon: GraduationCap },
   { name: "Fields & Crops", href: "/fields", icon: Sprout, moduleKeys: ["field-crop-management"] },

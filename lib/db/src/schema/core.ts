@@ -223,3 +223,28 @@ export const farmMembersTable = pgTable("farm_members", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
+
+export const farmTaskAssignmentsTable = pgTable("farm_task_assignments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  tenantId: integer("tenant_id").notNull().references(() => tenantsTable.id),
+  assignedToMemberId: integer("assigned_to_member_id").notNull().references(() => farmMembersTable.id),
+  assignedByUserId: text("assigned_by_user_id").notNull(),
+  taskType: text("task_type").notNull().default("custom"),
+  taskSourceId: text("task_source_id"),
+  title: text("title").notNull(),
+  description: text("description"),
+  dueDate: text("due_date"),
+  module: text("module"),
+  href: text("href"),
+  staffName: text("staff_name").notNull(),
+  staffPhone: text("staff_phone"),
+  assignmentNote: text("assignment_note"),
+  status: text("status").notNull().default("pending"),
+  smsSent: boolean("sms_sent").notNull().default(false),
+  smsSentAt: timestamp("sms_sent_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  completionNote: text("completion_note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});

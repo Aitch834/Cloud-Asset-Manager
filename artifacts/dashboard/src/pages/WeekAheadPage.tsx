@@ -2,10 +2,11 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Redirect, Link } from "wouter";
-import { AlertTriangle, Calendar, CheckCircle2, ArrowRight, Clock, Loader2, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Calendar, CheckCircle2, ArrowRight, Clock, Loader2, Plus, Trash2, X, UserPlus, CheckCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { toast } from "@/hooks/use-toast";
 
 type TaskItem = {
   id: string;
@@ -16,6 +17,15 @@ type TaskItem = {
   module: string;
   href: string;
   colour: string;
+};
+
+type StaffMember = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  jobTitle: string | null;
+  phone: string | null;
+  isActive: boolean;
 };
 
 function dayLabel(dateStr: string, today: Date): string {
@@ -58,11 +68,126 @@ const COLOUR_OPTIONS = [
   { value: "indigo", label: "Indigo",   swatch: "bg-indigo-400" },
 ];
 
-function TaskCard({ task, today, onDelete }: { task: TaskItem; today: Date; onDelete?: (id: string) => void }) {
+function AssignDialog({
+  task, farmId, staff, onClose, onAssigned,
+}: {
+  task: TaskItem; farmId: number; staff: StaffMember[];
+  onClose: () => void; onAssigned: () => void;
+}) {
+  const [memberId, setMemberId] = useState("");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+
+  const assignMut = useMutation({
+    mutationFn: (body: object) =>
+      fetch(`/api/farms/${farmId}/task-assignments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then(r => r.json()),
+    onSuccess: (data) => {
+      const member = staff.find(s => s.id === Number(memberId));
+      const name = member ? `${member.firstName} ${member.lastName}` : "staff member";
+      if (data.smsSent) {
+        toast({ title: "Task assigned", description: `${name} has been notified by SMS.` });
+      } else {
+        toast({ title: "Task assigned", description: `${name} has been assigned the task. (No phone number on file — SMS not sent.)` });
+      }
+      onAssigned();
+      onClose();
+    },
+    onError: () => {
+      setError("Failed to assign task. Please try again.");
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!memberId) { setError("Please select a staff member."); return; }
+    setError("");
+    const dueIso = task.dueDate ? task.dueDate.split("T")[0] : undefined;
+    assignMut.mutate({
+      assignedToMemberId: Number(memberId),
+      title: task.title,
+      description: task.description,
+      dueDate: dueIso,
+      module: task.module,
+      href: task.href,
+      taskType: task.type,
+      taskSourceId: task.id,
+      assignmentNote: note.trim() || undefined,
+    });
+  };
+
+  const activeStaff = staff.filter(s => s.isActive);
+
+  return (
+    <div className="mt-2 p-4 rounded-lg bg-indigo-50 border border-indigo-100 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1.5">
+          <UserPlus className="w-3.5 h-3.5" />
+          Assign to staff member
+        </p>
+        <button onClick={onClose} className="w-5 h-5 flex items-center justify-center rounded-full text-indigo-400 hover:text-indigo-700 hover:bg-indigo-100 transition-colors">
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+      <form onSubmit={handleSubmit} className="space-y-2">
+        <select
+          value={memberId}
+          onChange={e => setMemberId(e.target.value)}
+          className="w-full text-sm border border-indigo-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+        >
+          <option value="">Select staff member…</option>
+          {activeStaff.map(s => (
+            <option key={s.id} value={s.id}>
+              {s.firstName} {s.lastName}{s.jobTitle ? ` — ${s.jobTitle}` : ""}{s.phone ? "" : " (no phone)"}
+            </option>
+          ))}
+        </select>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="Optional note for the staff member…"
+          rows={2}
+          className="w-full text-sm border border-indigo-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
+        />
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={assignMut.isPending || !memberId}
+            className="flex-1 bg-indigo-600 text-white text-xs font-semibold py-2 px-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          >
+            {assignMut.isPending ? "Assigning…" : "Assign & notify"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-semibold py-2 px-3 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function TaskCard({
+  task, today, onDelete, staff, farmId, onAssigned,
+}: {
+  task: TaskItem; today: Date;
+  onDelete?: (id: string) => void;
+  staff: StaffMember[];
+  farmId: number;
+  onAssigned: () => void;
+}) {
   const days = daysUntil(task.dueDate, today);
   const overdue = days < 0;
   const colours = COLOUR_MAP[task.colour] ?? COLOUR_MAP.slate;
   const isCustom = task.type === "planner_event";
+  const [showAssign, setShowAssign] = useState(false);
 
   const inner = (
     <div className={cn(
@@ -80,6 +205,18 @@ function TaskCard({ task, today, onDelete }: { task: TaskItem; today: Date; onDe
             <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border", colours.badge)}>
               {task.module}
             </span>
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowAssign(p => !p); }}
+              className={cn(
+                "w-6 h-6 flex items-center justify-center rounded-full transition-colors",
+                showAssign
+                  ? "bg-indigo-100 text-indigo-600"
+                  : "text-foreground/30 hover:text-indigo-600 hover:bg-indigo-50"
+              )}
+              title="Assign to staff member"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+            </button>
             {isCustom && onDelete && (
               <button
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(task.id); }}
@@ -103,18 +240,30 @@ function TaskCard({ task, today, onDelete }: { task: TaskItem; today: Date; onDe
             <Clock className="w-3 h-3" />Due today
           </p>
         )}
+        {showAssign && (
+          <AssignDialog
+            task={task}
+            farmId={farmId}
+            staff={staff}
+            onClose={() => setShowAssign(false)}
+            onAssigned={onAssigned}
+          />
+        )}
       </div>
-      {!isCustom && <ArrowRight className="w-4 h-4 text-foreground/20 group-hover:text-foreground/50 flex-shrink-0 mt-1 transition-colors" />}
+      {!isCustom && !showAssign && <ArrowRight className="w-4 h-4 text-foreground/20 group-hover:text-foreground/50 flex-shrink-0 mt-1 transition-colors" />}
     </div>
   );
 
-  if (isCustom) return <div>{inner}</div>;
+  if (isCustom || showAssign) return <div>{inner}</div>;
   return <Link href={task.href}>{inner}</Link>;
 }
 
-function DaySection({ label, tasks, today, isOverdue, onDelete }: {
+function DaySection({ label, tasks, today, isOverdue, onDelete, staff, farmId, onAssigned }: {
   label: string; tasks: TaskItem[]; today: Date; isOverdue?: boolean;
   onDelete?: (id: string) => void;
+  staff: StaffMember[];
+  farmId: number;
+  onAssigned: () => void;
 }) {
   if (tasks.length === 0) return null;
   return (
@@ -136,7 +285,9 @@ function DaySection({ label, tasks, today, isOverdue, onDelete }: {
         </span>
       </div>
       <div className="space-y-2">
-        {tasks.map(t => <TaskCard key={t.id} task={t} today={today} onDelete={onDelete} />)}
+        {tasks.map(t => (
+          <TaskCard key={t.id} task={t} today={today} onDelete={onDelete} staff={staff} farmId={farmId} onAssigned={onAssigned} />
+        ))}
       </div>
     </div>
   );
@@ -278,6 +429,11 @@ export default function WeekAheadPage() {
     queryFn: () => fetch(`/api/farms/${farmId}/week-ahead?days=${days}`).then(r => r.json()),
   });
 
+  const { data: staffData } = useQuery<{ members: StaffMember[] }>({
+    queryKey: ["farm-members", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
+  });
+
   const deleteMut = useMutation({
     mutationFn: (id: string) => {
       const numId = id.replace("planner-", "");
@@ -287,6 +443,7 @@ export default function WeekAheadPage() {
   });
 
   const tasks = data?.tasks ?? [];
+  const staff = staffData?.members ?? [];
   const overdue = tasks.filter(t => daysUntil(t.dueDate, today) < 0);
   const upcoming = tasks.filter(t => daysUntil(t.dueDate, today) >= 0);
 
@@ -301,6 +458,7 @@ export default function WeekAheadPage() {
   const label = days === 7 ? "Week Ahead" : "Month Ahead";
 
   const handleDelete = (id: string) => deleteMut.mutate(id);
+  const handleAssigned = () => {};
 
   return (
     <AppLayout title={label}>
@@ -337,6 +495,10 @@ export default function WeekAheadPage() {
                 {tasks.length} task{tasks.length !== 1 ? "s" : ""}
               </span>
             )}
+            <Link href="/task-board" className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-border bg-white hover:bg-muted transition-all">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+              Task Board
+            </Link>
             <button
               onClick={() => setShowAddPanel(p => !p)}
               className={cn(
@@ -355,6 +517,14 @@ export default function WeekAheadPage() {
         {/* Add reminder panel */}
         {showAddPanel && (
           <AddReminderPanel farmId={farmId} days={days} onClose={() => setShowAddPanel(false)} />
+        )}
+
+        {/* Assign hint */}
+        {staff.length > 0 && !isLoading && tasks.length > 0 && (
+          <p className="text-xs text-foreground/40 flex items-center gap-1.5">
+            <UserPlus className="w-3.5 h-3.5" />
+            Click the <UserPlus className="w-3 h-3 inline" /> icon on any task to assign it to a staff member.
+          </p>
         )}
 
         {/* Loading */}
@@ -380,18 +550,18 @@ export default function WeekAheadPage() {
 
         {/* Overdue */}
         {overdue.length > 0 && (
-          <DaySection label="Overdue" tasks={overdue} today={today} isOverdue onDelete={handleDelete} />
+          <DaySection label="Overdue" tasks={overdue} today={today} isOverdue onDelete={handleDelete} staff={staff} farmId={farmId} onAssigned={handleAssigned} />
         )}
 
         {/* Upcoming days */}
         {[...grouped.entries()].map(([lbl, items]) => (
-          <DaySection key={lbl} label={lbl} tasks={items} today={today} onDelete={handleDelete} />
+          <DaySection key={lbl} label={lbl} tasks={items} today={today} onDelete={handleDelete} staff={staff} farmId={farmId} onAssigned={handleAssigned} />
         ))}
 
         {/* Footer note */}
         {!isLoading && tasks.length > 0 && (
           <p className="text-xs text-foreground/35 text-center pb-2">
-            Tasks are drawn from scheduled dates across all active modules. Click any item to go directly to that record. Custom reminders can be removed with the trash icon.
+            Tasks are drawn from scheduled dates across all active modules. Click any item to go directly to that record. Use the <UserPlus className="w-3 h-3 inline" /> icon to assign tasks to staff.
           </p>
         )}
 
