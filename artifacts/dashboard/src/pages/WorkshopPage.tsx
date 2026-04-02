@@ -208,6 +208,11 @@ interface WorkshopJob {
   assetNumber: string | null;
 }
 
+const WHOLE_UNITS = ["each", "pair", "set", "box", "bag", "roll", "drum", "ibc", "sheet", "tube", "cartridge"];
+function qtyStep(unit: string | null | undefined) { return unit && WHOLE_UNITS.includes(unit.toLowerCase()) ? "1" : "0.1"; }
+function qtyMin(unit: string | null | undefined) { return unit && WHOLE_UNITS.includes(unit.toLowerCase()) ? "1" : "0.1"; }
+function qtyPlaceholder(unit: string | null | undefined) { return unit && WHOLE_UNITS.includes(unit.toLowerCase()) ? "1" : "0.1"; }
+
 const EMPTY_JOB = { jobType: "repair", title: "", priority: "medium", status: "open" };
 
 function JobDocumentsSection({ farmId, jobId }: { farmId: number; jobId: number }) {
@@ -353,6 +358,13 @@ function JobCardsTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(api(`farms/${farmId}/workshop/parts`), { credentials: "include" }).then(r => r.json()),
     enabled: open && !!editing,
   });
+
+  // Derive step/min from the selected part's UOM — must be after workshopParts query
+  const selectedIssuePart = workshopParts.find(p => String(p.id) === issuePartId) ?? null;
+  const issueUnit = selectedIssuePart?.unit ?? null;
+  const issueIsWhole = WHOLE_UNITS.includes((issueUnit ?? "").toLowerCase());
+  const issueStep = qtyStep(issueUnit);
+  const issueMin = qtyMin(issueUnit);
 
   const issuePartsToJob = useMutation({
     mutationFn: () => fetch(api(`farms/${farmId}/workshop/parts/use`), {
@@ -535,9 +547,9 @@ function JobCardsTab({ farmId }: { farmId: number }) {
               {editing && workshopParts.length > 0 && (
                 <div className="rounded-md border border-blue-100 bg-blue-50/50 p-3 space-y-2">
                   <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide flex items-center gap-1"><Package className="h-3.5 w-3.5" />Issue Parts from Store</p>
-                  <div className="grid grid-cols-[1fr_80px_auto] gap-2 items-end">
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
                     <div>
-                      <Select value={issuePartId} onValueChange={setIssuePartId}>
+                      <Select value={issuePartId} onValueChange={v => { setIssuePartId(v); setIssueQty(""); }}>
                         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select part…" /></SelectTrigger>
                         <SelectContent>
                           {workshopParts.map(p => (
@@ -548,8 +560,19 @@ function JobCardsTab({ farmId }: { farmId: number }) {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Input className="h-8 text-xs" type="number" step="0.01" min="0.01" value={issueQty} onChange={e => setIssueQty(e.target.value)} placeholder="Qty" />
+                    <div className="flex items-center gap-1">
+                      <Input
+                        className="h-8 text-xs w-24"
+                        type="number"
+                        step={issueStep}
+                        min={issueMin}
+                        value={issueQty}
+                        onChange={e => setIssueQty(e.target.value)}
+                        placeholder={issueIsWhole ? "1" : "0.1"}
+                      />
+                      {issueUnit && (
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">{issueUnit}</span>
+                      )}
                     </div>
                     <Button size="sm" className="h-8 text-xs" onClick={() => issuePartsToJob.mutate()} disabled={!issuePartId || !issueQty || issuePartsToJob.isPending}>
                       {issuePartsToJob.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><ArrowUpFromLine className="h-3.5 w-3.5 mr-1" />Issue</>}
@@ -1627,11 +1650,20 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
                 <Label>Unit</Label>
                 <Select value={form.unit} onValueChange={v => setF("unit", v)}>
                   <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                  <SelectContent>{["each", "pair", "set", "litre", "kg", "metre", "box"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    <SelectItem value="__group_count__" disabled className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">— Countable —</SelectItem>
+                    {["each", "pair", "set", "box", "bag", "roll", "drum", "sheet", "tube", "cartridge"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    <SelectItem value="__group_liquid__" disabled className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">— Liquid volume —</SelectItem>
+                    {["ml", "litre", "gallon"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    <SelectItem value="__group_weight__" disabled className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">— Weight —</SelectItem>
+                    {["g", "kg", "tonne"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    <SelectItem value="__group_length__" disabled className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">— Length —</SelectItem>
+                    {["mm", "metre"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
               <div><Label>Unit Cost (£)</Label><Input type="number" step="0.01" min="0" value={form.unitCostPence} onChange={e => setF("unitCostPence", e.target.value)} placeholder="0.00" /></div>
-              <div><Label>Reorder Level</Label><Input type="number" step="1" min="0" value={form.reorderLevel} onChange={e => setF("reorderLevel", e.target.value)} placeholder="e.g. 2" /></div>
+              <div><Label>Reorder Level{form.unit ? ` (${form.unit})` : ""}</Label><Input type="number" step={qtyStep(form.unit)} min="0" value={form.reorderLevel} onChange={e => setF("reorderLevel", e.target.value)} placeholder={WHOLE_UNITS.includes((form.unit ?? "").toLowerCase()) ? "e.g. 2" : "e.g. 5.0"} /></div>
               <div><Label>Storage Location</Label><Input value={form.storageLocation} onChange={e => setF("storageLocation", e.target.value)} placeholder="e.g. Shelf A3, Drawer 2" /></div>
               <div className="col-span-2">
                 <Label>Default Supplier</Label>
@@ -1659,7 +1691,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
           <DialogContent className="max-w-md">
             <DialogHeader><DialogTitle>Receive Stock — {receivePart.name}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-4 py-2">
-              <div><Label>Quantity Received *</Label><Input type="number" step="0.01" min="0.01" value={receiveForm.qty} onChange={e => setReceiveForm(f => ({ ...f, qty: e.target.value }))} placeholder={`e.g. 4 ${receivePart.unit ?? ""}`} /></div>
+              <div><Label>Quantity Received *{receivePart.unit ? ` (${receivePart.unit})` : ""}</Label><Input type="number" step={qtyStep(receivePart.unit)} min={qtyMin(receivePart.unit)} value={receiveForm.qty} onChange={e => setReceiveForm(f => ({ ...f, qty: e.target.value }))} placeholder={qtyPlaceholder(receivePart.unit)} /></div>
               <div><Label>Unit Cost (£ per {receivePart.unit ?? "unit"})</Label><Input type="number" step="0.01" min="0" value={receiveForm.unitCostPence} onChange={e => setReceiveForm(f => ({ ...f, unitCostPence: e.target.value }))} placeholder="0.00" /></div>
               <div><Label>Delivery Date</Label><Input type="date" value={receiveForm.date} onChange={e => setReceiveForm(f => ({ ...f, date: e.target.value }))} /></div>
               <div>
@@ -1694,7 +1726,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
               Current stock: <span className="font-semibold text-gray-900">{fmtQty(usePart.currentQuantity, usePart.unit)}</span>
             </div>
             <div className="grid grid-cols-2 gap-4 py-2">
-              <div><Label>Quantity Used *</Label><Input type="number" step="0.01" min="0.01" value={useForm.qty} onChange={e => setUseForm(f => ({ ...f, qty: e.target.value }))} placeholder={`e.g. 1 ${usePart.unit ?? ""}`} /></div>
+              <div><Label>Quantity Used *{usePart.unit ? ` (${usePart.unit})` : ""}</Label><Input type="number" step={qtyStep(usePart.unit)} min={qtyMin(usePart.unit)} value={useForm.qty} onChange={e => setUseForm(f => ({ ...f, qty: e.target.value }))} placeholder={qtyPlaceholder(usePart.unit)} /></div>
               <div>
                 <Label>Link to Job Card</Label>
                 <Select value={useForm.jobId || "__none__"} onValueChange={v => setUseForm(f => ({ ...f, jobId: v === "__none__" ? "" : v }))}>
