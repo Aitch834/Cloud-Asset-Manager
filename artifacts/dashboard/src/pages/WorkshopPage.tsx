@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { Redirect } from "wouter";
@@ -1650,15 +1650,23 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
                 <Label>Unit</Label>
                 <Select value={form.unit} onValueChange={v => setF("unit", v)}>
                   <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__group_count__" disabled className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">— Countable —</SelectItem>
-                    {["each", "pair", "set", "box", "bag", "roll", "drum", "sheet", "tube", "cartridge"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                    <SelectItem value="__group_liquid__" disabled className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">— Liquid volume —</SelectItem>
-                    {["ml", "litre", "gallon"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                    <SelectItem value="__group_weight__" disabled className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">— Weight —</SelectItem>
-                    {["g", "kg", "tonne"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                    <SelectItem value="__group_length__" disabled className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">— Length —</SelectItem>
-                    {["mm", "metre"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                  <SelectContent className="max-h-56">
+                    <SelectGroup>
+                      <SelectLabel>Countable</SelectLabel>
+                      {["each", "pair", "set", "box", "bag", "roll", "drum", "sheet", "tube", "cartridge"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Liquid volume</SelectLabel>
+                      {["ml", "litre", "gallon"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Weight</SelectLabel>
+                      {["g", "kg", "tonne"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Length</SelectLabel>
+                      {["mm", "metre"].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
