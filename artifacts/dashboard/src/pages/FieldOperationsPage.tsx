@@ -420,7 +420,7 @@ export default function FieldOperationsPage() {
               <Filter className="w-4 h-4 mr-2 text-gray-400 inline" />
               <SelectValue placeholder="All operation types" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-64 overflow-y-auto">
               <SelectItem value="__all__">All operation types</SelectItem>
               {OPERATION_GROUPS.map((g) => (
                 <React.Fragment key={g.label}>
@@ -605,7 +605,7 @@ export default function FieldOperationsPage() {
                   <SelectTrigger>
                     <SelectValue placeholder="Select type…" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-64 overflow-y-auto">
                     <SelectItem value="__none__" disabled>Select type…</SelectItem>
                     {OPERATION_GROUPS.map((g) => (
                       <React.Fragment key={g.label}>
