@@ -348,7 +348,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
         <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-          <Input placeholder="Search medicine, ref, reason..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search medicine, ref, reason..." className="pl-9 bg-white h-9 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <CropYearSelector value={cropYear} onChange={setCropYear} />
         <div className="flex gap-2">

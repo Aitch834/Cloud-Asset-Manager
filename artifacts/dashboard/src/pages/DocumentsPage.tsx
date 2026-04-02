@@ -341,7 +341,7 @@ export default function DocumentsPage() {
         <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
             <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-            <Input placeholder="Search documents..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+            <Input placeholder="Search documents..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
           </div>
           <Select value={categoryFilter} onValueChange={v => { setCategoryFilter(v); setTypeFilter("all"); }}>
             <SelectTrigger style={{ width: 200 }}><SelectValue placeholder="All Categories" /></SelectTrigger>

@@ -316,7 +316,7 @@ export default function WasteDisposalPage() {
         <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
             <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-            <Input placeholder="Search waste records..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+            <Input placeholder="Search waste records..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
           </div>
           <CropYearSelector value={cropYear} onChange={setCropYear} />
           <Button size="sm" variant="outline" onClick={() => setReportOpen(true)}><Printer size={14} className="mr-1" />Print Register</Button>

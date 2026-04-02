@@ -475,7 +475,7 @@ export default function EquipmentPage() {
       <div className="flex flex-col sm:flex-row justify-between mb-6 gap-4">
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-          <Input placeholder="Search equipment..." className="pl-10 bg-white" />
+          <Input placeholder="Search equipment..." className="pl-10 bg-white h-9 text-sm" />
         </div>
 
         <div className="flex items-center gap-2">

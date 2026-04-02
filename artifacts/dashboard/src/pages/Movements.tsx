@@ -569,7 +569,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-          <Input placeholder="Search by species, tag, cause..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search by species, tag, cause..." className="pl-9 bg-white h-9 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Button onClick={() => { setEditingRecord(null); setFormData({ ...EMPTY_MORTALITY, dateOfDeath: new Date().toISOString().slice(0, 10) }); setShowForm(true); }} className="gap-2">
           <Plus className="w-4 h-4" /> Record Death

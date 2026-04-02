@@ -727,7 +727,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
 
       <div className="relative w-full sm:w-80 mb-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-        <Input placeholder="Search crop, variety, lot..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+        <Input placeholder="Search crop, variety, lot..." className="pl-9 bg-white h-9 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       {showForm && (

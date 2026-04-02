@@ -298,7 +298,7 @@ function StockLevelsTab({ levels, products, loading, farmId, onRefresh, toast, q
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-          <Input placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+          <Input placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
         <Button variant="outline" size="sm" onClick={() => { if (!hasProducts) { onGoToProducts(); } else { setAdjOpen(true); } }}>
           <Plus size={14} className="mr-1" />Manual Adjustment
@@ -456,7 +456,7 @@ function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loa
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-          <Input placeholder="Search deliveries..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+          <Input placeholder="Search deliveries..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
         <Button size="sm" onClick={() => { if (!hasProducts) { onGoToProducts(); } else { setOpen(true); } }}>
           <Plus size={14} className="mr-1" />Log Goods Received
@@ -685,7 +685,7 @@ function MovementsTab({ movements, products, loading, farmId, onRefresh, toast }
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-          <Input placeholder="Search movements..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+          <Input placeholder="Search movements..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
         <Select value={filterProduct} onValueChange={setFilterProduct}>
           <SelectTrigger style={{ width: 200 }}><SelectValue placeholder="All products" /></SelectTrigger>
@@ -772,7 +772,7 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-          <Input placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+          <Input placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
         <Button size="sm" onClick={() => { resetForm(); setEditItem(null); setOpen(true); }}><Plus size={14} className="mr-1" />Add Product</Button>
       </div>
@@ -963,7 +963,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRef
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-          <Input placeholder="Search purchase orders..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+          <Input placeholder="Search purchase orders..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
         <Button size="sm" onClick={() => { setForm(emptyForm); setLines([{ stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]); setOpen(true); }}>
           <Plus size={14} className="mr-1" />Raise Purchase Order
@@ -1330,7 +1330,7 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-          <Input placeholder="Search trade contacts..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+          <Input placeholder="Search trade contacts..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
