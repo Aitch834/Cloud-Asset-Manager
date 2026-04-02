@@ -51,8 +51,30 @@ export default defineConfig({
       // Point @ to the main dashboard's src so all its imports resolve correctly
       "@": path.resolve(import.meta.dirname, "../dashboard/src"),
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
+      // Force all React ecosystem packages to resolve from this package's root,
+      // preventing duplicate React instances when dashboard source files are loaded
+      "react": path.resolve(import.meta.dirname, "node_modules/react"),
+      "react-dom": path.resolve(import.meta.dirname, "node_modules/react-dom"),
+      "@tanstack/react-query": path.resolve(import.meta.dirname, "node_modules/@tanstack/react-query"),
+      "react-hook-form": path.resolve(import.meta.dirname, "node_modules/react-hook-form"),
+      "wouter": path.resolve(import.meta.dirname, "node_modules/wouter"),
     },
-    dedupe: ["react", "react-dom"],
+    dedupe: [
+      "react",
+      "react-dom",
+      "@tanstack/react-query",
+      "react-hook-form",
+      "wouter",
+    ],
+  },
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "@tanstack/react-query",
+      "react-hook-form",
+      "wouter",
+    ],
   },
   root: path.resolve(import.meta.dirname),
   // Serve static assets (images, favicon) from the main dashboard's public directory
