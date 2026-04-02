@@ -778,9 +778,9 @@ export default function WeekAheadPage() {
 
   return (
     <AppLayout title={label}>
-      <div className={cn("space-y-6", viewMode === "calendar" ? "max-w-5xl" : "max-w-2xl")}>
+      <div className="space-y-6">
 
-        {/* Header */}
+        {/* Header — stable, never shifts when view mode changes */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <p className="text-sm text-foreground/50 mt-0.5">{dateRange}</p>
@@ -850,6 +850,9 @@ export default function WeekAheadPage() {
           </div>
         </div>
 
+        {/* Content area — max-width expands for calendar view only */}
+        <div className={cn("space-y-6", viewMode === "calendar" ? "max-w-5xl" : "max-w-2xl")}>
+
         {/* Add reminder panel */}
         {showAddPanel && (
           <AddReminderPanel farmId={farmId} days={days} onClose={() => setShowAddPanel(false)} />
@@ -914,6 +917,7 @@ export default function WeekAheadPage() {
           </>
         )}
 
+        </div>{/* end content max-w wrapper */}
       </div>
     </AppLayout>
   );
