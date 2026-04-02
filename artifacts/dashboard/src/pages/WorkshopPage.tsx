@@ -208,6 +208,19 @@ interface WorkshopJob {
   assetNumber: string | null;
 }
 
+interface IssuedPart {
+  id: number;
+  stockItemId: number;
+  partName: string;
+  productCode: string | null;
+  unit: string | null;
+  unitCostPence: number | null;
+  quantityChange: string;
+  performedBy: string | null;
+  notes: string | null;
+  movedAt: string;
+}
+
 const WHOLE_UNITS = ["each", "pair", "set", "box", "bag", "roll", "drum", "ibc", "sheet", "tube", "cartridge"];
 function qtyStep(unit: string | null | undefined) { return unit && WHOLE_UNITS.includes(unit.toLowerCase()) ? "1" : "0.1"; }
 function qtyMin(unit: string | null | undefined) { return unit && WHOLE_UNITS.includes(unit.toLowerCase()) ? "1" : "0.1"; }
@@ -343,6 +356,10 @@ function JobCardsTab({ farmId }: { farmId: number }) {
   const [issueQty, setIssueQty] = useState("");
   const [issueBy, setIssueBy] = useState("");
 
+  // Keep a ref to the editing job ID so the sync effect doesn't need editing in its deps
+  const editingIdRef = useRef<number | null>(null);
+  useEffect(() => { editingIdRef.current = editing?.id ?? null; }, [editing]);
+
   const { data: equipData } = useQuery<{ records: Equipment[] }>({
     queryKey: ["equipment", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/equipment`), { credentials: "include" }).then(r => r.json()),
@@ -353,10 +370,25 @@ function JobCardsTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs`), { credentials: "include" }).then(r => r.json()),
   });
 
+  // When the jobs query refreshes (e.g. after issuing parts), sync editing + form cost fields
+  useEffect(() => {
+    if (!data?.jobs || editingIdRef.current === null) return;
+    const fresh = data.jobs.find(j => j.job.id === editingIdRef.current);
+    if (!fresh) return;
+    setEditing(fresh.job);
+    setForm(f => ({ ...f, partsCostPence: fresh.job.partsCostPence }));
+  }, [data?.jobs]);
+
   const { data: workshopParts = [] } = useQuery<Part[]>({
     queryKey: ["workshop-parts", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/workshop/parts`), { credentials: "include" }).then(r => r.json()),
     enabled: open && !!editing,
+  });
+
+  const { data: issuedParts = [] } = useQuery<IssuedPart[]>({
+    queryKey: ["job-issued-parts", editing?.id],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs/${editing!.id}/parts`), { credentials: "include" }).then(r => r.json()),
+    enabled: open && !!editing?.id,
   });
 
   // Derive step/min from the selected part's UOM — must be after workshopParts query
@@ -374,9 +406,7 @@ function JobCardsTab({ farmId }: { farmId: number }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] });
       qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] });
-      // Refresh the editing job's partsCostPence
-      const updatedJob = data?.jobs.find(j => j.job.id === editing?.id);
-      if (updatedJob) setTimeout(() => qc.invalidateQueries({ queryKey: ["workshop-jobs", farmId] }), 300);
+      qc.invalidateQueries({ queryKey: ["job-issued-parts", editing?.id] });
       setIssuePartId(""); setIssueQty(""); setIssueBy("");
     },
   });
@@ -579,11 +609,73 @@ function JobCardsTab({ farmId }: { farmId: number }) {
                     </Button>
                   </div>
                   <Input className="h-7 text-xs" value={issueBy} onChange={e => setIssueBy(e.target.value)} placeholder="Issued by (optional)" />
-                  {editing.partsCostPence != null && editing.partsCostPence > 0 && (
-                    <p className="text-xs text-blue-600">Parts cost accumulated: <strong>£{(editing.partsCostPence / 100).toFixed(2)}</strong></p>
+                </div>
+              )}
+
+              {/* Parts issued to this job */}
+              {editing && (
+                <div className="rounded-md border p-3 space-y-2">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-1.5">
+                    <Package className="h-3.5 w-3.5 text-gray-400" />Parts Issued to This Job
+                  </p>
+                  {issuedParts.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">No parts issued from store yet.</p>
+                  ) : (
+                    <>
+                      <div className="overflow-auto rounded border border-gray-100">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-gray-50 text-gray-500">
+                              <th className="text-left px-2 py-1.5 font-medium">Part</th>
+                              <th className="text-right px-2 py-1.5 font-medium">Qty</th>
+                              <th className="text-right px-2 py-1.5 font-medium">Unit Cost</th>
+                              <th className="text-right px-2 py-1.5 font-medium">Line Total</th>
+                              <th className="text-left px-2 py-1.5 font-medium">Issued By</th>
+                              <th className="text-left px-2 py-1.5 font-medium">Date</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {issuedParts.map(ip => {
+                              const qty = Math.abs(parseFloat(ip.quantityChange));
+                              const lineTotal = ip.unitCostPence != null ? ip.unitCostPence * qty : null;
+                              return (
+                                <tr key={ip.id} className="hover:bg-gray-50/60">
+                                  <td className="px-2 py-1.5 font-medium text-gray-800">
+                                    {ip.partName}
+                                    {ip.productCode && <span className="ml-1 text-gray-400">({ip.productCode})</span>}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-right text-gray-700">{qty} {ip.unit ?? ""}</td>
+                                  <td className="px-2 py-1.5 text-right text-gray-500">
+                                    {ip.unitCostPence != null ? `£${(ip.unitCostPence / 100).toFixed(2)}` : "—"}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-right font-medium text-gray-800">
+                                    {lineTotal != null ? `£${(lineTotal / 100).toFixed(2)}` : "—"}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-gray-500">{ip.performedBy || "—"}</td>
+                                  <td className="px-2 py-1.5 text-gray-500 whitespace-nowrap">{new Date(ip.movedAt).toLocaleDateString("en-GB")}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t-2 border-gray-200 bg-gray-50">
+                              <td colSpan={3} className="px-2 py-1.5 text-xs font-semibold text-gray-600 text-right">Total Parts Cost (from store):</td>
+                              <td className="px-2 py-1.5 text-right text-xs font-bold text-gray-900">
+                                £{(issuedParts.reduce((sum, ip) => {
+                                  const qty = Math.abs(parseFloat(ip.quantityChange));
+                                  return sum + (ip.unitCostPence != null ? ip.unitCostPence * qty : 0);
+                                }, 0) / 100).toFixed(2)}
+                              </td>
+                              <td colSpan={2} />
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
+
               <div><Label>Additional Parts Notes</Label><Textarea value={form.partsUsed || ""} onChange={e => set("partsUsed", e.target.value)} rows={2} placeholder="e.g. Sourced externally — front tyre 480/70 R30 x1" /></div>
               <div><Label>Notes</Label><Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} rows={2} /></div>
             </div>

@@ -9745,6 +9745,39 @@ router.post("/farms/:farmId/workshop/parts/use", requireAuth, requireTenant, req
   res.json({ success: true });
 });
 
+// Parts issued to a specific job
+router.get("/farms/:farmId/workshop/jobs/:jobId/parts", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const jobId = parseInt(req.params.jobId);
+  if (isNaN(jobId)) { res.status(400).json({ error: "Invalid job ID" }); return; }
+
+  const movements = await db
+    .select({
+      id: stockMovementsTable.id,
+      stockItemId: stockMovementsTable.stockItemId,
+      partName: stockItemsTable.name,
+      productCode: stockItemsTable.productCode,
+      unit: stockItemsTable.unit,
+      unitCostPence: stockItemsTable.unitCostPence,
+      quantityChange: stockMovementsTable.quantityChange,
+      performedBy: stockMovementsTable.performedBy,
+      notes: stockMovementsTable.notes,
+      movedAt: stockMovementsTable.movedAt,
+    })
+    .from(stockMovementsTable)
+    .innerJoin(stockItemsTable, eq(stockMovementsTable.stockItemId, stockItemsTable.id))
+    .where(and(
+      eq(stockMovementsTable.farmId, farmId),
+      eq(stockMovementsTable.referenceType, "workshop_job"),
+      eq(stockMovementsTable.referenceId, jobId),
+      eq(stockMovementsTable.movementType, "out"),
+    ))
+    .orderBy(desc(stockMovementsTable.movedAt));
+
+  res.json(movements);
+});
+
 // Movement history for workshop parts
 router.get("/farms/:farmId/workshop/parts/movements", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
