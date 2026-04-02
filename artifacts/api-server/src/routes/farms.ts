@@ -8598,9 +8598,10 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .from(inspectionRecordsTable)
       .where(and(eq(inspectionRecordsTable.farmId, farmId), isNotNull(inspectionRecordsTable.nextInspectionDue), gte(inspectionRecordsTable.nextInspectionDue, overdueStart), lt(inspectionRecordsTable.nextInspectionDue, rangeEnd))),
 
-    db.select({ id: correctiveActionsTable.id, title: correctiveActionsTable.title, dueDate: correctiveActionsTable.dueDate, status: correctiveActionsTable.status })
+    db.select({ id: correctiveActionsTable.id, description: correctiveActionsTable.description, dueDate: correctiveActionsTable.dueDate, status: correctiveActionsTable.status })
       .from(correctiveActionsTable)
-      .where(and(eq(correctiveActionsTable.farmId, farmId), isNotNull(correctiveActionsTable.dueDate), gte(correctiveActionsTable.dueDate, overdueStart), lt(correctiveActionsTable.dueDate, rangeEnd))),
+      .innerJoin(nonconformanceRecordsTable, eq(correctiveActionsTable.nonconformanceId, nonconformanceRecordsTable.id))
+      .where(and(eq(nonconformanceRecordsTable.farmId, farmId), isNotNull(correctiveActionsTable.dueDate), gte(correctiveActionsTable.dueDate, overdueStart), lt(correctiveActionsTable.dueDate, rangeEnd))),
 
     db.select({ id: riskAssessmentsTable.id, title: riskAssessmentsTable.title, riskLevel: riskAssessmentsTable.riskLevel, reviewDate: riskAssessmentsTable.reviewDate, status: riskAssessmentsTable.status })
       .from(riskAssessmentsTable)
@@ -8608,11 +8609,13 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
 
     db.select({ id: equipmentMaintenanceLogsTable.id, maintenanceType: equipmentMaintenanceLogsTable.maintenanceType, nextDueDate: equipmentMaintenanceLogsTable.nextDueDate })
       .from(equipmentMaintenanceLogsTable)
-      .where(and(eq(equipmentMaintenanceLogsTable.farmId, farmId), isNotNull(equipmentMaintenanceLogsTable.nextDueDate), gte(equipmentMaintenanceLogsTable.nextDueDate, overdueStart), lt(equipmentMaintenanceLogsTable.nextDueDate, rangeEnd))),
+      .innerJoin(equipmentTable, eq(equipmentMaintenanceLogsTable.equipmentId, equipmentTable.id))
+      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentMaintenanceLogsTable.nextDueDate), gte(equipmentMaintenanceLogsTable.nextDueDate, overdueStart), lt(equipmentMaintenanceLogsTable.nextDueDate, rangeEnd))),
 
     db.select({ id: equipmentCalibrationRecordsTable.id, calibrationType: equipmentCalibrationRecordsTable.calibrationType, nextDueDate: equipmentCalibrationRecordsTable.nextDueDate })
       .from(equipmentCalibrationRecordsTable)
-      .where(and(eq(equipmentCalibrationRecordsTable.farmId, farmId), isNotNull(equipmentCalibrationRecordsTable.nextDueDate), gte(equipmentCalibrationRecordsTable.nextDueDate, overdueStart), lt(equipmentCalibrationRecordsTable.nextDueDate, rangeEnd))),
+      .innerJoin(equipmentTable, eq(equipmentCalibrationRecordsTable.equipmentId, equipmentTable.id))
+      .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentCalibrationRecordsTable.nextDueDate), gte(equipmentCalibrationRecordsTable.nextDueDate, overdueStart), lt(equipmentCalibrationRecordsTable.nextDueDate, rangeEnd))),
 
     db.select({ id: farmInsuranceTable.id, policyType: farmInsuranceTable.policyType, insurer: farmInsuranceTable.insurer, policyNumber: farmInsuranceTable.policyNumber, expiryDate: farmInsuranceTable.expiryDate })
       .from(farmInsuranceTable)
@@ -8798,7 +8801,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   }
   for (const r of correctiveRows) {
     if (!r.dueDate || r.status === "completed" || r.status === "closed") continue;
-    tasks.push({ id: `ca-${r.id}`, type: "corrective_action", title: `Corrective Action Due — ${r.title || "Unnamed"}`, description: `A corrective action '${r.title || "Unnamed"}' must be completed by this date to close the non-conformance.`, dueDate: toISO(r.dueDate)!, module: "Inspections & Audits", href: "/inspections", colour: "violet" });
+    tasks.push({ id: `ca-${r.id}`, type: "corrective_action", title: `Corrective Action Due`, description: `A corrective action '${r.description || "Unnamed"}' must be completed by this date to close the non-conformance.`, dueDate: toISO(r.dueDate)!, module: "Inspections & Audits", href: "/inspections", colour: "violet" });
   }
   for (const r of riskRows) {
     if (!r.reviewDate || r.status === "archived") continue;
