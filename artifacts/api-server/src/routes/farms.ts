@@ -1522,6 +1522,22 @@ router.get("/farms/:farmId/equipment", requireAuth, requireTenant, requireModule
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const records = await db.select().from(equipmentTable).where(eq(equipmentTable.farmId, farmId)).orderBy(desc(equipmentTable.createdAt));
+  // Enrich each record with next service/MOT due dates from maintenance logs
+  if (records.length > 0) {
+    const ids = records.map(r => r.id);
+    const logs = await db.select().from(equipmentMaintenanceLogsTable)
+      .where(inArray(equipmentMaintenanceLogsTable.equipmentId, ids))
+      .orderBy(desc(equipmentMaintenanceLogsTable.performedDate));
+    const summary: Record<number, { nextServiceDue?: string; nextMotDue?: string }> = {};
+    for (const log of logs) {
+      if (!summary[log.equipmentId]) summary[log.equipmentId] = {};
+      const s = summary[log.equipmentId];
+      if (log.maintenanceType === "mot" && !s.nextMotDue && log.nextDueDate) s.nextMotDue = (log.nextDueDate as Date).toISOString();
+      if (log.maintenanceType !== "mot" && !s.nextServiceDue && log.nextDueDate) s.nextServiceDue = (log.nextDueDate as Date).toISOString();
+    }
+    res.json({ records: records.map(r => ({ ...r, ...(summary[r.id] ?? {}) })) });
+    return;
+  }
   res.json({ records });
 });
 
@@ -1585,8 +1601,40 @@ router.post("/farms/:farmId/equipment/:recordId/maintenance", requireAuth, requi
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   const valid = await validateEquipmentOwnership(recordId, farmId);
   if (!valid) { res.status(404).json({ error: "Equipment not found" }); return; }
-  const [record] = await db.insert(equipmentMaintenanceLogsTable).values({ ...req.body, equipmentId: recordId }).returning();
+  const body = { ...req.body, equipmentId: recordId };
+  if (body.performedDate) body.performedDate = new Date(body.performedDate);
+  if (body.nextDueDate) body.nextDueDate = new Date(body.nextDueDate); else body.nextDueDate = null;
+  const [record] = await db.insert(equipmentMaintenanceLogsTable).values(body).returning();
   res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/equipment/:recordId/maintenance/:logId", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const logId = parseInt(req.params.logId as string, 10);
+  if (!logId) { res.status(400).json({ error: "Invalid log ID" }); return; }
+  const valid = await validateEquipmentOwnership(recordId, farmId);
+  if (!valid) { res.status(404).json({ error: "Equipment not found" }); return; }
+  const body = { ...req.body };
+  if (body.performedDate) body.performedDate = new Date(body.performedDate);
+  if (body.nextDueDate) body.nextDueDate = new Date(body.nextDueDate); else body.nextDueDate = null;
+  const [record] = await db.update(equipmentMaintenanceLogsTable).set(body).where(and(eq(equipmentMaintenanceLogsTable.id, logId), eq(equipmentMaintenanceLogsTable.equipmentId, recordId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/equipment/:recordId/maintenance/:logId", requireAuth, requireTenant, requireModuleByKey("equipment-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const logId = parseInt(req.params.logId as string, 10);
+  if (!logId) { res.status(400).json({ error: "Invalid log ID" }); return; }
+  const valid = await validateEquipmentOwnership(recordId, farmId);
+  if (!valid) { res.status(404).json({ error: "Equipment not found" }); return; }
+  await db.delete(equipmentMaintenanceLogsTable).where(and(eq(equipmentMaintenanceLogsTable.id, logId), eq(equipmentMaintenanceLogsTable.equipmentId, recordId)));
+  res.json({ success: true });
 });
 
 router.get("/farms/:farmId/equipment/:recordId/calibrations", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {

@@ -35,6 +35,8 @@ interface EquipmentRecord {
   notes?: string;
   photos?: string;
   nextCalibrationDue?: string;
+  nextServiceDue?: string;
+  nextMotDue?: string;
   isActive?: boolean;
 }
 
@@ -48,6 +50,47 @@ interface EquipmentFormData {
   yearOfManufacture: string;
   location: string;
   notes: string;
+}
+
+interface MaintenanceLog {
+  id: number;
+  equipmentId: number;
+  maintenanceType: string;
+  description: string;
+  performedBy?: string | null;
+  performedDate: string;
+  nextDueDate?: string | null;
+  costPence?: number | null;
+  partsUsed?: string | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
+const MAINT_TYPES = [
+  { value: "mot",              label: "MOT Test",           color: "#1d4ed8", bg: "#dbeafe" },
+  { value: "annual_service",   label: "Annual / Full Service", color: "#065f46", bg: "#d1fae5" },
+  { value: "interim_service",  label: "Interim / Oil Service", color: "#6d28d9", bg: "#ede9fe" },
+  { value: "repair",           label: "Repair",             color: "#c2410c", bg: "#ffedd5" },
+  { value: "inspection",       label: "Safety Inspection",  color: "#92400e", bg: "#fef3c7" },
+  { value: "pre_use_check",    label: "Pre-Use Check",      color: "#374151", bg: "#f3f4f6" },
+  { value: "warranty_work",    label: "Warranty Work",      color: "#0e7490", bg: "#cffafe" },
+  { value: "other",            label: "Other",              color: "#4b5563", bg: "#f9fafb" },
+];
+
+const EMPTY_SERVICE_FORM = { maintenanceType: "annual_service", description: "", performedBy: "", performedDate: new Date().toISOString().slice(0, 10), nextDueDate: "", costPence: "", partsUsed: "", notes: "" };
+
+function fmt(dateStr: string | null | undefined) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function dueStatus(dateStr: string | null | undefined): { label: string; color: string; bg: string } {
+  if (!dateStr) return { label: "—", color: "#6b7280", bg: "#f9fafb" };
+  const days = Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+  if (days < 0) return { label: `Overdue (${Math.abs(days)}d ago)`, color: "#991b1b", bg: "#fee2e2" };
+  if (days <= 30) return { label: `Due in ${days}d`, color: "#92400e", bg: "#fef3c7" };
+  if (days <= 90) return { label: `Due in ${days}d`, color: "#92400e", bg: "#fef9c3" };
+  return { label: fmt(dateStr), color: "#166534", bg: "#dcfce7" };
 }
 
 const MAX_PHOTOS = 5;
@@ -336,9 +379,14 @@ export default function EquipmentPage() {
   const [tab, setTab] = useState<"equipment" | "defects">("equipment");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [managingItem, setManagingItem] = useState<EquipmentRecord | null>(null);
+  const [manageTab, setManageTab] = useState<"details" | "service">("details");
   const [addPhotos, setAddPhotos] = useState<string[]>([]);
   const [editPhotos, setEditPhotos] = useState<string[]>([]);
   const [printOpen, setPrintOpen] = useState(false);
+  const [serviceForm, setServiceForm] = useState(EMPTY_SERVICE_FORM);
+  const [editingLog, setEditingLog] = useState<MaintenanceLog | null>(null);
+  const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
+  const [serviceFormOpen, setServiceFormOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data, isLoading } = useEquipment(farmId ?? 0);
@@ -376,6 +424,65 @@ export default function EquipmentPage() {
     },
   });
 
+  const maintQ = useQuery<{ records: MaintenanceLog[] }>({
+    queryKey: ["equipment-maintenance", farmId, managingItem?.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/equipment/${managingItem!.id}/maintenance`).then(r => r.json()),
+    enabled: !!managingItem && manageTab === "service",
+  });
+  const maintLogs: MaintenanceLog[] = maintQ.data?.records ?? [];
+
+  const addMaintMut = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      fetch(`/api/farms/${farmId}/equipment/${managingItem!.id}/maintenance`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["equipment-maintenance", farmId, managingItem?.id] }); queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey(farmId ?? 0) }); setServiceFormOpen(false); setEditingLog(null); setServiceForm(EMPTY_SERVICE_FORM); toast({ title: "Service record saved" }); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+  const editMaintMut = useMutation({
+    mutationFn: ({ logId, body }: { logId: number; body: Record<string, unknown> }) =>
+      fetch(`/api/farms/${farmId}/equipment/${managingItem!.id}/maintenance/${logId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["equipment-maintenance", farmId, managingItem?.id] }); queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey(farmId ?? 0) }); setServiceFormOpen(false); setEditingLog(null); setServiceForm(EMPTY_SERVICE_FORM); toast({ title: "Record updated" }); },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+  });
+  const deleteMaintMut = useMutation({
+    mutationFn: (logId: number) =>
+      fetch(`/api/farms/${farmId}/equipment/${managingItem!.id}/maintenance/${logId}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["equipment-maintenance", farmId, managingItem?.id] }); queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey(farmId ?? 0) }); setDeletingLogId(null); toast({ title: "Record deleted" }); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const openServiceEdit = (log: MaintenanceLog) => {
+    setEditingLog(log);
+    setServiceForm({
+      maintenanceType: log.maintenanceType,
+      description: log.description,
+      performedBy: log.performedBy ?? "",
+      performedDate: log.performedDate ? new Date(log.performedDate).toISOString().slice(0, 10) : "",
+      nextDueDate: log.nextDueDate ? new Date(log.nextDueDate).toISOString().slice(0, 10) : "",
+      costPence: log.costPence ? String(log.costPence / 100) : "",
+      partsUsed: log.partsUsed ?? "",
+      notes: log.notes ?? "",
+    });
+    setServiceFormOpen(true);
+  };
+
+  const submitServiceForm = () => {
+    const body = {
+      maintenanceType: serviceForm.maintenanceType,
+      description: serviceForm.description,
+      performedBy: serviceForm.performedBy || null,
+      performedDate: serviceForm.performedDate,
+      nextDueDate: serviceForm.nextDueDate || null,
+      costPence: serviceForm.costPence ? Math.round(parseFloat(serviceForm.costPence) * 100) : null,
+      partsUsed: serviceForm.partsUsed || null,
+      notes: serviceForm.notes || null,
+    };
+    if (editingLog) {
+      editMaintMut.mutate({ logId: editingLog.id, body });
+    } else {
+      addMaintMut.mutate(body);
+    }
+  };
+
   if (!farmId) return <Redirect href="/select" />;
 
   const onAdd = (formValues: EquipmentFormData) => {
@@ -404,6 +511,11 @@ export default function EquipmentPage() {
 
   const openManage = (item: EquipmentRecord) => {
     setManagingItem(item);
+    setManageTab("details");
+    setServiceFormOpen(false);
+    setEditingLog(null);
+    setServiceForm(EMPTY_SERVICE_FORM);
+    setDeletingLogId(null);
     setEditPhotos(parsePhotos(item.photos));
     resetEdit({
       name: item.name ?? "",
@@ -557,16 +669,20 @@ export default function EquipmentPage() {
               <th className="px-6 py-4">Equipment</th>
               <th className="px-6 py-4">Reg/Serial</th>
               <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4">Next Calibration</th>
+              <th className="px-6 py-4">MOT Due</th>
+              <th className="px-6 py-4">Next Service</th>
               <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/50">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-6 py-12 text-center text-foreground/50">Loading equipment...</td></tr>
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-foreground/50">Loading equipment...</td></tr>
             ) : equipment.length === 0 ? (
-              <tr><td colSpan={5} className="px-6 py-12 text-center text-foreground/50">No equipment registered.</td></tr>
-            ) : equipment.map(item => (
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-foreground/50">No equipment registered.</td></tr>
+            ) : equipment.map(item => {
+              const motSt = dueStatus(item.nextMotDue);
+              const svcSt = dueStatus(item.nextServiceDue);
+              return (
               <tr key={item.id} className="hover:bg-black/5 transition-colors">
                 <td className="px-6 py-4 font-medium">
                   <div className="flex items-center gap-3">
@@ -584,17 +700,21 @@ export default function EquipmentPage() {
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 text-foreground/70">{item.serialNumber || item.registrationNumber || '-'}</td>
+                <td className="px-6 py-4 text-foreground/70">{item.serialNumber || item.registrationNumber || '—'}</td>
                 <td className="px-6 py-4">
                   <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${item.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                     {item.isActive !== false ? 'Active' : 'Inactive'}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-foreground/70">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 opacity-50" />
-                    {item.nextCalibrationDue ? new Date(item.nextCalibrationDue).toLocaleDateString('en-GB') : '-'}
-                  </div>
+                <td className="px-6 py-4">
+                  {item.nextMotDue
+                    ? <span style={{ fontSize: "0.75rem", fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: motSt.bg, color: motSt.color }}>{motSt.label}</span>
+                    : <span className="text-xs text-foreground/40">—</span>}
+                </td>
+                <td className="px-6 py-4">
+                  {item.nextServiceDue
+                    ? <span style={{ fontSize: "0.75rem", fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: svcSt.bg, color: svcSt.color }}>{svcSt.label}</span>
+                    : <span className="text-xs text-foreground/40">—</span>}
                 </td>
                 <td className="px-6 py-4 text-right">
                   <Button variant="ghost" size="sm" onClick={() => openManage(item)}>
@@ -602,17 +722,26 @@ export default function EquipmentPage() {
                   </Button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      <Dialog open={!!managingItem} onOpenChange={(open) => { if (!open) setManagingItem(null); }}>
-        <DialogContent style={{ maxWidth: "52rem" }}>
+      <Dialog open={!!managingItem} onOpenChange={(open) => { if (!open) { setManagingItem(null); setServiceFormOpen(false); setEditingLog(null); setDeletingLogId(null); } }}>
+        <DialogContent style={{ maxWidth: "58rem" }}>
           <DialogHeader>
             <DialogTitle>Manage Equipment — {managingItem?.name}</DialogTitle>
           </DialogHeader>
-          {managingItem && (
+          <TabBar className="mb-2">
+            <TabButton active={manageTab === "details"} onClick={() => setManageTab("details")}>Details</TabButton>
+            <TabButton active={manageTab === "service"} onClick={() => setManageTab("service")}>
+              <span className="flex items-center gap-1.5"><Wrench className="w-3.5 h-3.5" /> Service &amp; MOT History</span>
+            </TabButton>
+          </TabBar>
+
+          {/* ── DETAILS TAB ── */}
+          {managingItem && manageTab === "details" && (
             <form onSubmit={handleEditSubmit(onEdit)} className="space-y-4 mt-2">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
@@ -649,10 +778,7 @@ export default function EquipmentPage() {
                 </div>
                 <div className="col-span-2">
                   <Label>Notes</Label>
-                  <textarea
-                    {...regEdit("notes")}
-                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y"
-                  />
+                  <textarea {...regEdit("notes")} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y" />
                 </div>
                 <div className="col-span-2">
                   <Label className="mb-2 block">Photos</Label>
@@ -667,6 +793,147 @@ export default function EquipmentPage() {
                 </Button>
               </DialogFooter>
             </form>
+          )}
+
+          {/* ── SERVICE & MOT HISTORY TAB ── */}
+          {managingItem && manageTab === "service" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Status summary cards */}
+              {(() => {
+                const motLog = maintLogs.find(l => l.maintenanceType === "mot");
+                const svcLog = maintLogs.find(l => l.maintenanceType !== "mot");
+                const motSt = dueStatus(motLog?.nextDueDate);
+                const svcSt = dueStatus(svcLog?.nextDueDate);
+                return (
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ flex: "1 1 200px", background: motSt.bg, border: `1px solid ${motSt.color}33`, borderRadius: 10, padding: "12px 16px" }}>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#6b7280", marginBottom: 4 }}>MOT Status</div>
+                      <div style={{ fontSize: "1rem", fontWeight: 700, color: motSt.color }}>{motSt.label}</div>
+                      {motLog && <div style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 2 }}>Last test: {fmt(motLog.performedDate)}</div>}
+                      {!motLog && <div style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 2 }}>No MOT recorded yet</div>}
+                    </div>
+                    <div style={{ flex: "1 1 200px", background: svcSt.bg, border: `1px solid ${svcSt.color}33`, borderRadius: 10, padding: "12px 16px" }}>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#6b7280", marginBottom: 4 }}>Next Service Due</div>
+                      <div style={{ fontSize: "1rem", fontWeight: 700, color: svcSt.color }}>{svcSt.label}</div>
+                      {svcLog && <div style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 2 }}>Last service: {fmt(svcLog.performedDate)}{svcLog.performedBy ? ` · ${svcLog.performedBy}` : ""}</div>}
+                      {!svcLog && <div style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 2 }}>No service recorded yet</div>}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Log form */}
+              {serviceFormOpen && (
+                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "14px 16px" }}>
+                  <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: 10 }}>{editingLog ? "Edit Record" : "Log Service / MOT"}</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Type <span style={{ color: "#ef4444" }}>*</span></Label>
+                      <select value={serviceForm.maintenanceType} onChange={e => setServiceForm(f => ({ ...f, maintenanceType: e.target.value }))} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-9">
+                        {MAINT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Date Performed <span style={{ color: "#ef4444" }}>*</span></Label>
+                      <Input type="date" className="mt-1" value={serviceForm.performedDate} onChange={e => setServiceForm(f => ({ ...f, performedDate: e.target.value }))} />
+                    </div>
+                    <div className="col-span-2">
+                      <Label>Description / Work Done <span style={{ color: "#ef4444" }}>*</span></Label>
+                      <Input className="mt-1" placeholder="e.g. Full service — oil, filters, belts replaced" value={serviceForm.description} onChange={e => setServiceForm(f => ({ ...f, description: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Performed By / Garage</Label>
+                      <Input className="mt-1" placeholder="e.g. Smith's Agricultural" value={serviceForm.performedBy} onChange={e => setServiceForm(f => ({ ...f, performedBy: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Next Due Date</Label>
+                      <Input type="date" className="mt-1" value={serviceForm.nextDueDate} onChange={e => setServiceForm(f => ({ ...f, nextDueDate: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Cost (£)</Label>
+                      <Input type="number" step="0.01" min="0" className="mt-1" placeholder="0.00" value={serviceForm.costPence} onChange={e => setServiceForm(f => ({ ...f, costPence: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label>Parts Used</Label>
+                      <Input className="mt-1" placeholder="e.g. Oil filter, air filter" value={serviceForm.partsUsed} onChange={e => setServiceForm(f => ({ ...f, partsUsed: e.target.value }))} />
+                    </div>
+                    <div className="col-span-2">
+                      <Label>Notes</Label>
+                      <Textarea className="mt-1" placeholder="Additional observations, defects noted, etc." rows={2} value={serviceForm.notes} onChange={e => setServiceForm(f => ({ ...f, notes: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+                    <Button variant="outline" size="sm" onClick={() => { setServiceFormOpen(false); setEditingLog(null); setServiceForm(EMPTY_SERVICE_FORM); }}>Cancel</Button>
+                    <Button size="sm" onClick={submitServiceForm} disabled={!serviceForm.description || !serviceForm.performedDate || addMaintMut.isPending || editMaintMut.isPending}>
+                      {(addMaintMut.isPending || editMaintMut.isPending) ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
+                      {editingLog ? "Save Changes" : "Save Record"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Add button */}
+              {!serviceFormOpen && (
+                <div>
+                  <Button size="sm" onClick={() => { setEditingLog(null); setServiceForm(EMPTY_SERVICE_FORM); setServiceFormOpen(true); }}>
+                    <Plus className="w-4 h-4 mr-1.5" /> Log Service / MOT
+                  </Button>
+                </div>
+              )}
+
+              {/* History list */}
+              {maintQ.isLoading ? (
+                <div style={{ textAlign: "center", padding: 24, color: "#9ca3af", fontSize: "0.85rem" }}>Loading history…</div>
+              ) : maintLogs.length === 0 ? (
+                <div style={{ textAlign: "center", padding: 24, color: "#9ca3af", fontSize: "0.85rem", border: "1px dashed #e2e8f0", borderRadius: 10 }}>
+                  No service or MOT records yet. Click "Log Service / MOT" to add the first entry.
+                </div>
+              ) : (
+                <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
+                  {maintLogs.map((log, i) => {
+                    const mt = MAINT_TYPES.find(t => t.value === log.maintenanceType) ?? MAINT_TYPES[MAINT_TYPES.length - 1];
+                    const dueSt = dueStatus(log.nextDueDate);
+                    const isDeleting = deletingLogId === log.id;
+                    return (
+                      <div key={log.id} style={{ padding: "12px 16px", borderBottom: i < maintLogs.length - 1 ? "1px solid #f1f5f9" : "none", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                        {isDeleting ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                            <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                            <span style={{ fontSize: "0.82rem", flex: 1 }}>Delete this record? This cannot be undone.</span>
+                            <Button variant="outline" size="sm" onClick={() => setDeletingLogId(null)}>Cancel</Button>
+                            <Button variant="destructive" size="sm" onClick={() => deleteMaintMut.mutate(log.id)} disabled={deleteMaintMut.isPending}>Delete</Button>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 3 }}>
+                                <span style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "2px 7px", borderRadius: 5, background: mt.bg, color: mt.color }}>{mt.label}</span>
+                                <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#374151" }}>{fmt(log.performedDate)}</span>
+                                {log.performedBy && <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>· {log.performedBy}</span>}
+                                {log.costPence != null && <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>· £{(log.costPence / 100).toFixed(2)}</span>}
+                              </div>
+                              <div style={{ fontSize: "0.82rem", color: "#1e293b", fontWeight: 500 }}>{log.description}</div>
+                              {log.partsUsed && <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 2 }}>Parts: {log.partsUsed}</div>}
+                              {log.notes && <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 1 }}>Notes: {log.notes}</div>}
+                              {log.nextDueDate && (
+                                <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "#9ca3af" }}>Next Due:</span>
+                                  <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: dueSt.bg, color: dueSt.color }}>{dueSt.label}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                              <Button variant="ghost" size="sm" onClick={() => openServiceEdit(log)} style={{ padding: "4px 8px" }}><Pencil className="w-3.5 h-3.5" /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => setDeletingLogId(log.id)} style={{ padding: "4px 8px", color: "#ef4444" }}><Trash2 className="w-3.5 h-3.5" /></Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
         </DialogContent>
       </Dialog>
