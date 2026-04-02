@@ -676,7 +676,7 @@ export default function FuelEnergyPage() {
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="font-medium text-gray-800 text-sm">Meter Readings</h4>
                   <Select value={selectedMeterId} onValueChange={setSelectedMeterId}>
-                    <SelectTrigger className="w-52 h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All meters</SelectItem>
                       {meters.map(m => <SelectItem key={String(m.id)} value={String(m.id)}>{String(m.name)}</SelectItem>)}
