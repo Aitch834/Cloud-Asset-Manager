@@ -190,6 +190,7 @@ function TaskCard({
   const overdue = days < 0;
   const colours = COLOUR_MAP[task.colour] ?? COLOUR_MAP.slate;
   const isCustom = task.type === "planner_event";
+  const isAssignment = task.type === "task_assignment";
   const [showAssign, setShowAssign] = useState(false);
 
   const inner = (
@@ -250,6 +251,7 @@ function TaskCard({
   );
 
   if (isCustom || showAssign) return <div>{inner}</div>;
+  if (isAssignment) return <Link href="/task-board">{inner}</Link>;
   return <Link href={task.href}>{inner}</Link>;
 }
 
@@ -268,6 +270,7 @@ function TaskCardExpanded({
   const overdue = days < 0;
   const colours = COLOUR_MAP[task.colour] ?? COLOUR_MAP.slate;
   const isCustom = task.type === "planner_event";
+  const isAssignment = task.type === "task_assignment";
   const [showAssign, setShowAssign] = useState(false);
 
   const dueLabel = new Date(task.dueDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -320,7 +323,15 @@ function TaskCardExpanded({
 
       {/* Actions */}
       <div className="flex items-center gap-2">
-        {!isCustom && (
+        {isAssignment && (
+          <Link
+            href="/task-board"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            View assignment <ArrowRight className="w-3 h-3" />
+          </Link>
+        )}
+        {!isCustom && !isAssignment && (
           <Link
             href={task.href}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
