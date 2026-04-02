@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Eye, Paperclip, File as FileIcon, Loader2, ExternalLink } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Eye, Paperclip, File as FileIcon, Loader2, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -81,7 +81,7 @@ function DocCell({ endpoint, queryKey, documentPath, documentName, portalUrl }: 
   );
 }
 
-type Tab = "inspections" | "nonconformances" | "corrective-actions" | "assurance-certs";
+type Tab = "inspections" | "issues-register" | "assurance-certs";
 
 function SeverityBadge({ severity }: { severity: string | null }) {
   const map: Record<string, { bg: string; color: string }> = {
@@ -370,175 +370,317 @@ function InspectionsTab({ farmId }: { farmId: number }) {
   );
 }
 
-function NonconformancesTab({ farmId }: { farmId: number }) {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const NC_CATEGORIES = ["Animal Health & Welfare", "Biosecurity", "Crop Production", "Documentation", "Equipment & Machinery", "Environmental", "Food Safety", "Hygiene", "Record Keeping", "Staff Training", "Traceability", "Other"];
+
+function computeNcStatus(nc: { status: string; correctiveActions: { status: string }[] }) {
+  const cas = nc.correctiveActions;
+  if (cas.length === 0) return nc.status ?? "open";
+  if (cas.every(ca => ca.status === "verified")) return "resolved";
+  if (cas.every(ca => ca.status === "closed" || ca.status === "verified")) return "awaiting_verification";
+  if (cas.some(ca => ca.status === "in_progress")) return "in_progress";
+  if (cas.some(ca => ca.status === "open")) return "action_raised";
+  return nc.status ?? "open";
+}
+
+const PIPELINE_STEPS = ["Identified", "Action Raised", "In Progress", "Awaiting Verification", "Resolved"];
+function pipelineStep(computed: string): number {
+  if (computed === "resolved") return 4;
+  if (computed === "awaiting_verification") return 3;
+  if (computed === "in_progress") return 2;
+  if (computed === "action_raised") return 1;
+  return 0;
+}
+
+function ComputedStatusBadge({ computed }: { computed: string }) {
+  const map: Record<string, { bg: string; color: string; label: string }> = {
+    open: { bg: "#fee2e2", color: "#991b1b", label: "Open" },
+    action_raised: { bg: "#fef3c7", color: "#92400e", label: "Action Raised" },
+    in_progress: { bg: "#dbeafe", color: "#1e40af", label: "In Progress" },
+    awaiting_verification: { bg: "#fde68a", color: "#78350f", label: "Awaiting Verification" },
+    resolved: { bg: "#dcfce7", color: "#166534", label: "Resolved" },
+  };
+  const s = map[computed] ?? { bg: "#f3f4f6", color: "#374151", label: computed };
+  return <Badge style={{ background: s.bg, color: s.color, border: "none", fontSize: "0.72rem", whiteSpace: "nowrap" }}>{s.label}</Badge>;
+}
+
+function PipelineBar({ step }: { step: number }) {
+  const colors = ["#d1d5db", "#f59e0b", "#3b82f6", "#f97316", "#16a34a"];
+  const activeColor = colors[step] ?? "#d1d5db";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 0, marginTop: 6 }}>
+      {PIPELINE_STEPS.map((label, i) => (
+        <React.Fragment key={label}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 64 }}>
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: i <= step ? activeColor : "#e5e7eb", border: `2px solid ${i <= step ? activeColor : "#d1d5db"}`, transition: "background 0.2s" }} />
+            <span style={{ fontSize: "0.6rem", color: i <= step ? activeColor : "#9ca3af", marginTop: 2, fontWeight: i === step ? 700 : 400, textAlign: "center", lineHeight: 1.1 }}>{label}</span>
+          </div>
+          {i < PIPELINE_STEPS.length - 1 && (
+            <div style={{ flex: 1, height: 2, background: i < step ? activeColor : "#e5e7eb", margin: "-14px 0 0 0", alignSelf: "flex-start", marginTop: 4 }} />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+// ─── Issues Register Tab ──────────────────────────────────────────────────────
+function IssuesRegisterTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const emptyForm = { category: "", description: "", severity: "", identifiedDate: "", identifiedBy: "", status: "open", notes: "" };
-  const [addOpen, setAddOpen] = useState(false);
-  const [viewRecord, setViewRecord] = useState<any | null>(null);
-  const [editRecord, setEditRecord] = useState<any | null>(null);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState<any>(emptyForm);
 
+  // ── State ──
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [ncAddOpen, setNcAddOpen] = useState(false);
+  const [ncEdit, setNcEdit] = useState<any | null>(null);
+  const [ncDeleteId, setNcDeleteId] = useState<number | null>(null);
+  const [caAddForNc, setCaAddForNc] = useState<any | null>(null);
+  const [caEdit, setCaEdit] = useState<any | null>(null);
+  const [caDeleteId, setCaDeleteId] = useState<number | null>(null);
+
+  const emptyNcForm = { category: "", description: "", severity: "", identifiedDate: "", identifiedBy: "", notes: "" };
+  const emptyCaForm = { description: "", assignedTo: "", dueDate: "", verifiedBy: "", notes: "" };
+  const [ncForm, setNcForm] = useState<any>(emptyNcForm);
+  const [caForm, setCaForm] = useState<any>(emptyCaForm);
+
+  // ── Data ──
   const q = useQuery({
-    queryKey: ["nonconformances", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/nonconformances`).then(r => r.json()),
+    queryKey: ["issues-register", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/issues-register`).then(r => r.json()),
     enabled: !!farmId,
-    select: (d) => d.records ?? [],
+    select: (d: any) => d.issues ?? [],
   });
+  const issues: any[] = q.data ?? [];
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["nonconformances", farmId] });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["issues-register", farmId] });
 
-  const createMut = useMutation({
+  // ── NC mutations ──
+  const createNc = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/nonconformances`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Non-conformance logged" }); invalidate(); setAddOpen(false); setForm(emptyForm); },
+    onSuccess: (_, vars: any) => {
+      toast({ title: "Non-conformance logged" });
+      invalidate();
+      setNcAddOpen(false);
+      setNcForm(emptyNcForm);
+      // Auto-expand the new NC on next render
+    },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
-  const updateMut = useMutation({
+  const updateNc = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/nonconformances/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: (_, vars) => { toast({ title: Object.keys(vars.body).length === 1 && "status" in vars.body ? "Status updated" : "Non-conformance updated" }); invalidate(); setEditRecord(null); setForm(emptyForm); },
+    onSuccess: () => { toast({ title: "Updated" }); invalidate(); setNcEdit(null); setNcForm(emptyNcForm); },
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
-  const deleteMut = useMutation({
+  const deleteNc = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/nonconformances/${id}`, { method: "DELETE" }),
-    onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
+    onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setNcDeleteId(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  const openEdit = (r: any) => { setForm({ category: r.category ?? "", description: r.description ?? "", severity: r.severity ?? "", identifiedDate: r.identifiedDate?.slice(0, 10) ?? "", identifiedBy: r.identifiedBy ?? "", status: r.status ?? "open", notes: r.notes ?? "" }); setEditRecord(r); };
-  const records: any[] = q.data ?? [];
-  const formOpen = addOpen || !!editRecord;
+  // ── CA mutations ──
+  const createCa = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/corrective-actions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => { toast({ title: "Corrective action added" }); invalidate(); setCaAddForNc(null); setCaForm(emptyCaForm); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const updateCa = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/corrective-actions/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => { toast({ title: "Updated" }); invalidate(); setCaEdit(null); setCaForm(emptyCaForm); },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+  });
+
+  const deleteCa = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/corrective-actions/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setCaDeleteId(null); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  // ── Helpers ──
+  const toggleExpand = (id: number) => setExpanded(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const openEditNc = (nc: any) => { setNcForm({ category: nc.category ?? "", description: nc.description ?? "", severity: nc.severity ?? "", identifiedDate: nc.identifiedDate?.slice(0, 10) ?? "", identifiedBy: nc.identifiedBy ?? "", notes: nc.notes ?? "" }); setNcEdit(nc); };
+  const openEditCa = (ca: any) => { setCaForm({ description: ca.description ?? "", assignedTo: ca.assignedTo ?? "", dueDate: ca.dueDate?.slice(0, 10) ?? "", verifiedBy: ca.verifiedBy ?? "", notes: ca.notes ?? "", status: ca.status ?? "open" }); setCaEdit(ca); };
+
+  // ── Summary counts ──
+  const openCount = issues.filter(nc => { const s = computeNcStatus(nc); return s !== "resolved"; }).length;
+  const critCount = issues.filter(nc => nc.severity === "critical" && computeNcStatus(nc) !== "resolved").length;
+  const resolvedCount = issues.filter(nc => computeNcStatus(nc) === "resolved").length;
+  const overdueCount = issues.filter(nc => {
+    const cas = nc.correctiveActions ?? [];
+    return cas.some((ca: any) => ca.status !== "verified" && ca.status !== "closed" && ca.dueDate && new Date(ca.dueDate) < new Date());
+  }).length;
+
+  const ncFormOpen = ncAddOpen || !!ncEdit;
+  const caFormOpen = !!caAddForNc || !!caEdit;
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          {records.filter(r => r.status === "open").length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "4px 10px" }}>
+      {/* ── Summary Bar ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {openCount > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "5px 12px" }}>
               <AlertTriangle size={13} color="#ef4444" />
-              <span style={{ fontSize: "0.8rem", color: "#991b1b", fontWeight: 600 }}>{records.filter(r => r.status === "open").length} open</span>
+              <span style={{ fontSize: "0.8rem", color: "#991b1b", fontWeight: 600 }}>{openCount} open {openCount === 1 ? "issue" : "issues"}</span>
             </div>
           )}
-          {records.filter(r => r.status === "closed" || r.status === "resolved").length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "4px 10px" }}>
+          {critCount > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: 8, padding: "5px 12px" }}>
+              <AlertTriangle size={13} color="#dc2626" />
+              <span style={{ fontSize: "0.8rem", color: "#7f1d1d", fontWeight: 600 }}>{critCount} critical</span>
+            </div>
+          )}
+          {overdueCount > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, padding: "5px 12px" }}>
+              <AlertTriangle size={13} color="#ea580c" />
+              <span style={{ fontSize: "0.8rem", color: "#9a3412", fontWeight: 600 }}>{overdueCount} overdue {overdueCount === 1 ? "action" : "actions"}</span>
+            </div>
+          )}
+          {resolvedCount > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "5px 12px" }}>
               <CheckCircle2 size={13} color="#16a34a" />
-              <span style={{ fontSize: "0.8rem", color: "#166534", fontWeight: 600 }}>{records.filter(r => r.status === "closed" || r.status === "resolved").length} resolved</span>
+              <span style={{ fontSize: "0.8rem", color: "#166534", fontWeight: 600 }}>{resolvedCount} resolved</span>
             </div>
           )}
         </div>
-        <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}><Plus size={14} className="mr-1" />Log Non-Conformance</Button>
+        <Button size="sm" onClick={() => { setNcForm(emptyNcForm); setNcAddOpen(true); }}>
+          <Plus size={14} className="mr-1" />Log Non-Conformance
+        </Button>
       </div>
 
-      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
-          <CheckCircle2 size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
-          <p style={{ fontWeight: 600, color: "#374151" }}>No non-conformances recorded</p>
-          <p style={{ fontSize: "0.875rem" }}>Issues raised during inspections are logged and tracked here.</p>
+      {/* ── Empty state ── */}
+      {q.isLoading ? (
+        <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
+      ) : issues.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "4rem", color: "#9ca3af", background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb" }}>
+          <CheckCircle2 size={36} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
+          <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>No issues recorded</p>
+          <p style={{ fontSize: "0.875rem" }}>Non-conformances raised during inspections are tracked here, along with their corrective actions and resolution status.</p>
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Date Identified", "Category", "Description", "Severity", "Identified By", "Status", ""].map(h => (
-                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((r: any, i: number) => (
-                <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.identifiedDate)}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.category || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", fontWeight: 500, maxWidth: 220 }}>{r.description}</td>
-                  <td style={{ padding: "0.625rem 0.875rem" }}><SeverityBadge severity={r.severity} /></td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.identifiedBy || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem" }}>
-                    <Select value={r.status} onValueChange={v => updateMut.mutate({ id: r.id, body: { status: v } })}>
-                      <SelectTrigger style={{ height: 28, fontSize: "0.75rem", padding: "0 8px" }}><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="open">Open</SelectItem>
-                        <SelectItem value="in_progress">In Progress</SelectItem>
-                        <SelectItem value="closed">Closed</SelectItem>
-                        <SelectItem value="resolved">Resolved</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </td>
-                  <td style={{ padding: "0.5rem" }}>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
-                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {issues.map((nc: any) => {
+            const computed = computeNcStatus(nc);
+            const step = pipelineStep(computed);
+            const isExpanded = expanded.has(nc.id);
+            const cas: any[] = nc.correctiveActions ?? [];
+            const openCas = cas.filter(ca => ca.status === "open" || ca.status === "in_progress").length;
+            const severityBorderColor: Record<string, string> = { critical: "#ef4444", major: "#f59e0b", minor: "#60a5fa" };
+            const borderLeft = `4px solid ${severityBorderColor[nc.severity ?? ""] ?? "#d1d5db"}`;
+
+            return (
+              <div key={nc.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", borderLeft }}>
+                {/* ── NC Header row ── */}
+                <div
+                  onClick={() => toggleExpand(nc.id)}
+                  style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", cursor: "pointer" }}
+                >
+                  <div style={{ paddingTop: 2, color: "#9ca3af", flexShrink: 0 }}>
+                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: "0.72rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(nc.identifiedDate)}</span>
+                      {nc.category && <span style={{ fontSize: "0.72rem", background: "#f3f4f6", color: "#374151", borderRadius: 4, padding: "1px 6px" }}>{nc.category}</span>}
+                      <SeverityBadge severity={nc.severity} />
+                      <ComputedStatusBadge computed={computed} />
+                      {cas.length > 0 && (
+                        <span style={{ fontSize: "0.72rem", background: openCas > 0 ? "#fef3c7" : "#f0fdf4", color: openCas > 0 ? "#92400e" : "#166534", borderRadius: 4, padding: "1px 7px", border: `1px solid ${openCas > 0 ? "#fde68a" : "#bbf7d0"}` }}>
+                          {cas.length} {cas.length === 1 ? "action" : "actions"}{openCas > 0 ? ` · ${openCas} open` : " · all done"}
+                        </span>
+                      )}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <p style={{ fontSize: "0.875rem", fontWeight: 500, color: "#111827", margin: 0, lineHeight: 1.4 }}>{nc.description}</p>
+                    {nc.identifiedBy && <p style={{ fontSize: "0.72rem", color: "#9ca3af", margin: "2px 0 0" }}>Identified by {nc.identifiedBy}</p>}
+                    <PipelineBar step={step} />
+                  </div>
+                  <div style={{ display: "flex", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                    <button onClick={() => openEditNc(nc)} title="Edit NC" style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}><Pencil size={13} /></button>
+                    <button onClick={() => setNcDeleteId(nc.id)} title="Delete NC" style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}><Trash2 size={13} /></button>
+                  </div>
+                </div>
+
+                {/* ── Expanded: Corrective Actions ── */}
+                {isExpanded && (
+                  <div style={{ borderTop: "1px solid #f3f4f6", background: "#fafafa" }}>
+                    {cas.length === 0 ? (
+                      <div style={{ padding: "12px 20px 8px 40px", color: "#9ca3af", fontSize: "0.8rem" }}>
+                        No corrective actions yet — add one below.
+                      </div>
+                    ) : (
+                      <div style={{ padding: "8px 14px 4px 40px" }}>
+                        {cas.map((ca: any, i: number) => {
+                          const isOverdue = ca.dueDate && new Date(ca.dueDate) < new Date() && ca.status !== "verified" && ca.status !== "closed";
+                          return (
+                            <div key={ca.id} style={{ borderBottom: i < cas.length - 1 ? "1px solid #f3f4f6" : "none", padding: "8px 0", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                              <div style={{ width: 8, height: 8, borderRadius: "50%", background: ca.status === "verified" ? "#16a34a" : ca.status === "closed" ? "#2563eb" : ca.status === "in_progress" ? "#f59e0b" : "#ef4444", marginTop: 6, flexShrink: 0 }} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: "0.825rem", fontWeight: 500, color: "#374151", margin: 0 }}>{ca.description}</p>
+                                <div style={{ display: "flex", gap: 10, marginTop: 3, flexWrap: "wrap", alignItems: "center" }}>
+                                  {ca.assignedTo && <span style={{ fontSize: "0.72rem", color: "#6b7280" }}>→ {ca.assignedTo}</span>}
+                                  {ca.dueDate && (
+                                    <span style={{ fontSize: "0.72rem", color: isOverdue ? "#dc2626" : "#6b7280", fontWeight: isOverdue ? 600 : 400 }}>
+                                      Due {fmt(ca.dueDate)}{isOverdue ? " ⚠ overdue" : ""}
+                                    </span>
+                                  )}
+                                  {ca.verifiedBy && <span style={{ fontSize: "0.72rem", color: "#6b7280" }}>Verified by {ca.verifiedBy}</span>}
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                                <Select value={ca.status} onValueChange={v => updateCa.mutate({ id: ca.id, body: { status: v } })}>
+                                  <SelectTrigger style={{ height: 26, fontSize: "0.72rem", padding: "0 6px", width: 130 }}><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="open">Open</SelectItem>
+                                    <SelectItem value="in_progress">In Progress</SelectItem>
+                                    <SelectItem value="closed">Closed</SelectItem>
+                                    <SelectItem value="verified">Verified</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <button onClick={() => openEditCa(ca)} title="Edit action" style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 2 }}><Pencil size={12} /></button>
+                                <button onClick={() => setCaDeleteId(ca.id)} title="Delete action" style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 2 }}><Trash2 size={12} /></button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div style={{ padding: "8px 14px 12px 40px" }}>
+                      <Button size="sm" variant="outline" onClick={() => { setCaForm(emptyCaForm); setCaAddForNc(nc); }}>
+                        <Plus size={13} className="mr-1" />Add Corrective Action
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {viewRecord && (
-        <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: 560 }}>
-            <DialogHeader><DialogTitle>Non-Conformance</DialogTitle></DialogHeader>
-            {(() => {
-              const r = viewRecord;
-              const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-              const F = ({ label, value }: { label: string; value?: string | null }) => (
-                <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
-                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
-              );
-              return (
-                <div style={{ display: "grid", gap: 14 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <F label="Date Identified" value={fmtD(r.identifiedDate)} />
-                    <F label="Identified By" value={r.identifiedBy} />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <F label="Category" value={r.category} />
-                    <div>
-                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Severity</div>
-                      <SeverityBadge severity={r.severity} />
-                    </div>
-                  </div>
-                  <F label="Description" value={r.description} />
-                  <div>
-                    <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Status</div>
-                    <StatusBadge status={r.status} />
-                  </div>
-                  {r.notes && <F label="Notes" value={r.notes} />}
-                </div>
-              );
-            })()}
-            <DialogFooter className="mt-4">
-              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
-              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Non-Conformance</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      <Dialog open={formOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
+      {/* ── Log / Edit NC Dialog ── */}
+      <Dialog open={ncFormOpen} onOpenChange={o => { if (!o) { setNcAddOpen(false); setNcEdit(null); setNcForm(emptyNcForm); } }}>
         <DialogContent style={{ maxWidth: 520 }}>
-          <DialogHeader><DialogTitle>{editRecord ? "Edit Non-Conformance" : "Log Non-Conformance"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{ncEdit ? "Edit Non-Conformance" : "Log Non-Conformance"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Date Identified <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.identifiedDate} onChange={e => setForm((f: any) => ({ ...f, identifiedDate: e.target.value }))} /></div>
-              <div><Label>Identified By</Label><Input placeholder="Name" value={form.identifiedBy} onChange={e => setForm((f: any) => ({ ...f, identifiedBy: e.target.value }))} /></div>
+              <div><Label>Date Identified <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={ncForm.identifiedDate} onChange={e => setNcForm((f: any) => ({ ...f, identifiedDate: e.target.value }))} /></div>
+              <div><Label>Identified By</Label><Input placeholder="Name" value={ncForm.identifiedBy} onChange={e => setNcForm((f: any) => ({ ...f, identifiedBy: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Category <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Select value={form.category} onValueChange={v => setForm((f: any) => ({ ...f, category: v }))}>
+              <div>
+                <Label>Category <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Select value={ncForm.category} onValueChange={v => setNcForm((f: any) => ({ ...f, category: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>
-                    {["Animal Health & Welfare", "Biosecurity", "Crop Production", "Documentation", "Equipment & Machinery", "Environmental", "Food Safety", "Hygiene", "Record Keeping", "Staff Training", "Traceability", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  <SelectContent className="max-h-56">
+                    {NC_CATEGORIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Severity</Label>
-                <Select value={form.severity || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, severity: v === "__none__" ? "" : v }))}>
+              <div>
+                <Label>Severity</Label>
+                <Select value={ncForm.severity || "__none__"} onValueChange={v => setNcForm((f: any) => ({ ...f, severity: v === "__none__" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— None —</SelectItem>
@@ -549,218 +691,40 @@ function NonconformancesTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
             </div>
-            <div><Label>Description <span style={{ color: "#ef4444" }}>*</span></Label><Textarea placeholder="Describe the non-conformance in detail..." value={form.description} onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))} rows={3} /></div>
-            {editRecord && (
-              <div><Label>Status</Label>
-                <Select value={form.status} onValueChange={v => setForm((f: any) => ({ ...f, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="open">Open</SelectItem>
-                    <SelectItem value="in_progress">In Progress</SelectItem>
-                    <SelectItem value="closed">Closed</SelectItem>
-                    <SelectItem value="resolved">Resolved</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div><Label>Notes</Label><Textarea placeholder="Additional context..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            <div><Label>Description <span style={{ color: "#ef4444" }}>*</span></Label><Textarea placeholder="Describe the non-conformance in detail..." value={ncForm.description} onChange={e => setNcForm((f: any) => ({ ...f, description: e.target.value }))} rows={3} /></div>
+            <div><Label>Notes</Label><Textarea placeholder="Additional context..." value={ncForm.notes} onChange={e => setNcForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
-            <Button onClick={() => editRecord ? updateMut.mutate({ id: editRecord.id, body: form }) : createMut.mutate(form)} disabled={!form.identifiedDate || !form.category || !form.description || createMut.isPending || updateMut.isPending}>{editRecord ? "Save Changes" : "Save"}</Button>
+            <Button variant="outline" onClick={() => { setNcAddOpen(false); setNcEdit(null); setNcForm(emptyNcForm); }}>Cancel</Button>
+            <Button onClick={() => ncEdit ? updateNc.mutate({ id: ncEdit.id, body: ncForm }) : createNc.mutate(ncForm)} disabled={!ncForm.identifiedDate || !ncForm.category || !ncForm.description || createNc.isPending || updateNc.isPending}>
+              {ncEdit ? "Save Changes" : "Log Issue"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
-        <DialogContent style={{ maxWidth: 400 }}>
-          <DialogHeader><DialogTitle>Delete Non-Conformance</DialogTitle></DialogHeader>
-          <p className="text-sm text-gray-600 py-2">Are you sure? This will also delete linked corrective actions.</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function CorrectiveActionsTab({ farmId }: { farmId: number }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const emptyForm = { nonconformanceId: "", description: "", assignedTo: "", dueDate: "", status: "open", verifiedBy: "", notes: "" };
-  const [addOpen, setAddOpen] = useState(false);
-  const [viewRecord, setViewRecord] = useState<any | null>(null);
-  const [editRecord, setEditRecord] = useState<any | null>(null);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState<any>(emptyForm);
-
-  const ncQ = useQuery({
-    queryKey: ["nonconformances", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/nonconformances`).then(r => r.json()),
-    enabled: !!farmId,
-    select: (d) => d.records ?? [],
-  });
-
-  const q = useQuery({
-    queryKey: ["corrective-actions", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/corrective-actions`).then(r => r.json()),
-    enabled: !!farmId,
-    select: (d) => d.records ?? [],
-  });
-
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["corrective-actions", farmId] });
-
-  const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/corrective-actions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, nonconformanceId: body.nonconformanceId ? parseInt(body.nonconformanceId) : undefined }) }),
-    onSuccess: () => { toast({ title: "Corrective action saved" }); invalidate(); setAddOpen(false); setForm(emptyForm); },
-    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
-  });
-
-  const updateMut = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/corrective-actions/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: (_, vars) => { toast({ title: Object.keys(vars.body).length === 1 && "status" in vars.body ? "Status updated" : "Corrective action updated" }); invalidate(); setEditRecord(null); setForm(emptyForm); },
-    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/corrective-actions/${id}`, { method: "DELETE" }),
-    onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
-    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
-  });
-
-  const openEdit = (r: any) => { setForm({ nonconformanceId: r.nonconformanceId ? String(r.nonconformanceId) : "", description: r.description ?? "", assignedTo: r.assignedTo ?? "", dueDate: r.dueDate?.slice(0, 10) ?? "", status: r.status ?? "open", verifiedBy: r.verifiedBy ?? "", notes: r.notes ?? "" }); setEditRecord(r); };
-  const records: any[] = q.data ?? [];
-  const ncs: any[] = ncQ.data ?? [];
-  const formOpen = addOpen || !!editRecord;
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Corrective Action</Button>
-      </div>
-
-      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
-          <Wrench size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
-          <p style={{ fontWeight: 600, color: "#374151" }}>No corrective actions recorded</p>
-          <p style={{ fontSize: "0.875rem" }}>Actions to resolve non-conformances are tracked here.</p>
-        </div>
-      ) : (
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Linked NC", "Action", "Assigned To", "Due Date", "Status", "Verified By", ""].map(h => (
-                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((r: any, i: number) => (
-                <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontSize: "0.75rem", maxWidth: 160 }}>
-                    {r.ncDescription ? (
-                      <span style={{ background: "#eff6ff", color: "#1e40af", borderRadius: 4, padding: "2px 6px" }} title={r.ncDescription}>
-                        {r.ncDescription.length > 40 ? r.ncDescription.slice(0, 40) + "…" : r.ncDescription}
-                      </span>
-                    ) : "—"}
-                  </td>
-                  <td style={{ padding: "0.625rem 0.875rem", fontWeight: 500, maxWidth: 200 }}>{r.description}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.assignedTo || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.dueDate)}</td>
-                  <td style={{ padding: "0.625rem 0.875rem" }}>
-                    <Select value={r.status} onValueChange={v => updateMut.mutate({ id: r.id, body: { status: v } })}>
-                      <SelectTrigger style={{ height: 28, fontSize: "0.75rem", padding: "0 8px" }}><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="open">Open</SelectItem>
-                        <SelectItem value="in_progress">In Progress</SelectItem>
-                        <SelectItem value="closed">Closed</SelectItem>
-                        <SelectItem value="verified">Verified</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.verifiedBy || "—"}</td>
-                  <td style={{ padding: "0.5rem" }}>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
-                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {viewRecord && (
-        <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: 560 }}>
-            <DialogHeader><DialogTitle>Corrective Action</DialogTitle></DialogHeader>
-            {(() => {
-              const r = viewRecord;
-              const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-              const F = ({ label, value }: { label: string; value?: string | null }) => (
-                <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
-                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
-              );
-              return (
-                <div style={{ display: "grid", gap: 14 }}>
-                  {r.ncDescription && (
-                    <div>
-                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Linked Non-Conformance</div>
-                      <span style={{ background: "#eff6ff", color: "#1e40af", borderRadius: 4, padding: "3px 8px", fontSize: "0.8rem" }}>{r.ncDescription}</span>
-                    </div>
-                  )}
-                  <F label="Action Description" value={r.description} />
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <F label="Assigned To" value={r.assignedTo} />
-                    <F label="Due Date" value={fmtD(r.dueDate)} />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <div>
-                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Status</div>
-                      <StatusBadge status={r.status} />
-                    </div>
-                    <F label="Verified By" value={r.verifiedBy} />
-                  </div>
-                  {r.notes && <F label="Notes" value={r.notes} />}
-                </div>
-              );
-            })()}
-            <DialogFooter className="mt-4">
-              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
-              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Action</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      <Dialog open={formOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
-        <DialogContent style={{ maxWidth: 520 }}>
-          <DialogHeader><DialogTitle>{editRecord ? "Edit Corrective Action" : "Add Corrective Action"}</DialogTitle></DialogHeader>
+      {/* ── Add / Edit CA Dialog ── */}
+      <Dialog open={caFormOpen} onOpenChange={o => { if (!o) { setCaAddForNc(null); setCaEdit(null); setCaForm(emptyCaForm); } }}>
+        <DialogContent style={{ maxWidth: 500 }}>
+          <DialogHeader>
+            <DialogTitle>{caEdit ? "Edit Corrective Action" : "Add Corrective Action"}</DialogTitle>
+            {caAddForNc && (
+              <p style={{ fontSize: "0.8rem", color: "#6b7280", margin: "4px 0 0", lineHeight: 1.4 }}>
+                For: <em>{caAddForNc.description?.slice(0, 80)}{(caAddForNc.description?.length ?? 0) > 80 ? "…" : ""}</em>
+              </p>
+            )}
+          </DialogHeader>
           <div className="space-y-3 py-2">
-            <div>
-              <Label>Linked Non-Conformance</Label>
-              <Select value={form.nonconformanceId || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, nonconformanceId: v === "__none__" ? "" : v }))}>
-                <SelectTrigger><SelectValue placeholder="Select NC..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— None —</SelectItem>
-                  {ncs.map((nc: any) => <SelectItem key={nc.id} value={String(nc.id)}>{nc.description.slice(0, 60)}{nc.description.length > 60 ? "…" : ""}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Action Description <span style={{ color: "#ef4444" }}>*</span></Label><Textarea placeholder="Describe the corrective action to be taken..." value={form.description} onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))} rows={3} /></div>
+            <div><Label>Action Description <span style={{ color: "#ef4444" }}>*</span></Label><Textarea placeholder="Describe the corrective action to be taken..." value={caForm.description} onChange={e => setCaForm((f: any) => ({ ...f, description: e.target.value }))} rows={3} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Assigned To</Label><Input placeholder="Name" value={form.assignedTo} onChange={e => setForm((f: any) => ({ ...f, assignedTo: e.target.value }))} /></div>
-              <div><Label>Due Date</Label><Input type="date" value={form.dueDate} onChange={e => setForm((f: any) => ({ ...f, dueDate: e.target.value }))} /></div>
+              <div><Label>Assigned To</Label><Input placeholder="Name" value={caForm.assignedTo} onChange={e => setCaForm((f: any) => ({ ...f, assignedTo: e.target.value }))} /></div>
+              <div><Label>Due Date</Label><Input type="date" value={caForm.dueDate} onChange={e => setCaForm((f: any) => ({ ...f, dueDate: e.target.value }))} /></div>
             </div>
-            {editRecord && (
+            {caEdit && (
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Status</Label>
-                  <Select value={form.status} onValueChange={v => setForm((f: any) => ({ ...f, status: v }))}>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={caForm.status ?? "open"} onValueChange={v => setCaForm((f: any) => ({ ...f, status: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="open">Open</SelectItem>
@@ -770,25 +734,46 @@ function CorrectiveActionsTab({ farmId }: { farmId: number }) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Verified By</Label><Input placeholder="Name" value={form.verifiedBy} onChange={e => setForm((f: any) => ({ ...f, verifiedBy: e.target.value }))} /></div>
+                <div><Label>Verified By</Label><Input placeholder="Name" value={caForm.verifiedBy} onChange={e => setCaForm((f: any) => ({ ...f, verifiedBy: e.target.value }))} /></div>
               </div>
             )}
-            <div><Label>Notes</Label><Textarea placeholder="Additional notes..." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            <div><Label>Notes</Label><Textarea placeholder="Additional notes..." value={caForm.notes} onChange={e => setCaForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
-            <Button onClick={() => editRecord ? updateMut.mutate({ id: editRecord.id, body: { ...form, nonconformanceId: form.nonconformanceId ? parseInt(form.nonconformanceId) : undefined } }) : createMut.mutate(form)} disabled={!form.description || createMut.isPending || updateMut.isPending}>{editRecord ? "Save Changes" : "Save"}</Button>
+            <Button variant="outline" onClick={() => { setCaAddForNc(null); setCaEdit(null); setCaForm(emptyCaForm); }}>Cancel</Button>
+            <Button
+              onClick={() => caEdit
+                ? updateCa.mutate({ id: caEdit.id, body: caForm })
+                : createCa.mutate({ ...caForm, nonconformanceId: caAddForNc?.id })
+              }
+              disabled={!caForm.description || createCa.isPending || updateCa.isPending}
+            >
+              {caEdit ? "Save Changes" : "Add Action"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+      {/* ── Delete NC confirm ── */}
+      <Dialog open={ncDeleteId !== null} onOpenChange={o => { if (!o) setNcDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader><DialogTitle>Delete Non-Conformance</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Are you sure? This will also permanently delete all linked corrective actions.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNcDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => ncDeleteId !== null && deleteNc.mutate(ncDeleteId)} disabled={deleteNc.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete CA confirm ── */}
+      <Dialog open={caDeleteId !== null} onOpenChange={o => { if (!o) setCaDeleteId(null); }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Corrective Action</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this corrective action?</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
+            <Button variant="outline" onClick={() => setCaDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => caDeleteId !== null && deleteCa.mutate(caDeleteId)} disabled={deleteCa.isPending}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1100,13 +1085,11 @@ export default function InspectionsPageFull() {
         </p>
         <TabBar className="mb-6">
           <TabButton active={tab === "inspections"} onClick={() => setTab("inspections")}>Inspections</TabButton>
-          <TabButton active={tab === "nonconformances"} onClick={() => setTab("nonconformances")}>Non-Conformances</TabButton>
-          <TabButton active={tab === "corrective-actions"} onClick={() => setTab("corrective-actions")}>Corrective Actions</TabButton>
+          <TabButton active={tab === "issues-register"} onClick={() => setTab("issues-register")}>Issues Register</TabButton>
           <TabButton active={tab === "assurance-certs"} onClick={() => setTab("assurance-certs")}>Assurance Certificates</TabButton>
         </TabBar>
         {farmId && tab === "inspections" && <InspectionsTab farmId={farmId} />}
-        {farmId && tab === "nonconformances" && <NonconformancesTab farmId={farmId} />}
-        {farmId && tab === "corrective-actions" && <CorrectiveActionsTab farmId={farmId} />}
+        {farmId && tab === "issues-register" && <IssuesRegisterTab farmId={farmId} />}
         {farmId && tab === "assurance-certs" && <AssuranceCertsTab farmId={farmId} />}
       </div>
     </AppLayout>

@@ -2235,6 +2235,17 @@ router.put("/farms/:farmId/inspections/:recordId", requireAuth, requireTenant, r
   res.json({ record });
 });
 
+// ─── Issues Register (NCs with embedded CAs) ───────
+router.get("/farms/:farmId/issues-register", requireAuth, requireTenant, requireModuleByKey("inspections", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const ncs = await db.select().from(nonconformanceRecordsTable).where(eq(nonconformanceRecordsTable.farmId, farmId)).orderBy(desc(nonconformanceRecordsTable.identifiedDate));
+  if (ncs.length === 0) { res.json({ issues: [] }); return; }
+  const cas = await db.select().from(correctiveActionsTable).where(inArray(correctiveActionsTable.nonconformanceId, ncs.map(nc => nc.id))).orderBy(asc(correctiveActionsTable.createdAt));
+  const issues = ncs.map(nc => ({ ...nc, correctiveActions: cas.filter(ca => ca.nonconformanceId === nc.id) }));
+  res.json({ issues });
+});
+
 // ─── Non-conformances ──────────────────────────────
 router.get("/farms/:farmId/nonconformances", requireAuth, requireTenant, requireModuleByKey("inspections", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
