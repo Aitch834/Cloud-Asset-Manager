@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Printer, Plus, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { printProReport } from "@/lib/print-report";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -322,8 +323,15 @@ export default function HerdHealthRegisterPage() {
     enabled: !!farmId,
   });
 
+  const farmQ = useQuery({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
   const timeline: any[] = q.data?.timeline ?? [];
   const herds: any[] = q.data?.herds ?? [];
+  const farm = farmQ.data?.record ?? null;
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["herd-health-register", farmId] });
 
@@ -338,7 +346,81 @@ export default function HerdHealthRegisterPage() {
   const herdLabels = Array.from(new Set(timeline.map(e => e.herdLabel).filter(Boolean)));
 
   const handlePrint = () => {
-    window.print();
+    const escape = (s: string | null | undefined) => (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    const sourceBadgeHtml = (source: string) => {
+      const m = SOURCE_META[source] ?? SOURCE_META["clinical_event"];
+      return `<span style="font-size:6px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 5px;border-radius:3px;background:${m.bg};color:${m.color};border:1px solid ${m.border};white-space:nowrap">${m.label}</span>`;
+    };
+
+    const withdrawalHtml = (entry: any) => {
+      if (!entry.withdrawal) return "—";
+      const end = entry.withdrawal.endDate;
+      if (!end) return "—";
+      const daysLeft = Math.ceil((new Date(end).getTime() - Date.now()) / 86400000);
+      if (daysLeft > 0) {
+        return `<span style="background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:2px;font-weight:600">${daysLeft}d left — ends ${fmt(end)}</span>`;
+      }
+      return `<span style="background:#dcfce7;color:#166534;padding:1px 4px;border-radius:2px">Cleared ${fmt(end)}</span>`;
+    };
+
+    const followUpHtml = (entry: any) => {
+      if (!entry.followUpRequired) return "—";
+      if (entry.followUpCompleted) {
+        return `<span style="background:#dcfce7;color:#166534;padding:1px 4px;border-radius:2px">Completed</span>`;
+      }
+      if (entry.followUpDate && new Date(entry.followUpDate) < new Date()) {
+        return `<span style="background:#fee2e2;color:#991b1b;padding:1px 4px;border-radius:2px;font-weight:600">Overdue — ${fmt(entry.followUpDate)}</span>`;
+      }
+      return entry.followUpDate ? `Due ${fmt(entry.followUpDate)}` : "Required";
+    };
+
+    const rows = filtered.map(e => `<tr>
+      <td style="white-space:nowrap;font-weight:600">${fmt(e.date)}</td>
+      <td>${sourceBadgeHtml(e.source)}</td>
+      <td>${escape(e.herdLabel ?? "—")}</td>
+      <td><strong>${escape(e.title)}</strong>${e.detail ? `<br><span style="color:#555;font-size:7px">${escape(e.detail)}</span>` : ""}</td>
+      <td>${escape(e.vetName ?? "—")}</td>
+      <td>${withdrawalHtml(e)}</td>
+      <td>${followUpHtml(e)}${e.notes && e.source === "clinical_event" ? `<br><span style="color:#555;font-size:7px">Action: ${escape(e.notes)}</span>` : ""}</td>
+    </tr>`).join("");
+
+    const activeWithdrawals = timeline.filter(e => e.withdrawal && isWithdrawalActive(e.withdrawal?.endDate)).length;
+    const openFollowUps = timeline.filter(e => e.followUpRequired && !e.followUpCompleted).length;
+    const overdueFollowUps = timeline.filter(e => e.followUpRequired && !e.followUpCompleted && e.followUpDate && new Date(e.followUpDate) < new Date()).length;
+
+    const filterParts: string[] = [];
+    if (filterSource !== "__all__") filterParts.push(`Type: ${SOURCE_META[filterSource]?.label ?? filterSource}`);
+    if (filterHerd !== "__all__") filterParts.push(`Herd: ${filterHerd}`);
+    if (filterFrom) filterParts.push(`From: ${fmt(filterFrom)}`);
+    if (filterTo) filterParts.push(`To: ${fmt(filterTo)}`);
+    const filterLabel = filterParts.length > 0 ? filterParts.join("  ·  ") : "All records";
+
+    const tableHtml = `
+      <p style="font-size:7.5px;color:#374151;margin:0 0 10px">
+        <strong>Summary:</strong>&nbsp;
+        ${filtered.length} entries shown &nbsp;·&nbsp; ${activeWithdrawals} active withdrawal${activeWithdrawals !== 1 ? "s" : ""} &nbsp;·&nbsp;
+        ${openFollowUps} open follow-up${openFollowUps !== 1 ? "s" : ""} (${overdueFollowUps} overdue)
+      </p>
+      <table><thead><tr>
+        <th>Date</th><th>Type</th><th>Herd / Group</th><th style="width:30%">Summary / Detail</th>
+        <th>Vet / Clinician</th><th>Withdrawal Status</th><th>Follow-up / Action</th>
+      </tr></thead><tbody>${rows}</tbody></table>
+    `;
+
+    printProReport({
+      title: "Herd Health Register",
+      subtitle: "Consolidated livestock health record — Red Tractor compliant",
+      farmName: farm?.name,
+      cphNumber: farm?.cphNumber ?? undefined,
+      redTractorId: farm?.redTractorId ?? undefined,
+      recordCount: filtered.length,
+      recordLabel: "entry",
+      extraMeta: `Filter: ${filterLabel}`,
+      tableHtml,
+      footerNote: "Retain herd health records for a minimum of 3 years. Withdrawal periods must be observed before animals enter the food chain. Make available at Red Tractor audit inspection.",
+      landscape: true,
+    });
   };
 
   if (!farmId) {
