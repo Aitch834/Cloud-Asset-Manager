@@ -253,9 +253,13 @@ export default function FieldOperationsPage() {
     return list;
   }, [records, search, filterType, cropYear]);
 
-  // Stats
-  const totalArea = records.reduce((sum: number, r: any) => sum + (parseFloat(r.areaHa) || 0), 0);
-  const uniqueFields = new Set(records.map((r: any) => r.fieldName)).size;
+  // Stats — all scoped to the selected crop year
+  const thisYearRecords = records.filter((r: any) => isInCropYear(r.operationDate, cropYear));
+  const thisYearArea = thisYearRecords.reduce((sum: number, r: any) => sum + (parseFloat(r.areaHa) || 0), 0);
+  const thisYearFields = new Set(thisYearRecords.map((r: any) => r.fieldName).filter(Boolean)).size;
+  const lastOpDate = records.length > 0
+    ? records.slice().sort((a: any, b: any) => new Date(b.operationDate).getTime() - new Date(a.operationDate).getTime())[0].operationDate
+    : null;
 
   function openAdd() {
     setEditId(null);
@@ -391,10 +395,10 @@ export default function FieldOperationsPage() {
         {/* Stats strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: "Total Records", value: records.length, sub: "all time" },
-            { label: "Fields Covered", value: uniqueFields, sub: "distinct fields" },
-            { label: "Total Area", value: totalArea > 0 ? `${totalArea.toFixed(1)} ha` : "—", sub: "cumulative" },
-            { label: "This Crop Year", value: records.filter((r: any) => isInCropYear(r.operationDate, cropYear)).length, sub: cropYearLabel(cropYear) },
+            { label: "Operations This Season", value: thisYearRecords.length, sub: cropYearLabel(cropYear) },
+            { label: "Area Worked This Season", value: thisYearArea > 0 ? `${thisYearArea.toFixed(1)} ha` : "—", sub: cropYearLabel(cropYear) },
+            { label: "Fields Active This Season", value: thisYearFields > 0 ? thisYearFields : "—", sub: thisYearFields === 1 ? "field with activity" : "fields with activity" },
+            { label: "Last Operation", value: lastOpDate ? fmt(lastOpDate) : "—", sub: lastOpDate ? "most recent entry" : "no records yet" },
           ].map((s) => (
             <div key={s.label} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
               <p className="text-xs text-gray-500 uppercase tracking-wide">{s.label}</p>
