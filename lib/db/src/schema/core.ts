@@ -248,3 +248,15 @@ export const farmTaskAssignmentsTable = pgTable("farm_task_assignments", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
+
+export const taskAssignmentHistoryTable = pgTable("task_assignment_history", {
+  id: serial("id").primaryKey(),
+  assignmentId: integer("assignment_id").notNull().references(() => farmTaskAssignmentsTable.id, { onDelete: "cascade" }),
+  previousAssigneeMemberId: integer("previous_assignee_member_id"),
+  previousAssigneeName: text("previous_assignee_name"),
+  newAssigneeMemberId: integer("new_assignee_member_id"),
+  newAssigneeName: text("new_assignee_name"),
+  reassignmentNote: text("reassignment_note"),
+  reassignedAt: timestamp("reassigned_at", { withTimezone: true }).notNull().defaultNow(),
+  reassignedByUserId: text("reassigned_by_user_id"),
+});

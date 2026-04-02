@@ -20,6 +20,7 @@ type TaskItem = {
   module: string;
   href: string;
   colour: string;
+  assignedToMemberId?: number;
 };
 
 type StaffMember = {
@@ -77,26 +78,38 @@ const COLOUR_OPTIONS = [
 
 /* ─────────── AssignDialog ─────────── */
 function AssignDialog({
-  task, farmId, staff, onClose, onAssigned,
+  task, farmId, staff, onClose, onAssigned, isReassignment, assignmentDbId,
 }: {
   task: TaskItem; farmId: number; staff: StaffMember[];
   onClose: () => void; onAssigned: () => void;
+  isReassignment?: boolean; assignmentDbId?: number;
 }) {
   const [memberId, setMemberId] = useState("");
   const [note, setNote] = useState("");
+  const [reassignReason, setReassignReason] = useState("");
   const [error, setError] = useState("");
 
   const assignMut = useMutation({
-    mutationFn: (body: object) =>
-      fetch(`/api/farms/${farmId}/task-assignments`, {
+    mutationFn: (body: object) => {
+      if (isReassignment && assignmentDbId) {
+        return fetch(`/api/farms/${farmId}/task-assignments/${assignmentDbId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }).then(r => r.json());
+      }
+      return fetch(`/api/farms/${farmId}/task-assignments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }).then(r => r.json()),
+      }).then(r => r.json());
+    },
     onSuccess: (data) => {
       const member = staff.find(s => s.id === Number(memberId));
       const name = member ? `${member.firstName} ${member.lastName}` : "staff member";
-      if (data.smsSent) {
+      if (isReassignment) {
+        toast({ title: "Task reassigned", description: data.smsSent ? `${name} has been notified by SMS. Previous assignee also notified.` : `Task reassigned to ${name}.` });
+      } else if (data.smsSent) {
         toast({ title: "Task assigned", description: `${name} has been notified by SMS.` });
       } else {
         toast({ title: "Task assigned", description: `${name} has been assigned the task. (No phone number on file — SMS not sent.)` });
@@ -111,18 +124,26 @@ function AssignDialog({
     e.preventDefault();
     if (!memberId) { setError("Please select a staff member."); return; }
     setError("");
-    const dueIso = task.dueDate ? task.dueDate.split("T")[0] : undefined;
-    assignMut.mutate({
-      assignedToMemberId: Number(memberId),
-      title: task.title,
-      description: task.description,
-      dueDate: dueIso,
-      module: task.module,
-      href: task.href,
-      taskType: task.type,
-      taskSourceId: task.id,
-      assignmentNote: note.trim() || undefined,
-    });
+    if (isReassignment && assignmentDbId) {
+      assignMut.mutate({
+        assignedToMemberId: Number(memberId),
+        assignmentNote: note.trim() || undefined,
+        reassignmentNote: reassignReason.trim() || undefined,
+      });
+    } else {
+      const dueIso = task.dueDate ? task.dueDate.split("T")[0] : undefined;
+      assignMut.mutate({
+        assignedToMemberId: Number(memberId),
+        title: task.title,
+        description: task.description,
+        dueDate: dueIso,
+        module: task.module,
+        href: task.href,
+        taskType: task.type,
+        taskSourceId: task.id,
+        assignmentNote: note.trim() || undefined,
+      });
+    }
   };
 
   const activeStaff = staff.filter(s => s.isActive);
@@ -132,7 +153,7 @@ function AssignDialog({
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1.5">
           <UserPlus className="w-3.5 h-3.5" />
-          Assign to staff member
+          {isReassignment ? "Re-assign to a different staff member" : "Assign to staff member"}
         </p>
         <button onClick={onClose} className="w-5 h-5 flex items-center justify-center rounded-full text-indigo-400 hover:text-indigo-700 hover:bg-indigo-100 transition-colors">
           <X className="w-3 h-3" />
@@ -154,10 +175,19 @@ function AssignDialog({
         <textarea
           value={note}
           onChange={e => setNote(e.target.value)}
-          placeholder="Optional note for the staff member…"
+          placeholder={isReassignment ? "Updated note for the new staff member (optional)…" : "Optional note for the staff member…"}
           rows={2}
           className="w-full text-sm border border-indigo-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
         />
+        {isReassignment && (
+          <textarea
+            value={reassignReason}
+            onChange={e => setReassignReason(e.target.value)}
+            placeholder="Reason for re-assigning (optional — logged in assignment history)…"
+            rows={2}
+            className="w-full text-sm border border-indigo-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
+          />
+        )}
         {error && <p className="text-xs text-red-600">{error}</p>}
         <div className="flex gap-2">
           <button
@@ -165,7 +195,7 @@ function AssignDialog({
             disabled={assignMut.isPending || !memberId}
             className="flex-1 bg-indigo-600 text-white text-xs font-semibold py-2 px-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
           >
-            {assignMut.isPending ? "Assigning…" : "Assign & notify"}
+            {assignMut.isPending ? (isReassignment ? "Re-assigning…" : "Assigning…") : (isReassignment ? "Re-assign & notify" : "Assign & notify")}
           </button>
           <button type="button" onClick={onClose} className="text-xs font-semibold py-2 px-3 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors">
             Cancel
@@ -251,7 +281,7 @@ function TaskCard({
   );
 
   if (isCustom || showAssign) return <div>{inner}</div>;
-  if (isAssignment) return <Link href="/task-board">{inner}</Link>;
+  if (isAssignment) return <Link href={`/task-board?id=${task.id.replace("assign-", "")}`}>{inner}</Link>;
   return <Link href={task.href}>{inner}</Link>;
 }
 
@@ -322,53 +352,62 @@ function TaskCardExpanded({
       <p className="text-xs text-foreground/60 leading-relaxed mb-3">{task.description}</p>
 
       {/* Actions */}
-      <div className="flex items-center gap-2">
-        {isAssignment && (
-          <Link
-            href="/task-board"
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            View assignment <ArrowRight className="w-3 h-3" />
-          </Link>
-        )}
-        {!isCustom && !isAssignment && (
-          <Link
-            href={task.href}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            Open record <ArrowRight className="w-3 h-3" />
-          </Link>
-        )}
-        <button
-          onClick={() => setShowAssign(p => !p)}
-          className={cn(
-            "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors",
-            showAssign ? "bg-indigo-100 text-indigo-700 border-indigo-200" : "border-border hover:bg-muted"
-          )}
-        >
-          <UserPlus className="w-3.5 h-3.5" />
-          Assign
-        </button>
-        {isCustom && onDelete && (
-          <button
-            onClick={() => onDelete(task.id)}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-border text-red-600 hover:bg-red-50 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Delete
-          </button>
-        )}
-      </div>
+      {(() => {
+        const assignmentDbId = isAssignment ? parseInt(task.id.replace("assign-", ""), 10) : undefined;
+        return (
+          <>
+            <div className="flex items-center gap-2">
+              {isAssignment && (
+                <Link
+                  href={`/task-board?id=${assignmentDbId}`}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  View assignment <ArrowRight className="w-3 h-3" />
+                </Link>
+              )}
+              {!isCustom && !isAssignment && (
+                <Link
+                  href={task.href}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  Open record <ArrowRight className="w-3 h-3" />
+                </Link>
+              )}
+              <button
+                onClick={() => setShowAssign(p => !p)}
+                className={cn(
+                  "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors",
+                  showAssign ? "bg-indigo-100 text-indigo-700 border-indigo-200" : "border-border hover:bg-muted"
+                )}
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                {isAssignment ? "Re-assign" : "Assign"}
+              </button>
+              {isCustom && onDelete && (
+                <button
+                  onClick={() => onDelete(task.id)}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-border text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete
+                </button>
+              )}
+            </div>
 
-      {showAssign && (
-        <AssignDialog
-          task={task}
-          farmId={farmId}
-          staff={staff}
-          onClose={() => setShowAssign(false)}
-          onAssigned={onAssigned}
-        />
-      )}
+            {showAssign && (
+              <AssignDialog
+                task={task}
+                farmId={farmId}
+                staff={staff}
+                onClose={() => setShowAssign(false)}
+                onAssigned={onAssigned}
+                isReassignment={isAssignment}
+                assignmentDbId={assignmentDbId}
+              />
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }

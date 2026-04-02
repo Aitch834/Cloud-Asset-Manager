@@ -1,14 +1,14 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Redirect } from "wouter";
+import { Redirect, useSearch } from "wouter";
 import {
   ClipboardList, CheckCircle2, Clock, XCircle, Loader2, Trash2, ChevronDown,
-  UserCheck, AlertTriangle, MessageSquare, Send,
+  UserCheck, AlertTriangle, MessageSquare, Send, History, ArrowRight,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 
 type Assignment = {
@@ -27,6 +27,15 @@ type Assignment = {
   taskType: string;
 };
 
+type HistoryEntry = {
+  id: number;
+  assignmentId: number;
+  previousAssigneeName: string | null;
+  newAssigneeName: string | null;
+  reassignmentNote: string | null;
+  reassignedAt: string;
+};
+
 type StaffMember = { id: number; firstName: string; lastName: string; isActive: boolean };
 
 const STATUS_CONFIG: Record<string, { label: string; colour: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -42,10 +51,31 @@ function fmtDate(d: string | null): string {
   return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function AssignmentCard({ a, farmId }: { a: Assignment; farmId: number }) {
+function fmtDateTime(d: string): string {
+  const dt = new Date(d);
+  return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function AssignmentCard({ a, farmId, autoExpand }: { a: Assignment; farmId: number; autoExpand?: boolean }) {
   const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(autoExpand ?? false);
   const [newStatus, setNewStatus] = useState(a.status);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (autoExpand && cardRef.current) {
+      setTimeout(() => {
+        cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 150);
+    }
+  }, [autoExpand]);
+
+  const { data: historyData, isFetching: historyLoading } = useQuery<{ history: HistoryEntry[] }>({
+    queryKey: ["assignment-history", a.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/task-assignments/${a.id}/history`).then(r => r.json()),
+    enabled: expanded,
+  });
+  const history = historyData?.history ?? [];
 
   const cfg = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.pending;
   const StatusIcon = cfg.icon;
@@ -76,10 +106,14 @@ function AssignmentCard({ a, farmId }: { a: Assignment; farmId: number }) {
   });
 
   return (
-    <div className={cn(
-      "rounded-xl border bg-white transition-all",
-      isOverdue && a.status === "pending" ? "border-red-200" : "border-border"
-    )}>
+    <div
+      ref={cardRef}
+      className={cn(
+        "rounded-xl border bg-white transition-all",
+        autoExpand && "ring-2 ring-primary ring-offset-1",
+        isOverdue && a.status === "pending" ? "border-red-200" : "border-border"
+      )}
+    >
       <div
         className="flex items-start gap-3 p-4 cursor-pointer"
         onClick={() => setExpanded(p => !p)}
@@ -122,6 +156,11 @@ function AssignmentCard({ a, farmId }: { a: Assignment; farmId: number }) {
                 <Send className="w-3 h-3" />SMS sent
               </span>
             )}
+            {history.length > 0 && (
+              <span className="text-xs text-indigo-600 flex items-center gap-1">
+                <History className="w-3 h-3" />{history.length} reassignment{history.length !== 1 ? "s" : ""}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -149,6 +188,44 @@ function AssignmentCard({ a, farmId }: { a: Assignment; farmId: number }) {
           )}
           {a.completedAt && (
             <p className="text-xs text-foreground/40">Completed {fmtDate(a.completedAt)}</p>
+          )}
+
+          {/* Reassignment history */}
+          {historyLoading && (
+            <div className="flex items-center gap-2 py-2 text-foreground/40">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span className="text-xs">Loading history…</span>
+            </div>
+          )}
+          {!historyLoading && history.length > 0 && (
+            <div className="border border-border rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2 bg-muted/40 border-b border-border">
+                <History className="w-3.5 h-3.5 text-foreground/50" />
+                <span className="text-xs font-semibold text-foreground/70">Reassignment history</span>
+              </div>
+              <div className="divide-y divide-border">
+                {history.map((h, i) => (
+                  <div key={h.id} className="px-3 py-2.5">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-shrink-0 w-4 h-4 rounded-full bg-indigo-100 flex items-center justify-center mt-0.5">
+                        <span className="text-[9px] font-bold text-indigo-600">{i + 1}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs text-foreground/60">{h.previousAssigneeName ?? "—"}</span>
+                          <ArrowRight className="w-3 h-3 text-foreground/30 flex-shrink-0" />
+                          <span className="text-xs font-semibold text-foreground">{h.newAssigneeName ?? "—"}</span>
+                        </div>
+                        {h.reassignmentNote && (
+                          <p className="text-xs text-foreground/50 mt-0.5 italic">"{h.reassignmentNote}"</p>
+                        )}
+                        <p className="text-[10px] text-foreground/35 mt-0.5">{fmtDateTime(h.reassignedAt)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           <div className="flex items-center gap-2 pt-1">
@@ -187,6 +264,13 @@ function AssignmentCard({ a, farmId }: { a: Assignment; farmId: number }) {
 export default function TaskBoardPage() {
   const { farmId } = useAppStore();
   if (!farmId) return <Redirect href="/select" />;
+
+  const search = useSearch();
+  const targetId = (() => {
+    const params = new URLSearchParams(search);
+    const v = params.get("id");
+    return v ? parseInt(v, 10) : null;
+  })();
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [memberFilter, setMemberFilter] = useState("all");
@@ -298,7 +382,9 @@ export default function TaskBoardPage() {
               Open ({pending.length})
             </h2>
             <div className="space-y-2">
-              {pending.map(a => <AssignmentCard key={a.id} a={a} farmId={farmId} />)}
+              {pending.map(a => (
+                <AssignmentCard key={a.id} a={a} farmId={farmId} autoExpand={targetId === a.id} />
+              ))}
             </div>
           </div>
         )}
@@ -311,7 +397,9 @@ export default function TaskBoardPage() {
               Completed & Cancelled ({completed.length})
             </h2>
             <div className="space-y-2">
-              {completed.map(a => <AssignmentCard key={a.id} a={a} farmId={farmId} />)}
+              {completed.map(a => (
+                <AssignmentCard key={a.id} a={a} farmId={farmId} autoExpand={targetId === a.id} />
+              ))}
             </div>
           </div>
         )}

@@ -167,6 +167,7 @@ import {
   farmPlannerEventsTable,
   farmGrantsTable,
   farmTaskAssignmentsTable,
+  taskAssignmentHistoryTable,
   farmAssuranceCertsTable,
   cropContractsTable,
   fuelTanksTable,
@@ -4111,12 +4112,79 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
   res.json({ record, smsSent, smsReason: smsReason ?? null });
 });
 
-router.patch("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/task-assignments/:id/history", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [assignment] = await db.select({ id: farmTaskAssignmentsTable.id }).from(farmTaskAssignmentsTable)
+    .where(and(eq(farmTaskAssignmentsTable.id, id), eq(farmTaskAssignmentsTable.farmId, farmId)));
+  if (!assignment) { res.status(404).json({ error: "Not found" }); return; }
+  const history = await db.select().from(taskAssignmentHistoryTable)
+    .where(eq(taskAssignmentHistoryTable.assignmentId, id))
+    .orderBy(taskAssignmentHistoryTable.reassignedAt);
+  res.json({ history });
+});
+
+router.patch("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const userId = req.user?.id ?? "unknown";
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [existing] = await db.select().from(farmTaskAssignmentsTable)
+    .where(and(eq(farmTaskAssignmentsTable.id, id), eq(farmTaskAssignmentsTable.farmId, farmId)));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+  const { status, completionNote, assignmentNote, dueDate, assignedToMemberId, reassignmentNote } = req.body;
+  const isReassignment = assignedToMemberId !== undefined && Number(assignedToMemberId) !== existing.assignedToMemberId;
+
+  if (isReassignment) {
+    const newMemberId = Number(assignedToMemberId);
+    const [newMember] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone })
+      .from(farmMembersTable).where(and(eq(farmMembersTable.id, newMemberId), eq(farmMembersTable.farmId, farmId)));
+    if (!newMember) { res.status(404).json({ error: "New staff member not found" }); return; }
+
+    const newStaffName = `${newMember.firstName} ${newMember.lastName}`.trim();
+    const newStaffPhone = newMember.phone ?? null;
+
+    await db.insert(taskAssignmentHistoryTable).values({
+      assignmentId: id,
+      previousAssigneeMemberId: existing.assignedToMemberId,
+      previousAssigneeName: existing.staffName,
+      newAssigneeMemberId: newMemberId,
+      newAssigneeName: newStaffName,
+      reassignmentNote: reassignmentNote?.trim() || null,
+      reassignedByUserId: userId,
+    });
+
+    if (existing.staffPhone) {
+      await sendSms(existing.staffPhone, `Hi ${existing.staffName.split(" ")[0]}, your task "${existing.title}" has been reassigned to another team member. — BDE Farm Trac`);
+    }
+
+    let smsSentNew = false;
+    if (newStaffPhone) {
+      const duePart = existing.dueDate ? ` Due: ${new Date(existing.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.` : "";
+      const notePart = assignmentNote ?? existing.assignmentNote ? ` Note: ${assignmentNote ?? existing.assignmentNote}` : "";
+      const body = `Hi ${newMember.firstName}, you've been assigned a task on BDE Farm Trac: "${existing.title}".${duePart}${notePart} Log in to see details.`;
+      const result = await sendSms(newStaffPhone, body);
+      smsSentNew = result.sent;
+    }
+
+    const [record] = await db.update(farmTaskAssignmentsTable).set({
+      assignedToMemberId: newMemberId,
+      staffName: newStaffName,
+      staffPhone: newStaffPhone,
+      assignmentNote: assignmentNote !== undefined ? assignmentNote : existing.assignmentNote,
+      status: "pending",
+      smsSent: smsSentNew,
+      smsSentAt: smsSentNew ? new Date() : existing.smsSentAt,
+    }).where(eq(farmTaskAssignmentsTable.id, id)).returning();
+
+    res.json({ record, reassigned: true, smsSent: smsSentNew });
+    return;
+  }
+
   const allowed: Record<string, unknown> = {};
-  const { status, completionNote, assignmentNote, dueDate } = req.body;
   if (status !== undefined) {
     allowed.status = status;
     if (status === "completed") allowed.completedAt = new Date();
@@ -8778,7 +8846,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .where(and(eq(horticultureWaterTestsTable.farmId, farmId), isNotNull(horticultureWaterTestsTable.nextTestDueDate), gte(horticultureWaterTestsTable.nextTestDueDate, overdueStart), lt(horticultureWaterTestsTable.nextTestDueDate, rangeEnd))),
 
     // ── Pending/in-progress task assignments ──
-    db.select({ id: farmTaskAssignmentsTable.id, title: farmTaskAssignmentsTable.title, dueDate: farmTaskAssignmentsTable.dueDate, staffName: farmTaskAssignmentsTable.staffName, module: farmTaskAssignmentsTable.module, href: farmTaskAssignmentsTable.href, status: farmTaskAssignmentsTable.status })
+    db.select({ id: farmTaskAssignmentsTable.id, title: farmTaskAssignmentsTable.title, dueDate: farmTaskAssignmentsTable.dueDate, staffName: farmTaskAssignmentsTable.staffName, module: farmTaskAssignmentsTable.module, href: farmTaskAssignmentsTable.href, status: farmTaskAssignmentsTable.status, assignedToMemberId: farmTaskAssignmentsTable.assignedToMemberId })
       .from(farmTaskAssignmentsTable)
       .where(and(eq(farmTaskAssignmentsTable.farmId, farmId), inArray(farmTaskAssignmentsTable.status, ["pending", "in_progress"]), isNotNull(farmTaskAssignmentsTable.dueDate), gte(farmTaskAssignmentsTable.dueDate, overdueStart), lt(farmTaskAssignmentsTable.dueDate, rangeEnd))),
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
@@ -8965,7 +9033,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of taskAssignmentRows) {
     if (!r.dueDate) continue;
     const colour = r.status === "in_progress" ? "amber" : "emerald";
-    tasks.push({ id: `assign-${r.id}`, type: "task_assignment", title: r.title, description: `Assigned to ${r.staffName || "a staff member"} — ${r.status === "in_progress" ? "in progress" : "pending"}`, dueDate: typeof r.dueDate === "string" ? new Date(r.dueDate + "T00:00:00Z").toISOString() : (r.dueDate as Date).toISOString(), module: r.module || "Tasks", href: r.href || "/task-board", colour });
+    tasks.push({ id: `assign-${r.id}`, type: "task_assignment", title: r.title, description: `Assigned to ${r.staffName || "a staff member"} — ${r.status === "in_progress" ? "in progress" : "pending"}`, dueDate: typeof r.dueDate === "string" ? new Date(r.dueDate + "T00:00:00Z").toISOString() : (r.dueDate as Date).toISOString(), module: r.module || "Tasks", href: r.href || "/task-board", colour, assignedToMemberId: r.assignedToMemberId });
   }
 
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
