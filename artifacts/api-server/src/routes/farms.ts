@@ -195,7 +195,7 @@ import {
   pigKillRecordsTable,
   directSalesRecordsTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, sql, lt, gte, isNotNull, lte, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
