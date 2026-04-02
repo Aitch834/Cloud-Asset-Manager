@@ -391,3 +391,21 @@ export const livestockDailyChecksTable = pgTable("livestock_daily_checks", {
   mobileId: text("mobile_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const herdHealthEventsTable = pgTable("herd_health_events", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  eventDate: timestamp("event_date", { withTimezone: true }).notNull(),
+  eventType: text("event_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  vetName: text("vet_name"),
+  actionTaken: text("action_taken"),
+  followUpRequired: boolean("follow_up_required").notNull().default(false),
+  followUpDate: timestamp("follow_up_date", { withTimezone: true }),
+  followUpCompleted: boolean("follow_up_completed").notNull().default(false),
+  recordedBy: text("recorded_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});

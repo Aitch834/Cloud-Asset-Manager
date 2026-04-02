@@ -34,6 +34,7 @@ import {
   workshopGoodsReturnsTable,
   equipmentCalibrationRecordsTable,
   herdFlockRegisterTable,
+  herdHealthEventsTable,
   livestockAnimalsTable,
   livestockMovementsTable,
   livestockMedicineRecordsTable,
@@ -1718,6 +1719,78 @@ router.post("/farms/:farmId/medicine-records", requireAuth, requireTenant, requi
   const administeredDate = req.body.administeredDate ? new Date(req.body.administeredDate) : new Date();
   const [record] = await db.insert(livestockMedicineRecordsTable).values({ ...req.body, farmId, medicineRef, administeredDate }).returning();
   res.status(201).json({ record });
+});
+
+// ─── Herd Health Register ──────────────────────────
+router.get("/farms/:farmId/herd-health-register", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const herds = await db.select({ id: herdFlockRegisterTable.id, name: herdFlockRegisterTable.name, type: herdFlockRegisterTable.type })
+    .from(herdFlockRegisterTable).where(and(eq(herdFlockRegisterTable.farmId, farmId), eq(herdFlockRegisterTable.isActive, true)));
+
+  const herdMap: Record<number, string> = Object.fromEntries(herds.map(h => [h.id, `${h.name} (${h.type})`]));
+
+  const [medicines, mortalities, bcsRecords, mastitisRecords, vetPlans, clinicalEvents] = await Promise.all([
+    db.select().from(livestockMedicineRecordsTable).where(eq(livestockMedicineRecordsTable.farmId, farmId)).orderBy(desc(livestockMedicineRecordsTable.administeredDate)),
+    db.select().from(livestockMortalityTable).where(eq(livestockMortalityTable.farmId, farmId)).orderBy(desc(livestockMortalityTable.dateOfDeath)),
+    db.select().from(dairyBcsRecordsTable).where(eq(dairyBcsRecordsTable.farmId, farmId)).orderBy(desc(dairyBcsRecordsTable.assessmentDate)),
+    db.select().from(dairyMastitisRecordsTable).where(eq(dairyMastitisRecordsTable.farmId, farmId)).orderBy(desc(dairyMastitisRecordsTable.onsetDate)),
+    db.select().from(vetHealthPlansTable).where(eq(vetHealthPlansTable.farmId, farmId)).orderBy(desc(vetHealthPlansTable.planDate)),
+    db.select().from(herdHealthEventsTable).where(eq(herdHealthEventsTable.farmId, farmId)).orderBy(desc(herdHealthEventsTable.eventDate)),
+  ]);
+
+  const timeline: any[] = [
+    ...medicines.map(r => ({ source: "medicine", date: r.administeredDate, herdLabel: r.herdId ? herdMap[r.herdId] : null, title: `Treatment: ${r.medicineName}`, detail: `Dosage: ${r.dosage ?? "—"}  ·  Route: ${r.administrationRoute ?? "—"}  ·  Administered by: ${r.administeredBy ?? "—"}`, withdrawal: r.withdrawalEndDate ? { endDate: r.withdrawalEndDate, days: r.withdrawalPeriodDays } : null, vetName: r.vetName, notes: r.notes, raw: r })),
+    ...mortalities.map(r => ({ source: "mortality", date: r.dateOfDeath, herdLabel: r.herdId ? herdMap[r.herdId] : null, title: `Mortality: ${r.species}${r.tagNumber ? ` (${r.tagNumber})` : ""}`, detail: `Cause: ${r.causeOfDeath}  ·  Disposal: ${r.disposalMethod}`, vetName: r.vetName ?? null, notes: r.notes, raw: r })),
+    ...bcsRecords.map(r => ({ source: "bcs", date: r.assessmentDate, herdLabel: r.herdId ? herdMap[r.herdId] : null, title: `BCS Assessment: score ${r.bcsScore ?? "—"}`, detail: `Life stage: ${r.lifeStage ?? "—"}  ·  Assessed by: ${r.assessedBy ?? "—"}  ·  Action: ${r.actionTaken ?? "None"}`, vetName: null, notes: r.notes, raw: r })),
+    ...mastitisRecords.map(r => ({ source: "mastitis", date: r.onsetDate, herdLabel: r.herdId ? herdMap[r.herdId] : null, title: `Mastitis: ${r.earTagNumber ?? "unknown animal"}`, detail: `Grade: ${r.clinicalGrade ?? "—"}  ·  Quarters: ${r.quartersAffected ?? "—"}  ·  Treatment: ${r.treatmentProduct ?? "—"}`, vetName: r.vetName ?? null, notes: r.notes, raw: r })),
+    ...vetPlans.map(r => ({ source: "vet_plan", date: r.planDate, herdLabel: null, title: `Vet Health Plan ${r.planYear}`, detail: `Vet: ${r.vetName}  ·  Practice: ${r.practiceName ?? "—"}  ·  Review: ${r.reviewDate ? new Date(r.reviewDate).toLocaleDateString("en-GB") : "—"}`, vetName: r.vetName, notes: r.notes, raw: r })),
+    ...clinicalEvents.map(r => ({ source: "clinical_event", date: r.eventDate, herdLabel: r.herdId ? herdMap[r.herdId] : null, title: r.title, detail: r.description ?? "", vetName: r.vetName, notes: r.actionTaken, followUpRequired: r.followUpRequired, followUpDate: r.followUpDate, followUpCompleted: r.followUpCompleted, recordedBy: r.recordedBy, raw: r })),
+  ];
+
+  timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  res.json({ timeline, herds });
+});
+
+router.get("/farms/:farmId/herd-health-events", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(herdHealthEventsTable).where(eq(herdHealthEventsTable.farmId, farmId)).orderBy(desc(herdHealthEventsTable.eventDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/herd-health-events", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const eventDate = req.body.eventDate ? new Date(req.body.eventDate) : new Date();
+  const followUpDate = req.body.followUpDate ? new Date(req.body.followUpDate) : null;
+  const [record] = await db.insert(herdHealthEventsTable).values({ ...req.body, farmId, eventDate, followUpDate }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/herd-health-events/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const eventDate = req.body.eventDate ? new Date(req.body.eventDate) : undefined;
+  const followUpDate = req.body.followUpDate ? new Date(req.body.followUpDate) : null;
+  const body: any = { ...req.body };
+  if (eventDate) body.eventDate = eventDate;
+  body.followUpDate = followUpDate;
+  const [record] = await db.update(herdHealthEventsTable).set(body).where(and(eq(herdHealthEventsTable.id, recordId), eq(herdHealthEventsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/herd-health-events/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(herdHealthEventsTable).where(and(eq(herdHealthEventsTable.id, recordId), eq(herdHealthEventsTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 // ─── Livestock Feed ────────────────────────────────

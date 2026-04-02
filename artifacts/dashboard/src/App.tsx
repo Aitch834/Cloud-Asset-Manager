@@ -58,6 +58,7 @@ import FarmLocationsPage from "@/pages/FarmLocationsPage";
 import FarmMapPage from "@/pages/FarmMapPage";
 import WeekAheadPage from "@/pages/WeekAheadPage";
 import TaskBoardPage from "@/pages/TaskBoardPage";
+import HerdHealthRegisterPage from "@/pages/HerdHealthRegisterPage";
 import DairyPage from "@/pages/DairyPage";
 import WorkshopPage from "@/pages/WorkshopPage";
 import PigProductionPage from "@/pages/PigProductionPage";
@@ -213,6 +214,7 @@ function Router() {
       <Route path="/support" component={SupportPage} />
       <Route path="/harvest-dashboard" component={HarvestDashboard} />
       <Route path="/livestock-health" component={LivestockHealthDashboard} />
+      <Route path="/herd-health-register" component={HerdHealthRegisterPage} />
       <Route path="/nvz-dashboard" component={NVZDashboard} />
       <Route path="/soil-dashboard" component={SoilDashboard} />
       <Route path="/fleet-dashboard" component={FleetDashboard} />

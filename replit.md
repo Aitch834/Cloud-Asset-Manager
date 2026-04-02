@@ -23,7 +23,7 @@ The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 **Database Layer (`lib/db`):**
 - Utilizes PostgreSQL with Drizzle ORM, comprising over 60 tables.
 - Covers authentication, core tenant data, leads, support, and all farm management modules (e.g., fields, crops, livestock, equipment, financial).
-- Includes specific tables for various sales types, `farm_locations` for building/area registry, and `workshop_goods_returns` for RTN tracking.
+- Includes specific tables for various sales types, `farm_locations` for building/area registry, `workshop_goods_returns` for RTN tracking, and `herd_health_events` for the Herd Health Register clinical event log.
 
 **Dashboard (`artifacts/dashboard`):**
 - React + Vite application using `wouter` for routing and TanStack React Query for data fetching.
