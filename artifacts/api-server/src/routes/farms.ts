@@ -5047,6 +5047,13 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li><strong>Purchase Order Deliveries</strong> — expected delivery dates for open purchase orders, so you can plan staff and storage accordingly</li>
 </ul>
 
+<h4>Task Assignments <span style="color:#6366f1">(indigo)</span></h4>
+<ul>
+<li><strong>Pending assignments</strong> — any task you have assigned to a staff member with status <em>Pending</em> and a due date within the view window appears as a dedicated assignment card in the planner. Clicking the card takes you to the Task Board to check progress or update the status.</li>
+<li><strong>In-progress assignments</strong> — assignments already marked <em>In Progress</em> by the staff member remain visible in the planner until they reach <em>Completed</em> or <em>Cancelled</em>, so they cannot fall out of view mid-task.</li>
+</ul>
+<p>This means the Week Ahead gives you a single screen where you can see both what needs doing <em>and</em> whether a staff member is already working on it — without switching to the Task Board first.</p>
+
 <p>Only records belonging to your currently selected farm are shown. If a module is not active on your subscription, dates from that module will not appear.</p>
 
 <h3>Adding Custom Reminders</h3>
@@ -5068,7 +5075,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li><strong>Tomorrow</strong> — tasks due the following day</li>
 <li><strong>Named days</strong> — remaining days within the selected window (e.g. "Wednesday 25 Mar" or "Tuesday 21 Apr" in 30-day view)</li>
 </ul>
-<p>Each task card shows the task name, a short description of what needs to be done, the module it belongs to (shown as a colour-coded badge), and a days-overdue indicator where relevant. Clicking any automatically-generated card takes you directly to the relevant module page so you can log the completed action immediately. Custom reminder cards do not link anywhere — they are information only.</p>
+<p>Each task card shows the task name, a short description of what needs to be done, the module it belongs to (shown as a colour-coded badge), and a days-overdue indicator where relevant. Clicking any automatically-generated card takes you directly to the relevant module page so you can log the completed action immediately — except task assignment cards, which link to the Task Board instead so you can review progress. Custom reminder cards do not link anywhere — they are information only.</p>
 
 <h3>How to Use It Effectively</h3>
 <p>The planner works best when you set due dates consistently as you log records. For example:</p>
@@ -5140,7 +5147,8 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Any staff member with mobile app access can open <strong>My Task Inbox</strong> (first option in the mobile app's Record tab). Their inbox shows two tabs — Open and Completed. Open tasks are those in Pending or In Progress status. Each card shows the task title, due date, and your assignment note. They can tap to expand, mark the task In Progress (if it is still Pending), or mark it Complete with an optional completion note. Status changes appear on the Task Board immediately.</p>
 
 <h3>Relationship with the Week Ahead Planner</h3>
-<p>The Task Board and the Week Ahead planner are complementary. The Week Ahead surfaces what needs to happen and when — the Task Board tracks who is responsible for making it happen. Assign tasks from the Week Ahead, then monitor progress in the Task Board.</p>`,
+<p>The Task Board and the Week Ahead planner are complementary. The Week Ahead surfaces what needs to happen and when — the Task Board tracks who is responsible for making it happen. Assign tasks from the Week Ahead, then monitor progress in the Task Board.</p>
+<p>Pending and in-progress assignments also appear directly in the Week Ahead planner as task assignment cards, so the planner gives you a combined view of compliance deadlines <em>and</em> staff workload in one place. Clicking an assignment card in the planner takes you straight to the Task Board. Once an assignment is marked Completed or Cancelled it drops out of the planner automatically.</p>`,
     },
     {
       id: 37,
