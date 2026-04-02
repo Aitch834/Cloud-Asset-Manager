@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
-import { Redirect } from "wouter";
+import { Redirect, Link } from "wouter";
 import { cn } from "@/lib/utils";
 
 const api = (path: string) => `/api/${path}`;
@@ -736,12 +736,12 @@ function ServiceScheduleTab({ farmId }: { farmId: number }) {
   }
 
   if (services.length === 0) {
-    return <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No upcoming service dates found. Add a "Next Due Date" to maintenance records on the Equipment page to populate this schedule.</CardContent></Card>;
+    return <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No upcoming service dates found. Add a "Next Due Date" to maintenance records on the <Link href="/equipment" className="text-primary underline underline-offset-2 hover:opacity-75">Equipment page</Link> to populate this schedule.</CardContent></Card>;
   }
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-gray-500">Upcoming and overdue service items across all registered equipment. Add maintenance records with a "Next Due Date" on the Equipment page.</p>
+      <p className="text-sm text-gray-500">Upcoming and overdue service items across all registered equipment. Add maintenance records with a "Next Due Date" on the <Link href="/equipment" className="text-primary underline underline-offset-2 hover:opacity-75">Equipment page</Link>.</p>
       {services.map(({ log, equipmentName, assetNumber: an, equipmentType }) => {
         const due = dueStatus(log.nextDueDate!);
         return (
