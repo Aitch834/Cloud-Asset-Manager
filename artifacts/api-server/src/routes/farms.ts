@@ -8573,7 +8573,8 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     fuelTankInspRows, feedBestBeforeRows,
     diversInsuranceRows, renewableServiceRows, irrigEquipCalibRows,
     hortiWaterTestRows,
-  ] = await Promise.all([
+    taskAssignmentRows,
+  ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
       .where(and(eq(pestControlRecordsTable.farmId, farmId), isNotNull(pestControlRecordsTable.followUpDate), gte(pestControlRecordsTable.followUpDate, overdueStart), lt(pestControlRecordsTable.followUpDate, rangeEnd))),
@@ -8767,7 +8768,12 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: horticultureWaterTestsTable.id, nextTestDueDate: horticultureWaterTestsTable.nextTestDueDate })
       .from(horticultureWaterTestsTable)
       .where(and(eq(horticultureWaterTestsTable.farmId, farmId), isNotNull(horticultureWaterTestsTable.nextTestDueDate), gte(horticultureWaterTestsTable.nextTestDueDate, overdueStart), lt(horticultureWaterTestsTable.nextTestDueDate, rangeEnd))),
-  ]);
+
+    // ── Pending/in-progress task assignments ──
+    db.select({ id: farmTaskAssignmentsTable.id, title: farmTaskAssignmentsTable.title, dueDate: farmTaskAssignmentsTable.dueDate, staffName: farmTaskAssignmentsTable.staffName, module: farmTaskAssignmentsTable.module, href: farmTaskAssignmentsTable.href, status: farmTaskAssignmentsTable.status })
+      .from(farmTaskAssignmentsTable)
+      .where(and(eq(farmTaskAssignmentsTable.farmId, farmId), inArray(farmTaskAssignmentsTable.status, ["pending", "in_progress"]), isNotNull(farmTaskAssignmentsTable.dueDate), gte(farmTaskAssignmentsTable.dueDate, overdueStart), lt(farmTaskAssignmentsTable.dueDate, rangeEnd))),
+  ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
     if (!r.followUpDate) continue;
@@ -8947,6 +8953,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of hortiWaterTestRows) {
     if (!r.nextTestDueDate) continue;
     tasks.push({ id: `hortiwatst-${r.id}`, type: "horticulture_water_test_due", title: `Horticulture Water Test Due`, description: `A water quality test is due for your horticulture water supply. Log the result in Horticulture → Water Quality Tests.`, dueDate: toISO(r.nextTestDueDate)!, module: "Horticulture", href: "/horticulture", colour: "blue" });
+  }
+  for (const r of taskAssignmentRows) {
+    if (!r.dueDate) continue;
+    const colour = r.status === "in_progress" ? "amber" : "emerald";
+    tasks.push({ id: `assign-${r.id}`, type: "task_assignment", title: r.title, description: `Assigned to ${r.staffName || "a staff member"} — ${r.status === "in_progress" ? "in progress" : "pending"}`, dueDate: typeof r.dueDate === "string" ? new Date(r.dueDate + "T00:00:00Z").toISOString() : (r.dueDate as Date).toISOString(), module: r.module || "Tasks", href: r.href || "/task-board", colour });
   }
 
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
