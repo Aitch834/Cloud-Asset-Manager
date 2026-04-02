@@ -1237,7 +1237,7 @@ export default function FieldsPage() {
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 pointer-events-none" />
                 <select
                   value={selectedYear}
-                  onChange={e => { setSelectedYear(Number(e.target.value)); setExpandedCropId(null); }}
+                  onChange={e => { setSelectedYear(Number(e.target.value)); setExpandedVarietyId(null); setExpandedGroups(new Set()); }}
                   className="appearance-none border border-input rounded-lg pl-3 pr-8 py-2 text-sm bg-white font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
                 >
                   {availableYears.map(y => (
