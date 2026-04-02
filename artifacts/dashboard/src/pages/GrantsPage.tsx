@@ -320,16 +320,22 @@ export default function GrantsPage() {
             <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "#111827" }}>{formatGBP(totalGrantApproved)}</div>
             <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 2 }}>Approved, purchased & claimed grants</div>
           </div>
-          <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "16px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <CheckCircle2 size={18} color="#059669" />
-              <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#059669", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Applications</span>
-            </div>
-            <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "#111827" }}>{records.length}</div>
-            <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 2 }}>
-              {records.filter(r => r.status === "approved" || r.status === "purchased").length} approved / {records.filter(r => r.status === "claimed").length} claimed
-            </div>
-          </div>
+          {(() => {
+            const active = records.filter(r => ["draft", "applied", "approved", "purchased"].includes(r.status));
+            const needsAction = records.filter(r => ["draft", "applied"].includes(r.status)).length;
+            return (
+              <div style={{ background: active.length > 0 ? "#f0fdf4" : "#fff", border: `1px solid ${active.length > 0 ? "#bbf7d0" : "#e5e7eb"}`, borderRadius: 10, padding: "16px 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <CheckCircle2 size={18} color="#059669" />
+                  <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#059669", textTransform: "uppercase", letterSpacing: "0.05em" }}>Active Applications</span>
+                </div>
+                <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "#111827" }}>{active.length}</div>
+                <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 2 }}>
+                  {needsAction > 0 ? `${needsAction} awaiting decision` : "all concluded or approved"}
+                </div>
+              </div>
+            );
+          })()}
           <div style={{ background: upcomingDeadlines > 0 ? "#fffbeb" : "#fff", border: `1px solid ${upcomingDeadlines > 0 ? "#fde68a" : "#e5e7eb"}`, borderRadius: 10, padding: "16px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <AlertTriangle size={18} color={upcomingDeadlines > 0 ? "#d97706" : "#9ca3af"} />

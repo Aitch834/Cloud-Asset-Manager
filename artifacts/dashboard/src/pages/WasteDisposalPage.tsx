@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, Search, Pencil, Eye, FileText, Truck, Recycle, Printer, ExternalLink, Paperclip, X, Upload } from "lucide-react";
+import { Trash2, Plus, Search, Pencil, Eye, FileText, Truck, Recycle, Printer, ExternalLink, Paperclip, X, Upload, AlertTriangle } from "lucide-react";
 
 interface WasteRecord {
   id: number;
@@ -284,20 +284,41 @@ export default function WasteDisposalPage() {
           Waste disposal records — Duty of Care compliance, waste transfer notes, and licensed carrier tracking for Red Tractor and legal requirements.
         </p>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: "1.5rem" }}>
-          <div style={{ background: "#f0fdf4", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ background: "#dcfce7", borderRadius: 8, padding: 8 }}><Recycle size={18} color="#16a34a" /></div>
-            <div><p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Total Records</p><p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{records.length}</p></div>
-          </div>
-          <div style={{ background: "#fffbeb", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ background: "#fef3c7", borderRadius: 8, padding: 8 }}><FileText size={18} color="#92400e" /></div>
-            <div><p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Waste Transfer Notes</p><p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{records.filter(r => r.wasteTransferNote).length}</p></div>
-          </div>
-          <div style={{ background: "#eff6ff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ background: "#dbeafe", borderRadius: 8, padding: 8 }}><Truck size={18} color="#1d4ed8" /></div>
-            <div><p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Registered Carriers Used</p><p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{new Set(records.filter(r => r.carrierName).map(r => r.carrierName)).size}</p></div>
-          </div>
-        </div>
+        {(() => {
+          const thisSeasonRecords = records.filter(r => isInCropYear(r.disposalDate, cropYear));
+          const withWtn = thisSeasonRecords.filter(r => r.wasteTransferNote).length;
+          const missingWtn = thisSeasonRecords.length - withWtn;
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: "1.5rem" }}>
+              <div style={{ background: "#f0fdf4", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ background: "#dcfce7", borderRadius: 8, padding: 8 }}><Recycle size={18} color="#16a34a" /></div>
+                <div>
+                  <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Disposals This Season</p>
+                  <p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{thisSeasonRecords.length}</p>
+                  <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 1 }}>{cropYearLabel(cropYear)}</p>
+                </div>
+              </div>
+              <div style={{ background: "#fffbeb", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ background: "#fef3c7", borderRadius: 8, padding: 8 }}><FileText size={18} color="#92400e" /></div>
+                <div>
+                  <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Transfer Notes Obtained</p>
+                  <p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{withWtn}</p>
+                  <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 1 }}>{thisSeasonRecords.length > 0 ? `${Math.round((withWtn / thisSeasonRecords.length) * 100)}% compliance` : "no records"}</p>
+                </div>
+              </div>
+              <div style={{ background: missingWtn > 0 ? "#fef2f2" : "#eff6ff", border: `1px solid ${missingWtn > 0 ? "#fecaca" : "#e5e7eb"}`, borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ background: missingWtn > 0 ? "#fee2e2" : "#dbeafe", borderRadius: 8, padding: 8 }}>
+                  <AlertTriangle size={18} color={missingWtn > 0 ? "#dc2626" : "#1d4ed8"} />
+                </div>
+                <div>
+                  <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Missing Transfer Notes</p>
+                  <p style={{ fontSize: "1.375rem", fontWeight: 700, color: missingWtn > 0 ? "#dc2626" : "#111827" }}>{missingWtn}</p>
+                  <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 1 }}>{missingWtn > 0 ? "Duty of Care gap" : "fully documented"}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         <div style={{ background: "#fff3cd", border: "1px solid #ffc107", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.8rem", color: "#856404" }}>
           <strong>Duty of Care reminder:</strong> Always use licensed waste carriers. Obtain a Waste Transfer Note (WTN) for every collection. EWC codes marked with * are hazardous waste — special rules apply. Records must be retained for at least 2 years (3 years for hazardous waste).

@@ -29,6 +29,8 @@ import {
   ChevronDown,
   ChevronRight,
   Pencil,
+  Scale,
+  MapPin,
 } from "lucide-react";
 
 const fmt = (d: string | null | undefined) => {
@@ -108,11 +110,19 @@ export default function HarvestPage() {
           </p>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: "1.5rem" }}>
-          <StatCard icon={<Wheat size={18} color="#15803d" />} label="Harvests Logged" value={harvests.length} bg="#f0fdf4" iconBg="#dcfce7" />
-          <StatCard icon={<Truck size={18} color="#1d4ed8" />} label="Transport Legs" value={transports.length} bg="#eff6ff" iconBg="#dbeafe" />
-          <StatCard icon={<Warehouse size={18} color="#7c3aed" />} label="Storage Records" value={storages.length} bg="#f5f3ff" iconBg="#ede9fe" />
-        </div>
+        {(() => {
+          const yr = currentCropYear();
+          const thisSeasonHarvests = harvests.filter((r: any) => isInCropYear(r.harvestDate, yr));
+          const thisSeasonYield = thisSeasonHarvests.reduce((s: number, r: any) => s + (parseFloat(r.yieldTonnes) || 0), 0);
+          const thisSeasonFields = new Set(thisSeasonHarvests.map((r: any) => r.fieldName).filter(Boolean)).size;
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: "1.5rem" }}>
+              <StatCard icon={<Wheat size={18} color="#15803d" />} label={`Harvests — ${cropYearLabel(yr)}`} value={thisSeasonHarvests.length} bg="#f0fdf4" iconBg="#dcfce7" />
+              <StatCard icon={<Scale size={18} color="#1d4ed8" />} label="Yield This Season" value={thisSeasonYield > 0 ? `${thisSeasonYield.toFixed(1)} t` : "—"} bg="#eff6ff" iconBg="#dbeafe" />
+              <StatCard icon={<MapPin size={18} color="#7c3aed" />} label="Fields Harvested" value={thisSeasonFields > 0 ? thisSeasonFields : "—"} bg="#f5f3ff" iconBg="#ede9fe" />
+            </div>
+          );
+        })()}
 
         <TabBar className="mb-5">
           <TabButton active={tab === "log"} onClick={() => setTab("log")}>Harvest Log</TabButton>
@@ -164,7 +174,7 @@ export default function HarvestPage() {
   );
 }
 
-function StatCard({ icon, label, value, bg, iconBg }: { icon: React.ReactNode; label: string; value: number; bg: string; iconBg: string }) {
+function StatCard({ icon, label, value, bg, iconBg }: { icon: React.ReactNode; label: string; value: number | string; bg: string; iconBg: string }) {
   return (
     <div style={{ background: bg, border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
       <div style={{ background: iconBg, borderRadius: 8, padding: 8 }}>{icon}</div>
