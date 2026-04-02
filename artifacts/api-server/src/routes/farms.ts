@@ -8736,7 +8736,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .where(and(eq(droughtManagementPlansTable.farmId, farmId), isNotNull(droughtManagementPlansTable.reviewDate), gte(droughtManagementPlansTable.reviewDate, overdueStart), lt(droughtManagementPlansTable.reviewDate, rangeEnd))),
 
     // ── Fuel: tank next inspection due ──
-    db.select({ id: fuelTanksTable.id, tankName: fuelTanksTable.tankName, fuelType: fuelTanksTable.fuelType, nextInspectionDue: fuelTanksTable.nextInspectionDue })
+    db.select({ id: fuelTanksTable.id, tankName: fuelTanksTable.name, fuelType: fuelTanksTable.fuelType, nextInspectionDue: fuelTanksTable.nextInspectionDue })
       .from(fuelTanksTable)
       .where(and(eq(fuelTanksTable.farmId, farmId), isNotNull(fuelTanksTable.nextInspectionDue), gte(fuelTanksTable.nextInspectionDue, overdueStart), lt(fuelTanksTable.nextInspectionDue, rangeEnd))),
 
