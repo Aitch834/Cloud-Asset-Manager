@@ -8591,7 +8591,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .from(staffCertificatesTable)
       .where(and(eq(staffCertificatesTable.farmId, farmId), isNotNull(staffCertificatesTable.expiryDate), gte(staffCertificatesTable.expiryDate, overdueStart), lt(staffCertificatesTable.expiryDate, rangeEnd))),
 
-    db.select({ id: staffTrainingRecordsTable.id, trainingType: staffTrainingRecordsTable.trainingType, expiryDate: staffTrainingRecordsTable.expiryDate })
+    db.select({ id: staffTrainingRecordsTable.id, trainingTitle: staffTrainingRecordsTable.trainingTitle, expiryDate: staffTrainingRecordsTable.expiryDate })
       .from(staffTrainingRecordsTable)
       .where(and(eq(staffTrainingRecordsTable.farmId, farmId), isNotNull(staffTrainingRecordsTable.expiryDate), gte(staffTrainingRecordsTable.expiryDate, overdueStart), lt(staffTrainingRecordsTable.expiryDate, rangeEnd))),
 
@@ -8654,7 +8654,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .from(waterAbstractionLicencesTable)
       .where(and(eq(waterAbstractionLicencesTable.farmId, farmId), isNotNull(waterAbstractionLicencesTable.licenceExpiryDate))),
 
-    db.select({ id: purchaseOrdersTable.id, poNumber: purchaseOrdersTable.poNumber, supplierName: purchaseOrdersTable.supplierName, expectedDeliveryDate: purchaseOrdersTable.expectedDeliveryDate, status: purchaseOrdersTable.status })
+    db.select({ id: purchaseOrdersTable.id, poNumber: purchaseOrdersTable.poNumber, expectedDeliveryDate: purchaseOrdersTable.expectedDeliveryDate, status: purchaseOrdersTable.status })
       .from(purchaseOrdersTable)
       .where(and(eq(purchaseOrdersTable.farmId, farmId), isNotNull(purchaseOrdersTable.expectedDeliveryDate), gte(purchaseOrdersTable.expectedDeliveryDate, overdueStart), lt(purchaseOrdersTable.expectedDeliveryDate, rangeEnd))),
 
@@ -8794,7 +8794,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   }
   for (const r of trainingRows) {
     if (!r.expiryDate) continue;
-    const label = r.trainingType || "Training record";
+    const label = r.trainingTitle || "Training record";
     tasks.push({ id: `train-${r.id}`, type: "training_expiry", title: `${label} Expiring`, description: `Training record '${label}' is approaching expiry. Renew or refresh before the expiry date.`, dueDate: toISO(r.expiryDate)!, module: "Staff & Training", href: "/training", colour: "indigo" });
   }
   for (const r of rtwRows) {
