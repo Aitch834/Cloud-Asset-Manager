@@ -114,7 +114,7 @@ export default function HarvestPage() {
           const yr = currentCropYear();
           const thisSeasonHarvests = harvests.filter((r: any) => isInCropYear(r.harvestDate, yr));
           const thisSeasonYield = thisSeasonHarvests.reduce((s: number, r: any) => s + (parseFloat(r.yieldTonnes) || 0), 0);
-          const thisSeasonFields = new Set(thisSeasonHarvests.map((r: any) => r.fieldName).filter(Boolean)).size;
+          const thisSeasonFields = new Set(thisSeasonHarvests.map((r: any) => r.field?.name).filter(Boolean)).size;
           return (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: "1.5rem" }}>
               <StatCard icon={<Wheat size={18} color="#15803d" />} label={`Harvests — ${cropYearLabel(yr)}`} value={thisSeasonHarvests.length} bg="#f0fdf4" iconBg="#dcfce7" />
