@@ -265,7 +265,9 @@ export interface HarvestRecord {
   endTime: string;
   yieldAmount: string;
   yieldUnit: string;
+  areaHarvestedHa: string;
   moisturePercent: string;
+  moisturePhotoUri: string;
   grainQualityNotes: string;
   transportRuns?: TransportRun[];
   trailerVehicleNumber: string;

@@ -55,6 +55,8 @@ export const harvestRecordsTable = pgTable("harvest_records", {
   id: serial("id").primaryKey(),
   fieldCropAssignmentId: integer("field_crop_assignment_id").notNull().references(() => fieldCropAssignmentsTable.id),
   harvestDate: timestamp("harvest_date", { withTimezone: true }).notNull(),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
   equipmentId: integer("equipment_id"),
   operatorName: text("operator_name"),
   yieldTonnes: numeric("yield_tonnes", { precision: 10, scale: 2 }),

@@ -226,6 +226,8 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
   const emptyForm = {
     fieldCropAssignmentId: "",
     harvestDate: "",
+    startTime: "",
+    endTime: "",
     equipmentId: "",
     operatorName: "",
     yieldTonnes: "",
@@ -242,6 +244,8 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
     setForm({
       fieldCropAssignmentId: r.fieldCropAssignmentId ? String(r.fieldCropAssignmentId) : "",
       harvestDate: r.harvestDate ? r.harvestDate.slice(0, 10) : "",
+      startTime: r.startTime || "",
+      endTime: r.endTime || "",
       equipmentId: r.equipmentId ? String(r.equipmentId) : "",
       operatorName: r.operatorName || "",
       yieldTonnes: r.yieldTonnes != null ? String(r.yieldTonnes) : "",
@@ -379,6 +383,8 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
                           {[
                             ["Field Ref", r.field?.fieldReference],
                             ["Area Harvested", r.areaHarvestedHa ? `${r.areaHarvestedHa} ha` : null],
+                            ["Start Time", r.startTime],
+                            ["End Time", r.endTime],
                             ["Season / Year", r.fieldCropAssignment?.season && r.fieldCropAssignment?.year ? `${r.fieldCropAssignment.season} ${r.fieldCropAssignment.year}` : null],
                             ["Equipment Type", r.equipment?.type],
                             ["Equipment Serial", r.equipment?.serialNumber],
@@ -430,6 +436,16 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
               <div>
                 <Label>Harvest Date <span style={{ color: "#ef4444" }}>*</span></Label>
                 <Input type="date" value={form.harvestDate} onChange={e => setForm((f: any) => ({ ...f, harvestDate: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Start Time</Label>
+                <Input type="time" placeholder="e.g. 09:30" value={form.startTime} onChange={e => setForm((f: any) => ({ ...f, startTime: e.target.value }))} />
+              </div>
+              <div>
+                <Label>End Time</Label>
+                <Input type="time" placeholder="e.g. 18:00" value={form.endTime} onChange={e => setForm((f: any) => ({ ...f, endTime: e.target.value }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -997,6 +1013,8 @@ function PrintTab({ harvests, transports, storages, farm }: any) {
                       {[
                         ["Yield (t)", r.yieldTonnes ? `${r.yieldTonnes} t` : "—"],
                         ["Area Harvested", r.areaHarvestedHa ? `${r.areaHarvestedHa} ha` : "—"],
+                        ["Start Time", r.startTime || "—"],
+                        ["End Time", r.endTime || "—"],
                         ["Moisture %", r.moisturePercent ? `${r.moisturePercent}%` : "—"],
                         ["Quality Grade", r.qualityGrade || "—"],
                       ].map(([label, value]) => (

@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -59,12 +61,57 @@ export default function HarvestRecordScreen() {
   const [cropType, setCropType] = useState("");
   const [yieldAmount, setYieldAmount] = useState("");
   const [yieldUnit, setYieldUnit] = useState("t/ha");
+  const [areaHarvestedHa, setAreaHarvestedHa] = useState("");
   const [moisturePercent, setMoisturePercent] = useState("");
+  const [moisturePhotoUri, setMoisturePhotoUri] = useState("");
   const [grainQualityNotes, setGrainQualityNotes] = useState("");
   const [equipmentUsed, setEquipmentUsed] = useState("");
   const [startTime, setStartTime] = useState(formatCurrentTime());
   const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState("");
+
+  const takeMoisturePhoto = () => {
+    Alert.alert(
+      "Moisture Reading Photo",
+      "Photograph the moisture meter or cab display as evidence of the reading.",
+      [
+        {
+          text: "Take Photo",
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert("Permission Required", "Camera access is needed to photograph the moisture reading.");
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              quality: 0.85,
+              allowsEditing: false,
+            });
+            if (!result.canceled && result.assets[0]) {
+              setMoisturePhotoUri(result.assets[0].uri);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }
+          },
+        },
+        {
+          text: "Choose from Library",
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert("Permission Required", "Photo library access is needed.");
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.85, allowsEditing: false });
+            if (!result.canceled && result.assets[0]) {
+              setMoisturePhotoUri(result.assets[0].uri);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }
+          },
+        },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
+  };
 
   const handleSave = async () => {
     if (!fieldName.trim() || !cropType) {
@@ -98,7 +145,9 @@ export default function HarvestRecordScreen() {
       endTime: endTime.trim(),
       yieldAmount: yieldAmount.trim(),
       yieldUnit,
+      areaHarvestedHa: areaHarvestedHa.trim(),
       moisturePercent: moisturePercent.trim(),
+      moisturePhotoUri: moisturePhotoUri.trim(),
       grainQualityNotes: grainQualityNotes.trim(),
       trailerVehicleNumber: "",
       storageDestination: "",
@@ -197,12 +246,44 @@ export default function HarvestRecordScreen() {
             />
           </View>
           <Input
+            label="Area Harvested (ha)"
+            placeholder="e.g. 12.5"
+            value={areaHarvestedHa}
+            onChangeText={setAreaHarvestedHa}
+            keyboardType="decimal-pad"
+          />
+          <Input
             label="Moisture %"
             placeholder="e.g. 15"
             value={moisturePercent}
             onChangeText={setMoisturePercent}
             keyboardType="decimal-pad"
           />
+
+          {/* Moisture photo evidence */}
+          <Pressable onPress={takeMoisturePhoto} style={styles.photoButton}>
+            <Feather name="camera" size={16} color={colors.primary} />
+            <Text style={styles.photoButtonText}>
+              {moisturePhotoUri ? "Retake Moisture Reading Photo" : "Photograph Moisture Reading"}
+            </Text>
+          </Pressable>
+          {moisturePhotoUri ? (
+            <View style={styles.photoPreviewWrapper}>
+              <Image source={{ uri: moisturePhotoUri }} style={styles.photoPreview} resizeMode="cover" />
+              <View style={styles.photoStamp}>
+                <Feather name="check-circle" size={12} color="#15803d" />
+                <Text style={styles.photoStampText}>Evidence captured — saved to camera roll</Text>
+              </View>
+              <Pressable
+                onPress={() => { setMoisturePhotoUri(""); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+                style={styles.photoRemove}
+              >
+                <Feather name="x" size={14} color={colors.error} />
+                <Text style={styles.photoRemoveText}>Remove</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           <Input
             label="Grain Quality / Grade Notes"
             placeholder="e.g. Group 1, low N, clean sample"
@@ -369,5 +450,59 @@ const styles = StyleSheet.create({
     marginTop: -spacing.sm,
     marginBottom: spacing.md,
     lineHeight: 16,
+  },
+  photoButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderStyle: "dashed",
+    backgroundColor: colors.primary + "08",
+    marginBottom: spacing.md,
+  },
+  photoButtonText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.primary,
+  },
+  photoPreviewWrapper: {
+    borderRadius: radius.md,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+    marginBottom: spacing.md,
+  },
+  photoPreview: {
+    width: "100%",
+    height: 160,
+  },
+  photoStamp: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: "#f0fdf4",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  photoStampText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: "#15803d",
+  },
+  photoRemove: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.errorBg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  photoRemoveText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.error,
   },
 });

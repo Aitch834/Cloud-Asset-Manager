@@ -698,12 +698,14 @@ router.post("/farms/:farmId/harvests", requireAuth, requireTenant, requireModule
       .limit(1);
     if (!fca) { res.status(400).json({ error: "Field crop assignment not found on this farm" }); return; }
   }
-  const { equipmentId, operatorName, areaHarvestedHa, ...rest } = req.body;
+  const { equipmentId, operatorName, areaHarvestedHa, startTime, endTime, ...rest } = req.body;
   const [record] = await db.insert(harvestRecordsTable).values({
     ...rest,
     equipmentId: equipmentId ? Number(equipmentId) : null,
     operatorName: operatorName || null,
     areaHarvestedHa: areaHarvestedHa || null,
+    startTime: startTime || null,
+    endTime: endTime || null,
   }).returning();
   res.status(201).json({ record });
 });
