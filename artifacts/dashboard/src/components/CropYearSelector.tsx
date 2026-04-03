@@ -13,7 +13,7 @@ export function CropYearSelector({ value, onChange, count = 7, className }: Prop
   const current = currentCropYear();
   return (
     <Select value={String(value)} onValueChange={v => onChange(Number(v))}>
-      <SelectTrigger className={className ?? "h-9 w-40 text-sm"}>
+      <SelectTrigger className={className ?? "w-44"}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
