@@ -1245,7 +1245,11 @@ function ComplianceReportModal({ farmId, onClose }: { farmId: number; onClose: (
     win.document.open();
     win.document.write(html);
     win.document.close();
-    win.addEventListener("load", () => { win.focus(); win.print(); });
+    win.addEventListener("load", () => {
+      win.focus();
+      win.addEventListener("afterprint", () => win.close());
+      win.print();
+    });
   };
 
   return (
