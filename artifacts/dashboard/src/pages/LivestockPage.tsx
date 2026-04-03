@@ -16,6 +16,8 @@ import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { printProReport, openPrintWindow } from "@/lib/print-report";
+import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 function formatDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -2455,6 +2457,29 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
 
+  // Lookup data
+  const { data: herdsData } = useQuery({
+    queryKey: ["herds", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/herds`, { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: animalsData } = useQuery({
+    queryKey: ["animals", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/animals`, { credentials: "include" }).then(r => r.json()),
+  });
+  const { data: membersData } = useFarmMembers(farmId);
+
+  const herds: Herd[] = (herdsData?.records ?? []).filter((h: Herd) => h.isActive);
+  const allAnimals: Animal[] = animalsData?.records ?? [];
+
+  // Filter animals to selected herd (if any), active only
+  const selectedHerdId = form.herdId ? Number(form.herdId) : null;
+  const herdAnimals = allAnimals.filter(a =>
+    a.status !== "Dead" && a.status !== "Sold" &&
+    (selectedHerdId ? a.herdId === selectedHerdId : true)
+  );
+
+  const staffNames = (membersData?.members ?? []).map((m: Parameters<typeof memberFullName>[0]) => memberFullName(m));
+
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["ai-reproduction", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/ai-reproduction-records`, { credentials: "include" }).then(r => r.json()),
@@ -2472,6 +2497,32 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/ai-reproduction-records/${id}`, { method: "DELETE", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-reproduction", farmId] }),
   });
+
+  // When a herd is selected, store its id and name
+  const handleHerdSelect = (herdId: string) => {
+    if (herdId === "__none__") {
+      setForm(f => ({ ...f, herdId: "", herdName: "", animalTag: "", animalId: "" }));
+      return;
+    }
+    const herd = herds.find(h => String(h.id) === herdId);
+    setForm(f => ({ ...f, herdId: herdId, herdName: herd?.name ?? "", animalTag: "", animalId: "" }));
+  };
+
+  // When an animal is selected, auto-fill tag and breed
+  const handleAnimalSelect = (animalId: string) => {
+    if (animalId === "__none__") {
+      setForm(f => ({ ...f, animalId: "", animalTag: "" }));
+      return;
+    }
+    const animal = allAnimals.find(a => String(a.id) === animalId);
+    if (animal) {
+      setForm(f => ({
+        ...f,
+        animalId: animalId,
+        animalTag: animal.earTagNumber ?? animal.tagNumber ?? "",
+      }));
+    }
+  };
 
   const rows = (records as Record<string, unknown>[]);
 
@@ -2521,7 +2572,7 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Record" : "Add AI / Reproduction Record"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 max-h-[75vh] overflow-y-auto pr-1">
             <div><Label>Event Date *</Label><Input type="date" value={String(form.eventDate ?? "")} onChange={e => setForm(f => ({ ...f, eventDate: e.target.value }))} /></div>
             <div><Label>Record Type *</Label>
               <Select value={String(form.recordType ?? "")} onValueChange={v => setForm(f => ({ ...f, recordType: v }))}>
@@ -2529,15 +2580,70 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
                 <SelectContent>{["AI Service", "Natural Service", "Pregnancy Diagnosis", "Calving / Kidding / Lambing", "Embryo Transfer"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Animal Tag *</Label><Input value={String(form.animalTag ?? "")} onChange={e => setForm(f => ({ ...f, animalTag: e.target.value }))} /></div>
-            <div><Label>Herd / Flock Name</Label><Input value={String(form.herdName ?? "")} onChange={e => setForm(f => ({ ...f, herdName: e.target.value }))} /></div>
+
+            {/* ── Herd lookup ── */}
+            <div><Label>Herd / Flock</Label>
+              <Select value={String(form.herdId || "__none__")} onValueChange={handleHerdSelect}>
+                <SelectTrigger><SelectValue placeholder="Select herd…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— No specific herd —</SelectItem>
+                  {herds.map(h => (
+                    <SelectItem key={h.id} value={String(h.id)}>
+                      {h.name}{h.type ? ` (${h.type})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {herds.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1">No herds registered — add one in the Herds &amp; Flocks tab first.</p>
+              )}
+            </div>
+
+            {/* ── Animal Tag lookup, filtered by herd ── */}
+            <div><Label>Animal Tag *</Label>
+              {herdAnimals.length > 0 ? (
+                <Select value={String(form.animalId || "__none__")} onValueChange={handleAnimalSelect}>
+                  <SelectTrigger><SelectValue placeholder="Select animal…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Type manually below —</SelectItem>
+                    {herdAnimals.map(a => (
+                      <SelectItem key={a.id} value={String(a.id)}>
+                        {a.earTagNumber ?? a.tagNumber ?? `Animal #${a.id}`}
+                        {a.breed ? ` — ${a.breed}` : ""}
+                        {a.sex ? ` (${a.sex})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1 mb-1">
+                  {selectedHerdId ? "No active animals in this herd" : "Select a herd to filter animals"}
+                </p>
+              )}
+              <Input
+                className="mt-1"
+                placeholder="Ear tag / tag number"
+                value={String(form.animalTag ?? "")}
+                onChange={e => setForm(f => ({ ...f, animalTag: e.target.value, animalId: "" }))}
+              />
+            </div>
+
             <div><Label>Servicing Method *</Label>
               <Select value={String(form.servicingMethod ?? "AI")} onValueChange={v => setForm(f => ({ ...f, servicingMethod: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{["AI", "Natural Service", "Embryo Transfer", "N/A"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Inseminator / Technician</Label><Input value={String(form.inseminatorName ?? "")} onChange={e => setForm(f => ({ ...f, inseminatorName: e.target.value }))} /></div>
+
+            {/* ── Inseminator / Technician staff lookup ── */}
+            <div><Label>Inseminator / Technician</Label>
+              <StaffSelect
+                staffNames={staffNames}
+                value={String(form.inseminatorName ?? "")}
+                onChange={v => setForm(f => ({ ...f, inseminatorName: v }))}
+              />
+            </div>
+
             <div><Label>Straw / Batch Ref</Label><Input value={String(form.strawBatchRef ?? "")} onChange={e => setForm(f => ({ ...f, strawBatchRef: e.target.value }))} /></div>
             <div><Label>Sire Name</Label><Input value={String(form.sireName ?? "")} onChange={e => setForm(f => ({ ...f, sireName: e.target.value }))} /></div>
             <div><Label>Sire Breed</Label><Input value={String(form.sireBreed ?? "")} onChange={e => setForm(f => ({ ...f, sireBreed: e.target.value }))} /></div>
