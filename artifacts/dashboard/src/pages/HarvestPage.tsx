@@ -113,12 +113,40 @@ export default function HarvestPage() {
         {(() => {
           const yr = currentCropYear();
           const thisSeasonHarvests = harvests.filter((r: any) => isInCropYear(r.harvestDate, yr));
-          const thisSeasonYield = thisSeasonHarvests.reduce((s: number, r: any) => s + (parseFloat(r.yieldTonnes) || 0), 0);
           const thisSeasonFields = new Set(thisSeasonHarvests.map((r: any) => r.field?.name).filter(Boolean)).size;
+
+          const cropYieldMap: Record<string, number> = {};
+          for (const r of thisSeasonHarvests) {
+            const cropName = r.crop?.name || "Unknown Crop";
+            const variety = r.crop?.variety;
+            const key = variety ? `${cropName} (${variety})` : cropName;
+            cropYieldMap[key] = (cropYieldMap[key] || 0) + (parseFloat(r.yieldTonnes) || 0);
+          }
+          const cropYieldEntries = Object.entries(cropYieldMap).sort((a, b) => b[1] - a[1]);
+
           return (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: "1.5rem" }}>
               <StatCard icon={<Wheat size={18} color="#15803d" />} label={`Harvests — ${cropYearLabel(yr)}`} value={thisSeasonHarvests.length} bg="#f0fdf4" iconBg="#dcfce7" />
-              <StatCard icon={<Scale size={18} color="#1d4ed8" />} label="Yield This Season" value={thisSeasonYield > 0 ? `${thisSeasonYield.toFixed(1)} t` : "—"} bg="#eff6ff" iconBg="#dbeafe" />
+              <div style={{ background: "#eff6ff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", gap: 12 }}>
+                <div style={{ background: "#dbeafe", borderRadius: 8, padding: 8, flexShrink: 0, alignSelf: "flex-start" }}>
+                  <Scale size={18} color="#1d4ed8" />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 6 }}>Yield This Season</p>
+                  {cropYieldEntries.length === 0 ? (
+                    <p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>—</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {cropYieldEntries.map(([crop, tonnes]) => (
+                        <div key={crop} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                          <span style={{ fontSize: "0.8rem", color: "#374151", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{crop}</span>
+                          <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "#1d4ed8", flexShrink: 0 }}>{tonnes.toFixed(1)} t</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
               <StatCard icon={<MapPin size={18} color="#7c3aed" />} label="Fields Harvested" value={thisSeasonFields > 0 ? thisSeasonFields : "—"} bg="#f5f3ff" iconBg="#ede9fe" />
             </div>
           );
