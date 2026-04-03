@@ -43,12 +43,24 @@ const fmt = (d: string | null | undefined) => {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+const LAND_CONDITIONS = [
+  "No damage observed — land in good order",
+  "Minor soiling or waste — removed by farm staff",
+  "Damage to fencing or gates",
+  "Crop damage or soil compaction",
+  "Significant land damage — remediation underway",
+  "Fully remediated",
+];
+
+interface Field { id: number; name: string; fieldReference: string | null; }
+interface InsurancePolicy { id: number; policyType: string; insurer: string | null; policyNumber: string | null; }
 interface Photo { id: number; objectPath: string; fileName: string | null; }
 interface Encampment {
   id: number;
   farmId: number;
   discoveredAt: string;
   locationDescription: string;
+  fieldId: number | null;
   fieldParcel: string | null;
   latitude: string | null;
   longitude: string | null;
@@ -73,6 +85,7 @@ interface Encampment {
   vacatedAt: string | null;
   landConditionAfter: string | null;
   insuranceClaimMade: boolean;
+  insurancePolicyId: number | null;
   insuranceClaimRef: string | null;
   remediationRequired: boolean;
   remediationNotes: string | null;
@@ -132,6 +145,7 @@ function PhotoPanel({ incidentId, farmId, photos }: { incidentId: number; farmId
 const EMPTY: Omit<Encampment, "id" | "farmId" | "photos"> = {
   discoveredAt: new Date().toISOString().slice(0, 10),
   locationDescription: "",
+  fieldId: null,
   fieldParcel: "",
   latitude: "",
   longitude: "",
@@ -156,6 +170,7 @@ const EMPTY: Omit<Encampment, "id" | "farmId" | "photos"> = {
   vacatedAt: "",
   landConditionAfter: "",
   insuranceClaimMade: false,
+  insurancePolicyId: null,
   insuranceClaimRef: "",
   remediationRequired: false,
   remediationNotes: "",
@@ -183,6 +198,20 @@ export default function EncampmentPage() {
   });
   const incidents: Encampment[] = q.data?.records ?? [];
 
+  const fieldsQ = useQuery<{ records: Field[] }>({
+    queryKey: ["fields", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const fields: Field[] = fieldsQ.data?.records ?? [];
+
+  const insuranceQ = useQuery<{ records: InsurancePolicy[] }>({
+    queryKey: ["insurance", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/insurance`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const policies: InsurancePolicy[] = insuranceQ.data?.records ?? [];
+
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<Encampment | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -199,6 +228,7 @@ export default function EncampmentPage() {
     setForm({
       discoveredAt: r.discoveredAt,
       locationDescription: r.locationDescription,
+      fieldId: r.fieldId ?? null,
       fieldParcel: r.fieldParcel ?? "",
       latitude: r.latitude ?? "",
       longitude: r.longitude ?? "",
@@ -223,6 +253,7 @@ export default function EncampmentPage() {
       vacatedAt: r.vacatedAt ?? "",
       landConditionAfter: r.landConditionAfter ?? "",
       insuranceClaimMade: r.insuranceClaimMade,
+      insurancePolicyId: r.insurancePolicyId ?? null,
       insuranceClaimRef: r.insuranceClaimRef ?? "",
       remediationRequired: r.remediationRequired,
       remediationNotes: r.remediationNotes ?? "",
@@ -392,7 +423,12 @@ export default function EncampmentPage() {
                         {r.legalActionTaken && <InfoRow label="Legal Action Details" value={r.legalActionDetails || "—"} span />}
                         {r.courtOrderObtained && <InfoRow label="Court Order Ref" value={r.courtOrderRef || "—"} />}
                         {r.landConditionAfter && <InfoRow label="Land Condition After" value={r.landConditionAfter} span />}
-                        {r.insuranceClaimMade && <InfoRow label="Insurance Claim Ref" value={r.insuranceClaimRef || "—"} />}
+                        {r.insuranceClaimMade && (
+                          <InfoRow label="Insurance" value={[
+                            r.insurancePolicyId ? (policies.find(p => p.id === r.insurancePolicyId)?.policyType ?? null) : null,
+                            r.insuranceClaimRef || null,
+                          ].filter(Boolean).join(" — ") || "Claim made"} />
+                        )}
                         {r.remediationRequired && <InfoRow label="Remediation" value={`${r.remediationNotes || "Required"}${r.remediationCost ? ` — £${r.remediationCost}` : ""}`} span />}
                         {r.notes && <InfoRow label="Notes" value={r.notes} span />}
                       </div>
@@ -430,7 +466,27 @@ export default function EncampmentPage() {
                 </Field>
                 <Row2>
                   <Field label="Field / Parcel Reference">
-                    <Input value={form.fieldParcel ?? ""} onChange={e => ff("fieldParcel", e.target.value)} placeholder="e.g. OS 1234 / Field 7" />
+                    {fields.length > 0 && (
+                      <select
+                        className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 mb-2"
+                        value={form.fieldId ?? ""}
+                        onChange={e => {
+                          const id = e.target.value ? Number(e.target.value) : null;
+                          const found = fields.find(f => f.id === id);
+                          ff("fieldId", id);
+                          if (found) ff("fieldParcel", [found.name, found.fieldReference].filter(Boolean).join(" — "));
+                          else if (!id) ff("fieldParcel", "");
+                        }}
+                      >
+                        <option value="">— Select registered field…</option>
+                        {fields.map(f => (
+                          <option key={f.id} value={f.id}>
+                            {f.name}{f.fieldReference ? ` (${f.fieldReference})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <Input value={form.fieldParcel ?? ""} onChange={e => ff("fieldParcel", e.target.value)} placeholder={fields.length > 0 ? "Or enter manually — e.g. OS 1234 / Field 7" : "e.g. OS 1234 / Field 7"} />
                   </Field>
                   <Field label="Entry Point">
                     <Input value={form.entryPoint ?? ""} onChange={e => ff("entryPoint", e.target.value)} placeholder="e.g. Cut hedge on north boundary" />
@@ -469,8 +525,15 @@ export default function EncampmentPage() {
                 </Field>
                 <Row2>
                   <CheckField label="Crops affected?" checked={form.cropsAffected} onChange={v => ff("cropsAffected", v)} />
-                  <Field label="Estimated Damage Value">
-                    <Input value={form.estimatedDamage ?? ""} onChange={e => ff("estimatedDamage", e.target.value)} placeholder="e.g. £2,500" />
+                  <Field label="Estimated Damage Value (£)">
+                    <div style={{ display: "flex", alignItems: "center", border: "2px solid hsl(var(--border))", borderRadius: "0.75rem", overflow: "hidden" }}>
+                      <span style={{ padding: "0 10px", color: "#6b7280", fontSize: "0.95rem", flexShrink: 0 }}>£</span>
+                      <input type="number" min="0" step="0.01"
+                        style={{ flex: 1, border: "none", outline: "none", padding: "0 12px 0 0", height: "3rem", fontSize: "1rem", background: "transparent" }}
+                        value={form.estimatedDamage ?? ""}
+                        onChange={e => ff("estimatedDamage", e.target.value)}
+                        placeholder="0.00" />
+                    </div>
                   </Field>
                 </Row2>
               </Section>
@@ -533,24 +596,47 @@ export default function EncampmentPage() {
                   </Field>
                 </Row2>
                 <Field label="Land Condition After Vacation">
-                  <Textarea rows={2} value={form.landConditionAfter ?? ""} onChange={e => ff("landConditionAfter", e.target.value)} placeholder="Describe condition of land, any waste left, fencing damage, etc." />
+                  <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+                    value={form.landConditionAfter ?? ""} onChange={e => ff("landConditionAfter", e.target.value)}>
+                    <option value="">— Select condition…</option>
+                    {LAND_CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </Field>
               </Section>
 
               <Section title="Insurance & Remediation">
-                <Row2>
-                  <CheckField label="Insurance claim made?" checked={form.insuranceClaimMade} onChange={v => ff("insuranceClaimMade", v)} />
-                  {form.insuranceClaimMade && (
-                    <Field label="Insurance Claim Reference">
+                <CheckField label="Insurance claim made?" checked={form.insuranceClaimMade} onChange={v => { ff("insuranceClaimMade", v); if (!v) { ff("insurancePolicyId", null); ff("insuranceClaimRef", ""); } }} />
+                {form.insuranceClaimMade && (
+                  <Row2>
+                    <Field label="Linked Insurance Policy">
+                      <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+                        value={form.insurancePolicyId ?? ""}
+                        onChange={e => ff("insurancePolicyId", e.target.value ? Number(e.target.value) : null)}>
+                        <option value="">— Select registered policy…</option>
+                        {policies.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.policyType}{p.insurer ? ` — ${p.insurer}` : ""}{p.policyNumber ? ` (${p.policyNumber})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Claim Reference (issued by insurer)">
                       <Input value={form.insuranceClaimRef ?? ""} onChange={e => ff("insuranceClaimRef", e.target.value)} placeholder="e.g. CLM-2025-00123" />
                     </Field>
-                  )}
-                </Row2>
+                  </Row2>
+                )}
                 <Row2>
                   <CheckField label="Remediation required?" checked={form.remediationRequired} onChange={v => ff("remediationRequired", v)} />
                   {form.remediationRequired && (
-                    <Field label="Remediation Cost">
-                      <Input value={form.remediationCost ?? ""} onChange={e => ff("remediationCost", e.target.value)} placeholder="e.g. 1500" />
+                    <Field label="Remediation Cost (£)">
+                      <div style={{ display: "flex", alignItems: "center", border: "2px solid hsl(var(--border))", borderRadius: "0.75rem", overflow: "hidden" }}>
+                        <span style={{ padding: "0 10px", color: "#6b7280", fontSize: "0.95rem", flexShrink: 0 }}>£</span>
+                        <input type="number" min="0" step="0.01"
+                          style={{ flex: 1, border: "none", outline: "none", padding: "0 12px 0 0", height: "3rem", fontSize: "1rem", background: "transparent" }}
+                          value={form.remediationCost ?? ""}
+                          onChange={e => ff("remediationCost", e.target.value)}
+                          placeholder="0.00" />
+                      </div>
                     </Field>
                   )}
                 </Row2>

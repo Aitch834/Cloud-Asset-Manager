@@ -1,6 +1,8 @@
 import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { suppliersTable } from "./stock-suppliers";
+import { fieldsTable } from "./fields-crops";
+import { farmInsuranceTable } from "./insurance";
 
 export const flyTippingIncidentsTable = pgTable("fly_tipping_incidents", {
   id: serial("id").primaryKey(),
@@ -128,6 +130,7 @@ export const unauthorizedEncampmentsTable = pgTable("unauthorized_encampments", 
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   discoveredAt: text("discovered_at").notNull(),
   locationDescription: text("location_description").notNull(),
+  fieldId: integer("field_id").references(() => fieldsTable.id),
   fieldParcel: text("field_parcel"),
   latitude: text("latitude"),
   longitude: text("longitude"),
@@ -152,6 +155,7 @@ export const unauthorizedEncampmentsTable = pgTable("unauthorized_encampments", 
   vacatedAt: text("vacated_at"),
   landConditionAfter: text("land_condition_after"),
   insuranceClaimMade: boolean("insurance_claim_made").notNull().default(false),
+  insurancePolicyId: integer("insurance_policy_id").references(() => farmInsuranceTable.id),
   insuranceClaimRef: text("insurance_claim_ref"),
   remediationRequired: boolean("remediation_required").notNull().default(false),
   remediationNotes: text("remediation_notes"),

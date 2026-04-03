@@ -24,6 +24,8 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiFields } from "@/lib/hooks/useApiFields";
+import { useApiInsurance } from "@/lib/hooks/useApiInsurance";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { EncampmentReport } from "@/lib/types";
 
@@ -60,9 +62,13 @@ export default function EncampmentsScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { triggerSync } = useSync();
+  const farmIdStr = currentFarm ? String(currentFarm.id) : undefined;
+  const { fields } = useApiFields(farmIdStr);
+  const { policies } = useApiInsurance(farmIdStr);
 
   const [discoveredAt, setDiscoveredAt] = useState(todayDate());
   const [locationDescription, setLocationDescription] = useState("");
+  const [fieldId, setFieldId] = useState<number | null>(null);
   const [fieldParcel, setFieldParcel] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
@@ -85,10 +91,13 @@ export default function EncampmentsScreen() {
   const [courtOrderObtained, setCourtOrderObtained] = useState(false);
   const [courtOrderRef, setCourtOrderRef] = useState("");
   const [vacatedAt, setVacatedAt] = useState("");
+  const [landConditionAfter, setLandConditionAfter] = useState("");
   const [insuranceClaimMade, setInsuranceClaimMade] = useState(false);
+  const [insurancePolicyId, setInsurancePolicyId] = useState<number | null>(null);
   const [insuranceClaimRef, setInsuranceClaimRef] = useState("");
   const [remediationRequired, setRemediationRequired] = useState(false);
   const [remediationNotes, setRemediationNotes] = useState("");
+  const [remediationCost, setRemediationCost] = useState("");
   const [status, setStatus] = useState("active");
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
@@ -113,6 +122,7 @@ export default function EncampmentsScreen() {
         farmId: String(currentFarm.id),
         discoveredAt,
         locationDescription: locationDescription.trim(),
+        fieldId,
         fieldParcel: fieldParcel.trim(),
         latitude: latitude.trim(),
         longitude: longitude.trim(),
@@ -135,10 +145,13 @@ export default function EncampmentsScreen() {
         courtOrderObtained,
         courtOrderRef: courtOrderRef.trim(),
         vacatedAt: vacatedAt.trim(),
+        landConditionAfter: landConditionAfter.trim(),
         insuranceClaimMade,
+        insurancePolicyId,
         insuranceClaimRef: insuranceClaimRef.trim(),
         remediationRequired,
         remediationNotes: remediationNotes.trim(),
+        remediationCost: remediationCost.trim(),
         photoUris,
         status,
         notes: notes.trim(),
@@ -211,15 +224,44 @@ export default function EncampmentsScreen() {
             />
           </View>
 
-          <View style={[styles.field, { flexDirection: "row", gap: spacing.sm }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Field / Parcel Ref</Text>
-              <Input placeholder="e.g. OS 1234 / Field 7" value={fieldParcel} onChangeText={setFieldParcel} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Entry Point</Text>
-              <Input placeholder="e.g. Cut hedge, north side" value={entryPoint} onChangeText={setEntryPoint} />
-            </View>
+          <View style={styles.field}>
+            <Text style={styles.label}>Field / Parcel Ref</Text>
+            {fields.length > 0 && (
+              <>
+                <View style={[styles.chipWrap, { marginBottom: spacing.xs }]}>
+                  {fields.map(f => (
+                    <Pressable
+                      key={f.id}
+                      style={[styles.chip, fieldId === f.id && styles.chipSelected]}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        if (fieldId === f.id) {
+                          setFieldId(null);
+                          setFieldParcel("");
+                        } else {
+                          setFieldId(f.id);
+                          setFieldParcel(f.name);
+                        }
+                      }}
+                    >
+                      <Text style={[styles.chipText, { fontSize: 11 }, fieldId === f.id && styles.chipTextSelected]}>
+                        {f.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            )}
+            <Input
+              placeholder={fields.length > 0 ? "Or enter parcel ref manually — e.g. OS 1234" : "e.g. OS 1234 / Field 7"}
+              value={fieldParcel}
+              onChangeText={v => { setFieldParcel(v); if (fieldId) setFieldId(null); }}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Entry Point</Text>
+            <Input placeholder="e.g. Cut hedge, north side" value={entryPoint} onChangeText={setEntryPoint} />
           </View>
 
           <View style={[styles.field, { flexDirection: "row", gap: spacing.sm }]}>
@@ -311,8 +353,8 @@ export default function EncampmentsScreen() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Estimated Damage Value</Text>
-            <Input placeholder="e.g. £2,500" value={estimatedDamage} onChangeText={setEstimatedDamage} />
+            <Text style={styles.label}>Estimated Damage (£)</Text>
+            <Input placeholder="0.00" value={estimatedDamage} onChangeText={setEstimatedDamage} keyboardType="decimal-pad" />
           </View>
         </View>
 
@@ -464,6 +506,28 @@ export default function EncampmentsScreen() {
             <Text style={styles.label}>Date Vacated</Text>
             <Input placeholder="YYYY-MM-DD" value={vacatedAt} onChangeText={setVacatedAt} />
           </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Land Condition After Vacation</Text>
+            <View style={[styles.chipWrap, { marginTop: 4 }]}>
+              {[
+                "No damage observed",
+                "Minor soiling — removed",
+                "Fencing / gate damage",
+                "Crop or soil damage",
+                "Significant damage — remediation underway",
+                "Fully remediated",
+              ].map(c => (
+                <Pressable
+                  key={c}
+                  style={[styles.chip, landConditionAfter === c && styles.chipSelected]}
+                  onPress={() => { Haptics.selectionAsync(); setLandConditionAfter(landConditionAfter === c ? "" : c); }}
+                >
+                  <Text style={[styles.chipText, { fontSize: 11 }, landConditionAfter === c && styles.chipTextSelected]}>{c}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
         </View>
 
         {/* Insurance & Remediation */}
@@ -483,12 +547,32 @@ export default function EncampmentsScreen() {
               />
             </View>
             {insuranceClaimMade && (
-              <Input
-                placeholder="Insurance Claim Reference"
-                value={insuranceClaimRef}
-                onChangeText={setInsuranceClaimRef}
-                style={{ marginTop: spacing.xs }}
-              />
+              <>
+                {policies.length > 0 && (
+                  <View style={{ marginTop: spacing.xs }}>
+                    <Text style={[styles.label, { marginBottom: 4 }]}>Linked Insurance Policy</Text>
+                    <View style={styles.chipWrap}>
+                      {policies.map(p => (
+                        <Pressable
+                          key={p.id}
+                          style={[styles.chip, insurancePolicyId === p.id && styles.chipSelected]}
+                          onPress={() => { Haptics.selectionAsync(); setInsurancePolicyId(insurancePolicyId === p.id ? null : p.id); }}
+                        >
+                          <Text style={[styles.chipText, { fontSize: 11 }, insurancePolicyId === p.id && styles.chipTextSelected]}>
+                            {p.policyType}{p.insurer ? ` — ${p.insurer}` : ""}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                )}
+                <Input
+                  placeholder="Claim Reference (issued by insurer)"
+                  value={insuranceClaimRef}
+                  onChangeText={setInsuranceClaimRef}
+                  style={{ marginTop: spacing.xs }}
+                />
+              </>
             )}
           </View>
 
@@ -505,14 +589,23 @@ export default function EncampmentsScreen() {
               />
             </View>
             {remediationRequired && (
-              <Input
-                placeholder="Describe remediation work required or completed"
-                value={remediationNotes}
-                onChangeText={setRemediationNotes}
-                multiline
-                numberOfLines={2}
-                style={{ marginTop: spacing.xs, minHeight: 56 }}
-              />
+              <>
+                <Input
+                  placeholder="Describe remediation work required or completed"
+                  value={remediationNotes}
+                  onChangeText={setRemediationNotes}
+                  multiline
+                  numberOfLines={2}
+                  style={{ marginTop: spacing.xs, minHeight: 56 }}
+                />
+                <Input
+                  placeholder="Remediation cost (£) e.g. 1500"
+                  value={remediationCost}
+                  onChangeText={setRemediationCost}
+                  keyboardType="decimal-pad"
+                  style={{ marginTop: spacing.xs }}
+                />
+              </>
             )}
           </View>
         </View>

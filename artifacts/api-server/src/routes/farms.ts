@@ -3676,16 +3676,17 @@ router.get("/farms/:farmId/encampments", requireAuth, requireTenant, requireModu
 router.post("/farms/:farmId/encampments", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { discoveredAt, locationDescription, fieldParcel, latitude, longitude, entryPoint,
+  const { discoveredAt, locationDescription, fieldId, fieldParcel, latitude, longitude, entryPoint,
     vehicleCount, personCount, caravanCount, vehicleDescriptions, landDamageDescription,
     cropsAffected, estimatedDamage, policeNotified, policeRefNumber, policeAction,
     councilNotified, councilRefNumber, legalActionTaken, legalActionDetails,
     solicitorInstructed, courtOrderObtained, courtOrderRef, vacatedAt, landConditionAfter,
-    insuranceClaimMade, insuranceClaimRef, remediationRequired, remediationNotes,
+    insuranceClaimMade, insurancePolicyId, insuranceClaimRef, remediationRequired, remediationNotes,
     remediationCost, status, notes } = req.body;
   if (!discoveredAt || !locationDescription) { res.status(400).json({ error: "discoveredAt and locationDescription are required" }); return; }
   const [record] = await db.insert(unauthorizedEncampmentsTable).values({
     farmId, discoveredAt, locationDescription,
+    fieldId: fieldId ? Number(fieldId) : null,
     fieldParcel: fieldParcel || null, latitude: latitude || null, longitude: longitude || null,
     entryPoint: entryPoint || null, vehicleCount: vehicleCount ?? null, personCount: personCount ?? null,
     caravanCount: caravanCount ?? null, vehicleDescriptions: vehicleDescriptions || null,
@@ -3697,6 +3698,7 @@ router.post("/farms/:farmId/encampments", requireAuth, requireTenant, requireMod
     solicitorInstructed: !!solicitorInstructed, courtOrderObtained: !!courtOrderObtained,
     courtOrderRef: courtOrderRef || null, vacatedAt: vacatedAt || null,
     landConditionAfter: landConditionAfter || null, insuranceClaimMade: !!insuranceClaimMade,
+    insurancePolicyId: insurancePolicyId ? Number(insurancePolicyId) : null,
     insuranceClaimRef: insuranceClaimRef || null, remediationRequired: !!remediationRequired,
     remediationNotes: remediationNotes || null, remediationCost: remediationCost || null,
     status: status || "active", notes: notes || null,
@@ -3709,15 +3711,16 @@ router.put("/farms/:farmId/encampments/:recordId", requireAuth, requireTenant, r
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { discoveredAt, locationDescription, fieldParcel, latitude, longitude, entryPoint,
+  const { discoveredAt, locationDescription, fieldId, fieldParcel, latitude, longitude, entryPoint,
     vehicleCount, personCount, caravanCount, vehicleDescriptions, landDamageDescription,
     cropsAffected, estimatedDamage, policeNotified, policeRefNumber, policeAction,
     councilNotified, councilRefNumber, legalActionTaken, legalActionDetails,
     solicitorInstructed, courtOrderObtained, courtOrderRef, vacatedAt, landConditionAfter,
-    insuranceClaimMade, insuranceClaimRef, remediationRequired, remediationNotes,
+    insuranceClaimMade, insurancePolicyId, insuranceClaimRef, remediationRequired, remediationNotes,
     remediationCost, status, notes } = req.body;
   const [record] = await db.update(unauthorizedEncampmentsTable).set({
     discoveredAt, locationDescription,
+    fieldId: fieldId ? Number(fieldId) : null,
     fieldParcel: fieldParcel || null, latitude: latitude || null, longitude: longitude || null,
     entryPoint: entryPoint || null, vehicleCount: vehicleCount ?? null, personCount: personCount ?? null,
     caravanCount: caravanCount ?? null, vehicleDescriptions: vehicleDescriptions || null,
@@ -3729,6 +3732,7 @@ router.put("/farms/:farmId/encampments/:recordId", requireAuth, requireTenant, r
     solicitorInstructed: !!solicitorInstructed, courtOrderObtained: !!courtOrderObtained,
     courtOrderRef: courtOrderRef || null, vacatedAt: vacatedAt || null,
     landConditionAfter: landConditionAfter || null, insuranceClaimMade: !!insuranceClaimMade,
+    insurancePolicyId: insurancePolicyId ? Number(insurancePolicyId) : null,
     insuranceClaimRef: insuranceClaimRef || null, remediationRequired: !!remediationRequired,
     remediationNotes: remediationNotes || null, remediationCost: remediationCost || null,
     status: status || "active", notes: notes || null,

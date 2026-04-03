@@ -310,6 +310,7 @@ export interface EncampmentReport {
   farmId: string;
   discoveredAt: string;
   locationDescription: string;
+  fieldId: number | null;
   fieldParcel: string;
   latitude: string;
   longitude: string;
@@ -332,10 +333,13 @@ export interface EncampmentReport {
   courtOrderObtained: boolean;
   courtOrderRef: string;
   vacatedAt: string;
+  landConditionAfter: string;
   insuranceClaimMade: boolean;
+  insurancePolicyId: number | null;
   insuranceClaimRef: string;
   remediationRequired: boolean;
   remediationNotes: string;
+  remediationCost: string;
   photoUris: string[];
   status: string;
   notes: string;
