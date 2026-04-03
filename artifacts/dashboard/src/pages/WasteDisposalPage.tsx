@@ -659,7 +659,7 @@ export default function WasteDisposalPage() {
                       <p style={{ fontSize: "0.68rem", color: "#9ca3af", marginTop: 3 }}>England · EA Waste Carrier, Broker & Dealer Register</p>
                     </div>
                     <div>
-                      <Label>EA Registration No.</Label>
+                      <Label style={{ display: "block", marginBottom: 4 }}>EA Registration No.</Label>
                       <Input
                         placeholder="e.g. CBDU01234"
                         value={form.carrierLicence}
@@ -737,7 +737,7 @@ export default function WasteDisposalPage() {
                   <p style={{ fontSize: "0.68rem", color: "#9ca3af", marginTop: 3 }}>England · EA Waste Operations Permitted Sites Register</p>
                 </div>
                 <div>
-                  <Label>Waste Transfer Note No.</Label>
+                  <Label style={{ display: "block", marginBottom: 4 }}>Waste Transfer Note No.</Label>
                   <Input placeholder="e.g. WTN-2025-001" value={form.wasteTransferNote} onChange={e => setForm((f: any) => ({ ...f, wasteTransferNote: e.target.value }))} style={{ fontFamily: "monospace" }} />
                 </div>
               </div>
