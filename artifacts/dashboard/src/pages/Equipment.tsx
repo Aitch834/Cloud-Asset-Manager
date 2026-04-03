@@ -330,7 +330,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Equipment (optional)</label>
-                <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.equipmentId} onChange={e => setForm(f => ({ ...f, equipmentId: e.target.value }))}>
+                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={form.equipmentId} onChange={e => setForm(f => ({ ...f, equipmentId: e.target.value }))}>
                   <option value="">General / unspecified equipment</option>
                   {equipList.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
@@ -341,7 +341,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Severity</label>
-                <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}>
+                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}>
                   <option value="low">Low — monitor, no immediate action needed</option>
                   <option value="medium">Medium — repair soon</option>
                   <option value="high">High — repair before next use</option>
@@ -587,7 +587,7 @@ export default function EquipmentPage() {
       <div className="flex flex-col sm:flex-row justify-between mb-6 gap-4">
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-          <Input placeholder="Search equipment..." className="pl-10 bg-white h-9 text-sm" />
+          <Input placeholder="Search equipment..." className="pl-10 bg-white" />
         </div>
 
         <div className="flex items-center gap-2">
@@ -829,7 +829,7 @@ export default function EquipmentPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>Type <span style={{ color: "#ef4444" }}>*</span></Label>
-                      <select value={serviceForm.maintenanceType} onChange={e => setServiceForm(f => ({ ...f, maintenanceType: e.target.value }))} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-9">
+                      <select value={serviceForm.maintenanceType} onChange={e => setServiceForm(f => ({ ...f, maintenanceType: e.target.value }))} className="mt-1 w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50">
                         {MAINT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                       </select>
                     </div>

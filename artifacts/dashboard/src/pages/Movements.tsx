@@ -569,7 +569,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-          <Input placeholder="Search by species, tag, cause..." className="pl-9 bg-white h-9 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search by species, tag, cause..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Button onClick={() => { setEditingRecord(null); setFormData({ ...EMPTY_MORTALITY, dateOfDeath: new Date().toISOString().slice(0, 10) }); setShowForm(true); }} className="gap-2">
           <Plus className="w-4 h-4" /> Record Death
@@ -635,7 +635,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Species <span className="text-red-500">*</span></label>
-                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.species} onChange={e => setField("species", e.target.value)} required>
+                  <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={formData.species} onChange={e => setField("species", e.target.value)} required>
                     <option value="">Select species...</option>
                     {["Cattle", "Sheep", "Pigs", "Poultry", "Goats", "Other"].map(s => <option key={s} value={s.toLowerCase()}>{s}</option>)}
                   </select>
@@ -650,14 +650,14 @@ function MortalitySection({ farmId }: { farmId: number }) {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Cause of Death <span className="text-red-500">*</span></label>
-                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.causeOfDeath} onChange={e => setField("causeOfDeath", e.target.value)} required>
+                  <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={formData.causeOfDeath} onChange={e => setField("causeOfDeath", e.target.value)} required>
                     <option value="">Select cause...</option>
                     {["Disease / Illness", "Injury / Accident", "Euthanasia (vet)", "Euthanasia (emergency)", "Natural causes", "Dystocia / Calving difficulty", "Pneumonia", "Metabolic disorder", "Unknown", "Other"].map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Disposal Method <span className="text-red-500">*</span></label>
-                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.disposalMethod} onChange={e => setField("disposalMethod", e.target.value)} required>
+                  <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={formData.disposalMethod} onChange={e => setField("disposalMethod", e.target.value)} required>
                     <option value="">Select method...</option>
                     {["Fallen stock collector", "Hunt / knackerman", "On-farm burial (permitted)", "Incineration", "Rendering plant", "Other permitted method"].map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
@@ -1294,7 +1294,7 @@ export default function Movements() {
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Species</label>
                   <select
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
                     value={formData.species}
                     onChange={(e) => setField("species", e.target.value)}
                   >

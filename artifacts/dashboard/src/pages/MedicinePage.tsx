@@ -348,7 +348,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
         <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-          <Input placeholder="Search medicine, ref, reason..." className="pl-9 bg-white h-9 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search medicine, ref, reason..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <CropYearSelector value={cropYear} onChange={setCropYear} />
         <div className="flex gap-2">
@@ -441,7 +441,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Herd / Animal Group</label>
-                <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.herdId} onChange={e => setForm(f => ({ ...f, herdId: e.target.value }))}>
+                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={form.herdId} onChange={e => setForm(f => ({ ...f, herdId: e.target.value }))}>
                   <option value="">Select herd (optional)...</option>
                   {herds.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
                 </select>
@@ -456,7 +456,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Administration Route</label>
-                <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.administrationRoute} onChange={e => setForm(f => ({ ...f, administrationRoute: e.target.value }))}>
+                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={form.administrationRoute} onChange={e => setForm(f => ({ ...f, administrationRoute: e.target.value }))}>
                   <option value="">Select route...</option>
                   {ADMIN_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>

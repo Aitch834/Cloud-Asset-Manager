@@ -727,7 +727,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
 
       <div className="relative w-full sm:w-80 mb-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-        <Input placeholder="Search crop, variety, lot..." className="pl-9 bg-white h-9 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
+        <Input placeholder="Search crop, variety, lot..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       {showForm && (
@@ -745,7 +745,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Field</label>
-                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.fieldId} onChange={e => setField("fieldId", e.target.value)}>
+                  <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={formData.fieldId} onChange={e => setField("fieldId", e.target.value)}>
                     <option value="">— All / No specific field —</option>
                     {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                   </select>
@@ -758,7 +758,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Crop <span className="text-red-500">*</span></label>
                   <input
                     list="seed-crop-datalist"
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
                     placeholder={cropsRegister.length > 0 ? "Select from Crops Register or type…" : "e.g. Winter Wheat, OSR, Barley"}
                     value={formData.cropName}
                     onChange={e => handleCropSelect(e.target.value)}
@@ -787,7 +787,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Rate Unit</label>
-                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.seedRateUnit} onChange={e => setField("seedRateUnit", e.target.value)}>
+                  <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={formData.seedRateUnit} onChange={e => setField("seedRateUnit", e.target.value)}>
                     {["kg/ha", "seeds/m²", "kg/acre"].map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
@@ -801,7 +801,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Soil Conditions</label>
-                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.soilConditions} onChange={e => setField("soilConditions", e.target.value)}>
+                  <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={formData.soilConditions} onChange={e => setField("soilConditions", e.target.value)}>
                     {SOIL_CONDITIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
                 </div>

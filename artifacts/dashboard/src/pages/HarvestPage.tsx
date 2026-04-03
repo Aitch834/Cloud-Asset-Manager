@@ -318,7 +318,7 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 220 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-          <Input placeholder="Search harvests..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
+          <Input placeholder="Search harvests..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
         </div>
         <CropYearSelector value={cropYear} onChange={setCropYear} />
         <Button size="sm" onClick={() => { setForm({ ...emptyForm, recordedBy: currentUserName || "" }); setEditRecord(null); setAddOpen(true); }}>

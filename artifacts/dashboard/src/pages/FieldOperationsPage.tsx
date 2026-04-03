@@ -416,7 +416,7 @@ export default function FieldOperationsPage() {
               placeholder="Search by field, operation, implement, operator…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 text-sm"
+              className="pl-9"
             />
           </div>
           <Select value={filterType} onValueChange={setFilterType}>

@@ -303,7 +303,7 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
-        <Input placeholder="Search training records…" value={search} onChange={e => setSearch(e.target.value)} className="h-9 text-sm max-w-[280px]" />
+        <Input placeholder="Search training records…" value={search} onChange={e => setSearch(e.target.value)} className="max-w-[280px]" />
         <CropYearSelector value={cropYear} onChange={setCropYear} />
         <div style={{ flex: 1 }} />
         {expiredCount > 0 && (
@@ -1005,7 +1005,7 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
-        <Input placeholder="Filter by staff member…" value={search} onChange={e => setSearch(e.target.value)} className="h-9 text-sm max-w-[260px]" />
+        <Input placeholder="Filter by staff member…" value={search} onChange={e => setSearch(e.target.value)} className="max-w-[260px]" />
         <div style={{ flex: 1 }} />
         {expired > 0 && <Badge style={{ background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", display: "flex", alignItems: "center", gap: 4 }}><AlertTriangle size={13} /> {expired} expired</Badge>}
         {urgent > 0 && <Badge style={{ background: "#fffbeb", color: "#d97706", border: "1px solid #fde68a" }}>{urgent} expiring &lt;28 days</Badge>}

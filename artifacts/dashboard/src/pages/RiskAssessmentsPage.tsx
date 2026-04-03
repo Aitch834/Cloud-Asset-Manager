@@ -583,7 +583,7 @@ function CoshhTab({ farmId }: { farmId: number }) {
         <div style={{ flex: 1 }} />
         <div style={{ position: "relative" }}>
           <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
-          <Input placeholder="Search substances…" value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm w-56" />
+          <Input placeholder="Search substances…" value={search} onChange={e => setSearch(e.target.value)} className="pl-8 w-56" />
         </div>
         <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Add COSHH Record</Button>
       </div>

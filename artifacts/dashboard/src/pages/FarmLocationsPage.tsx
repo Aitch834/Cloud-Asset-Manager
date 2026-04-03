@@ -242,7 +242,7 @@ export default function FarmLocationsPage() {
               />
             </div>
             <select
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
               value={filterType}
               onChange={e => setFilterType(e.target.value)}
             >
@@ -346,7 +346,7 @@ export default function FarmLocationsPage() {
                 Location Type <span className="text-red-500">*</span>
               </label>
               <select
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
                 value={form.locationType}
                 onChange={e => setForm(f => ({ ...f, locationType: e.target.value }))}
                 required

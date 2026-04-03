@@ -419,7 +419,7 @@ export default function EncampmentPage() {
                     <Input type="date" value={form.discoveredAt} onChange={e => ff("discoveredAt", e.target.value)} />
                   </Field>
                   <Field label="Status">
-                    <select className="w-full h-10 border border-input rounded-md px-3 text-sm bg-background"
+                    <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
                       value={form.status} onChange={e => ff("status", e.target.value)}>
                       {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
@@ -484,7 +484,7 @@ export default function EncampmentPage() {
                 </Row2>
                 {form.policeNotified && (
                   <Field label="Police Action Taken">
-                    <select className="w-full h-10 border border-input rounded-md px-3 text-sm bg-background"
+                    <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
                       value={form.policeAction ?? ""} onChange={e => ff("policeAction", e.target.value)}>
                       <option value="">Select action…</option>
                       {POLICE_ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
@@ -509,7 +509,7 @@ export default function EncampmentPage() {
                 </Row2>
                 {form.legalActionTaken && (
                   <Field label="Legal Action Details">
-                    <select className="w-full h-10 border border-input rounded-md px-3 text-sm bg-background mb-2"
+                    <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50 mb-2"
                       value={form.legalActionDetails ?? ""} onChange={e => ff("legalActionDetails", e.target.value)}>
                       <option value="">Select notice / order type…</option>
                       {LEGAL_NOTICE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}

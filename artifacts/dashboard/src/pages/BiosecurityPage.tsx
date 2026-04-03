@@ -131,7 +131,7 @@ function VisitorTab({ farmId }: { farmId: number }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-          <Input placeholder="Search visitors, company, purpose..." className="pl-9 bg-white h-9 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search visitors, company, purpose..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <CropYearSelector value={cropYear} onChange={setCropYear} />
         <Button onClick={() => { setEditing(null); setForm(EMPTY_VISITOR); setFormOpen(true); }} className="gap-2 shrink-0">
@@ -425,7 +425,7 @@ function PestControlTab({ farmId }: { farmId: number }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-          <Input placeholder="Search pest type, location, product..." className="pl-9 bg-white h-9 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search pest type, location, product..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_PEST); setFormOpen(true); }} className="gap-2 shrink-0">
           <Plus className="w-4 h-4" /> Add Record
@@ -511,7 +511,7 @@ function PestControlTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Pest Type <span className="text-red-500">*</span></label>
-                <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={PEST_TYPES.includes(form.pestType) ? form.pestType : "Other"} onChange={e => setForm(f => ({ ...f, pestType: e.target.value }))} required>
+                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={PEST_TYPES.includes(form.pestType) ? form.pestType : "Other"} onChange={e => setForm(f => ({ ...f, pestType: e.target.value }))} required>
                   <option value="">Select...</option>
                   {PEST_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
@@ -638,7 +638,7 @@ function CleaningTab({ farmId }: { farmId: number }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-          <Input placeholder="Search area, type, product..." className="pl-9 bg-white h-9 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search area, type, product..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_CLEANING); setFormOpen(true); }} className="gap-2 shrink-0">
           <Plus className="w-4 h-4" /> Add Record
@@ -714,7 +714,7 @@ function CleaningTab({ farmId }: { farmId: number }) {
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaning Type <span className="text-red-500">*</span></label>
-                <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.cleaningType} onChange={e => setForm(f => ({ ...f, cleaningType: e.target.value }))} required>
+                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={form.cleaningType} onChange={e => setForm(f => ({ ...f, cleaningType: e.target.value }))} required>
                   <option value="">Select type...</option>
                   {CLEANING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>

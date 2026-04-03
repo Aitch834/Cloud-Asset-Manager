@@ -270,7 +270,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-          <Input placeholder="Search by field, lab, reference, sampler..." className="pl-9 bg-white h-9 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search by field, lab, reference, sampler..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <CropYearSelector value={cropYear} onChange={setCropYear} />
         <Button onClick={openAddTest} className="gap-2 shrink-0">
@@ -511,7 +511,7 @@ function RegisterTab({ farmId }: { farmId: number }) {
           <form onSubmit={handleTestSubmit} className="space-y-4 pt-1">
             <div>
               <label className="text-sm font-medium text-foreground/70 mb-1 block">Field <span className="text-red-500">*</span></label>
-              <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={testForm.fieldId} onChange={e => setTestForm(f => ({ ...f, fieldId: e.target.value }))} required>
+              <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={testForm.fieldId} onChange={e => setTestForm(f => ({ ...f, fieldId: e.target.value }))} required>
                 <option value="">Select field...</option>
                 {fields.map(f => <option key={f.id} value={f.id}>{f.name}{f.fieldReference ? ` (${f.fieldReference})` : ""}</option>)}
               </select>
@@ -694,14 +694,14 @@ function PrintTab({ farmId }: { farmId: number }) {
         <div className="flex gap-3 items-end">
           <div>
             <label className="text-xs font-medium text-foreground/60 mb-1 block">Filter by year</label>
-            <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={printYear} onChange={e => setPrintYear(e.target.value === "all" ? "all" : parseInt(e.target.value))}>
+            <select className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10" value={printYear} onChange={e => setPrintYear(e.target.value === "all" ? "all" : parseInt(e.target.value))}>
               <option value="all">All years</option>
               {years.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
           <div>
             <label className="text-xs font-medium text-foreground/60 mb-1 block">Filter by status</label>
-            <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={printStatus} onChange={e => setPrintStatus(e.target.value)}>
+            <select className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10" value={printStatus} onChange={e => setPrintStatus(e.target.value)}>
               <option value="all">All statuses</option>
               {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </select>
@@ -1003,7 +1003,7 @@ function TrendsTab({ farmId }: { farmId: number }) {
         <div>
           <label className="text-xs font-medium text-foreground/60 mb-1 block">Field</label>
           <select
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-48"
+            className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50 min-w-48"
             value={selectedFieldId}
             onChange={e => setSelectedFieldId(e.target.value ? Number(e.target.value) : "")}
           >

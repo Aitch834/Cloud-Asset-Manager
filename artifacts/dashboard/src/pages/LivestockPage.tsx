@@ -526,7 +526,7 @@ function HerdsSection({ farmId }: { farmId: number }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-          <Input placeholder="Search herds..." className="pl-9 bg-white h-9 text-sm" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search herds..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button variant="outline" onClick={() => setPrintOpen(true)} disabled={records.length === 0} className="gap-2">
@@ -550,7 +550,7 @@ function HerdsSection({ farmId }: { farmId: number }) {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Species <span className="text-red-500">*</span></label>
-                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm" value={formData.type} onChange={e => setFormData(f => ({ ...f, type: e.target.value }))} required>
+                  <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={formData.type} onChange={e => setFormData(f => ({ ...f, type: e.target.value }))} required>
                     <option value="">Select species...</option>
                     {livestockSpecies.map(s => <option key={s} value={s.toLowerCase()}>{s}</option>)}
                   </select>
@@ -1152,7 +1152,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
       <div className="flex items-center justify-between mb-4 gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by tag, species or cause…" className="pl-9 h-9 text-sm bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search by tag, species or cause…" className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_MORTALITY); setUseOtherVet(false); setShowForm(true); }}>
           <Plus className="h-4 w-4 mr-1" /> Add Record
@@ -1643,7 +1643,7 @@ function FeedSection({ farmId }: { farmId: number }) {
       <div className="flex items-center justify-between mb-4 gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by feed type, supplier or batch…" className="pl-9 h-9 text-sm bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search by feed type, supplier or batch…" className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_FEED); setShowForm(true); }}>
           <Plus className="h-4 w-4 mr-1" /> Add Feed Record
@@ -2001,7 +2001,7 @@ function WaterSection({ farmId }: { farmId: number }) {
       <div className="flex items-center justify-between mb-4 gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by source or result…" className="pl-9 h-9 text-sm bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search by source or result…" className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_WATER); setShowForm(true); }}>
           <Plus className="h-4 w-4 mr-1" /> Add Water Record
@@ -2228,7 +2228,7 @@ function AnimalsSection({ farmId }: { farmId: number }) {
       <div className="flex items-center justify-between mb-4 gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by ear tag, EID, species or breed…" className="pl-9 h-9 text-sm bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search by ear tag, EID, species or breed…" className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_ANIMAL); setShowForm(true); }}>
           <Plus className="h-4 w-4 mr-1" /> Register Animal
