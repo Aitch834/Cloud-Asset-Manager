@@ -1217,28 +1217,50 @@ function ComplianceReportModal({ farmId, onClose }: { farmId: number; onClose: (
   const isLoading = farmQ.isLoading || inspQ.isLoading || issuesQ.isLoading || certsQ.isLoading;
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
 
+  const printReport = () => {
+    const contentEl = document.getElementById("compliance-report-content");
+    if (!contentEl) return;
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compliance Report — ${today}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #fff; font-family: system-ui, sans-serif; }
+    @page { size: A4 portrait; margin: 12mm 15mm; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>${contentEl.innerHTML}</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=980,height=760,toolbar=0,menubar=0,scrollbars=1");
+    if (!win) {
+      alert("Pop-ups are blocked — please allow pop-ups for this site to open the print dialog.");
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.addEventListener("load", () => { win.focus(); win.print(); });
+  };
+
   return (
-    <>
-      <style>{`
-        @media print {
-          body > *:not(#compliance-report-root) { display: none !important; }
-          #compliance-report-root { display: block !important; position: static !important; background: #fff !important; }
-          #compliance-report-controls { display: none !important; }
-          #compliance-report-body { box-shadow: none !important; border-radius: 0 !important; max-width: 100% !important; margin: 0 !important; }
-        }
-      `}</style>
-      <div id="compliance-report-root" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, overflow: "auto", padding: "24px 16px 48px" }}>
-        <div id="compliance-report-body" style={{ background: "#fff", maxWidth: 920, margin: "0 auto", borderRadius: 12, boxShadow: "0 24px 64px rgba(0,0,0,0.35)", overflow: "hidden" }}>
+    <div id="compliance-report-root" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, overflow: "auto", padding: "24px 16px 48px" }}>
+      <div style={{ background: "#fff", maxWidth: 920, margin: "0 auto", borderRadius: 12, boxShadow: "0 24px 64px rgba(0,0,0,0.35)", overflow: "hidden" }}>
 
           {/* Controls bar */}
-          <div id="compliance-report-controls" style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <div style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Printer size={16} style={{ color: "#166534" }} />
               <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#374151" }}>Compliance Report — Preview</span>
               <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>· Crop Year {cropYearLabel}</span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <Button size="sm" onClick={() => window.print()} disabled={isLoading}>
+              <Button size="sm" onClick={printReport} disabled={isLoading}>
                 <Printer size={13} className="mr-1.5" />Print / Save PDF
               </Button>
               <Button size="sm" variant="outline" onClick={onClose}>Close</Button>
@@ -1251,7 +1273,7 @@ function ComplianceReportModal({ farmId, onClose }: { farmId: number; onClose: (
               <p style={{ fontFamily: "system-ui, sans-serif", fontSize: "0.875rem" }}>Loading report data…</p>
             </div>
           ) : (
-            <div style={{ padding: "40px 48px", fontFamily: "Georgia, 'Times New Roman', serif", fontSize: "0.875rem", color: "#111827", lineHeight: 1.6 }}>
+            <div id="compliance-report-content" style={{ padding: "40px 48px", fontFamily: "Georgia, 'Times New Roman', serif", fontSize: "0.875rem", color: "#111827", lineHeight: 1.6 }}>
 
               {/* ── Report header ── */}
               <div style={{ borderBottom: "3px solid #166534", paddingBottom: 20, marginBottom: 28 }}>
@@ -1415,7 +1437,6 @@ function ComplianceReportModal({ farmId, onClose }: { farmId: number; onClose: (
           )}
         </div>
       </div>
-    </>
   );
 }
 
