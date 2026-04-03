@@ -6772,6 +6772,56 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>When a calf or lamb is born, you can immediately register it as an individual animal in the Individual Animals tab, linking its dam, sire, and birth details. This provides a full pedigree trail within BDE Farm Trac.</p>`,
     },
     {
+      id: 10049,
+      title: "Sire Register — Recording Donor Bulls, Rams, Boars & Bucks",
+      category: "Livestock",
+      content: `<p>The <strong>Sire Register</strong> tab in the Livestock module is a centralised directory of all bulls, rams, boars, and bucks used on your holding — whether owned, hired, or sourced from an AI stud. Once recorded, a sire can be selected directly when logging AI and reproduction events, ensuring consistent, accurate donor information across all breeding records without retyping.</p>
+
+<h3>What to Record</h3>
+<ul>
+<li><strong>Sire Name</strong> — The bull or ram's registered name or working name (e.g. Oakfield Commander).</li>
+<li><strong>Species &amp; Breed</strong> — Select cattle, sheep, pig, or goat; the breed field updates its placeholder to match the most common breeds for that species.</li>
+<li><strong>Ear Tag / Registration Number</strong> — The official UK ear tag, herd book number, or AI stud registration code. Essential for breed society traceability.</li>
+<li><strong>Date of Birth &amp; Source</strong> — Birth date and whether the sire is home-bred, purchased, or sourced from a named AI company.</li>
+<li><strong>Health Status Notes</strong> — Free-text field for BVD typing results, IBR status, Johne's risk category, or any other health screening relevant to your herd health plan.</li>
+</ul>
+
+<h3>Link to AI &amp; Reproduction Records</h3>
+<p>When adding an AI or reproduction event, the sire picker shows all active entries from your Sire Register. Selecting a sire automatically populates the breed field on the reproduction record, creating a consistent chain of reference from sire profile through to each service record.</p>
+
+<h3>Link to Straw Inventory</h3>
+<p>If you purchase straws from a bull in your Sire Register, you can link the straw delivery record directly to that sire entry. The sire name and breed then pre-populate each straw batch automatically, so AI records created from a straw batch carry the correct donor details without manual entry.</p>
+
+<h3>Red Tractor Relevance</h3>
+<p>Red Tractor Beef &amp; Lamb and Dairy standards require that breeding records identify the sire used. Keeping a Sire Register with full identification details satisfies the traceability requirement and ensures sires are consistently named across all reproductive records, which is particularly important for Johne's-accredited herds where sire health status must be documented.</p>`,
+    },
+    {
+      id: 10050,
+      title: "Straw Inventory — Managing AI Semen Deliveries & Stock Levels",
+      category: "Livestock",
+      content: `<p>The <strong>Straw Inventory</strong> tab in the Livestock module provides a running record of every AI semen delivery — batch number, number of straws received, storage location, unit cost, and remaining stock. As AI events are recorded against a batch, the system counts how many straws have been used, giving you a live remaining figure without any manual adjustments.</p>
+
+<h3>What to Record for Each Delivery</h3>
+<ul>
+<li><strong>Sire / Donor</strong> — Select from your Sire Register to link the batch to a registered bull, ram, boar, or buck; or type the sire name manually for animals not yet in the register.</li>
+<li><strong>Species &amp; Breed</strong> — Stored from the linked sire or entered manually.</li>
+<li><strong>Supplier</strong> — The AI company or stud that supplied the straws (e.g. Cogent, Genus ABS, Alta Genetics).</li>
+<li><strong>Batch Number</strong> — The unique batch or lot reference printed on the straw packaging. This is the primary traceability identifier.</li>
+<li><strong>Straws Received &amp; Delivery Date</strong> — Quantity and date of delivery.</li>
+<li><strong>Storage Location</strong> — Tank number or nitrogen vessel where the batch is stored (e.g. LN2 Tank 1, Bull Shed Goblet B).</li>
+<li><strong>Unit Cost</strong> — Cost per straw for financial recording.</li>
+</ul>
+
+<h3>Stock Status Badges</h3>
+<p>Each batch is shown with a colour-coded stock badge: <strong>green</strong> when straws are available, <strong>amber</strong> when stock is low (3 or fewer remaining), and <strong>red</strong> when the batch has been fully used. The remaining count is calculated automatically from the number of AI records linked to that batch.</p>
+
+<h3>Using Straws in AI Records</h3>
+<p>When logging an AI event, a straw picker appears for AI, Synchronised AI, and ET methods. Only in-stock batches are shown. Selecting a batch auto-fills the batch reference, sire name, and breed on the AI record — removing the risk of transcription errors when transferring information from the straw label to the record.</p>
+
+<h3>Traceability &amp; Audit</h3>
+<p>Every AI record linked to a straw batch carries the batch number, supplier, and donor details. If a health concern arises with calves or lambs from a particular sire, you can immediately identify every animal served from that batch and the corresponding AI dates — satisfying the traceability requirements of both Red Tractor and Johne's disease control programmes.</p>`,
+    },
+    {
       id: 10027,
       title: "Vet Prescriptions & Medicines — Red Tractor Requirements",
       category: "Livestock",
