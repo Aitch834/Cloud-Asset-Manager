@@ -143,7 +143,7 @@ export default function SireRegisterScreen() {
             <Text style={styles.label}>Species *</Text>
             <ChipRow options={SPECIES_OPTIONS as (typeof SPECIES_OPTIONS)[number][]} value={form.species} onChange={v => setField("species", v)} />
 
-            <Input label="Breed" value={form.breed} onChangeText={v => setField("breed", v)} placeholder="e.g. Aberdeen Angus" />
+            <Input label="Breed" value={form.breed} onChangeText={v => setField("breed", v)} placeholder={({ Cattle: "e.g. Aberdeen Angus", Sheep: "e.g. Suffolk", Pig: "e.g. Large White", Goat: "e.g. Boer" } as Record<string, string>)[form.species] ?? "e.g. enter breed"} />
             <Input label="Ear Tag Number" value={form.tagNumber} onChangeText={v => setField("tagNumber", v)} placeholder="e.g. UK141092 12345" />
             <Input label="Passport Number" value={form.passportNumber} onChangeText={v => setField("passportNumber", v)} placeholder="Cattle passport / flock no." />
             <Input label="Date of Birth" value={form.dateOfBirth} onChangeText={v => setField("dateOfBirth", v)} placeholder="YYYY-MM-DD" />
