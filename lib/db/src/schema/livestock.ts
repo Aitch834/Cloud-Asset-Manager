@@ -317,6 +317,25 @@ export const dairyDctRecordsTable = pgTable("dairy_dct_records", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+export const strawInventoryTable = pgTable("straw_inventory", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  sireRegisterId: integer("sire_register_id"),
+  sireName: text("sire_name").notNull(),
+  sireBreed: text("sire_breed"),
+  sireSpecies: text("sire_species").notNull().default("Cattle"),
+  supplierName: text("supplier_name"),
+  batchNumber: text("batch_number").notNull(),
+  strawsReceived: integer("straws_received").notNull().default(0),
+  storageLocation: text("storage_location"),
+  deliveryDate: date("delivery_date"),
+  unitCostPence: integer("unit_cost_pence"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const aiReproductionRecordsTable = pgTable("ai_reproduction_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
@@ -325,6 +344,7 @@ export const aiReproductionRecordsTable = pgTable("ai_reproduction_records", {
   serviceDate: date("service_date").notNull(),
   serviceType: text("service_type").notNull(),
   sireRegisterId: integer("sire_register_id"),
+  strawInventoryId: integer("straw_inventory_id"),
   bullOrSireName: text("bull_or_sire_name"),
   sireStuNumber: text("sire_stu_number"),
   sireBreed: text("sire_breed"),

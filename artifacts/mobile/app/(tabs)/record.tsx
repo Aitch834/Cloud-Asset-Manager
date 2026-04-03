@@ -249,6 +249,17 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["livestock"],
   },
   {
+    id: "straw-inventory",
+    title: "Straw Inventory",
+    description: "Log AI straw deliveries by batch number — track stock levels and verify donor details at service time",
+    icon: "package",
+    color: "#0ea5e9",
+    bgColor: "#e0f2fe",
+    route: "/straw-inventory",
+    moduleKeys: ["livestock-management"],
+    requiresSectors: ["livestock"],
+  },
+  {
     id: "mortality-record",
     title: "Animal Mortality Record",
     description: "Log individual animal deaths — cause, disposal method, BCMS notification and vet attendance",

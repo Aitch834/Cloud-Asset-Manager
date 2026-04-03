@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { HerdPicker } from "@/components/ui/HerdPicker";
 import { SirePicker } from "@/components/ui/SirePicker";
+import { StrawPicker } from "@/components/ui/StrawPicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -27,6 +28,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiHerds } from "@/lib/hooks/useApiHerds";
 import { useApiSires, type ApiSire } from "@/lib/hooks/useApiSires";
+import { useApiStraws, type ApiStraw } from "@/lib/hooks/useApiStraws";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { AiReproductionRecord } from "@/lib/types";
 
@@ -69,6 +71,7 @@ export default function AiReproductionScreen() {
   const farmIdStr = currentFarm?.id ? String(currentFarm.id) : undefined;
   const { herds, loading: herdsLoading, fromCache: herdsCached, error: herdsError } = useApiHerds(farmIdStr);
   const { sires, loading: siresLoading, fromCache: siresCached, error: siresError } = useApiSires(farmIdStr);
+  const { inStockStraws, loading: strawsLoading, fromCache: strawsCached, error: strawsError } = useApiStraws(farmIdStr);
   const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
@@ -81,6 +84,7 @@ export default function AiReproductionScreen() {
   const [sireBreed, setSireBreed] = useState("");
   const [sireSource, setSireSource] = useState("");
   const [strawBatch, setStrawBatch] = useState("");
+  const [strawInventoryId, setStrawInventoryId] = useState<number | null>(null);
   const [technicianName, setTechnicianName] = useState(user?.name || "");
   const [expectedCalvingDate, setExpectedCalvingDate] = useState(calcExpectedCalving(today));
   const [pregnancyConfirmed, setPregnancyConfirmed] = useState(false);
@@ -106,6 +110,21 @@ export default function AiReproductionScreen() {
     setSireName(sire.name);
     setSireBreed(sire.breed ?? "");
     setSireSource(sire.supplierName ?? sire.ownershipType === "owned" ? "Own Farm" : "");
+  };
+
+  const handleStrawChange = (straw: ApiStraw) => {
+    if (!straw) {
+      setStrawInventoryId(null);
+      setStrawBatch("");
+      setSireName("");
+      setSireBreed("");
+      return;
+    }
+    setStrawInventoryId(straw.id);
+    setStrawBatch(straw.batchNumber);
+    setSireName(straw.sireName);
+    setSireBreed(straw.sireBreed ?? "");
+    if (straw.supplierName) setSireSource(straw.supplierName);
   };
 
   const handleSave = async () => {
@@ -140,6 +159,7 @@ export default function AiReproductionScreen() {
       sireBreed: sireBreed.trim(),
       sireSource: sireSource.trim(),
       strawnBatchNumber: strawBatch.trim(),
+      strawInventoryId: strawInventoryId ?? undefined,
       technicianName: technicianName.trim(),
       expectedCalvingDate,
       pregnancyConfirmed,
@@ -218,7 +238,25 @@ export default function AiReproductionScreen() {
           <Input label="Sire Breed" value={sireBreed} onChangeText={setSireBreed} placeholder="e.g. Holstein, Hereford" />
           <Input label="Sire Source (Stud / Farm Name)" value={sireSource} onChangeText={setSireSource} placeholder="e.g. Cogent UK, Own Farm" />
           {(method === "AI" || method === "synchronised_AI" || method === "ET") && (
-            <Input label="Straw / Batch Number" value={strawBatch} onChangeText={setStrawBatch} placeholder="Batch / straw reference" />
+            <>
+              <StrawPicker
+                straws={inStockStraws}
+                loading={strawsLoading}
+                fromCache={strawsCached}
+                error={strawsError}
+                value={strawBatch}
+                onChange={setStrawBatch}
+                onChangeStraw={handleStrawChange}
+                label="Straw Inventory — Pick Batch"
+              />
+              {inStockStraws.length === 0 && !strawsLoading && (
+                <Pressable onPress={() => router.push("/straw-inventory")} style={styles.registerLink}>
+                  <Feather name="plus-circle" size={14} color={colors.primary} />
+                  <Text style={styles.registerLinkText}>Log a straw delivery</Text>
+                </Pressable>
+              )}
+              <Input label="Straw / Batch Number" value={strawBatch} onChangeText={setStrawBatch} placeholder="Auto-filled from inventory, or enter manually" />
+            </>
           )}
           <Input label="Technician / Inseminator" value={technicianName} onChangeText={setTechnicianName} placeholder="Name" />
           <Input label="Expected Calving Date (auto-calculated)" value={expectedCalvingDate} onChangeText={setExpectedCalvingDate} placeholder="YYYY-MM-DD" />

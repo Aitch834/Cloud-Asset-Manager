@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle, FileText, Upload, Paperclip, QrCode, Eye } from "lucide-react";
+import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle, FileText, Upload, Paperclip, QrCode, Eye, FlaskConical } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -185,6 +185,34 @@ const EMPTY_SIRE = {
   dateOfBirth: "", ownershipType: "owned",
   supplierName: "", supplierContact: "", hireStartDate: "", hireEndDate: "", returnDate: "",
   bvdStatus: "", fertilityTestDate: "", fertilityTestResult: "", scrapieGenotype: "", notes: "",
+};
+
+interface StrawInventory {
+  id: number;
+  farmId: number;
+  sireRegisterId: number | null;
+  sireName: string;
+  sireBreed: string | null;
+  sireSpecies: string;
+  supplierName: string | null;
+  batchNumber: string;
+  strawsReceived: number;
+  strawsUsed: number;
+  storageLocation: string | null;
+  deliveryDate: string | null;
+  unitCostPence: number | null;
+  notes: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+const EMPTY_STRAW = {
+  sireRegisterId: "" as string | number,
+  sireName: "", sireBreed: "", sireSpecies: "Cattle",
+  supplierName: "", batchNumber: "",
+  strawsReceived: 0,
+  storageLocation: "", deliveryDate: "", unitCostPence: "" as string | number,
+  notes: "",
 };
 
 const EMPTY_HERD = { name: "", type: "", breed: "", herdNumber: "", notes: "" };
@@ -2710,11 +2738,16 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
     queryKey: ["sires", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/sires`, { credentials: "include" }).then(r => r.json()) as Promise<{ records: Sire[] }>,
   });
+  const { data: strawsData } = useQuery({
+    queryKey: ["straws", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/straws`, { credentials: "include" }).then(r => r.json()) as Promise<{ records: StrawInventory[] }>,
+  });
   const { data: membersData } = useFarmMembers(farmId);
 
   const herds: Herd[] = (herdsData?.records ?? []).filter((h: Herd) => h.isActive);
   const allAnimals: Animal[] = animalsData?.records ?? [];
   const activeSires: Sire[] = (siresData?.records ?? []).filter((s: Sire) => s.isActive);
+  const inStockStraws: StrawInventory[] = (strawsData?.records ?? []).filter((s: StrawInventory) => (s.strawsReceived - (s.strawsUsed ?? 0)) > 0);
 
   // Filter animals to selected herd (if any), active only
   const selectedHerdId = form.herdId ? Number(form.herdId) : null;
@@ -2733,6 +2766,23 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
     const sire = activeSires.find(s => String(s.id) === val);
     if (sire) {
       setForm(f => ({ ...f, sireRegisterId: String(sire.id), sireName: sire.name, sireBreed: sire.breed ?? "" }));
+    }
+  }
+
+  function handleStrawSelect(val: string) {
+    if (val === "__none__") {
+      setForm(f => ({ ...f, strawInventoryId: "", strawBatchRef: "", sireName: "", sireBreed: "" }));
+      return;
+    }
+    const straw = inStockStraws.find(s => String(s.id) === val);
+    if (straw) {
+      setForm(f => ({
+        ...f,
+        strawInventoryId: String(straw.id),
+        strawBatchRef: straw.batchNumber,
+        sireName: straw.sireName,
+        sireBreed: straw.sireBreed ?? "",
+      }));
     }
   }
 
@@ -2900,7 +2950,28 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
               />
             </div>
 
-            <div><Label>Straw / Batch Ref</Label><Input value={String(form.strawBatchRef ?? "")} onChange={e => setForm(f => ({ ...f, strawBatchRef: e.target.value }))} /></div>
+            {/* ── Straw inventory picker ── */}
+            <div className="col-span-2">
+              <Label>Select from Straw Inventory</Label>
+              <Select value={String(form.strawInventoryId || "__none__")} onValueChange={handleStrawSelect}>
+                <SelectTrigger><SelectValue placeholder="Pick an in-stock batch…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Enter batch ref manually —</SelectItem>
+                  {inStockStraws.map(s => {
+                    const remaining = s.strawsReceived - (s.strawsUsed ?? 0);
+                    return (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.sireName} — {s.batchNumber}{s.supplierName ? ` (${s.supplierName})` : ""} · {remaining} left
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {inStockStraws.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1">No straws in stock — add a delivery in the Straw Inventory tab, or enter the batch ref manually below.</p>
+              )}
+            </div>
+            <div><Label>Straw / Batch Ref</Label><Input value={String(form.strawBatchRef ?? "")} onChange={e => setForm(f => ({ ...f, strawBatchRef: e.target.value }))} placeholder="Auto-filled from inventory, or enter manually" /></div>
             {/* ── Sire register lookup ── */}
             <div className="col-span-2">
               <Label>Sire / Bull / Ram</Label>
@@ -3067,9 +3138,202 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
   );
 }
 
+function StrawInventorySection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<StrawInventory | null>(null);
+  const [form, setForm] = useState<typeof EMPTY_STRAW>(EMPTY_STRAW);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const { data: siresData } = useQuery({
+    queryKey: ["sires", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/sires`, { credentials: "include" }).then(r => r.json()) as Promise<{ records: Sire[] }>,
+  });
+  const activeSires: Sire[] = (siresData?.records ?? []).filter((s: Sire) => s.isActive);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["straws", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/straws`, { credentials: "include" }).then(r => r.json()) as Promise<{ records: StrawInventory[] }>,
+  });
+  const straws: StrawInventory[] = data?.records ?? [];
+
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editing ? `/api/farms/${farmId}/straws/${editing.id}` : `/api/farms/${farmId}/straws`;
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["straws", farmId] }); setOpen(false); setEditing(null); setForm(EMPTY_STRAW); },
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/straws/${id}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["straws", farmId] }); setDeleteId(null); },
+  });
+
+  function openAdd() { setEditing(null); setForm(EMPTY_STRAW); setOpen(true); }
+  function openEdit(s: StrawInventory) {
+    setEditing(s);
+    setForm({
+      sireRegisterId: s.sireRegisterId ?? "",
+      sireName: s.sireName, sireBreed: s.sireBreed ?? "", sireSpecies: s.sireSpecies,
+      supplierName: s.supplierName ?? "", batchNumber: s.batchNumber,
+      strawsReceived: s.strawsReceived, storageLocation: s.storageLocation ?? "",
+      deliveryDate: s.deliveryDate ?? "", unitCostPence: s.unitCostPence ?? "",
+      notes: s.notes ?? "",
+    });
+    setOpen(true);
+  }
+
+  function handleSireSelect(val: string) {
+    if (val === "__none__") { setForm(f => ({ ...f, sireRegisterId: "", sireName: "", sireBreed: "" })); return; }
+    const sire = activeSires.find(s => String(s.id) === val);
+    if (sire) setForm(f => ({ ...f, sireRegisterId: sire.id, sireName: sire.name, sireBreed: sire.breed ?? "", sireSpecies: sire.species }));
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const body = {
+      ...form,
+      sireRegisterId: form.sireRegisterId !== "" ? Number(form.sireRegisterId) : null,
+      strawsReceived: Number(form.strawsReceived),
+      unitCostPence: form.unitCostPence !== "" ? Number(form.unitCostPence) : null,
+    };
+    save.mutate(body);
+  }
+
+  function stockBadge(s: StrawInventory) {
+    const remaining = s.strawsReceived - (s.strawsUsed ?? 0);
+    if (remaining <= 0) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Out of Stock</span>;
+    if (remaining <= 2) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Low — {remaining} left</span>;
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{remaining} remaining</span>;
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold">Straw Inventory</h2>
+          <p className="text-sm text-muted-foreground">Track AI straw deliveries by batch number — straws used are counted automatically from AI records.</p>
+        </div>
+        <Button onClick={openAdd}><Plus className="h-4 w-4 mr-1" /> Add Delivery</Button>
+      </div>
+
+      {isLoading ? <p className="text-muted-foreground">Loading…</p> : straws.length === 0 ? (
+        <div className="border rounded-xl p-8 text-center text-muted-foreground">
+          <FlaskConical className="h-8 w-8 mx-auto mb-2 opacity-40" />
+          <p className="font-medium">No straw deliveries logged yet</p>
+          <p className="text-sm mt-1">Add your first delivery to start tracking stock and verifying batch numbers at AI service time.</p>
+        </div>
+      ) : (
+        <div className="border rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Sire / Bull / Ram</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Batch No.</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Supplier</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Stock</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Storage</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Delivered</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {straws.map(s => (
+                <tr key={s.id} className="hover:bg-muted/20">
+                  <td className="px-4 py-3">
+                    <p className="font-medium">{s.sireName}</p>
+                    {s.sireBreed && <p className="text-xs text-muted-foreground">{s.sireBreed} · {s.sireSpecies}</p>}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs">{s.batchNumber}</td>
+                  <td className="px-4 py-3">{s.supplierName || "—"}</td>
+                  <td className="px-4 py-3">
+                    {stockBadge(s)}
+                    <p className="text-xs text-muted-foreground mt-0.5">{s.strawsReceived} received · {s.strawsUsed ?? 0} used</p>
+                  </td>
+                  <td className="px-4 py-3 text-xs">{s.storageLocation || "—"}</td>
+                  <td className="px-4 py-3 text-xs">{s.deliveryDate || "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(s)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => setDeleteId(s.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Remove from inventory?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">This will mark the batch as inactive. AI records linked to it will not be affected.</p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteId && del.mutate(deleteId)} disabled={del.isPending}>Remove</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add / Edit dialog */}
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); setForm(EMPTY_STRAW); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Straw Batch" : "Log Straw Delivery"}</DialogTitle>
+            <DialogDescription>Record the delivery details and batch number from the AI centre documentation.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid grid-cols-2 gap-4 py-4">
+              {/* Sire register lookup */}
+              <div className="col-span-2">
+                <Label>Link to Sire Register</Label>
+                <Select value={String(form.sireRegisterId || "__none__")} onValueChange={handleSireSelect}>
+                  <SelectTrigger><SelectValue placeholder="Select from sire register…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Not in register / enter manually —</SelectItem>
+                    {activeSires.map(s => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.name}{s.breed ? ` (${s.breed})` : ""}{s.tagNumber ? ` — ${s.tagNumber}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Linking to the register enables automatic donor verification. You can also enter details manually below.</p>
+              </div>
+              <div className="col-span-2"><Label>Donor Sire Name *</Label><Input value={form.sireName} onChange={e => setForm(f => ({ ...f, sireName: e.target.value }))} placeholder="e.g. Cogent Commander" required /></div>
+              <div>
+                <Label>Species *</Label>
+                <Select value={form.sireSpecies} onValueChange={v => setForm(f => ({ ...f, sireSpecies: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{["Cattle", "Sheep", "Pig", "Goat", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Breed</Label><Input value={form.sireBreed} onChange={e => setForm(f => ({ ...f, sireBreed: e.target.value }))} placeholder={({ Cattle: "e.g. Aberdeen Angus", Sheep: "e.g. Suffolk", Pig: "e.g. Large White", Goat: "e.g. Boer" } as Record<string, string>)[form.sireSpecies] ?? "e.g. enter breed"} /></div>
+              <div><Label>Batch / Lot Number *</Label><Input value={form.batchNumber} onChange={e => setForm(f => ({ ...f, batchNumber: e.target.value }))} placeholder="As printed on straw label" required /></div>
+              <div><Label>Supplier / AI Centre</Label><Input value={form.supplierName} onChange={e => setForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="e.g. Cogent Breeding, Genus ABS" /></div>
+              <div><Label>Straws Received</Label><Input type="number" min={0} value={form.strawsReceived} onChange={e => setForm(f => ({ ...f, strawsReceived: Number(e.target.value) }))} /></div>
+              <div><Label>Storage Location</Label><Input value={form.storageLocation} onChange={e => setForm(f => ({ ...f, storageLocation: e.target.value }))} placeholder="e.g. Tank 2, Goblet 3" /></div>
+              <div><Label>Delivery Date</Label><Input type="date" value={form.deliveryDate} onChange={e => setForm(f => ({ ...f, deliveryDate: e.target.value }))} /></div>
+              <div><Label>Unit Cost (£)</Label><Input type="number" min={0} step={0.01} value={form.unitCostPence !== "" ? Number(form.unitCostPence) / 100 : ""} onChange={e => setForm(f => ({ ...f, unitCostPence: e.target.value !== "" ? Math.round(Number(e.target.value) * 100) : "" }))} placeholder="e.g. 18.50" /></div>
+              <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Health cert reference, catalogue page, etc." /></div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm(EMPTY_STRAW); }}>Cancel</Button>
+              <Button type="submit" disabled={save.isPending}>Save</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function LivestockPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires">("herds");
+  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires" | "straws">("herds");
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -3096,6 +3360,9 @@ export default function LivestockPage() {
         <TabButton active={tab === "sires"} onClick={() => setTab("sires")}>
           <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5" /> Sires &amp; Rams</span>
         </TabButton>
+        <TabButton active={tab === "straws"} onClick={() => setTab("straws")}>
+          <span className="flex items-center gap-1"><FlaskConical className="h-3.5 w-3.5" /> Straw Inventory</span>
+        </TabButton>
         <TabButton active={tab === "ai-repro"} onClick={() => setTab("ai-repro")}>
           <span className="flex items-center gap-1"><Stethoscope className="h-3.5 w-3.5" /> AI & Reproduction</span>
         </TabButton>
@@ -3111,6 +3378,7 @@ export default function LivestockPage() {
       {tab === "feed" && <FeedSection farmId={farmId} />}
       {tab === "water" && <WaterSection farmId={farmId} />}
       {tab === "sires" && <SiresSection farmId={farmId} />}
+      {tab === "straws" && <StrawInventorySection farmId={farmId} />}
       {tab === "ai-repro" && <AIReproductionSection farmId={farmId} />}
       {tab === "vet-rx" && <VetPrescriptionsSection farmId={farmId} />}
     </AppLayout>

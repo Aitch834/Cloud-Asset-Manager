@@ -115,6 +115,7 @@ import {
   aiReproductionRecordsTable,
   vetPrescriptionRecordsTable,
   sireRegisterTable,
+  strawInventoryTable,
   sfiAgreementsTable,
   sfiActionsTable,
   slurryStoresTable,
@@ -11171,6 +11172,50 @@ router.delete("/farms/:farmId/sires/:id", requireAuth, requireTenant, requireMod
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.update(sireRegisterTable).set({ isActive: false, updatedAt: new Date() }).where(and(eq(sireRegisterTable.id, id), eq(sireRegisterTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// STRAW INVENTORY
+// ============================================================
+router.get("/farms/:farmId/straws", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select({
+    id: strawInventoryTable.id,
+    farmId: strawInventoryTable.farmId,
+    sireRegisterId: strawInventoryTable.sireRegisterId,
+    sireName: strawInventoryTable.sireName,
+    sireBreed: strawInventoryTable.sireBreed,
+    sireSpecies: strawInventoryTable.sireSpecies,
+    supplierName: strawInventoryTable.supplierName,
+    batchNumber: strawInventoryTable.batchNumber,
+    strawsReceived: strawInventoryTable.strawsReceived,
+    storageLocation: strawInventoryTable.storageLocation,
+    deliveryDate: strawInventoryTable.deliveryDate,
+    unitCostPence: strawInventoryTable.unitCostPence,
+    notes: strawInventoryTable.notes,
+    isActive: strawInventoryTable.isActive,
+    createdAt: strawInventoryTable.createdAt,
+    updatedAt: strawInventoryTable.updatedAt,
+    strawsUsed: sql<number>`(SELECT COUNT(*)::int FROM ai_reproduction_records WHERE straw_inventory_id = ${strawInventoryTable.id} AND farm_id = ${farmId})`,
+  }).from(strawInventoryTable).where(and(eq(strawInventoryTable.farmId, farmId), eq(strawInventoryTable.isActive, true))).orderBy(desc(strawInventoryTable.deliveryDate));
+  res.json({ records: rows });
+});
+router.post("/farms/:farmId/straws", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(strawInventoryTable).values({ ...req.body, farmId }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/straws/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(strawInventoryTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(strawInventoryTable.id, id), eq(strawInventoryTable.farmId, farmId))).returning();
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/straws/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.update(strawInventoryTable).set({ isActive: false, updatedAt: new Date() }).where(and(eq(strawInventoryTable.id, id), eq(strawInventoryTable.farmId, farmId)));
   res.json({ success: true });
 });
 
