@@ -12,31 +12,22 @@ const MODULES = [
   { id: "crop-trials", name: "Crop Trials", price: 15 },
   { id: "sprays-inputs", name: "Sprays & Inputs", price: 15 },
   { id: "soil-management", name: "Soil Management", price: 10 },
-  { id: "equipment-management", name: "Equipment & Vehicles", price: 15 },
-  { id: "workshop-management", name: "Workshop & Asset Management", price: 20 },
-  { id: "livestock-management", name: "Livestock Management", price: 30 },
+  { id: "equipment-workshop", name: "Equipment, Workshop & Fuel", price: 30, note: "Combines Equipment, Workshop & Fuel modules" },
+  { id: "livestock-management", name: "Livestock & Feed Management", price: 35, note: "Includes Feed Management" },
   { id: "biosecurity", name: "Biosecurity & Visitors", price: 10 },
   { id: "staff-training", name: "Staff & Training", price: 10 },
-  { id: "risk-waste", name: "Health, Safety & Risk Management", price: 10 },
-  { id: "inspections", name: "Inspections & Audits", price: 15 },
-  { id: "environmental", name: "Environmental Management", price: 10 },
-  { id: "haulage-transport", name: "Transport & Haulage", price: 10 },
-  { id: "stock-suppliers", name: "Trade Contacts & Stock", price: 15 },
-  { id: "financial-records", name: "Financial Records", price: 20 },
+  { id: "safety-risk-audits", name: "Safety, Risk & Audits", price: 20, note: "Combines HS&R and Inspections & Audits" },
+  { id: "environment-sustainability", name: "Environment & Sustainability", price: 16, note: "Combines Environmental Management and Carbon & Sustainability" },
+  { id: "water-irrigation", name: "Water & Irrigation Management", price: 10 },
+  { id: "finance-business", name: "Finance & Business", price: 32, note: "Combines Trade Contacts, Financial Records & Business Reports" },
   { id: "document-management", name: "Document Management", price: 10 },
   { id: "weather-tracking", name: "Weather Tracking", price: 15 },
-  { id: "fuel-energy", name: "Fuel & Energy Management", price: 8 },
-  { id: "feed-management", name: "Feed Management", price: 8 },
+  { id: "platform-addons", name: "Platform Add-ons", price: 10, note: "Includes SMS Alerts & Advisor/Inspector Access" },
   { id: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", price: 30 },
   { id: "pig-production", name: "Pig Production", price: 25 },
   { id: "poultry-production", name: "Poultry Production", price: 25 },
   { id: "horticulture", name: "Horticulture & Fresh Produce", price: 20 },
-  { id: "carbon-sustainability", name: "Carbon & Sustainability", price: 10 },
   { id: "farm-diversification", name: "Farm Diversification", price: 15 },
-  { id: "water-irrigation", name: "Water & Irrigation Management", price: 10 },
-  { id: "external-access", name: "Advisor & Inspector Access", price: 4 },
-  { id: "business-reports", name: "Business Reports", price: 5 },
-  { id: "sms-alerts", name: "SMS Text Alerts", price: 4 },
 ];
 
 interface Farm {
@@ -63,7 +54,7 @@ function getFarmCost(farm: Farm): number {
 
 export default function Pricing() {
   const [farms, setFarms] = useState<Farm[]>([
-    { id: 1, name: "Farm 1", selectedModules: ["red-tractor-compliance", "field-crop-management", "equipment-management"] },
+    { id: 1, name: "Farm 1", selectedModules: ["red-tractor-compliance", "field-crop-management", "equipment-workshop"] },
   ]);
   const [activeFarmId, setActiveFarmId] = useState(1);
   const [editingNameId, setEditingNameId] = useState<number | null>(null);
@@ -203,6 +194,9 @@ export default function Pricing() {
                         <span className="font-semibold text-foreground">{mod.name}</span>
                         <span className="text-muted-foreground font-mono ml-2 flex-shrink-0">£{mod.price}/mo</span>
                       </div>
+                      {"note" in mod && mod.note && (
+                        <p className="text-xs text-muted-foreground mt-1">{mod.note}</p>
+                      )}
                     </div>
                   );
                 })}

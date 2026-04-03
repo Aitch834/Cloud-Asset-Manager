@@ -56,35 +56,38 @@ const ALWAYS_SHOW_CATEGORIES = new Set([
   "Account & Settings",
 ]);
 
-// Maps article category → module key required to see it
-const CATEGORY_TO_MODULE: Record<string, string> = {
+// Maps article category → module key(s) required to see it.
+// Arrays mean "show if the farm has ANY of these keys" — supports both
+// legacy individual keys and new bundle keys for forward compatibility.
+const CATEGORY_TO_MODULE: Record<string, string | string[]> = {
   "Sprays & Inputs": "sprays-inputs",
   "Fields & Crops": "field-crop-management",
-  "Equipment": "equipment-management",
+  "Equipment": ["equipment-management", "equipment-workshop"],
+  "Equipment & Machinery": ["equipment-management", "equipment-workshop"],
+  "Workshop": ["workshop-management", "equipment-workshop"],
   "Livestock": "livestock-management",
-  "Inspections": "inspections",
+  "Feed Management": ["feed-management", "livestock-management"],
+  "Inspections": ["inspections", "safety-risk-audits"],
   "Compliance": "red-tractor-compliance",
   "Biosecurity": "biosecurity",
   "Staff & Training": "staff-training",
-  "Risk & Waste": "risk-waste",
-  "Health, Safety & Risk": "risk-waste",
-  "Financial": "financial-records",
+  "Risk & Waste": ["risk-waste", "safety-risk-audits"],
+  "Health, Safety & Risk": ["risk-waste", "safety-risk-audits"],
+  "Financial": ["financial-records", "finance-business"],
+  "Sales & Trading": ["financial-records", "finance-business"],
+  "Trade Contacts & Stock": ["stock-suppliers", "finance-business"],
   "Weather": "weather-tracking",
   "Documents": "document-management",
   "Biofuel / RTFO": "biofuel-rtfo",
   "Nutrient Management": "soil-management",
   "Dairy": "dairy-management",
-  "Workshop": "workshop-management",
-  "Equipment & Machinery": "equipment-management",
   "Pig Production": "pig_production",
   "Poultry Production": "poultry_production",
   "Horticulture": "horticulture",
-  "Carbon & Sustainability": "carbon_sustainability",
+  "Carbon & Sustainability": ["carbon_sustainability", "environment-sustainability"],
   "Farm Diversification": "farm_diversification",
   "Water & Irrigation": "water_irrigation",
-  "Environmental": "soil-management",
-  "Trade Contacts & Stock": "stock-suppliers",
-  "Sales & Trading": "financial-records",
+  "Environmental": ["soil-management", "environment-sustainability"],
   "Crop Trials": "crop-trials",
 };
 
@@ -97,6 +100,9 @@ function isArticleVisible(category: string, activeModuleKeys: string[] | null): 
   if (ALWAYS_SHOW_CATEGORIES.has(category)) return true;
   const requiredModule = CATEGORY_TO_MODULE[category];
   if (!requiredModule) return true; // unknown category → show by default
+  if (Array.isArray(requiredModule)) {
+    return requiredModule.some((key) => activeModuleKeys.includes(key));
+  }
   return activeModuleKeys.includes(requiredModule);
 }
 
