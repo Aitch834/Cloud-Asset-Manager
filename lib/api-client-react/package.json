@@ -9,10 +9,8 @@
     "./src/generated/api.schemas": "./src/generated/api.schemas.ts",
     "./src/custom-fetch": "./src/custom-fetch.ts"
   },
-  "dependencies": {
-    "@tanstack/react-query": "catalog:"
-  },
   "peerDependencies": {
-    "react": ">=18"
+    "react": ">=18",
+    "@tanstack/react-query": "^5.0.0"
   }
 }

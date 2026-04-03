@@ -19,7 +19,7 @@ import { getListFieldCropAssignmentsQueryKey } from "@workspace/api-client-react
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 import {
-  Plus, Search, Map, MoreVertical, Pencil, Trash2, AlertTriangle,
+  Plus, Search, Map as MapIcon, MoreVertical, Pencil, Trash2, AlertTriangle,
   Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -440,7 +440,7 @@ function FieldCardMenu({
             {currentCrop ? "Change crop" : "Assign crop"}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setBoundaryOpen(true)}>
-            <Map className="w-4 h-4 text-blue-600" />
+            <MapIcon className="w-4 h-4 text-blue-600" />
             Draw boundary on map
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setQrOpen(true)}>
@@ -1116,7 +1116,7 @@ export default function FieldsPage() {
               [1, 2, 3].map(i => <div key={i} className="h-56 rounded-2xl bg-black/5 animate-pulse" />)
             ) : filteredFields.length === 0 ? (
               <div className="col-span-full py-16 text-center text-foreground/50 border-2 border-dashed rounded-2xl">
-                <Map className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                <MapIcon className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <p className="text-lg">No fields found.</p>
               </div>
             ) : filteredFields.map((field) => {
