@@ -136,7 +136,7 @@ export default function HarvestPage() {
                   {cropYieldEntries.length === 0 ? (
                     <p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>—</p>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 110, overflowY: "auto" }}>
                       {cropYieldEntries.map(([crop, tonnes]) => (
                         <div key={crop} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                           <span style={{ fontSize: "0.8rem", color: "#374151", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{crop}</span>
