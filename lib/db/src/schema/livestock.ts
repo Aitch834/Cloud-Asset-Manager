@@ -324,6 +324,7 @@ export const aiReproductionRecordsTable = pgTable("ai_reproduction_records", {
   earTag: text("ear_tag").notNull(),
   serviceDate: date("service_date").notNull(),
   serviceType: text("service_type").notNull(),
+  sireRegisterId: integer("sire_register_id"),
   bullOrSireName: text("bull_or_sire_name"),
   sireStuNumber: text("sire_stu_number"),
   sireBreed: text("sire_breed"),
@@ -390,6 +391,31 @@ export const livestockDailyChecksTable = pgTable("livestock_daily_checks", {
   longitude: text("longitude"),
   mobileId: text("mobile_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const sireRegisterTable = pgTable("sire_register", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  species: text("species").notNull(),
+  breed: text("breed"),
+  tagNumber: text("tag_number"),
+  passportNumber: text("passport_number"),
+  dateOfBirth: date("date_of_birth"),
+  ownershipType: text("ownership_type").notNull().default("owned"),
+  supplierName: text("supplier_name"),
+  supplierContact: text("supplier_contact"),
+  hireStartDate: date("hire_start_date"),
+  hireEndDate: date("hire_end_date"),
+  returnDate: date("return_date"),
+  bvdStatus: text("bvd_status"),
+  fertilityTestDate: date("fertility_test_date"),
+  fertilityTestResult: text("fertility_test_result"),
+  scrapieGenotype: text("scrapie_genotype"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
 export const herdHealthEventsTable = pgTable("herd_health_events", {

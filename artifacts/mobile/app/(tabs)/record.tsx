@@ -238,6 +238,17 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["livestock"],
   },
   {
+    id: "sire-register",
+    title: "Sire Register",
+    description: "View and add bulls and rams — owned, hired in, or loaned — with health and fertility records",
+    icon: "target",
+    color: colors.primary,
+    bgColor: colors.primaryMuted + "33",
+    route: "/sire-register",
+    moduleKeys: ["livestock-management"],
+    requiresSectors: ["livestock"],
+  },
+  {
     id: "mortality-record",
     title: "Animal Mortality Record",
     description: "Log individual animal deaths — cause, disposal method, BCMS notification and vet attendance",

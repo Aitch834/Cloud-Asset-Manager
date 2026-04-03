@@ -114,6 +114,7 @@ import {
   grainTemperatureLogsTable,
   aiReproductionRecordsTable,
   vetPrescriptionRecordsTable,
+  sireRegisterTable,
   sfiAgreementsTable,
   sfiActionsTable,
   slurryStoresTable,
@@ -11144,6 +11145,32 @@ router.delete("/farms/:farmId/vet-prescriptions/:id", requireAuth, requireTenant
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(vetPrescriptionRecordsTable).where(and(eq(vetPrescriptionRecordsTable.id, id), eq(vetPrescriptionRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// SIRE REGISTER (Bulls & Rams — sub-tab on Livestock module)
+// ============================================================
+router.get("/farms/:farmId/sires", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(sireRegisterTable).where(eq(sireRegisterTable.farmId, farmId)).orderBy(sireRegisterTable.name);
+  res.json({ records: rows });
+});
+router.post("/farms/:farmId/sires", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(sireRegisterTable).values({ ...req.body, farmId }).returning();
+  res.json({ record: row });
+});
+router.put("/farms/:farmId/sires/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(sireRegisterTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(sireRegisterTable.id, id), eq(sireRegisterTable.farmId, farmId))).returning();
+  res.json({ record: row });
+});
+router.delete("/farms/:farmId/sires/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.update(sireRegisterTable).set({ isActive: false, updatedAt: new Date() }).where(and(eq(sireRegisterTable.id, id), eq(sireRegisterTable.farmId, farmId)));
   res.json({ success: true });
 });
 

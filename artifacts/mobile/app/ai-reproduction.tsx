@@ -19,12 +19,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { HerdPicker } from "@/components/ui/HerdPicker";
+import { SirePicker } from "@/components/ui/SirePicker";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiHerds } from "@/lib/hooks/useApiHerds";
+import { useApiSires, type ApiSire } from "@/lib/hooks/useApiSires";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { AiReproductionRecord } from "@/lib/types";
 
@@ -64,7 +66,9 @@ export default function AiReproductionScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
-  const { herds, loading: herdsLoading, fromCache: herdsCached, error: herdsError } = useApiHerds(currentFarm?.id);
+  const farmIdStr = currentFarm?.id ? String(currentFarm.id) : undefined;
+  const { herds, loading: herdsLoading, fromCache: herdsCached, error: herdsError } = useApiHerds(farmIdStr);
+  const { sires, loading: siresLoading, fromCache: siresCached, error: siresError } = useApiSires(farmIdStr);
   const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
@@ -73,7 +77,7 @@ export default function AiReproductionScreen() {
   const [animalId, setAnimalId] = useState("");
   const [serviceDate, setServiceDate] = useState(today);
   const [method, setMethod] = useState<Method>("AI");
-  const [sireId, setSireId] = useState("");
+  const [sireName, setSireName] = useState("");
   const [sireBreed, setSireBreed] = useState("");
   const [sireSource, setSireSource] = useState("");
   const [strawBatch, setStrawBatch] = useState("");
@@ -90,6 +94,18 @@ export default function AiReproductionScreen() {
   const handleServiceDateChange = (val: string) => {
     setServiceDate(val);
     setExpectedCalvingDate(calcExpectedCalving(val));
+  };
+
+  const handleSireChange = (sire: ApiSire) => {
+    if (!sire) {
+      setSireName("");
+      setSireBreed("");
+      setSireSource("");
+      return;
+    }
+    setSireName(sire.name);
+    setSireBreed(sire.breed ?? "");
+    setSireSource(sire.supplierName ?? sire.ownershipType === "owned" ? "Own Farm" : "");
   };
 
   const handleSave = async () => {
@@ -120,7 +136,7 @@ export default function AiReproductionScreen() {
       animalId: animalId.trim(),
       serviceDate,
       method,
-      sireId: sireId.trim(),
+      sireId: sireName.trim(),
       sireBreed: sireBreed.trim(),
       sireSource: sireSource.trim(),
       strawnBatchNumber: strawBatch.trim(),
@@ -159,10 +175,10 @@ export default function AiReproductionScreen() {
         </View>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          {herdsCached && (
+          {(herdsCached || siresCached) && (
             <View style={styles.offlineBanner}>
               <Feather name="wifi-off" size={14} color={colors.accent} />
-              <Text style={styles.offlineText}>Offline — using cached herd list</Text>
+              <Text style={styles.offlineText}>Offline — using cached data</Text>
             </View>
           )}
 
@@ -182,9 +198,25 @@ export default function AiReproductionScreen() {
             ))}
           </View>
 
-          <Input label="Sire / Bull Tag / AI Stud Code" value={sireId} onChangeText={setSireId} placeholder="e.g. Cogent 100HO01234" />
+          <Text style={styles.sectionTitle}>Sire / Bull / Ram</Text>
+          <SirePicker
+            sires={sires}
+            loading={siresLoading}
+            fromCache={siresCached}
+            error={siresError}
+            value={sireName}
+            onChange={setSireName}
+            onChangeSire={handleSireChange}
+          />
+          {sires.length === 0 && !siresLoading && (
+            <Pressable onPress={() => router.push("/sire-register")} style={styles.registerLink}>
+              <Feather name="plus-circle" size={14} color={colors.primary} />
+              <Text style={styles.registerLinkText}>Add to sire register</Text>
+            </Pressable>
+          )}
+          <Input label="Sire Name" value={sireName} onChangeText={setSireName} placeholder="Auto-filled from register, or type manually" />
           <Input label="Sire Breed" value={sireBreed} onChangeText={setSireBreed} placeholder="e.g. Holstein, Hereford" />
-          <Input label="Sire Source (Stud / Farm Name)" value={sireSource} onChangeText={setSireSource} placeholder="e.g. Cogent UK" />
+          <Input label="Sire Source (Stud / Farm Name)" value={sireSource} onChangeText={setSireSource} placeholder="e.g. Cogent UK, Own Farm" />
           {(method === "AI" || method === "synchronised_AI" || method === "ET") && (
             <Input label="Straw / Batch Number" value={strawBatch} onChangeText={setStrawBatch} placeholder="Batch / straw reference" />
           )}
@@ -253,6 +285,8 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: colors.primary, backgroundColor: colors.primary + "15" },
   chipText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
   chipTextActive: { color: colors.primary, fontFamily: fonts.semiBold },
+  registerLink: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: -spacing.sm, marginBottom: spacing.sm },
+  registerLinkText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.primary },
   switchRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   switchLabel: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
   switchSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2 },

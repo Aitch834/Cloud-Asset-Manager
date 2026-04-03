@@ -156,6 +156,37 @@ interface Animal {
   createdAt: string;
 }
 
+interface Sire {
+  id: number;
+  farmId: number;
+  name: string;
+  species: string;
+  breed: string | null;
+  tagNumber: string | null;
+  passportNumber: string | null;
+  dateOfBirth: string | null;
+  ownershipType: string;
+  supplierName: string | null;
+  supplierContact: string | null;
+  hireStartDate: string | null;
+  hireEndDate: string | null;
+  returnDate: string | null;
+  bvdStatus: string | null;
+  fertilityTestDate: string | null;
+  fertilityTestResult: string | null;
+  scrapieGenotype: string | null;
+  notes: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+const EMPTY_SIRE = {
+  name: "", species: "Cattle", breed: "", tagNumber: "", passportNumber: "",
+  dateOfBirth: "", ownershipType: "owned",
+  supplierName: "", supplierContact: "", hireStartDate: "", hireEndDate: "", returnDate: "",
+  bvdStatus: "", fertilityTestDate: "", fertilityTestResult: "", scrapieGenotype: "", notes: "",
+};
+
 const EMPTY_HERD = { name: "", type: "", breed: "", herdNumber: "", notes: "" };
 const EMPTY_PLAN = {
   planYear: new Date().getFullYear(),
@@ -2450,6 +2481,215 @@ function AnimalsSection({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Sire Register Section ─────────────────────────────────────────────────────
+function SiresSection({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Sire | null>(null);
+  const [form, setForm] = useState<typeof EMPTY_SIRE>(EMPTY_SIRE);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+
+  const baseUrl = `/api/farms/${farmId}/sires`;
+  const { data, isLoading } = useQuery({
+    queryKey: ["sires", farmId],
+    queryFn: () => fetch(baseUrl, { credentials: "include" }).then(r => r.json()) as Promise<{ records: Sire[] }>,
+  });
+  const records: Sire[] = (data?.records ?? []).filter(s => s.isActive);
+  const filtered = records.filter(s => !search || s.name.toLowerCase().includes(search.toLowerCase()) || (s.breed ?? "").toLowerCase().includes(search.toLowerCase()));
+
+  const createMut = useMutation({
+    mutationFn: (body: Record<string, unknown>) => fetch(baseUrl, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sires", farmId] }); setOpen(false); setForm(EMPTY_SIRE); setEditing(null); },
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) => fetch(`${baseUrl}/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sires", farmId] }); setOpen(false); setForm(EMPTY_SIRE); setEditing(null); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`${baseUrl}/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sires", farmId] }); setDeleteId(null); },
+  });
+
+  function openAdd() { setEditing(null); setForm(EMPTY_SIRE); setOpen(true); }
+  function openEdit(s: Sire) {
+    setEditing(s);
+    setForm({
+      name: s.name ?? "", species: s.species ?? "Cattle", breed: s.breed ?? "", tagNumber: s.tagNumber ?? "",
+      passportNumber: s.passportNumber ?? "", dateOfBirth: s.dateOfBirth ?? "", ownershipType: s.ownershipType ?? "owned",
+      supplierName: s.supplierName ?? "", supplierContact: s.supplierContact ?? "",
+      hireStartDate: s.hireStartDate ?? "", hireEndDate: s.hireEndDate ?? "", returnDate: s.returnDate ?? "",
+      bvdStatus: s.bvdStatus ?? "", fertilityTestDate: s.fertilityTestDate ?? "",
+      fertilityTestResult: s.fertilityTestResult ?? "", scrapieGenotype: s.scrapieGenotype ?? "", notes: s.notes ?? "",
+    });
+    setOpen(true);
+  }
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const clean: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(form)) clean[k] = v === "" ? null : v;
+    if (editing) updateMut.mutate({ id: editing.id, body: clean });
+    else createMut.mutate(clean);
+  }
+  const saving = createMut.isPending || updateMut.isPending;
+  const isHiredOrLoaned = form.ownershipType === "hired_in" || form.ownershipType === "loaned";
+
+  const ownershipLabel: Record<string, string> = { owned: "Owned", hired_in: "Hired In", loaned: "Loaned" };
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Input placeholder="Search sires…" value={search} onChange={e => setSearch(e.target.value)} className="w-64" />
+        </div>
+        <Button onClick={openAdd} className="gap-1"><Plus className="h-4 w-4" /> Add Sire / Ram</Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <p className="font-medium">{search ? "No sires match your search" : "No sires registered yet"}</p>
+          {!search && <p className="text-sm mt-1">Add your bulls and rams — both on-site and hired in.</p>}
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 border-b border-border">
+              <tr>
+                {["Name", "Species", "Breed", "Tag / Passport", "Ownership", "BVD / Scrapie", "Actions"].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((s, i) => (
+                <tr key={s.id} className={i % 2 === 0 ? "bg-white" : "bg-muted/20"}>
+                  <td className="px-4 py-3 font-semibold text-foreground">{s.name}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{s.species}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{s.breed ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {s.tagNumber ?? "—"}{s.passportNumber ? ` / ${s.passportNumber}` : ""}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      s.ownershipType === "owned" ? "bg-green-100 text-green-800"
+                      : s.ownershipType === "hired_in" ? "bg-blue-100 text-blue-800"
+                      : "bg-yellow-100 text-yellow-800"
+                    }`}>{ownershipLabel[s.ownershipType] ?? s.ownershipType}</span>
+                    {(s.ownershipType === "hired_in" || s.ownershipType === "loaned") && s.hireStartDate && (
+                      <p className="text-xs text-muted-foreground mt-0.5">From {s.hireStartDate}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">
+                    {s.species === "Cattle" && s.bvdStatus ? s.bvdStatus : ""}
+                    {s.species === "Sheep" && s.scrapieGenotype ? s.scrapieGenotype : ""}
+                    {!s.bvdStatus && !s.scrapieGenotype ? "—" : ""}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(s)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => setDeleteId(s.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); setForm(EMPTY_SIRE); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Sire / Ram" : "Add Sire / Ram"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="col-span-2"><Label>Name *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Oakfield Commander" required /></div>
+              <div><Label>Species *</Label>
+                <Select value={form.species} onValueChange={v => setForm(f => ({ ...f, species: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{["Cattle", "Sheep", "Pig", "Goat", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Breed</Label><Input value={form.breed} onChange={e => setForm(f => ({ ...f, breed: e.target.value }))} placeholder="e.g. Aberdeen Angus" /></div>
+              <div><Label>Ear Tag Number</Label><Input value={form.tagNumber} onChange={e => setForm(f => ({ ...f, tagNumber: e.target.value }))} placeholder="e.g. UK141092 12345" /></div>
+              <div><Label>Passport Number</Label><Input value={form.passportNumber} onChange={e => setForm(f => ({ ...f, passportNumber: e.target.value }))} placeholder="Cattle passport / flock no." /></div>
+              <div><Label>Date of Birth</Label><Input type="date" value={form.dateOfBirth} onChange={e => setForm(f => ({ ...f, dateOfBirth: e.target.value }))} /></div>
+              <div><Label>Ownership *</Label>
+                <Select value={form.ownershipType} onValueChange={v => setForm(f => ({ ...f, ownershipType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="owned">Owned — permanently on farm</SelectItem>
+                    <SelectItem value="hired_in">Hired In — brought on for a season</SelectItem>
+                    <SelectItem value="loaned">Loaned — temporary loan from another farm</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {isHiredOrLoaned && (
+                <>
+                  <div className="col-span-2 border-t pt-3">
+                    <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Hire / Loan Details</p>
+                  </div>
+                  <div><Label>Supplier / Owner Name</Label><Input value={form.supplierName} onChange={e => setForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="Farm or stud name" /></div>
+                  <div><Label>Supplier Contact</Label><Input value={form.supplierContact} onChange={e => setForm(f => ({ ...f, supplierContact: e.target.value }))} placeholder="Phone or email" /></div>
+                  <div><Label>Arrived on Farm</Label><Input type="date" value={form.hireStartDate} onChange={e => setForm(f => ({ ...f, hireStartDate: e.target.value }))} /></div>
+                  <div><Label>Expected Return Date</Label><Input type="date" value={form.hireEndDate} onChange={e => setForm(f => ({ ...f, hireEndDate: e.target.value }))} /></div>
+                  <div><Label>Actual Return Date</Label><Input type="date" value={form.returnDate} onChange={e => setForm(f => ({ ...f, returnDate: e.target.value }))} /></div>
+                </>
+              )}
+
+              <div className="col-span-2 border-t pt-3">
+                <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Health Status</p>
+              </div>
+              {form.species === "Cattle" && (
+                <div><Label>BVD Status</Label>
+                  <Select value={form.bvdStatus || "__none__"} onValueChange={v => setForm(f => ({ ...f, bvdStatus: v === "__none__" ? "" : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Not recorded —</SelectItem>
+                      <SelectItem value="Tested Negative">Tested Negative</SelectItem>
+                      <SelectItem value="Vaccinated">Vaccinated</SelectItem>
+                      <SelectItem value="Not Tested">Not Tested</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {form.species === "Sheep" && (
+                <div><Label>Scrapie Genotype</Label><Input value={form.scrapieGenotype} onChange={e => setForm(f => ({ ...f, scrapieGenotype: e.target.value }))} placeholder="e.g. ARR/ARR" /></div>
+              )}
+              <div><Label>Fertility Test Date</Label><Input type="date" value={form.fertilityTestDate} onChange={e => setForm(f => ({ ...f, fertilityTestDate: e.target.value }))} /></div>
+              <div><Label>Fertility Test Result</Label><Input value={form.fertilityTestResult} onChange={e => setForm(f => ({ ...f, fertilityTestResult: e.target.value }))} placeholder="e.g. Satisfactory" /></div>
+              <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm(EMPTY_SIRE); }}>Cancel</Button>
+              <Button type="submit" disabled={saving || !form.name.trim()}>{saving ? <Loader2 className="animate-spin h-4 w-4" /> : editing ? "Save Changes" : "Add Sire"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {deleteId !== null && (
+        <Dialog open onOpenChange={() => setDeleteId(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Remove Sire from Register?</DialogTitle></DialogHeader>
+            <p className="text-sm text-muted-foreground">This will deactivate the sire record. Existing AI/reproduction records linked to this sire are unaffected.</p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>
+                {deleteMut.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Remove"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
 // ─── AI / Reproduction Section ─────────────────────────────────────────────────
 function AIReproductionSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
@@ -2466,10 +2706,15 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
     queryKey: ["animals", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/animals`, { credentials: "include" }).then(r => r.json()),
   });
+  const { data: siresData } = useQuery({
+    queryKey: ["sires", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/sires`, { credentials: "include" }).then(r => r.json()) as Promise<{ records: Sire[] }>,
+  });
   const { data: membersData } = useFarmMembers(farmId);
 
   const herds: Herd[] = (herdsData?.records ?? []).filter((h: Herd) => h.isActive);
   const allAnimals: Animal[] = animalsData?.records ?? [];
+  const activeSires: Sire[] = (siresData?.records ?? []).filter((s: Sire) => s.isActive);
 
   // Filter animals to selected herd (if any), active only
   const selectedHerdId = form.herdId ? Number(form.herdId) : null;
@@ -2479,6 +2724,17 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
   );
 
   const staffNames = (membersData?.members ?? []).map((m: Parameters<typeof memberFullName>[0]) => memberFullName(m));
+
+  function handleSireSelect(val: string) {
+    if (val === "__none__") {
+      setForm(f => ({ ...f, sireRegisterId: "", sireName: "", sireBreed: "" }));
+      return;
+    }
+    const sire = activeSires.find(s => String(s.id) === val);
+    if (sire) {
+      setForm(f => ({ ...f, sireRegisterId: String(sire.id), sireName: sire.name, sireBreed: sire.breed ?? "" }));
+    }
+  }
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["ai-reproduction", farmId],
@@ -2645,8 +2901,26 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
             </div>
 
             <div><Label>Straw / Batch Ref</Label><Input value={String(form.strawBatchRef ?? "")} onChange={e => setForm(f => ({ ...f, strawBatchRef: e.target.value }))} /></div>
-            <div><Label>Sire Name</Label><Input value={String(form.sireName ?? "")} onChange={e => setForm(f => ({ ...f, sireName: e.target.value }))} /></div>
-            <div><Label>Sire Breed</Label><Input value={String(form.sireBreed ?? "")} onChange={e => setForm(f => ({ ...f, sireBreed: e.target.value }))} /></div>
+            {/* ── Sire register lookup ── */}
+            <div className="col-span-2">
+              <Label>Sire / Bull / Ram</Label>
+              <Select value={String(form.sireRegisterId || "__none__")} onValueChange={handleSireSelect}>
+                <SelectTrigger><SelectValue placeholder="Select from sire register…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Enter manually below —</SelectItem>
+                  {activeSires.map(s => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {s.name}{s.breed ? ` (${s.breed})` : ""}{s.tagNumber ? ` — ${s.tagNumber}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {activeSires.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1">No sires in register — add one in the Sires &amp; Rams tab, or type a name below.</p>
+              )}
+            </div>
+            <div><Label>Sire Name</Label><Input value={String(form.sireName ?? "")} onChange={e => setForm(f => ({ ...f, sireName: e.target.value }))} placeholder="Auto-filled from register, or type manually" /></div>
+            <div><Label>Sire Breed</Label><Input value={String(form.sireBreed ?? "")} onChange={e => setForm(f => ({ ...f, sireBreed: e.target.value }))} placeholder="Auto-filled from register" /></div>
             <div><Label>Expected Due Date</Label><Input type="date" value={String(form.expectedDueDate ?? "")} onChange={e => setForm(f => ({ ...f, expectedDueDate: e.target.value }))} /></div>
             <div className="flex items-center gap-2 mt-4">
               <input type="checkbox" id="conceptionConfirmed" checked={Boolean(form.conceptionConfirmed)} onChange={e => setForm(f => ({ ...f, conceptionConfirmed: e.target.checked }))} className="w-4 h-4" />
@@ -2795,7 +3069,7 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
 
 export default function LivestockPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx">("herds");
+  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires">("herds");
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -2819,6 +3093,9 @@ export default function LivestockPage() {
         <TabButton active={tab === "water"} onClick={() => setTab("water")}>
           <span className="flex items-center gap-1"><Droplets className="h-3.5 w-3.5" /> Water Quality</span>
         </TabButton>
+        <TabButton active={tab === "sires"} onClick={() => setTab("sires")}>
+          <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5" /> Sires &amp; Rams</span>
+        </TabButton>
         <TabButton active={tab === "ai-repro"} onClick={() => setTab("ai-repro")}>
           <span className="flex items-center gap-1"><Stethoscope className="h-3.5 w-3.5" /> AI & Reproduction</span>
         </TabButton>
@@ -2833,6 +3110,7 @@ export default function LivestockPage() {
       {tab === "contractors" && <FallenStockContractorsSection farmId={farmId} />}
       {tab === "feed" && <FeedSection farmId={farmId} />}
       {tab === "water" && <WaterSection farmId={farmId} />}
+      {tab === "sires" && <SiresSection farmId={farmId} />}
       {tab === "ai-repro" && <AIReproductionSection farmId={farmId} />}
       {tab === "vet-rx" && <VetPrescriptionsSection farmId={farmId} />}
     </AppLayout>
