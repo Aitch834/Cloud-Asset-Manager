@@ -15,14 +15,13 @@ export function StaffSelect({
   loading?: boolean;
 }) {
   if (loading) {
-    return <Input className="mt-1" value={value} onChange={(e) => onChange(e.target.value)} placeholder="Loading staff…" disabled />;
+    return <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Loading staff…" disabled />;
   }
 
   if (staffNames.length === 0) {
     return (
       <div>
         <Input
-          className="mt-1"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Type staff member name…"
@@ -40,7 +39,7 @@ export function StaffSelect({
 
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="mt-1">
+      <SelectTrigger>
         <SelectValue placeholder="Select staff member…" />
       </SelectTrigger>
       <SelectContent>

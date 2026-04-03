@@ -14,6 +14,7 @@ const ROLE_RANK: Record<FarmRole, number> = {
 export interface UserAccess {
   farmRole: FarmRole;
   accessType: AccessType;
+  displayName: string | null;
 }
 
 const DEV_BYPASS = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
@@ -24,7 +25,7 @@ function authHeaders(): HeadersInit {
   return {};
 }
 
-export function useUserRole(): { role: FarmRole; accessType: AccessType; isAtLeast: (min: FarmRole) => boolean } {
+export function useUserRole(): { role: FarmRole; accessType: AccessType; displayName: string | null; isAtLeast: (min: FarmRole) => boolean } {
   const { farmId } = useAppStore();
 
   const { data } = useQuery<UserAccess>({
@@ -40,10 +41,12 @@ export function useUserRole(): { role: FarmRole; accessType: AccessType; isAtLea
 
   const role = data?.farmRole ?? "owner";
   const accessType = data?.accessType ?? "full";
+  const displayName = data?.displayName ?? null;
 
   return {
     role,
     accessType,
+    displayName,
     isAtLeast: (min: FarmRole) => ROLE_RANK[role] >= ROLE_RANK[min],
   };
 }

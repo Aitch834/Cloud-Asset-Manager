@@ -11635,14 +11635,20 @@ router.get("/farms/:farmId/my-access", requireAuth, requireTenant, async (req: R
   if (!farmId) return;
   const userId = req.user?.id;
   if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
+
+  const [userRow] = await db.select({ firstName: usersTable.firstName, lastName: usersTable.lastName })
+    .from(usersTable).where(eq(usersTable.id, userId));
+  const displayName = userRow
+    ? [userRow.firstName, userRow.lastName].filter(Boolean).join(" ").trim() || null
+    : null;
+
   const [assignment] = await db.select().from(staffFarmAssignmentsTable)
     .where(and(eq(staffFarmAssignmentsTable.userId, userId), eq(staffFarmAssignmentsTable.farmId, farmId)));
   if (!assignment) {
-    // Farm owner / tenant admin - full owner access
-    res.json({ farmRole: "owner", accessType: "full" });
+    res.json({ farmRole: "owner", accessType: "full", displayName });
     return;
   }
-  res.json({ farmRole: assignment.farmRole, accessType: assignment.accessType });
+  res.json({ farmRole: assignment.farmRole, accessType: assignment.accessType, displayName });
 });
 
 // Update a farm user's access type or farm role

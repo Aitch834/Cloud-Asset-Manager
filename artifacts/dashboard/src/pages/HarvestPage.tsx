@@ -7,6 +7,7 @@ import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
+import { useUserRole } from "@/hooks/use-user-role";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -217,6 +218,7 @@ function StatCard({ icon, label, value, bg, iconBg }: { icon: React.ReactNode; l
 function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRefresh, toast }: any) {
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
   const staffNames: string[] = (membersData?.members ?? []).filter((m: any) => m.isActive).map(memberFullName);
+  const { displayName: currentUserName } = useUserRole();
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [addOpen, setAddOpen] = useState(false);
@@ -319,7 +321,7 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
           <Input placeholder="Search harvests..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
         <CropYearSelector value={cropYear} onChange={setCropYear} />
-        <Button size="sm" onClick={() => { setForm(emptyForm); setEditRecord(null); setAddOpen(true); }}>
+        <Button size="sm" onClick={() => { setForm({ ...emptyForm, recordedBy: currentUserName || "" }); setEditRecord(null); setAddOpen(true); }}>
           <Plus size={14} className="mr-1" />Log Harvest
         </Button>
       </div>
