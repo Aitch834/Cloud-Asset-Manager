@@ -127,6 +127,54 @@ export default function WasteDisposalPage() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── EA live register lookups ─────────────────────────────────────────────
+  const [carrierQuery, setCarrierQuery] = useState("");
+  const [carrierResults, setCarrierResults] = useState<any[]>([]);
+  const [carrierLoading, setCarrierLoading] = useState(false);
+  const [carrierDropOpen, setCarrierDropOpen] = useState(false);
+  const carrierTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [siteQuery, setSiteQuery] = useState("");
+  const [siteResults, setSiteResults] = useState<any[]>([]);
+  const [siteLoading, setSiteLoading] = useState(false);
+  const [siteDropOpen, setSiteDropOpen] = useState(false);
+  const siteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    if (carrierTimer.current) clearTimeout(carrierTimer.current);
+    if (carrierQuery.length < 3) { setCarrierResults([]); return; }
+    carrierTimer.current = setTimeout(async () => {
+      setCarrierLoading(true);
+      try {
+        const r = await fetch(`/api/ea/carriers?q=${encodeURIComponent(carrierQuery)}`);
+        const data = await r.json();
+        setCarrierResults(data.results ?? []);
+      } catch { setCarrierResults([]); }
+      finally { setCarrierLoading(false); }
+    }, 400);
+    return () => { if (carrierTimer.current) clearTimeout(carrierTimer.current); };
+  }, [carrierQuery]);
+
+  React.useEffect(() => {
+    if (siteTimer.current) clearTimeout(siteTimer.current);
+    if (siteQuery.length < 3) { setSiteResults([]); return; }
+    siteTimer.current = setTimeout(async () => {
+      setSiteLoading(true);
+      try {
+        const r = await fetch(`/api/ea/permitted-sites?q=${encodeURIComponent(siteQuery)}`);
+        const data = await r.json();
+        setSiteResults(data.results ?? []);
+      } catch { setSiteResults([]); }
+      finally { setSiteLoading(false); }
+    }, 400);
+    return () => { if (siteTimer.current) clearTimeout(siteTimer.current); };
+  }, [siteQuery]);
+
+  const resetEaSearch = () => {
+    setCarrierQuery(""); setCarrierResults([]); setCarrierDropOpen(false);
+    setSiteQuery(""); setSiteResults([]); setSiteDropOpen(false);
+  };
+
   const farmQ = useQuery({
     queryKey: ["farm-detail", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
@@ -238,6 +286,7 @@ export default function WasteDisposalPage() {
     setForm(emptyForm);
     setCarrierMode("registered");
     setSelectedFile(null);
+    resetEaSearch();
     setAddOpen(true);
   };
   const openEdit = (r: WasteRecord) => {
@@ -245,6 +294,10 @@ export default function WasteDisposalPage() {
     setForm({ ...r, disposalDate: r.disposalDate?.slice(0, 10) ?? "" });
     setCarrierMode(r.carrierId ? "registered" : "manual");
     setSelectedFile(null);
+    setCarrierQuery(r.carrierName ?? "");
+    setSiteQuery(r.destinationSite ?? "");
+    setCarrierDropOpen(false);
+    setSiteDropOpen(false);
     setAddOpen(true);
   };
 
@@ -464,7 +517,7 @@ export default function WasteDisposalPage() {
         )}
 
         {/* ─── Add / Edit Dialog ─────────────────────────── */}
-        <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
+        <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); setSelectedFile(null); resetEaSearch(); } }}>
           <DialogContent style={{ maxWidth: 620 }}>
             <DialogHeader><DialogTitle>{editRecord ? "Edit Waste Record" : "Add Waste Disposal Record"}</DialogTitle></DialogHeader>
             <div className="space-y-3 py-2">
@@ -551,15 +604,72 @@ export default function WasteDisposalPage() {
                       </div>
                     )}
                   </div>
-                ) : wasteCarriers.length === 0 && carrierMode === "registered" ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Carrier Company Name</Label><Input placeholder="e.g. Smith Waste Services Ltd" value={form.carrierName} onChange={e => setForm((f: any) => ({ ...f, carrierName: e.target.value }))} /></div>
-                    <div><Label>EA Registration No.</Label><Input placeholder="e.g. CBDU01234" value={form.carrierLicence} onChange={e => setForm((f: any) => ({ ...f, carrierLicence: e.target.value }))} style={{ fontFamily: "monospace" }} /></div>
-                  </div>
                 ) : (
+                  /* EA live register typeahead — used when no registered carriers or in manual mode */
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Carrier Company Name</Label><Input placeholder="e.g. Smith Waste Services Ltd" value={form.carrierName} onChange={e => setForm((f: any) => ({ ...f, carrierName: e.target.value }))} /></div>
-                    <div><Label>EA Registration No.</Label><Input placeholder="e.g. CBDU01234" value={form.carrierLicence} onChange={e => setForm((f: any) => ({ ...f, carrierLicence: e.target.value }))} style={{ fontFamily: "monospace" }} /></div>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
+                        <Label style={{ margin: 0 }}>Carrier Company Name</Label>
+                        <span style={{ fontSize: "0.68rem", color: "#0284c7", fontWeight: 500 }}>🔍 Live EA Register</span>
+                      </div>
+                      <div style={{ position: "relative" }}>
+                        <Input
+                          value={carrierQuery}
+                          onChange={e => {
+                            setCarrierQuery(e.target.value);
+                            setForm((f: any) => ({ ...f, carrierName: e.target.value }));
+                            setCarrierDropOpen(true);
+                          }}
+                          onFocus={() => { if (carrierResults.length > 0) setCarrierDropOpen(true); }}
+                          onBlur={() => setTimeout(() => setCarrierDropOpen(false), 150)}
+                          placeholder="Type to search EA Waste Carrier Register…"
+                        />
+                        {carrierLoading && (
+                          <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: "0.75rem" }}>searching…</span>
+                        )}
+                        {carrierDropOpen && carrierQuery.length >= 3 && !carrierLoading && (
+                          <div style={{ position: "absolute", top: "calc(100% + 2px)", left: 0, right: 0, zIndex: 1000, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,0.13)", overflow: "hidden", maxHeight: 230, overflowY: "auto" }}>
+                            {carrierResults.length === 0 ? (
+                              <div style={{ padding: "0.625rem 0.875rem", fontSize: "0.8rem", color: "#6b7280" }}>No carriers found — enter details manually below</div>
+                            ) : carrierResults.map((c: any, i: number) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onMouseDown={() => {
+                                  const regType = c.tier === "upper" ? "Upper Tier Carrier" : c.tier === "lower" ? "Lower Tier Carrier" : (c.type || "");
+                                  setForm((f: any) => ({ ...f, carrierName: c.name, carrierLicence: c.regNumber, carrierRegistrationType: regType }));
+                                  setCarrierQuery(c.name);
+                                  setCarrierDropOpen(false);
+                                }}
+                                style={{ display: "block", width: "100%", textAlign: "left", padding: "0.5rem 0.875rem", background: "none", border: "none", cursor: "pointer", borderBottom: i < carrierResults.length - 1 ? "1px solid #f3f4f6" : "none" }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#f8fafc"; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                              >
+                                <div style={{ fontWeight: 600, fontSize: "0.875rem", color: "#111827" }}>{c.name}</div>
+                                <div style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 1 }}>
+                                  {c.regNumber && <span style={{ fontFamily: "monospace", color: "#0284c7", marginRight: 8 }}>{c.regNumber}</span>}
+                                  {c.tier && <span>{c.tier === "upper" ? "Upper tier" : c.tier === "lower" ? "Lower tier" : c.tier} carrier</span>}
+                                  {c.address && <span style={{ marginLeft: 6 }}>· {c.address}</span>}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <p style={{ fontSize: "0.68rem", color: "#9ca3af", marginTop: 3 }}>England · EA Waste Carrier, Broker & Dealer Register</p>
+                    </div>
+                    <div>
+                      <Label>EA Registration No.</Label>
+                      <Input
+                        placeholder="e.g. CBDU01234"
+                        value={form.carrierLicence}
+                        onChange={e => setForm((f: any) => ({ ...f, carrierLicence: e.target.value }))}
+                        style={{ fontFamily: "monospace", background: form.carrierLicence && form.carrierName === carrierQuery ? "#f0f9ff" : undefined }}
+                      />
+                      {form.carrierLicence && form.carrierName === carrierQuery && carrierQuery.length > 0 && (
+                        <p style={{ fontSize: "0.68rem", color: "#0284c7", marginTop: 3 }}>✓ Auto-filled from EA register</p>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -573,7 +683,59 @@ export default function WasteDisposalPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Destination / Permitted Site</Label><Input placeholder="e.g. Smiths Quarry Transfer Station" value={form.destinationSite} onChange={e => setForm((f: any) => ({ ...f, destinationSite: e.target.value }))} /></div>
+                <div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
+                    <Label style={{ margin: 0 }}>Destination / Permitted Site</Label>
+                    <span style={{ fontSize: "0.68rem", color: "#0284c7", fontWeight: 500 }}>🔍 EA Register</span>
+                  </div>
+                  <div style={{ position: "relative" }}>
+                    <Input
+                      value={siteQuery}
+                      onChange={e => {
+                        setSiteQuery(e.target.value);
+                        setForm((f: any) => ({ ...f, destinationSite: e.target.value }));
+                        setSiteDropOpen(true);
+                      }}
+                      onFocus={() => { if (siteResults.length > 0) setSiteDropOpen(true); }}
+                      onBlur={() => setTimeout(() => setSiteDropOpen(false), 150)}
+                      placeholder="Type to search permitted waste sites…"
+                    />
+                    {siteLoading && (
+                      <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", fontSize: "0.75rem" }}>searching…</span>
+                    )}
+                    {siteDropOpen && siteQuery.length >= 3 && !siteLoading && (
+                      <div style={{ position: "absolute", top: "calc(100% + 2px)", left: 0, right: 0, zIndex: 1000, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,0.13)", overflow: "hidden", maxHeight: 230, overflowY: "auto" }}>
+                        {siteResults.length === 0 ? (
+                          <div style={{ padding: "0.625rem 0.875rem", fontSize: "0.8rem", color: "#6b7280" }}>No permitted sites found — enter site name manually</div>
+                        ) : siteResults.map((s: any, i: number) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onMouseDown={() => {
+                              const parts = [s.siteName, s.postcode].filter(Boolean);
+                              const full = s.permitNumber ? `${parts.join(", ")} — Permit: ${s.permitNumber}` : parts.join(", ");
+                              setForm((f: any) => ({ ...f, destinationSite: full }));
+                              setSiteQuery(full);
+                              setSiteDropOpen(false);
+                            }}
+                            style={{ display: "block", width: "100%", textAlign: "left", padding: "0.5rem 0.875rem", background: "none", border: "none", cursor: "pointer", borderBottom: i < siteResults.length - 1 ? "1px solid #f3f4f6" : "none" }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#f8fafc"; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "none"; }}
+                          >
+                            <div style={{ fontWeight: 600, fontSize: "0.875rem", color: "#111827" }}>{s.siteName}</div>
+                            <div style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 1 }}>
+                              {s.permitNumber && <span style={{ fontFamily: "monospace", color: "#0284c7", marginRight: 8 }}>{s.permitNumber}</span>}
+                              {s.postcode && <span>{s.postcode}</span>}
+                              {s.operator && s.operator !== s.siteName && <span style={{ marginLeft: 6 }}>· {s.operator}</span>}
+                              {s.siteType && <span style={{ marginLeft: 6, color: "#9ca3af" }}>· {s.siteType}</span>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ fontSize: "0.68rem", color: "#9ca3af", marginTop: 3 }}>England · EA Waste Operations Permitted Sites Register</p>
+                </div>
                 <div>
                   <Label>Waste Transfer Note No.</Label>
                   <Input placeholder="e.g. WTN-2025-001" value={form.wasteTransferNote} onChange={e => setForm((f: any) => ({ ...f, wasteTransferNote: e.target.value }))} style={{ fontFamily: "monospace" }} />
