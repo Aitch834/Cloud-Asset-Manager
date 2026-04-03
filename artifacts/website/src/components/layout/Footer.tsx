@@ -59,11 +59,11 @@ export function Footer() {
               </li>
               <li className="flex items-start gap-3 text-brand-pale/80">
                 <Phone className="w-5 h-5 text-brand-light shrink-0" />
-                <span>+44 (0) 1632 960123</span>
+                <span>01526 341188</span>
               </li>
               <li className="flex items-start gap-3 text-brand-pale/80">
                 <MapPin className="w-5 h-5 text-brand-light shrink-0" />
-                <span>Innovation Centre,<br/>Agri-Tech Park,<br/>Lincolnshire, UK</span>
+                <span>House Barn, Moorhouses,<br/>New Bolingbroke, Boston,<br/>Lincolnshire, PE22 7JL</span>
               </li>
             </ul>
           </div>
@@ -72,7 +72,7 @@ export function Footer() {
 
         <div className="pt-8 border-t border-brand-light/20 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-brand-pale/60 text-sm">
-            &copy; {currentYear} BDE Farm Trac Ltd. All rights reserved.
+            &copy; {currentYear} Barnett Davies Enterprises Ltd. All rights reserved.
           </p>
           <div className="text-brand-pale/60 text-sm">
             Proudly built for UK Agriculture

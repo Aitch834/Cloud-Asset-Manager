@@ -7,7 +7,7 @@ export default function Privacy() {
         <h1>Privacy Policy</h1>
         <p className="text-muted-foreground">Last updated: {new Date().toLocaleDateString()}</p>
         
-        <p>BDE Farm Trac Ltd ("we", "us", or "our") is committed to protecting your personal data and respecting your privacy. This policy explains how we collect, use, and share information about you when you visit our website (bdefarmtrac.co.uk) or use our SaaS application.</p>
+        <p>Barnett Davies Enterprises Ltd ("we", "us", or "our") is committed to protecting your personal data and respecting your privacy. This policy explains how we collect, use, and share information about you when you visit our website (bdefarmtrac.co.uk) or use our SaaS application.</p>
 
         <h2>1. Data We Collect</h2>
         <p>We may collect and process the following data about you:</p>
