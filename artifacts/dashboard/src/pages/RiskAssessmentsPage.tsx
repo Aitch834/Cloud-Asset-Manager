@@ -292,7 +292,7 @@ function RiskAssessmentTab({ farmId }: { farmId: number }) {
         </Button>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Loading assessments…</div>
         ) : filtered.length === 0 ? (
@@ -302,7 +302,7 @@ function RiskAssessmentTab({ farmId }: { farmId: number }) {
             <p className="text-gray-400 text-xs">Add your first risk assessment or use a template to get started quickly</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-max min-w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Title / Area</th>
@@ -595,8 +595,8 @@ function CoshhTab({ farmId }: { farmId: number }) {
           <p style={{ fontSize: "0.875rem" }}>Record COSHH assessments for all hazardous substances used on the farm — pesticides, diesel, oils, cleaning agents and veterinary chemicals.</p>
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflowX: "auto" }}>
+          <table style={{ width: "max-content", minWidth: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
                 {["Substance", "Manufacturer", "Hazard Classification", "Usage Area", "Storage", "Assessed By", "Assessment Date", "Review Due", "PPE Required", ""].map(h => (
