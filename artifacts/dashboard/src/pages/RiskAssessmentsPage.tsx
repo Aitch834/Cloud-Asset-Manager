@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown, Flame, Loader2, Paperclip, File as FileIcon } from "lucide-react";
+import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown, Flame, Loader2, Paperclip, File as FileIcon, Printer } from "lucide-react";
 
 type Tab = "risk" | "coshh" | "pat" | "fire";
 type RiskLevel = "low" | "medium" | "high" | "critical";
@@ -1051,23 +1051,279 @@ function FireSafetyTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── H&S Report Modal ──────────────────────────────────────────────────────────
+
+function hsRptFmt(d: string | null | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function HsRptTable({ headers, rows }: { headers: string[]; rows: (string | React.ReactNode)[][] }) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem", fontFamily: "system-ui, sans-serif" }}>
+        <thead>
+          <tr style={{ background: "#f3f4f6" }}>
+            {headers.map((h, i) => (
+              <th key={i} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, ri) => (
+            <tr key={ri} style={{ borderBottom: "1px solid #f3f4f6" }}>
+              {row.map((cell, ci) => (
+                <td key={ci} style={{ padding: "7px 10px", color: "#374151", verticalAlign: "top" }}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function HsRptSection({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#991b1b", fontFamily: "system-ui, sans-serif", margin: "0 0 10px", borderBottom: "2px solid #fee2e2", paddingBottom: 5, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <span>{title}</span>
+        {count !== undefined && <span style={{ fontSize: "0.75rem", fontWeight: 500, color: "#6b7280" }}>{count} record{count !== 1 ? "s" : ""}</span>}
+      </h2>
+      {children}
+    </div>
+  );
+}
+
+function RiskPill({ level }: { level: string }) {
+  const m: Record<string, { bg: string; color: string }> = {
+    critical: { bg: "#fee2e2", color: "#991b1b" },
+    high:     { bg: "#fef3c7", color: "#92400e" },
+    medium:   { bg: "#dbeafe", color: "#1e40af" },
+    low:      { bg: "#dcfce7", color: "#166534" },
+  };
+  const s = m[level] ?? { bg: "#f3f4f6", color: "#374151" };
+  return <span style={{ padding: "2px 7px", borderRadius: 4, background: s.bg, color: s.color, fontSize: "0.7rem", fontWeight: 600, textTransform: "capitalize", whiteSpace: "nowrap" }}>{level}</span>;
+}
+
+function HsReportModal({ farmId, onClose }: { farmId: number; onClose: () => void }) {
+  const farmQ = useQuery({ queryKey: ["farm-record", farmId], queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()) });
+  const raQ  = useQuery({ queryKey: ["risk-assessments", farmId], queryFn: () => fetch(`/api/farms/${farmId}/risk-assessments`).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
+  const coshhQ = useQuery({ queryKey: ["risk-coshh", farmId], queryFn: () => fetch(`/api/farms/${farmId}/risk-coshh`).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
+  const patQ = useQuery({ queryKey: ["pat-tests", farmId], queryFn: () => fetch(`/api/farms/${farmId}/workshop/pat-tests`).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
+  const fireQ = useQuery({ queryKey: ["fire-extinguishers", farmId], queryFn: () => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`).then(r => r.json()), select: (d: any) => (d.records ?? []) as any[] });
+
+  const farm = farmQ.data?.record;
+  const risks: any[]  = raQ.data ?? [];
+  const coshh: any[]  = coshhQ.data ?? [];
+  const pats: any[]   = patQ.data ?? [];
+  const fires: any[]  = fireQ.data ?? [];
+
+  const isLoading = farmQ.isLoading || raQ.isLoading || coshhQ.isLoading || patQ.isLoading || fireQ.isLoading;
+  const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const now = new Date();
+
+  const activeRisks = risks.filter(r => r.status !== "archived").sort((a, b) => {
+    const o: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+    return (o[a.riskLevel ?? ""] ?? 4) - (o[b.riskLevel ?? ""] ?? 4);
+  });
+  const overdueRa   = activeRisks.filter(r => r.reviewDate && new Date(r.reviewDate) < now).length;
+  const overdueCoShh = coshh.filter(r => r.reviewDate && new Date(r.reviewDate) < now).length;
+  const overduePat  = pats.filter(r => r.nextDueDate && new Date(r.nextDueDate) < now).length;
+  const overdueFire = fires.filter(r => r.nextServiceDue && new Date(r.nextServiceDue) < now).length;
+
+  const printReport = () => {
+    const contentEl = document.getElementById("hs-report-content");
+    if (!contentEl) return;
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>H&S Register — ${today}</title><style>* { box-sizing: border-box; margin: 0; padding: 0; } body { background: #fff; font-family: system-ui, sans-serif; } @page { size: A4 portrait; margin: 12mm 15mm; } @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }</style></head><body>${contentEl.innerHTML}</body></html>`;
+    const win = window.open("", "_blank", "width=980,height=760,toolbar=0,menubar=0,scrollbars=1");
+    if (!win) { alert("Pop-ups are blocked — please allow pop-ups for this site to open the print dialog."); return; }
+    win.document.open(); win.document.write(html); win.document.close();
+    win.addEventListener("load", () => { win.focus(); win.addEventListener("afterprint", () => win.close()); win.print(); });
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, overflow: "auto", padding: "24px 16px 48px" }}>
+      <div style={{ background: "#fff", maxWidth: 960, margin: "0 auto", borderRadius: 12, boxShadow: "0 24px 64px rgba(0,0,0,0.35)", overflow: "hidden" }}>
+
+        {/* Controls */}
+        <div style={{ background: "#fef2f2", borderBottom: "1px solid #fecaca", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Printer size={16} style={{ color: "#991b1b" }} />
+            <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#374151" }}>Health, Safety & Risk Register — Preview</span>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button size="sm" onClick={printReport} disabled={isLoading}><Printer size={13} className="mr-1.5" />Print / Save PDF</Button>
+            <Button size="sm" variant="outline" onClick={onClose}>Close</Button>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div style={{ padding: "5rem", textAlign: "center", color: "#9ca3af" }}>
+            <Loader2 size={28} style={{ margin: "0 auto 12px", animation: "spin 1s linear infinite", display: "block" }} />
+            <p style={{ fontFamily: "system-ui, sans-serif", fontSize: "0.875rem" }}>Loading H&S data…</p>
+          </div>
+        ) : (
+          <div id="hs-report-content" style={{ padding: "36px 44px", fontFamily: "system-ui, sans-serif", fontSize: "0.875rem", color: "#111827", lineHeight: 1.6 }}>
+
+            {/* Header */}
+            <div style={{ borderBottom: "3px solid #991b1b", paddingBottom: 18, marginBottom: 24 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#9ca3af", marginBottom: 4 }}>BDE Farm Trac · Health, Safety & Risk Register</div>
+                  <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#111827", margin: "0 0 4px" }}>{farm?.name ?? "—"}</h1>
+                  {farm?.address && <div style={{ fontSize: "0.8rem", color: "#6b7280" }}>{farm.address}</div>}
+                </div>
+                <div style={{ textAlign: "right", fontSize: "0.8rem", color: "#6b7280", flexShrink: 0 }}>
+                  <div style={{ fontWeight: 600, color: "#374151" }}>Report Date</div>
+                  <div style={{ marginBottom: 4 }}>{today}</div>
+                  <div style={{ fontSize: "0.68rem", color: "#9ca3af", maxWidth: 160 }}>For H&S inspection and Red Tractor assessment</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 28 }}>
+              {[
+                { label: "Active risk assessments", value: activeRisks.length, accent: "#374151" },
+                { label: "High / critical risks", value: activeRisks.filter(r => r.riskLevel === "high" || r.riskLevel === "critical").length, accent: activeRisks.filter(r => r.riskLevel === "high" || r.riskLevel === "critical").length > 0 ? "#b91c1c" : "#166534" },
+                { label: "COSHH substances", value: coshh.length, accent: "#374151" },
+                { label: "Items overdue", value: overdueRa + overdueCoShh + overduePat + overdueFire, accent: overdueRa + overdueCoShh + overduePat + overdueFire > 0 ? "#b91c1c" : "#166534" },
+              ].map(item => (
+                <div key={item.label} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px", textAlign: "center" }}>
+                  <div style={{ fontSize: "1.6rem", fontWeight: 700, color: item.accent, lineHeight: 1 }}>{item.value}</div>
+                  <div style={{ fontSize: "0.68rem", color: "#6b7280", marginTop: 4 }}>{item.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Section 1 – Risk Assessments */}
+            <HsRptSection title="1. Risk Assessment Register" count={activeRisks.length}>
+              {activeRisks.length === 0 ? (
+                <p style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "0.85rem" }}>No risk assessments recorded.</p>
+              ) : (
+                <HsRptTable
+                  headers={["Title / Area", "Risk Level", "Hazard (summary)", "Control Measures (summary)", "Assessed By", "Date", "Review Due", "Status"]}
+                  rows={activeRisks.map(r => [
+                    <span><strong>{r.title}</strong>{r.area ? <><br /><span style={{ color: "#6b7280", fontSize: "0.72rem" }}>{r.area}</span></> : null}</span>,
+                    r.riskLevel ? <RiskPill level={r.riskLevel} /> : <span style={{ color: "#d1d5db" }}>—</span>,
+                    <span style={{ color: "#6b7280", fontSize: "0.72rem" }}>{r.hazardDescription ? (r.hazardDescription.length > 120 ? r.hazardDescription.slice(0, 117) + "…" : r.hazardDescription) : "—"}</span>,
+                    <span style={{ color: "#6b7280", fontSize: "0.72rem" }}>{r.controlMeasures ? (r.controlMeasures.length > 120 ? r.controlMeasures.slice(0, 117) + "…" : r.controlMeasures) : "—"}</span>,
+                    r.assessedBy || "—",
+                    hsRptFmt(r.assessmentDate),
+                    <span style={{ color: r.reviewDate && new Date(r.reviewDate) < now ? "#991b1b" : "#374151", fontWeight: r.reviewDate && new Date(r.reviewDate) < now ? 600 : 400 }}>{r.reviewDate && new Date(r.reviewDate) < now ? "⚠ " : ""}{hsRptFmt(r.reviewDate)}</span>,
+                    <span style={{ textTransform: "capitalize", fontSize: "0.72rem" }}>{r.status?.replace("-", " ") || "—"}</span>,
+                  ])}
+                />
+              )}
+            </HsRptSection>
+
+            {/* Section 2 – COSHH */}
+            <HsRptSection title="2. COSHH Register" count={coshh.length}>
+              {coshh.length === 0 ? (
+                <p style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "0.85rem" }}>No COSHH records logged.</p>
+              ) : (
+                <HsRptTable
+                  headers={["Substance", "Manufacturer", "Hazard Classification", "Usage Area", "Storage", "PPE Required", "Assessed By", "Assess. Date", "Review Due"]}
+                  rows={coshh.map(r => [
+                    <strong>{r.substanceName}</strong>,
+                    r.manufacturer || "—",
+                    r.hazardClassification || "—",
+                    r.usageArea || "—",
+                    r.storageLocation || "—",
+                    <span style={{ fontSize: "0.72rem", color: "#6b7280" }}>{r.ppe || "—"}</span>,
+                    r.assessedBy || "—",
+                    hsRptFmt(r.assessmentDate),
+                    <span style={{ color: r.reviewDate && new Date(r.reviewDate) < now ? "#991b1b" : "#374151", fontWeight: r.reviewDate && new Date(r.reviewDate) < now ? 600 : 400 }}>{r.reviewDate && new Date(r.reviewDate) < now ? "⚠ " : ""}{hsRptFmt(r.reviewDate)}</span>,
+                  ])}
+                />
+              )}
+            </HsRptSection>
+
+            {/* Section 3 – PAT Testing */}
+            <HsRptSection title="3. PAT Testing Log" count={pats.length}>
+              {pats.length === 0 ? (
+                <p style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "0.85rem" }}>No PAT test records logged.</p>
+              ) : (
+                <HsRptTable
+                  headers={["Item / Appliance", "Location", "Test Date", "Tester", "Cert No.", "Result", "Next Test Due"]}
+                  rows={pats.map(r => {
+                    const overdue = r.nextDueDate && new Date(r.nextDueDate) < now;
+                    const resultColors: Record<string, { bg: string; color: string }> = { pass: { bg: "#dcfce7", color: "#166534" }, fail: { bg: "#fee2e2", color: "#991b1b" }, advisory: { bg: "#fef3c7", color: "#92400e" } };
+                    const rs = resultColors[r.result] ?? { bg: "#f3f4f6", color: "#374151" };
+                    return [
+                      <strong>{r.itemName}</strong>,
+                      r.location || "—",
+                      hsRptFmt(r.testDate),
+                      [r.testerName, r.testerCompany].filter(Boolean).join(", ") || "—",
+                      <span style={{ fontFamily: "monospace", fontSize: "0.72rem" }}>{r.certificateNumber || "—"}</span>,
+                      <span style={{ padding: "2px 7px", borderRadius: 4, background: rs.bg, color: rs.color, fontSize: "0.7rem", fontWeight: 600, textTransform: "capitalize" }}>{r.result}</span>,
+                      <span style={{ color: overdue ? "#991b1b" : "#374151", fontWeight: overdue ? 600 : 400 }}>{overdue ? "⚠ " : ""}{hsRptFmt(r.nextDueDate)}</span>,
+                    ];
+                  })}
+                />
+              )}
+            </HsRptSection>
+
+            {/* Section 4 – Fire Safety */}
+            <HsRptSection title="4. Fire Safety — Extinguisher Service Register" count={fires.length}>
+              {fires.length === 0 ? (
+                <p style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "0.85rem" }}>No fire extinguisher records logged.</p>
+              ) : (
+                <HsRptTable
+                  headers={["Location", "Type", "Capacity", "Serial No.", "Last Service", "Engineer", "Company", "Next Service Due"]}
+                  rows={fires.map(r => {
+                    const overdue = r.nextServiceDue && new Date(r.nextServiceDue) < now;
+                    return [
+                      <strong>{r.location}</strong>,
+                      FIRE_TYPE_LABEL[r.type] ?? r.type,
+                      r.capacityKg ? `${r.capacityKg} kg` : "—",
+                      <span style={{ fontFamily: "monospace", fontSize: "0.72rem" }}>{r.serialNumber || "—"}</span>,
+                      hsRptFmt(r.lastServiceDate),
+                      r.engineerName || "—",
+                      r.engineerCompany || "—",
+                      <span style={{ color: overdue ? "#991b1b" : "#374151", fontWeight: overdue ? 600 : 400 }}>{overdue ? "⚠ " : ""}{hsRptFmt(r.nextServiceDue)}</span>,
+                    ];
+                  })}
+                />
+              )}
+            </HsRptSection>
+
+            {/* Footer */}
+            <div style={{ marginTop: 36, paddingTop: 12, borderTop: "1px solid #e5e7eb", fontSize: "0.7rem", color: "#9ca3af", display: "flex", justifyContent: "space-between" }}>
+              <span>BDE Farm Trac · bdefarmtrac.co.uk · Barnett Davies Enterprises Ltd.</span>
+              <span>Generated {today} · Health, Safety & Risk Register</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page shell ────────────────────────────────────────────────────────────────
 
 export default function RiskAssessmentsPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("risk");
+  const [reportOpen, setReportOpen] = useState(false);
 
   return (
     <AppLayout>
       <div className="p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
-            <ShieldAlert className="w-5 h-5 text-red-700" />
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
+              <ShieldAlert className="w-5 h-5 text-red-700" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900">Health, Safety & Risk</h1>
+              <p className="text-sm text-gray-500">Risk assessments, COSHH records, PAT testing, and fire safety — covering your legal obligations under UK health & safety law and Red Tractor requirements</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">Health, Safety & Risk</h1>
-            <p className="text-sm text-gray-500">Risk assessments, COSHH records, PAT testing, and fire safety — covering your legal obligations under UK health & safety law and Red Tractor requirements</p>
-          </div>
+          <Button size="sm" variant="outline" className="shrink-0 mt-1" onClick={() => setReportOpen(true)}>
+            <Printer size={14} className="mr-1.5" />Print H&S Register
+          </Button>
         </div>
         <TabBar className="mb-2">
           <TabButton active={tab === "risk"} onClick={() => setTab("risk")}><ShieldAlert className="h-3.5 w-3.5 mr-1 inline-block" />Risk Assessments</TabButton>
@@ -1079,6 +1335,7 @@ export default function RiskAssessmentsPage() {
         {farmId && tab === "coshh" && <CoshhTab farmId={farmId} />}
         {farmId && tab === "pat" && <PatTestingTab farmId={farmId} />}
         {farmId && tab === "fire" && <FireSafetyTab farmId={farmId} />}
+        {farmId && reportOpen && <HsReportModal farmId={farmId} onClose={() => setReportOpen(false)} />}
       </div>
     </AppLayout>
   );
