@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Eye, Paperclip, File as FileIcon, Loader2, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Eye, Paperclip, File as FileIcon, Loader2, ExternalLink, ChevronDown, ChevronRight, Printer } from "lucide-react";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -1073,16 +1073,369 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Compliance Report ────────────────────────────────────────────────────────
+
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function getCropYearStart(): Date {
+  const today = new Date();
+  const oct1 = new Date(today.getFullYear(), 9, 1);
+  return today >= oct1 ? oct1 : new Date(today.getFullYear() - 1, 9, 1);
+}
+
+function getCropYearLabel(): string {
+  const start = getCropYearStart();
+  const y = start.getFullYear();
+  return `${y}/${String(y + 1).slice(2)}`;
+}
+
+function ReportSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 32 }}>
+      <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#166534", fontFamily: "system-ui, sans-serif", margin: "0 0 12px", borderBottom: "2px solid #dcfce7", paddingBottom: 6 }}>
+        {title}
+      </h2>
+      {children}
+    </div>
+  );
+}
+
+function ReportTable({ headers, rows, lastColWide }: { headers: string[]; rows: (string | React.ReactNode)[][]; lastColWide?: boolean }) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem", fontFamily: "system-ui, sans-serif" }}>
+        <thead>
+          <tr style={{ background: "#f3f4f6" }}>
+            {headers.map((h, i) => (
+              <th key={i} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, ri) => (
+            <tr key={ri} style={{ borderBottom: "1px solid #f3f4f6" }}>
+              {row.map((cell, ci) => (
+                <td key={ci} style={{ padding: "7px 10px", color: "#374151", verticalAlign: "top", maxWidth: lastColWide && ci === row.length - 1 ? 260 : undefined }}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ResultPill({ value }: { value: string }) {
+  const map: Record<string, { bg: string; color: string }> = {
+    pass: { bg: "#dcfce7", color: "#166534" },
+    conditional_pass: { bg: "#fef3c7", color: "#92400e" },
+    fail: { bg: "#fee2e2", color: "#991b1b" },
+    pending: { bg: "#f3f4f6", color: "#374151" },
+  };
+  const s = map[value] ?? { bg: "#f3f4f6", color: "#374151" };
+  return (
+    <span style={{ padding: "2px 8px", borderRadius: 4, background: s.bg, color: s.color, fontSize: "0.75rem", fontWeight: 600, textTransform: "capitalize", whiteSpace: "nowrap" }}>
+      {value.replace(/_/g, " ")}
+    </span>
+  );
+}
+
+function SeverityPill({ value }: { value: string }) {
+  const map: Record<string, { bg: string; color: string }> = {
+    critical: { bg: "#fee2e2", color: "#991b1b" },
+    major: { bg: "#fef3c7", color: "#92400e" },
+    minor: { bg: "#eff6ff", color: "#1e40af" },
+  };
+  const s = map[value] ?? { bg: "#f3f4f6", color: "#374151" };
+  return (
+    <span style={{ padding: "2px 7px", borderRadius: 4, background: s.bg, color: s.color, fontSize: "0.72rem", fontWeight: 600, textTransform: "capitalize" }}>
+      {value}
+    </span>
+  );
+}
+
+function StatusPill({ value }: { value: string }) {
+  const map: Record<string, { bg: string; color: string }> = {
+    open: { bg: "#fee2e2", color: "#991b1b" },
+    action_raised: { bg: "#fef3c7", color: "#92400e" },
+    in_progress: { bg: "#dbeafe", color: "#1e40af" },
+    awaiting_verification: { bg: "#fde68a", color: "#78350f" },
+    verified: { bg: "#dcfce7", color: "#166534" },
+    closed: { bg: "#dcfce7", color: "#166534" },
+  };
+  const s = map[value] ?? { bg: "#f3f4f6", color: "#374151" };
+  return (
+    <span style={{ padding: "2px 7px", borderRadius: 4, background: s.bg, color: s.color, fontSize: "0.72rem", fontWeight: 600, textTransform: "capitalize", whiteSpace: "nowrap" }}>
+      {value.replace(/_/g, " ")}
+    </span>
+  );
+}
+
+function ComplianceReportModal({ farmId, onClose }: { farmId: number; onClose: () => void }) {
+  const farmQ = useQuery({
+    queryKey: ["farm-record", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+  });
+  const inspQ = useQuery({
+    queryKey: ["inspections", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/inspections`).then(r => r.json()),
+    select: (d: any) => (d.records ?? []) as any[],
+  });
+  const issuesQ = useQuery({
+    queryKey: ["issues-register", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/issues-register`).then(r => r.json()),
+    select: (d: any) => (d.issues ?? []) as any[],
+  });
+  const certsQ = useQuery({
+    queryKey: ["assurance-certs", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/assurance-certs`).then(r => r.json()),
+    select: (d: any) => (d.records ?? []) as any[],
+  });
+
+  const farm = farmQ.data?.record;
+  const allInspections: any[] = inspQ.data ?? [];
+  const allIssues: any[] = issuesQ.data ?? [];
+  const allCerts: any[] = certsQ.data ?? [];
+
+  const cropYearStart = getCropYearStart();
+  const cropYearLabel = getCropYearLabel();
+  const cropYearInspections = allInspections
+    .filter(r => r.inspectionDate && new Date(r.inspectionDate) >= cropYearStart)
+    .sort((a, b) => new Date(b.inspectionDate).getTime() - new Date(a.inspectionDate).getTime());
+
+  const outstandingIssues = allIssues
+    .filter(nc => computeNcStatus(nc) !== "resolved")
+    .sort((a, b) => {
+      const sevOrder: Record<string, number> = { critical: 0, major: 1, minor: 2 };
+      return (sevOrder[a.severity] ?? 3) - (sevOrder[b.severity] ?? 3);
+    });
+
+  const activeCerts = allCerts.filter(c => c.status === "active" || c.status === "pending");
+  const isLoading = farmQ.isLoading || inspQ.isLoading || issuesQ.isLoading || certsQ.isLoading;
+  const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
+  return (
+    <>
+      <style>{`
+        @media print {
+          body > *:not(#compliance-report-root) { display: none !important; }
+          #compliance-report-root { display: block !important; position: static !important; background: #fff !important; }
+          #compliance-report-controls { display: none !important; }
+          #compliance-report-body { box-shadow: none !important; border-radius: 0 !important; max-width: 100% !important; margin: 0 !important; }
+        }
+      `}</style>
+      <div id="compliance-report-root" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, overflow: "auto", padding: "24px 16px 48px" }}>
+        <div id="compliance-report-body" style={{ background: "#fff", maxWidth: 920, margin: "0 auto", borderRadius: 12, boxShadow: "0 24px 64px rgba(0,0,0,0.35)", overflow: "hidden" }}>
+
+          {/* Controls bar */}
+          <div id="compliance-report-controls" style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Printer size={16} style={{ color: "#166534" }} />
+              <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#374151" }}>Compliance Report — Preview</span>
+              <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>· Crop Year {cropYearLabel}</span>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button size="sm" onClick={() => window.print()} disabled={isLoading}>
+                <Printer size={13} className="mr-1.5" />Print / Save PDF
+              </Button>
+              <Button size="sm" variant="outline" onClick={onClose}>Close</Button>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div style={{ padding: "5rem", textAlign: "center", color: "#9ca3af" }}>
+              <Loader2 size={28} style={{ margin: "0 auto 12px", animation: "spin 1s linear infinite", display: "block" }} />
+              <p style={{ fontFamily: "system-ui, sans-serif", fontSize: "0.875rem" }}>Loading report data…</p>
+            </div>
+          ) : (
+            <div style={{ padding: "40px 48px", fontFamily: "Georgia, 'Times New Roman', serif", fontSize: "0.875rem", color: "#111827", lineHeight: 1.6 }}>
+
+              {/* ── Report header ── */}
+              <div style={{ borderBottom: "3px solid #166534", paddingBottom: 20, marginBottom: 28 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#9ca3af", fontFamily: "system-ui, sans-serif", marginBottom: 4 }}>
+                      BDE Farm Trac · Compliance &amp; Inspections Report
+                    </div>
+                    <h1 style={{ fontSize: "1.6rem", fontWeight: 700, color: "#111827", margin: "0 0 6px", fontFamily: "system-ui, sans-serif" }}>
+                      {farm?.name ?? "—"}
+                    </h1>
+                    {farm?.redTractorId && (
+                      <div style={{ fontSize: "0.875rem", fontFamily: "system-ui, sans-serif", color: "#374151" }}>
+                        <span style={{ fontWeight: 600 }}>RT Membership ID:</span> {farm.redTractorId}
+                      </div>
+                    )}
+                    {farm?.address && (
+                      <div style={{ fontSize: "0.8rem", color: "#6b7280", fontFamily: "system-ui, sans-serif", marginTop: 2 }}>{farm.address}</div>
+                    )}
+                  </div>
+                  <div style={{ textAlign: "right", fontFamily: "system-ui, sans-serif", fontSize: "0.8rem", color: "#6b7280", flexShrink: 0 }}>
+                    <div style={{ fontWeight: 600, color: "#374151", fontSize: "0.875rem" }}>Report Date</div>
+                    <div style={{ marginBottom: 6 }}>{today}</div>
+                    <div style={{ fontWeight: 600, color: "#374151", fontSize: "0.875rem" }}>Crop Year</div>
+                    <div>{cropYearLabel}</div>
+                    <div style={{ marginTop: 8, fontSize: "0.68rem", color: "#9ca3af", maxWidth: 160 }}>For assessor and compliance body review</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Summary counts ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 36, fontFamily: "system-ui, sans-serif" }}>
+                {[
+                  { label: "Inspections this year", value: cropYearInspections.length, accent: "#166534" },
+                  { label: "Active certificates", value: activeCerts.length, accent: "#1e40af" },
+                  { label: "Outstanding issues", value: outstandingIssues.length, accent: outstandingIssues.length > 0 ? "#b91c1c" : "#166534" },
+                  { label: "Critical / major", value: outstandingIssues.filter(nc => nc.severity === "critical" || nc.severity === "major").length, accent: outstandingIssues.filter(nc => nc.severity === "critical" || nc.severity === "major").length > 0 ? "#b91c1c" : "#166534" },
+                ].map(item => (
+                  <div key={item.label} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "14px 16px", textAlign: "center" }}>
+                    <div style={{ fontSize: "1.75rem", fontWeight: 700, color: item.accent, lineHeight: 1 }}>{item.value}</div>
+                    <div style={{ fontSize: "0.68rem", color: "#6b7280", marginTop: 4 }}>{item.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Section 1: Assurance Certificates ── */}
+              <ReportSection title="1. Assurance Certificates">
+                {activeCerts.length === 0 ? (
+                  <p style={{ color: "#9ca3af", fontStyle: "italic", fontFamily: "system-ui, sans-serif", fontSize: "0.85rem" }}>No active assurance certificates recorded.</p>
+                ) : (
+                  <ReportTable
+                    headers={["Certification Body", "Scheme / Sector", "Cert Number", "Status", "Issue Date", "Expiry Date", "Next Visit Due"]}
+                    rows={activeCerts.map(c => [
+                      c.certificationBody || "—",
+                      c.sectors || "—",
+                      c.certNumber || "—",
+                      <span style={{ textTransform: "capitalize" }}>{c.status || "—"}</span>,
+                      fmtDate(c.issueDate),
+                      fmtDate(c.expiryDate),
+                      fmtDate(c.nextVisitDue),
+                    ])}
+                  />
+                )}
+              </ReportSection>
+
+              {/* ── Section 2: Inspections this crop year ── */}
+              <ReportSection title={`2. Inspections — Crop Year ${cropYearLabel} (from ${fmtDate(cropYearStart.toISOString())})`}>
+                {cropYearInspections.length === 0 ? (
+                  <p style={{ color: "#9ca3af", fontStyle: "italic", fontFamily: "system-ui, sans-serif", fontSize: "0.85rem" }}>No inspections recorded for the current crop year.</p>
+                ) : (
+                  <ReportTable
+                    lastColWide
+                    headers={["Date", "Type", "Inspector", "Body", "Result", "Summary"]}
+                    rows={cropYearInspections.map(r => [
+                      fmtDate(r.inspectionDate),
+                      r.inspectionType || "—",
+                      r.inspectorName || "—",
+                      r.inspectionBody || "—",
+                      r.overallResult ? <ResultPill value={r.overallResult} /> : <span style={{ color: "#d1d5db" }}>—</span>,
+                      <span style={{ fontSize: "0.78rem", color: "#6b7280" }}>{r.summary || (r.notes ? r.notes : "—")}</span>,
+                    ])}
+                  />
+                )}
+              </ReportSection>
+
+              {/* ── Section 3: Outstanding Issues ── */}
+              <ReportSection title="3. Outstanding Issues Register">
+                <p style={{ fontSize: "0.78rem", color: "#6b7280", fontFamily: "system-ui, sans-serif", marginBottom: 14, fontStyle: "italic" }}>
+                  All unresolved non-conformances are shown below, regardless of when they were raised. Resolved items are omitted.
+                </p>
+                {outstandingIssues.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "24px", border: "1px solid #dcfce7", borderRadius: 8, background: "#f0fdf4" }}>
+                    <CheckCircle2 size={24} style={{ color: "#16a34a", margin: "0 auto 8px", display: "block" }} />
+                    <p style={{ color: "#166534", fontWeight: 600, fontFamily: "system-ui, sans-serif", margin: 0 }}>No outstanding issues — all non-conformances resolved.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {outstandingIssues.map((nc, i) => {
+                      const computed = computeNcStatus(nc);
+                      const isCritical = nc.severity === "critical";
+                      const isMajor = nc.severity === "major";
+                      const rowBg = isCritical ? "#fef2f2" : isMajor ? "#fffbeb" : "#fafafa";
+                      return (
+                        <div key={nc.id} style={{ border: `1px solid ${isCritical ? "#fecaca" : isMajor ? "#fde68a" : "#e5e7eb"}`, borderRadius: 8, overflow: "hidden" }}>
+                          {/* NC header */}
+                          <div style={{ background: rowBg, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontFamily: "system-ui, sans-serif", fontSize: "0.7rem", color: "#9ca3af", marginBottom: 3 }}>
+                                NC {i + 1} &nbsp;·&nbsp; {nc.category || "Uncategorised"} &nbsp;·&nbsp; Identified {fmtDate(nc.identifiedDate)}{nc.identifiedBy ? ` by ${nc.identifiedBy}` : ""}
+                              </div>
+                              <div style={{ fontFamily: "system-ui, sans-serif", fontWeight: 600, color: "#111827", fontSize: "0.875rem" }}>
+                                {nc.description}
+                              </div>
+                              {nc.notes && (
+                                <div style={{ fontFamily: "system-ui, sans-serif", fontSize: "0.78rem", color: "#6b7280", marginTop: 4 }}>
+                                  {nc.notes}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                              {nc.severity && <SeverityPill value={nc.severity} />}
+                              <StatusPill value={computed} />
+                            </div>
+                          </div>
+                          {/* Corrective actions */}
+                          {nc.correctiveActions?.length > 0 && (
+                            <div style={{ padding: "8px 14px 10px", background: "#fff" }}>
+                              <div style={{ fontFamily: "system-ui, sans-serif", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "#9ca3af", marginBottom: 6 }}>
+                                Corrective Actions ({nc.correctiveActions.length})
+                              </div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                {nc.correctiveActions.map((ca: any) => (
+                                  <div key={ca.id} style={{ display: "grid", gridTemplateColumns: "1fr 160px 120px 110px", gap: 8, alignItems: "center", padding: "5px 10px", background: "#f9fafb", borderRadius: 6, fontFamily: "system-ui, sans-serif", fontSize: "0.78rem" }}>
+                                    <div><span style={{ color: "#9ca3af", marginRight: 6 }}>→</span>{ca.description}</div>
+                                    <div style={{ color: "#6b7280" }}>{ca.assignedTo ? `${ca.assignedTo}` : <span style={{ color: "#d1d5db" }}>Unassigned</span>}</div>
+                                    <div style={{ color: "#6b7280" }}>{ca.dueDate ? `Due ${fmtDate(ca.dueDate)}` : <span style={{ color: "#d1d5db" }}>No due date</span>}</div>
+                                    <div><StatusPill value={ca.status || "open"} /></div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {(!nc.correctiveActions || nc.correctiveActions.length === 0) && (
+                            <div style={{ padding: "6px 14px 8px", background: "#fff", fontFamily: "system-ui, sans-serif", fontSize: "0.78rem", color: "#f59e0b" }}>
+                              ⚠ No corrective actions logged for this non-conformance.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </ReportSection>
+
+              {/* ── Footer ── */}
+              <div style={{ marginTop: 40, paddingTop: 14, borderTop: "1px solid #e5e7eb", fontFamily: "system-ui, sans-serif", fontSize: "0.7rem", color: "#9ca3af", display: "flex", justifyContent: "space-between" }}>
+                <span>BDE Farm Trac · bdefarmtrac.co.uk · Barnett Davies Enterprises Ltd.</span>
+                <span>Generated {today} · For compliance review purposes</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function InspectionsPageFull() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("inspections");
+  const [reportOpen, setReportOpen] = useState(false);
 
   return (
     <AppLayout title="Inspections & Compliance">
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <p className="text-sm text-gray-500 mb-4">
-          Track Red Tractor and internal inspections, log non-conformances, manage corrective actions, and record farm assurance certificates.
-        </p>
+        <div className="flex items-start justify-between mb-4 gap-4">
+          <p className="text-sm text-gray-500">
+            Track Red Tractor and internal inspections, log non-conformances, manage corrective actions, and record farm assurance certificates.
+          </p>
+          <Button size="sm" variant="outline" className="shrink-0" onClick={() => setReportOpen(true)}>
+            <Printer size={14} className="mr-1.5" />Print Compliance Report
+          </Button>
+        </div>
         <TabBar className="mb-6">
           <TabButton active={tab === "inspections"} onClick={() => setTab("inspections")}>Inspections</TabButton>
           <TabButton active={tab === "issues-register"} onClick={() => setTab("issues-register")}>Issues Register</TabButton>
@@ -1090,7 +1443,8 @@ export default function InspectionsPageFull() {
         </TabBar>
         {farmId && tab === "inspections" && <InspectionsTab farmId={farmId} />}
         {farmId && tab === "issues-register" && <IssuesRegisterTab farmId={farmId} />}
-        {farmId && tab === "assurance-certs" && <AssuranceCertsTab farmId={farmId} />}
+        {farmId && tab === "assurance-certs"  && <AssuranceCertsTab farmId={farmId} />}
+        {farmId && reportOpen && <ComplianceReportModal farmId={farmId} onClose={() => setReportOpen(false)} />}
       </div>
     </AppLayout>
   );
