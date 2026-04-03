@@ -340,8 +340,8 @@ export default function WasteDisposalPage() {
             <Input placeholder="Search waste records..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
           </div>
           <CropYearSelector value={cropYear} onChange={setCropYear} />
-          <Button size="sm" variant="outline" onClick={() => setReportOpen(true)}><Printer size={14} className="mr-1" />Print Register</Button>
-          <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Add Waste Record</Button>
+          <Button variant="outline" onClick={() => setReportOpen(true)}><Printer size={14} className="mr-1" />Print Register</Button>
+          <Button onClick={openAdd}><Plus size={14} className="mr-1" />Add Waste Record</Button>
         </div>
 
         {q.isLoading ? (
