@@ -27,12 +27,13 @@ import type { MaintenanceLog } from "@/lib/types";
 type MaintenanceType = MaintenanceLog["maintenanceType"];
 
 const MAINTENANCE_TYPES: { key: MaintenanceType; label: string; icon: string }[] = [
-  { key: "service", label: "Scheduled Service", icon: "settings" },
+  { key: "mot", label: "MOT Test", icon: "shield" },
+  { key: "annual_service", label: "Annual Service", icon: "settings" },
+  { key: "interim_service", label: "Interim / Oil Service", icon: "droplet" },
   { key: "repair", label: "Repair", icon: "tool" },
-  { key: "inspection", label: "Inspection / Check", icon: "eye" },
-  { key: "oil_change", label: "Oil Change", icon: "droplet" },
-  { key: "filter_change", label: "Filter Change", icon: "filter" },
-  { key: "tyre", label: "Tyre Work", icon: "circle" },
+  { key: "inspection", label: "Safety Inspection", icon: "eye" },
+  { key: "pre_use", label: "Pre-Use Check", icon: "check-circle" },
+  { key: "warranty", label: "Warranty Work", icon: "award" },
   { key: "other", label: "Other", icon: "more-horizontal" },
 ];
 

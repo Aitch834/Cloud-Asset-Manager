@@ -994,7 +994,7 @@ export interface MaintenanceLog {
   assetName: string;
   assetReference: string;
   maintenanceDate: string;
-  maintenanceType: "service" | "repair" | "inspection" | "oil_change" | "filter_change" | "tyre" | "other";
+  maintenanceType: "mot" | "annual_service" | "interim_service" | "service" | "repair" | "inspection" | "pre_use" | "warranty" | "oil_change" | "filter_change" | "tyre" | "other";
   description: string;
   hoursAtService: string;
   labourHours: string;

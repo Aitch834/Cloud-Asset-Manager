@@ -4442,11 +4442,53 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
     },
     {
       id: 4,
-      title: "Equipment Calibration Guide",
+      title: "Equipment Service, MOT & Calibration Records",
       category: "Equipment",
       content: `<img src="/api/help-images/field-register.png" alt="Equipment Register" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
-Red Tractor requires that all sprayers and other application equipment are kept in good working order and calibrated to ensure accurate application rates. Sprayers must be tested by an approved NSTS (National Sprayer Testing Scheme) inspector at intervals not exceeding three years; from January 2026, some sector standards require more frequent testing.\n\nTo register a piece of equipment, go to Machinery & Equipment and select Add Equipment. Enter the make, model, serial number, and registration number if applicable. You can attach photos of the current NSTS certificate directly within the equipment record — this makes them instantly available during an inspection without searching through paper files.\n\nFor each piece of equipment, set a Next Calibration Due date. The system will surface overdue or upcoming calibration dates on your dashboard so that nothing slips through. You can also log routine servicing events in the Notes field with the date and engineer name.\n\nSprayer operators should carry out a pre-season self-check before each spraying season. Record the date of this check and any remedial work carried out. Even where formal NSTS certification is not immediately due, evidence of routine checks demonstrates good practice to an inspector.`,
+<p>The <strong>Equipment &amp; Vehicles</strong> page is the central record for all machinery and vehicle maintenance on your holding. It tracks MOT test dates, scheduled service intervals, and calibration due dates, surfacing overdue items as colour-coded alerts so nothing slips through between inspections.</p>
+
+<h3>The Equipment List</h3>
+<p>Each piece of equipment is shown as a row in the register. Two columns give an at-a-glance status without opening any record:</p>
+<ul>
+<li><strong>MOT Due</strong> — the next MOT date from the most recent MOT Test log. Displayed as a green (OK), amber (due within 90 days), or red (overdue) badge.</li>
+<li><strong>Next Service</strong> — the next service date from the most recent service log. Same traffic-light colour coding.</li>
+</ul>
+<p>Clicking the <strong>Manage</strong> button on any row opens the full record.</p>
+
+<h3>Service &amp; MOT History Tab</h3>
+<p>Inside the Manage dialog, click the <strong>Service &amp; MOT History</strong> tab to see a complete maintenance history for that asset and to add new records.</p>
+
+<h4>Status Cards</h4>
+<p>At the top of the tab, two summary cards are shown:</p>
+<ul>
+<li><strong>MOT Status</strong> — next MOT due date with days remaining, and when the last test was performed.</li>
+<li><strong>Next Service Due</strong> — next service interval date, the last service date, and the garage or mechanic who carried out the work.</li>
+</ul>
+
+<h4>Logging a Maintenance Record</h4>
+<p>Click <strong>Log Service / MOT</strong> to expand the entry form. Select the <strong>Maintenance Type</strong> from eight options:</p>
+<table style="width:100%;border-collapse:collapse;font-size:0.9em;margin:12px 0;">
+<thead><tr style="background:#f0fdf4;"><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">Type</th><th style="padding:8px 12px;text-align:left;border:1px solid #e5e7eb;">When to Use</th></tr></thead>
+<tbody>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>MOT Test</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Annual MOT by an approved testing station. Sets the MOT Due column date.</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Annual / Full Service</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Full manufacturer-schedule service — oil, filters, belts, all fluid checks.</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Interim / Oil Service</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Mid-interval oil and filter change between full services.</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Repair</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Unplanned repair — record parts, labour, and root cause.</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Safety Inspection</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">LOLER/PUWER check, NSTS sprayer inspection, or formal safety assessment.</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Pre-Use Check</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Daily or pre-season walkaround check — fluid levels, lights, tyres, hitches.</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Warranty Work</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Manufacturer or dealer warranty repair — record the claim reference.</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;"><strong>Other</strong></td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Any other maintenance event not covered above.</td></tr>
+</tbody>
+</table>
+<p>Complete the form fields: date performed, description of work, who performed it (operator or garage name), next due date, cost (£), parts used, and any additional notes. Click <strong>Save Record</strong>.</p>
+<p>Each record in the history list has an <strong>Edit</strong> and <strong>Delete</strong> action. Deleting a record recalculates the status cards and list-column badges from the remaining history.</p>
+
+<h3>NSTS Sprayer Calibration</h3>
+<p>Red Tractor requires sprayers to be tested by an approved NSTS inspector at intervals not exceeding three years (some sector standards require annual testing from 2026). Log sprayer tests as a <strong>Safety Inspection</strong> record in the Service &amp; MOT History tab, with the NSTS certificate number in the notes field. You can also set the next calibration due date from the <strong>Details</strong> tab of the Manage dialog — this date populates the calibration alerts on the Fleet Status and Week Ahead pages.</p>
+
+<h3>Red Tractor Context</h3>
+<p>During a Red Tractor inspection, assessors may ask to see evidence that machinery is maintained in safe working order. A complete, dated service history — including MOT certificates for road-going vehicles and NSTS certificates for sprayers — meets this requirement. The Equipment page provides a printable audit trail covering the full history of every registered asset.</p>`,
     },
     {
       id: 5,
@@ -5541,8 +5583,8 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>The Five Workshop Tabs</h3>
 <ul>
 <li><strong>Assets &amp; QR Codes</strong> — Register every piece of equipment with a unique <strong>EQ-XXXX</strong> code. Generate and print a scannable QR label for instant mobile access from the field or workshop.</li>
-<li><strong>Job Cards</strong> — Raise a job card for any repair, scheduled service, inspection, or investigation. Set the priority (Low, Medium, High, Critical) and track progress through Open → In Progress → Awaiting Parts → Completed. Record labour time, parts used, root cause analysis, and total cost per job.</li>
-<li><strong>Service Schedule</strong> — Log every maintenance event against an asset and set the next-due date. The system automatically flags assets as <em>Overdue</em> (red), <em>Due Soon</em> (amber), or <em>OK</em> (green) based on today's date.</li>
+<li><strong>Job Cards</strong> — Raise a job card for any repair, scheduled service, inspection, or investigation. Set the priority (Low, Medium, High, Critical) and track progress through Open → In Progress → Awaiting Parts → Completed. Record labour time, root cause analysis, and attach documents or photos. When parts are issued from the Parts Store to a job card, the job displays a full costed parts breakdown — part name, quantity, unit cost, and line total — and the parts cost field updates automatically in real time.</li>
+<li><strong>Service Schedule</strong> — A consolidated view of all upcoming and overdue maintenance events across every registered asset, pulled from maintenance records entered on the Equipment page. Assets are flagged as <em>Overdue</em> (red), <em>Due Soon</em> (amber), or <em>OK</em> (green) based on today's date. Click the "Equipment page" link at the top of the tab to add new maintenance records directly.</li>
 <li><strong>Fleet Overview</strong> — A live summary of every registered asset: status (Operational, Broken Down, In Service, Retired, Sold), hours or odometer reading, and current location. Assets with overdue maintenance are highlighted automatically.</li>
 <li><strong>Parts Store</strong> — A catalogue of workshop parts and consumables with stock levels, unit cost, and low-stock warnings. Receive deliveries and issue stock directly to job cards, with a full movement history for traceability.</li>
 </ul>
