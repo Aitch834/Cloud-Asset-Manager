@@ -52,7 +52,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useListFarms, useGetFarmDashboard } from "@workspace/api-client-react/src/generated/api";
-import { useMemo } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import { useUserRole, type FarmRole } from "@/hooks/use-user-role";
 
 interface NavItem {
@@ -212,6 +212,23 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
   filteredOtherNav: NavItem[];
   filteredBottomNav: NavItem[];
 }) {
+  const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const saved = sessionStorage.getItem("sidebar-nav-scroll");
+    if (saved) el.scrollTop = parseInt(saved, 10);
+  }, []);
+
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const save = () => sessionStorage.setItem("sidebar-nav-scroll", String(el.scrollTop));
+    el.addEventListener("scroll", save, { passive: true });
+    return () => el.removeEventListener("scroll", save);
+  }, []);
+
   return (
     <>
       <div className="p-5 flex items-center gap-3 flex-shrink-0">
@@ -242,7 +259,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
         </Link>
       </div>
 
-      <nav className="flex-1 px-3 py-3 space-y-0 overflow-y-auto">
+      <nav ref={navRef} className="flex-1 px-3 py-3 space-y-0 overflow-y-auto">
         <NavSection items={filteredCoreNav} onNavClick={onNavClick} />
         <NavSection title="Compliance" items={filteredComplianceNav} onNavClick={onNavClick} />
         <NavSection title="Biosecurity" items={filteredBiosecurityNav} onNavClick={onNavClick} />
