@@ -77,6 +77,10 @@ export interface VisitorLogEntry {
   timeOut: string;
   areasVisited: string;
   biosecurityCompliant: boolean;
+  biosecurityDeclarationSigned: boolean;
+  healthDeclarationSigned: boolean;
+  biosecuritySignature: string | null;
+  healthSignature: string | null;
   signature: string;
   notes: string;
   createdAt: string;
