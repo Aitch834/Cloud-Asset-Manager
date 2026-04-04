@@ -1228,7 +1228,6 @@ const EMPTY_MORTALITY = {
 
 function MortalitySection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
-  const mortalitySpecies = useLookupStrings("livestock_species", ANIMAL_SPECIES_FALLBACK);
   const base = `/api/farms/${farmId}/mortality-records`;
   const { data, isLoading } = useQuery<{ records: MortalityRecord[] }>({
     queryKey: ["mortality", farmId],
@@ -1270,10 +1269,6 @@ function MortalitySection({ farmId }: { farmId: number }) {
   function setField(k: string, v: string | boolean) { setForm(f => ({ ...f, [k]: v })); }
 
   function handleAnimalSelect(animalId: string) {
-    if (animalId === "__none__") {
-      setForm(f => ({ ...f, animalId: "", tagNumber: "", species: "", breed: "" }));
-      return;
-    }
     const a = activeAnimals.find(x => String(x.id) === animalId);
     if (a) {
       setForm(f => ({
@@ -1332,11 +1327,12 @@ function MortalitySection({ farmId }: { farmId: number }) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.animalId) return;
     if (editing) updateMut.mutate({ ...form, id: editing.id });
     else createMut.mutate(form);
   }
 
-  const animalLinked = !!form.animalId;
+  const selectedAnimal = activeAnimals.find(a => String(a.id) === form.animalId) ?? null;
 
   const filtered = records.filter(r =>
     (r.tagNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
@@ -1446,44 +1442,44 @@ function MortalitySection({ farmId }: { farmId: number }) {
               <DialogDescription>Required for Red Tractor and BCMS compliance. Retain for 3 years.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 mt-2">
-              {/* ── Animal lookup ── */}
+              {/* ── Animal from register (required) ── */}
               <div>
-                <Label>Animal from Register</Label>
-                <Select value={form.animalId || "__none__"} onValueChange={handleAnimalSelect}>
-                  <SelectTrigger><SelectValue placeholder="Search by ear tag or select animal…" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— Not in register / manual entry —</SelectItem>
-                    {activeAnimals.map(a => (
-                      <SelectItem key={a.id} value={String(a.id)}>
-                        {a.earTagNumber ?? a.tagNumber ?? `#${a.id}`} — {a.species}{a.breed ? ` (${a.breed})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {animalLinked && <p className="text-xs text-green-700 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Linked to animal record — tag, species and breed locked from register</p>}
+                <Label>Animal from Register <span className="text-red-500">*</span></Label>
+                {activeAnimals.length === 0 ? (
+                  <div className="mt-1 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-800 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>No active animals are registered on this farm. Go to the <strong>Individual Animals</strong> tab to register animals before logging mortality.</span>
+                  </div>
+                ) : (
+                  <>
+                    <Select value={form.animalId || "__unset__"} onValueChange={handleAnimalSelect}>
+                      <SelectTrigger className={!form.animalId ? "border-red-300" : ""}><SelectValue placeholder="Select registered animal…" /></SelectTrigger>
+                      <SelectContent>
+                        {activeAnimals.map(a => (
+                          <SelectItem key={a.id} value={String(a.id)}>
+                            {a.earTagNumber ?? a.tagNumber ?? `#${a.id}`} — {a.species}{a.breed ? ` (${a.breed})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!form.animalId && <p className="text-xs text-red-600 mt-1">An animal from the register is required.</p>}
+                    {selectedAnimal && <p className="text-xs text-green-700 mt-1 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> {selectedAnimal.earTagNumber ?? selectedAnimal.tagNumber} — tag, species and breed auto-filled from register</p>}
+                  </>
+                )}
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div>
                   <Label>Ear Tag / Tag Number</Label>
-                  <Input value={form.tagNumber} onChange={e => setField("tagNumber", e.target.value)} placeholder="e.g. UK123456 78901" readOnly={animalLinked} className={animalLinked ? "bg-gray-50 text-gray-500" : ""} />
+                  <Input value={form.tagNumber} readOnly className="bg-muted/40 text-muted-foreground" placeholder="Auto-filled from register" />
                 </div>
                 <div>
-                  <Label>Species *</Label>
-                  {animalLinked ? (
-                    <Input value={form.species} readOnly className="bg-gray-50 text-gray-500" />
-                  ) : (
-                    <Select value={form.species || undefined} onValueChange={v => setField("species", v)}>
-                      <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
-                      <SelectContent>
-                        {mortalitySpecies.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Label>Species</Label>
+                  <Input value={form.species} readOnly className="bg-muted/40 text-muted-foreground capitalize" placeholder="Auto-filled from register" />
                 </div>
                 <div>
                   <Label>Breed</Label>
-                  <Input value={form.breed} onChange={e => setField("breed", e.target.value)} placeholder="e.g. Limousin × Friesian" readOnly={animalLinked} className={animalLinked ? "bg-gray-50 text-gray-500" : ""} />
+                  <Input value={form.breed} readOnly className="bg-muted/40 text-muted-foreground" placeholder="Auto-filled from register" />
                 </div>
                 <div><Label>Date of Death *</Label><Input type="date" value={form.dateOfDeath} onChange={e => setField("dateOfDeath", e.target.value)} required /></div>
                 <div><Label>Cause of Death *</Label>
@@ -1580,7 +1576,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
               <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Additional circumstances or observations..." rows={2} /></div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); setUseOtherVet(false); }}>Cancel</Button>
-                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending || !form.animalId}>
                   {(createMut.isPending || updateMut.isPending) ? <><Loader2 className="animate-spin h-4 w-4 mr-1" /> Saving…</> : editing ? "Update Record" : "Save Record"}
                 </Button>
               </DialogFooter>
