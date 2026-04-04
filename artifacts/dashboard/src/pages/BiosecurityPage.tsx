@@ -49,6 +49,23 @@ function dueBadge(dateStr: string | null | undefined, label = "Follow-up") {
   return null;
 }
 
+// ─── Print helpers ────────────────────────────────────────────────────────────
+
+const PRINT_CSS = `body{font-family:Arial,sans-serif;font-size:9.5px;margin:0;color:#000}
+h1{font-size:13px;font-weight:700;margin:0 0 2px}p.sub{font-size:10px;color:#555;margin:1px 0}
+table{width:100%;border-collapse:collapse;margin-top:14px}
+th{background:#166534;color:#fff;padding:5px 7px;text-align:left;font-size:9px;font-weight:700;white-space:nowrap}
+td{padding:4px 7px;border-bottom:1px solid #e5e7eb;vertical-align:top;font-size:9px}
+tr:nth-child(even) td{background:#f9fafb}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #166534;padding-bottom:10px;margin-bottom:14px}
+.hdr-r{text-align:right;font-size:10px;color:#555}.hdr-r b{display:block;font-size:13px;font-weight:700;color:#000}
+.footer{font-size:9px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:20px}`;
+
+function openPrint(html: string) {
+  const w = window.open("", "_blank");
+  if (w) { w.document.write(html); w.document.close(); w.print(); }
+}
+
 // ─── Visitor Log ──────────────────────────────────────────────────────────────
 
 interface Visitor {
@@ -65,7 +82,28 @@ const EMPTY_VISITOR = {
   escortedBy: "", notes: "",
 };
 
-function VisitorTab({ farmId }: { farmId: number }) {
+function printVisitorRegister(records: Visitor[], farmName: string, yearLabel: string) {
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const fmtDT = (v: string | null | undefined) => v ? new Date(v).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  const rows = records.map(r => `<tr>
+    <td>${r.visitorName}</td><td>${r.company || "—"}</td><td>${r.purpose}</td>
+    <td>${r.vehicleRegistration || "—"}</td><td style="white-space:nowrap">${fmtDT(r.arrivalTime)}</td>
+    <td style="white-space:nowrap">${r.departureTime ? fmtDT(r.departureTime) : "—"}</td>
+    <td>${r.areasVisited || "—"}</td>
+    <td style="text-align:center;font-weight:700;color:${r.biosecurityDeclarationSigned ? "#16a34a" : "#dc2626"}">${r.biosecurityDeclarationSigned ? "✓" : "✗"}</td>
+    <td style="text-align:center;font-weight:700;color:${r.healthDeclarationSigned ? "#16a34a" : "#dc2626"}">${r.healthDeclarationSigned ? "✓" : "✗"}</td>
+    <td>${r.escortedBy || "—"}</td><td>${r.notes || "—"}</td>
+  </tr>`).join("");
+  openPrint(`<!DOCTYPE html><html><head><title>Visitor Log — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Visitor &amp; Contractor Log · ${yearLabel} · Red Tractor Biosecurity Record</p></div>
+<div class="hdr-r"><b>Visitor Log</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
+<table><thead><tr><th>Visitor / Contractor</th><th>Company</th><th>Purpose</th><th>Vehicle Reg</th><th>Arrival</th><th>Departure</th><th>Areas Visited</th><th>Biosec</th><th>Health</th><th>Escorted By</th><th>Notes</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<div class="footer">Visitor &amp; Contractor Log — Red Tractor biosecurity compliance record. Retain for minimum 3 years. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
+</body></html>`);
+}
+
+function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [cropYear, setCropYear] = useState(currentCropYear());
@@ -134,6 +172,9 @@ function VisitorTab({ farmId }: { farmId: number }) {
           <Input placeholder="Search visitors, company, purpose..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <CropYearSelector value={cropYear} onChange={setCropYear} />
+        <Button variant="outline" onClick={() => printVisitorRegister(filtered, farmName, cropYearLabel(cropYear))} className="gap-2 shrink-0" disabled={filtered.length === 0}>
+          <Printer className="w-4 h-4" /> Print Register
+        </Button>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_VISITOR); setFormOpen(true); }} className="gap-2 shrink-0">
           <Plus className="w-4 h-4" /> Log Visitor
         </Button>
@@ -373,7 +414,25 @@ function PestPhotoPanel({ recordId, farmId, photos }: { recordId: number; farmId
 const EMPTY_PEST = { pestType: "", location: "", treatmentMethod: "", productUsed: "", treatmentDate: new Date().toISOString().slice(0, 10), treatedBy: "", followUpDate: "", outcome: "", notes: "" };
 const PEST_TYPES = ["Rats / Mice", "Rabbits", "Foxes", "Pigeons / Corvids", "Moles", "Slugs / Snails", "Insects", "Other"];
 
-function PestControlTab({ farmId }: { farmId: number }) {
+function printPestControlRegister(records: PestRecord[], farmName: string) {
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const fmtD = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString("en-GB") : "—";
+  const rows = records.map(r => `<tr>
+    <td>${r.pestType}</td><td>${r.location || "—"}</td><td>${r.treatmentMethod || "—"}</td>
+    <td>${r.productUsed || "—"}</td><td style="white-space:nowrap">${fmtD(r.treatmentDate)}</td>
+    <td>${r.treatedBy || "—"}</td><td style="white-space:nowrap">${fmtD(r.followUpDate)}</td>
+    <td>${r.outcome || "—"}</td><td>${r.notes || "—"}</td>
+  </tr>`).join("");
+  openPrint(`<!DOCTYPE html><html><head><title>Pest Control Register — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Pest Control Register · Red Tractor Biosecurity Compliance</p></div>
+<div class="hdr-r"><b>Pest Control Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
+<table><thead><tr><th>Pest Type</th><th>Location</th><th>Method</th><th>Product Used</th><th>Treatment Date</th><th>Treated By</th><th>Follow-up Date</th><th>Outcome</th><th>Notes</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<div class="footer">Pest Control Register — Red Tractor compliance record. Retain for minimum 3 years. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
+</body></html>`);
+}
+
+function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -427,6 +486,9 @@ function PestControlTab({ farmId }: { farmId: number }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input placeholder="Search pest type, location, product..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+        <Button variant="outline" onClick={() => printPestControlRegister(filtered, farmName)} className="gap-2 shrink-0" disabled={filtered.length === 0}>
+          <Printer className="w-4 h-4" /> Print Register
+        </Button>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_PEST); setFormOpen(true); }} className="gap-2 shrink-0">
           <Plus className="w-4 h-4" /> Add Record
         </Button>
@@ -587,7 +649,26 @@ interface CleaningRecord {
 const EMPTY_CLEANING = { area: "", cleaningType: "", productsUsed: "", dilutionRate: "", contactTime: "", cleanedBy: "", cleanedDate: new Date().toISOString().slice(0, 10), nextDueDate: "", verifiedBy: "", notes: "" };
 const CLEANING_TYPES = ["Routine clean", "Deep clean", "Disinfection", "Fogging / fumigation", "Pre-housing clean", "Post-TB restriction clean", "Emergency clean", "Other"];
 
-function CleaningTab({ farmId }: { farmId: number }) {
+function printCleaningRegister(records: CleaningRecord[], farmName: string) {
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const fmtD = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString("en-GB") : "—";
+  const rows = records.map(r => `<tr>
+    <td>${r.area}</td><td>${r.cleaningType}</td><td>${r.productsUsed || "—"}</td>
+    <td>${r.dilutionRate || "—"}</td><td>${r.contactTime || "—"}</td>
+    <td style="white-space:nowrap">${fmtD(r.cleanedDate)}</td><td>${r.cleanedBy || "—"}</td>
+    <td style="white-space:nowrap">${fmtD(r.nextDueDate)}</td><td>${r.verifiedBy || "—"}</td>
+    <td>${r.notes || "—"}</td>
+  </tr>`).join("");
+  openPrint(`<!DOCTYPE html><html><head><title>Cleaning &amp; Disinfection Register — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Cleaning &amp; Disinfection Register · Red Tractor Biosecurity Compliance</p></div>
+<div class="hdr-r"><b>Cleaning &amp; Disinfection Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
+<table><thead><tr><th>Area / Location</th><th>Cleaning Type</th><th>Products Used</th><th>Dilution Rate</th><th>Contact Time</th><th>Cleaned Date</th><th>Cleaned By</th><th>Next Due</th><th>Verified By</th><th>Notes</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<div class="footer">Cleaning &amp; Disinfection Register — Red Tractor compliance record. Retain for minimum 3 years. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
+</body></html>`);
+}
+
+function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -640,6 +721,9 @@ function CleaningTab({ farmId }: { farmId: number }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input placeholder="Search area, type, product..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+        <Button variant="outline" onClick={() => printCleaningRegister(filtered, farmName)} className="gap-2 shrink-0" disabled={filtered.length === 0}>
+          <Printer className="w-4 h-4" /> Print Register
+        </Button>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_CLEANING); setFormOpen(true); }} className="gap-2 shrink-0">
           <Plus className="w-4 h-4" /> Add Record
         </Button>
@@ -781,7 +865,57 @@ function CleaningTab({ farmId }: { farmId: number }) {
 
 // ─── COSHH Tab ─────────────────────────────────────────────────────────────────
 
-function CoshhTab({ farmId }: { farmId: number }) {
+function printCoshhRegister(records: any[], farmName: string) {
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const fmtD = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString("en-GB") : "—";
+  const rows = records.map(r => `<tr>
+    <td style="font-weight:600">${r.substanceName}</td><td>${r.manufacturer || "—"}</td>
+    <td>${r.hazardClassification || "—"}</td><td>${r.usageArea || "—"}</td>
+    <td>${r.storageLocation || "—"}</td><td>${r.assessedBy || "—"}</td>
+    <td style="white-space:nowrap">${fmtD(r.assessmentDate)}</td>
+    <td style="white-space:nowrap">${fmtD(r.reviewDate)}</td>
+  </tr>`).join("");
+  openPrint(`<!DOCTYPE html><html><head><title>COSHH Register — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">COSHH Assessment Register · Control of Substances Hazardous to Health · Red Tractor Compliance</p></div>
+<div class="hdr-r"><b>COSHH Register</b>${records.length} substance${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
+<table><thead><tr><th>Substance</th><th>Manufacturer</th><th>Hazard Classification</th><th>Usage Area</th><th>Storage Location</th><th>Assessed By</th><th>Assessment Date</th><th>Review Due</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<div class="footer">COSHH Register — Control of Substances Hazardous to Health Regulations 2002. Retain for minimum 5 years. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
+</body></html>`);
+}
+
+function printCoshhSheet(r: any, farmName: string) {
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const fmtD = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString("en-GB") : "—";
+  const tRow = (label: string, val: string | null | undefined) =>
+    val ? `<tr><td style="font-weight:600;padding:7px 10px;background:#f9fafb;border:1px solid #e5e7eb;width:34%;vertical-align:top;font-size:11px">${label}</td><td style="padding:7px 10px;border:1px solid #e5e7eb;white-space:pre-wrap;font-size:11px">${val}</td></tr>` : "";
+  openPrint(`<!DOCTYPE html><html><head><title>COSHH Assessment — ${r.substanceName}</title><style>
+body{font-family:Arial,sans-serif;font-size:11px;margin:2cm;color:#000}h1{font-size:15px;font-weight:700;margin:0 0 2px}
+h2{font-size:11px;font-weight:700;margin:16px 0 6px;border-bottom:1px solid #e5e7eb;padding-bottom:3px}
+p.sub{font-size:10px;color:#555;margin:1px 0}table{width:100%;border-collapse:collapse;margin-bottom:10px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #166534;padding-bottom:10px;margin-bottom:16px}
+.hdr-r{text-align:right;font-size:10px;color:#555}.hdr-r b{display:block;font-size:13px;font-weight:700;color:#000}
+.hazard{display:inline-block;background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;padding:3px 12px;border-radius:4px;font-weight:700;font-size:11px;margin:4px 0 14px}
+.sig{margin-top:36px;display:grid;grid-template-columns:1fr 1fr;gap:40px}
+.sig-box{border-top:1px solid #000;padding-top:6px;font-size:10px}
+.footer{font-size:9px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:24px}
+@media print{@page{margin:2cm}}</style></head><body>
+<div class="hdr"><div><h1>${r.substanceName}</h1><p class="sub">${farmName} · COSHH Assessment Sheet · Ref: COSHH-${r.id ?? "—"}</p></div>
+<div class="hdr-r"><b>COSHH Assessment</b>Assessed: ${fmtD(r.assessmentDate)}<br>Review due: ${fmtD(r.reviewDate)}<br>Printed: ${today}</div></div>
+${r.hazardClassification ? `<div class="hazard">⚠ ${r.hazardClassification}</div>` : ""}
+<h2>Substance Details</h2><table>${tRow("Substance Name", r.substanceName)}${tRow("Manufacturer", r.manufacturer)}${tRow("Hazard Classification", r.hazardClassification)}${tRow("Usage Area", r.usageArea)}${tRow("Storage Location", r.storageLocation)}</table>
+<h2>Control Measures &amp; PPE Required</h2><table>${tRow("Control Measures / PPE", r.controlMeasures || r.ppe || "—")}</table>
+<h2>Emergency Procedures</h2><table>${tRow("Spill / First Aid / Emergency Contacts", r.emergencyProcedures || "—")}</table>
+<h2>Document Control</h2><table>${tRow("Assessed By", r.assessedBy)}${tRow("Assessment Date", fmtD(r.assessmentDate))}${tRow("Next Review Date", fmtD(r.reviewDate))}</table>
+<div class="sig">
+<div class="sig-box">Assessor Signature<br><br><br>Name: ____________________________<br><br>Date: ____________________________</div>
+<div class="sig-box">Farm Manager Countersignature<br><br><br>Name: ____________________________<br><br>Date: ____________________________</div>
+</div>
+<div class="footer">COSHH Assessment — Control of Substances Hazardous to Health Regulations 2002. Must be available at the point of use. Retain for minimum 5 years. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
+</body></html>`);
+}
+
+function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
@@ -816,7 +950,10 @@ function CoshhTab({ farmId }: { farmId: number }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>COSHH assessments for hazardous substances used on the farm.</p>
-        <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add COSHH Assessment</Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button size="sm" variant="outline" onClick={() => printCoshhRegister(records, farmName)} disabled={records.length === 0}><Printer size={14} className="mr-1" />Print Register</Button>
+          <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add COSHH Assessment</Button>
+        </div>
       </div>
 
       {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
@@ -846,7 +983,10 @@ function CoshhTab({ farmId }: { farmId: number }) {
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{r.assessmentDate ? new Date(r.assessmentDate).toLocaleDateString("en-GB") : "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{r.reviewDate ? new Date(r.reviewDate).toLocaleDateString("en-GB") : "—"}</td>
                   <td style={{ padding: "0.5rem" }}>
-                    <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    <div style={{ display: "flex", gap: 2 }}>
+                      <button onClick={() => printCoshhSheet(r, farmName)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Print COSHH Assessment Sheet"><Printer size={14} /></button>
+                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -966,7 +1106,7 @@ table{width:100%;border-collapse:collapse;margin-bottom:14px}
   if (w) { w.document.write(html); w.document.close(); w.print(); }
 }
 
-function BiosecurityPlanTab({ farmId }: { farmId: number }) {
+function BiosecurityPlanTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
@@ -1010,7 +1150,7 @@ function BiosecurityPlanTab({ farmId }: { farmId: number }) {
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
           {hasPlan && (
-            <Button variant="outline" size="sm" onClick={() => printBiosecurityPlan(plan!, "Farm")}>
+            <Button variant="outline" size="sm" onClick={() => printBiosecurityPlan(plan!, farmName)}>
               <Printer size={14} className="mr-2" /> Print Plan
             </Button>
           )}
@@ -1096,6 +1236,14 @@ function BiosecurityPlanTab({ farmId }: { farmId: number }) {
 export default function BiosecurityPage({ defaultTab = "visitors" }: { defaultTab?: MainTab }) {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<MainTab>(defaultTab);
+
+  const { data: farmData } = useQuery({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const farmName: string = farmData?.record?.name ?? farmData?.name ?? "Farm";
+
   if (!farmId) return <Redirect href="/select" />;
   return (
     <AppLayout title="Biosecurity">
@@ -1106,11 +1254,11 @@ export default function BiosecurityPage({ defaultTab = "visitors" }: { defaultTa
         <TabButton active={tab === "coshh"} onClick={() => setTab("coshh")}>COSHH</TabButton>
         <TabButton active={tab === "biosecurity-plan"} onClick={() => setTab("biosecurity-plan")}>Biosecurity Plan</TabButton>
       </TabBar>
-      {tab === "visitors" && <VisitorTab farmId={farmId} />}
-      {tab === "pest-control" && <PestControlTab farmId={farmId} />}
-      {tab === "cleaning" && <CleaningTab farmId={farmId} />}
-      {tab === "coshh" && <CoshhTab farmId={farmId} />}
-      {tab === "biosecurity-plan" && <BiosecurityPlanTab farmId={farmId} />}
+      {tab === "visitors" && <VisitorTab farmId={farmId} farmName={farmName} />}
+      {tab === "pest-control" && <PestControlTab farmId={farmId} farmName={farmName} />}
+      {tab === "cleaning" && <CleaningTab farmId={farmId} farmName={farmName} />}
+      {tab === "coshh" && <CoshhTab farmId={farmId} farmName={farmName} />}
+      {tab === "biosecurity-plan" && <BiosecurityPlanTab farmId={farmId} farmName={farmName} />}
     </AppLayout>
   );
 }
