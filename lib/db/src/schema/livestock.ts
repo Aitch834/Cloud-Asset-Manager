@@ -33,6 +33,8 @@ export const livestockAnimalsTable = pgTable("livestock_animals", {
   acquisitionSource: text("acquisition_source"),
   animalCode: text("animal_code"),
   status: text("status").notNull().default("active"),
+  documentUrl: text("document_url"),
+  documentName: text("document_name"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

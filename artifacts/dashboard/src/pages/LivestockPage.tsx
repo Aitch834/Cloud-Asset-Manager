@@ -154,6 +154,8 @@ interface Animal {
   acquisitionSource: string | null;
   animalCode: string | null;
   status: string;
+  documentUrl: string | null;
+  documentName: string | null;
   notes: string | null;
   createdAt: string;
 }
@@ -247,6 +249,8 @@ const EMPTY_ANIMAL = {
   acquisitionDate: "",
   acquisitionSource: "",
   status: "active",
+  documentUrl: "",
+  documentName: "",
   notes: "",
 };
 
@@ -2388,6 +2392,14 @@ function AnimalQuickViewDialog({ animal, herds, onClose, onEdit, onProfile }: {
             <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">From</p><p>{animal.acquisitionSource || "—"}</p></div>
             <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Alt. ID</p><p className="font-mono text-xs">{animal.tagNumber || "—"}</p></div>
           </div>
+          {animal.documentUrl && (
+            <div>
+              <p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Official Document</p>
+              <a href={animal.documentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
+                <FileText className="w-4 h-4" />{animal.documentName || "View document"}
+              </a>
+            </div>
+          )}
           {animal.notes && <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Notes</p><p className="text-gray-700 whitespace-pre-line">{animal.notes}</p></div>}
         </div>
         <DialogFooter className="gap-2 sm:gap-2">
@@ -2534,6 +2546,17 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
                 <div style={{ gridColumn: "1 / -1" }}>
                   <p style={{ margin: "0 0 2px", fontSize: "0.68rem", color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Notes</p>
                   <p style={{ margin: 0, fontSize: "0.85rem", color: "#374151", whiteSpace: "pre-line" }}>{animal.notes}</p>
+                </div>
+              )}
+              {animal.documentUrl && (
+                <div style={{ gridColumn: "1 / -1", padding: "10px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}>
+                  <FileText size={16} style={{ color: "#16a34a", flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: "0 0 1px", fontSize: "0.68rem", color: "#15803d", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Official Document</p>
+                    <a href={animal.documentUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.85rem", color: "#2563eb", textDecoration: "underline" }}>
+                      {animal.documentName || "View document"}
+                    </a>
+                  </div>
                 </div>
               )}
             </div>
@@ -2708,6 +2731,8 @@ function AnimalsSection({ farmId }: { farmId: number }) {
       acquisitionDate: a.acquisitionDate?.slice(0, 10) ?? "",
       acquisitionSource: a.acquisitionSource ?? "",
       status: a.status,
+      documentUrl: a.documentUrl ?? "",
+      documentName: a.documentName ?? "",
       notes: a.notes ?? "",
     });
     setShowForm(true);
@@ -2718,6 +2743,14 @@ function AnimalsSection({ farmId }: { farmId: number }) {
     if (editing) updateMut.mutate({ ...form, id: editing.id });
     else createMut.mutate(form);
   }
+
+  const { uploadFile: uploadAnimalDoc, isUploading: isUploadingAnimalDoc } = useUpload({
+    onSuccess: (response) => {
+      const path = (response as { objectPath?: string }).objectPath ?? "";
+      const name = (response as { filename?: string }).filename ?? path.split("/").pop() ?? "Document";
+      setForm(f => ({ ...f, documentUrl: path, documentName: name }));
+    },
+  });
 
   const herdName = (herdId: number | null) => herds.find(h => h.id === herdId)?.name ?? "—";
 
@@ -3007,6 +3040,24 @@ function AnimalsSection({ farmId }: { farmId: number }) {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div>
+                <Label>Official Document <span className="text-muted-foreground font-normal text-xs">(cattle passport, TB test, flock record, etc.)</span></Label>
+                {form.documentUrl ? (
+                  <div className="flex items-center gap-2 mt-1 p-2.5 bg-green-50 border border-green-200 rounded-lg">
+                    <FileText className="w-4 h-4 text-green-700 shrink-0" />
+                    <span className="text-sm text-green-800 font-medium flex-1 truncate">{form.documentName || "Document attached"}</span>
+                    <a href={form.documentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">View</a>
+                    <button type="button" onClick={() => setForm(f => ({ ...f, documentUrl: "", documentName: "" }))} className="text-xs text-red-500 hover:text-red-700 shrink-0">Remove</button>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-2 mt-1 p-3 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-colors">
+                    {isUploadingAnimalDoc
+                      ? <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-sm text-muted-foreground">Uploading…</span></>
+                      : <><Upload className="w-4 h-4 text-muted-foreground" /><span className="text-sm text-muted-foreground">Upload passport, TB certificate or other official document</span></>}
+                    <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => { if (e.target.files?.[0]) uploadAnimalDoc(e.target.files[0]); }} />
+                  </label>
+                )}
               </div>
               <div>
                 <Label>Notes</Label>
