@@ -2447,7 +2447,7 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
                 {data?.herd ? ` · ${data.herd.name}` : ""}
               </p>
             </div>
-            <Button size="sm" variant="outline" onClick={() => { onEdit(animal); onClose(); }} className="gap-1.5 shrink-0">
+            <Button size="sm" variant="outline" onClick={() => { onEdit(animal); onClose(); }} className="gap-1.5 shrink-0 mr-8">
               <Pencil className="w-3.5 h-3.5" /> Edit Record
             </Button>
           </div>
