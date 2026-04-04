@@ -260,7 +260,7 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input placeholder="Search visitors, company, purpose..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <CropYearSelector value={cropYear} onChange={setCropYear} />
+        <CropYearSelector value={cropYear} onChange={setCropYear} showAllYears />
         <Button variant="outline" onClick={() => printVisitorRegister(filtered, farmName, cropYearLabel(cropYear))} className="gap-2 shrink-0" disabled={filtered.length === 0}>
           <Printer className="w-4 h-4" /> Print Register
         </Button>
@@ -661,7 +661,7 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input placeholder="Search pest type, location, product..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <CropYearSelector value={cropYear} onChange={setCropYear} />
+        <CropYearSelector value={cropYear} onChange={setCropYear} showAllYears />
         <Button variant="outline" onClick={() => printPestControlRegister(filtered, farmName, cropYearLabel(cropYear))} className="gap-2 shrink-0" disabled={filtered.length === 0}>
           <Printer className="w-4 h-4" /> Print Register
         </Button>
@@ -900,7 +900,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input placeholder="Search area, type, product..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <CropYearSelector value={cropYear} onChange={setCropYear} />
+        <CropYearSelector value={cropYear} onChange={setCropYear} showAllYears />
         <Button variant="outline" onClick={() => printCleaningRegister(filtered, farmName, cropYearLabel(cropYear))} className="gap-2 shrink-0" disabled={filtered.length === 0}>
           <Printer className="w-4 h-4" /> Print Register
         </Button>
@@ -1133,7 +1133,7 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
         <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>COSHH assessments for hazardous substances used on the farm.</p>
         <div className="flex items-center gap-2 flex-wrap">
-          <CropYearSelector value={cropYear} onChange={setCropYear} />
+          <CropYearSelector value={cropYear} onChange={setCropYear} showAllYears />
           <Button size="sm" variant="outline" onClick={() => printCoshhRegister(records, farmName, cropYearLabel(cropYear))} disabled={records.length === 0}><Printer size={14} className="mr-1" />Print Register</Button>
           <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add COSHH Assessment</Button>
         </div>

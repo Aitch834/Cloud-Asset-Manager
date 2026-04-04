@@ -6,9 +6,10 @@ interface Props {
   onChange: (year: number) => void;
   count?: number;
   className?: string;
+  showAllYears?: boolean;
 }
 
-export function CropYearSelector({ value, onChange, count = 7, className }: Props) {
+export function CropYearSelector({ value, onChange, count = 7, className, showAllYears = false }: Props) {
   const options = cropYearOptions(count);
   const current = currentCropYear();
   return (
@@ -17,6 +18,9 @@ export function CropYearSelector({ value, onChange, count = 7, className }: Prop
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
+        {showAllYears && (
+          <SelectItem value="0">All years</SelectItem>
+        )}
         {options.map(y => (
           <SelectItem key={y} value={String(y)}>
             {cropYearLabel(y)}{y === current ? " (current)" : ""}

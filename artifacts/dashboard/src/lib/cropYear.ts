@@ -11,6 +11,7 @@ export function currentCropYear(): number {
 }
 
 export function cropYearLabel(year: number): string {
+  if (year === 0) return "All years";
   return `${year - 1}/${String(year).slice(2)}`;
 }
 
@@ -24,6 +25,7 @@ export function cropYearEnd(year: number): Date {
 
 export function isInCropYear(dateStr: string | null | undefined, year: number): boolean {
   if (!dateStr) return false;
+  if (year === 0) return true;
   const d = new Date(dateStr);
   return d >= cropYearStart(year) && d <= cropYearEnd(year);
 }
