@@ -386,6 +386,13 @@ export const vetPrescriptionRecordsTable = pgTable("vet_prescription_records", {
   withdrawalPeriodEggs: integer("withdrawal_period_eggs_days"),
   dispensedQuantity: text("dispensed_quantity"),
   dispensedDate: date("dispensed_date"),
+  treatmentScope: text("treatment_scope"),
+  treatmentDate: date("treatment_date"),
+  administeredBy: text("administered_by"),
+  herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
+  animalId: integer("animal_id").references(() => livestockAnimalsTable.id),
+  treatedAnimalTags: text("treated_animal_tags"),
+  treatedAnimalCount: integer("treated_animal_count"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
