@@ -65,7 +65,7 @@ tr:nth-child(even) td{background:#f9fafb}
 
 function openPrint(html: string) {
   const w = window.open("", "_blank");
-  if (w) { w.document.write(html); w.document.close(); w.print(); }
+  if (w) { w.document.write(html); w.document.close(); w.addEventListener("afterprint", () => w.close()); w.print(); }
 }
 
 // ─── Visitor Log ──────────────────────────────────────────────────────────────
@@ -1275,7 +1275,7 @@ table{width:100%;border-collapse:collapse;margin-bottom:14px}
 <div class="footer">Biosecurity Plan — retained as part of Red Tractor Combinable Crops compliance documentation. Make available at audit and review annually. BDE Farm Trac · ${today}</div>
 </body></html>`;
   const w = window.open("", "_blank");
-  if (w) { w.document.write(html); w.document.close(); w.print(); }
+  if (w) { w.document.write(html); w.document.close(); w.addEventListener("afterprint", () => w.close()); w.print(); }
 }
 
 function BiosecurityPlanTab({ farmId, farmName }: { farmId: number; farmName: string }) {
