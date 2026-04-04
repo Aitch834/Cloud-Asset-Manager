@@ -8,6 +8,8 @@ export const herdFlockRegisterTable = pgTable("herd_flock_register", {
   type: text("type").notNull(),
   breed: text("breed"),
   herdNumber: text("herd_number"),
+  registrationDocumentUrl: text("registration_document_url"),
+  registrationDocumentName: text("registration_document_name"),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

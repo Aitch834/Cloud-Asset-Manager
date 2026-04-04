@@ -47,6 +47,8 @@ interface Herd {
   type: string;
   breed: string | null;
   herdNumber: string | null;
+  registrationDocumentUrl: string | null;
+  registrationDocumentName: string | null;
   notes: string | null;
   isActive: boolean;
   createdAt: string;
@@ -215,7 +217,7 @@ const EMPTY_STRAW = {
   notes: "",
 };
 
-const EMPTY_HERD = { name: "", type: "", breed: "", herdNumber: "", notes: "" };
+const EMPTY_HERD = { name: "", type: "", breed: "", herdNumber: "", registrationDocumentUrl: "", registrationDocumentName: "", notes: "" };
 const EMPTY_PLAN = {
   planYear: new Date().getFullYear(),
   vetName: "",
@@ -515,6 +517,63 @@ ${sections.length === 0 ? `<p style="color:#555;font-style:italic;text-align:cen
   );
 }
 
+// Species-aware configuration for the herd registration number field
+function getHerdNumberConfig(species: string): { label: string; placeholder: string; hint: string } {
+  const s = species.toLowerCase();
+  if (s === "cattle") return {
+    label: "BCMS Herd Number",
+    placeholder: "e.g. 12/345/0001",
+    hint: "Issued by BCMS (British Cattle Movement Service). Found on your annual BCMS letter, cattle passports, or CPH registration documents from the Rural Payments Agency.",
+  };
+  if (s === "sheep" || s === "goats" || s === "goat") return {
+    label: "Flock Number",
+    placeholder: "e.g. 12/345/0001",
+    hint: "Your CPH-based flock number assigned by APHA. Found on EID ear tag documentation, your APHA holding registration letter, or Rural Payments Agency CPH paperwork.",
+  };
+  if (s === "pigs" || s === "pig") return {
+    label: "Herd Mark",
+    placeholder: "e.g. AB1234",
+    hint: "Your unique herd mark issued by AHDB Pork on pig registration. Found on movement licences (eAML2 / paper AML2) or your AHDB pig registration letter.",
+  };
+  if (s === "deer") return {
+    label: "Herd Number",
+    placeholder: "e.g. 12/345/0001",
+    hint: "Deer herd number from your APHA / Rural Payments Agency CPH registration. Found on your holding registration or movement documents.",
+  };
+  if (s === "poultry" || s === "chickens" || s === "turkeys") return {
+    label: "Flock Registration No.",
+    placeholder: "e.g. GB-12345",
+    hint: "Required for flocks of 50+ birds notifiable to APHA. Found on your APHA poultry registration letter.",
+  };
+  return {
+    label: "Herd / Flock Number",
+    placeholder: "Enter official registration number",
+    hint: "Enter the official herd or flock number issued by the relevant authority (APHA, BCMS, AHDB, or Rural Payments Agency).",
+  };
+}
+
+function getBreedPlaceholder(species: string): string {
+  const s = species.toLowerCase();
+  if (s === "cattle") return "e.g. Holstein Friesian, Hereford × Angus, Limousin";
+  if (s === "sheep") return "e.g. Suffolk, Texel, Mule, Welsh Mountain";
+  if (s === "pigs" || s === "pig") return "e.g. Large White, Landrace, Duroc";
+  if (s === "goats" || s === "goat") return "e.g. Saanen, British Alpine, Boer";
+  if (s === "deer") return "e.g. Red Deer, Fallow Deer, Sika";
+  if (s === "poultry") return "e.g. Ross 308, Cobb 500, Lohmann Brown";
+  return "e.g. breed name";
+}
+
+function getHerdNamePlaceholder(species: string): string {
+  const s = species.toLowerCase();
+  if (s === "cattle") return "e.g. Main Dairy Herd, Suckler Herd";
+  if (s === "sheep") return "e.g. Main Ewe Flock, Lowland Flock";
+  if (s === "pigs" || s === "pig") return "e.g. Breeding Herd, Finishing Unit";
+  if (s === "goats" || s === "goat") return "e.g. Milking Goat Herd";
+  if (s === "deer") return "e.g. Red Deer Park";
+  if (s === "poultry") return "e.g. Layer Flock, Broiler Unit";
+  return "e.g. Main Herd / Flock";
+}
+
 function HerdsSection({ farmId }: { farmId: number }) {
   const queryClient = useQueryClient();
   const livestockSpecies = useLookupStrings("livestock_species", ANIMAL_SPECIES_FALLBACK);
@@ -569,7 +628,11 @@ function HerdsSection({ farmId }: { farmId: number }) {
 
   function openEdit(h: Herd) {
     setEditingHerd(h);
-    setFormData({ name: h.name ?? "", type: h.type ?? "", breed: h.breed ?? "", herdNumber: h.herdNumber ?? "", notes: h.notes ?? "" });
+    setFormData({
+      name: h.name ?? "", type: h.type ?? "", breed: h.breed ?? "", herdNumber: h.herdNumber ?? "",
+      registrationDocumentUrl: h.registrationDocumentUrl ?? "", registrationDocumentName: h.registrationDocumentName ?? "",
+      notes: h.notes ?? "",
+    });
     setShowForm(true);
   }
 
@@ -581,6 +644,20 @@ function HerdsSection({ farmId }: { farmId: number }) {
   }
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  const herdNumConfig = getHerdNumberConfig(formData.type);
+
+  const { uploadFile: uploadDoc, isUploading: isUploadingDoc } = useUpload({
+    onSuccess: (response) => {
+      const fileName = (response as { objectPath?: string; filename?: string }).filename
+        ?? (response as { objectPath?: string }).objectPath?.split("/").pop()
+        ?? "Registration document";
+      setFormData(f => ({
+        ...f,
+        registrationDocumentUrl: (response as { objectPath?: string }).objectPath ?? "",
+        registrationDocumentName: fileName,
+      }));
+    },
+  });
 
   return (
     <>
@@ -606,10 +683,6 @@ function HerdsSection({ farmId }: { farmId: number }) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Name <span className="text-red-500">*</span></label>
-                  <Input placeholder="e.g. Main Dairy Herd" value={formData.name} onChange={e => setFormData(f => ({ ...f, name: e.target.value }))} required />
-                </div>
-                <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Species <span className="text-red-500">*</span></label>
                   <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={formData.type} onChange={e => setFormData(f => ({ ...f, type: e.target.value }))} required>
                     <option value="">Select species...</option>
@@ -617,12 +690,59 @@ function HerdsSection({ farmId }: { farmId: number }) {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Breed</label>
-                  <Input placeholder="e.g. Holstein Friesian" value={formData.breed} onChange={e => setFormData(f => ({ ...f, breed: e.target.value }))} />
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Name <span className="text-red-500">*</span></label>
+                  <Input
+                    placeholder={formData.type ? getHerdNamePlaceholder(formData.type) : "e.g. Main Dairy Herd"}
+                    value={formData.name}
+                    onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
+                    required
+                  />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Herd / Flock Number</label>
-                  <Input placeholder="e.g. 32/541/0012" value={formData.herdNumber} onChange={e => setFormData(f => ({ ...f, herdNumber: e.target.value }))} />
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Breed</label>
+                  <Input
+                    placeholder={formData.type ? getBreedPlaceholder(formData.type) : "e.g. Holstein Friesian"}
+                    value={formData.breed}
+                    onChange={e => setFormData(f => ({ ...f, breed: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">{herdNumConfig.label}</label>
+                  <Input
+                    placeholder={herdNumConfig.placeholder}
+                    value={formData.herdNumber}
+                    onChange={e => setFormData(f => ({ ...f, herdNumber: e.target.value }))}
+                  />
+                  {formData.type && (
+                    <p className="text-xs text-muted-foreground mt-1 flex items-start gap-1">
+                      <FileText className="w-3 h-3 mt-0.5 shrink-0 text-blue-500" />
+                      {herdNumConfig.hint}
+                    </p>
+                  )}
+                  {!formData.type && (
+                    <p className="text-xs text-muted-foreground mt-1">Select a species above to see which official number applies.</p>
+                  )}
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium text-foreground/70 mb-1 block">Official Registration Document</label>
+                  {formData.registrationDocumentUrl ? (
+                    <div className="flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded-lg">
+                      <FileText className="w-4 h-4 text-green-700 shrink-0" />
+                      <span className="text-sm text-green-800 font-medium flex-1 truncate">{formData.registrationDocumentName || "Document attached"}</span>
+                      <a href={formData.registrationDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">View</a>
+                      <button type="button" onClick={() => setFormData(f => ({ ...f, registrationDocumentUrl: "", registrationDocumentName: "" }))} className="text-xs text-red-500 hover:text-red-700 shrink-0">Remove</button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-2 p-3 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-colors">
+                      {isUploadingDoc ? (
+                        <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-sm text-muted-foreground">Uploading…</span></>
+                      ) : (
+                        <><Upload className="w-4 h-4 text-muted-foreground" /><span className="text-sm text-muted-foreground">Upload registration letter, BCMS letter, or herd/flock number document</span></>
+                      )}
+                      <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => { if (e.target.files?.[0]) uploadDoc(e.target.files[0]); }} />
+                    </label>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">Attach a photo or scan of the official letter or certificate for easy access during inspections.</p>
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
@@ -661,6 +781,7 @@ function HerdsSection({ farmId }: { farmId: number }) {
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Species</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Breed</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Herd No.</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Doc</th>
                   <th className="text-right p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Actions</th>
                 </tr>
               </thead>
@@ -671,6 +792,11 @@ function HerdsSection({ farmId }: { farmId: number }) {
                     <td className="p-4 text-sm capitalize text-foreground/70">{h.type || "—"}</td>
                     <td className="p-4 text-sm text-foreground/70">{h.breed || "—"}</td>
                     <td className="p-4 text-sm font-mono text-foreground/70">{h.herdNumber || "—"}</td>
+                    <td className="p-4 text-sm">
+                      {h.registrationDocumentUrl
+                        ? <span className="inline-flex items-center gap-1 text-xs bg-green-50 text-green-700 border border-green-200 rounded px-1.5 py-0.5"><FileText className="w-3 h-3" />Doc</span>
+                        : <span className="text-muted-foreground/40 text-xs">—</span>}
+                    </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => setViewHerd(h)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/50 hover:text-blue-600"><Eye className="w-4 h-4" /></button>
@@ -698,6 +824,15 @@ function HerdsSection({ farmId }: { farmId: number }) {
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Herd Number</p><p className="font-mono text-xs">{viewHerd.herdNumber || "—"}</p></div>
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Status</p><p>{viewHerd.isActive ? "Active" : "Inactive"}</p></div>
               </div>
+              {viewHerd.registrationDocumentUrl && (
+                <div>
+                  <p className="text-xs text-gray-500 uppercase font-medium mb-1">Registration Document</p>
+                  <a href={viewHerd.registrationDocumentUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
+                    <FileText className="w-4 h-4" />{viewHerd.registrationDocumentName || "View document"}
+                  </a>
+                </div>
+              )}
               {viewHerd.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewHerd.notes}</p></div>}
             </div>
             <DialogFooter>
@@ -1337,7 +1472,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
                   {animalLinked ? (
                     <Input value={form.species} readOnly className="bg-gray-50 text-gray-500" />
                   ) : (
-                    <Select value={form.species} onValueChange={v => setField("species", v)}>
+                    <Select value={form.species || undefined} onValueChange={v => setField("species", v)}>
                       <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
                       <SelectContent>
                         {mortalitySpecies.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -1351,7 +1486,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
                 </div>
                 <div><Label>Date of Death *</Label><Input type="date" value={form.dateOfDeath} onChange={e => setField("dateOfDeath", e.target.value)} required /></div>
                 <div><Label>Cause of Death *</Label>
-                  <Select value={form.causeOfDeath} onValueChange={v => setField("causeOfDeath", v)}>
+                  <Select value={form.causeOfDeath || undefined} onValueChange={v => setField("causeOfDeath", v)}>
                     <SelectTrigger><SelectValue placeholder="Select cause" /></SelectTrigger>
                     <SelectContent>
                       {Object.entries(CAUSE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
@@ -1359,7 +1494,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
                   </Select>
                 </div>
                 <div><Label>Disposal Method *</Label>
-                  <Select value={form.disposalMethod} onValueChange={v => setField("disposalMethod", v)}>
+                  <Select value={form.disposalMethod || undefined} onValueChange={v => setField("disposalMethod", v)}>
                     <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
                     <SelectContent>
                       {Object.entries(DISPOSAL_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
@@ -2203,6 +2338,312 @@ const ANIMAL_STATUS_LABELS: Record<string, string> = {
   active: "On Farm", sold: "Sold / Moved Off", dead: "Deceased", removed: "Removed",
 };
 
+const MOVEMENT_TYPE_LABELS: Record<string, string> = {
+  arrival: "Arrival / Purchase", departure: "Departure / Sale", "inter-farm": "Inter-Farm Move",
+  "within-farm": "Within-Farm Move", "to-slaughter": "Off to Slaughter", "to-show": "To Show / Market",
+  temporary: "Temporary Move", other: "Other",
+};
+
+interface AnimalProfile {
+  animal: Animal;
+  herd: { id: number; name: string; type: string; herdNumber: string | null } | null;
+  medicines: Array<{ id: number; medicineName: string; administeredDate: string; dosage: string | null; administrationRoute: string | null; administeredBy: string | null; vetName: string | null; withdrawalEndDate: string | null; withdrawalPeriodDays: number | null; reason: string | null; notes: string | null }>;
+  movements: Array<{ id: number; movementType: string; movementDate: string; fromLocation: string | null; toLocation: string | null; licenceNumber: string | null; bcmsSubmissionRef: string | null; reason: string | null; notes: string | null }>;
+  calvings: Array<{ id: number; calvingDate: string; calvingEaseScore: number | null; numberOfCalves: number; calfOutcome: string | null; calfSex: string | null; calfEarTag: string | null; sireBreed: string | null; cowComplications: string | null; assistanceRequired: boolean; vetAttended: boolean; bcmsPassportApplied: boolean; notes: string | null }>;
+  mastitis: Array<{ id: number; onsetDate: string; quartersAffected: string | null; clinicalGrade: string | null; treatmentProduct: string | null; outcome: string | null; vetConsulted: boolean; notes: string | null }>;
+  mortality: { dateOfDeath: string; causeOfDeath: string; disposalMethod: string } | null;
+  stats: { medicineCount: number; movementCount: number; calvingCount: number; mastitisCount: number };
+}
+
+// ─── Animal Quick View Dialog ──────────────────────────────────────────────────
+function AnimalQuickViewDialog({ animal, herds, onClose, onEdit, onProfile }: {
+  animal: Animal; herds: Herd[]; onClose: () => void;
+  onEdit: (a: Animal) => void; onProfile: (a: Animal) => void;
+}) {
+  const herdName = (herdId: number | null) => herds.find(h => h.id === herdId)?.name ?? "Unassigned";
+  const statusColor = {
+    active: "bg-green-50 text-green-700", sold: "bg-amber-50 text-amber-700",
+    dead: "bg-red-50 text-red-700", removed: "bg-gray-50 text-gray-600",
+  }[animal.status] ?? "bg-gray-50 text-gray-600";
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent style={{ maxWidth: 500 }} aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="font-mono text-base">{animal.earTagNumber || animal.tagNumber || `Animal #${animal.id}`}</span>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColor}`}>{ANIMAL_STATUS_LABELS[animal.status] ?? animal.status}</span>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 text-sm py-1">
+          <div className="grid grid-cols-2 gap-3">
+            <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">UK Ear Tag</p><p className="font-mono font-bold text-gray-900">{animal.earTagNumber || "—"}</p></div>
+            <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">EID Number</p><p className="font-mono text-gray-700">{animal.eidNumber || "—"}</p></div>
+            <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Species</p><p className="capitalize">{animal.species}</p></div>
+            <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Breed</p><p>{animal.breed || "—"}</p></div>
+            <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Sex</p><p className="capitalize">{animal.sex || "—"}</p></div>
+            <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Date of Birth</p><p>{formatDate(animal.dateOfBirth)}</p></div>
+            <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Herd / Flock</p><p>{herdName(animal.herdId)}</p></div>
+            <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Acquired</p><p>{formatDate(animal.acquisitionDate)}</p></div>
+            <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">From</p><p>{animal.acquisitionSource || "—"}</p></div>
+            <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Alt. ID</p><p className="font-mono text-xs">{animal.tagNumber || "—"}</p></div>
+          </div>
+          {animal.notes && <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Notes</p><p className="text-gray-700 whitespace-pre-line">{animal.notes}</p></div>}
+        </div>
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+          <Button variant="outline" size="sm" onClick={() => { onEdit(animal); onClose(); }}><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
+          <Button size="sm" onClick={() => { onProfile(animal); onClose(); }} className="gap-1.5">
+            <ClipboardList className="w-3.5 h-3.5" /> Full Animal Profile
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Animal Profile Dialog ─────────────────────────────────────────────────────
+function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
+  animal: Animal; farmId: number; onClose: () => void; onEdit: (a: Animal) => void;
+}) {
+  const [tab, setTab] = useState<"overview" | "medicines" | "movements" | "breeding">("overview");
+
+  const { data, isLoading } = useQuery<AnimalProfile>({
+    queryKey: ["animal-profile", farmId, animal.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/animals/${animal.id}/profile`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const statusColor = {
+    active: "bg-green-100 text-green-800", sold: "bg-amber-100 text-amber-800",
+    dead: "bg-red-100 text-red-800", removed: "bg-gray-100 text-gray-700",
+  }[animal.status] ?? "bg-gray-100 text-gray-700";
+
+  const isCattle = animal.species?.toLowerCase() === "cattle";
+  const isFemale = animal.sex === "female";
+  const showBreeding = isCattle && isFemale;
+
+  const tabDef = [
+    { key: "overview", label: "Overview", icon: ClipboardList },
+    { key: "medicines", label: "Medicines", icon: Stethoscope, count: data?.stats.medicineCount },
+    { key: "movements", label: "Movements", icon: FileText, count: data?.stats.movementCount },
+    ...(showBreeding ? [{ key: "breeding", label: "Calving", icon: CheckCircle2, count: data?.stats.calvingCount }] : []),
+  ] as const;
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent style={{ maxWidth: "56rem", maxHeight: "88vh", display: "flex", flexDirection: "column", padding: 0 }} aria-describedby={undefined}>
+        {/* Header */}
+        <div style={{ padding: "20px 24px 0 24px", borderBottom: "1px solid #e5e7eb" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: 0 }}>
+                  {animal.earTagNumber || animal.tagNumber || `Animal #${animal.id}`}
+                </h2>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusColor}`}>{ANIMAL_STATUS_LABELS[animal.status] ?? animal.status}</span>
+              </div>
+              <p style={{ margin: 0, fontSize: "0.82rem", color: "#6b7280" }}>
+                {animal.species}{animal.breed ? ` · ${animal.breed}` : ""}{animal.sex ? ` · ${animal.sex}` : ""}
+                {data?.herd ? ` · ${data.herd.name}` : ""}
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => { onEdit(animal); onClose(); }} className="gap-1.5 shrink-0">
+              <Pencil className="w-3.5 h-3.5" /> Edit Record
+            </Button>
+          </div>
+
+          {/* Mortality alert */}
+          {data?.mortality && (
+            <div style={{ marginBottom: 12, padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.8rem", color: "#991b1b" }}>
+              <strong>Deceased:</strong> {formatDate(data.mortality.dateOfDeath)} · Cause: {data.mortality.causeOfDeath} · Disposal: {data.mortality.disposalMethod}
+            </div>
+          )}
+
+          {/* Stats row */}
+          {data && (
+            <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+              {[
+                { label: "Medicine records", val: data.stats.medicineCount },
+                { label: "Movements", val: data.stats.movementCount },
+                { label: "Calvings", val: data.stats.calvingCount },
+                { label: "Mastitis episodes", val: data.stats.mastitisCount },
+              ].map(s => (
+                <div key={s.label} style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: "1.3rem", fontWeight: 700, lineHeight: 1, color: s.val > 0 ? "#166534" : "#9ca3af" }}>{s.val}</div>
+                  <div style={{ fontSize: "0.65rem", color: "#9ca3af", marginTop: 2 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: 0, borderBottom: "none" }}>
+            {tabDef.map(t => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key as typeof tab)}
+                style={{
+                  padding: "8px 16px", border: "none", background: "none", cursor: "pointer", fontSize: "0.83rem", fontWeight: 600,
+                  color: tab === t.key ? "#166534" : "#6b7280",
+                  borderBottom: tab === t.key ? "2px solid #166534" : "2px solid transparent",
+                  display: "flex", alignItems: "center", gap: 6,
+                }}
+              >
+                <t.icon size={13} />
+                {t.label}
+                {(t as { count?: number }).count !== undefined && (
+                  <span style={{ fontSize: "0.68rem", background: tab === t.key ? "#dcfce7" : "#f3f4f6", color: tab === t.key ? "#166534" : "#6b7280", padding: "1px 5px", borderRadius: 10, fontWeight: 700 }}>
+                    {(t as { count?: number }).count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 20px" }}>
+          {isLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
+          ) : !data ? (
+            <p style={{ color: "#6b7280", textAlign: "center", padding: 40 }}>Failed to load profile.</p>
+          ) : tab === "overview" ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px" }}>
+              {[
+                { label: "UK Ear Tag", val: animal.earTagNumber, mono: true },
+                { label: "EID Transponder", val: animal.eidNumber, mono: true },
+                { label: "Alt. / Internal ID", val: animal.tagNumber, mono: true },
+                { label: "Species", val: animal.species, capitalize: true },
+                { label: "Breed", val: animal.breed },
+                { label: "Sex", val: animal.sex, capitalize: true },
+                { label: "Date of Birth", val: formatDate(animal.dateOfBirth) },
+                { label: "Age", val: animal.dateOfBirth ? `${Math.floor((Date.now() - new Date(animal.dateOfBirth).getTime()) / (365.25 * 24 * 3600 * 1000))} years` : null },
+                { label: "Herd / Flock", val: data.herd ? `${data.herd.name} (${data.herd.herdNumber || "no reg. no."})` : null },
+                { label: "Acquisition Date", val: formatDate(animal.acquisitionDate) },
+                { label: "Acquired From", val: animal.acquisitionSource },
+                { label: "QR / Animal Code", val: animal.animalCode, mono: true },
+              ].map(f => (
+                <div key={f.label}>
+                  <p style={{ margin: 0, fontSize: "0.68rem", color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{f.label}</p>
+                  <p style={{ margin: 0, fontSize: "0.85rem", color: f.val ? "#111827" : "#d1d5db", fontFamily: f.mono ? "monospace" : undefined, textTransform: (f as { capitalize?: boolean }).capitalize ? "capitalize" : undefined }}>
+                    {f.val || "—"}
+                  </p>
+                </div>
+              ))}
+              {animal.notes && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <p style={{ margin: "0 0 2px", fontSize: "0.68rem", color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Notes</p>
+                  <p style={{ margin: 0, fontSize: "0.85rem", color: "#374151", whiteSpace: "pre-line" }}>{animal.notes}</p>
+                </div>
+              )}
+            </div>
+          ) : tab === "medicines" ? (
+            data.medicines.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "#9ca3af" }}>
+                <Stethoscope size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
+                <p>No medicine records linked to this animal.</p>
+                <p style={{ fontSize: "0.78rem" }}>Records appear here when a medicine is administered directly to this animal via the Medicine Records tab.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {data.medicines.map(m => (
+                  <div key={m.id} style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 14px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: "0.9rem", color: "#111827" }}>{m.medicineName}</p>
+                        <p style={{ margin: "2px 0 0", fontSize: "0.75rem", color: "#6b7280" }}>{formatDate(m.administeredDate)}{m.administeredBy ? ` · ${m.administeredBy}` : ""}{m.vetName ? ` · ${m.vetName}` : ""}</p>
+                      </div>
+                      {m.withdrawalEndDate && new Date(m.withdrawalEndDate) > new Date() && (
+                        <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#854d0e", background: "#fef9c3", border: "1px solid #fde047", padding: "2px 6px", borderRadius: 4 }}>WITHDRAWAL ACTIVE</span>
+                      )}
+                    </div>
+                    {(m.dosage || m.administrationRoute || m.reason) && (
+                      <p style={{ margin: "6px 0 0", fontSize: "0.78rem", color: "#374151" }}>
+                        {[m.dosage && `Dosage: ${m.dosage}`, m.administrationRoute && `Route: ${m.administrationRoute}`, m.reason && `Reason: ${m.reason}`].filter(Boolean).join("  ·  ")}
+                      </p>
+                    )}
+                    {m.withdrawalEndDate && (
+                      <p style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "#854d0e" }}>Withdrawal ends: {formatDate(m.withdrawalEndDate)} ({m.withdrawalPeriodDays} days)</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          ) : tab === "movements" ? (
+            data.movements.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "#9ca3af" }}>
+                <FileText size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
+                <p>No movement records linked to this animal.</p>
+                <p style={{ fontSize: "0.78rem" }}>Records appear here when a movement is logged against this specific animal in the Movement Records module.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {data.movements.map(mv => (
+                  <div key={mv.id} style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 14px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#3b82f6", flexShrink: 0, marginTop: 6 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: "0.85rem", color: "#111827" }}>{MOVEMENT_TYPE_LABELS[mv.movementType] ?? mv.movementType}</p>
+                        <p style={{ margin: 0, fontSize: "0.75rem", color: "#9ca3af" }}>{formatDate(mv.movementDate)}</p>
+                      </div>
+                      {(mv.fromLocation || mv.toLocation) && (
+                        <p style={{ margin: "3px 0 0", fontSize: "0.78rem", color: "#6b7280" }}>
+                          {mv.fromLocation && <span>From: <strong>{mv.fromLocation}</strong></span>}
+                          {mv.fromLocation && mv.toLocation && <span> → </span>}
+                          {mv.toLocation && <span>To: <strong>{mv.toLocation}</strong></span>}
+                        </p>
+                      )}
+                      {(mv.licenceNumber || mv.bcmsSubmissionRef) && (
+                        <p style={{ margin: "3px 0 0", fontSize: "0.72rem", color: "#9ca3af", fontFamily: "monospace" }}>
+                          {mv.licenceNumber && `Licence: ${mv.licenceNumber}`}{mv.licenceNumber && mv.bcmsSubmissionRef && "  ·  "}{mv.bcmsSubmissionRef && `BCMS ref: ${mv.bcmsSubmissionRef}`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : tab === "breeding" ? (
+            data.calvings.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "#9ca3af" }}>
+                <CheckCircle2 size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
+                <p>No calving records linked to this cow.</p>
+                <p style={{ fontSize: "0.78rem" }}>Records appear here when a calving event is logged against this cow in the Dairy / Calving module.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {data.calvings.map((c, i) => (
+                  <div key={c.id} style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 14px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 700, fontSize: "0.85rem", color: "#14532d" }}>Calving #{data.calvings.length - i} — {formatDate(c.calvingDate)}</p>
+                        <p style={{ margin: "2px 0 0", fontSize: "0.75rem", color: "#166534" }}>
+                          {c.numberOfCalves} {c.numberOfCalves === 1 ? "calf" : "calves"} · {c.calfSex || "sex unknown"} · Outcome: {c.calfOutcome || "not recorded"}
+                        </p>
+                      </div>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {c.assistanceRequired && <span style={{ fontSize: "0.65rem", fontWeight: 600, background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "1px 5px", borderRadius: 4 }}>Assisted</span>}
+                        {c.vetAttended && <span style={{ fontSize: "0.65rem", fontWeight: 600, background: "#ede9fe", color: "#6d28d9", border: "1px solid #c4b5fd", padding: "1px 5px", borderRadius: 4 }}>Vet</span>}
+                      </div>
+                    </div>
+                    {(c.calfEarTag || c.sireBreed) && (
+                      <p style={{ margin: "5px 0 0", fontSize: "0.78rem", color: "#374151" }}>
+                        {c.calfEarTag && `Calf tag: ${c.calfEarTag}`}{c.calfEarTag && c.sireBreed && "  ·  "}{c.sireBreed && `Sire breed: ${c.sireBreed}`}
+                      </p>
+                    )}
+                    {c.cowComplications && <p style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "#b45309" }}>Complications: {c.cowComplications}</p>}
+                    {!c.bcmsPassportApplied && isCattle && <p style={{ margin: "4px 0 0", fontSize: "0.72rem", color: "#ef4444", fontWeight: 600 }}>⚠ BCMS passport not yet applied for</p>}
+                  </div>
+                ))}
+              </div>
+            )
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AnimalsSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const animalSpecies = useLookupStrings("livestock_species", ANIMAL_SPECIES_FALLBACK);
@@ -2228,6 +2669,8 @@ function AnimalsSection({ farmId }: { farmId: number }) {
   const [form, setForm] = useState(EMPTY_ANIMAL);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [qrAnimal, setQrAnimal] = useState<Animal | null>(null);
+  const [viewAnimal, setViewAnimal] = useState<Animal | null>(null);
+  const [profileAnimal, setProfileAnimal] = useState<Animal | null>(null);
   const [isSavingAnimalCode, setIsSavingAnimalCode] = useState(false);
 
   function setField(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
@@ -2430,6 +2873,8 @@ function AnimalsSection({ farmId }: { farmId: number }) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" title="View animal" onClick={() => setViewAnimal(a)}><Eye className="h-3 w-3 text-blue-600" /></Button>
+                      <Button size="sm" variant="ghost" title="Full profile" onClick={() => setProfileAnimal(a)} className="text-green-700 hover:text-green-800"><ClipboardList className="h-3 w-3" /></Button>
                       <Button size="sm" variant="ghost" title="QR Code" onClick={() => setQrAnimal(a)}><QrCode className="h-3 w-3 text-teal-600" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => openEdit(a)}><Pencil className="h-3 w-3" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => setDeleteId(a.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
@@ -2590,6 +3035,27 @@ function AnimalsSection({ farmId }: { farmId: number }) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Quick view dialog */}
+      {viewAnimal && (
+        <AnimalQuickViewDialog
+          animal={viewAnimal}
+          herds={herds}
+          onClose={() => setViewAnimal(null)}
+          onEdit={a => { setViewAnimal(null); openEdit(a); }}
+          onProfile={a => { setViewAnimal(null); setProfileAnimal(a); }}
+        />
+      )}
+
+      {/* Full animal profile dialog */}
+      {profileAnimal && (
+        <AnimalProfileDialog
+          animal={profileAnimal}
+          farmId={farmId}
+          onClose={() => setProfileAnimal(null)}
+          onEdit={a => { setProfileAnimal(null); openEdit(a); }}
+        />
       )}
     </>
   );

@@ -1742,6 +1742,55 @@ router.delete("/farms/:farmId/animals/:recordId", requireAuth, requireTenant, re
   res.json({ success: true });
 });
 
+// ─── Animal Profile (aggregated per-animal view) ──────────────────────────────
+router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  const [animal] = await db.select().from(livestockAnimalsTable).where(and(eq(livestockAnimalsTable.id, recordId), eq(livestockAnimalsTable.farmId, farmId)));
+  if (!animal) { res.status(404).json({ error: "Animal not found" }); return; }
+
+  const herd = animal.herdId
+    ? (await db.select().from(herdFlockRegisterTable).where(eq(herdFlockRegisterTable.id, animal.herdId)).limit(1))[0] ?? null
+    : null;
+
+  const [medicines, movements, calvings, mastitis, mortalityRows] = await Promise.all([
+    db.select().from(livestockMedicineRecordsTable)
+      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), eq(livestockMedicineRecordsTable.animalId, recordId)))
+      .orderBy(desc(livestockMedicineRecordsTable.administeredDate)),
+    db.select().from(livestockMovementsTable)
+      .where(and(eq(livestockMovementsTable.farmId, farmId), eq(livestockMovementsTable.animalId, recordId)))
+      .orderBy(desc(livestockMovementsTable.movementDate)),
+    db.select().from(dairyCalvingRecordsTable)
+      .where(and(eq(dairyCalvingRecordsTable.farmId, farmId), eq(dairyCalvingRecordsTable.cowAnimalId, recordId)))
+      .orderBy(desc(dairyCalvingRecordsTable.calvingDate)),
+    db.select().from(dairyMastitisRecordsTable)
+      .where(and(eq(dairyMastitisRecordsTable.farmId, farmId), eq(dairyMastitisRecordsTable.animalId, recordId)))
+      .orderBy(desc(dairyMastitisRecordsTable.onsetDate)),
+    db.select().from(livestockMortalityTable)
+      .where(and(eq(livestockMortalityTable.farmId, farmId), eq(livestockMortalityTable.animalId, recordId)))
+      .limit(1),
+  ]);
+
+  res.json({
+    animal,
+    herd,
+    medicines,
+    movements,
+    calvings,
+    mastitis,
+    mortality: mortalityRows[0] ?? null,
+    stats: {
+      medicineCount: medicines.length,
+      movementCount: movements.length,
+      calvingCount: calvings.length,
+      mastitisCount: mastitis.length,
+    },
+  });
+});
+
 // ─── Livestock Movements ───────────────────────────
 router.get("/farms/:farmId/movements", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
