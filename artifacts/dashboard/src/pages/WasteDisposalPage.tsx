@@ -606,12 +606,15 @@ export default function WasteDisposalPage() {
                   </div>
                 ) : (
                   /* EA live register typeahead — used when no registered carriers or in manual mode */
-                  <div className="grid grid-cols-2 gap-3">
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "0.75rem" }}>
+                    {/* row 1 — labels */}
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
+                      <Label style={{ margin: 0 }}>Carrier Company Name</Label>
+                      <span style={{ fontSize: "0.68rem", color: "#0284c7", fontWeight: 500 }}>🔍 Live EA Register</span>
+                    </div>
+                    <Label style={{ display: "block", marginBottom: 4 }}>EA Registration No.</Label>
+                    {/* row 2 — inputs */}
                     <div>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
-                        <Label style={{ margin: 0 }}>Carrier Company Name</Label>
-                        <span style={{ fontSize: "0.68rem", color: "#0284c7", fontWeight: 500 }}>🔍 Live EA Register</span>
-                      </div>
                       <div style={{ position: "relative" }}>
                         <Input
                           value={carrierQuery}
@@ -658,19 +661,16 @@ export default function WasteDisposalPage() {
                       </div>
                       <p style={{ fontSize: "0.68rem", color: "#9ca3af", marginTop: 3 }}>England · EA Waste Carrier, Broker & Dealer Register</p>
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                      <Label>EA Registration No.</Label>
-                      <div>
-                        <Input
-                          placeholder="e.g. CBDU01234"
-                          value={form.carrierLicence}
-                          onChange={e => setForm((f: any) => ({ ...f, carrierLicence: e.target.value }))}
-                          style={{ fontFamily: "monospace", background: form.carrierLicence && form.carrierName === carrierQuery ? "#f0f9ff" : undefined }}
-                        />
-                        {form.carrierLicence && form.carrierName === carrierQuery && carrierQuery.length > 0 && (
-                          <p style={{ fontSize: "0.68rem", color: "#0284c7", marginTop: 3 }}>✓ Auto-filled from EA register</p>
-                        )}
-                      </div>
+                    <div>
+                      <Input
+                        placeholder="e.g. CBDU01234"
+                        value={form.carrierLicence}
+                        onChange={e => setForm((f: any) => ({ ...f, carrierLicence: e.target.value }))}
+                        style={{ fontFamily: "monospace", background: form.carrierLicence && form.carrierName === carrierQuery ? "#f0f9ff" : undefined }}
+                      />
+                      {form.carrierLicence && form.carrierName === carrierQuery && carrierQuery.length > 0 && (
+                        <p style={{ fontSize: "0.68rem", color: "#0284c7", marginTop: 3 }}>✓ Auto-filled from EA register</p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -684,12 +684,15 @@ export default function WasteDisposalPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "0.75rem" }}>
+                {/* row 1 — labels */}
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
+                  <Label style={{ margin: 0 }}>Destination / Permitted Site</Label>
+                  <span style={{ fontSize: "0.68rem", color: "#0284c7", fontWeight: 500 }}>🔍 EA Register</span>
+                </div>
+                <Label style={{ display: "block", marginBottom: 4 }}>Waste Transfer Note No.</Label>
+                {/* row 2 — inputs */}
                 <div>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
-                    <Label style={{ margin: 0 }}>Destination / Permitted Site</Label>
-                    <span style={{ fontSize: "0.68rem", color: "#0284c7", fontWeight: 500 }}>🔍 EA Register</span>
-                  </div>
                   <div style={{ position: "relative" }}>
                     <Input
                       value={siteQuery}
@@ -738,8 +741,7 @@ export default function WasteDisposalPage() {
                   </div>
                   <p style={{ fontSize: "0.68rem", color: "#9ca3af", marginTop: 3 }}>England · EA Waste Operations Permitted Sites Register</p>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                  <Label>Waste Transfer Note No.</Label>
+                <div>
                   <Input placeholder="e.g. WTN-2025-001" value={form.wasteTransferNote} onChange={e => setForm((f: any) => ({ ...f, wasteTransferNote: e.target.value }))} style={{ fontFamily: "monospace" }} />
                 </div>
               </div>
