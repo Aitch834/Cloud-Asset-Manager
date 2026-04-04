@@ -586,7 +586,7 @@ function PestPhotoPanel({ recordId, farmId, photos }: { recordId: number; farmId
 const EMPTY_PEST = { pestType: "", location: "", treatmentMethod: "", productUsed: "", treatmentDate: new Date().toISOString().slice(0, 10), treatedBy: "", followUpDate: "", outcome: "", notes: "" };
 const PEST_TYPES = ["Rats / Mice", "Rabbits", "Foxes", "Pigeons / Corvids", "Moles", "Slugs / Snails", "Insects", "Other"];
 
-function printPestControlRegister(records: PestRecord[], farmName: string) {
+function printPestControlRegister(records: PestRecord[], farmName: string, yearLabel: string) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const fmtD = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString("en-GB") : "—";
   const rows = records.map(r => `<tr>
@@ -596,7 +596,7 @@ function printPestControlRegister(records: PestRecord[], farmName: string) {
     <td>${r.outcome || "—"}</td><td>${r.notes || "—"}</td>
   </tr>`).join("");
   openPrint(`<!DOCTYPE html><html><head><title>Pest Control Register — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
-<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Pest Control Register · Red Tractor Biosecurity Compliance</p></div>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Pest Control Register · ${yearLabel} · Red Tractor Biosecurity Compliance</p></div>
 <div class="hdr-r"><b>Pest Control Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
 <table><thead><tr><th>Pest Type</th><th>Location</th><th>Method</th><th>Product Used</th><th>Treatment Date</th><th>Treated By</th><th>Follow-up Date</th><th>Outcome</th><th>Notes</th></tr></thead>
 <tbody>${rows}</tbody></table>
@@ -607,6 +607,7 @@ function printPestControlRegister(records: PestRecord[], farmName: string) {
 function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PestRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_PEST>(EMPTY_PEST);
@@ -618,10 +619,12 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
     queryFn: () => fetch(`/api/farms/${farmId}/pest-control`).then(r => r.json()),
   });
   const records: PestRecord[] = data?.records ?? [];
-  const filtered = records.filter(r => !search
-    || r.pestType.toLowerCase().includes(search.toLowerCase())
-    || r.location?.toLowerCase().includes(search.toLowerCase())
-    || r.productUsed?.toLowerCase().includes(search.toLowerCase())
+  const filtered = records.filter(r =>
+    isInCropYear(r.treatmentDate, cropYear)
+    && (!search
+      || r.pestType.toLowerCase().includes(search.toLowerCase())
+      || r.location?.toLowerCase().includes(search.toLowerCase())
+      || r.productUsed?.toLowerCase().includes(search.toLowerCase()))
   );
 
   const createM = useMutation({
@@ -658,7 +661,8 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input placeholder="Search pest type, location, product..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button variant="outline" onClick={() => printPestControlRegister(filtered, farmName)} className="gap-2 shrink-0" disabled={filtered.length === 0}>
+        <CropYearSelector value={cropYear} onChange={setCropYear} />
+        <Button variant="outline" onClick={() => printPestControlRegister(filtered, farmName, cropYearLabel(cropYear))} className="gap-2 shrink-0" disabled={filtered.length === 0}>
           <Printer className="w-4 h-4" /> Print Register
         </Button>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_PEST); setFormOpen(true); }} className="gap-2 shrink-0">
@@ -821,7 +825,7 @@ interface CleaningRecord {
 const EMPTY_CLEANING = { area: "", cleaningType: "", productsUsed: "", dilutionRate: "", contactTime: "", cleanedBy: "", cleanedDate: new Date().toISOString().slice(0, 10), nextDueDate: "", verifiedBy: "", notes: "" };
 const CLEANING_TYPES = ["Routine clean", "Deep clean", "Disinfection", "Fogging / fumigation", "Pre-housing clean", "Post-TB restriction clean", "Emergency clean", "Other"];
 
-function printCleaningRegister(records: CleaningRecord[], farmName: string) {
+function printCleaningRegister(records: CleaningRecord[], farmName: string, yearLabel: string) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const fmtD = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString("en-GB") : "—";
   const rows = records.map(r => `<tr>
@@ -832,7 +836,7 @@ function printCleaningRegister(records: CleaningRecord[], farmName: string) {
     <td>${r.notes || "—"}</td>
   </tr>`).join("");
   openPrint(`<!DOCTYPE html><html><head><title>Cleaning &amp; Disinfection Register — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
-<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Cleaning &amp; Disinfection Register · Red Tractor Biosecurity Compliance</p></div>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Cleaning &amp; Disinfection Register · ${yearLabel} · Red Tractor Biosecurity Compliance</p></div>
 <div class="hdr-r"><b>Cleaning &amp; Disinfection Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
 <table><thead><tr><th>Area / Location</th><th>Cleaning Type</th><th>Products Used</th><th>Dilution Rate</th><th>Contact Time</th><th>Cleaned Date</th><th>Cleaned By</th><th>Next Due</th><th>Verified By</th><th>Notes</th></tr></thead>
 <tbody>${rows}</tbody></table>
@@ -843,6 +847,7 @@ function printCleaningRegister(records: CleaningRecord[], farmName: string) {
 function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CleaningRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_CLEANING>(EMPTY_CLEANING);
@@ -853,10 +858,12 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
     queryFn: () => fetch(`/api/farms/${farmId}/cleaning`).then(r => r.json()),
   });
   const records: CleaningRecord[] = data?.records ?? [];
-  const filtered = records.filter(r => !search
-    || r.area.toLowerCase().includes(search.toLowerCase())
-    || r.cleaningType.toLowerCase().includes(search.toLowerCase())
-    || r.productsUsed?.toLowerCase().includes(search.toLowerCase())
+  const filtered = records.filter(r =>
+    isInCropYear(r.cleanedDate, cropYear)
+    && (!search
+      || r.area.toLowerCase().includes(search.toLowerCase())
+      || r.cleaningType.toLowerCase().includes(search.toLowerCase())
+      || r.productsUsed?.toLowerCase().includes(search.toLowerCase()))
   );
 
   const createM = useMutation({
@@ -893,7 +900,8 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input placeholder="Search area, type, product..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button variant="outline" onClick={() => printCleaningRegister(filtered, farmName)} className="gap-2 shrink-0" disabled={filtered.length === 0}>
+        <CropYearSelector value={cropYear} onChange={setCropYear} />
+        <Button variant="outline" onClick={() => printCleaningRegister(filtered, farmName, cropYearLabel(cropYear))} className="gap-2 shrink-0" disabled={filtered.length === 0}>
           <Printer className="w-4 h-4" /> Print Register
         </Button>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_CLEANING); setFormOpen(true); }} className="gap-2 shrink-0">
@@ -1037,7 +1045,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
 
 // ─── COSHH Tab ─────────────────────────────────────────────────────────────────
 
-function printCoshhRegister(records: any[], farmName: string) {
+function printCoshhRegister(records: any[], farmName: string, yearLabel: string) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const fmtD = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString("en-GB") : "—";
   const rows = records.map(r => `<tr>
@@ -1048,7 +1056,7 @@ function printCoshhRegister(records: any[], farmName: string) {
     <td style="white-space:nowrap">${fmtD(r.reviewDate)}</td>
   </tr>`).join("");
   openPrint(`<!DOCTYPE html><html><head><title>COSHH Register — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
-<div class="hdr"><div><h1>${farmName}</h1><p class="sub">COSHH Assessment Register · Control of Substances Hazardous to Health · Red Tractor Compliance</p></div>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">COSHH Assessment Register · ${yearLabel} · Control of Substances Hazardous to Health · Red Tractor Compliance</p></div>
 <div class="hdr-r"><b>COSHH Register</b>${records.length} substance${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
 <table><thead><tr><th>Substance</th><th>Manufacturer</th><th>Hazard Classification</th><th>Usage Area</th><th>Storage Location</th><th>Assessed By</th><th>Assessment Date</th><th>Review Due</th></tr></thead>
 <tbody>${rows}</tbody></table>
@@ -1090,6 +1098,7 @@ ${r.hazardClassification ? `<div class="hazard">⚠ ${r.hazardClassification}</d
 function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [cropYear, setCropYear] = useState(currentCropYear());
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<any>({ substanceName: "", manufacturer: "", hazardClassification: "", usageArea: "", storageLocation: "", controlMeasures: "", ppe: "", emergencyProcedures: "", assessedBy: "", assessmentDate: "", reviewDate: "", notes: "" });
@@ -1116,21 +1125,23 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   });
 
   const resetForm = () => setForm({ substanceName: "", manufacturer: "", hazardClassification: "", usageArea: "", storageLocation: "", controlMeasures: "", ppe: "", emergencyProcedures: "", assessedBy: "", assessmentDate: "", reviewDate: "", notes: "" });
-  const records: any[] = q.data ?? [];
+  const allRecords: any[] = q.data ?? [];
+  const records: any[] = allRecords.filter(r => isInCropYear(r.assessmentDate, cropYear));
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
         <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>COSHH assessments for hazardous substances used on the farm.</p>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Button size="sm" variant="outline" onClick={() => printCoshhRegister(records, farmName)} disabled={records.length === 0}><Printer size={14} className="mr-1" />Print Register</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <CropYearSelector value={cropYear} onChange={setCropYear} />
+          <Button size="sm" variant="outline" onClick={() => printCoshhRegister(records, farmName, cropYearLabel(cropYear))} disabled={records.length === 0}><Printer size={14} className="mr-1" />Print Register</Button>
           <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add COSHH Assessment</Button>
         </div>
       </div>
 
       {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
-          <p style={{ fontWeight: 600, color: "#374151" }}>No COSHH assessments recorded</p>
+          <p style={{ fontWeight: 600, color: "#374151" }}>No COSHH assessments for {cropYearLabel(cropYear)}</p>
           <p style={{ fontSize: "0.875rem" }}>Record assessments for pesticides, cleaning chemicals, fuels and other hazardous substances.</p>
         </div>
       ) : (
