@@ -13,6 +13,8 @@ export const visitorContractorLogTable = pgTable("visitor_contractor_log", {
   areasVisited: text("areas_visited"),
   biosecurityDeclarationSigned: boolean("biosecurity_declaration_signed").notNull().default(false),
   healthDeclarationSigned: boolean("health_declaration_signed").notNull().default(false),
+  biosecuritySignature: text("biosecurity_signature"),
+  healthSignature: text("health_signature"),
   escortedBy: text("escorted_by"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

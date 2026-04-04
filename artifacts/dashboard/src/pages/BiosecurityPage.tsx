@@ -3,6 +3,8 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { FarmLocationSelect } from "@/components/ui/FarmLocationSelect";
+import { TypeaheadInput } from "@/components/ui/TypeaheadInput";
+import { SignatureModal } from "@/components/ui/SignaturePad";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card } from "@/components/ui/card";
@@ -12,7 +14,7 @@ import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, Users, Bug, ShieldCheck, Eye,
   CheckCircle2, XCircle, AlertTriangle, Calendar, Printer, FileText,
-  Camera, File, ChevronDown, ChevronUp,
+  Camera, File, ChevronDown, ChevronUp, Pen,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -72,6 +74,7 @@ interface Visitor {
   id: number; farmId: number; visitorName: string; company: string | null; purpose: string;
   vehicleRegistration: string | null; arrivalTime: string; departureTime: string | null;
   areasVisited: string | null; biosecurityDeclarationSigned: boolean; healthDeclarationSigned: boolean;
+  biosecuritySignature: string | null; healthSignature: string | null;
   escortedBy: string | null; notes: string | null; createdAt: string;
 }
 
@@ -79,6 +82,7 @@ const EMPTY_VISITOR = {
   visitorName: "", company: "", purpose: "", vehicleRegistration: "",
   arrivalTime: new Date().toISOString().slice(0, 16), departureTime: "",
   areasVisited: "", biosecurityDeclarationSigned: false, healthDeclarationSigned: false,
+  biosecuritySignature: null as string | null, healthSignature: null as string | null,
   escortedBy: "", notes: "",
 };
 
@@ -103,6 +107,87 @@ function printVisitorRegister(records: Visitor[], farmName: string, yearLabel: s
 </body></html>`);
 }
 
+const BIOSEC_DECLARATION_TEXT = `I confirm that:
+1. I have not visited any other livestock or agricultural premises within the last 48 hours.
+2. I agree to comply with all biosecurity measures required on this farm, including cleaning and disinfection of footwear, wearing PPE where required, and following all instructions given by farm staff.
+3. I will not enter restricted areas without authorisation or escort.
+4. I understand that failure to comply with biosecurity requirements may result in removal from the farm premises.`;
+
+const HEALTH_DECLARATION_TEXT = `I confirm that:
+1. I am in good health at the time of this visit.
+2. I am not displaying symptoms of any infectious illness, including but not limited to vomiting, diarrhoea, respiratory illness, or open skin infections.
+3. I have not been advised by a medical professional to avoid contact with livestock or to self-isolate.
+4. I understand that any illness or health concern relevant to farm biosecurity must be declared to the farm manager before entering the farm.`;
+
+function printBlankDeclarationForms(farmName: string) {
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  openPrint(`<!DOCTYPE html><html><head><title>Visitor Declaration Forms — ${farmName}</title><style>
+body{font-family:Arial,sans-serif;font-size:11px;margin:2cm;color:#000}
+h1{font-size:14px;font-weight:700;margin:0 0 2px}h2{font-size:12px;font-weight:700;margin:18px 0 8px;border-bottom:2px solid #166534;padding-bottom:4px;color:#166534}
+p.sub{font-size:10px;color:#555;margin:1px 0 10px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #166534;padding-bottom:10px;margin-bottom:16px}
+.hdr-r{text-align:right;font-size:10px;color:#555}.hdr-r b{display:block;font-size:13px;font-weight:700;color:#000}
+.decl{background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px 14px;font-size:10.5px;line-height:1.7;white-space:pre-wrap;margin-bottom:12px}
+.field{border-bottom:1px solid #000;margin-top:6px;height:22px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.sig-area{border:1px solid #ccc;border-radius:4px;height:80px;margin-top:4px;background:#fff}
+.label{font-size:9.5px;color:#555;margin-bottom:2px}
+.page-break{page-break-after:always}
+.footer{font-size:9px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:20px}
+@media print{@page{margin:2cm}}</style></head><body>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Visitor &amp; Contractor Declaration Forms</p></div><div class="hdr-r"><b>Visitor Declarations</b>Date: ${today}</div></div>
+<h2>BIOSECURITY DECLARATION</h2>
+<div class="decl">${BIOSEC_DECLARATION_TEXT}</div>
+<div class="grid">
+  <div><p class="label">Visitor / Contractor Name</p><div class="field"></div></div>
+  <div><p class="label">Company / Organisation</p><div class="field"></div></div>
+  <div><p class="label">Purpose of Visit</p><div class="field"></div></div>
+  <div><p class="label">Date &amp; Time of Arrival</p><div class="field"></div></div>
+</div>
+<div style="margin-top:16px"><p class="label">Signature</p><div class="sig-area"></div></div>
+<div class="page-break"></div>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Visitor &amp; Contractor Declaration Forms</p></div><div class="hdr-r"><b>Visitor Declarations</b>Date: ${today}</div></div>
+<h2>HEALTH DECLARATION</h2>
+<div class="decl">${HEALTH_DECLARATION_TEXT}</div>
+<div class="grid">
+  <div><p class="label">Visitor / Contractor Name</p><div class="field"></div></div>
+  <div><p class="label">Company / Organisation</p><div class="field"></div></div>
+  <div><p class="label">Date of Visit</p><div class="field"></div></div>
+  <div><p class="label">Date of Birth (optional)</p><div class="field"></div></div>
+</div>
+<div style="margin-top:16px"><p class="label">Signature</p><div class="sig-area"></div></div>
+<div class="footer">Visitor Declaration Forms — ${farmName} · Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
+</body></html>`);
+}
+
+function printVisitorDeclarationRecord(v: Visitor, farmName: string) {
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const fmtDT = (val: string | null | undefined) => val ? new Date(val).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  const sigBlock = (label: string, sig: string | null, signed: boolean) => sig
+    ? `<div><p class="label">${label}</p><img src="${sig}" style="border:1px solid #e5e7eb;border-radius:6px;max-width:100%;height:120px;object-fit:contain;background:#fff;display:block;margin-top:4px" /></div>`
+    : `<div><p class="label">${label}</p><div style="border:1px solid ${signed ? "#bbf7d0" : "#fca5a5"};background:${signed ? "#f0fdf4" : "#fff7f7"};border-radius:6px;padding:8px 12px;margin-top:4px;font-size:10px;color:${signed ? "#166534" : "#dc2626"};font-weight:600">${signed ? "✓ Signed on paper" : "✗ Not signed"}</div></div>`;
+  openPrint(`<!DOCTYPE html><html><head><title>Visitor Declaration — ${v.visitorName}</title><style>
+body{font-family:Arial,sans-serif;font-size:11px;margin:2cm;color:#000}
+h1{font-size:14px;font-weight:700;margin:0 0 2px}h2{font-size:11px;font-weight:700;margin:16px 0 6px;border-bottom:1px solid #e5e7eb;padding-bottom:3px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #166534;padding-bottom:10px;margin-bottom:16px}
+.hdr-r{text-align:right;font-size:10px;color:#555}.hdr-r b{display:block;font-size:13px;font-weight:700;color:#000}
+table{width:100%;border-collapse:collapse;margin-bottom:12px}
+td{padding:5px 10px;border:1px solid #e5e7eb;font-size:10.5px;vertical-align:top}td:first-child{font-weight:600;background:#f9fafb;width:34%}
+.decl{background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px;font-size:10px;line-height:1.7;white-space:pre-wrap;margin-bottom:10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:10px}
+.label{font-size:9.5px;color:#6b7280;margin-bottom:2px;font-weight:600;text-transform:uppercase;letter-spacing:0.03em}
+.footer{font-size:9px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:24px}
+@media print{@page{margin:2cm}}</style></head><body>
+<div class="hdr"><div><h1>${farmName}</h1><p style="font-size:10px;color:#555;margin:1px 0">Visitor &amp; Contractor Declaration Record</p></div><div class="hdr-r"><b>Declaration Record</b>Printed: ${today}</div></div>
+<h2>Visit Details</h2>
+<table><tr><td>Visitor / Contractor</td><td>${v.visitorName}</td></tr><tr><td>Company</td><td>${v.company || "—"}</td></tr><tr><td>Purpose</td><td>${v.purpose}</td></tr><tr><td>Vehicle Registration</td><td>${v.vehicleRegistration || "—"}</td></tr><tr><td>Arrival</td><td>${fmtDT(v.arrivalTime)}</td></tr><tr><td>Departure</td><td>${v.departureTime ? fmtDT(v.departureTime) : "—"}</td></tr><tr><td>Areas Visited</td><td>${v.areasVisited || "—"}</td></tr><tr><td>Escorted By</td><td>${v.escortedBy || "—"}</td></tr></table>
+<h2>Biosecurity Declaration</h2>
+<div class="decl">${BIOSEC_DECLARATION_TEXT}</div>
+<div class="grid">${sigBlock("Signature", v.biosecuritySignature, v.biosecurityDeclarationSigned)}${sigBlock("Health Declaration Signature", v.healthSignature, v.healthDeclarationSigned)}</div>
+<div class="footer">Visitor Declaration Record — ${farmName} · Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
+</body></html>`);
+}
+
 function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -112,12 +197,15 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
   const [viewVisitor, setViewVisitor] = useState<Visitor | null>(null);
   const [form, setForm] = useState<typeof EMPTY_VISITOR>(EMPTY_VISITOR);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [sigModal, setSigModal] = useState<"biosecurity" | "health" | null>(null);
 
   const { data, isLoading } = useQuery<{ records: Visitor[] }>({
     queryKey: ["visitors", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/visitors`).then(r => r.json()),
   });
   const records: Visitor[] = data?.records ?? [];
+  const companySuggestions = [...new Set(records.map(r => r.company).filter(Boolean) as string[])];
+  const escortedBySuggestions = [...new Set(records.map(r => r.escortedBy).filter(Boolean) as string[])];
   const filtered = records.filter(r =>
     isInCropYear(r.arrivalTime, cropYear) && (
       !search
@@ -149,6 +237,7 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
       vehicleRegistration: v.vehicleRegistration ?? "", arrivalTime: v.arrivalTime?.slice(0, 16) ?? "",
       departureTime: v.departureTime?.slice(0, 16) ?? "", areasVisited: v.areasVisited ?? "",
       biosecurityDeclarationSigned: v.biosecurityDeclarationSigned, healthDeclarationSigned: v.healthDeclarationSigned,
+      biosecuritySignature: v.biosecuritySignature ?? null, healthSignature: v.healthSignature ?? null,
       escortedBy: v.escortedBy ?? "", notes: v.notes ?? "",
     });
     setFormOpen(true);
@@ -174,6 +263,9 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
         <CropYearSelector value={cropYear} onChange={setCropYear} />
         <Button variant="outline" onClick={() => printVisitorRegister(filtered, farmName, cropYearLabel(cropYear))} className="gap-2 shrink-0" disabled={filtered.length === 0}>
           <Printer className="w-4 h-4" /> Print Register
+        </Button>
+        <Button variant="outline" onClick={() => printBlankDeclarationForms(farmName)} className="gap-2 shrink-0">
+          <FileText className="w-4 h-4" /> Blank Declaration Forms
         </Button>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_VISITOR); setFormOpen(true); }} className="gap-2 shrink-0">
           <Plus className="w-4 h-4" /> Log Visitor
@@ -252,10 +344,32 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Biosec Declaration</p><p>{viewVisitor.biosecurityDeclarationSigned ? "✓ Signed" : "Not signed"}</p></div>
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Health Declaration</p><p>{viewVisitor.healthDeclarationSigned ? "✓ Signed" : "Not signed"}</p></div>
               </div>
-              {viewVisitor.areasVisited && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Areas Visited</p><p className="text-gray-700">{viewVisitor.areasVisited}</p></div>}
-              {viewVisitor.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewVisitor.notes}</p></div>}
+              {viewVisitor.areasVisited && <div style={{ gridColumn: "1 / -1" }}><p className="text-xs text-gray-500 uppercase font-medium mb-1">Areas Visited</p><p className="text-gray-700">{viewVisitor.areasVisited}</p></div>}
+              {viewVisitor.notes && <div style={{ gridColumn: "1 / -1" }}><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewVisitor.notes}</p></div>}
             </div>
+            {(viewVisitor.biosecuritySignature || viewVisitor.healthSignature) && (
+              <div className="border-t border-border pt-3">
+                <p className="text-xs text-gray-500 uppercase font-medium mb-2">Electronic Signatures</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {viewVisitor.biosecuritySignature && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Biosecurity Declaration</p>
+                      <img src={viewVisitor.biosecuritySignature} alt="Biosecurity signature" style={{ height: 80, maxWidth: "100%", objectFit: "contain", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", display: "block" }} />
+                      <p className="text-xs text-green-700 font-medium mt-1 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Signed</p>
+                    </div>
+                  )}
+                  {viewVisitor.healthSignature && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Health Declaration</p>
+                      <img src={viewVisitor.healthSignature} alt="Health signature" style={{ height: 80, maxWidth: "100%", objectFit: "contain", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", display: "block" }} />
+                      <p className="text-xs text-green-700 font-medium mt-1 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Signed</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             <DialogFooter>
+              <Button variant="outline" className="gap-1.5" onClick={() => printVisitorDeclarationRecord(viewVisitor, farmName)}><Printer className="w-3.5 h-3.5" />Print Record</Button>
               <Button variant="outline" onClick={() => { openEdit(viewVisitor); setViewVisitor(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
               <Button variant="ghost" onClick={() => setViewVisitor(null)}>Close</Button>
             </DialogFooter>
@@ -280,7 +394,7 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Company / Organisation</label>
-                <Input placeholder="e.g. ADAS, NFU, Vet practice" value={form.company} onChange={e => setForm(f => ({ ...f, company: e.target.value }))} />
+                <TypeaheadInput value={form.company} onChange={v => setForm(f => ({ ...f, company: v }))} suggestions={companySuggestions} placeholder="e.g. ADAS, NFU, Vet practice" />
               </div>
               <div className="col-span-2">
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Purpose of Visit <span className="text-red-500">*</span></label>
@@ -292,7 +406,7 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Escorted By</label>
-                <Input placeholder="Staff member name" value={form.escortedBy} onChange={e => setForm(f => ({ ...f, escortedBy: e.target.value }))} />
+                <TypeaheadInput value={form.escortedBy} onChange={v => setForm(f => ({ ...f, escortedBy: v }))} suggestions={escortedBySuggestions} placeholder="Staff member name" />
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Arrival Date &amp; Time <span className="text-red-500">*</span></label>
@@ -304,22 +418,80 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
               </div>
               <div className="col-span-2">
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Areas Visited</label>
-                <Input placeholder="e.g. Dairy unit, Cattle shed 1, Crop store" value={form.areasVisited} onChange={e => setForm(f => ({ ...f, areasVisited: e.target.value }))} />
+                <FarmLocationSelect farmId={farmId} value={form.areasVisited} onChange={v => setForm(f => ({ ...f, areasVisited: v }))} placeholder="Select farm areas visited..." />
               </div>
             </div>
             <div className="border-t border-border pt-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-foreground/40 mb-3">Declarations Signed</p>
-              <div className="flex gap-6">
-                <label className="flex items-center gap-2 text-sm text-foreground/80 cursor-pointer">
-                  <input type="checkbox" checked={form.biosecurityDeclarationSigned} onChange={e => setForm(f => ({ ...f, biosecurityDeclarationSigned: e.target.checked }))} className="rounded w-4 h-4 accent-green-600" />
-                  Biosecurity Declaration
-                </label>
-                <label className="flex items-center gap-2 text-sm text-foreground/80 cursor-pointer">
-                  <input type="checkbox" checked={form.healthDeclarationSigned} onChange={e => setForm(f => ({ ...f, healthDeclarationSigned: e.target.checked }))} className="rounded w-4 h-4 accent-green-600" />
-                  Health Declaration
-                </label>
+              <p className="text-xs font-bold uppercase tracking-wider text-foreground/40 mb-3">Declarations</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div style={{ border: `2px solid ${form.biosecuritySignature ? "#bbf7d0" : "#e5e7eb"}`, borderRadius: 12, padding: "12px 14px", background: form.biosecuritySignature ? "#f0fdf4" : "#fafafa" }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-foreground/50">Biosecurity Declaration</span>
+                    {form.biosecuritySignature && (
+                      <button type="button" onClick={() => setForm(f => ({ ...f, biosecuritySignature: null, biosecurityDeclarationSigned: false }))} className="text-xs text-red-500 hover:text-red-700">Clear</button>
+                    )}
+                  </div>
+                  {form.biosecuritySignature ? (
+                    <div>
+                      <img src={form.biosecuritySignature} alt="Biosecurity signature" style={{ height: 72, maxWidth: "100%", objectFit: "contain", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", display: "block" }} />
+                      <p className="text-xs text-green-700 font-medium mt-1.5 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Signed electronically</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <Button type="button" variant="outline" className="w-full gap-2 text-sm h-10" onClick={() => setSigModal("biosecurity")}>
+                        <Pen className="w-3.5 h-3.5" /> Sign electronically
+                      </Button>
+                      <label className="flex items-center gap-2 text-xs text-foreground/60 cursor-pointer mt-2">
+                        <input type="checkbox" checked={form.biosecurityDeclarationSigned} onChange={e => setForm(f => ({ ...f, biosecurityDeclarationSigned: e.target.checked }))} className="rounded w-3.5 h-3.5 accent-green-600" />
+                        Signed on paper
+                      </label>
+                    </div>
+                  )}
+                </div>
+                <div style={{ border: `2px solid ${form.healthSignature ? "#bbf7d0" : "#e5e7eb"}`, borderRadius: 12, padding: "12px 14px", background: form.healthSignature ? "#f0fdf4" : "#fafafa" }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-foreground/50">Health Declaration</span>
+                    {form.healthSignature && (
+                      <button type="button" onClick={() => setForm(f => ({ ...f, healthSignature: null, healthDeclarationSigned: false }))} className="text-xs text-red-500 hover:text-red-700">Clear</button>
+                    )}
+                  </div>
+                  {form.healthSignature ? (
+                    <div>
+                      <img src={form.healthSignature} alt="Health signature" style={{ height: 72, maxWidth: "100%", objectFit: "contain", border: "1px solid #d1fae5", borderRadius: 6, background: "#fff", display: "block" }} />
+                      <p className="text-xs text-green-700 font-medium mt-1.5 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Signed electronically</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <Button type="button" variant="outline" className="w-full gap-2 text-sm h-10" onClick={() => setSigModal("health")}>
+                        <Pen className="w-3.5 h-3.5" /> Sign electronically
+                      </Button>
+                      <label className="flex items-center gap-2 text-xs text-foreground/60 cursor-pointer mt-2">
+                        <input type="checkbox" checked={form.healthDeclarationSigned} onChange={e => setForm(f => ({ ...f, healthDeclarationSigned: e.target.checked }))} className="rounded w-3.5 h-3.5 accent-green-600" />
+                        Signed on paper
+                      </label>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+            <SignatureModal
+              open={sigModal === "biosecurity"}
+              label="Biosecurity Declaration"
+              declarationText={BIOSEC_DECLARATION_TEXT}
+              visitorName={form.visitorName || undefined}
+              farmName={farmName}
+              onConfirm={(sig) => { setForm(f => ({ ...f, biosecuritySignature: sig, biosecurityDeclarationSigned: true })); setSigModal(null); }}
+              onCancel={() => setSigModal(null)}
+            />
+            <SignatureModal
+              open={sigModal === "health"}
+              label="Health Declaration"
+              declarationText={HEALTH_DECLARATION_TEXT}
+              visitorName={form.visitorName || undefined}
+              farmName={farmName}
+              onConfirm={(sig) => { setForm(f => ({ ...f, healthSignature: sig, healthDeclarationSigned: true })); setSigModal(null); }}
+              onCancel={() => setSigModal(null)}
+            />
             <div>
               <label className="text-sm font-medium text-foreground/70 mb-1 block">Notes</label>
               <Input placeholder="Additional notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
