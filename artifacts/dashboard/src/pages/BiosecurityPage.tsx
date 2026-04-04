@@ -511,7 +511,7 @@ function PestControlTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Pest Type <span className="text-red-500">*</span></label>
-                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={PEST_TYPES.includes(form.pestType) ? form.pestType : "Other"} onChange={e => setForm(f => ({ ...f, pestType: e.target.value }))} required>
+                <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={PEST_TYPES.includes(form.pestType) ? form.pestType : "Other"} onChange={e => setForm(f => ({ ...f, pestType: e.target.value }))} required>
                   <option value="">Select...</option>
                   {PEST_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
@@ -714,7 +714,7 @@ function CleaningTab({ farmId }: { farmId: number }) {
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaning Type <span className="text-red-500">*</span></label>
-                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={form.cleaningType} onChange={e => setForm(f => ({ ...f, cleaningType: e.target.value }))} required>
+                <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={form.cleaningType} onChange={e => setForm(f => ({ ...f, cleaningType: e.target.value }))} required>
                   <option value="">Select type...</option>
                   {CLEANING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
