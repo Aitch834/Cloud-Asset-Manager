@@ -16,6 +16,8 @@ import Privacy from "./pages/Privacy";
 import Cookies from "./pages/Cookies";
 import Login from "./pages/Login";
 import Admin from "./pages/Admin";
+import HelpCentre from "./pages/HelpCentre";
+import RegisterInterest from "./pages/RegisterInterest";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +34,8 @@ function Router() {
       <Route path="/cookies" component={Cookies} />
       <Route path="/login" component={Login} />
       <Route path="/admin" component={Admin} />
+      <Route path="/help" component={HelpCentre} />
+      <Route path="/register-interest" component={RegisterInterest} />
       <Route component={NotFound} />
     </Switch>
   );

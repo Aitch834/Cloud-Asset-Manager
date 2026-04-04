@@ -101,6 +101,7 @@ const biosecurityNav: NavItem[] = [
   { name: "Pest Control", href: "/pest-control", icon: Bug, moduleKeys: ["biosecurity"] },
   { name: "Cleaning", href: "/cleaning", icon: ShieldCheck, moduleKeys: ["biosecurity"] },
   { name: "COSHH Assessments", href: "/coshh", icon: ShieldAlert, moduleKeys: ["biosecurity"] },
+  { name: "Organic Compliance", href: "/organic", icon: Leaf, moduleKeys: ["organic-compliance"] },
 ];
 
 const livestockNav: NavItem[] = [

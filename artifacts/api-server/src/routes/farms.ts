@@ -198,6 +198,10 @@ import {
   eggSalesTable,
   pigKillRecordsTable,
   directSalesRecordsTable,
+  organicCertificationTable,
+  organicFieldStatusTable,
+  organicInspectionTable,
+  organicRestrictedInputTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
@@ -12607,6 +12611,108 @@ router.get("/farms/:farmId/sales-history", requireAuth, requireTenant, requireMo
   ]);
 
   res.json({ grain, deadweight, mart, milk, direct, pigKill, egg, poultry });
+});
+
+// ─── Organic Compliance ─────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/organic/certification", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const [record] = await db.select().from(organicCertificationTable).where(eq(organicCertificationTable.farmId, farmId)).limit(1);
+  res.json({ record: record ?? null });
+});
+
+router.post("/farms/:farmId/organic/certification", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { certifier, certificateNumber, certificationDate, renewalDate, status, operatorNumber, notes } = req.body;
+  const [existing] = await db.select({ id: organicCertificationTable.id }).from(organicCertificationTable).where(eq(organicCertificationTable.farmId, farmId)).limit(1);
+  if (existing) {
+    await db.update(organicCertificationTable).set({ certifier, certificateNumber, certificationDate, renewalDate, status, operatorNumber, notes }).where(eq(organicCertificationTable.id, existing.id));
+  } else {
+    await db.insert(organicCertificationTable).values({ farmId, certifier, certificateNumber, certificationDate, renewalDate, status: status ?? "certified", operatorNumber, notes });
+  }
+  const [record] = await db.select().from(organicCertificationTable).where(eq(organicCertificationTable.farmId, farmId)).limit(1);
+  res.json({ record });
+});
+
+router.get("/farms/:farmId/organic/fields", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(organicFieldStatusTable).where(eq(organicFieldStatusTable.farmId, farmId)).orderBy(asc(organicFieldStatusTable.fieldName));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic/fields", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { fieldId, fieldName, status, conversionStartDate, certificationDate, certifierRef, parallelProduction, notes } = req.body;
+  const [record] = await db.insert(organicFieldStatusTable).values({ farmId, fieldId: fieldId ?? null, fieldName, status: status ?? "conventional", conversionStartDate: conversionStartDate ?? null, certificationDate: certificationDate ?? null, certifierRef: certifierRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/organic/fields/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const { fieldId, fieldName, status, conversionStartDate, certificationDate, certifierRef, parallelProduction, notes } = req.body;
+  await db.update(organicFieldStatusTable).set({ fieldId: fieldId ?? null, fieldName, status, conversionStartDate: conversionStartDate ?? null, certificationDate: certificationDate ?? null, certifierRef: certifierRef ?? null, parallelProduction: parallelProduction ?? false, notes: notes ?? null }).where(eq(organicFieldStatusTable.id, id));
+  const [record] = await db.select().from(organicFieldStatusTable).where(eq(organicFieldStatusTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic/fields/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  await db.delete(organicFieldStatusTable).where(eq(organicFieldStatusTable.id, id));
+  res.json({ ok: true });
+});
+
+router.get("/farms/:farmId/organic/inspections", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(organicInspectionTable).where(eq(organicInspectionTable.farmId, farmId)).orderBy(desc(organicInspectionTable.inspectionDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic/inspections", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { certifier, inspectorName, inspectionDate, outcome, certificateReference, nextDueDate, nonConformances, actions, notes } = req.body;
+  const [record] = await db.insert(organicInspectionTable).values({ farmId, certifier, inspectorName: inspectorName ?? null, inspectionDate, outcome: outcome ?? "pass", certificateReference: certificateReference ?? null, nextDueDate: nextDueDate ?? null, nonConformances: nonConformances ?? null, actions: actions ?? null, notes: notes ?? null }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/organic/inspections/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const { certifier, inspectorName, inspectionDate, outcome, certificateReference, nextDueDate, nonConformances, actions, notes } = req.body;
+  await db.update(organicInspectionTable).set({ certifier, inspectorName: inspectorName ?? null, inspectionDate, outcome, certificateReference: certificateReference ?? null, nextDueDate: nextDueDate ?? null, nonConformances: nonConformances ?? null, actions: actions ?? null, notes: notes ?? null }).where(eq(organicInspectionTable.id, id));
+  const [record] = await db.select().from(organicInspectionTable).where(eq(organicInspectionTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic/inspections/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  await db.delete(organicInspectionTable).where(eq(organicInspectionTable.id, id));
+  res.json({ ok: true });
+});
+
+router.get("/farms/:farmId/organic/restricted-inputs", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const records = await db.select().from(organicRestrictedInputTable).where(eq(organicRestrictedInputTable.farmId, farmId)).orderBy(desc(organicRestrictedInputTable.dateApplied));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/organic/restricted-inputs", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = parseInt(req.params.farmId);
+  const { fieldId, fieldName, productName, productCategory, dateApplied, appliedBy, justification, approvalReference, certifierNotified, notes } = req.body;
+  const [record] = await db.insert(organicRestrictedInputTable).values({ farmId, fieldId: fieldId ?? null, fieldName: fieldName ?? null, productName, productCategory: productCategory ?? null, dateApplied, appliedBy: appliedBy ?? null, justification, approvalReference: approvalReference ?? null, certifierNotified: certifierNotified ?? false, notes: notes ?? null }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/organic/restricted-inputs/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const { fieldId, fieldName, productName, productCategory, dateApplied, appliedBy, justification, approvalReference, certifierNotified, notes } = req.body;
+  await db.update(organicRestrictedInputTable).set({ fieldId: fieldId ?? null, fieldName: fieldName ?? null, productName, productCategory: productCategory ?? null, dateApplied, appliedBy: appliedBy ?? null, justification, approvalReference: approvalReference ?? null, certifierNotified: certifierNotified ?? false, notes: notes ?? null }).where(eq(organicRestrictedInputTable.id, id));
+  const [record] = await db.select().from(organicRestrictedInputTable).where(eq(organicRestrictedInputTable.id, id));
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/organic/restricted-inputs/:id", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  await db.delete(organicRestrictedInputTable).where(eq(organicRestrictedInputTable.id, id));
+  res.json({ ok: true });
 });
 
 export default router;

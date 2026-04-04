@@ -33,11 +33,13 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="text-white font-semibold mb-6">Legal & Support</h4>
+            <h4 className="text-white font-semibold mb-6">Support & Legal</h4>
             <ul className="space-y-3">
+              <li><Link href="/help" className="text-brand-pale/80 hover:text-white transition-colors">Help Centre</Link></li>
+              <li><Link href="/register-interest" className="text-brand-pale/80 hover:text-white transition-colors">Register Interest</Link></li>
+              <li><Link href="/contact" className="text-brand-pale/80 hover:text-white transition-colors">Contact Us</Link></li>
               <li><Link href="/privacy" className="text-brand-pale/80 hover:text-white transition-colors">Privacy Policy</Link></li>
               <li><Link href="/cookies" className="text-brand-pale/80 hover:text-white transition-colors">Cookie Policy</Link></li>
-              <li><Link href="/contact" className="text-brand-pale/80 hover:text-white transition-colors">Contact Us</Link></li>
               <li><Link href="/login" className="text-brand-pale/80 hover:text-white transition-colors">Client Login</Link></li>
               <li>
                 <button

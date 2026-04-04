@@ -37,3 +37,4 @@ export * from "./fuel-energy";
 export * from "./feed-management";
 export * from "./crop-trials";
 export * from "./sales";
+export * from "./organic";

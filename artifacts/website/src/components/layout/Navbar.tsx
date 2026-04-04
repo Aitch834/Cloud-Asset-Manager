@@ -9,8 +9,8 @@ const navLinks = [
   { href: "/features", label: "Features" },
   { href: "/pricing", label: "Pricing" },
   { href: "/about", label: "About Us" },
-  { href: "/support", label: "Support" },
-  { href: "/contact", label: "Register Interest" },
+  { href: "/help", label: "Help Centre" },
+  { href: "/register-interest", label: "Register Interest" },
 ];
 
 export function Navbar() {
@@ -69,7 +69,7 @@ export function Navbar() {
               <Link href="/login">Client Login</Link>
             </Button>
             <Button className="bg-brand-forest hover:bg-brand-sage text-white rounded-full px-6 shadow-md shadow-brand-forest/20" asChild>
-              <Link href="/contact">
+              <Link href="/register-interest">
                 Get Started <ChevronRight className="w-4 h-4 ml-1" />
               </Link>
             </Button>
@@ -113,7 +113,7 @@ export function Navbar() {
                   <Link href="/login">Client Login</Link>
                 </Button>
                 <Button className="w-full justify-center h-12 bg-brand-forest hover:bg-brand-sage" asChild>
-                  <Link href="/contact">Register Interest</Link>
+                  <Link href="/register-interest">Register Interest</Link>
                 </Button>
               </div>
             </div>

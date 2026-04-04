@@ -15,6 +15,7 @@ const MODULES = [
   { id: "equipment-workshop", name: "Equipment, Workshop & Fuel", price: 30, note: "Combines Equipment, Workshop & Fuel modules" },
   { id: "livestock-management", name: "Livestock & Feed Management", price: 35, note: "Includes Feed Management" },
   { id: "biosecurity", name: "Biosecurity & Visitors", price: 10 },
+  { id: "organic-compliance", name: "Organic Compliance", price: 12, note: "Complementary records alongside Soil Association / OF&G portal — certification, field status, inspections & restricted inputs" },
   { id: "staff-training", name: "Staff & Training", price: 10 },
   { id: "safety-risk-audits", name: "Safety, Risk & Audits", price: 20, note: "Combines HS&R and Inspections & Audits" },
   { id: "environment-sustainability", name: "Environment & Sustainability", price: 16, note: "Combines Environmental Management and Carbon & Sustainability" },
