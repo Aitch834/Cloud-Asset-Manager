@@ -8023,9 +8023,9 @@ router.post("/farms/:farmId/mortality-records", requireAuth, requireTenant, requ
     animalId: animalId ? parseInt(animalId) : null,
     contractorId: contractorId ? parseInt(contractorId) : null,
   }).returning();
-  // Auto-mark animal as deceased
+  // Auto-mark linked animal as dead
   if (animalId) {
-    await db.update(livestockAnimalsTable).set({ status: "deceased", updatedAt: new Date() }).where(and(eq(livestockAnimalsTable.id, parseInt(animalId)), eq(livestockAnimalsTable.farmId, farmId)));
+    await db.update(livestockAnimalsTable).set({ status: "dead", updatedAt: new Date() }).where(and(eq(livestockAnimalsTable.id, parseInt(animalId)), eq(livestockAnimalsTable.farmId, farmId)));
   }
   res.json({ record });
 });
