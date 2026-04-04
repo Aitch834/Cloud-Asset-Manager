@@ -154,8 +154,6 @@ interface Animal {
   acquisitionSource: string | null;
   animalCode: string | null;
   status: string;
-  documentUrl: string | null;
-  documentName: string | null;
   notes: string | null;
   createdAt: string;
 }
@@ -249,8 +247,6 @@ const EMPTY_ANIMAL = {
   acquisitionDate: "",
   acquisitionSource: "",
   status: "active",
-  documentUrl: "",
-  documentName: "",
   notes: "",
 };
 
@@ -2348,6 +2344,29 @@ const MOVEMENT_TYPE_LABELS: Record<string, string> = {
   temporary: "Temporary Move", other: "Other",
 };
 
+interface AnimalDoc {
+  id: number;
+  animalId: number;
+  title: string;
+  documentType: string;
+  documentUrl: string;
+  documentName: string | null;
+  notes: string | null;
+  uploadedAt: string;
+}
+
+const DOC_TYPE_LABELS: Record<string, string> = {
+  passport: "Cattle Passport",
+  tb_test: "TB Test Certificate",
+  movement_licence: "Movement Licence",
+  vet_certificate: "Veterinary Certificate",
+  johnes_test: "Johne's Disease Test",
+  breed_certificate: "Breed / Pedigree Certificate",
+  health_certificate: "Health Certificate",
+  export_certificate: "Export Certificate",
+  other: "Other Document",
+};
+
 interface AnimalProfile {
   animal: Animal;
   herd: { id: number; name: string; type: string; herdNumber: string | null } | null;
@@ -2392,14 +2411,6 @@ function AnimalQuickViewDialog({ animal, herds, onClose, onEdit, onProfile }: {
             <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">From</p><p>{animal.acquisitionSource || "—"}</p></div>
             <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Alt. ID</p><p className="font-mono text-xs">{animal.tagNumber || "—"}</p></div>
           </div>
-          {animal.documentUrl && (
-            <div>
-              <p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Official Document</p>
-              <a href={animal.documentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
-                <FileText className="w-4 h-4" />{animal.documentName || "View document"}
-              </a>
-            </div>
-          )}
           {animal.notes && <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Notes</p><p className="text-gray-700 whitespace-pre-line">{animal.notes}</p></div>}
         </div>
         <DialogFooter className="gap-2 sm:gap-2">
@@ -2418,7 +2429,7 @@ function AnimalQuickViewDialog({ animal, herds, onClose, onEdit, onProfile }: {
 function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
   animal: Animal; farmId: number; onClose: () => void; onEdit: (a: Animal) => void;
 }) {
-  const [tab, setTab] = useState<"overview" | "medicines" | "movements" | "breeding">("overview");
+  const [tab, setTab] = useState<"overview" | "medicines" | "movements" | "breeding" | "documents">("overview");
 
   const { data, isLoading } = useQuery<AnimalProfile>({
     queryKey: ["animal-profile", farmId, animal.id],
@@ -2434,11 +2445,44 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
   const isFemale = animal.sex === "female";
   const showBreeding = isCattle && isFemale;
 
+  const { data: docsData, isLoading: docsLoading, refetch: refetchDocs } = useQuery<{ documents: AnimalDoc[] }>({
+    queryKey: ["animal-documents", farmId, animal.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/animals/${animal.id}/documents`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const [docType, setDocType] = useState("other");
+  const [docTitle, setDocTitle] = useState("");
+  const [docNotes, setDocNotes] = useState("");
+  const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
+
+  const { uploadFile: uploadDoc, isUploading: isUploadingDoc } = useUpload({
+    onSuccess: async (response) => {
+      const path = (response as { objectPath?: string }).objectPath ?? "";
+      const name = (response as { filename?: string }).filename ?? path.split("/").pop() ?? "Document";
+      const title = docTitle.trim() || DOC_TYPE_LABELS[docType] || "Document";
+      await fetch(`/api/farms/${farmId}/animals/${animal.id}/documents`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, documentType: docType, documentUrl: path, documentName: name, notes: docNotes.trim() || null }),
+      });
+      setDocTitle(""); setDocNotes("");
+      refetchDocs();
+    },
+  });
+
+  async function deleteDoc(docId: number) {
+    setDeletingDocId(docId);
+    await fetch(`/api/farms/${farmId}/animals/${animal.id}/documents/${docId}`, { method: "DELETE", credentials: "include" });
+    setDeletingDocId(null);
+    refetchDocs();
+  }
+
   const tabDef = [
     { key: "overview", label: "Overview", icon: ClipboardList },
     { key: "medicines", label: "Medicines", icon: Stethoscope, count: data?.stats.medicineCount },
     { key: "movements", label: "Movements", icon: FileText, count: data?.stats.movementCount },
     ...(showBreeding ? [{ key: "breeding", label: "Calving", icon: CheckCircle2, count: data?.stats.calvingCount }] : []),
+    { key: "documents", label: "Documents", icon: Paperclip, count: docsData?.documents.length },
   ] as const;
 
   return (
@@ -2548,17 +2592,6 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
                   <p style={{ margin: 0, fontSize: "0.85rem", color: "#374151", whiteSpace: "pre-line" }}>{animal.notes}</p>
                 </div>
               )}
-              {animal.documentUrl && (
-                <div style={{ gridColumn: "1 / -1", padding: "10px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}>
-                  <FileText size={16} style={{ color: "#16a34a", flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: "0 0 1px", fontSize: "0.68rem", color: "#15803d", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Official Document</p>
-                    <a href={animal.documentUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.85rem", color: "#2563eb", textDecoration: "underline" }}>
-                      {animal.documentName || "View document"}
-                    </a>
-                  </div>
-                </div>
-              )}
             </div>
           ) : tab === "medicines" ? (
             data.medicines.length === 0 ? (
@@ -2660,6 +2693,82 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
                 ))}
               </div>
             )
+          ) : tab === "documents" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Upload zone */}
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 16 }}>
+                <p style={{ margin: "0 0 10px", fontWeight: 700, fontSize: "0.82rem", color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em" }}>Attach a New Document</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                  <div>
+                    <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#6b7280", display: "block", marginBottom: 3 }}>Document Type</label>
+                    <select value={docType} onChange={e => setDocType(e.target.value)}
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: "0.85rem", background: "#fff", color: "#111827" }}>
+                      {Object.entries(DOC_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#6b7280", display: "block", marginBottom: 3 }}>Title <span style={{ fontWeight: 400, color: "#9ca3af" }}>(optional — defaults to type)</span></label>
+                    <input value={docTitle} onChange={e => setDocTitle(e.target.value)} placeholder={DOC_TYPE_LABELS[docType] ?? "Document title"}
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: "0.85rem", color: "#111827", boxSizing: "border-box" }} />
+                  </div>
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", border: "2px dashed #d1d5db", borderRadius: 8, cursor: "pointer", background: "#fff", transition: "border-color 0.15s" }}>
+                  {isUploadingDoc
+                    ? <><Loader2 size={16} style={{ animation: "spin 1s linear infinite", color: "#6366f1" }} /><span style={{ fontSize: "0.85rem", color: "#6b7280" }}>Uploading…</span></>
+                    : <><Upload size={16} style={{ color: "#9ca3af" }} /><span style={{ fontSize: "0.85rem", color: "#6b7280" }}>Choose a photo, scan or PDF to upload</span></>}
+                  <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) uploadDoc(e.target.files[0]); }} />
+                </label>
+              </div>
+
+              {/* Document list */}
+              {docsLoading ? (
+                <div style={{ textAlign: "center", padding: "24px 0", color: "#9ca3af" }}><Loader2 size={20} style={{ margin: "0 auto" }} /></div>
+              ) : !docsData?.documents.length ? (
+                <div style={{ textAlign: "center", padding: "32px 0", color: "#9ca3af" }}>
+                  <Paperclip size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
+                  <p style={{ margin: 0 }}>No documents attached yet.</p>
+                  <p style={{ margin: "4px 0 0", fontSize: "0.78rem" }}>Use the upload zone above to add a cattle passport, TB certificate, or any other official document.</p>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {docsData.documents.map(doc => {
+                    const typeColor: Record<string, { bg: string; text: string; border: string }> = {
+                      passport: { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe" },
+                      tb_test: { bg: "#fef3c7", text: "#92400e", border: "#fde68a" },
+                      movement_licence: { bg: "#f0fdf4", text: "#166534", border: "#bbf7d0" },
+                      vet_certificate: { bg: "#fdf4ff", text: "#7e22ce", border: "#e9d5ff" },
+                      johnes_test: { bg: "#fff7ed", text: "#c2410c", border: "#fed7aa" },
+                      breed_certificate: { bg: "#f0f9ff", text: "#0369a1", border: "#bae6fd" },
+                      health_certificate: { bg: "#f0fdf4", text: "#15803d", border: "#86efac" },
+                      export_certificate: { bg: "#fefce8", text: "#854d0e", border: "#fef08a" },
+                    };
+                    const colors = typeColor[doc.documentType] ?? { bg: "#f9fafb", text: "#374151", border: "#e5e7eb" };
+                    return (
+                      <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8 }}>
+                        <FileText size={18} style={{ color: "#6b7280", flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                            <span style={{ fontSize: "0.62rem", fontWeight: 700, background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, borderRadius: 4, padding: "1px 5px", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>
+                              {DOC_TYPE_LABELS[doc.documentType] ?? doc.documentType}
+                            </span>
+                          </div>
+                          <a href={doc.documentUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.85rem", fontWeight: 600, color: "#1d4ed8", textDecoration: "none" }}>
+                            {doc.title}
+                          </a>
+                          {doc.documentName && <span style={{ fontSize: "0.72rem", color: "#9ca3af", marginLeft: 6 }}>{doc.documentName}</span>}
+                          <p style={{ margin: "1px 0 0", fontSize: "0.72rem", color: "#9ca3af" }}>{new Date(doc.uploadedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
+                          {doc.notes && <p style={{ margin: "2px 0 0", fontSize: "0.75rem", color: "#6b7280" }}>{doc.notes}</p>}
+                        </div>
+                        <button onClick={() => deleteDoc(doc.id)} disabled={deletingDocId === doc.id}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 4, borderRadius: 4, flexShrink: 0, opacity: deletingDocId === doc.id ? 0.4 : 1 }}>
+                          {deletingDocId === doc.id ? <Loader2 size={14} /> : <Trash2 size={14} />}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           ) : null}
         </div>
       </DialogContent>
@@ -2731,8 +2840,6 @@ function AnimalsSection({ farmId }: { farmId: number }) {
       acquisitionDate: a.acquisitionDate?.slice(0, 10) ?? "",
       acquisitionSource: a.acquisitionSource ?? "",
       status: a.status,
-      documentUrl: a.documentUrl ?? "",
-      documentName: a.documentName ?? "",
       notes: a.notes ?? "",
     });
     setShowForm(true);
@@ -2743,14 +2850,6 @@ function AnimalsSection({ farmId }: { farmId: number }) {
     if (editing) updateMut.mutate({ ...form, id: editing.id });
     else createMut.mutate(form);
   }
-
-  const { uploadFile: uploadAnimalDoc, isUploading: isUploadingAnimalDoc } = useUpload({
-    onSuccess: (response) => {
-      const path = (response as { objectPath?: string }).objectPath ?? "";
-      const name = (response as { filename?: string }).filename ?? path.split("/").pop() ?? "Document";
-      setForm(f => ({ ...f, documentUrl: path, documentName: name }));
-    },
-  });
 
   const herdName = (herdId: number | null) => herds.find(h => h.id === herdId)?.name ?? "—";
 
@@ -3040,24 +3139,6 @@ function AnimalsSection({ farmId }: { farmId: number }) {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-              <div>
-                <Label>Official Document <span className="text-muted-foreground font-normal text-xs">(cattle passport, TB test, flock record, etc.)</span></Label>
-                {form.documentUrl ? (
-                  <div className="flex items-center gap-2 mt-1 p-2.5 bg-green-50 border border-green-200 rounded-lg">
-                    <FileText className="w-4 h-4 text-green-700 shrink-0" />
-                    <span className="text-sm text-green-800 font-medium flex-1 truncate">{form.documentName || "Document attached"}</span>
-                    <a href={form.documentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">View</a>
-                    <button type="button" onClick={() => setForm(f => ({ ...f, documentUrl: "", documentName: "" }))} className="text-xs text-red-500 hover:text-red-700 shrink-0">Remove</button>
-                  </div>
-                ) : (
-                  <label className="flex items-center gap-2 mt-1 p-3 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-colors">
-                    {isUploadingAnimalDoc
-                      ? <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-sm text-muted-foreground">Uploading…</span></>
-                      : <><Upload className="w-4 h-4 text-muted-foreground" /><span className="text-sm text-muted-foreground">Upload passport, TB certificate or other official document</span></>}
-                    <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => { if (e.target.files?.[0]) uploadAnimalDoc(e.target.files[0]); }} />
-                  </label>
-                )}
               </div>
               <div>
                 <Label>Notes</Label>

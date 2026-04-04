@@ -33,11 +33,21 @@ export const livestockAnimalsTable = pgTable("livestock_animals", {
   acquisitionSource: text("acquisition_source"),
   animalCode: text("animal_code"),
   status: text("status").notNull().default("active"),
-  documentUrl: text("document_url"),
-  documentName: text("document_name"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const animalDocumentsTable = pgTable("animal_documents", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  animalId: integer("animal_id").notNull().references(() => livestockAnimalsTable.id),
+  title: text("title").notNull(),
+  documentType: text("document_type").notNull().default("other"),
+  documentUrl: text("document_url").notNull(),
+  documentName: text("document_name"),
+  notes: text("notes"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const livestockMovementsTable = pgTable("livestock_movements", {

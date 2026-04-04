@@ -36,6 +36,7 @@ import {
   herdFlockRegisterTable,
   herdHealthEventsTable,
   livestockAnimalsTable,
+  animalDocumentsTable,
   livestockMovementsTable,
   livestockMedicineRecordsTable,
   livestockFeedRecordsTable,
@@ -1789,6 +1790,39 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
       mastitisCount: mastitis.length,
     },
   });
+});
+
+// ─── Animal Documents ──────────────────────────────
+router.get("/farms/:farmId/animals/:animalId/documents", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const animalId = parseInt(req.params.animalId, 10);
+  if (isNaN(animalId)) { res.status(400).json({ error: "Invalid animal ID" }); return; }
+  const docs = await db.select().from(animalDocumentsTable)
+    .where(and(eq(animalDocumentsTable.farmId, farmId), eq(animalDocumentsTable.animalId, animalId)))
+    .orderBy(desc(animalDocumentsTable.uploadedAt));
+  res.json({ documents: docs });
+});
+
+router.post("/farms/:farmId/animals/:animalId/documents", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const animalId = parseInt(req.params.animalId, 10);
+  if (isNaN(animalId)) { res.status(400).json({ error: "Invalid animal ID" }); return; }
+  const { title, documentType, documentUrl, documentName, notes } = req.body;
+  if (!title || !documentUrl) { res.status(400).json({ error: "title and documentUrl are required" }); return; }
+  const [doc] = await db.insert(animalDocumentsTable).values({ farmId, animalId, title, documentType: documentType ?? "other", documentUrl, documentName: documentName ?? null, notes: notes ?? null }).returning();
+  res.json({ document: doc });
+});
+
+router.delete("/farms/:farmId/animals/:animalId/documents/:docId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const animalId = parseInt(req.params.animalId, 10);
+  const docId = parseInt(req.params.docId, 10);
+  if (isNaN(animalId) || isNaN(docId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(animalDocumentsTable).where(and(eq(animalDocumentsTable.id, docId), eq(animalDocumentsTable.farmId, farmId), eq(animalDocumentsTable.animalId, animalId)));
+  res.json({ ok: true });
 });
 
 // ─── Livestock Movements ───────────────────────────
