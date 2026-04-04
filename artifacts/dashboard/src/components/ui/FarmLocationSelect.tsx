@@ -68,7 +68,7 @@ export function FarmLocationSelect({
       <input
         id={id}
         type="text"
-        className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+        className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
         placeholder="e.g. Dairy parlour, Cattle shed 2"
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -81,7 +81,7 @@ export function FarmLocationSelect({
     <div className="space-y-1">
       <select
         id={id}
-        className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+        className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
         value={isCustom ? "__other__" : value}
         onChange={e => {
           if (e.target.value === "__other__") {
@@ -105,7 +105,7 @@ export function FarmLocationSelect({
       {isCustom && (
         <input
           type="text"
-          className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+          className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
           placeholder="Enter location name"
           value={value}
           onChange={e => onChange(e.target.value)}
