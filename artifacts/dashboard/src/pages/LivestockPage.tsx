@@ -2451,10 +2451,10 @@ function AnimalsSection({ farmId }: { farmId: number }) {
                 </div>
                 <div>
                   <Label>Herd / Flock</Label>
-                  <Select value={form.herdId} onValueChange={v => setField("herdId", v)}>
+                  <Select value={form.herdId || "__none__"} onValueChange={v => setField("herdId", v === "__none__" ? "" : v)}>
                     <SelectTrigger><SelectValue placeholder="Assign to herd (optional)" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">— Unassigned —</SelectItem>
+                      <SelectItem value="__none__">— Unassigned —</SelectItem>
                       {herds.map(h => <SelectItem key={h.id} value={String(h.id)}>{h.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
