@@ -606,7 +606,7 @@ export default function WasteDisposalPage() {
                   </div>
                 ) : (
                   /* EA live register typeahead — used when no registered carriers or in manual mode */
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-3 items-end">
                     <div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
                         <Label style={{ margin: 0 }}>Carrier Company Name</Label>
@@ -682,7 +682,7 @@ export default function WasteDisposalPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 items-end">
                 <div>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
                     <Label style={{ margin: 0 }}>Destination / Permitted Site</Label>
