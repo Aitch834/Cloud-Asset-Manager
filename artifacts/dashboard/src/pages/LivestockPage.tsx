@@ -2220,6 +2220,9 @@ function AnimalsSection({ farmId }: { farmId: number }) {
   const herds = herdsData?.records ?? [];
 
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [speciesFilter, setSpeciesFilter] = useState<string>("__all__");
+  const [herdFilter, setHerdFilter] = useState<string>("__all__");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Animal | null>(null);
   const [form, setForm] = useState(EMPTY_ANIMAL);
@@ -2273,25 +2276,98 @@ function AnimalsSection({ farmId }: { farmId: number }) {
     else createMut.mutate(form);
   }
 
-  const filtered = animals.filter(a =>
-    !search ||
-    (a.earTagNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (a.eidNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (a.tagNumber ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    a.species.toLowerCase().includes(search.toLowerCase()) ||
-    (a.breed ?? "").toLowerCase().includes(search.toLowerCase()),
-  );
-
   const herdName = (herdId: number | null) => herds.find(h => h.id === herdId)?.name ?? "—";
+
+  // Derive available species and herds from data for filter dropdowns
+  const availableSpecies = Array.from(new Set(animals.map(a => a.species))).sort();
+  const herdsWithAnimals = herds.filter(h => animals.some(a => a.herdId === h.id));
+
+  // Status counts across ALL animals (ignore other active filters for badge counts)
+  const statusCounts: Record<string, number> = {
+    active: animals.filter(a => a.status === "active").length,
+    sold: animals.filter(a => a.status === "sold").length,
+    dead: animals.filter(a => a.status === "dead").length,
+    all: animals.length,
+  };
+
+  const filtered = animals.filter(a => {
+    if (statusFilter !== "all" && a.status !== statusFilter) return false;
+    if (speciesFilter !== "__all__" && a.species !== speciesFilter) return false;
+    if (herdFilter !== "__all__") {
+      if (herdFilter === "__unassigned__") { if (a.herdId !== null) return false; }
+      else if (a.herdId !== Number(herdFilter)) return false;
+    }
+    if (search) {
+      const q = search.toLowerCase();
+      return (
+        (a.earTagNumber ?? "").toLowerCase().includes(q) ||
+        (a.eidNumber ?? "").toLowerCase().includes(q) ||
+        (a.tagNumber ?? "").toLowerCase().includes(q) ||
+        a.species.toLowerCase().includes(q) ||
+        (a.breed ?? "").toLowerCase().includes(q) ||
+        (a.acquisitionSource ?? "").toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
+  const STATUS_TABS = [
+    { key: "active", label: "On Farm", color: "bg-green-100 text-green-800 border-green-200" },
+    { key: "sold", label: "Sold / Moved Off", color: "bg-amber-100 text-amber-800 border-amber-200" },
+    { key: "dead", label: "Deceased", color: "bg-red-100 text-red-700 border-red-200" },
+    { key: "all", label: "All Records", color: "bg-gray-100 text-gray-600 border-gray-200" },
+  ];
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4 gap-4">
-        <div className="relative flex-1 max-w-sm">
+      {/* Status quick-filter tabs */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        {STATUS_TABS.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setStatusFilter(tab.key)}
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              statusFilter === tab.key
+                ? tab.color + " ring-2 ring-offset-1 ring-current"
+                : "bg-white text-muted-foreground border-border hover:border-foreground/30"
+            }`}
+          >
+            {tab.label}
+            <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${statusFilter === tab.key ? "bg-white/60" : "bg-muted"}`}>
+              {statusCounts[tab.key] ?? 0}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search + species/herd filters + register button */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by ear tag, EID, species or breed…" className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search tag, EID, breed…" className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Button onClick={() => { setEditing(null); setForm(EMPTY_ANIMAL); setShowForm(true); }}>
+        {availableSpecies.length > 1 && (
+          <select
+            value={speciesFilter}
+            onChange={e => setSpeciesFilter(e.target.value)}
+            className="h-10 rounded-lg border border-border bg-white px-3 text-sm text-foreground"
+          >
+            <option value="__all__">All species</option>
+            {availableSpecies.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+        {herdsWithAnimals.length > 1 && (
+          <select
+            value={herdFilter}
+            onChange={e => setHerdFilter(e.target.value)}
+            className="h-10 rounded-lg border border-border bg-white px-3 text-sm text-foreground"
+          >
+            <option value="__all__">All herds</option>
+            {herds.map(h => <option key={h.id} value={String(h.id)}>{h.name}</option>)}
+            <option value="__unassigned__">Unassigned</option>
+          </select>
+        )}
+        <Button onClick={() => { setEditing(null); setForm(EMPTY_ANIMAL); setShowForm(true); }} className="ml-auto shrink-0">
           <Plus className="h-4 w-4 mr-1" /> Register Animal
         </Button>
       </div>
@@ -2304,7 +2380,17 @@ function AnimalsSection({ farmId }: { farmId: number }) {
         <div className="flex justify-center py-12"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
       ) : filtered.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">
-          {search ? "No animals match your search." : "No individual animals registered yet. Click 'Register Animal' to add the first record."}
+          {animals.length === 0
+            ? "No individual animals registered yet. Click 'Register Animal' to add the first record."
+            : search
+            ? `No animals match "${search}" in the current filter.`
+            : statusFilter === "active"
+            ? "No animals currently on farm. Register an animal or check the 'Sold / Moved Off' or 'All Records' view."
+            : statusFilter === "sold"
+            ? "No sold or moved animals on record."
+            : statusFilter === "dead"
+            ? "No deceased animals on record."
+            : "No animals match the current filter."}
         </CardContent></Card>
       ) : (
         <div className="rounded-lg border border-border overflow-hidden">
