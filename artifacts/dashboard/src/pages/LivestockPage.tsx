@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { useAppStore } from "@/hooks/use-app-store";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1901,7 +1902,7 @@ function FeedSection({ farmId }: { farmId: number }) {
             <form onSubmit={handleSubmit} className="space-y-4 mt-2">
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div><Label>Feed Type *</Label>
-                  <Select value={form.feedType} onValueChange={v => setField("feedType", v)}>
+                  <Select value={form.feedType || undefined} onValueChange={v => setField("feedType", v)}>
                     <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                     <SelectContent>
                       {Object.entries(FEED_TYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
@@ -2277,7 +2278,7 @@ function WaterSection({ farmId }: { farmId: number }) {
             <form onSubmit={handleSubmit} className="space-y-4 mt-2">
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div><Label>Water Source *</Label>
-                  <Select value={form.waterSource} onValueChange={v => setField("waterSource", v)}>
+                  <Select value={form.waterSource || undefined} onValueChange={v => setField("waterSource", v)}>
                     <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
                     <SelectContent>
                       {Object.entries(WATER_SOURCE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
@@ -3088,7 +3089,7 @@ function AnimalsSection({ farmId }: { farmId: number }) {
                 </div>
                 <div>
                   <Label>Species <span className="text-red-500">*</span></Label>
-                  <Select value={form.species} onValueChange={v => setField("species", v)}>
+                  <Select value={form.species || undefined} onValueChange={v => setField("species", v)}>
                     <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
                     <SelectContent>{animalSpecies.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select>
@@ -3099,7 +3100,7 @@ function AnimalsSection({ farmId }: { farmId: number }) {
                 </div>
                 <div>
                   <Label>Sex</Label>
-                  <Select value={form.sex} onValueChange={v => setField("sex", v)}>
+                  <Select value={form.sex || undefined} onValueChange={v => setField("sex", v)}>
                     <SelectTrigger><SelectValue placeholder="Select sex" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="male">Male (entire)</SelectItem>
@@ -3800,7 +3801,7 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
                       <td className="py-2 pr-4 whitespace-nowrap">{r.treatmentDate ? new Date(r.treatmentDate as string).toLocaleDateString("en-GB") : <span className="text-muted-foreground text-xs italic">Not recorded</span>}</td>
                       <td className="py-2 pr-4">
                         <div className="font-medium">{String(r.productName ?? "—")}</div>
-                        {r.activeIngredient && <div className="text-xs text-muted-foreground">{String(r.activeIngredient)}</div>}
+                        {r.activeIngredient != null && <div className="text-xs text-muted-foreground">{String(r.activeIngredient)}</div>}
                       </td>
                       <td className="py-2 pr-4 max-w-[160px]">{animalDisplay}</td>
                       <td className="py-2 pr-4">
@@ -4226,17 +4227,19 @@ export default function LivestockPage() {
           <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> Health Register</span>
         </TabButton>
       </TabBar>
-      {tab === "herds" && <HerdsSection farmId={farmId} />}
-      {tab === "animals" && <AnimalsSection farmId={farmId} />}
-      {tab === "vet-plans" && <VetHealthPlansSection farmId={farmId} />}
-      {tab === "mortality" && <MortalitySection farmId={farmId} />}
-      {tab === "contractors" && <FallenStockContractorsSection farmId={farmId} />}
-      {tab === "feed" && <FeedSection farmId={farmId} />}
-      {tab === "water" && <WaterSection farmId={farmId} />}
-      {tab === "sires" && <SiresSection farmId={farmId} />}
-      {tab === "straws" && <StrawInventorySection farmId={farmId} />}
-      {tab === "ai-repro" && <AIReproductionSection farmId={farmId} />}
-      {tab === "vet-rx" && <VetPrescriptionsSection farmId={farmId} />}
+      <ErrorBoundary key={tab}>
+        {tab === "herds" && <HerdsSection farmId={farmId} />}
+        {tab === "animals" && <AnimalsSection farmId={farmId} />}
+        {tab === "vet-plans" && <VetHealthPlansSection farmId={farmId} />}
+        {tab === "mortality" && <MortalitySection farmId={farmId} />}
+        {tab === "contractors" && <FallenStockContractorsSection farmId={farmId} />}
+        {tab === "feed" && <FeedSection farmId={farmId} />}
+        {tab === "water" && <WaterSection farmId={farmId} />}
+        {tab === "sires" && <SiresSection farmId={farmId} />}
+        {tab === "straws" && <StrawInventorySection farmId={farmId} />}
+        {tab === "ai-repro" && <AIReproductionSection farmId={farmId} />}
+        {tab === "vet-rx" && <VetPrescriptionsSection farmId={farmId} />}
+      </ErrorBoundary>
     </AppLayout>
   );
 }
