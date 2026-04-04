@@ -74,6 +74,9 @@ export const livestockMedicineRecordsTable = pgTable("livestock_medicine_records
   withdrawalEndDate: timestamp("withdrawal_end_date", { withTimezone: true }),
   reason: text("reason"),
   vetName: text("vet_name"),
+  treatmentScope: text("treatment_scope"),
+  treatedAnimalTags: text("treated_animal_tags"),
+  treatedAnimalCount: integer("treated_animal_count"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

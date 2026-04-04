@@ -96,6 +96,11 @@ function TimelineEntry({ entry, onEdit, onDelete }: { entry: any; onEdit: (e: an
   const m = SOURCE_META[entry.source] ?? SOURCE_META["clinical_event"];
   const isOverdue = entry.followUpRequired && !entry.followUpCompleted && entry.followUpDate && new Date(entry.followUpDate) < new Date();
   const hasWithdrawal = entry.withdrawal && isWithdrawalActive(entry.withdrawal?.endDate);
+
+  const isMedicine = entry.source === "medicine";
+  const hasAnimalTag = isMedicine && !!entry.animalTag;
+  const scope = entry.treatmentScope as string | null | undefined;
+
   return (
     <div style={{ display: "flex", gap: 12, marginBottom: 0 }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
@@ -109,6 +114,27 @@ function TimelineEntry({ entry, onEdit, onDelete }: { entry: any; onEdit: (e: an
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 3 }}>
                 <SourceBadge source={entry.source} />
                 {entry.herdLabel && <span style={{ fontSize: "0.72rem", color: "#6b7280", background: "#f1f5f9", padding: "1px 6px", borderRadius: 5 }}>{entry.herdLabel}</span>}
+                {/* Animal traceability badges for medicine entries */}
+                {isMedicine && hasAnimalTag && (
+                  <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#166534", background: "#dcfce7", border: "1px solid #bbf7d0", padding: "1px 7px", borderRadius: 5, fontFamily: "monospace", letterSpacing: "0.02em" }}>
+                    🏷 {entry.animalTag}
+                  </span>
+                )}
+                {isMedicine && !hasAnimalTag && scope === "herd" && (
+                  <span style={{ fontSize: "0.68rem", fontWeight: 600, color: "#6d28d9", background: "#ede9fe", border: "1px solid #c4b5fd", padding: "1px 6px", borderRadius: 5 }}>
+                    Whole Herd{entry.treatedAnimalCount ? ` · ${entry.treatedAnimalCount} animals` : ""}
+                  </span>
+                )}
+                {isMedicine && !hasAnimalTag && scope === "group" && (
+                  <span style={{ fontSize: "0.68rem", fontWeight: 600, color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a", padding: "1px 6px", borderRadius: 5 }}>
+                    Group{entry.treatedAnimalCount ? ` · ${entry.treatedAnimalCount} animals` : ""}
+                  </span>
+                )}
+                {isMedicine && !scope && !hasAnimalTag && (
+                  <span style={{ fontSize: "0.65rem", color: "#9ca3af", border: "1px solid #e5e7eb", padding: "1px 6px", borderRadius: 5 }}>
+                    No animal linked
+                  </span>
+                )}
                 {hasWithdrawal && <span style={{ fontSize: "0.65rem", fontWeight: 600, color: "#854d0e", background: "#fef9c3", border: "1px solid #fde047", padding: "1px 6px", borderRadius: 5 }}>WITHDRAWAL ACTIVE</span>}
                 {isOverdue && <span style={{ fontSize: "0.65rem", fontWeight: 600, color: "#991b1b", background: "#fef2f2", border: "1px solid #fecaca", padding: "1px 6px", borderRadius: 5, display: "flex", alignItems: "center", gap: 3 }}><AlertTriangle size={9} />FOLLOW-UP OVERDUE</span>}
               </div>
@@ -129,6 +155,31 @@ function TimelineEntry({ entry, onEdit, onDelete }: { entry: any; onEdit: (e: an
           </div>
           {expanded && (
             <div style={{ padding: "0 14px 12px 14px", borderTop: "1px solid #f3f4f6" }}>
+              {/* Full animal traceability detail in expanded view */}
+              {isMedicine && (
+                <div style={{ marginTop: 8, padding: "8px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 7 }}>
+                  <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#166534", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Animal Traceability</div>
+                  {hasAnimalTag ? (
+                    <div style={{ fontSize: "0.82rem", color: "#14532d", fontFamily: "monospace", fontWeight: 600 }}>
+                      Ear tag(s): {entry.animalTag}
+                      {entry.treatedAnimalCount && entry.treatedAnimalCount > 1 ? <span style={{ fontFamily: "inherit", color: "#166534", marginLeft: 8 }}>({entry.treatedAnimalCount} animals total)</span> : null}
+                    </div>
+                  ) : scope === "herd" ? (
+                    <div style={{ fontSize: "0.82rem", color: "#166534" }}>
+                      Whole herd treatment{entry.herdLabel ? ` — ${entry.herdLabel}` : ""}
+                      {entry.treatedAnimalCount ? ` · ${entry.treatedAnimalCount} animals` : ""}
+                    </div>
+                  ) : scope === "group" ? (
+                    <div style={{ fontSize: "0.82rem", color: "#166534" }}>
+                      Group treatment{entry.treatedAnimalCount ? ` · ${entry.treatedAnimalCount} animals` : ""}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "0.82rem", color: "#9ca3af", fontStyle: "italic" }}>
+                      No specific animal linked — edit this medicine record to add traceability.
+                    </div>
+                  )}
+                </div>
+              )}
               {entry.detail && <p style={{ fontSize: "0.8rem", color: "#374151", marginTop: 8, marginBottom: 0 }}>{entry.detail}</p>}
               {entry.notes && <p style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 6, marginBottom: 0 }}><span style={{ fontWeight: 600 }}>Notes:</span> {entry.notes}</p>}
               {hasWithdrawal && (

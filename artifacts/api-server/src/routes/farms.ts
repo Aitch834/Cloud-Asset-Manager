@@ -1787,8 +1787,17 @@ router.get("/farms/:farmId/herd-health-register", requireAuth, requireTenant, re
 
   const herdMap: Record<number, string> = Object.fromEntries(herds.map(h => [h.id, `${h.name} (${h.type})`]));
 
-  const [medicines, mortalities, bcsRecords, mastitisRecords, vetPlans, clinicalEvents] = await Promise.all([
-    db.select().from(livestockMedicineRecordsTable).where(eq(livestockMedicineRecordsTable.farmId, farmId)).orderBy(desc(livestockMedicineRecordsTable.administeredDate)),
+  const [medicinesRaw, mortalities, bcsRecords, mastitisRecords, vetPlans, clinicalEvents] = await Promise.all([
+    db.select({
+      med: livestockMedicineRecordsTable,
+      animalEarTag: livestockAnimalsTable.earTagNumber,
+      animalTagNumber: livestockAnimalsTable.tagNumber,
+      animalSpecies: livestockAnimalsTable.species,
+    })
+      .from(livestockMedicineRecordsTable)
+      .leftJoin(livestockAnimalsTable, eq(livestockMedicineRecordsTable.animalId, livestockAnimalsTable.id))
+      .where(eq(livestockMedicineRecordsTable.farmId, farmId))
+      .orderBy(desc(livestockMedicineRecordsTable.administeredDate)),
     db.select().from(livestockMortalityTable).where(eq(livestockMortalityTable.farmId, farmId)).orderBy(desc(livestockMortalityTable.dateOfDeath)),
     db.select().from(dairyBcsRecordsTable).where(eq(dairyBcsRecordsTable.farmId, farmId)).orderBy(desc(dairyBcsRecordsTable.assessmentDate)),
     db.select().from(dairyMastitisRecordsTable).where(eq(dairyMastitisRecordsTable.farmId, farmId)).orderBy(desc(dairyMastitisRecordsTable.onsetDate)),
@@ -1796,8 +1805,43 @@ router.get("/farms/:farmId/herd-health-register", requireAuth, requireTenant, re
     db.select().from(herdHealthEventsTable).where(eq(herdHealthEventsTable.farmId, farmId)).orderBy(desc(herdHealthEventsTable.eventDate)),
   ]);
 
+  const medicines = medicinesRaw.map(({ med, animalEarTag, animalTagNumber }) => ({
+    ...med,
+    resolvedAnimalTag: animalEarTag ?? animalTagNumber ?? null,
+  }));
+
   const timeline: any[] = [
-    ...medicines.map(r => ({ source: "medicine", date: r.administeredDate, herdLabel: r.herdId ? herdMap[r.herdId] : null, title: `Treatment: ${r.medicineName}`, detail: `Dosage: ${r.dosage ?? "—"}  ·  Route: ${r.administrationRoute ?? "—"}  ·  Administered by: ${r.administeredBy ?? "—"}`, withdrawal: r.withdrawalEndDate ? { endDate: r.withdrawalEndDate, days: r.withdrawalPeriodDays } : null, vetName: r.vetName, notes: r.notes, raw: r })),
+    ...medicines.map(r => {
+      const animalTag = r.resolvedAnimalTag ?? r.treatedAnimalTags ?? null;
+      const scope = r.treatmentScope ?? null;
+      const animalDetail = animalTag
+        ? `Animal(s): ${animalTag}`
+        : scope === "herd"
+        ? `Whole herd${r.treatedAnimalCount ? ` (${r.treatedAnimalCount} animals)` : ""}`
+        : scope === "group"
+        ? `Group: ${r.notes ?? "see notes"}`
+        : null;
+      return {
+        source: "medicine",
+        date: r.administeredDate,
+        herdLabel: r.herdId ? herdMap[r.herdId] : null,
+        animalTag,
+        treatmentScope: scope,
+        treatedAnimalTags: r.treatedAnimalTags,
+        treatedAnimalCount: r.treatedAnimalCount,
+        title: `Treatment: ${r.medicineName}`,
+        detail: [
+          animalDetail,
+          `Dosage: ${r.dosage ?? "—"}`,
+          `Route: ${r.administrationRoute ?? "—"}`,
+          `Administered by: ${r.administeredBy ?? "—"}`,
+        ].filter(Boolean).join("  ·  "),
+        withdrawal: r.withdrawalEndDate ? { endDate: r.withdrawalEndDate, days: r.withdrawalPeriodDays } : null,
+        vetName: r.vetName,
+        notes: r.notes,
+        raw: r,
+      };
+    }),
     ...mortalities.map(r => ({ source: "mortality", date: r.dateOfDeath, herdLabel: r.herdId ? herdMap[r.herdId] : null, title: `Mortality: ${r.species}${r.tagNumber ? ` (${r.tagNumber})` : ""}`, detail: `Cause: ${r.causeOfDeath}  ·  Disposal: ${r.disposalMethod}`, vetName: r.vetName ?? null, notes: r.notes, raw: r })),
     ...bcsRecords.map(r => ({ source: "bcs", date: r.assessmentDate, herdLabel: r.herdId ? herdMap[r.herdId] : null, title: `BCS Assessment: score ${r.bcsScore ?? "—"}`, detail: `Life stage: ${r.lifeStage ?? "—"}  ·  Assessed by: ${r.assessedBy ?? "—"}  ·  Action: ${r.actionTaken ?? "None"}`, vetName: null, notes: r.notes, raw: r })),
     ...mastitisRecords.map(r => ({ source: "mastitis", date: r.onsetDate, herdLabel: r.herdId ? herdMap[r.herdId] : null, title: `Mastitis: ${r.earTagNumber ?? "unknown animal"}`, detail: `Grade: ${r.clinicalGrade ?? "—"}  ·  Quarters: ${r.quartersAffected ?? "—"}  ·  Treatment: ${r.treatmentProduct ?? "—"}`, vetName: r.vetName ?? null, notes: r.notes, raw: r })),
