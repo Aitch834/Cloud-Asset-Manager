@@ -14,8 +14,28 @@ import { Badge } from "@/components/ui/badge";
 import {
   Fuel, Plus, AlertTriangle, CheckCircle2, XCircle, Droplets,
   Truck, ClipboardCheck, Gauge, ShieldAlert, Trash2, Zap,
-  Flame, Wind, Edit2, Plug
+  Flame, Wind, Edit2, Plug, ChevronDown, ChevronRight, ClipboardList
 } from "lucide-react";
+
+function getCropYear(date: Date): { label: string; start: Date; end: Date } {
+  const aug = new Date(date.getFullYear(), 7, 1);
+  const startYear = date >= aug ? date.getFullYear() : date.getFullYear() - 1;
+  return {
+    label: `${startYear}/${String(startYear + 1).slice(-2)}`,
+    start: new Date(startYear, 7, 1),
+    end: new Date(startYear + 1, 6, 31, 23, 59, 59),
+  };
+}
+function buildCropYearOptions(): { label: string; start: Date; end: Date }[] {
+  const now = new Date();
+  const options: { label: string; start: Date; end: Date }[] = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(now.getFullYear() - i, now.getMonth(), 1);
+    const cy = getCropYear(d);
+    if (!options.find(o => o.label === cy.label)) options.push(cy);
+  }
+  return options;
+}
 
 type Tab = "tanks" | "deliveries" | "usage" | "inspections" | "grid-energy";
 
@@ -151,11 +171,18 @@ export default function FuelEnergyPage() {
     enabled: !!farmId,
   });
 
+  const stockChecksQ = useQuery({
+    queryKey: ["fuel-stock-checks", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fuel/stock-checks`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["fuel-tanks", farmId] });
     qc.invalidateQueries({ queryKey: ["fuel-deliveries", farmId] });
     qc.invalidateQueries({ queryKey: ["fuel-usage", farmId] });
     qc.invalidateQueries({ queryKey: ["fuel-inspections", farmId] });
+    qc.invalidateQueries({ queryKey: ["fuel-stock-checks", farmId] });
     qc.invalidateQueries({ queryKey: ["energy-meters", farmId] });
     qc.invalidateQueries({ queryKey: ["energy-readings", farmId] });
   };
@@ -289,19 +316,70 @@ export default function FuelEnergyPage() {
     onSuccess: () => { invalidate(); toast({ title: "Reading removed" }); },
   });
 
+  const [showStockCheckDialog, setShowStockCheckDialog] = useState(false);
+  const [stockCheckTankId, setStockCheckTankId] = useState<string>("");
+  const [stockCheckForm, setStockCheckForm] = useState<Record<string, string>>({});
+  const [expandedTankId, setExpandedTankId] = useState<number | null>(null);
+
+  const stockCheckMut = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await fetch(`/api/farms/${farmId}/fuel/stock-checks`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => { invalidate(); setShowStockCheckDialog(false); toast({ title: "Stock check recorded" }); },
+    onError: () => toast({ title: "Error saving stock check", variant: "destructive" }),
+  });
+  const delStockCheckMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fuel/stock-checks/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { invalidate(); toast({ title: "Stock check removed" }); },
+  });
+
+  const CROP_YEAR_OPTIONS = buildCropYearOptions();
+  const currentCY = getCropYear(new Date());
+  const [deliveryCropYear, setDeliveryCropYear] = useState<string>(currentCY.label);
+  const [usageCropYear, setUsageCropYear] = useState<string>(currentCY.label);
+
   const tanks: Record<string, unknown>[] = tanksQ.data ?? [];
   const deliveries: Record<string, unknown>[] = deliveriesQ.data ?? [];
   const usages: Record<string, unknown>[] = usageQ.data ?? [];
   const inspections: Record<string, unknown>[] = inspectionsQ.data ?? [];
   const meters: Record<string, unknown>[] = metersQ.data ?? [];
   const readings: Record<string, unknown>[] = readingsQ.data ?? [];
+  const stockChecks: Record<string, unknown>[] = stockChecksQ.data ?? [];
 
   const totalStockL = tanks.reduce((s, t) => s + parseFloat(String(t.currentStockLitres ?? 0)), 0);
   const unbundedTanks = tanks.filter(t => !t.isBunded && !["lpg_bottles", "AdBlue"].includes(String(t.fuelType)));
   const overdueTanks = tanks.filter(t => t.nextInspectionDue && new Date(String(t.nextInspectionDue)) < new Date());
-  const totalDeliveredYTD = deliveries
-    .filter(d => new Date(String(d.deliveryDate)).getFullYear() === new Date().getFullYear())
-    .reduce((s, d) => s + parseFloat(String(d.quantityLitres ?? 0)), 0);
+
+  const stockByFuelType: Record<string, number> = {};
+  for (const t of tanks) {
+    const ft = String(t.fuelType ?? "other");
+    stockByFuelType[ft] = (stockByFuelType[ft] ?? 0) + parseFloat(String(t.currentStockLitres ?? 0));
+  }
+
+  const selectedDeliveryCY = CROP_YEAR_OPTIONS.find(o => o.label === deliveryCropYear) ?? CROP_YEAR_OPTIONS[0];
+  const selectedUsageCY = CROP_YEAR_OPTIONS.find(o => o.label === usageCropYear) ?? CROP_YEAR_OPTIONS[0];
+
+  const filteredDeliveries = selectedDeliveryCY
+    ? deliveries.filter(d => {
+        const dd = new Date(String(d.deliveryDate));
+        return dd >= selectedDeliveryCY.start && dd <= selectedDeliveryCY.end;
+      })
+    : deliveries;
+  const filteredUsages = selectedUsageCY
+    ? usages.filter(u => {
+        const ud = new Date(String(u.usageDate));
+        return ud >= selectedUsageCY.start && ud <= selectedUsageCY.end;
+      })
+    : usages;
+
+  const deliveredByCYByFuelType: Record<string, number> = {};
+  for (const d of filteredDeliveries) {
+    const ft = String(d.fuelType ?? "other");
+    deliveredByCYByFuelType[ft] = (deliveredByCYByFuelType[ft] ?? 0) + parseFloat(String(d.quantityLitres ?? 0));
+  }
+  const totalDeliveredYTD = filteredDeliveries.reduce((s, d) => s + parseFloat(String(d.quantityLitres ?? 0)), 0);
 
   // Grid energy totals
   const elecMeters = meters.filter(m => m.meterType === "electricity");
@@ -329,15 +407,27 @@ export default function FuelEnergyPage() {
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-1"><Gauge className="w-4 h-4 text-green-700" /><span className="text-xs text-gray-500">Total tank stock</span></div>
             <p className="text-xl font-bold text-gray-800">{fmtL(totalStockL)}</p>
-            <p className="text-xs text-gray-400">{tanks.length} tank{tanks.length !== 1 ? "s" : ""} registered</p>
+            <p className="text-xs text-gray-400 mb-2">{tanks.length} tank{tanks.length !== 1 ? "s" : ""} registered</p>
+            {Object.entries(stockByFuelType).filter(([, v]) => v > 0).map(([ft, v]) => (
+              <div key={ft} className="flex justify-between text-xs text-gray-600 border-t border-gray-50 pt-1">
+                <span className="text-gray-400">{FUEL_TYPE_LABELS[ft] ?? ft}</span>
+                <span className="font-medium">{fmtL(v)}</span>
+              </div>
+            ))}
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-2 mb-1"><Truck className="w-4 h-4 text-blue-600" /><span className="text-xs text-gray-500">Fuel delivered YTD</span></div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 col-span-2 md:col-span-1">
+            <div className="flex items-center gap-2 mb-1"><Truck className="w-4 h-4 text-blue-600" /><span className="text-xs text-gray-500">Delivered — crop year</span></div>
             <p className="text-xl font-bold text-gray-800">{fmtL(totalDeliveredYTD)}</p>
-            <p className="text-xs text-gray-400">{deliveries.filter(d => new Date(String(d.deliveryDate)).getFullYear() === new Date().getFullYear()).length} deliveries</p>
+            <p className="text-xs text-gray-400 mb-2">{filteredDeliveries.length} deliveries · {currentCY.label}</p>
+            {Object.entries(deliveredByCYByFuelType).filter(([, v]) => v > 0).map(([ft, v]) => (
+              <div key={ft} className="flex justify-between text-xs text-gray-600 border-t border-gray-50 pt-1">
+                <span className="text-gray-400">{FUEL_TYPE_LABELS[ft] ?? ft}</span>
+                <span className="font-medium">{fmtL(v)}</span>
+              </div>
+            ))}
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-center gap-2 mb-1"><Zap className="w-4 h-4 text-yellow-500" /><span className="text-xs text-gray-500">Electricity YTD</span></div>
@@ -389,51 +479,123 @@ export default function FuelEnergyPage() {
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {tanks.map((tank) => {
+                  const tankId = Number(tank.id);
                   const isLpg = String(tank.fuelType).startsWith("lpg");
                   const isOverdue = tank.nextInspectionDue && new Date(String(tank.nextInspectionDue)) < new Date();
                   const regs = FUEL_TYPE_REGS[String(tank.fuelType)];
+                  const isExpanded = expandedTankId === tankId;
+                  const tankDeliveries = deliveries.filter(d => Number(d.tankId) === tankId).sort((a, b) => new Date(String(b.deliveryDate)).getTime() - new Date(String(a.deliveryDate)).getTime());
+                  const tankChecks = stockChecks.filter(c => Number(c.tankId) === tankId).sort((a, b) => new Date(String(b.checkDate)).getTime() - new Date(String(a.checkDate)).getTime());
+                  const latestCheck = tankChecks[0];
                   return (
-                    <div key={String(tank.id)} className="bg-white rounded-xl border border-gray-200 p-5">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <p className="font-semibold text-gray-900">{String(tank.name)}</p>
-                          <p className="text-xs text-gray-500">{FUEL_TYPE_LABELS[String(tank.fuelType)] ?? String(tank.fuelType)}</p>
-                          {regs && <p className="text-xs text-blue-600 mt-0.5">{regs}</p>}
+                    <div key={String(tank.id)} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                      <div className="p-5">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <p className="font-semibold text-gray-900">{String(tank.name)}</p>
+                            <p className="text-xs text-gray-500">{FUEL_TYPE_LABELS[String(tank.fuelType)] ?? String(tank.fuelType)}</p>
+                            {regs && <p className="text-xs text-blue-600 mt-0.5">{regs}</p>}
+                          </div>
+                          <div className="flex gap-1.5 items-center flex-wrap justify-end">
+                            {isLpg
+                              ? <Badge className="text-xs" style={{ background: "#eff6ff", color: "#1d4ed8", border: "none" }}>LPG / DSEAR</Badge>
+                              : tank.isBunded
+                                ? <Badge className="text-xs" style={{ background: "#d1fae5", color: "#065f46", border: "none" }}>Bunded</Badge>
+                                : <Badge className="text-xs" style={{ background: "#fef3c7", color: "#92400e", border: "none" }}>Not bunded</Badge>
+                            }
+                            <Button size="sm" variant="ghost" onClick={() => openTankEdit(tank)} className="h-7 px-2 text-xs"><Edit2 className="w-3 h-3" /></Button>
+                            <Button size="sm" variant="ghost" onClick={() => delTankMut.mutate(tankId)} className="h-7 px-2 text-xs text-red-600"><Trash2 className="w-3 h-3" /></Button>
+                          </div>
                         </div>
-                        <div className="flex gap-1.5 items-center flex-wrap justify-end">
-                          {isLpg
-                            ? <Badge className="text-xs" style={{ background: "#eff6ff", color: "#1d4ed8", border: "none" }}>LPG / DSEAR</Badge>
-                            : tank.isBunded
-                              ? <Badge className="text-xs" style={{ background: "#d1fae5", color: "#065f46", border: "none" }}>Bunded</Badge>
-                              : <Badge className="text-xs" style={{ background: "#fef3c7", color: "#92400e", border: "none" }}>Not bunded</Badge>
-                          }
-                          <Button size="sm" variant="ghost" onClick={() => openTankEdit(tank)} className="h-7 px-2 text-xs"><Edit2 className="w-3 h-3" /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => delTankMut.mutate(Number(tank.id))} className="h-7 px-2 text-xs text-red-600"><Trash2 className="w-3 h-3" /></Button>
+                        {String(tank.fuelType) !== "lpg_bottles" && (
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs text-gray-500 mb-1">
+                              <span>{fmtL(tank.currentStockLitres as string)} remaining (calculated)</span>
+                              <span>of {fmtL(tank.capacityLitres as string)}</span>
+                            </div>
+                            <TankGauge current={tank.currentStockLitres as string} capacity={tank.capacityLitres as string} />
+                          </div>
+                        )}
+                        {latestCheck && (
+                          <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-1.5 mb-2 text-xs">
+                            <ClipboardList className="w-3 h-3 text-blue-500 shrink-0" />
+                            <span className="text-blue-700">Last stock check: <strong>{fmtL(latestCheck.measuredLitres as string)}</strong> on {fmtDate(String(latestCheck.checkDate))}</span>
+                            {latestCheck.varianceLitres !== null && latestCheck.varianceLitres !== undefined && (
+                              <span className={parseFloat(String(latestCheck.varianceLitres)) < -50 ? "text-red-600 font-semibold ml-auto" : "text-gray-500 ml-auto"}>
+                                {parseFloat(String(latestCheck.varianceLitres)) >= 0 ? "+" : ""}{parseFloat(String(latestCheck.varianceLitres)).toFixed(0)} L variance
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-1.5 text-xs text-gray-600 mb-3">
+                          <span><span className="text-gray-400">Location:</span> {String(tank.location ?? "—")}</span>
+                          {!!tank.tankMaterial && <span><span className="text-gray-400">Material:</span> {String(tank.tankMaterial)}</span>}
+                          {!!tank.nextInspectionDue && (
+                            <span className={isOverdue ? "text-red-600 font-medium" : ""}>
+                              <span className="text-gray-400">Inspect by:</span> {fmtDate(String(tank.nextInspectionDue))}
+                              {!!isOverdue && " ⚠"}
+                            </span>
+                          )}
+                          {!!tank.isBunded && !!tank.bundCapacityLitres && (
+                            <span><span className="text-gray-400">Bund:</span> {fmtL(tank.bundCapacityLitres as string)}</span>
+                          )}
+                        </div>
+                        {!!tank.notes && <p className="text-xs text-gray-400 mb-3 italic">{String(tank.notes)}</p>}
+                        <div className="flex gap-2 pt-2 border-t border-gray-100">
+                          <Button size="sm" variant="outline" className="h-7 text-xs flex-1"
+                            onClick={() => { setStockCheckTankId(String(tank.id)); setStockCheckForm({ checkDate: new Date().toISOString().substring(0, 10), method: "dip_stick" }); setShowStockCheckDialog(true); }}>
+                            <ClipboardList className="w-3 h-3 mr-1" />Log Stock Check
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs flex-1 text-blue-600"
+                            onClick={() => setExpandedTankId(isExpanded ? null : tankId)}>
+                            {isExpanded ? <ChevronDown className="w-3 h-3 mr-1" /> : <ChevronRight className="w-3 h-3 mr-1" />}
+                            {tankDeliveries.length} deliveries · {tankChecks.length} checks
+                          </Button>
                         </div>
                       </div>
-                      {String(tank.fuelType) !== "lpg_bottles" && (
-                        <div className="mb-3">
-                          <div className="flex justify-between text-xs text-gray-500 mb-1">
-                            <span>{fmtL(tank.currentStockLitres as string)} remaining</span>
-                            <span>of {fmtL(tank.capacityLitres as string)}</span>
-                          </div>
-                          <TankGauge current={tank.currentStockLitres as string} capacity={tank.capacityLitres as string} />
+
+                      {isExpanded && (
+                        <div className="border-t border-gray-100 bg-gray-50 px-5 py-3">
+                          <p className="text-xs font-semibold text-gray-600 mb-2">Delivery History</p>
+                          {tankDeliveries.length === 0 ? (
+                            <p className="text-xs text-gray-400">No deliveries recorded for this tank.</p>
+                          ) : (
+                            <div className="space-y-1">
+                              {tankDeliveries.map(d => (
+                                <div key={String(d.id)} className="flex items-center justify-between text-xs bg-white rounded-lg px-3 py-2 border border-gray-100">
+                                  <span className="text-gray-500">{fmtDate(String(d.deliveryDate))}</span>
+                                  <span className="text-gray-700">{String(d.supplierName ?? "—")}</span>
+                                  <span className="font-medium text-green-700">{fmtL(d.quantityLitres as string)}</span>
+                                  <span className="text-gray-500">{fmtCost(d.totalCostPence as number)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {tankChecks.length > 0 && (
+                            <>
+                              <p className="text-xs font-semibold text-gray-600 mt-3 mb-2">Stock Check History</p>
+                              <div className="space-y-1">
+                                {tankChecks.map(c => {
+                                  const variance = c.varianceLitres !== null && c.varianceLitres !== undefined ? parseFloat(String(c.varianceLitres)) : null;
+                                  return (
+                                    <div key={String(c.id)} className="flex items-center justify-between text-xs bg-white rounded-lg px-3 py-2 border border-gray-100">
+                                      <span className="text-gray-500">{fmtDate(String(c.checkDate))}</span>
+                                      <span className="text-gray-600 capitalize">{String(c.method ?? "dip stick").replace(/_/g, " ")}</span>
+                                      <span className="font-medium text-blue-700">{fmtL(c.measuredLitres as string)} measured</span>
+                                      {variance !== null && (
+                                        <span className={variance < -50 ? "font-semibold text-red-600" : "text-gray-500"}>
+                                          {variance >= 0 ? "+" : ""}{variance.toFixed(0)} L
+                                        </span>
+                                      )}
+                                      <Button size="sm" variant="ghost" onClick={() => delStockCheckMut.mutate(Number(c.id))} className="h-5 px-1 text-red-400 hover:text-red-600"><Trash2 className="w-3 h-3" /></Button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
-                      <div className="grid grid-cols-2 gap-1.5 text-xs text-gray-600">
-                        <span><span className="text-gray-400">Location:</span> {String(tank.location ?? "—")}</span>
-                        {!!tank.tankMaterial && <span><span className="text-gray-400">Material:</span> {String(tank.tankMaterial)}</span>}
-                        {!!tank.nextInspectionDue && (
-                          <span className={isOverdue ? "text-red-600 font-medium" : ""}>
-                            <span className="text-gray-400">Inspect by:</span> {fmtDate(String(tank.nextInspectionDue))}
-                            {!!isOverdue && " ⚠"}
-                          </span>
-                        )}
-                        {!!tank.isBunded && !!tank.bundCapacityLitres && (
-                          <span><span className="text-gray-400">Bund:</span> {fmtL(tank.bundCapacityLitres as string)}</span>
-                        )}
-                      </div>
-                      {!!tank.notes && <p className="text-xs text-gray-400 mt-2 italic">{String(tank.notes)}</p>}
                     </div>
                   );
                 })}
@@ -450,12 +612,21 @@ export default function FuelEnergyPage() {
                 <h3 className="font-semibold text-gray-800">Fuel Deliveries</h3>
                 <p className="text-xs text-gray-500">Retain all delivery notes and invoices — HMRC may request these during a fuel duty inspection</p>
               </div>
-              <Button onClick={() => { setDeliveryForm({ fuelType: "red_diesel", qualifyingUse: "agriculture", deliveryDate: new Date().toISOString().substring(0, 10) }); setShowDeliveryDialog(true); }} className="bg-green-800 hover:bg-green-900 text-white">
-                <Plus className="w-4 h-4 mr-1" />Log Delivery
-              </Button>
+              <div className="flex gap-2 items-center">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs text-gray-500 whitespace-nowrap">Crop year</Label>
+                  <Select value={deliveryCropYear} onValueChange={setDeliveryCropYear}>
+                    <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
+                    <SelectContent>{CROP_YEAR_OPTIONS.map(o => <SelectItem key={o.label} value={o.label}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={() => { setDeliveryForm({ fuelType: "red_diesel", qualifyingUse: "agriculture", deliveryDate: new Date().toISOString().substring(0, 10) }); setShowDeliveryDialog(true); }} className="bg-green-800 hover:bg-green-900 text-white">
+                  <Plus className="w-4 h-4 mr-1" />Log Delivery
+                </Button>
+              </div>
             </div>
-            {deliveries.length === 0 ? (
-              <div className="text-center py-16 text-gray-400"><Truck className="w-10 h-10 mx-auto mb-3 opacity-30" /><p className="font-medium">No deliveries recorded</p></div>
+            {filteredDeliveries.length === 0 ? (
+              <div className="text-center py-16 text-gray-400"><Truck className="w-10 h-10 mx-auto mb-3 opacity-30" /><p className="font-medium">No deliveries in {deliveryCropYear}</p><p className="text-sm">Change the crop year selector above or log a new delivery</p></div>
             ) : (
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <table className="w-full text-sm">
@@ -469,7 +640,7 @@ export default function FuelEnergyPage() {
                     <th className="px-4 py-3"></th>
                   </tr></thead>
                   <tbody>
-                    {deliveries.map((d) => {
+                    {filteredDeliveries.map((d) => {
                       const tank = tanks.find(t => t.id === d.tankId);
                       return (
                         <tr key={String(d.id)} className="border-b hover:bg-gray-50">
@@ -504,12 +675,21 @@ export default function FuelEnergyPage() {
                 <h3 className="font-semibold text-gray-800">Fuel Usage Log</h3>
                 <p className="text-xs text-gray-500">Record every draw-down from tanks — demonstrates qualifying use for HMRC rebated fuel</p>
               </div>
-              <Button onClick={() => { setUsageForm({ qualifyingActivity: "agriculture", usageDate: new Date().toISOString().substring(0, 10) }); setShowUsageDialog(true); }} className="bg-green-800 hover:bg-green-900 text-white">
-                <Plus className="w-4 h-4 mr-1" />Record Usage
-              </Button>
+              <div className="flex gap-2 items-center">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs text-gray-500 whitespace-nowrap">Crop year</Label>
+                  <Select value={usageCropYear} onValueChange={setUsageCropYear}>
+                    <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
+                    <SelectContent>{CROP_YEAR_OPTIONS.map(o => <SelectItem key={o.label} value={o.label}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={() => { setUsageForm({ qualifyingActivity: "agriculture", usageDate: new Date().toISOString().substring(0, 10) }); setShowUsageDialog(true); }} className="bg-green-800 hover:bg-green-900 text-white">
+                  <Plus className="w-4 h-4 mr-1" />Record Usage
+                </Button>
+              </div>
             </div>
-            {usages.length === 0 ? (
-              <div className="text-center py-16 text-gray-400"><Droplets className="w-10 h-10 mx-auto mb-3 opacity-30" /><p className="font-medium">No usage records</p></div>
+            {filteredUsages.length === 0 ? (
+              <div className="text-center py-16 text-gray-400"><Droplets className="w-10 h-10 mx-auto mb-3 opacity-30" /><p className="font-medium">No usage records in {usageCropYear}</p><p className="text-sm">Change the crop year above or record a usage</p></div>
             ) : (
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <table className="w-full text-sm">
@@ -522,7 +702,7 @@ export default function FuelEnergyPage() {
                     <th className="px-4 py-3"></th>
                   </tr></thead>
                   <tbody>
-                    {usages.map((u) => {
+                    {filteredUsages.map((u) => {
                       const tank = tanks.find(t => t.id === u.tankId);
                       return (
                         <tr key={String(u.id)} className="border-b hover:bg-gray-50">
@@ -1040,6 +1220,53 @@ export default function FuelEnergyPage() {
               if (!data.exportKwh) delete data.exportKwh;
               readingMut.mutate(data);
             }}>Save Reading</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── STOCK CHECK DIALOG ── */}
+      <Dialog open={showStockCheckDialog} onOpenChange={setShowStockCheckDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Log Physical Stock Check</DialogTitle></DialogHeader>
+          <div className="text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
+            Record the physically measured quantity (dip stick, sight gauge, or weighbridge). The system will calculate any variance against the running calculated total so discrepancies can be investigated.
+          </div>
+          <div className="grid gap-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Date *</Label><Input type="date" value={stockCheckForm.checkDate ?? ""} onChange={e => setStockCheckForm(f => ({ ...f, checkDate: e.target.value }))} /></div>
+              <div><Label>Tank *</Label>
+                <Select value={stockCheckTankId || undefined} onValueChange={v => setStockCheckTankId(v)}>
+                  <SelectTrigger><SelectValue placeholder="Select tank" /></SelectTrigger>
+                  <SelectContent>{tanks.map(t => <SelectItem key={String(t.id)} value={String(t.id)}>{String(t.name)}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Measured quantity (litres) *</Label><Input type="number" step="0.1" value={stockCheckForm.measuredLitres ?? ""} onChange={e => setStockCheckForm(f => ({ ...f, measuredLitres: e.target.value }))} placeholder="e.g. 4850" /></div>
+              <div><Label>Method</Label>
+                <Select value={stockCheckForm.method ?? "dip_stick"} onValueChange={v => setStockCheckForm(f => ({ ...f, method: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="dip_stick">Dip stick</SelectItem>
+                    <SelectItem value="sight_gauge">Sight gauge</SelectItem>
+                    <SelectItem value="flow_meter">Flow meter</SelectItem>
+                    <SelectItem value="weighbridge">Weighbridge</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div><Label>Checked by</Label><Input value={stockCheckForm.checkedBy ?? ""} onChange={e => setStockCheckForm(f => ({ ...f, checkedBy: e.target.value }))} placeholder="Name" /></div>
+            <div><Label>Notes / actions</Label><Textarea value={stockCheckForm.notes ?? ""} onChange={e => setStockCheckForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any discrepancy investigation notes…" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStockCheckDialog(false)}>Cancel</Button>
+            <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
+              if (!stockCheckTankId || !stockCheckForm.checkDate || !stockCheckForm.measuredLitres) {
+                toast({ title: "Tank, date and measured quantity are required", variant: "destructive" }); return;
+              }
+              stockCheckMut.mutate({ tankId: stockCheckTankId, ...stockCheckForm });
+            }}>Save Stock Check</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -100,6 +100,20 @@ export const gridEnergyReadingsTable = pgTable("grid_energy_readings", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const fuelStockChecksTable = pgTable("fuel_stock_checks", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  tankId: integer("tank_id").notNull().references(() => fuelTanksTable.id),
+  checkDate: date("check_date").notNull(),
+  measuredLitres: numeric("measured_litres", { precision: 10, scale: 2 }).notNull(),
+  calculatedLitres: numeric("calculated_litres", { precision: 10, scale: 2 }),
+  varianceLitres: numeric("variance_litres", { precision: 10, scale: 2 }),
+  checkedBy: text("checked_by"),
+  method: text("method").notNull().default("dip_stick"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const fuelStorageInspectionsTable = pgTable("fuel_storage_inspections", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

@@ -177,6 +177,7 @@ import {
   fuelTanksTable,
   fuelDeliveriesTable,
   fuelUsageTable,
+  fuelStockChecksTable,
   fuelStorageInspectionsTable,
   feedDeliveriesTable,
   feedStockLevelsTable,
@@ -11747,6 +11748,45 @@ router.delete("/farms/:farmId/fuel/storage-inspections/:recordId", requireAuth, 
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(fuelStorageInspectionsTable).where(and(eq(fuelStorageInspectionsTable.id, recordId), eq(fuelStorageInspectionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Fuel Stock Checks (physical dip readings) ────────────────────────────────
+
+router.get("/farms/:farmId/fuel/stock-checks", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const tankId = req.query.tankId ? parseInt(req.query.tankId as string) : undefined;
+  const conditions = tankId
+    ? and(eq(fuelStockChecksTable.farmId, farmId), eq(fuelStockChecksTable.tankId, tankId))
+    : eq(fuelStockChecksTable.farmId, farmId);
+  const records = await db.select().from(fuelStockChecksTable).where(conditions).orderBy(fuelStockChecksTable.checkDate);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/fuel/stock-checks", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { tankId, checkDate, measuredLitres, checkedBy, method, notes } = req.body;
+  if (!tankId || !checkDate || measuredLitres === undefined) { res.status(400).json({ error: "tankId, checkDate and measuredLitres are required" }); return; }
+  const [tank] = await db.select({ currentStockLitres: fuelTanksTable.currentStockLitres }).from(fuelTanksTable).where(and(eq(fuelTanksTable.id, parseInt(tankId)), eq(fuelTanksTable.farmId, farmId))).limit(1);
+  const calculatedLitres = tank ? Number(tank.currentStockLitres) : null;
+  const varianceLitres = calculatedLitres !== null ? Number(measuredLitres) - calculatedLitres : null;
+  const [record] = await db.insert(fuelStockChecksTable).values({
+    farmId, tankId: parseInt(tankId), checkDate, measuredLitres: String(measuredLitres),
+    calculatedLitres: calculatedLitres !== null ? String(calculatedLitres) : undefined,
+    varianceLitres: varianceLitres !== null ? String(varianceLitres) : undefined,
+    checkedBy: checkedBy || null, method: method || "dip_stick", notes: notes || null,
+  }).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/fuel/stock-checks/:recordId", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(fuelStockChecksTable).where(and(eq(fuelStockChecksTable.id, recordId), eq(fuelStockChecksTable.farmId, farmId)));
   res.json({ success: true });
 });
 
