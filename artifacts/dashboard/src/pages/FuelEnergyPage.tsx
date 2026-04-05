@@ -232,13 +232,14 @@ function ReportsTab({
     const usageRows = cyUsages.map(u =>
       `<tr>
         <td>${fmtDate(u.usageDate as string)}</td>
-        <td>${tankMap[String(u.tankId)] ?? "—"}</td>
+        <td>${tankMap[String(u.tankId)] ?? String(u.tankName ?? "—")}</td>
+        <td>${String(u.vehicleName ?? "—")}</td>
         <td>${String(u.purpose ?? "—")}</td>
         <td>${QA_LABELS[String(u.qualifyingActivity)] ?? String(u.qualifyingActivity ?? "—")}</td>
         <td style="text-align:right">${parseFloat(String(u.quantityLitres ?? 0)).toLocaleString("en-GB")}</td>
         <td>${String(u.recordedBy ?? "—")}</td>
       </tr>`
-    ).join("") || "<tr><td colspan='6' style='text-align:center;color:#888'>No usage records in this period</td></tr>";
+    ).join("") || "<tr><td colspan='7' style='text-align:center;color:#888'>No usage records in this period</td></tr>";
 
     const summaryRows = Object.entries(usageByActivity).map(([k, v]) =>
       `<tr><td>${QA_LABELS[k] ?? k}</td><td style="text-align:right">${v.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L</td></tr>`
@@ -270,9 +271,9 @@ function ReportsTab({
 
       <h2>Section 2 — Fuel Usage Log</h2>
       <table>
-        <thead><tr><th>Date</th><th>Tank</th><th>Purpose / Activity</th><th>Qualifying Activity</th><th style="text-align:right">Qty (L)</th><th>Recorded By</th></tr></thead>
+        <thead><tr><th>Date</th><th>Tank</th><th>Vehicle / Machine</th><th>Purpose / Activity</th><th>Qualifying Activity</th><th style="text-align:right">Qty (L)</th><th>Recorded By</th></tr></thead>
         <tbody>${usageRows}</tbody>
-        <tfoot><tr class="total"><td colspan="4">Total Used</td><td style="text-align:right">${totalUsedL.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L</td><td></td></tr></tfoot>
+        <tfoot><tr class="total"><td colspan="5">Total Used</td><td style="text-align:right">${totalUsedL.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L</td><td></td></tr></tfoot>
       </table>
 
       <h2>Section 3 — Usage Summary by Qualifying Activity</h2>
@@ -367,6 +368,65 @@ function ReportsTab({
       <p><b>Legend:</b> Yellow = investigate. Red = significant (≥200 L) — consider police report and HMRC notification.</p>
     `;
     printReport("Fuel Stock Discrepancy Report", html);
+  }
+
+  function printVehicleReport() {
+    const tankMap: Record<string, string> = {};
+    for (const t of tanks) tankMap[String(t.id)] = String(t.name ?? `Tank ${t.id}`);
+
+    const usageByVehicle: Record<string, { litres: number; rows: Record<string, unknown>[] }> = {};
+    for (const u of cyUsages) {
+      const vName = String(u.vehicleName || "No vehicle / machine recorded");
+      if (!usageByVehicle[vName]) usageByVehicle[vName] = { litres: 0, rows: [] };
+      usageByVehicle[vName].litres += parseFloat(String(u.quantityLitres ?? 0));
+      usageByVehicle[vName].rows.push(u);
+    }
+
+    const vehicleSections = Object.entries(usageByVehicle)
+      .sort((a, b) => b[1].litres - a[1].litres)
+      .map(([vName, data]) => {
+        const detailRows = data.rows
+          .sort((a, b) => String(a.usageDate ?? "").localeCompare(String(b.usageDate ?? "")))
+          .map(u =>
+            `<tr>
+              <td>${fmtDate(u.usageDate as string)}</td>
+              <td>${tankMap[String(u.tankId)] ?? String(u.tankName ?? "—")}</td>
+              <td>${String(u.purpose ?? "—")}</td>
+              <td>${QA_LABELS[String(u.qualifyingActivity)] ?? String(u.qualifyingActivity ?? "—")}</td>
+              <td style="text-align:right">${parseFloat(String(u.quantityLitres ?? 0)).toLocaleString("en-GB")} L</td>
+              <td>${String(u.recordedBy ?? "—")}</td>
+            </tr>`
+          ).join("");
+        return `
+          <h2>${vName} — ${data.litres.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L total</h2>
+          <table>
+            <thead><tr><th>Date</th><th>Tank</th><th>Purpose / Activity</th><th>Qualifying Activity</th><th style="text-align:right">Qty (L)</th><th>Recorded By</th></tr></thead>
+            <tbody>${detailRows}</tbody>
+            <tfoot><tr class="total"><td colspan="4">Subtotal — ${vName}</td><td style="text-align:right">${data.litres.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L</td><td></td></tr></tfoot>
+          </table>`;
+      }).join("");
+
+    const summaryRows = Object.entries(usageByVehicle)
+      .sort((a, b) => b[1].litres - a[1].litres)
+      .map(([vName, data]) =>
+        `<tr><td>${vName}</td><td style="text-align:right">${data.rows.length}</td><td style="text-align:right">${data.litres.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L</td></tr>`
+      ).join("");
+
+    const html = `
+      <h1>Vehicle &amp; Machine Fuel Usage Report — Crop Year ${reportCropYear}</h1>
+      <p class="meta">Farm: Barnett Davies Enterprises Ltd &nbsp;|&nbsp; Generated: ${today} &nbsp;|&nbsp; Period: ${selectedCY?.start.toLocaleDateString("en-GB")} – ${selectedCY?.end.toLocaleDateString("en-GB")}</p>
+      <p class="meta" style="margin-bottom:16px">Fuel usage grouped by vehicle or machine for the selected crop year. Use this report to identify fuel costs per asset, cross-check machinery utilisation records, and support HMRC qualifying use evidence.</p>
+
+      <h2>Summary by Vehicle / Machine</h2>
+      <table>
+        <thead><tr><th>Vehicle / Machine</th><th style="text-align:right">Draw-Downs</th><th style="text-align:right">Total Litres</th></tr></thead>
+        <tbody>${summaryRows || "<tr><td colspan='3' style='text-align:center;color:#888'>No usage records in this period</td></tr>"}</tbody>
+        <tfoot><tr class="total"><td>Grand Total</td><td style="text-align:right">${cyUsages.length}</td><td style="text-align:right">${totalUsedL.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L</td></tr></tfoot>
+      </table>
+
+      ${vehicleSections || "<p style='color:#888'>No usage records for this crop year.</p>"}
+    `;
+    printReport(`Vehicle Fuel Usage Report ${reportCropYear}`, html);
   }
 
   return (
@@ -479,6 +539,31 @@ function ReportsTab({
               </div>
             </div>
             <Button onClick={printDiscrepancyReport} variant="outline" className="border-gray-300 flex-shrink-0">
+              Print / Save PDF
+            </Button>
+          </div>
+        </div>
+
+        {/* Vehicle Fuel Usage */}
+        <div className="border border-gray-200 rounded-lg p-5 bg-white">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
+                <Truck className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-800">Vehicle &amp; Machine Fuel Usage</h4>
+                <p className="text-xs text-gray-500 mt-0.5 max-w-lg">
+                  Fuel usage broken down by vehicle or machine for the selected crop year. Includes a summary table of total litres per asset and
+                  full draw-down detail for each vehicle. Useful for machinery cost analysis, operator accountability, and supporting HMRC qualifying-use evidence.
+                </p>
+                <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                  <span><span className="font-medium text-gray-700">{cyUsages.length}</span> usage records in {reportCropYear}</span>
+                  <span><span className="font-medium text-gray-700">{new Set(cyUsages.map(u => String(u.vehicleName || "")).filter(Boolean)).size}</span> vehicles / machines with fuel records</span>
+                </div>
+              </div>
+            </div>
+            <Button onClick={printVehicleReport} variant="outline" className="border-gray-300 flex-shrink-0">
               Print / Save PDF
             </Button>
           </div>
@@ -1065,6 +1150,7 @@ export default function FuelEnergyPage() {
                   <thead><tr className="bg-gray-50 border-b">
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Tank</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Vehicle / Machine</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Purpose / Activity</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Litres</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Recorded by</th>
@@ -1076,7 +1162,8 @@ export default function FuelEnergyPage() {
                       return (
                         <tr key={String(u.id)} className="border-b hover:bg-gray-50">
                           <td className="px-4 py-3 text-gray-700">{fmtDate(String(u.usageDate ?? ""))}</td>
-                          <td className="px-4 py-3 text-gray-600 text-xs">{tank ? String(tank.name) : "—"}</td>
+                          <td className="px-4 py-3 text-gray-600 text-xs">{tank ? String(tank.name) : (u.tankName ? String(u.tankName) : "—")}</td>
+                          <td className="px-4 py-3 text-gray-600 text-xs">{u.vehicleName ? String(u.vehicleName) : <span className="text-gray-300">—</span>}</td>
                           <td className="px-4 py-3">
                             <p className="font-medium text-gray-800">{String(u.purpose ?? "—")}</p>
                             <p className="text-xs text-gray-400 capitalize">{String(u.qualifyingActivity ?? "").replace(/_/g, " ")}</p>
@@ -1414,6 +1501,7 @@ export default function FuelEnergyPage() {
                 </Select>
               </div>
             </div>
+            <div><Label>Vehicle / Machine</Label><Input value={usageForm.vehicleName ?? ""} onChange={e => setUsageForm(f => ({ ...f, vehicleName: e.target.value }))} placeholder="e.g. Case IH Puma 165, Massey 6S, Grain Drier" /></div>
             <div><Label>Purpose / Activity *</Label><Input value={usageForm.purpose ?? ""} onChange={e => setUsageForm(f => ({ ...f, purpose: e.target.value }))} placeholder="e.g. Ploughing — Home Field" /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Quantity (litres) *</Label><Input type="number" value={usageForm.quantityLitres ?? ""} onChange={e => setUsageForm(f => ({ ...f, quantityLitres: e.target.value }))} /></div>

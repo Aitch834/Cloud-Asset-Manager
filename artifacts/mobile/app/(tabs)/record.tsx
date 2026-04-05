@@ -523,6 +523,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["water-irrigation"],
   },
   {
+    id: "fuel-drawdown",
+    title: "Fuel Draw-Down",
+    description: "Record fuel drawn from a tank — log the vehicle or machine, quantity and qualifying activity for HMRC red diesel compliance",
+    icon: "droplet",
+    color: "#b45309",
+    bgColor: "#fef3c7",
+    route: "/fuel-drawdown",
+    moduleKeys: ["fuel-energy"],
+  },
+  {
     id: "fuel-meter-reading",
     title: "Grid Energy Meter Reading",
     description: "Log electricity, gas or mains LPG meter readings with consumption calculation for Red Tractor and HMRC records",

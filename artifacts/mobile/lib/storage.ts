@@ -150,6 +150,7 @@ export const STORAGE_KEYS = {
   IRRIGATION_METER_READINGS: "bde_irrigation_meter_readings",
   FUEL_METER_READINGS: "bde_fuel_meter_readings",
   FUEL_STOCK_CHECKS: "bde_fuel_stock_checks",
+  FUEL_DRAWDOWNS: "bde_fuel_drawdowns",
   PIG_FARROWING_RECORDS: "bde_pig_farrowing_records",
   POULTRY_THINNING_RECORDS: "bde_poultry_thinning_records",
   AI_REPRODUCTION_RECORDS: "bde_ai_reproduction_records",

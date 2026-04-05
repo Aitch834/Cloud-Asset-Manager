@@ -288,6 +288,7 @@ function getSyncEndpoint(recordType: string, farmId: string): string | null {
     bde_irrigation_meter_readings: `/farms/${farmId}/irrigation-readings`,
     bde_fuel_meter_readings: `/farms/${farmId}/energy/readings`,
     bde_fuel_stock_checks: `/farms/${farmId}/fuel/stock-checks`,
+    bde_fuel_drawdowns: `/farms/${farmId}/fuel/usage`,
     bde_pig_farrowing_records: `/farms/${farmId}/pig-farrowing-records`,
     bde_poultry_thinning_records: `/farms/${farmId}/poultry-thinning-records`,
     bde_ai_reproduction_records: `/farms/${farmId}/ai-reproduction-records`,
