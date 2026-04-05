@@ -9013,7 +9013,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     fuelTankInspRows, feedBestBeforeRows,
     diversInsuranceRows, renewableServiceRows, irrigEquipCalibRows,
     hortiWaterTestRows,
-    taskAssignmentRows,
+    taskAssignmentRows, fuelDiscrepancyRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -9213,6 +9213,12 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: farmTaskAssignmentsTable.id, title: farmTaskAssignmentsTable.title, dueDate: farmTaskAssignmentsTable.dueDate, staffName: farmTaskAssignmentsTable.staffName, module: farmTaskAssignmentsTable.module, href: farmTaskAssignmentsTable.href, status: farmTaskAssignmentsTable.status, assignedToMemberId: farmTaskAssignmentsTable.assignedToMemberId })
       .from(farmTaskAssignmentsTable)
       .where(and(eq(farmTaskAssignmentsTable.farmId, farmId), inArray(farmTaskAssignmentsTable.status, ["pending", "in_progress"]), isNotNull(farmTaskAssignmentsTable.dueDate), gte(farmTaskAssignmentsTable.dueDate, overdueStart), lt(farmTaskAssignmentsTable.dueDate, rangeEnd))),
+
+    // ── Fuel: stock check discrepancies requiring investigation ──
+    db.select({ id: fuelStockChecksTable.id, tankId: fuelStockChecksTable.tankId, checkDate: fuelStockChecksTable.checkDate, measuredLitres: fuelStockChecksTable.measuredLitres, calculatedLitres: fuelStockChecksTable.calculatedLitres, varianceLitres: fuelStockChecksTable.varianceLitres, checkedBy: fuelStockChecksTable.checkedBy, tankName: fuelTanksTable.name })
+      .from(fuelStockChecksTable)
+      .leftJoin(fuelTanksTable, eq(fuelStockChecksTable.tankId, fuelTanksTable.id))
+      .where(and(eq(fuelStockChecksTable.farmId, farmId), lt(fuelStockChecksTable.varianceLitres, "-50"), gte(fuelStockChecksTable.checkDate, overdueStart.toISOString().split("T")[0]))),
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -9373,6 +9379,21 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of fuelTankInspRows) {
     if (!r.nextInspectionDue) continue;
     tasks.push({ id: `fueltankinsp-${r.id}`, type: "fuel_tank_inspection", title: `Fuel Tank Inspection Due — ${r.tankName}`, description: `The ${r.fuelType || "fuel"} tank '${r.tankName}' is due for its inspection. Check bunding, pipework, and fill point. Log the result in Fuel & Energy → Tanks.`, dueDate: toISO(r.nextInspectionDue)!, module: "Fuel & Energy", href: "/fuel-energy", colour: "orange" });
+  }
+  for (const r of fuelDiscrepancyRows) {
+    const variance = Math.abs(Number(r.varianceLitres));
+    const isLarge = variance >= 200;
+    const tankLabel = r.tankName || `Tank #${r.tankId}`;
+    tasks.push({
+      id: `fueldiscrepancy-${r.id}`,
+      type: "fuel_stock_discrepancy",
+      title: `Fuel Discrepancy${isLarge ? " — Possible Theft/Leak" : ""} — ${tankLabel}`,
+      description: `Stock check on ${r.checkDate} shows a shortfall of ${variance.toFixed(0)} L${isLarge ? ". This is significant — check for theft, leak or metering error. Consider contacting police if theft is suspected. Record your investigation outcome in Fuel & Energy → Tank Register." : ". Investigate meter readings, delivery records and usage logs. Log your findings in Fuel & Energy → Tank Register."}`,
+      dueDate: toISO(r.checkDate)!,
+      module: "Fuel & Energy",
+      href: "/fuel-energy",
+      colour: isLarge ? "red" : "orange",
+    });
   }
   for (const r of feedBestBeforeRows) {
     if (!r.bestBeforeDate) continue;
@@ -11767,13 +11788,21 @@ router.get("/farms/:farmId/fuel/stock-checks", requireAuth, requireTenant, requi
 router.post("/farms/:farmId/fuel/stock-checks", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { tankId, checkDate, measuredLitres, checkedBy, method, notes } = req.body;
-  if (!tankId || !checkDate || measuredLitres === undefined) { res.status(400).json({ error: "tankId, checkDate and measuredLitres are required" }); return; }
-  const [tank] = await db.select({ currentStockLitres: fuelTanksTable.currentStockLitres }).from(fuelTanksTable).where(and(eq(fuelTanksTable.id, parseInt(tankId)), eq(fuelTanksTable.farmId, farmId))).limit(1);
-  const calculatedLitres = tank ? Number(tank.currentStockLitres) : null;
-  const varianceLitres = calculatedLitres !== null ? Number(measuredLitres) - calculatedLitres : null;
+  const { tankId, tankName, checkDate, measuredLitres, calculatedLitres: bodyCalculatedLitres, varianceLitres: bodyVarianceLitres, checkedBy, method, notes } = req.body;
+  if (!checkDate || measuredLitres === undefined) { res.status(400).json({ error: "checkDate and measuredLitres are required" }); return; }
+  // Resolve tankId — accept either numeric tankId or a tankName string (from mobile app)
+  let resolvedTankId: number | null = tankId ? parseInt(tankId) : null;
+  if (!resolvedTankId && tankName) {
+    const [found] = await db.select({ id: fuelTanksTable.id }).from(fuelTanksTable).where(and(eq(fuelTanksTable.farmId, farmId), eq(fuelTanksTable.name, tankName))).limit(1);
+    resolvedTankId = found?.id ?? null;
+  }
+  if (!resolvedTankId) { res.status(400).json({ error: "Tank not found. Provide a valid tankId or a tankName matching an existing tank." }); return; }
+  const [tank] = await db.select({ currentStockLitres: fuelTanksTable.currentStockLitres }).from(fuelTanksTable).where(and(eq(fuelTanksTable.id, resolvedTankId), eq(fuelTanksTable.farmId, farmId))).limit(1);
+  // Allow client to provide pre-calculated values (mobile app) or compute from tank record
+  const calculatedLitres = bodyCalculatedLitres !== undefined ? Number(bodyCalculatedLitres) : (tank ? Number(tank.currentStockLitres) : null);
+  const varianceLitres = bodyVarianceLitres !== undefined ? Number(bodyVarianceLitres) : (calculatedLitres !== null ? Number(measuredLitres) - calculatedLitres : null);
   const [record] = await db.insert(fuelStockChecksTable).values({
-    farmId, tankId: parseInt(tankId), checkDate, measuredLitres: String(measuredLitres),
+    farmId, tankId: resolvedTankId, checkDate, measuredLitres: String(measuredLitres),
     calculatedLitres: calculatedLitres !== null ? String(calculatedLitres) : undefined,
     varianceLitres: varianceLitres !== null ? String(varianceLitres) : undefined,
     checkedBy: checkedBy || null, method: method || "dip_stick", notes: notes || null,
@@ -11838,7 +11867,24 @@ router.get("/farms/:farmId/energy/readings", requireAuth, requireTenant, require
 router.post("/farms/:farmId/energy/readings", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(gridEnergyReadingsTable).values({ ...req.body, farmId }).returning();
+  const { meterId, meterName, meterReference, meterType, ...rest } = req.body;
+  // Resolve meterId — accept numeric meterId or meterName string (from mobile app)
+  let resolvedMeterId: number | null = meterId ? parseInt(meterId) : null;
+  if (!resolvedMeterId && meterName) {
+    const [found] = await db.select({ id: gridEnergyMetersTable.id }).from(gridEnergyMetersTable)
+      .where(and(eq(gridEnergyMetersTable.farmId, farmId), eq(gridEnergyMetersTable.name, meterName))).limit(1);
+    if (found) {
+      resolvedMeterId = found.id;
+    } else if (meterType) {
+      // Auto-create the meter if it doesn't exist (mobile first-use case)
+      const [created] = await db.insert(gridEnergyMetersTable).values({
+        farmId, name: meterName, meterType: meterType as any, meterReference: meterReference || null, isActive: true,
+      }).returning();
+      resolvedMeterId = created.id;
+    }
+  }
+  if (!resolvedMeterId) { res.status(400).json({ error: "meterId or meterName is required" }); return; }
+  const [record] = await db.insert(gridEnergyReadingsTable).values({ ...rest, farmId, meterId: resolvedMeterId }).returning();
   res.status(201).json({ record });
 });
 

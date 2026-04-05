@@ -37,7 +37,7 @@ function buildCropYearOptions(): { label: string; start: Date; end: Date }[] {
   return options;
 }
 
-type Tab = "tanks" | "deliveries" | "usage" | "inspections" | "grid-energy";
+type Tab = "tanks" | "deliveries" | "usage" | "inspections" | "grid-energy" | "reports";
 
 const FUEL_TYPES = [
   "red_diesel", "white_diesel", "heating_oil", "lpg_bulk", "lpg_bottles",
@@ -132,6 +132,372 @@ function MeterTypeIcon({ type }: { type: string }) {
   if (type === "natural_gas") return <Flame className="w-5 h-5 text-orange-500" />;
   if (type === "lpg_mains") return <Flame className="w-5 h-5 text-blue-500" />;
   return <Plug className="w-5 h-5 text-gray-400" />;
+}
+
+const QA_LABELS: Record<string, string> = {
+  agriculture: "Agriculture",
+  forestry: "Forestry",
+  horticulture: "Horticulture",
+  commercial_fishing: "Commercial Fishing",
+  rail: "Rail / Off-road Transport",
+  non_commercial: "Non-commercial / Own use",
+};
+
+function printReport(title: string, htmlBody: string) {
+  const win = window.open("", "_blank", "width=900,height=700");
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; margin: 24px; color: #111; }
+  h1 { font-size: 18px; margin-bottom: 4px; }
+  h2 { font-size: 14px; margin-top: 20px; margin-bottom: 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+  p.meta { font-size: 11px; color: #555; margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 11px; }
+  th { background: #f1f5f9; text-align: left; padding: 5px 8px; font-weight: 600; border-bottom: 1px solid #cbd5e1; }
+  td { padding: 4px 8px; border-bottom: 1px solid #e2e8f0; }
+  tr:last-child td { border-bottom: none; }
+  .warn { background: #fff7ed; }
+  .alert { background: #fef2f2; }
+  .ok { background: #f0fdf4; }
+  .total { font-weight: bold; background: #f1f5f9; }
+  .footer { margin-top: 24px; font-size: 10px; color: #888; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+  @media print { body { margin: 12px; } }
+</style></head><body>${htmlBody}
+<div class="footer">Barnett Davies Enterprises Ltd — BDE Farm Trac — Generated ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</div>
+<script>window.onload = function() { window.print(); }<\/script>
+</body></html>`);
+  win.document.close();
+}
+
+function ReportsTab({
+  tanks, deliveries, usages, inspections, stockChecks, readings, meters
+}: {
+  tanks: Record<string, unknown>[];
+  deliveries: Record<string, unknown>[];
+  usages: Record<string, unknown>[];
+  inspections: Record<string, unknown>[];
+  stockChecks: Record<string, unknown>[];
+  readings: Record<string, unknown>[];
+  meters: Record<string, unknown>[];
+}) {
+  const cropYearOptions = buildCropYearOptions();
+  const [reportCropYear, setReportCropYear] = useState(cropYearOptions[0]?.label ?? "");
+  const selectedCY = cropYearOptions.find(o => o.label === reportCropYear) ?? cropYearOptions[0];
+
+  const cyDeliveries = deliveries.filter(d => {
+    if (!d.deliveryDate || !selectedCY) return false;
+    const dt = new Date(d.deliveryDate as string);
+    return dt >= selectedCY.start && dt <= selectedCY.end;
+  });
+  const cyUsages = usages.filter(u => {
+    if (!u.usageDate || !selectedCY) return false;
+    const dt = new Date(u.usageDate as string);
+    return dt >= selectedCY.start && dt <= selectedCY.end;
+  });
+
+  const totalDeliveredL = cyDeliveries.reduce((s, d) => s + parseFloat(String(d.quantityLitres ?? 0)), 0);
+  const totalUsedL = cyUsages.reduce((s, u) => s + parseFloat(String(u.quantityLitres ?? 0)), 0);
+
+  const usageByActivity: Record<string, number> = {};
+  for (const u of cyUsages) {
+    const k = String(u.qualifyingActivity ?? "unspecified");
+    usageByActivity[k] = (usageByActivity[k] ?? 0) + parseFloat(String(u.quantityLitres ?? 0));
+  }
+
+  const discrepancies = stockChecks.filter(s => {
+    const v = parseFloat(String(s.varianceLitres ?? 0));
+    return v < -50;
+  });
+
+  const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
+  function printHMRC() {
+    const tankMap: Record<string, string> = {};
+    for (const t of tanks) tankMap[String(t.id)] = String(t.name ?? `Tank ${t.id}`);
+    const meterMap: Record<string, string> = {};
+    for (const m of meters) meterMap[String(m.id)] = String(m.name ?? `Meter ${m.id}`);
+
+    const deliveryRows = cyDeliveries.map(d =>
+      `<tr>
+        <td>${fmtDate(d.deliveryDate as string)}</td>
+        <td>${String(d.supplierName ?? "—")}</td>
+        <td>${String(d.deliveryNote ?? "—")}</td>
+        <td>${tankMap[String(d.tankId)] ?? "—"}</td>
+        <td>${FUEL_TYPE_LABELS[String(d.fuelType)] ?? String(d.fuelType ?? "—")}</td>
+        <td style="text-align:right">${parseFloat(String(d.quantityLitres ?? 0)).toLocaleString("en-GB")}</td>
+        <td>${String(d.invoiceReference ?? "—")}</td>
+      </tr>`
+    ).join("") || "<tr><td colspan='7' style='text-align:center;color:#888'>No deliveries in this period</td></tr>";
+
+    const usageRows = cyUsages.map(u =>
+      `<tr>
+        <td>${fmtDate(u.usageDate as string)}</td>
+        <td>${tankMap[String(u.tankId)] ?? "—"}</td>
+        <td>${String(u.purpose ?? "—")}</td>
+        <td>${QA_LABELS[String(u.qualifyingActivity)] ?? String(u.qualifyingActivity ?? "—")}</td>
+        <td style="text-align:right">${parseFloat(String(u.quantityLitres ?? 0)).toLocaleString("en-GB")}</td>
+        <td>${String(u.recordedBy ?? "—")}</td>
+      </tr>`
+    ).join("") || "<tr><td colspan='6' style='text-align:center;color:#888'>No usage records in this period</td></tr>";
+
+    const summaryRows = Object.entries(usageByActivity).map(([k, v]) =>
+      `<tr><td>${QA_LABELS[k] ?? k}</td><td style="text-align:right">${v.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L</td></tr>`
+    ).join("");
+
+    const energyRows = readings.map(r => {
+      const mname = meterMap[String(r.meterId)] ?? `Meter ${r.meterId}`;
+      return `<tr>
+        <td>${fmtDate(r.readingDate as string)}</td>
+        <td>${mname}</td>
+        <td style="text-align:right">${String(r.currentReading ?? "—")}</td>
+        <td style="text-align:right">${String(r.consumptionSinceLast ?? "—")}</td>
+        <td>${String(r.readingType ?? "actual")}</td>
+        <td>${String(r.recordedBy ?? "—")}</td>
+      </tr>`;
+    }).join("") || "<tr><td colspan='6' style='text-align:center;color:#888'>No energy readings recorded</td></tr>";
+
+    const html = `
+      <h1>HMRC Fuel Duty Register — Crop Year ${reportCropYear}</h1>
+      <p class="meta">Farm: Barnett Davies Enterprises Ltd &nbsp;|&nbsp; Generated: ${today} &nbsp;|&nbsp; Period: ${selectedCY?.start.toLocaleDateString("en-GB")} – ${selectedCY?.end.toLocaleDateString("en-GB")}</p>
+      <p class="meta" style="margin-bottom:16px">This register demonstrates qualifying use of rebated fuel (red diesel / gas oil) in accordance with HMRC Excise Notice 75. Retain for 6 years from the accounting period end.</p>
+
+      <h2>Section 1 — Fuel Deliveries</h2>
+      <table>
+        <thead><tr><th>Date</th><th>Supplier</th><th>Delivery Note</th><th>Tank</th><th>Fuel Type</th><th style="text-align:right">Qty (L)</th><th>Invoice Ref</th></tr></thead>
+        <tbody>${deliveryRows}</tbody>
+        <tfoot><tr class="total"><td colspan="5">Total Delivered</td><td style="text-align:right">${totalDeliveredL.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L</td><td></td></tr></tfoot>
+      </table>
+
+      <h2>Section 2 — Fuel Usage Log</h2>
+      <table>
+        <thead><tr><th>Date</th><th>Tank</th><th>Purpose / Activity</th><th>Qualifying Activity</th><th style="text-align:right">Qty (L)</th><th>Recorded By</th></tr></thead>
+        <tbody>${usageRows}</tbody>
+        <tfoot><tr class="total"><td colspan="4">Total Used</td><td style="text-align:right">${totalUsedL.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L</td><td></td></tr></tfoot>
+      </table>
+
+      <h2>Section 3 — Usage Summary by Qualifying Activity</h2>
+      <table>
+        <thead><tr><th>Qualifying Activity</th><th style="text-align:right">Litres Used</th></tr></thead>
+        <tbody>${summaryRows || "<tr><td colspan='2' style='text-align:center;color:#888'>No usage records</td></tr>"}</tbody>
+        <tfoot><tr class="total"><td>Total</td><td style="text-align:right">${totalUsedL.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L</td></tr></tfoot>
+      </table>
+
+      <h2>Section 4 — Grid Energy Meter Readings</h2>
+      <table>
+        <thead><tr><th>Date</th><th>Meter</th><th style="text-align:right">Reading</th><th style="text-align:right">Consumption</th><th>Type</th><th>Recorded By</th></tr></thead>
+        <tbody>${energyRows}</tbody>
+      </table>
+    `;
+    printReport(`HMRC Fuel Duty Register ${reportCropYear}`, html);
+  }
+
+  function printTankCompliance() {
+    const inspByTank: Record<string, Record<string, unknown>[]> = {};
+    for (const ins of inspections) {
+      const tk = String(ins.tankId ?? "");
+      if (!inspByTank[tk]) inspByTank[tk] = [];
+      inspByTank[tk].push(ins);
+    }
+
+    const tankRows = tanks.map(t => {
+      const bunded = t.isBunded === true || t.isBunded === "true";
+      const inspDue = t.nextInspectionDue ? fmtDate(t.nextInspectionDue as string) : "Not set";
+      const inspOverdue = t.nextInspectionDue && new Date(t.nextInspectionDue as string) < new Date();
+      const lastInsp = (inspByTank[String(t.id)] ?? []).sort((a, b) => String(b.inspectionDate ?? "").localeCompare(String(a.inspectionDate ?? ""))).at(0);
+      const lastInspDate = lastInsp ? fmtDate(lastInsp.inspectionDate as string) : "None recorded";
+      const lastInspResult = lastInsp ? String(lastInsp.overallResult ?? "—") : "—";
+      const cap = parseFloat(String(t.capacityLitres ?? 0));
+      const osr = cap >= 200 ? (bunded ? "Compliant — bunded" : `<b style="color:#dc2626">Non-compliant — bunding required for ${cap}+ L tanks</b>`) : (bunded ? "Bunded (not required for &lt;200 L)" : "Not bunded (OK for &lt;200 L)");
+      return `<tr class="${inspOverdue ? "alert" : ""}">
+        <td>${String(t.name ?? "")}</td>
+        <td>${FUEL_TYPE_LABELS[String(t.fuelType)] ?? String(t.fuelType ?? "")}</td>
+        <td style="text-align:right">${cap.toLocaleString("en-GB")} L</td>
+        <td>${String(t.location ?? "—")}</td>
+        <td>${osr}</td>
+        <td>${lastInspDate} — ${lastInspResult}</td>
+        <td class="${inspOverdue ? "" : ""}">${inspDue}${inspOverdue ? " <b>(OVERDUE)</b>" : ""}</td>
+      </tr>`;
+    }).join("") || "<tr><td colspan='7' style='text-align:center;color:#888'>No tanks registered</td></tr>";
+
+    const html = `
+      <h1>Tank Compliance Summary — Red Tractor / Oil Storage Regulations 2001</h1>
+      <p class="meta">Farm: Barnett Davies Enterprises Ltd &nbsp;|&nbsp; Generated: ${today}</p>
+      <p class="meta" style="margin-bottom:16px">The Control of Pollution (Oil Storage) (England) Regulations 2001 require oil storage containers of 200 litres or more used at agricultural premises to be bunded. All tanks should be inspected annually. This summary demonstrates compliance with Red Tractor Assured Food Standards — Fuel Storage requirements.</p>
+
+      <h2>Tank Register</h2>
+      <table>
+        <thead><tr><th>Tank Name</th><th>Fuel Type</th><th style="text-align:right">Capacity</th><th>Location</th><th>Bunding / OSR 2001</th><th>Last Inspection</th><th>Next Inspection Due</th></tr></thead>
+        <tbody>${tankRows}</tbody>
+      </table>
+
+      <p><b>Legend:</b> Rows highlighted red indicate inspection is overdue. All tanks ≥200 L must be bunded under OSR 2001.</p>
+    `;
+    printReport("Tank Compliance Summary", html);
+  }
+
+  function printDiscrepancyReport() {
+    const tankMap: Record<string, string> = {};
+    for (const t of tanks) tankMap[String(t.id)] = String(t.name ?? `Tank ${t.id}`);
+
+    const rows = discrepancies.map(s => {
+      const v = Math.abs(parseFloat(String(s.varianceLitres ?? 0)));
+      const isLarge = v >= 200;
+      return `<tr class="${isLarge ? "alert" : "warn"}">
+        <td>${fmtDate(s.checkDate as string)}</td>
+        <td>${tankMap[String(s.tankId)] ?? `Tank ${s.tankId}`}</td>
+        <td style="text-align:right">${parseFloat(String(s.measuredLitres ?? 0)).toLocaleString("en-GB")} L</td>
+        <td style="text-align:right">${s.calculatedLitres ? parseFloat(String(s.calculatedLitres)).toLocaleString("en-GB") + " L" : "—"}</td>
+        <td style="text-align:right;${isLarge ? "color:#dc2626;font-weight:bold" : "color:#d97706"}">${v.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L shortage</td>
+        <td>${String(s.method ?? "dip_stick").replace("_", " ")}</td>
+        <td>${String(s.checkedBy ?? "—")}</td>
+        <td>${isLarge ? "Significant — investigate theft/leak" : "Investigate records"}</td>
+      </tr>`;
+    }).join("") || "<tr class='ok'><td colspan='8' style='text-align:center'>No significant discrepancies recorded — all stock checks within tolerance</td></tr>";
+
+    const html = `
+      <h1>Fuel Stock Discrepancy Report</h1>
+      <p class="meta">Farm: Barnett Davies Enterprises Ltd &nbsp;|&nbsp; Generated: ${today}</p>
+      <p class="meta" style="margin-bottom:16px">Showing all stock checks where physically measured stock is more than 50 litres below the calculated figure. Shortfalls ≥200 L are highlighted as significant and may indicate theft or a leak. Records should be retained for HMRC compliance — unexplained losses may need to be declared as misuse of rebated fuel duty relief.</p>
+
+      <h2>Discrepancies Requiring Investigation (Shortfall &gt;50 L)</h2>
+      <table>
+        <thead><tr><th>Check Date</th><th>Tank</th><th style="text-align:right">Measured</th><th style="text-align:right">Expected</th><th style="text-align:right">Shortfall</th><th>Method</th><th>Checked By</th><th>Action Required</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p><b>Legend:</b> Yellow = investigate. Red = significant (≥200 L) — consider police report and HMRC notification.</p>
+    `;
+    printReport("Fuel Stock Discrepancy Report", html);
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="font-semibold text-gray-800">Fuel & Energy Reports</h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Printable compliance reports for HMRC fuel duty inspections and Red Tractor audits.
+            Reports are generated from your live data and open in a new window ready to print or save as PDF.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">Crop year</span>
+          <select
+            className="text-sm border border-gray-200 rounded px-2 py-1 bg-white"
+            value={reportCropYear}
+            onChange={e => setReportCropYear(e.target.value)}
+          >
+            {cropYearOptions.map(o => (
+              <option key={o.label} value={o.label}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Report Cards */}
+      <div className="grid gap-4">
+
+        {/* HMRC */}
+        <div className="border border-gray-200 rounded-lg p-5 bg-white">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <ClipboardList className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-800">HMRC Fuel Duty Register</h4>
+                <p className="text-xs text-gray-500 mt-0.5 max-w-lg">
+                  Demonstrates qualifying use of rebated fuel (red diesel / gas oil) under HMRC Excise Notice 75.
+                  Shows all deliveries, usage log with qualifying activities, usage summary by activity type, and grid energy meter readings.
+                  Must be retained for 6 years.
+                </p>
+                <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                  <span><span className="font-medium text-gray-700">{cyDeliveries.length}</span> deliveries — {totalDeliveredL.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L delivered</span>
+                  <span><span className="font-medium text-gray-700">{cyUsages.length}</span> usage records — {totalUsedL.toLocaleString("en-GB", { maximumFractionDigits: 0 })} L used</span>
+                  <span>Crop year <span className="font-medium text-gray-700">{reportCropYear}</span></span>
+                </div>
+              </div>
+            </div>
+            <Button onClick={printHMRC} className="bg-blue-600 hover:bg-blue-700 text-white flex-shrink-0">
+              Print / Save PDF
+            </Button>
+          </div>
+        </div>
+
+        {/* Red Tractor Tank Compliance */}
+        <div className="border border-gray-200 rounded-lg p-5 bg-white">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
+                <ShieldAlert className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-800">Tank Compliance Summary</h4>
+                <p className="text-xs text-gray-500 mt-0.5 max-w-lg">
+                  Red Tractor Assured / Oil Storage Regulations 2001 compliance document. Lists all tanks with bunding status,
+                  inspection history and next inspection due date. Flags overdue inspections and any non-compliant bunding.
+                  Suitable for Red Tractor audits and HSE inspections.
+                </p>
+                <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                  <span><span className="font-medium text-gray-700">{tanks.length}</span> tanks registered</span>
+                  <span><span className="font-medium text-gray-700">{tanks.filter(t => t.isBunded === true || t.isBunded === "true").length}</span> bunded</span>
+                  <span><span className="font-medium text-gray-700">{tanks.filter(t => t.nextInspectionDue && new Date(t.nextInspectionDue as string) < new Date()).length}</span> inspections overdue</span>
+                </div>
+              </div>
+            </div>
+            <Button onClick={printTankCompliance} className="bg-green-700 hover:bg-green-800 text-white flex-shrink-0">
+              Print / Save PDF
+            </Button>
+          </div>
+        </div>
+
+        {/* Stock Discrepancy */}
+        <div className="border border-gray-200 rounded-lg p-5 bg-white">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${discrepancies.length > 0 ? "bg-red-50" : "bg-gray-50"}`}>
+                <AlertTriangle className={`w-5 h-5 ${discrepancies.length > 0 ? "text-red-500" : "text-gray-400"}`} />
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-800">Fuel Stock Discrepancy Log</h4>
+                <p className="text-xs text-gray-500 mt-0.5 max-w-lg">
+                  Shows all stock checks where physically measured stock is more than 50 litres below the calculated figure.
+                  Significant shortfalls (&ge;200 L) are flagged for theft or leak investigation. Required for HMRC compliance — unexplained losses in rebated fuel
+                  may need to be declared and could result in retrospective full duty liability.
+                </p>
+                <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                  <span><span className="font-medium text-gray-700">{stockChecks.length}</span> total stock checks</span>
+                  <span>
+                    <span className={`font-medium ${discrepancies.length > 0 ? "text-red-600" : "text-gray-700"}`}>{discrepancies.length}</span> discrepanc{discrepancies.length === 1 ? "y" : "ies"} &gt;50 L
+                  </span>
+                  {discrepancies.filter(s => Math.abs(parseFloat(String(s.varianceLitres ?? 0))) >= 200).length > 0 && (
+                    <span className="text-red-600 font-medium">
+                      {discrepancies.filter(s => Math.abs(parseFloat(String(s.varianceLitres ?? 0))) >= 200).length} significant (&ge;200 L) — urgent investigation required
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <Button onClick={printDiscrepancyReport} variant="outline" className="border-gray-300 flex-shrink-0">
+              Print / Save PDF
+            </Button>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Compliance note */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-xs text-amber-900">
+        <p className="font-semibold mb-1">HMRC Compliance Note — Rebated Fuel (Red Diesel)</p>
+        <p>
+          HMRC may conduct unannounced fuel duty compliance checks at any time. You must be able to produce your fuel delivery records,
+          usage logs and stock reconciliation at short notice. Records must be kept for a minimum of 6 years.
+          Unexplained losses or evidence of misuse of rebated fuel (e.g. using red diesel in road vehicles) may result in retrospective
+          full duty assessment plus penalties. Contact your fuel duty consultant or HMRC if you have concerns.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function FuelEnergyPage() {
@@ -458,6 +824,9 @@ export default function FuelEnergyPage() {
           <TabButton active={tab === "inspections"} onClick={() => setTab("inspections")}>Inspections ({inspections.length})</TabButton>
           <TabButton active={tab === "grid-energy"} onClick={() => setTab("grid-energy")}>
             <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5" />Grid Energy ({meters.length})</span>
+          </TabButton>
+          <TabButton active={tab === "reports"} onClick={() => setTab("reports")}>
+            <span className="flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5" />Reports</span>
           </TabButton>
         </TabBar>
 
@@ -911,6 +1280,19 @@ export default function FuelEnergyPage() {
           </div>
         )}
       </div>
+
+      {/* ── REPORTS ── */}
+      {tab === "reports" && (
+        <ReportsTab
+          tanks={tanks}
+          deliveries={deliveries}
+          usages={usages}
+          inspections={inspections}
+          stockChecks={stockChecks}
+          readings={readings}
+          meters={meters}
+        />
+      )}
 
       {/* ── TANK DIALOG ── */}
       <Dialog open={showTankDialog} onOpenChange={setShowTankDialog}>
