@@ -553,6 +553,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["fuel-energy"],
   },
   {
+    id: "fuel-tank-delivery",
+    title: "Fuel Tank Delivery",
+    description: "Log a tanker delivery — supplier, quantity, unit price, delivery note number and photograph the docket on the spot for HMRC audit trail",
+    icon: "truck",
+    color: "#0369a1",
+    bgColor: "#e0f2fe",
+    route: "/fuel-tank-delivery",
+    moduleKeys: ["fuel-energy"],
+  },
+  {
     id: "ai-reproduction",
     title: "AI & Reproduction Record",
     description: "Log artificial insemination, natural service or embryo transfer events and pregnancy check results",

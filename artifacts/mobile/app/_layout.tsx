@@ -87,6 +87,7 @@ function RootLayoutNav() {
         <Stack.Screen name="fuel-drawdown" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="fuel-meter-reading" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="fuel-stock-check" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="fuel-tank-delivery" options={{ headerShown: false, presentation: "modal" }} />
       </Stack>
       <SyncStatusBar />
     </View>
