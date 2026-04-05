@@ -1,9 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -21,6 +23,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { kvGet } from "@/lib/database";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 
 type MeterType = "electricity" | "gas" | "lpg_mains" | "other";
@@ -38,11 +41,52 @@ const READING_TYPES: { key: ReadingType; label: string }[] = [
   { key: "estimated", label: "Estimated — calculated from usage" },
 ];
 
+async function getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS !== "web") {
+      const SecureStore = await import("expo-secure-store");
+      const t = await SecureStore.getItemAsync("auth_session_token");
+      if (t) return t;
+    }
+    const raw = await kvGet("bde_auth_token");
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function getApiBase(): string {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  return domain ? `https://${domain}` : "";
+}
+
+async function uploadPhotoToStorage(photoUri: string, apiBase: string): Promise<string | null> {
+  try {
+    const presignRes = await fetch(`${apiBase}/api/storage/uploads/request-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "meter-reading.jpg", size: 0, contentType: "image/jpeg" }),
+    });
+    if (!presignRes.ok) return null;
+    const { uploadURL, objectPath } = await presignRes.json();
+    const fileRes = await fetch(photoUri);
+    const blob = await fileRes.blob();
+    const putRes = await fetch(uploadURL, {
+      method: "PUT",
+      body: blob,
+      headers: { "Content-Type": blob.type || "image/jpeg" },
+    });
+    if (!putRes.ok) return null;
+    return objectPath;
+  } catch {
+    return null;
+  }
+}
+
 export default function FuelMeterReadingScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -54,6 +98,7 @@ export default function FuelMeterReadingScreen() {
   const [readingType, setReadingType] = useState<ReadingType>("actual");
   const [recordedBy, setRecordedBy] = useState(user?.name || "");
   const [notes, setNotes] = useState("");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const selectedMeterType = METER_TYPES.find((m) => m.key === meterType)!;
 
@@ -61,6 +106,46 @@ export default function FuelMeterReadingScreen() {
     currentReading && previousReading
       ? Math.max(0, parseFloat(currentReading) - parseFloat(previousReading)).toFixed(1)
       : "";
+
+  const takeOrPickPhoto = () => {
+    Alert.alert(
+      "Attach Meter Photo",
+      "Photograph the meter display as evidence of the reading.",
+      [
+        {
+          text: "Camera",
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert("Permission Required", "Camera access is needed to photograph the meter.");
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({ quality: 0.85, allowsEditing: false });
+            if (!result.canceled && result.assets[0]) {
+              setPhotoUri(result.assets[0].uri);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }
+          },
+        },
+        {
+          text: "Photo Library",
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== "granted") {
+              Alert.alert("Permission Required", "Photo library access is needed.");
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.85, allowsEditing: false });
+            if (!result.canceled && result.assets[0]) {
+              setPhotoUri(result.assets[0].uri);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }
+          },
+        },
+        { text: "Cancel", style: "cancel" },
+      ],
+    );
+  };
 
   const handleSave = async () => {
     if (!meterName.trim()) {
@@ -79,6 +164,30 @@ export default function FuelMeterReadingScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    let documentUrl: string | undefined;
+
+    if (photoUri) {
+      setUploading(true);
+      try {
+        const apiBase = getApiBase();
+        if (apiBase) {
+          const objectPath = await uploadPhotoToStorage(photoUri, apiBase);
+          if (objectPath) {
+            documentUrl = objectPath;
+          } else {
+            Alert.alert(
+              "Photo Not Uploaded",
+              "The meter photo could not be uploaded right now — possibly no internet connection. The reading will still be saved and synced. You can attach the photo from the dashboard later.",
+            );
+          }
+        }
+      } catch {
+        // silent — reading still saves
+      } finally {
+        setUploading(false);
+      }
+    }
+
     const record = {
       id: generateId(),
       farmId: currentFarm?.id || "",
@@ -92,6 +201,7 @@ export default function FuelMeterReadingScreen() {
       unit: selectedMeterType.unit,
       readingType,
       recordedBy: recordedBy.trim(),
+      documentUrl,
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
       synced: false,
@@ -104,8 +214,8 @@ export default function FuelMeterReadingScreen() {
     Alert.alert(
       "Reading Saved",
       consumptionSinceLast
-        ? `Consumption since last reading: ${consumptionSinceLast} ${selectedMeterType.unit}`
-        : "Meter reading recorded successfully.",
+        ? `Consumption since last reading: ${consumptionSinceLast} ${selectedMeterType.unit}${documentUrl ? ". Photo uploaded." : ""}`
+        : `Meter reading recorded successfully.${documentUrl ? " Photo uploaded." : ""}`,
       [{ text: "Done", onPress: () => router.back() }]
     );
   };
@@ -247,6 +357,36 @@ export default function FuelMeterReadingScreen() {
             ))}
           </View>
 
+          {/* Meter photo section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Meter Photo</Text>
+            <Text style={styles.sectionSub}>
+              Photograph the meter display as evidence of the reading. Recommended for actual reads — provides proof for Ofgem, Red Tractor audits and billing disputes.
+            </Text>
+
+            {photoUri ? (
+              <View style={styles.photoContainer}>
+                <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="cover" />
+                <View style={styles.photoActions}>
+                  <Pressable style={styles.photoActionBtn} onPress={takeOrPickPhoto}>
+                    <Feather name="refresh-cw" size={15} color={colors.primary} />
+                    <Text style={styles.photoActionText}>Retake</Text>
+                  </Pressable>
+                  <Pressable style={[styles.photoActionBtn, { borderColor: colors.error }]} onPress={() => setPhotoUri(null)}>
+                    <Feather name="x" size={15} color={colors.error} />
+                    <Text style={[styles.photoActionText, { color: colors.error }]}>Remove</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <Pressable style={styles.photoPrompt} onPress={takeOrPickPhoto}>
+                <Feather name="camera" size={28} color={colors.textMuted} />
+                <Text style={styles.photoPromptTitle}>Photograph meter display</Text>
+                <Text style={styles.photoPromptSub}>Tap to use camera or choose from library</Text>
+              </Pressable>
+            )}
+          </View>
+
           <View style={styles.section}>
             <Input
               label="Notes"
@@ -260,9 +400,9 @@ export default function FuelMeterReadingScreen() {
 
           <View style={styles.section}>
             <Button
-              title={saving ? "Saving…" : "Save Meter Reading"}
+              title={uploading ? "Uploading photo…" : saving ? "Saving…" : "Save Meter Reading"}
               onPress={handleSave}
-              disabled={saving}
+              disabled={saving || uploading}
             />
           </View>
 
@@ -291,6 +431,13 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.text,
     marginBottom: spacing.md,
+  },
+  sectionSub: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+    lineHeight: 17,
   },
   option: {
     flexDirection: "row",
@@ -344,6 +491,60 @@ const styles = StyleSheet.create({
   consumptionValue: {
     fontFamily: fonts.bold,
     fontSize: fontSize.md,
+    color: colors.primary,
+  },
+  photoPrompt: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    padding: spacing.xl,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+  },
+  photoPromptTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  photoPromptSub: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+  },
+  photoContainer: {
+    borderRadius: radius.lg,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  photoPreview: {
+    width: "100%",
+    height: 200,
+    backgroundColor: colors.borderLight,
+  },
+  photoActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    padding: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  photoActionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  photoActionText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
     color: colors.primary,
   },
 });

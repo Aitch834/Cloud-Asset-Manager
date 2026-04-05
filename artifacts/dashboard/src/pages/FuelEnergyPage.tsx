@@ -15,7 +15,7 @@ import {
   Fuel, Plus, AlertTriangle, CheckCircle2, XCircle, Droplets,
   Truck, ClipboardCheck, Gauge, ShieldAlert, Trash2, Zap,
   Flame, Wind, Edit2, Plug, ChevronDown, ChevronRight, ClipboardList,
-  Eye, Paperclip, Filter, X as XIcon, ExternalLink
+  Eye, Paperclip, Filter, X as XIcon, ExternalLink, Camera, FileText
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
@@ -1478,7 +1478,16 @@ export default function FuelEnergyPage() {
                               <td className="px-4 py-3 text-right text-gray-600">{fmtCost(r.costPence as number)}</td>
                               <td className="px-4 py-3 text-xs text-gray-500 capitalize">{String(r.readingType ?? "actual")}</td>
                               <td className="px-4 py-3 text-xs text-gray-400">{String(r.invoiceReference ?? "—")}</td>
-                              <td className="px-4 py-3"><Button size="sm" variant="ghost" onClick={() => delReadingMut.mutate(Number(r.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button></td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-1">
+                                  {r.documentUrl && (
+                                    <a href={`/api/storage${String(r.documentUrl)}`} target="_blank" rel="noopener noreferrer" title="View meter photo">
+                                      <Button size="sm" variant="ghost" className="h-7 px-2 text-blue-600"><Camera className="w-3 h-3" /></Button>
+                                    </a>
+                                  )}
+                                  <Button size="sm" variant="ghost" onClick={() => delReadingMut.mutate(Number(r.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
+                                </div>
+                              </td>
                             </tr>
                           );
                         })}
@@ -1943,6 +1952,30 @@ export default function FuelEnergyPage() {
             </div>
             <div><Label>Recorded by</Label><Input value={readingForm.recordedBy ?? ""} onChange={e => setReadingForm(f => ({ ...f, recordedBy: e.target.value }))} /></div>
             <div><Label>Notes</Label><Textarea value={readingForm.notes ?? ""} onChange={e => setReadingForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            <div>
+              <Label>Meter photo</Label>
+              {readingForm.documentUrl ? (
+                <div className="flex items-center gap-2 mt-1 p-2 rounded-md bg-green-50 border border-green-200">
+                  <FileText className="w-4 h-4 text-green-600 shrink-0" />
+                  <a href={`/api/storage${readingForm.documentUrl}`} target="_blank" rel="noopener noreferrer" className="text-sm text-green-700 underline truncate flex-1">View attached photo</a>
+                  <Button size="sm" variant="ghost" className="h-6 px-1 text-gray-400" onClick={() => setReadingForm(f => ({ ...f, documentUrl: "" }))}><XIcon className="w-3 h-3" /></Button>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" className="mt-1 w-full" disabled={isDocUploading} onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = "image/*,application/pdf";
+                  input.onchange = async () => {
+                    if (!input.files?.[0]) return;
+                    const result = await uploadFile(input.files[0]);
+                    if (result) setReadingForm(f => ({ ...f, documentUrl: result.objectPath }));
+                  };
+                  input.click();
+                }}>
+                  <Camera className="w-4 h-4 mr-1" />{isDocUploading ? "Uploading…" : "Attach meter photo"}
+                </Button>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowReadingDialog(false)}>Cancel</Button>
@@ -1955,6 +1988,7 @@ export default function FuelEnergyPage() {
               if (!data.billingPeriodEnd) delete data.billingPeriodEnd;
               if (!data.consumptionKwh) delete data.consumptionKwh;
               if (!data.exportKwh) delete data.exportKwh;
+              if (!data.documentUrl) delete data.documentUrl;
               readingMut.mutate(data);
             }}>Save Reading</Button>
           </DialogFooter>

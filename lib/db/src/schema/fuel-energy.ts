@@ -99,6 +99,7 @@ export const gridEnergyReadingsTable = pgTable("grid_energy_readings", {
   invoiceReference: text("invoice_reference"),
   billingPeriodStart: date("billing_period_start"),
   billingPeriodEnd: date("billing_period_end"),
+  documentUrl: text("document_url"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
