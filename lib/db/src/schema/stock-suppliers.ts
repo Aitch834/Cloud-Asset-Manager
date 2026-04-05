@@ -65,6 +65,7 @@ export const purchaseOrderLinesTable = pgTable("purchase_order_lines", {
   unitPricePence: integer("unit_price_pence"),
   quantityReceived: numeric("quantity_received", { precision: 10, scale: 2 }).notNull().default("0"),
   notes: text("notes"),
+  feedStockItemId: integer("feed_stock_item_id"),
 });
 
 export const stockDeliveriesTable = pgTable("stock_deliveries", {

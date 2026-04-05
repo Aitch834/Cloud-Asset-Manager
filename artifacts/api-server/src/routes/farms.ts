@@ -3049,6 +3049,45 @@ router.post("/farms/:farmId/stock-deliveries", requireAuth, requireTenant, requi
   res.status(201).json({ record });
 });
 
+// ─── Feed stock awaiting-delivery sync helper ────────
+const ACTIVE_PO_STATUSES = ["sent", "confirmed", "partially_received"];
+
+async function recalcFeedStockAwaiting(farmId: number, feedStockItemId: number): Promise<void> {
+  try {
+    const links = await db
+      .select({ poExpectedDeliveryDate: purchaseOrdersTable.expectedDeliveryDate })
+      .from(purchaseOrderLinesTable)
+      .innerJoin(purchaseOrdersTable, eq(purchaseOrderLinesTable.poId, purchaseOrdersTable.id))
+      .where(and(
+        eq(purchaseOrderLinesTable.feedStockItemId, feedStockItemId),
+        eq(purchaseOrdersTable.farmId, farmId),
+        inArray(purchaseOrdersTable.status, ACTIVE_PO_STATUSES),
+      ));
+
+    if (links.length > 0) {
+      const dates = links.map(l => l.poExpectedDeliveryDate).filter(Boolean) as Date[];
+      const earliest = dates.length > 0 ? dates.reduce((a, b) => a < b ? a : b) : null;
+      await db.update(feedStockLevelsTable)
+        .set({ awaitingDelivery: true, expectedDeliveryDate: earliest ? earliest.toISOString().split("T")[0] : null })
+        .where(and(eq(feedStockLevelsTable.id, feedStockItemId), eq(feedStockLevelsTable.farmId, farmId)));
+    } else {
+      await db.update(feedStockLevelsTable)
+        .set({ awaitingDelivery: false, expectedDeliveryDate: null })
+        .where(and(eq(feedStockLevelsTable.id, feedStockItemId), eq(feedStockLevelsTable.farmId, farmId)));
+    }
+  } catch (err) {
+    console.error("[FEED STOCK] recalcFeedStockAwaiting failed:", err);
+  }
+}
+
+async function recalcFeedStockForPO(farmId: number, poId: number): Promise<void> {
+  const lines = await db.select({ feedStockItemId: purchaseOrderLinesTable.feedStockItemId })
+    .from(purchaseOrderLinesTable)
+    .where(and(eq(purchaseOrderLinesTable.poId, poId), isNotNull(purchaseOrderLinesTable.feedStockItemId)));
+  const ids = [...new Set(lines.map(l => l.feedStockItemId).filter(Boolean) as number[])];
+  await Promise.all(ids.map(id => recalcFeedStockAwaiting(farmId, id)));
+}
+
 // ─── Purchase Orders ────────────────────────────────
 router.get("/farms/:farmId/purchase-orders", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -3092,8 +3131,9 @@ router.post("/farms/:farmId/purchase-orders", requireAuth, requireTenant, requir
   const { lines, ...poBody } = req.body;
   const [po] = await db.insert(purchaseOrdersTable).values({ ...poBody, farmId, poNumber, status: poBody.status || "draft" }).returning();
   if (lines && Array.isArray(lines) && lines.length > 0) {
-    await db.insert(purchaseOrderLinesTable).values(lines.map((l: any) => ({ poId: po.id, stockItemId: Number(l.stockItemId), quantityOrdered: String(l.quantityOrdered), unitPricePence: l.unitPricePence ? Number(l.unitPricePence) : null, notes: l.notes || null })));
+    await db.insert(purchaseOrderLinesTable).values(lines.map((l: any) => ({ poId: po.id, stockItemId: Number(l.stockItemId), quantityOrdered: String(l.quantityOrdered), unitPricePence: l.unitPricePence ? Number(l.unitPricePence) : null, notes: l.notes || null, feedStockItemId: l.feedStockItemId ? Number(l.feedStockItemId) : null })));
   }
+  if (ACTIVE_PO_STATUSES.includes(po.status)) await recalcFeedStockForPO(farmId, po.id);
   res.status(201).json({ record: po });
 });
 
@@ -3152,6 +3192,7 @@ router.put("/farms/:farmId/purchase-orders/:poId", requireAuth, requireTenant, r
   if (!poId) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { lines, ...poBody } = req.body;
   const [po] = await db.update(purchaseOrdersTable).set(poBody).where(and(eq(purchaseOrdersTable.id, poId), eq(purchaseOrdersTable.farmId, farmId))).returning();
+  await recalcFeedStockForPO(farmId, poId);
   res.json({ record: po });
 });
 
@@ -3160,6 +3201,7 @@ router.delete("/farms/:farmId/purchase-orders/:poId", requireAuth, requireTenant
   if (!farmId) return;
   const poId = Number(req.params.poId);
   if (!poId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await recalcFeedStockForPO(farmId, poId);
   await db.delete(purchaseOrdersTable).where(and(eq(purchaseOrdersTable.id, poId), eq(purchaseOrdersTable.farmId, farmId)));
   res.json({ success: true });
 });
@@ -3191,8 +3233,9 @@ router.post("/farms/:farmId/purchase-orders/:poId/lines", requireAuth, requireTe
   if (!poId) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [po] = await db.select().from(purchaseOrdersTable).where(and(eq(purchaseOrdersTable.id, poId), eq(purchaseOrdersTable.farmId, farmId)));
   if (!po) { res.status(404).json({ error: "PO not found" }); return; }
-  const { stockItemId, quantityOrdered, unitPricePence, notes } = req.body;
-  const [line] = await db.insert(purchaseOrderLinesTable).values({ poId, stockItemId: Number(stockItemId), quantityOrdered: String(quantityOrdered), unitPricePence: unitPricePence ? Number(unitPricePence) : null, notes: notes || null }).returning();
+  const { stockItemId, quantityOrdered, unitPricePence, notes, feedStockItemId } = req.body;
+  const [line] = await db.insert(purchaseOrderLinesTable).values({ poId, stockItemId: Number(stockItemId), quantityOrdered: String(quantityOrdered), unitPricePence: unitPricePence ? Number(unitPricePence) : null, notes: notes || null, feedStockItemId: feedStockItemId ? Number(feedStockItemId) : null }).returning();
+  if (ACTIVE_PO_STATUSES.includes(po.status) && line.feedStockItemId) await recalcFeedStockAwaiting(farmId, line.feedStockItemId);
   res.status(201).json({ record: line });
 });
 
@@ -3204,8 +3247,9 @@ router.put("/farms/:farmId/purchase-orders/:poId/lines/:lineId", requireAuth, re
   if (!poId || !lineId) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [po] = await db.select().from(purchaseOrdersTable).where(and(eq(purchaseOrdersTable.id, poId), eq(purchaseOrdersTable.farmId, farmId)));
   if (!po) { res.status(404).json({ error: "PO not found" }); return; }
-  const { stockItemId, quantityOrdered, unitPricePence, notes } = req.body;
-  const [line] = await db.update(purchaseOrderLinesTable).set({ stockItemId: stockItemId ? Number(stockItemId) : undefined, quantityOrdered: quantityOrdered ? String(quantityOrdered) : undefined, unitPricePence: unitPricePence !== undefined ? (unitPricePence ? Number(unitPricePence) : null) : undefined, notes: notes || null }).where(eq(purchaseOrderLinesTable.id, lineId)).returning();
+  const { stockItemId, quantityOrdered, unitPricePence, notes, feedStockItemId } = req.body;
+  const [line] = await db.update(purchaseOrderLinesTable).set({ stockItemId: stockItemId ? Number(stockItemId) : undefined, quantityOrdered: quantityOrdered ? String(quantityOrdered) : undefined, unitPricePence: unitPricePence !== undefined ? (unitPricePence ? Number(unitPricePence) : null) : undefined, notes: notes || null, feedStockItemId: feedStockItemId !== undefined ? (feedStockItemId ? Number(feedStockItemId) : null) : undefined }).where(eq(purchaseOrderLinesTable.id, lineId)).returning();
+  if (line.feedStockItemId) await recalcFeedStockAwaiting(farmId, line.feedStockItemId);
   res.json({ record: line });
 });
 
@@ -3215,7 +3259,9 @@ router.delete("/farms/:farmId/purchase-orders/:poId/lines/:lineId", requireAuth,
   const poId = Number(req.params.poId);
   const lineId = Number(req.params.lineId);
   if (!poId || !lineId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [existingLine] = await db.select().from(purchaseOrderLinesTable).where(eq(purchaseOrderLinesTable.id, lineId));
   await db.delete(purchaseOrderLinesTable).where(eq(purchaseOrderLinesTable.id, lineId));
+  if (existingLine?.feedStockItemId) await recalcFeedStockAwaiting(farmId, existingLine.feedStockItemId);
   res.json({ success: true });
 });
 
@@ -11988,7 +12034,37 @@ router.get("/farms/:farmId/feed-deliveries", requireAuth, requireTenant, require
 router.post("/farms/:farmId/feed-deliveries", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(feedDeliveriesTable).values({ ...req.body, farmId }).returning();
+  const [record] = await db.insert(feedDeliveriesTable).values({ ...req.body, farmId, poId: req.body.poId ? Number(req.body.poId) : null, feedStockItemId: req.body.feedStockItemId ? Number(req.body.feedStockItemId) : null }).returning();
+
+  const qtyKg = parseFloat(String(record.quantityKg ?? 0));
+
+  // Auto-update feed stock bin: add delivered quantity and clear awaiting flag
+  if (record.feedStockItemId && !isNaN(qtyKg) && qtyKg > 0) {
+    const [existing] = await db.select().from(feedStockLevelsTable).where(and(eq(feedStockLevelsTable.id, record.feedStockItemId), eq(feedStockLevelsTable.farmId, farmId)));
+    if (existing) {
+      const newQty = parseFloat(String(existing.currentStockKg ?? 0)) + qtyKg;
+      await db.update(feedStockLevelsTable).set({ currentStockKg: String(newQty), lastUpdated: new Date() }).where(eq(feedStockLevelsTable.id, existing.id));
+    }
+  }
+
+  // Auto-update PO: mark quantities received and update PO status
+  if (record.poId && !isNaN(qtyKg) && qtyKg > 0) {
+    const poLines = await db.select().from(purchaseOrderLinesTable).where(and(eq(purchaseOrderLinesTable.poId, record.poId), isNotNull(purchaseOrderLinesTable.feedStockItemId)));
+    const matchedLine = poLines.find(l => l.feedStockItemId === record.feedStockItemId) ?? poLines[0];
+    if (matchedLine) {
+      const newQtyReceived = parseFloat(matchedLine.quantityReceived) + qtyKg;
+      await db.update(purchaseOrderLinesTable).set({ quantityReceived: String(newQtyReceived) }).where(eq(purchaseOrderLinesTable.id, matchedLine.id));
+    }
+    const allLines = await db.select().from(purchaseOrderLinesTable).where(eq(purchaseOrderLinesTable.poId, record.poId));
+    const fullyReceived = allLines.every(l => parseFloat(l.quantityReceived) >= parseFloat(l.quantityOrdered));
+    const partiallyReceived = allLines.some(l => parseFloat(l.quantityReceived) > 0);
+    const newStatus = fullyReceived ? "fully_received" : partiallyReceived ? "partially_received" : "sent";
+    await db.update(purchaseOrdersTable).set({ status: newStatus }).where(eq(purchaseOrdersTable.id, record.poId));
+  }
+
+  // Recalculate awaiting status for linked feed stock bin
+  if (record.feedStockItemId) await recalcFeedStockAwaiting(farmId, record.feedStockItemId);
+
   res.status(201).json({ record });
 });
 

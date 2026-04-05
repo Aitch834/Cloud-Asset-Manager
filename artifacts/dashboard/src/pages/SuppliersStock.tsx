@@ -158,6 +158,11 @@ export default function SuppliersStockPage() {
     queryFn: () => fetch(`/api/farms/${farmId}/purchase-orders`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
+  const feedStockQ = useQuery({
+    queryKey: ["feed-stock", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/feed-stock`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["stock-items", farmId] });
@@ -203,6 +208,7 @@ export default function SuppliersStockPage() {
           orders={purchaseOrdersQ.data ?? []}
           products={productsQ.data ?? []}
           suppliers={suppliersQ.data ?? []}
+          feedStock={feedStockQ.data ?? []}
           loading={purchaseOrdersQ.isLoading}
           farmId={farmId}
           onRefresh={invalidate}
@@ -895,14 +901,15 @@ function poStatusBadge(status: string) {
   return <span style={{ display: "inline-block", background: s.bg, color: s.color, borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}>{s.label}</span>;
 }
 
-function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRefresh, toast, qc, onGoToGRN, prefilledPo, onClearPrefilledPo }: any) {
+function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, farmId, onRefresh, toast, qc, onGoToGRN, prefilledPo, onClearPrefilledPo }: any) {
   const { isAtLeast } = useUserRole();
   const emptyForm = { supplierId: "", orderDate: "", expectedDeliveryDate: "", status: "draft", notes: "" };
+  const emptyLine = { stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "", feedStockItemId: "" };
   const [open, setOpen] = useState(!!prefilledPo);
   const [viewPo, setViewPo] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<any>(prefilledPo ? prefilledPo.form : emptyForm);
-  const [lines, setLines] = useState<any[]>(prefilledPo ? prefilledPo.lines : [{ stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]);
+  const [lines, setLines] = useState<any[]>(prefilledPo ? prefilledPo.lines : [emptyLine]);
 
   useEffect(() => {
     if (prefilledPo) {
@@ -939,7 +946,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRef
 
   const filtered = (orders ?? []).filter((po: any) => !search || po.poNumber?.toLowerCase().includes(search.toLowerCase()) || po.supplierName?.toLowerCase().includes(search.toLowerCase()));
 
-  const addLine = () => setLines(ls => [...ls, { stockItemId: "", quantityOrdered: "", unitPricePence: "", notes: "" }]);
+  const addLine = () => setLines(ls => [...ls, emptyLine]);
   const removeLine = (i: number) => setLines(ls => ls.filter((_, idx) => idx !== i));
   const updateLine = (i: number, field: string, val: string) => setLines(ls => ls.map((l, idx) => idx === i ? { ...l, [field]: val } : l));
 
@@ -952,6 +959,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRef
         quantityOrdered: parseFloat(l.quantityOrdered),
         unitPricePence: l.unitPricePence ? Math.round(parseFloat(l.unitPricePence) * 100) : null,
         notes: l.notes || null,
+        feedStockItemId: l.feedStockItemId ? Number(l.feedStockItemId) : null,
       })),
     });
   };
@@ -1056,7 +1064,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRef
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
                   <thead>
                     <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                      {["Product", "Qty Ordered", "Unit Price (£)", "Notes", ""].map(h => (
+                      {["Product", "Qty Ordered", "Unit Price (£)", "Feed Stock Bin", "Notes", ""].map(h => (
                         <th key={h} style={{ padding: "0.5rem 0.625rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.72rem" }}>{h}</th>
                       ))}
                     </tr>
@@ -1075,6 +1083,15 @@ function PurchaseOrdersTab({ orders, products, suppliers, loading, farmId, onRef
                         </td>
                         <td style={{ padding: "0.375rem 0.5rem" }}>
                           <Input type="number" step="0.01" placeholder="0.00" value={l.unitPricePence} onChange={e => updateLine(i, "unitPricePence", e.target.value)} style={{ height: 32, fontSize: "0.8rem" }} />
+                        </td>
+                        <td style={{ padding: "0.375rem 0.5rem" }}>
+                          <Select value={l.feedStockItemId || "__none__"} onValueChange={v => updateLine(i, "feedStockItemId", v === "__none__" ? "" : v)}>
+                            <SelectTrigger style={{ height: 32, fontSize: "0.75rem", minWidth: 160 }}><SelectValue placeholder="Link feed bin..." /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">Not linked</SelectItem>
+                              {(feedStock ?? []).map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.productName || s.feedType} — {s.storageLocation || "no location"}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td style={{ padding: "0.375rem 0.5rem" }}>
                           <Input placeholder="Optional" value={l.notes} onChange={e => updateLine(i, "notes", e.target.value)} style={{ height: 32, fontSize: "0.8rem" }} />

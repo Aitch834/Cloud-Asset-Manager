@@ -128,10 +128,16 @@ export default function FeedManagementPage() {
     queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
+  const purchaseOrdersQ = useQuery({
+    queryKey: ["purchase-orders", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/purchase-orders`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["feed-deliveries", farmId] });
     qc.invalidateQueries({ queryKey: ["feed-stock", farmId] });
+    qc.invalidateQueries({ queryKey: ["purchase-orders", farmId] });
   };
 
   // Feed delivery dialog
@@ -503,6 +509,38 @@ export default function FeedManagementPage() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editDelivery ? "Edit Delivery" : "Record Feed Delivery"}</DialogTitle></DialogHeader>
           <div className="grid gap-3 py-2">
+            {/* Smart link section */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-blue-800 text-xs font-semibold">Link to Feed Stock Bin</Label>
+                <Select value={deliveryForm.feedStockItemId ?? "__none__"} onValueChange={v => {
+                  const id = v === "__none__" ? "" : v;
+                  if (id) {
+                    const bin = (stockQ.data ?? []).find((s: Record<string, unknown>) => String(s.id) === id) as Record<string, unknown> | undefined;
+                    if (bin) setDeliveryForm(f => ({ ...f, feedStockItemId: id, feedType: String(bin.feedType ?? f.feedType), productName: String(bin.productName ?? f.productName ?? ""), storageLocation: String(bin.storageLocation ?? f.storageLocation ?? "") }));
+                    else setDeliveryForm(f => ({ ...f, feedStockItemId: id }));
+                  } else setDeliveryForm(f => ({ ...f, feedStockItemId: "" }));
+                }}>
+                  <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Optional — auto-updates stock levels" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not linked</SelectItem>
+                    {(stockQ.data ?? []).map((s: Record<string, unknown>) => <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.productName || s.feedType)} — {String(s.storageLocation || "no location")}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-blue-600 mt-1">Stock level auto-updates on save</p>
+              </div>
+              <div>
+                <Label className="text-blue-800 text-xs font-semibold">Link to Purchase Order</Label>
+                <Select value={deliveryForm.poId ?? "__none__"} onValueChange={v => setDeliveryForm(f => ({ ...f, poId: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Optional — closes PO receipt" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not linked to a PO</SelectItem>
+                    {(purchaseOrdersQ.data ?? []).filter((po: Record<string, unknown>) => !["cancelled", "fully_received"].includes(String(po.status))).map((po: Record<string, unknown>) => <SelectItem key={String(po.id)} value={String(po.id)}>{String(po.poNumber)} — {String(po.supplierName || "No supplier")}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-blue-600 mt-1">Marks PO as received on save</p>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Delivery date *</Label><Input type="date" value={deliveryForm.deliveryDate ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, deliveryDate: e.target.value }))} /></div>
               <div><Label>Feed type *</Label>
@@ -593,6 +631,8 @@ export default function FeedManagementPage() {
               if (!data.femasNumberOnNote) delete data.femasNumberOnNote;
               if (!data.bestBeforeDate) delete data.bestBeforeDate;
               if (!data.speciesIntended || data.speciesIntended === "__none__") delete data.speciesIntended;
+              if (!data.feedStockItemId) delete data.feedStockItemId;
+              if (!data.poId) delete data.poId;
               deliveryMut.mutate(data);
             }}>{editDelivery ? "Save Changes" : "Record Delivery"}</Button>
           </DialogFooter>

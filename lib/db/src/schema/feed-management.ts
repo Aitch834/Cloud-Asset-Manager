@@ -1,12 +1,14 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
-import { suppliersTable } from "./stock-suppliers";
+import { suppliersTable, purchaseOrdersTable } from "./stock-suppliers";
 import { herdFlockRegisterTable } from "./livestock";
 
 export const feedDeliveriesTable = pgTable("feed_deliveries", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   supplierId: integer("supplier_id").references(() => suppliersTable.id),
+  poId: integer("po_id").references(() => purchaseOrdersTable.id, { onDelete: "set null" }),
+  feedStockItemId: integer("feed_stock_item_id"),
   deliveryDate: timestamp("delivery_date", { withTimezone: true }).notNull(),
   supplierName: text("supplier_name").notNull(),
   ufasNumberOnNote: text("ufas_number_on_note"),
