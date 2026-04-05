@@ -13,10 +13,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import {
   Plus, AlertTriangle, Package, Truck, ShieldCheck, Info, Trash2,
-  Edit2, BarChart3
+  Edit2, MapPin, Clock, Phone, CheckCircle2, XCircle, AlertCircle
 } from "lucide-react";
 
 type Tab = "deliveries" | "stock";
+type StockFilter = "all" | "low" | "out" | "awaiting";
 
 const FEED_TYPES = [
   { value: "compound_pellets", label: "Compound Pellets / Nuts" },
@@ -40,12 +41,32 @@ function fmtDate(d: string | null | undefined) {
   return new Date(d).toLocaleDateString("en-GB");
 }
 function fmtKg(v: string | number | null | undefined) {
-  if (v === null || v === undefined) return "—";
-  return `${parseFloat(String(v)).toLocaleString("en-GB")} kg`;
+  if (v === null || v === undefined || v === "") return "—";
+  const n = parseFloat(String(v));
+  if (isNaN(n)) return "—";
+  return `${n.toLocaleString("en-GB")} kg`;
 }
 function fmtCost(p: number | null | undefined) {
   if (!p) return "—";
   return `£${(p / 100).toFixed(2)}`;
+}
+
+type StockStatus = "ok" | "low" | "out" | "awaiting";
+
+function getStockStatus(s: Record<string, unknown>): StockStatus {
+  if (s.awaitingDelivery) return "awaiting";
+  const current = parseFloat(String(s.currentStockKg ?? 0));
+  if (current <= 0) return "out";
+  const reorder = s.reorderThresholdKg ? parseFloat(String(s.reorderThresholdKg)) : null;
+  if (reorder !== null && current <= reorder) return "low";
+  return "ok";
+}
+
+function StatusBadge({ status }: { status: StockStatus }) {
+  if (status === "ok") return <Badge className="text-xs" style={{ background: "#dcfce7", color: "#166534", border: "none" }}>In Stock</Badge>;
+  if (status === "low") return <Badge className="text-xs" style={{ background: "#fed7aa", color: "#9a3412", border: "none" }}>Low Stock</Badge>;
+  if (status === "out") return <Badge className="text-xs" style={{ background: "#fee2e2", color: "#991b1b", border: "none" }}>Out of Stock</Badge>;
+  return <Badge className="text-xs" style={{ background: "#dbeafe", color: "#1e40af", border: "none" }}>Awaiting Delivery</Badge>;
 }
 
 function UfasBadge({ number }: { number?: string | null }) {
@@ -58,8 +79,36 @@ function MedicatedBadge({ medicated }: { medicated?: boolean | null }) {
   return <Badge className="text-xs" style={{ background: "#fee2e2", color: "#991b1b", border: "none" }}>Medicated</Badge>;
 }
 
+function StockBar({ current, reorder, capacity }: { current: number; reorder: number | null; capacity: number | null }) {
+  const max = capacity ?? (reorder ? reorder * 4 : current * 1.5 || 1000);
+  const pct = Math.min(100, (current / max) * 100);
+  const isLow = reorder !== null && current <= reorder;
+  const isOut = current <= 0;
+  const barColor = isOut ? "#ef4444" : isLow ? "#f97316" : "#22c55e";
+  const reorderPct = reorder ? Math.min(100, (reorder / max) * 100) : null;
+  return (
+    <div className="mt-2">
+      <div className="flex justify-between text-xs text-gray-500 mb-1">
+        <span>{fmtKg(current)}</span>
+        {capacity && <span className="text-gray-400">Capacity: {fmtKg(capacity)}</span>}
+        {!capacity && reorder && <span className="text-gray-400">Reorder at {fmtKg(reorder)}</span>}
+      </div>
+      <div className="relative bg-gray-100 rounded-full h-2">
+        <div className="h-2 rounded-full transition-all" style={{ width: `${pct}%`, background: barColor }} />
+        {reorderPct !== null && (
+          <div className="absolute top-0 h-2 w-0.5 bg-orange-400" style={{ left: `${reorderPct}%` }} title="Reorder level" />
+        )}
+      </div>
+      {reorder !== null && capacity !== null && (
+        <div className="text-xs text-gray-400 mt-0.5">Reorder at {fmtKg(reorder)}</div>
+      )}
+    </div>
+  );
+}
+
 export default function FeedManagementPage() {
-  const [tab, setTab] = useState<Tab>("deliveries");
+  const [tab, setTab] = useState<Tab>("stock");
+  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -144,6 +193,30 @@ export default function FeedManagementPage() {
   const [showStockDialog, setShowStockDialog] = useState(false);
   const [editStock, setEditStock] = useState<Record<string, unknown> | null>(null);
   const [stockForm, setStockForm] = useState<Record<string, string>>({});
+
+  function openStockAdd() {
+    setEditStock(null);
+    setStockForm({ feedType: "compound_pellets", currentStockKg: "0", awaitingDelivery: "false" });
+    setShowStockDialog(true);
+  }
+  function openStockEdit(s: Record<string, unknown>) {
+    setEditStock(s);
+    setStockForm({
+      feedType: String(s.feedType ?? "compound_pellets"),
+      productName: String(s.productName ?? ""),
+      storageLocation: String(s.storageLocation ?? ""),
+      currentStockKg: String(s.currentStockKg ?? "0"),
+      capacityKg: String(s.capacityKg ?? ""),
+      reorderThresholdKg: String(s.reorderThresholdKg ?? ""),
+      speciesIntended: String(s.speciesIntended ?? ""),
+      supplierName: String(s.supplierName ?? ""),
+      awaitingDelivery: s.awaitingDelivery ? "true" : "false",
+      expectedDeliveryDate: s.expectedDeliveryDate ? String(s.expectedDeliveryDate).substring(0, 10) : "",
+      notes: String(s.notes ?? ""),
+    });
+    setShowStockDialog(true);
+  }
+
   const stockMut = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       const url = editStock
@@ -163,15 +236,31 @@ export default function FeedManagementPage() {
 
   const deliveries: Record<string, unknown>[] = deliveriesQ.data ?? [];
   const stock: Record<string, unknown>[] = stockQ.data ?? [];
-  const suppliers: Record<string, unknown>[] = (suppliersQ.data ?? []).filter((s: Record<string, unknown>) => s.supplierType === "feed" || s.category === "Feed & Nutrition");
+  const feedSuppliers: Record<string, unknown>[] = suppliersQ.data ?? [];
+  const suppliers: Record<string, unknown>[] = feedSuppliers.filter((s: Record<string, unknown>) => s.supplierType === "feed" || s.category === "Feed & Nutrition");
 
   const medicatedDeliveries = deliveries.filter(d => d.medicatedFeed);
   const noUfasDeliveries = deliveries.filter(d => !d.ufasNumberOnNote);
-  const belowReorder = stock.filter(s => s.reorderThresholdKg && parseFloat(String(s.currentStockKg ?? 0)) <= parseFloat(String(s.reorderThresholdKg)));
+
+  // Stock status computations
+  const stockWithStatus: (Record<string, unknown> & { _status: StockStatus })[] = stock.map(s => ({ ...s, _status: getStockStatus(s) }));
+  const countOk = stockWithStatus.filter(s => s._status === "ok").length;
+  const countLow = stockWithStatus.filter(s => s._status === "low").length;
+  const countOut = stockWithStatus.filter(s => s._status === "out").length;
+  const countAwaiting = stockWithStatus.filter(s => s._status === "awaiting").length;
+
+  // Filtered stock
+  const filteredStock = stockFilter === "all" ? stockWithStatus
+    : stockWithStatus.filter(s => s._status === stockFilter);
+
+  // Group by location
+  const locations = Array.from(new Set(filteredStock.map(s => String(s.storageLocation || "")))).sort();
+  const stockByLocation: Record<string, typeof stockWithStatus> = {};
+  for (const loc of locations) {
+    stockByLocation[loc] = filteredStock.filter(s => String(s.storageLocation || "") === loc);
+  }
 
   const feedTypeLabel = (v: string) => FEED_TYPES.find(ft => ft.value === v)?.label ?? v;
-
-  const feedSuppliers: Record<string, unknown>[] = suppliersQ.data ?? [];
 
   return (
     <AppLayout title="Feed Management">
@@ -197,37 +286,154 @@ export default function FeedManagementPage() {
             </p>
           </div>
         )}
+        {countOut > 0 && (
+          <div className="flex gap-2 items-start bg-red-50 border border-red-200 rounded-xl p-3 mb-3">
+            <XCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+            <p className="text-sm text-red-800">
+              <strong>{countOut} feed{countOut > 1 ? "s" : ""} out of stock.</strong> Check whether animals are affected and arrange deliveries urgently.
+            </p>
+          </div>
+        )}
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-2 mb-1"><Truck className="w-4 h-4 text-green-700" /><span className="text-xs text-gray-500">Deliveries recorded</span></div>
-            <p className="text-xl font-bold text-gray-800">{deliveries.length}</p>
-            <p className="text-xs text-gray-400">Total goods-received notes</p>
+            <div className="flex items-center gap-2 mb-1"><Package className="w-4 h-4 text-gray-500" /><span className="text-xs text-gray-500">Feeds tracked</span></div>
+            <p className="text-xl font-bold text-gray-800">{stock.length}</p>
+            <p className="text-xs text-gray-400">{locations.length} location{locations.length !== 1 ? "s" : ""}</p>
           </div>
-          <div className={`rounded-xl border p-4 ${noUfasDeliveries.length > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-gray-200"}`}>
-            <div className="flex items-center gap-2 mb-1"><ShieldCheck className="w-4 h-4 text-green-600" /><span className="text-xs text-gray-500">UFAS/FEMAS traced</span></div>
-            <p className="text-xl font-bold text-gray-800">{deliveries.length - noUfasDeliveries.length}</p>
-            <p className="text-xs text-gray-400">of {deliveries.length} deliveries</p>
+          <div className="bg-white rounded-xl border border-green-200 p-4">
+            <div className="flex items-center gap-2 mb-1"><CheckCircle2 className="w-4 h-4 text-green-600" /><span className="text-xs text-gray-500">In stock</span></div>
+            <p className="text-xl font-bold text-green-700">{countOk}</p>
+            <p className="text-xs text-gray-400">feeds</p>
           </div>
-          <div className={`rounded-xl border p-4 ${medicatedDeliveries.length > 0 ? "bg-red-50 border-red-200" : "bg-white border-gray-200"}`}>
-            <div className="flex items-center gap-2 mb-1"><AlertTriangle className="w-4 h-4 text-red-600" /><span className="text-xs text-gray-500">Medicated feeds</span></div>
-            <p className="text-xl font-bold text-gray-800">{medicatedDeliveries.length}</p>
-            <p className="text-xs text-gray-400">Check withdrawal periods</p>
+          <div className={`rounded-xl border p-4 ${countLow > 0 ? "bg-orange-50 border-orange-200" : "bg-white border-gray-200"}`}>
+            <div className="flex items-center gap-2 mb-1"><AlertCircle className="w-4 h-4 text-orange-500" /><span className="text-xs text-gray-500">Low stock</span></div>
+            <p className="text-xl font-bold text-orange-600">{countLow}</p>
+            <p className="text-xs text-gray-400">below reorder level</p>
           </div>
-          <div className={`rounded-xl border p-4 ${belowReorder.length > 0 ? "bg-orange-50 border-orange-200" : "bg-white border-gray-200"}`}>
-            <div className="flex items-center gap-2 mb-1"><Package className="w-4 h-4 text-orange-600" /><span className="text-xs text-gray-500">Low stock alerts</span></div>
-            <p className="text-xl font-bold text-gray-800">{belowReorder.length}</p>
-            <p className="text-xs text-gray-400">feeds below reorder level</p>
+          <div className={`rounded-xl border p-4 ${countOut > 0 ? "bg-red-50 border-red-200" : "bg-white border-gray-200"}`}>
+            <div className="flex items-center gap-2 mb-1"><XCircle className="w-4 h-4 text-red-500" /><span className="text-xs text-gray-500">Out of stock</span></div>
+            <p className="text-xl font-bold text-red-600">{countOut}</p>
+            <p className="text-xs text-gray-400">feeds</p>
+          </div>
+          <div className={`rounded-xl border p-4 ${countAwaiting > 0 ? "bg-blue-50 border-blue-200" : "bg-white border-gray-200"}`}>
+            <div className="flex items-center gap-2 mb-1"><Truck className="w-4 h-4 text-blue-500" /><span className="text-xs text-gray-500">Awaiting delivery</span></div>
+            <p className="text-xl font-bold text-blue-600">{countAwaiting}</p>
+            <p className="text-xs text-gray-400">orders placed</p>
           </div>
         </div>
 
         <TabBar className="mb-6">
-          <TabButton active={tab === "deliveries"} onClick={() => setTab("deliveries")}>Feed Deliveries / GRN ({deliveries.length})</TabButton>
           <TabButton active={tab === "stock"} onClick={() => setTab("stock")}>Feed Stock ({stock.length})</TabButton>
+          <TabButton active={tab === "deliveries"} onClick={() => setTab("deliveries")}>Delivery Records / GRN ({deliveries.length})</TabButton>
         </TabBar>
 
-        {/* DELIVERIES TAB */}
+        {/* ── STOCK TAB ── */}
+        {tab === "stock" && (
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <div>
+                <h3 className="font-semibold text-gray-800">Feed Stock Status</h3>
+                <p className="text-xs text-gray-500">Current stock held at each storage location — set reorder thresholds and flag orders placed</p>
+              </div>
+              <Button onClick={openStockAdd} className="bg-green-800 hover:bg-green-900 text-white shrink-0">
+                <Plus className="w-4 h-4 mr-1" />Add Feed Stock
+              </Button>
+            </div>
+
+            {/* Filter buttons */}
+            {stock.length > 0 && (
+              <div className="flex gap-2 flex-wrap mb-5">
+                {(["all", "low", "out", "awaiting"] as StockFilter[]).map(f => {
+                  const labels: Record<StockFilter, string> = { all: `All (${stock.length})`, low: `Low Stock (${countLow})`, out: `Out of Stock (${countOut})`, awaiting: `Awaiting Delivery (${countAwaiting})` };
+                  return (
+                    <button key={f} onClick={() => setStockFilter(f)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${stockFilter === f ? "bg-green-800 text-white border-green-800" : "bg-white text-gray-600 border-gray-300 hover:border-green-700 hover:text-green-700"}`}>
+                      {labels[f]}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {stock.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">No feed stock records</p>
+                <p className="text-sm">Add a stock record for each feed type you hold on farm to track levels</p>
+                <Button onClick={openStockAdd} className="mt-4 bg-green-800 hover:bg-green-900 text-white"><Plus className="w-4 h-4 mr-1" />Add Feed Stock</Button>
+              </div>
+            ) : filteredStock.length === 0 ? (
+              <div className="text-center py-10 text-gray-400">
+                <Package className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No feeds match this filter</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {locations.map(loc => (
+                  <div key={loc}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <MapPin className="w-4 h-4 text-gray-400" />
+                      <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+                        {loc || "No location specified"}
+                      </h4>
+                      <div className="flex-1 h-px bg-gray-200" />
+                      <span className="text-xs text-gray-400">{stockByLocation[loc].length} feed{stockByLocation[loc].length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {stockByLocation[loc].map((s) => {
+                        const status = s._status as StockStatus;
+                        const current = parseFloat(String(s.currentStockKg ?? 0));
+                        const reorder = s.reorderThresholdKg ? parseFloat(String(s.reorderThresholdKg)) : null;
+                        const capacity = s.capacityKg ? parseFloat(String(s.capacityKg)) : null;
+                        const cardBg = status === "out" ? "bg-red-50 border-red-200"
+                          : status === "low" ? "bg-orange-50 border-orange-200"
+                          : status === "awaiting" ? "bg-blue-50 border-blue-200"
+                          : "bg-white border-gray-200";
+                        return (
+                          <div key={String(s.id)} className={`rounded-xl border p-4 ${cardBg}`}>
+                            <div className="flex justify-between items-start mb-1">
+                              <div className="flex-1 min-w-0 pr-2">
+                                <p className="font-semibold text-gray-900 leading-tight">{String(s.productName || feedTypeLabel(String(s.feedType ?? "")))}</p>
+                                <p className="text-xs text-gray-500 mt-0.5">{feedTypeLabel(String(s.feedType ?? ""))}{s.speciesIntended ? ` — ${s.speciesIntended}` : ""}</p>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <StatusBadge status={status} />
+                                <Button size="sm" variant="ghost" onClick={() => openStockEdit(s)} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
+                                <Button size="sm" variant="ghost" onClick={() => delStockMut.mutate(Number(s.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
+                              </div>
+                            </div>
+
+                            <p className="text-2xl font-bold text-gray-800 mt-2">{fmtKg(s.currentStockKg as string)}</p>
+
+                            <StockBar current={current} reorder={reorder} capacity={capacity} />
+
+                            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                              {!!s.supplierName && (
+                                <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{String(s.supplierName)}</span>
+                              )}
+                              {!!s.awaitingDelivery && !!s.expectedDeliveryDate && (
+                                <span className="flex items-center gap-1 text-blue-600 font-medium"><Clock className="w-3 h-3" />Delivery expected {fmtDate(String(s.expectedDeliveryDate))}</span>
+                              )}
+                              {!!s.awaitingDelivery && !s.expectedDeliveryDate && (
+                                <span className="flex items-center gap-1 text-blue-600"><Truck className="w-3 h-3" />Order placed — delivery date TBC</span>
+                              )}
+                            </div>
+
+                            {!!s.notes && <p className="text-xs text-gray-400 mt-2 italic">{String(s.notes)}</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── DELIVERIES TAB ── */}
         {tab === "deliveries" && (
           <div>
             <div className="flex justify-between items-center mb-4">
@@ -290,67 +496,9 @@ export default function FeedManagementPage() {
             )}
           </div>
         )}
-
-        {/* STOCK TAB */}
-        {tab === "stock" && (
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h3 className="font-semibold text-gray-800">Feed Stock Levels</h3>
-                <p className="text-xs text-gray-500">Track current on-farm feed stocks per species — set reorder thresholds to get low-stock alerts</p>
-              </div>
-              <Button onClick={() => { setEditStock(null); setStockForm({ feedType: "compound_pellets", currentStockKg: "0" }); setShowStockDialog(true); }} className="bg-green-800 hover:bg-green-900 text-white">
-                <Plus className="w-4 h-4 mr-1" />Add Feed Stock
-              </Button>
-            </div>
-            {stock.length === 0 ? (
-              <div className="text-center py-16 text-gray-400">
-                <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p className="font-medium">No feed stock records</p>
-                <p className="text-sm">Add stocks for each feed type to track levels</p>
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {stock.map((s) => {
-                  const current = parseFloat(String(s.currentStockKg ?? 0));
-                  const reorder = s.reorderThresholdKg ? parseFloat(String(s.reorderThresholdKg)) : null;
-                  const isLow = reorder !== null && current <= reorder;
-                  return (
-                    <div key={String(s.id)} className={`rounded-xl border p-4 ${isLow ? "bg-orange-50 border-orange-200" : "bg-white border-gray-200"}`}>
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-semibold text-gray-900">{String(s.productName || feedTypeLabel(String(s.feedType ?? "")))}</p>
-                          <p className="text-xs text-gray-500">{feedTypeLabel(String(s.feedType ?? ""))} {s.speciesIntended ? `— ${s.speciesIntended}` : ""}</p>
-                        </div>
-                        <div className="flex gap-2 items-center">
-                          {isLow && <Badge className="text-xs" style={{ background: "#fed7aa", color: "#9a3412", border: "none" }}>Low stock</Badge>}
-                          <Button size="sm" variant="ghost" onClick={() => { setEditStock(s); setStockForm({ feedType: String(s.feedType ?? ""), productName: String(s.productName ?? ""), storageLocation: String(s.storageLocation ?? ""), currentStockKg: String(s.currentStockKg ?? "0"), reorderThresholdKg: String(s.reorderThresholdKg ?? ""), notes: String(s.notes ?? "") }); setShowStockDialog(true); }} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => delStockMut.mutate(Number(s.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
-                        </div>
-                      </div>
-                      <p className="text-2xl font-bold text-gray-800">{fmtKg(s.currentStockKg as string)}</p>
-                      {reorder !== null && (
-                        <div className="mt-2">
-                          <div className="flex justify-between text-xs text-gray-500 mb-1">
-                            <span>Current</span>
-                            <span>Reorder at {fmtKg(s.reorderThresholdKg as string)}</span>
-                          </div>
-                          <div className="bg-gray-200 rounded-full h-1.5">
-                            <div className="h-1.5 rounded-full" style={{ width: `${Math.min(100, (current / (reorder * 3)) * 100)}%`, background: isLow ? "#f97316" : "#22c55e" }} />
-                          </div>
-                        </div>
-                      )}
-                      {!!s.storageLocation && <p className="text-xs text-gray-500 mt-2"><span className="text-gray-400">Stored:</span> {String(s.storageLocation)}</p>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* DELIVERY DIALOG */}
+      {/* ── DELIVERY DIALOG ── */}
       <Dialog open={showDeliveryDialog} onOpenChange={setShowDeliveryDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editDelivery ? "Edit Delivery" : "Record Feed Delivery"}</DialogTitle></DialogHeader>
@@ -409,9 +557,12 @@ export default function FeedManagementPage() {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Storage location</Label><Input value={deliveryForm.storageLocation ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, storageLocation: e.target.value }))} placeholder="e.g. Grain store Bay 4" /></div>
               <div><Label>Species intended</Label>
-                <Select value={deliveryForm.speciesIntended ?? ""} onValueChange={v => setDeliveryForm(f => ({ ...f, speciesIntended: v }))}>
+                <Select value={deliveryForm.speciesIntended ?? "__none__"} onValueChange={v => setDeliveryForm(f => ({ ...f, speciesIntended: v === "__none__" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
-                  <SelectContent>{SPECIES.map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not specified</SelectItem>
+                    {SPECIES.map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
             </div>
@@ -441,35 +592,83 @@ export default function FeedManagementPage() {
               if (!data.supplierId) delete data.supplierId;
               if (!data.femasNumberOnNote) delete data.femasNumberOnNote;
               if (!data.bestBeforeDate) delete data.bestBeforeDate;
-              if (!data.speciesIntended) delete data.speciesIntended;
+              if (!data.speciesIntended || data.speciesIntended === "__none__") delete data.speciesIntended;
               deliveryMut.mutate(data);
             }}>{editDelivery ? "Save Changes" : "Record Delivery"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* STOCK DIALOG */}
+      {/* ── STOCK DIALOG ── */}
       <Dialog open={showStockDialog} onOpenChange={setShowStockDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editStock ? "Update Feed Stock" : "Add Feed Stock"}</DialogTitle></DialogHeader>
           <div className="grid gap-3 py-2">
-            <div><Label>Feed type</Label>
-              <Select value={stockForm.feedType ?? "compound_pellets"} onValueChange={v => setStockForm(f => ({ ...f, feedType: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{FEED_TYPES.map(ft => <SelectItem key={ft.value} value={ft.value}>{ft.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Product name</Label><Input value={stockForm.productName ?? ""} onChange={e => setStockForm(f => ({ ...f, productName: e.target.value }))} placeholder="e.g. Beef Finisher 18%" /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Current stock (kg)</Label><Input type="number" value={stockForm.currentStockKg ?? "0"} onChange={e => setStockForm(f => ({ ...f, currentStockKg: e.target.value }))} /></div>
-              <div><Label>Reorder at (kg)</Label><Input type="number" value={stockForm.reorderThresholdKg ?? ""} onChange={e => setStockForm(f => ({ ...f, reorderThresholdKg: e.target.value }))} placeholder="e.g. 500" /></div>
+              <div><Label>Feed type *</Label>
+                <Select value={stockForm.feedType ?? "compound_pellets"} onValueChange={v => setStockForm(f => ({ ...f, feedType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{FEED_TYPES.map(ft => <SelectItem key={ft.value} value={ft.value}>{ft.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Species intended</Label>
+                <Select value={stockForm.speciesIntended ?? "__none__"} onValueChange={v => setStockForm(f => ({ ...f, speciesIntended: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Any" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not specified</SelectItem>
+                    {SPECIES.map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div><Label>Storage location</Label><Input value={stockForm.storageLocation ?? ""} onChange={e => setStockForm(f => ({ ...f, storageLocation: e.target.value }))} /></div>
+            <div><Label>Product name</Label><Input value={stockForm.productName ?? ""} onChange={e => setStockForm(f => ({ ...f, productName: e.target.value }))} placeholder="e.g. Beef Finisher 18% Nuts" /></div>
+            <div><Label>Storage location</Label><Input value={stockForm.storageLocation ?? ""} onChange={e => setStockForm(f => ({ ...f, storageLocation: e.target.value }))} placeholder="e.g. Grain store Bay 4, Cattle shed bin" /></div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <p className="text-xs font-semibold text-gray-600 mb-2">Stock quantities</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div><Label>Current stock (kg) *</Label><Input type="number" value={stockForm.currentStockKg ?? "0"} onChange={e => setStockForm(f => ({ ...f, currentStockKg: e.target.value }))} /></div>
+                <div><Label>Reorder at (kg)</Label><Input type="number" value={stockForm.reorderThresholdKg ?? ""} onChange={e => setStockForm(f => ({ ...f, reorderThresholdKg: e.target.value }))} placeholder="e.g. 500" /></div>
+                <div><Label>Capacity (kg)</Label><Input type="number" value={stockForm.capacityKg ?? ""} onChange={e => setStockForm(f => ({ ...f, capacityKg: e.target.value }))} placeholder="Optional — silo/bin size" /></div>
+              </div>
+            </div>
+
+            <div><Label>Usual supplier</Label><Input value={stockForm.supplierName ?? ""} onChange={e => setStockForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="Who to call when reordering" /></div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-xs font-semibold text-blue-700 mb-2">Order / delivery status</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Order placed?</Label>
+                  <Select value={stockForm.awaitingDelivery ?? "false"} onValueChange={v => setStockForm(f => ({ ...f, awaitingDelivery: v, expectedDeliveryDate: v === "false" ? "" : f.expectedDeliveryDate }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="false">No order placed</SelectItem>
+                      <SelectItem value="true">Yes — awaiting delivery</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {stockForm.awaitingDelivery === "true" && (
+                  <div><Label>Expected delivery date</Label><Input type="date" value={stockForm.expectedDeliveryDate ?? ""} onChange={e => setStockForm(f => ({ ...f, expectedDeliveryDate: e.target.value }))} /></div>
+                )}
+              </div>
+            </div>
+
             <div><Label>Notes</Label><Textarea value={stockForm.notes ?? ""} onChange={e => setStockForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowStockDialog(false)}>Cancel</Button>
-            <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => stockMut.mutate({ ...stockForm })}>{editStock ? "Update Stock" : "Add Stock"}</Button>
+            <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
+              const data: Record<string, unknown> = {
+                ...stockForm,
+                awaitingDelivery: stockForm.awaitingDelivery === "true",
+              };
+              if (!data.capacityKg) delete data.capacityKg;
+              if (!data.reorderThresholdKg) delete data.reorderThresholdKg;
+              if (!data.expectedDeliveryDate || data.awaitingDelivery === false) delete data.expectedDeliveryDate;
+              if (!data.supplierName) delete data.supplierName;
+              if (!data.speciesIntended || data.speciesIntended === "__none__") delete data.speciesIntended;
+              stockMut.mutate(data);
+            }}>{editStock ? "Update Stock" : "Add Stock"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

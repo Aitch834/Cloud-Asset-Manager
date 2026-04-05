@@ -38,7 +38,12 @@ export const feedStockLevelsTable = pgTable("feed_stock_levels", {
   productName: text("product_name"),
   storageLocation: text("storage_location"),
   currentStockKg: numeric("current_stock_kg", { precision: 10, scale: 2 }).notNull().default("0"),
+  capacityKg: numeric("capacity_kg", { precision: 10, scale: 2 }),
   reorderThresholdKg: numeric("reorder_threshold_kg", { precision: 10, scale: 2 }),
+  speciesIntended: text("species_intended"),
+  supplierName: text("supplier_name"),
+  awaitingDelivery: boolean("awaiting_delivery").notNull().default(false),
+  expectedDeliveryDate: date("expected_delivery_date"),
   lastUpdated: timestamp("last_updated", { withTimezone: true }).notNull().defaultNow(),
   notes: text("notes"),
 });
