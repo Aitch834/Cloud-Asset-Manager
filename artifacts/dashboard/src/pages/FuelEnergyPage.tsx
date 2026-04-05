@@ -164,7 +164,7 @@ function printReport(title: string, htmlBody: string) {
   @media print { body { margin: 12px; } }
 </style></head><body>${htmlBody}
 <div class="footer">Barnett Davies Enterprises Ltd — BDE Farm Trac — Generated ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</div>
-<script>window.onload = function() { window.print(); }<\/script>
+<script>window.onload = function() { window.print(); }; window.onafterprint = function() { window.close(); };<\/script>
 </body></html>`);
   win.document.close();
 }
@@ -627,6 +627,16 @@ export default function FuelEnergyPage() {
     queryFn: () => fetch(`/api/farms/${farmId}/fuel/stock-checks`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
+  const equipmentQ = useQuery({
+    queryKey: ["equipment", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/equipment`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+  const membersQ = useQuery({
+    queryKey: ["farm-members", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()).then(d => d.members ?? []),
+    enabled: !!farmId,
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["fuel-tanks", farmId] });
@@ -798,6 +808,8 @@ export default function FuelEnergyPage() {
   const meters: Record<string, unknown>[] = metersQ.data ?? [];
   const readings: Record<string, unknown>[] = readingsQ.data ?? [];
   const stockChecks: Record<string, unknown>[] = stockChecksQ.data ?? [];
+  const equipment: Record<string, unknown>[] = equipmentQ.data ?? [];
+  const members: Record<string, unknown>[] = membersQ.data ?? [];
 
   const totalStockL = tanks.reduce((s, t) => s + parseFloat(String(t.currentStockLitres ?? 0)), 0);
   const unbundedTanks = tanks.filter(t => !t.isBunded && !["lpg_bottles", "AdBlue"].includes(String(t.fuelType)));
@@ -1501,7 +1513,19 @@ export default function FuelEnergyPage() {
                 </Select>
               </div>
             </div>
-            <div><Label>Vehicle / Machine</Label><Input value={usageForm.vehicleName ?? ""} onChange={e => setUsageForm(f => ({ ...f, vehicleName: e.target.value }))} placeholder="e.g. Case IH Puma 165, Massey 6S, Grain Drier" /></div>
+            <div>
+              <Label>Vehicle / Machine</Label>
+              <Select value={usageForm.vehicleName ?? ""} onValueChange={v => setUsageForm(f => ({ ...f, vehicleName: v, vehicleNameCustom: "" }))}>
+                <SelectTrigger><SelectValue placeholder={equipment.length ? "Select vehicle / machine" : "No equipment registered"} /></SelectTrigger>
+                <SelectContent>
+                  {equipment.map(e => <SelectItem key={String(e.id)} value={String(e.name)}>{String(e.name)}</SelectItem>)}
+                  <SelectItem value="__custom__">Other — type manually…</SelectItem>
+                </SelectContent>
+              </Select>
+              {usageForm.vehicleName === "__custom__" && (
+                <Input className="mt-1.5" value={usageForm.vehicleNameCustom ?? ""} onChange={e => setUsageForm(f => ({ ...f, vehicleNameCustom: e.target.value }))} placeholder="e.g. Case IH Puma 165, Grain Drier" />
+              )}
+            </div>
             <div><Label>Purpose / Activity *</Label><Input value={usageForm.purpose ?? ""} onChange={e => setUsageForm(f => ({ ...f, purpose: e.target.value }))} placeholder="e.g. Ploughing — Home Field" /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Quantity (litres) *</Label><Input type="number" value={usageForm.quantityLitres ?? ""} onChange={e => setUsageForm(f => ({ ...f, quantityLitres: e.target.value }))} /></div>
@@ -1512,14 +1536,32 @@ export default function FuelEnergyPage() {
                 </Select>
               </div>
             </div>
-            <div><Label>Recorded by</Label><Input value={usageForm.recordedBy ?? ""} onChange={e => setUsageForm(f => ({ ...f, recordedBy: e.target.value }))} /></div>
+            <div>
+              <Label>Recorded by</Label>
+              <Select value={usageForm.recordedBy ?? ""} onValueChange={v => setUsageForm(f => ({ ...f, recordedBy: v, recordedByCustom: "" }))}>
+                <SelectTrigger><SelectValue placeholder={members.length ? "Select staff member" : "Type name below"} /></SelectTrigger>
+                <SelectContent>
+                  {members.map(m => {
+                    const name = `${String(m.firstName ?? "")} ${String(m.lastName ?? "")}`.trim();
+                    return <SelectItem key={String(m.id)} value={name}>{name}</SelectItem>;
+                  })}
+                  <SelectItem value="__custom__">Other — type manually…</SelectItem>
+                </SelectContent>
+              </Select>
+              {(usageForm.recordedBy === "__custom__" || (!members.length && usageForm.recordedBy !== undefined)) && (
+                <Input className="mt-1.5" value={usageForm.recordedByCustom ?? ""} onChange={e => setUsageForm(f => ({ ...f, recordedByCustom: e.target.value }))} placeholder="Staff member name" />
+              )}
+            </div>
             <div><Label>Notes</Label><Textarea value={usageForm.notes ?? ""} onChange={e => setUsageForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowUsageDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
               if (!usageForm.usageDate || !usageForm.quantityLitres || !usageForm.purpose) { toast({ title: "Date, quantity and purpose required", variant: "destructive" }); return; }
-              usageMut.mutate({ ...usageForm });
+              const resolvedVehicle = usageForm.vehicleName === "__custom__" ? (usageForm.vehicleNameCustom || undefined) : (usageForm.vehicleName || undefined);
+              const resolvedRecordedBy = usageForm.recordedBy === "__custom__" ? (usageForm.recordedByCustom || undefined) : (usageForm.recordedBy || undefined);
+              const { vehicleNameCustom: _vnc, recordedByCustom: _rbc, ...rest } = usageForm;
+              usageMut.mutate({ ...rest, vehicleName: resolvedVehicle, recordedBy: resolvedRecordedBy });
             }}>Record Usage</Button>
           </DialogFooter>
         </DialogContent>
