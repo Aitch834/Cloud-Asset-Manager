@@ -4743,7 +4743,31 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
       category: "Biosecurity",
       content: `<img src="/api/help-images/help-centre.png" alt="Visitor Log and Biosecurity" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
 
-Biosecurity is a core requirement of Red Tractor across all sectors. The Biosecurity module in BDE Farm Trac has five tabs: Visitor Log, Pest Control, Cleaning & Disinfection, COSHH, and Biosecurity Plan.\n\nThe Visitor Log tab is where you record everyone who comes onto your farm — contractors, vets, feed merchants, agronomists, and any other visitors. Each entry should capture: the full name and company, the purpose of the visit, the date and approximate arrival and departure time, whether they signed a biosecurity declaration, and whether they had visited any other livestock holdings within the previous 48–72 hours (depending on your sector standard). Biosecurity declaration forms can be generated from within the system and printed or emailed to visitors in advance.\n\nThe Biosecurity Plan tab holds your farm's written biosecurity plan document — a requirement that Red Tractor inspectors look for as evidence that you have formally thought through how disease risks are managed on your holding. The plan is structured into nine sections: restricted areas and access points, visitor and personnel procedures, vehicle and equipment entry controls, cleaning and disinfection protocols, pest management, disease outbreak response, waste management, water source protection, and staff responsibilities. There are also document control fields for author, approver, review dates, and version number.\n\nTo create or update the plan, open the Biosecurity Plan tab and click Edit Plan. Each section has a text area where you describe your farm's specific arrangements. Once saved, the plan displays in a clean view mode. The Print Plan button generates a formal A4 document with signature blocks for the farm manager and approver, suitable for filing or presenting to an inspector.\n\nReview your biosecurity plan annually and after any significant change to farm operations, such as adding a new livestock enterprise, constructing new buildings, or changing contractors.`,
+<p>Biosecurity is a core requirement of Red Tractor across all sectors. The Biosecurity module in BDE Farm Trac has five operational tabs: <strong>Visitor Log</strong>, <strong>Pest Control</strong>, <strong>Cleaning &amp; Disinfection</strong>, <strong>COSHH</strong>, and <strong>Biosecurity Plan</strong>.</p>
+
+<h3>Visitor Log</h3>
+<p>Record everyone who comes onto your farm — contractors, vets, feed merchants, agronomists, and any other visitors. Each entry captures: full name and company, purpose of visit, date and approximate arrival and departure time, whether a biosecurity declaration was signed, and whether they had visited any other livestock holdings within the previous 48–72 hours (depending on your sector standard). On mobile, visitors can sign a digital declaration directly on screen.</p>
+
+<h3>Biosecurity Plan</h3>
+<p>The Biosecurity Plan tab holds your farm's written biosecurity plan — a Red Tractor requirement across all livestock sectors. The plan is structured into <strong>13 sections</strong>:</p>
+<ol>
+<li>Restricted Areas and Access Points</li>
+<li>Visitor and Personnel Procedures</li>
+<li>Vehicle and Equipment Entry Controls</li>
+<li>Footwear Hygiene Procedures</li>
+<li>Cleaning and Disinfection Protocols</li>
+<li>Pest Management</li>
+<li>New Animal Isolation Procedures</li>
+<li>Feed Security Procedures</li>
+<li>Disease Outbreak and Suspicion Response</li>
+<li>Notifiable Disease Procedures</li>
+<li>Waste Management</li>
+<li>Water Source Protection</li>
+<li>Staff Responsibilities</li>
+</ol>
+<p>At the top of the plan is an <strong>Emergency Contacts</strong> section where you record your farm vet's name, phone, and email (the vet name field autocompletes from your Vet Health Plans), and your APHA Area Office name and phone number. Document control fields record author, approver, version number, last reviewed date, and next review due date.</p>
+<p>Click <strong>Edit Plan</strong> to open the editor. Each section has a text area for your farm's specific arrangements. Once saved, the plan displays in view mode. The <strong>Print Plan</strong> button generates a formal A4 document with signature blocks, suitable for presenting to an inspector or filing in your farm office.</p>
+<p>Review your biosecurity plan at least annually and after any significant change to farm operations — adding a new enterprise, constructing new buildings, or changing contractors.</p>`,
     },
     {
       id: 7,
@@ -7770,8 +7794,20 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h3>UFAS / FEMAS Auto-Population</h3>
 <p>When you select a feed supplier from the Supplier Register, the supplier's UFAS number and FEMAS number (if recorded on the supplier record) are automatically filled into the GRN form. This eliminates the risk of entering an incorrect registration number and ensures that the traceability chain from your GRN back to the supplier's scheme certification is intact without manual re-keying.</p>
 
-<h3>Feed Stock Levels Tab</h3>
-<p>The Feed Stock Levels tab maintains a current stock level for each feed type at each storage location. Stock levels are automatically reduced when delivery records are flagged as consumed, or you can update them manually after a physical stock check. When stock falls below your configured reorder level, a warning card appears prompting you to arrange a delivery. This prevents unexpected feed shortages, particularly for livestock operations where feed availability is a welfare requirement.</p>
+<h3>Feed Bin Register</h3>
+<p>The <strong>Feed Stock Levels</strong> tab holds a register of your physical feed bins and storage units. Each bin is registered using the <strong>Register Feed Bin</strong> dialog, which captures:</p>
+<ul>
+<li><strong>Product name</strong> — type or select from previously-used product names for consistency</li>
+<li><strong>Location</strong> — building or area where the bin is sited (autocompletes from existing data)</li>
+<li><strong>Supplier</strong> — the usual supplier for this bin, selected from your registered feed suppliers</li>
+<li><strong>Reorder level (kg)</strong> — the stock threshold below which a reorder warning fires</li>
+<li><strong>Opening balance (kg)</strong> — when creating a new bin, enter the stock already in the bin so the live balance is correct from day one; this field only appears in create mode</li>
+</ul>
+<p>When you edit an existing bin, the <strong>Current Stock</strong> is shown as a read-only figure. A separate <strong>Manual Adjustment</strong> field lets you enter a positive (e.g. +200) or negative (e.g. -150) correction if the physical stock does not match the system, with a mandatory <strong>Reason</strong> field to keep an audit trail. Below the adjustment fields a live <strong>New Total</strong> preview shows you the corrected balance before you save.</p>
+<p>Once saved, the register shows each bin as a card with a live stock bar: green when comfortable, amber approaching the reorder threshold, red when at or below it.</p>
+
+<h3>Feed Stock Levels</h3>
+<p>Stock levels are automatically updated when feed deliveries are recorded against a bin, and can be corrected at any time via the manual adjustment described above. When stock falls below your configured reorder level, a warning card appears prompting you to arrange a delivery. This prevents unexpected feed shortages — particularly important for livestock operations where feed availability is a welfare requirement.</p>
 
 <h3>Supplier Certification Tracking</h3>
 <p>In the Supplier Register (accessible from Trade Contacts &amp; Stock), feed suppliers are given a dedicated compliance section where you record:</p>
@@ -7793,6 +7829,48 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li>Records of any medicated feed used, with withdrawal period compliance evidence</li>
 </ul>
 <p>BDE Farm Trac's Feed Management module holds all of this in one place, with print-ready records that can be presented on a tablet or laptop during an inspection.</p>`,
+    },
+    {
+      id: 10048,
+      title: "Compliance & Plans — Feed Contingency Plan, Disease Log and Feed Recalls",
+      category: "Compliance & Plans",
+      content: `<p>The <strong>Compliance &amp; Plans</strong> section (found under <em>Compliance &amp; Plans</em> in the sidebar) brings together four audit-ready documents and logs in one place: Biosecurity Plan, Feed Contingency Plan, Disease &amp; Incident Log, and Feed Recall Incidents. Together these satisfy Red Tractor's requirements for documented disease control, feed supply contingency, and feed safety incident management.</p>
+
+<h3>Biosecurity Plan Tab</h3>
+<p>Your written biosecurity plan is structured into 13 sections covering all aspects of farm disease prevention and control. At the top of the plan an Emergency Contacts section holds your farm vet's details (name auto-populated from your Vet Health Plans, with phone and email) and your APHA Area Office name and direct phone number — so the critical contacts are immediately accessible during an incident. Document control fields capture author, approver, version number, and review dates. Use the Print Plan button to produce an A4 document with signature blocks for inspection filing.</p>
+
+<h3>Feed Contingency Plan Tab</h3>
+<p>Red Tractor requires livestock farms to have a written plan for maintaining feed supply during a disruption. The Feed Contingency Plan captures:</p>
+<ul>
+<li><strong>Stock resilience targets</strong> — minimum days' cover and a total kg alert threshold across all bins</li>
+<li><strong>Primary feed supplier</strong> — selected from your Supplier Register; phone and email auto-populate when a supplier is chosen</li>
+<li><strong>Alternative suppliers</strong> — free-text list of backup sources with lead times (one per line)</li>
+<li><strong>Six written plan sections</strong> — Trigger Conditions, Immediate Actions, Rationing Procedures, Communication Plan, Incident Record-Keeping, and Recovery Actions</li>
+<li><strong>Document control</strong> — author, approver, version, and review dates with a review status badge (green / amber / overdue)</li>
+</ul>
+<p>Click <strong>Edit Plan</strong> to open the editor. Save when complete. A Red Tractor inspector may ask to see this document during a livestock audit.</p>
+
+<h3>Disease & Incident Log Tab</h3>
+<p>Log every disease suspicion, illness outbreak, injury, or confirmed health event with a full audit trail. Key fields:</p>
+<ul>
+<li><strong>Incident type</strong> — Disease Suspicion, Notifiable Disease, Illness Outbreak, Injury, or Other</li>
+<li><strong>Species</strong> — selected from Cattle, Sheep, Pigs, Poultry, Horses, Goats, Mixed, or Other</li>
+<li><strong>Herds / groups affected</strong> — autocompletes from your registered herds</li>
+<li><strong>Symptoms observed</strong> — free-text description of clinical signs, onset, and severity</li>
+</ul>
+<p><strong>Notifiable diseases:</strong> If you set the incident type to Notifiable Disease or tick the notifiable flag, a red alert panel appears displaying the APHA emergency number <strong>03000 200 301</strong> with the instruction to contact APHA immediately — do not wait for laboratory confirmation. Select the disease type from the dropdown (FMD, Bluetongue, Avian Influenza, ASF, Classical Swine Fever, Brucellosis, bTB, Anthrax, Newcastle Disease, Lumpy Skin Disease, and others).</p>
+<p>The <strong>Veterinary Response</strong> section records whether the vet was called, vet name (autocompletes from your Vet Health Plans), date called, visit date, advice given, treatment, and prescription reference. The <strong>Biosecurity Response</strong> section captures isolation (location, date) and movement restriction details. The <strong>APHA Reporting</strong> section records the APHA reference number and date notified. Once resolved, record the outcome, lesson learned, and mortality count.</p>
+
+<h3>Feed Recall Incidents Tab</h3>
+<p>Use this section to raise, track, and close any feed safety concern — a contamination suspicion, mislabelling, supplier-issued recall, disease-linked feed, or regulatory advice from APHA, Trading Standards, or the FSA.</p>
+<p>The <strong>Feed Identification</strong> section links the incident to a specific product and batch:</p>
+<ul>
+<li><strong>Product name</strong> — autocompletes from your existing feed delivery records</li>
+<li><strong>Supplier</strong> — selected from your registered suppliers</li>
+<li><strong>Batch / lot number</strong> — matches your delivery GRN for traceability back to the supplier's production record</li>
+<li><strong>Delivery note reference</strong> and <strong>quantity affected (kg)</strong></li>
+</ul>
+<p>The <strong>Impact Assessment</strong> section records whether the feed has been physically withdrawn, which herds were affected, the estimated animal count, and whether any health impact was observed. The <strong>Notifications</strong> section logs when the supplier, regulatory authority, and vet were each notified — with reference numbers and dates for every notification. Once the incident is resolved, record the disposal method, replacement sourcing, outcome, and lesson learned before setting the status to Resolved.</p>`,
     },
     {
       id: 10046,

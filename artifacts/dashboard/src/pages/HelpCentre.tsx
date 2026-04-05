@@ -46,6 +46,9 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Sales & Trading": "bg-teal-50 text-teal-700",
   "Grants & Funding": "bg-violet-50 text-violet-700",
   "Crop Trials": "bg-lime-50 text-lime-700",
+  "Compliance & Plans": "bg-red-50 text-red-700",
+  "Fuel & Energy": "bg-orange-50 text-orange-700",
+  "Haulage": "bg-zinc-50 text-zinc-700",
 };
 
 // Categories that are always shown regardless of module subscriptions
@@ -89,6 +92,9 @@ const CATEGORY_TO_MODULE: Record<string, string | string[]> = {
   "Water & Irrigation": "water_irrigation",
   "Environmental": ["soil-management", "environment-sustainability"],
   "Crop Trials": "crop-trials",
+  "Compliance & Plans": "biosecurity",
+  "Fuel & Energy": ["equipment-workshop", "fuel-management"],
+  "Haulage": "field-crop-management",
 };
 
 function categoryColor(cat: string) {
