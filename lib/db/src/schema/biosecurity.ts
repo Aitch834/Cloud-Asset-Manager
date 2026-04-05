@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 
 export const visitorContractorLogTable = pgTable("visitor_contractor_log", {
@@ -72,10 +72,24 @@ export const biosecurityPlansTable = pgTable("biosecurity_plans", {
   wasteManagementProcedures: text("waste_management_procedures"),
   waterSourceProtection: text("water_source_protection"),
   staffResponsibilities: text("staff_responsibilities"),
+  // Emergency contact details — for quick reference during an incident
+  farmVetName: text("farm_vet_name"),
+  farmVetPhone: text("farm_vet_phone"),
+  farmVetEmail: text("farm_vet_email"),
+  aphaAreaOffice: text("apha_area_office"),
+  aphaPhone: text("apha_phone"),
+
+  // Additional plan sections
+  footwearHygieneProcedures: text("footwear_hygiene_procedures"),
+  newAnimalIsolationProcedures: text("new_animal_isolation_procedures"),
+  feedSecurityProcedures: text("feed_security_procedures"),
+  diseaseSuspicionProcedures: text("disease_suspicion_procedures"),
+
   planAuthor: text("plan_author"),
-  lastReviewedDate: timestamp("last_reviewed_date", { withTimezone: true }),
-  nextReviewDate: timestamp("next_review_date", { withTimezone: true }),
+  lastReviewedDate: date("last_reviewed_date"),
+  nextReviewDate: date("next_review_date"),
   approvedBy: text("approved_by"),
+  versionNumber: text("version_number"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

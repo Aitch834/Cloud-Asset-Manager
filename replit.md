@@ -23,7 +23,7 @@ The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 **Database Layer (`lib/db`):**
 - Utilizes PostgreSQL with Drizzle ORM, comprising over 60 tables.
 - Covers authentication, core tenant data, leads, support, and all farm management modules (e.g., fields, crops, livestock, equipment, financial).
-- Includes specific tables for various sales types, `farm_locations` for building/area registry, `workshop_goods_returns` for RTN tracking, `herd_health_events` for the Herd Health Register clinical event log, and `sire_register` for bull/ram register (owned, hired-in, loaned sires with BVD/scrapie/fertility records).
+- Includes specific tables for various sales types, `farm_locations` for building/area registry, `workshop_goods_returns` for RTN tracking, `herd_health_events` for the Herd Health Register clinical event log, `sire_register` for bull/ram register (owned, hired-in, loaned sires with BVD/scrapie/fertility records), `feed_contingency_plans` for Red Tractor-required feed supply contingency plans, `feed_recall_incidents` for feed withdrawal/recall incident logging, and `disease_incident_log` for timestamped disease and health incident records with APHA reporting fields. The existing `biosecurity_plans` table was extended with emergency contacts (vet, APHA), footwear hygiene, new animal isolation, feed security, and disease suspicion procedure fields.
 
 **Dashboard (`artifacts/dashboard`):**
 - React + Vite application using `wouter` for routing and TanStack React Query for data fetching.

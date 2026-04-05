@@ -73,6 +73,7 @@ import FuelEnergyPage from "@/pages/FuelEnergyPage";
 import FeedManagementPage from "@/pages/FeedManagementPage";
 import SalesTradingPage from "@/pages/SalesTradingPage";
 import OrganicPage from "@/pages/OrganicPage";
+import CompliancePage from "@/pages/CompliancePage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -238,6 +239,7 @@ function Router() {
       <Route path="/fuel-energy" component={FuelEnergyPage} />
       <Route path="/feed" component={FeedManagementPage} />
       <Route path="/organic" component={OrganicPage} />
+      <Route path="/compliance" component={CompliancePage} />
       <Route path="/inspect/:token" component={InspectionViewPage} />
       <Route component={NotFound} />
     </Switch>

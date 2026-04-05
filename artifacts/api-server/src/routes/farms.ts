@@ -204,6 +204,9 @@ import {
   organicFieldStatusTable,
   organicInspectionTable,
   organicRestrictedInputTable,
+  feedContingencyPlansTable,
+  feedRecallIncidentsTable,
+  diseaseIncidentLogTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
@@ -13175,6 +13178,80 @@ router.delete("/farms/:farmId/organic/restricted-inputs/:id", requireAuth, requi
   const id = parseInt(req.params.id);
   await db.delete(organicRestrictedInputTable).where(eq(organicRestrictedInputTable.id, id));
   res.json({ ok: true });
+});
+
+// ─── Feed Contingency Plan ────────────────────────────────────────────────────
+router.get("/farms/:farmId/feed-contingency-plan", requireAuth, requireTenant, requireModuleByKey("feed-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [plan] = await db.select().from(feedContingencyPlansTable).where(eq(feedContingencyPlansTable.farmId, farmId));
+  res.json({ plan: plan ?? null });
+});
+router.put("/farms/:farmId/feed-contingency-plan", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [existing] = await db.select({ id: feedContingencyPlansTable.id }).from(feedContingencyPlansTable).where(eq(feedContingencyPlansTable.farmId, farmId));
+  let plan;
+  if (existing) {
+    [plan] = await db.update(feedContingencyPlansTable).set({ ...req.body, farmId, updatedAt: new Date() }).where(eq(feedContingencyPlansTable.id, existing.id)).returning();
+  } else {
+    [plan] = await db.insert(feedContingencyPlansTable).values({ ...req.body, farmId }).returning();
+  }
+  res.json({ plan });
+});
+
+// ─── Feed Recall Incidents ────────────────────────────────────────────────────
+router.get("/farms/:farmId/feed-recalls", requireAuth, requireTenant, requireModuleByKey("feed-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(feedRecallIncidentsTable).where(eq(feedRecallIncidentsTable.farmId, farmId)).orderBy(desc(feedRecallIncidentsTable.raisedDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/feed-recalls", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(feedRecallIncidentsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/feed-recalls/:id", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(feedRecallIncidentsTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(feedRecallIncidentsTable.id, parseInt(req.params.id)), eq(feedRecallIncidentsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/feed-recalls/:id", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(feedRecallIncidentsTable).where(and(eq(feedRecallIncidentsTable.id, parseInt(req.params.id)), eq(feedRecallIncidentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Disease Incident Log ─────────────────────────────────────────────────────
+router.get("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requireModuleByKey("biosecurity", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(diseaseIncidentLogTable).where(eq(diseaseIncidentLogTable.farmId, farmId)).orderBy(desc(diseaseIncidentLogTable.incidentDate));
+  res.json({ records });
+});
+router.post("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(diseaseIncidentLogTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+router.put("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.update(diseaseIncidentLogTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(diseaseIncidentLogTable.id, parseInt(req.params.id)), eq(diseaseIncidentLogTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+router.delete("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(diseaseIncidentLogTable).where(and(eq(diseaseIncidentLogTable.id, parseInt(req.params.id)), eq(diseaseIncidentLogTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 export default router;
