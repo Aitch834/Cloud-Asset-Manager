@@ -111,12 +111,12 @@ const livestockNav: NavItem[] = [
   { name: "Herd Health Register", href: "/herd-health-register", icon: ClipboardList, moduleKeys: ["livestock-management"], requiresLivestock: true },
   { name: "Health Dashboard", href: "/livestock-health", icon: BarChart3, moduleKeys: ["livestock-management"], requiresLivestock: true },
   { name: "Dairy Records", href: "/dairy", icon: Milk, moduleKeys: ["dairy-management"], requiresLivestock: true },
+  { name: "Feed Management", href: "/feed", icon: Package, moduleKeys: ["feed-management"] },
 ];
 
 const biofuelNav: NavItem[] = [
   { name: "Biofuel / RTFO", href: "/biofuel", icon: Fuel, moduleKeys: ["biofuel-rtfo"] },
   { name: "Fuel & Energy", href: "/fuel-energy", icon: Fuel, moduleKeys: ["fuel-energy"] },
-  { name: "Feed Management", href: "/feed", icon: Package, moduleKeys: ["feed-management"] },
 ];
 
 const specialistNav: NavItem[] = [
@@ -264,7 +264,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
         <NavSection title="Compliance" items={filteredComplianceNav} onNavClick={onNavClick} />
         <NavSection title="Biosecurity" items={filteredBiosecurityNav} onNavClick={onNavClick} />
         <NavSection title="Livestock" items={filteredLivestockNav} onNavClick={onNavClick} />
-        <NavSection title="Biofuel / RTFO" items={filteredBiofuelNav} onNavClick={onNavClick} />
+        <NavSection title="Fuel & Energy" items={filteredBiofuelNav} onNavClick={onNavClick} />
         <NavSection title="Specialist Modules" items={filteredSpecialistNav} onNavClick={onNavClick} />
         <NavSection title="Management" items={filteredOtherNav} onNavClick={onNavClick} />
       </nav>
