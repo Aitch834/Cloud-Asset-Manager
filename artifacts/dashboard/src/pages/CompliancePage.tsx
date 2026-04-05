@@ -18,6 +18,8 @@ import {
 
 type Tab = "biosecurity" | "contingency" | "disease" | "recalls";
 
+const SPECIES = ["cattle", "sheep", "pigs", "poultry", "horses", "goats", "mixed", "other"];
+
 const INCIDENT_TYPES = [
   { value: "disease_suspicion", label: "Disease Suspicion" },
   { value: "notifiable_disease", label: "Notifiable Disease" },
@@ -134,6 +136,26 @@ export default function CompliancePage() {
     queryFn: () => fetch(`/api/farms/${farmId}/feed-recalls`).then(r => r.json()),
     enabled: !!farmId,
   });
+  const suppliersQ = useQuery({
+    queryKey: ["suppliers", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+  const vetPlansQ = useQuery({
+    queryKey: ["vet-health-plans", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/vet-health-plans`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+  const herdsQ = useQuery({
+    queryKey: ["herds", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+  const deliveriesQ = useQuery({
+    queryKey: ["feed-deliveries-lookup", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/feed-deliveries`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
 
   function invalidate() {
     qc.invalidateQueries({ queryKey: ["biosecurity-plan", farmId] });
@@ -146,6 +168,12 @@ export default function CompliancePage() {
   const contingency = contingencyQ.data?.plan ?? null;
   const diseases: Record<string, unknown>[] = diseaseQ.data?.records ?? [];
   const recalls: Record<string, unknown>[] = recallsQ.data?.records ?? [];
+
+  const allSuppliers: Record<string, unknown>[] = (suppliersQ.data ?? []).filter((s: Record<string, unknown>) => s.isActive !== false);
+  const vetRecords: Record<string, unknown>[] = vetPlansQ.data ?? [];
+  const knownVetNames: string[] = [...new Set(vetRecords.map((v) => String(v.vetName ?? "")).filter(Boolean))];
+  const knownHerdNames: string[] = [...new Set((herdsQ.data ?? []).map((h: Record<string, unknown>) => String(h.name ?? "")).filter(Boolean))];
+  const knownFeedProducts: string[] = [...new Set((deliveriesQ.data ?? []).map((d: Record<string, unknown>) => String(d.productName ?? "")).filter(Boolean))];
 
   // ── Mutations: biosecurity plan
   const bioMut = useMutation({
@@ -308,7 +336,24 @@ export default function CompliancePage() {
               <div className="bg-red-50 border border-red-200 rounded-xl p-4">
                 <h4 className="text-sm font-semibold text-red-800 mb-3">Emergency Contacts</h4>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><Label>Farm Vet Name</Label><Input value={bioForm.farmVetName ?? ""} onChange={e => setBioForm(f => ({ ...f, farmVetName: e.target.value }))} /></div>
+                  <div>
+                    <Label>Farm Vet Name</Label>
+                    <Input
+                      list="vet-names-list"
+                      value={bioForm.farmVetName ?? ""}
+                      onChange={e => {
+                        const name = e.target.value;
+                        const match = vetRecords.find(v => String(v.vetName ?? "") === name);
+                        setBioForm(f => ({
+                          ...f,
+                          farmVetName: name,
+                          ...(match ? { farmVetPhone: String(match.practicePhone ?? f.farmVetPhone ?? "") } : {}),
+                        }));
+                      }}
+                      placeholder="Select or type vet name"
+                    />
+                    <datalist id="vet-names-list">{knownVetNames.map(n => <option key={n} value={n} />)}</datalist>
+                  </div>
                   <div><Label>Vet Phone</Label><Input value={bioForm.farmVetPhone ?? ""} onChange={e => setBioForm(f => ({ ...f, farmVetPhone: e.target.value }))} /></div>
                   <div><Label>Vet Email</Label><Input value={bioForm.farmVetEmail ?? ""} onChange={e => setBioForm(f => ({ ...f, farmVetEmail: e.target.value }))} /></div>
                   <div><Label>APHA Area Office</Label><Input value={bioForm.aphaAreaOffice ?? ""} onChange={e => setBioForm(f => ({ ...f, aphaAreaOffice: e.target.value }))} placeholder="e.g. APHA Worcester" /></div>
@@ -454,7 +499,34 @@ export default function CompliancePage() {
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">Primary Feed Supplier</h4>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><Label>Supplier name</Label><Input value={contingencyForm.primarySupplierName ?? ""} onChange={e => setContingencyForm(f => ({ ...f, primarySupplierName: e.target.value }))} /></div>
+                  <div>
+                    <Label>Supplier name</Label>
+                    {allSuppliers.length > 0 ? (
+                      <Select
+                        value={contingencyForm.primarySupplierName ?? "__none__"}
+                        onValueChange={v => {
+                          const name = v === "__none__" ? "" : v;
+                          const match = allSuppliers.find(s => String(s.name ?? "") === name);
+                          setContingencyForm(f => ({
+                            ...f,
+                            primarySupplierName: name,
+                            ...(match ? {
+                              primarySupplierPhone: String(match.phone ?? f.primarySupplierPhone ?? ""),
+                              primarySupplierEmail: String(match.email ?? f.primarySupplierEmail ?? ""),
+                            } : {}),
+                          }));
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select supplier…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Select supplier —</SelectItem>
+                          {allSuppliers.map(s => <SelectItem key={String(s.id)} value={String(s.name ?? s.id)}>{String(s.name ?? s.id)}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input value={contingencyForm.primarySupplierName ?? ""} onChange={e => setContingencyForm(f => ({ ...f, primarySupplierName: e.target.value }))} placeholder="Type supplier name" />
+                    )}
+                  </div>
                   <div><Label>Phone</Label><Input value={contingencyForm.primarySupplierPhone ?? ""} onChange={e => setContingencyForm(f => ({ ...f, primarySupplierPhone: e.target.value }))} /></div>
                   <div><Label>Email</Label><Input value={contingencyForm.primarySupplierEmail ?? ""} onChange={e => setContingencyForm(f => ({ ...f, primarySupplierEmail: e.target.value }))} /></div>
                 </div>
@@ -684,12 +756,30 @@ export default function CompliancePage() {
             </div>
 
             <div className="grid grid-cols-3 gap-3">
-              <div><Label>Species</Label><Input value={diseaseForm.species ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, species: e.target.value }))} placeholder="e.g. Cattle" /></div>
+              <div>
+                <Label>Species</Label>
+                <Select value={diseaseForm.species ?? "__none__"} onValueChange={v => setDiseaseForm(f => ({ ...f, species: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select species…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Select —</SelectItem>
+                    {SPECIES.map(s => <SelectItem key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div><Label>Animals affected</Label><Input type="number" value={diseaseForm.animalCount ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, animalCount: e.target.value }))} /></div>
               <div><Label>Reported by</Label><Input value={diseaseForm.reportedBy ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, reportedBy: e.target.value }))} /></div>
             </div>
 
-            <div><Label>Herds / groups affected</Label><Input value={diseaseForm.affectedHerds ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, affectedHerds: e.target.value }))} placeholder="e.g. Dairy herd, Young cattle building" /></div>
+            <div>
+              <Label>Herds / groups affected</Label>
+              <Input
+                list="disease-herds-list"
+                value={diseaseForm.affectedHerds ?? ""}
+                onChange={e => setDiseaseForm(f => ({ ...f, affectedHerds: e.target.value }))}
+                placeholder="e.g. Dairy herd, Young cattle building"
+              />
+              <datalist id="disease-herds-list">{knownHerdNames.map(n => <option key={n} value={n} />)}</datalist>
+            </div>
             <div><Label>Symptoms observed *</Label><Textarea rows={3} value={diseaseForm.symptomsObserved ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, symptomsObserved: e.target.value }))} placeholder="Describe what was seen — be specific about clinical signs, onset, severity, and affected body systems" /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Suspected diagnosis</Label><Input value={diseaseForm.suspectedDiagnosis ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, suspectedDiagnosis: e.target.value }))} /></div>
@@ -739,7 +829,16 @@ export default function CompliancePage() {
                   </Select>
                 </div>
                 {diseaseForm.vetCalled === "true" && <>
-                  <div><Label>Vet name</Label><Input value={diseaseForm.vetName ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetName: e.target.value }))} /></div>
+                  <div>
+                    <Label>Vet name</Label>
+                    <Input
+                      list="disease-vet-list"
+                      value={diseaseForm.vetName ?? ""}
+                      onChange={e => setDiseaseForm(f => ({ ...f, vetName: e.target.value }))}
+                      placeholder="Select or type vet name"
+                    />
+                    <datalist id="disease-vet-list">{knownVetNames.map(n => <option key={n} value={n} />)}</datalist>
+                  </div>
                   <div><Label>Date called</Label><Input type="date" value={diseaseForm.vetCallDate ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetCallDate: e.target.value }))} /></div>
                   <div><Label>Vet visit date</Label><Input type="date" value={diseaseForm.vetVisitDate ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetVisitDate: e.target.value }))} /></div>
                   <div className="col-span-2"><Label>Vet advice</Label><Input value={diseaseForm.vetAdvice ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetAdvice: e.target.value }))} /></div>
@@ -869,8 +968,33 @@ export default function CompliancePage() {
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
               <p className="text-xs font-semibold text-gray-600 mb-2">Feed Identification</p>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Product name</Label><Input value={recallForm.productName ?? ""} onChange={e => setRecallForm(f => ({ ...f, productName: e.target.value }))} /></div>
-                <div><Label>Supplier name</Label><Input value={recallForm.supplierName ?? ""} onChange={e => setRecallForm(f => ({ ...f, supplierName: e.target.value }))} /></div>
+                <div>
+                  <Label>Product name</Label>
+                  <Input
+                    list="recall-products-list"
+                    value={recallForm.productName ?? ""}
+                    onChange={e => setRecallForm(f => ({ ...f, productName: e.target.value }))}
+                    placeholder="Select or type product name"
+                  />
+                  <datalist id="recall-products-list">{knownFeedProducts.map(n => <option key={n} value={n} />)}</datalist>
+                </div>
+                <div>
+                  <Label>Supplier name</Label>
+                  {allSuppliers.length > 0 ? (
+                    <Select
+                      value={recallForm.supplierName ?? "__none__"}
+                      onValueChange={v => setRecallForm(f => ({ ...f, supplierName: v === "__none__" ? "" : v }))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select supplier…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Select supplier —</SelectItem>
+                        {allSuppliers.map(s => <SelectItem key={String(s.id)} value={String(s.name ?? s.id)}>{String(s.name ?? s.id)}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input value={recallForm.supplierName ?? ""} onChange={e => setRecallForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="Type supplier name" />
+                  )}
+                </div>
                 <div><Label>Batch / lot number</Label><Input value={recallForm.feedBatchRef ?? ""} onChange={e => setRecallForm(f => ({ ...f, feedBatchRef: e.target.value }))} placeholder="Matches delivery batch number" /></div>
                 <div><Label>Delivery note ref</Label><Input value={recallForm.deliveryNoteRef ?? ""} onChange={e => setRecallForm(f => ({ ...f, deliveryNoteRef: e.target.value }))} /></div>
                 <div><Label>Quantity affected (kg)</Label><Input type="number" value={recallForm.quantityKgAffected ?? ""} onChange={e => setRecallForm(f => ({ ...f, quantityKgAffected: e.target.value }))} /></div>
@@ -898,7 +1022,16 @@ export default function CompliancePage() {
                 <div><Label>Est. animals affected</Label><Input type="number" value={recallForm.estimatedAnimalsAffected ?? ""} onChange={e => setRecallForm(f => ({ ...f, estimatedAnimalsAffected: e.target.value }))} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3 mt-2">
-                <div><Label>Herds / groups affected</Label><Input value={recallForm.affectedHerds ?? ""} onChange={e => setRecallForm(f => ({ ...f, affectedHerds: e.target.value }))} /></div>
+                <div>
+                  <Label>Herds / groups affected</Label>
+                  <Input
+                    list="recall-herds-list"
+                    value={recallForm.affectedHerds ?? ""}
+                    onChange={e => setRecallForm(f => ({ ...f, affectedHerds: e.target.value }))}
+                    placeholder="Type or select herd name"
+                  />
+                  <datalist id="recall-herds-list">{knownHerdNames.map(n => <option key={n} value={n} />)}</datalist>
+                </div>
                 <div>
                   <Label>Animal health impact observed?</Label>
                   <Select value={recallForm.animalHealthImpactObserved ?? "false"} onValueChange={v => setRecallForm(f => ({ ...f, animalHealthImpactObserved: v }))}>
