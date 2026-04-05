@@ -40,6 +40,7 @@ export const fuelDeliveriesTable = pgTable("fuel_deliveries", {
   supplierName: text("supplier_name"),
   driverName: text("driver_name"),
   qualifyingUse: text("qualifying_use").notNull().default("agriculture"),
+  documentUrl: text("document_url"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -14,8 +14,10 @@ import { Badge } from "@/components/ui/badge";
 import {
   Fuel, Plus, AlertTriangle, CheckCircle2, XCircle, Droplets,
   Truck, ClipboardCheck, Gauge, ShieldAlert, Trash2, Zap,
-  Flame, Wind, Edit2, Plug, ChevronDown, ChevronRight, ClipboardList
+  Flame, Wind, Edit2, Plug, ChevronDown, ChevronRight, ClipboardList,
+  Eye, Paperclip, Filter, X as XIcon, ExternalLink
 } from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
 
 function getCropYear(date: Date): { label: string; start: Date; end: Date } {
   const aug = new Date(date.getFullYear(), 7, 1);
@@ -638,6 +640,8 @@ export default function FuelEnergyPage() {
     enabled: !!farmId,
   });
 
+  const { uploadFile, isUploading: isDocUploading } = useUpload();
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["fuel-tanks", farmId] });
     qc.invalidateQueries({ queryKey: ["fuel-deliveries", farmId] });
@@ -690,8 +694,10 @@ export default function FuelEnergyPage() {
     onSuccess: () => { invalidate(); toast({ title: "Tank removed" }); },
   });
 
-  // Delivery dialog
+  // Delivery dialog (add + edit)
   const [showDeliveryDialog, setShowDeliveryDialog] = useState(false);
+  const [editDelivery, setEditDelivery] = useState<Record<string, unknown> | null>(null);
+  const [viewDelivery, setViewDelivery] = useState<Record<string, unknown> | null>(null);
   const [deliveryForm, setDeliveryForm] = useState<Record<string, string>>({});
   const deliveryMut = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
@@ -702,10 +708,25 @@ export default function FuelEnergyPage() {
     onSuccess: () => { invalidate(); setShowDeliveryDialog(false); toast({ title: "Delivery recorded" }); },
     onError: () => toast({ title: "Error saving delivery", variant: "destructive" }),
   });
+  const editDeliveryMut = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await fetch(`/api/farms/${farmId}/fuel/deliveries/${editDelivery?.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => { invalidate(); setShowDeliveryDialog(false); setEditDelivery(null); toast({ title: "Delivery updated" }); },
+    onError: () => toast({ title: "Error updating delivery", variant: "destructive" }),
+  });
   const delDeliveryMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fuel/deliveries/${id}`, { method: "DELETE" }).then(r => r.json()),
     onSuccess: () => { invalidate(); toast({ title: "Delivery removed" }); },
   });
+
+  // Usage log filters
+  const [usageFilterVehicle, setUsageFilterVehicle] = useState("__all__");
+  const [usageFilterMember, setUsageFilterMember] = useState("__all__");
+  const [usageFilterTank, setUsageFilterTank] = useState("__all__");
+  const [usageFilterActivity, setUsageFilterActivity] = useState("__all__");
 
   // Usage dialog
   const [showUsageDialog, setShowUsageDialog] = useState(false);
@@ -830,12 +851,21 @@ export default function FuelEnergyPage() {
         return dd >= selectedDeliveryCY.start && dd <= selectedDeliveryCY.end;
       })
     : deliveries;
-  const filteredUsages = selectedUsageCY
-    ? usages.filter(u => {
-        const ud = new Date(String(u.usageDate));
-        return ud >= selectedUsageCY.start && ud <= selectedUsageCY.end;
-      })
-    : usages;
+  const filteredUsages = usages.filter(u => {
+    if (selectedUsageCY) {
+      const ud = new Date(String(u.usageDate));
+      if (ud < selectedUsageCY.start || ud > selectedUsageCY.end) return false;
+    }
+    if (usageFilterVehicle !== "__all__" && String(u.vehicleName ?? "") !== usageFilterVehicle) return false;
+    if (usageFilterMember !== "__all__" && String(u.recordedBy ?? "") !== usageFilterMember) return false;
+    if (usageFilterTank !== "__all__" && String(u.tankId ?? "") !== usageFilterTank) return false;
+    if (usageFilterActivity !== "__all__" && String(u.qualifyingActivity ?? "") !== usageFilterActivity) return false;
+    return true;
+  });
+  const uniqueVehicles = [...new Set(usages.map(u => String(u.vehicleName ?? "")).filter(Boolean))].sort();
+  const uniqueMembers = [...new Set(usages.map(u => String(u.recordedBy ?? "")).filter(Boolean))].sort();
+  const uniqueSupplierNames = [...new Set(deliveries.map(d => String(d.supplierName ?? "")).filter(Boolean))].sort();
+  const usageFiltersActive = usageFilterVehicle !== "__all__" || usageFilterMember !== "__all__" || usageFilterTank !== "__all__" || usageFilterActivity !== "__all__";
 
   const deliveredByCYByFuelType: Record<string, number> = {};
   for (const d of filteredDeliveries) {
@@ -1086,7 +1116,7 @@ export default function FuelEnergyPage() {
                     <SelectContent>{CROP_YEAR_OPTIONS.map(o => <SelectItem key={o.label} value={o.label}>{o.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <Button onClick={() => { setDeliveryForm({ fuelType: "red_diesel", qualifyingUse: "agriculture", deliveryDate: new Date().toISOString().substring(0, 10) }); setShowDeliveryDialog(true); }} className="bg-green-800 hover:bg-green-900 text-white">
+                <Button onClick={() => { setEditDelivery(null); setDeliveryForm({ fuelType: "red_diesel", qualifyingUse: "agriculture", deliveryDate: new Date().toISOString().substring(0, 10) }); setShowDeliveryDialog(true); }} className="bg-green-800 hover:bg-green-900 text-white">
                   <Plus className="w-4 h-4 mr-1" />Log Delivery
                 </Button>
               </div>
@@ -1109,7 +1139,7 @@ export default function FuelEnergyPage() {
                     {filteredDeliveries.map((d) => {
                       const tank = tanks.find(t => t.id === d.tankId);
                       return (
-                        <tr key={String(d.id)} className="border-b hover:bg-gray-50">
+                        <tr key={String(d.id)} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => setViewDelivery(d)}>
                           <td className="px-4 py-3 text-gray-700">{fmtDate(String(d.deliveryDate ?? ""))}</td>
                           <td className="px-4 py-3 text-xs">
                             <p className="text-gray-700">{tank ? String(tank.name) : "—"}</p>
@@ -1120,9 +1150,36 @@ export default function FuelEnergyPage() {
                             <p className="text-xs text-gray-400">{String(d.deliveryNoteNumber ?? "")} {d.invoiceReference ? `/ ${d.invoiceReference}` : ""}</p>
                           </td>
                           <td className="px-4 py-3 text-right font-medium text-green-700">{fmtL(d.quantityLitres as string)}</td>
-                          <td className="px-4 py-3 text-right text-gray-600">{fmtCost(d.totalCostPence as number)}</td>
+                          <td className="px-4 py-3 text-right text-gray-600">
+                            {fmtCost(d.totalCostPence as number)}
+                            {d.unitPricePence && <p className="text-xs text-gray-400">{Number(d.unitPricePence)}p/L</p>}
+                          </td>
                           <td className="px-4 py-3 text-xs text-gray-500 capitalize">{String(d.qualifyingUse ?? "agriculture").replace(/_/g, " ")}</td>
-                          <td className="px-4 py-3"><Button size="sm" variant="ghost" onClick={() => delDeliveryMut.mutate(Number(d.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button></td>
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => setViewDelivery(d)} className="h-7 px-2 text-blue-600" title="View details"><Eye className="w-3 h-3" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => {
+                                setEditDelivery(d);
+                                const deliveryDateStr = d.deliveryDate ? new Date(String(d.deliveryDate)).toISOString().substring(0, 10) : "";
+                                setDeliveryForm({
+                                  deliveryDate: deliveryDateStr,
+                                  tankId: String(d.tankId ?? ""),
+                                  fuelType: String(d.fuelType ?? "red_diesel"),
+                                  quantityLitres: String(d.quantityLitres ?? ""),
+                                  supplierName: String(d.supplierName ?? ""),
+                                  deliveryNoteNumber: String(d.deliveryNoteNumber ?? ""),
+                                  invoiceReference: String(d.invoiceReference ?? ""),
+                                  unitPricePence: String(d.unitPricePence ?? ""),
+                                  qualifyingUse: String(d.qualifyingUse ?? "agriculture"),
+                                  driverName: String(d.driverName ?? ""),
+                                  documentUrl: String(d.documentUrl ?? ""),
+                                  notes: String(d.notes ?? ""),
+                                });
+                                setShowDeliveryDialog(true);
+                              }} className="h-7 px-2 text-gray-600" title="Edit delivery"><Edit2 className="w-3 h-3" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => delDeliveryMut.mutate(Number(d.id))} className="h-7 px-2 text-red-600" title="Delete"><Trash2 className="w-3 h-3" /></Button>
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
@@ -1154,8 +1211,63 @@ export default function FuelEnergyPage() {
                 </Button>
               </div>
             </div>
+            {/* Usage filters */}
+            <div className="flex flex-wrap gap-2 mb-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <div className="flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-xs text-gray-500 font-medium">Filter:</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-400">Vehicle</span>
+                <Select value={usageFilterVehicle} onValueChange={setUsageFilterVehicle}>
+                  <SelectTrigger className="h-7 text-xs w-40"><SelectValue placeholder="All vehicles" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All vehicles</SelectItem>
+                    {uniqueVehicles.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-400">Staff</span>
+                <Select value={usageFilterMember} onValueChange={setUsageFilterMember}>
+                  <SelectTrigger className="h-7 text-xs w-36"><SelectValue placeholder="All staff" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All staff</SelectItem>
+                    {uniqueMembers.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-400">Tank</span>
+                <Select value={usageFilterTank} onValueChange={setUsageFilterTank}>
+                  <SelectTrigger className="h-7 text-xs w-36"><SelectValue placeholder="All tanks" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All tanks</SelectItem>
+                    {tanks.map(t => <SelectItem key={String(t.id)} value={String(t.id)}>{String(t.name)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-400">Activity</span>
+                <Select value={usageFilterActivity} onValueChange={setUsageFilterActivity}>
+                  <SelectTrigger className="h-7 text-xs w-36"><SelectValue placeholder="All activities" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All activities</SelectItem>
+                    {QUALIFYING_ACTIVITIES.map(a => <SelectItem key={a} value={a}>{a.replace(/_/g, " ")}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {usageFiltersActive && (
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-gray-500" onClick={() => { setUsageFilterVehicle("__all__"); setUsageFilterMember("__all__"); setUsageFilterTank("__all__"); setUsageFilterActivity("__all__"); }}>
+                  <XIcon className="w-3 h-3 mr-1" />Clear
+                </Button>
+              )}
+              {usageFiltersActive && (
+                <span className="text-xs text-gray-500 ml-auto self-center">{filteredUsages.length} of {usages.filter(u => { if (selectedUsageCY) { const ud = new Date(String(u.usageDate)); return ud >= selectedUsageCY.start && ud <= selectedUsageCY.end; } return true; }).length} records</span>
+              )}
+            </div>
             {filteredUsages.length === 0 ? (
-              <div className="text-center py-16 text-gray-400"><Droplets className="w-10 h-10 mx-auto mb-3 opacity-30" /><p className="font-medium">No usage records in {usageCropYear}</p><p className="text-sm">Change the crop year above or record a usage</p></div>
+              <div className="text-center py-16 text-gray-400"><Droplets className="w-10 h-10 mx-auto mb-3 opacity-30" /><p className="font-medium">No usage records match filters</p><p className="text-sm">Try adjusting the filters or crop year above</p></div>
             ) : (
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <table className="w-full text-sm">
@@ -1393,6 +1505,79 @@ export default function FuelEnergyPage() {
         />
       )}
 
+      {/* ── DELIVERY DETAIL DIALOG ── */}
+      <Dialog open={!!viewDelivery} onOpenChange={v => { if (!v) setViewDelivery(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Delivery Details</DialogTitle></DialogHeader>
+          {viewDelivery && (() => {
+            const vTank = tanks.find(t => t.id === viewDelivery.tankId);
+            return (
+              <div className="space-y-3 py-2 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-gray-400">Date</p><p className="font-medium">{fmtDate(String(viewDelivery.deliveryDate ?? ""))}</p></div>
+                  <div><p className="text-xs text-gray-400">Tank</p><p className="font-medium">{vTank ? String(vTank.name) : "—"}</p></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-gray-400">Fuel type</p><p className="font-medium">{FUEL_TYPE_LABELS[String(viewDelivery.fuelType)] ?? String(viewDelivery.fuelType)}</p></div>
+                  <div><p className="text-xs text-gray-400">Quantity</p><p className="font-medium text-green-700">{fmtL(viewDelivery.quantityLitres as string)}</p></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-gray-400">Unit price</p><p className="font-medium">{viewDelivery.unitPricePence ? `${Number(viewDelivery.unitPricePence)}p/L` : "—"}</p></div>
+                  <div><p className="text-xs text-gray-400">Total cost</p><p className="font-medium">{fmtCost(viewDelivery.totalCostPence as number)}</p></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-gray-400">Supplier</p><p className="font-medium">{String(viewDelivery.supplierName ?? "—")}</p></div>
+                  <div><p className="text-xs text-gray-400">Driver</p><p className="font-medium">{String(viewDelivery.driverName ?? "—")}</p></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-gray-400">Delivery note no.</p><p className="font-medium">{String(viewDelivery.deliveryNoteNumber ?? "—")}</p></div>
+                  <div><p className="text-xs text-gray-400">Invoice ref</p><p className="font-medium">{String(viewDelivery.invoiceReference ?? "—")}</p></div>
+                </div>
+                <div><p className="text-xs text-gray-400">Qualifying use</p><p className="font-medium capitalize">{String(viewDelivery.qualifyingUse ?? "agriculture").replace(/_/g, " ")}</p></div>
+                {viewDelivery.notes && <div><p className="text-xs text-gray-400">Notes</p><p className="font-medium">{String(viewDelivery.notes)}</p></div>}
+                {viewDelivery.documentUrl ? (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs text-gray-400 mb-1">Attached document</p>
+                    <a href={`/api/storage${String(viewDelivery.documentUrl)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-700 font-medium text-sm hover:underline">
+                      <Paperclip className="w-4 h-4 flex-shrink-0" />View delivery note / document<ExternalLink className="w-3 h-3 ml-auto" />
+                    </a>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-gray-50 border border-dashed border-gray-200 rounded-lg text-center">
+                    <Paperclip className="w-4 h-4 text-gray-300 mx-auto mb-1" />
+                    <p className="text-xs text-gray-400">No document attached — edit this delivery to upload a scan</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewDelivery(null)}>Close</Button>
+            <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
+              if (!viewDelivery) return;
+              setEditDelivery(viewDelivery);
+              const deliveryDateStr = viewDelivery.deliveryDate ? new Date(String(viewDelivery.deliveryDate)).toISOString().substring(0, 10) : "";
+              setDeliveryForm({
+                deliveryDate: deliveryDateStr,
+                tankId: String(viewDelivery.tankId ?? ""),
+                fuelType: String(viewDelivery.fuelType ?? "red_diesel"),
+                quantityLitres: String(viewDelivery.quantityLitres ?? ""),
+                supplierName: String(viewDelivery.supplierName ?? ""),
+                deliveryNoteNumber: String(viewDelivery.deliveryNoteNumber ?? ""),
+                invoiceReference: String(viewDelivery.invoiceReference ?? ""),
+                unitPricePence: String(viewDelivery.unitPricePence ?? ""),
+                qualifyingUse: String(viewDelivery.qualifyingUse ?? "agriculture"),
+                driverName: String(viewDelivery.driverName ?? ""),
+                documentUrl: String(viewDelivery.documentUrl ?? ""),
+                notes: String(viewDelivery.notes ?? ""),
+              });
+              setViewDelivery(null);
+              setShowDeliveryDialog(true);
+            }}>Edit Delivery</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── TANK DIALOG ── */}
       <Dialog open={showTankDialog} onOpenChange={setShowTankDialog}>
         <DialogContent className="max-w-lg">
@@ -1448,10 +1633,10 @@ export default function FuelEnergyPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── DELIVERY DIALOG ── */}
-      <Dialog open={showDeliveryDialog} onOpenChange={setShowDeliveryDialog}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Log Fuel Delivery</DialogTitle></DialogHeader>
+      {/* ── DELIVERY DIALOG (add + edit) ── */}
+      <Dialog open={showDeliveryDialog} onOpenChange={v => { setShowDeliveryDialog(v); if (!v) setEditDelivery(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editDelivery ? "Edit Fuel Delivery" : "Log Fuel Delivery"}</DialogTitle></DialogHeader>
           <div className="grid gap-3 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Date *</Label><Input type="date" value={deliveryForm.deliveryDate ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, deliveryDate: e.target.value }))} /></div>
@@ -1471,7 +1656,20 @@ export default function FuelEnergyPage() {
               </div>
               <div><Label>Quantity (litres) *</Label><Input type="number" value={deliveryForm.quantityLitres ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, quantityLitres: e.target.value }))} placeholder="5000" /></div>
             </div>
-            <div><Label>Supplier</Label><Input value={deliveryForm.supplierName ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, supplierName: e.target.value }))} /></div>
+            <div>
+              <Label>Supplier</Label>
+              <Input
+                list="supplier-suggestions"
+                value={deliveryForm.supplierName ?? ""}
+                onChange={e => setDeliveryForm(f => ({ ...f, supplierName: e.target.value }))}
+                placeholder={uniqueSupplierNames.length ? "Type or choose from previous…" : "e.g. Certas Energy, Crown Oil"}
+              />
+              {uniqueSupplierNames.length > 0 && (
+                <datalist id="supplier-suggestions">
+                  {uniqueSupplierNames.map(n => <option key={n} value={n} />)}
+                </datalist>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Delivery note no.</Label><Input value={deliveryForm.deliveryNoteNumber ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, deliveryNoteNumber: e.target.value }))} /></div>
               <div><Label>Invoice ref</Label><Input value={deliveryForm.invoiceReference ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, invoiceReference: e.target.value }))} /></div>
@@ -1486,15 +1684,42 @@ export default function FuelEnergyPage() {
               </div>
             </div>
             <div><Label>Driver</Label><Input value={deliveryForm.driverName ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, driverName: e.target.value }))} /></div>
+            <div>
+              <Label>Delivery note / document</Label>
+              {deliveryForm.documentUrl ? (
+                <div className="flex items-center gap-2 mt-1 p-2 bg-green-50 border border-green-200 rounded-lg">
+                  <Paperclip className="w-4 h-4 text-green-700 flex-shrink-0" />
+                  <a href={`/api/storage${deliveryForm.documentUrl}`} target="_blank" rel="noopener noreferrer" className="text-sm text-green-700 underline truncate flex-1">View attached document</a>
+                  <Button size="sm" variant="ghost" className="h-6 px-1 text-gray-400" onClick={() => setDeliveryForm(f => ({ ...f, documentUrl: "" }))}><XIcon className="w-3 h-3" /></Button>
+                </div>
+              ) : (
+                <div className="mt-1">
+                  <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:border-green-400 hover:bg-green-50 transition-colors">
+                    <Paperclip className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-500">{isDocUploading ? "Uploading…" : "Attach delivery note or invoice scan"}</span>
+                    <input type="file" className="hidden" accept="image/*,application/pdf" disabled={isDocUploading} onChange={async e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const result = await uploadFile(file);
+                      if (result) setDeliveryForm(f => ({ ...f, documentUrl: result.objectPath }));
+                    }} />
+                  </label>
+                </div>
+              )}
+            </div>
             <div><Label>Notes</Label><Textarea value={deliveryForm.notes ?? ""} onChange={e => setDeliveryForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeliveryDialog(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowDeliveryDialog(false); setEditDelivery(null); }}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
               if (!deliveryForm.deliveryDate || !deliveryForm.quantityLitres) { toast({ title: "Date and quantity required", variant: "destructive" }); return; }
               const totalCostPence = deliveryForm.unitPricePence && deliveryForm.quantityLitres ? Math.round(parseFloat(deliveryForm.unitPricePence) * parseFloat(deliveryForm.quantityLitres)) : undefined;
-              deliveryMut.mutate({ ...deliveryForm, totalCostPence });
-            }}>Log Delivery</Button>
+              if (editDelivery) {
+                editDeliveryMut.mutate({ ...deliveryForm, totalCostPence });
+              } else {
+                deliveryMut.mutate({ ...deliveryForm, totalCostPence });
+              }
+            }}>{editDelivery ? "Save Changes" : "Log Delivery"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

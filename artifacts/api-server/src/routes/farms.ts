@@ -11740,6 +11740,17 @@ router.post("/farms/:farmId/fuel/deliveries", requireAuth, requireTenant, requir
   res.status(201).json({ record });
 });
 
+router.put("/farms/:farmId/fuel/deliveries/:recordId", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { farmId: _f, id: _i, createdAt: _c, ...updates } = req.body;
+  const [record] = await db.update(fuelDeliveriesTable).set(updates).where(and(eq(fuelDeliveriesTable.id, recordId), eq(fuelDeliveriesTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
 router.delete("/farms/:farmId/fuel/deliveries/:recordId", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
