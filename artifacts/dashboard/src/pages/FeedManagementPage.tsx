@@ -13,10 +13,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import {
   Plus, AlertTriangle, Package, Truck, ShieldCheck, Info, Trash2,
-  Edit2, MapPin, Clock, Phone, CheckCircle2, XCircle, AlertCircle
+  Edit2, MapPin, Clock, Phone, CheckCircle2, XCircle, AlertCircle,
+  GitBranch, Search, ChevronDown, ChevronRight, ArrowDown, ArrowUp
 } from "lucide-react";
 
-type Tab = "deliveries" | "stock";
+type Tab = "deliveries" | "stock" | "trace";
 type StockFilter = "all" | "low" | "out" | "awaiting";
 
 const FEED_TYPES = [
@@ -139,6 +140,21 @@ export default function FeedManagementPage() {
     qc.invalidateQueries({ queryKey: ["feed-stock", farmId] });
     qc.invalidateQueries({ queryKey: ["purchase-orders", farmId] });
   };
+
+  const [traceBinId, setTraceBinId] = useState<number | null>(null);
+  const traceQ = useQuery({
+    queryKey: ["feed-bin-trace", farmId, traceBinId],
+    queryFn: () => fetch(`/api/farms/${farmId}/feed-stock/${traceBinId}/trace`).then(r => r.json()),
+    enabled: !!farmId && !!traceBinId,
+  });
+
+  const [batchSearch, setBatchSearch] = useState("");
+  const [batchQuery, setBatchQuery] = useState("");
+  const batchTraceQ = useQuery({
+    queryKey: ["feed-batch-trace", farmId, batchQuery],
+    queryFn: () => fetch(`/api/farms/${farmId}/feed-batch-trace?batch=${encodeURIComponent(batchQuery)}`).then(r => r.json()),
+    enabled: !!farmId && batchQuery.length >= 2,
+  });
 
   // Feed delivery dialog
   const [showDeliveryDialog, setShowDeliveryDialog] = useState(false);
@@ -333,6 +349,7 @@ export default function FeedManagementPage() {
         <TabBar className="mb-6">
           <TabButton active={tab === "stock"} onClick={() => setTab("stock")}>Feed Stock ({stock.length})</TabButton>
           <TabButton active={tab === "deliveries"} onClick={() => setTab("deliveries")}>Delivery Records / GRN ({deliveries.length})</TabButton>
+          <TabButton active={tab === "trace"} onClick={() => setTab("trace")}><GitBranch className="w-3.5 h-3.5 mr-1 inline" />Batch Trace</TabButton>
         </TabBar>
 
         {/* ── STOCK TAB ── */}
@@ -406,6 +423,7 @@ export default function FeedManagementPage() {
                               </div>
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <StatusBadge status={status} />
+                                <Button size="sm" variant="ghost" onClick={() => setTraceBinId(Number(s.id))} className="h-7 px-2 text-blue-600" title="View traceability ledger"><GitBranch className="w-3 h-3" /></Button>
                                 <Button size="sm" variant="ghost" onClick={() => openStockEdit(s)} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
                                 <Button size="sm" variant="ghost" onClick={() => delStockMut.mutate(Number(s.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
                               </div>
@@ -712,6 +730,237 @@ export default function FeedManagementPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── BATCH TRACE TAB ── */}
+      {tab === "trace" && (
+        <div>
+          <div className="mb-5">
+            <h3 className="font-semibold text-gray-800 mb-1">Batch Recall Trace</h3>
+            <p className="text-xs text-gray-500 mb-4">Enter a batch or lot number to trace it from supplier delivery through to the herds it was fed to. Essential for APHA recall responses.</p>
+            <div className="flex gap-2 max-w-lg">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  className="pl-9"
+                  placeholder="Batch or lot number…"
+                  value={batchSearch}
+                  onChange={e => setBatchSearch(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") setBatchQuery(batchSearch.trim()); }}
+                />
+              </div>
+              <Button onClick={() => setBatchQuery(batchSearch.trim())} className="bg-green-800 hover:bg-green-900 text-white">
+                Trace
+              </Button>
+            </div>
+          </div>
+
+          {batchQuery.length >= 2 && (
+            batchTraceQ.isLoading ? (
+              <div className="py-10 text-center text-gray-400 text-sm">Searching…</div>
+            ) : (
+              <div className="space-y-6">
+                {/* Deliveries found */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                    <ArrowDown className="w-4 h-4 text-green-700" />
+                    Deliveries matching "{batchQuery}"
+                    <span className="font-normal text-gray-400">({(batchTraceQ.data?.deliveries ?? []).length} found)</span>
+                  </h4>
+                  {(batchTraceQ.data?.deliveries ?? []).length === 0 ? (
+                    <p className="text-sm text-gray-400 pl-6">No deliveries found with this batch / lot number.</p>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            {["Date", "Supplier", "Product", "Batch", "Lot", "Qty", "Storage Bin", "Medicated"].map(h => (
+                              <th key={h} className="text-left px-3 py-2.5 font-medium text-gray-500">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {(batchTraceQ.data?.deliveries ?? []).map((d: any) => (
+                            <tr key={d.id} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 font-mono">{fmtDate(d.deliveryDate)}</td>
+                              <td className="px-3 py-2">{d.supplierName}</td>
+                              <td className="px-3 py-2">{d.productName || d.feedType}</td>
+                              <td className="px-3 py-2 font-mono font-semibold">{d.batchNumber || "—"}</td>
+                              <td className="px-3 py-2 font-mono">{d.lotNumber || "—"}</td>
+                              <td className="px-3 py-2 font-medium">{fmtKg(d.quantityKg)}</td>
+                              <td className="px-3 py-2">{d.bin ? `${d.bin.productName || "Bin"} — ${d.bin.storageLocation || "—"}` : <span className="text-gray-300">Not linked</span>}</td>
+                              <td className="px-3 py-2">{d.medicatedFeed ? <Badge variant="destructive" className="text-xs">YES</Badge> : <span className="text-gray-300">No</span>}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Usage / feeding events found */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                    <ArrowUp className="w-4 h-4 text-orange-600" />
+                    Feeding events matching "{batchQuery}"
+                    <span className="font-normal text-gray-400">({(batchTraceQ.data?.usage ?? []).length} found)</span>
+                  </h4>
+                  {(batchTraceQ.data?.usage ?? []).length === 0 ? (
+                    <p className="text-sm text-gray-400 pl-6">No feeding events recorded with this batch number.</p>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            {["Date Fed", "Herd / Group", "Qty Fed", "Source Bin", "Batch"].map(h => (
+                              <th key={h} className="text-left px-3 py-2.5 font-medium text-gray-500">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {(batchTraceQ.data?.usage ?? []).map((u: any) => (
+                            <tr key={u.id} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 font-mono">{fmtDate(u.feedDate)}</td>
+                              <td className="px-3 py-2 font-medium">{u.herdName || <span className="text-gray-300">—</span>}</td>
+                              <td className="px-3 py-2">{fmtKg(u.quantityKg)}</td>
+                              <td className="px-3 py-2">{u.bin ? `${u.bin.productName || "Bin"} — ${u.bin.storageLocation || "—"}` : <span className="text-gray-300">Not linked</span>}</td>
+                              <td className="px-3 py-2 font-mono">{u.batchNumber || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {(batchTraceQ.data?.deliveries ?? []).length === 0 && (batchTraceQ.data?.usage ?? []).length === 0 && (
+                  <div className="text-center py-12 text-gray-400">
+                    <GitBranch className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">No records found for "{batchQuery}"</p>
+                    <p className="text-sm">Check the batch number and try again.</p>
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
+          {batchQuery.length < 2 && (
+            <div className="text-center py-16 text-gray-400">
+              <GitBranch className="w-12 h-12 mx-auto mb-3 opacity-20" />
+              <p className="font-medium text-gray-500">Enter a batch or lot number to begin</p>
+              <p className="text-sm mt-1">Enter at least 2 characters to search across all delivery and feeding records</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── BIN TRACE DIALOG ── */}
+      {traceBinId !== null && (
+        <Dialog open onOpenChange={o => { if (!o) setTraceBinId(null); }}>
+          <DialogContent style={{ maxWidth: "54rem" }}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <GitBranch className="w-4 h-4 text-blue-600" />
+                {traceQ.data?.bin ? `${traceQ.data.bin.productName || traceQ.data.bin.feedType} — ${traceQ.data.bin.storageLocation || "no location"}` : "Bin Ledger"}
+              </DialogTitle>
+            </DialogHeader>
+
+            {traceQ.isLoading ? (
+              <div className="py-10 text-center text-gray-400 text-sm">Loading ledger…</div>
+            ) : (
+              <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
+                {/* Summary */}
+                {traceQ.data?.bin && (
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "Total IN", value: fmtKg((traceQ.data.deliveries ?? []).reduce((s: number, d: any) => s + parseFloat(d.quantityKg ?? 0), 0)), color: "text-green-700" },
+                      { label: "Total OUT", value: fmtKg((traceQ.data.usage ?? []).reduce((s: number, u: any) => s + parseFloat(u.quantityKg ?? 0), 0)), color: "text-orange-600" },
+                      { label: "Current Stock", value: fmtKg(traceQ.data.bin.currentStockKg), color: "text-gray-800" },
+                    ].map(card => (
+                      <div key={card.label} className="bg-gray-50 rounded-lg p-3 text-center">
+                        <p className="text-xs text-gray-500 mb-1">{card.label}</p>
+                        <p className={`text-lg font-bold ${card.color}`}>{card.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Deliveries IN */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <ArrowDown className="w-3.5 h-3.5 text-green-600" /> Deliveries IN ({(traceQ.data?.deliveries ?? []).length})
+                  </h4>
+                  {(traceQ.data?.deliveries ?? []).length === 0 ? (
+                    <p className="text-sm text-gray-400 pl-5">No deliveries linked to this bin yet.</p>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-green-50">
+                          <tr>
+                            {["Date", "Supplier", "Batch No.", "Lot No.", "Qty IN", "Del. Note", "Medicated"].map(h => (
+                              <th key={h} className="text-left px-3 py-2 font-medium text-green-800">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {(traceQ.data?.deliveries ?? []).map((d: any) => (
+                            <tr key={d.id} className="hover:bg-green-50/50">
+                              <td className="px-3 py-2 font-mono">{fmtDate(d.deliveryDate)}</td>
+                              <td className="px-3 py-2">{d.supplierName}</td>
+                              <td className="px-3 py-2 font-mono font-semibold">{d.batchNumber || "—"}</td>
+                              <td className="px-3 py-2 font-mono">{d.lotNumber || "—"}</td>
+                              <td className="px-3 py-2 font-medium text-green-700">+{fmtKg(d.quantityKg)}</td>
+                              <td className="px-3 py-2 font-mono">{d.deliveryNoteNumber || "—"}</td>
+                              <td className="px-3 py-2">{d.medicatedFeed ? <Badge variant="destructive" className="text-xs">YES</Badge> : "No"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Usage OUT */}
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <ArrowUp className="w-3.5 h-3.5 text-orange-600" /> Feeding Events OUT ({(traceQ.data?.usage ?? []).length})
+                  </h4>
+                  {(traceQ.data?.usage ?? []).length === 0 ? (
+                    <p className="text-sm text-gray-400 pl-5">No feeding events linked to this bin yet. Record feed usage in Livestock → Feed Records.</p>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-orange-50">
+                          <tr>
+                            {["Date Fed", "Herd / Group", "Qty OUT", "Batch", "Notes"].map(h => (
+                              <th key={h} className="text-left px-3 py-2 font-medium text-orange-800">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {(traceQ.data?.usage ?? []).map((u: any) => (
+                            <tr key={u.id} className="hover:bg-orange-50/50">
+                              <td className="px-3 py-2 font-mono">{fmtDate(u.feedDate)}</td>
+                              <td className="px-3 py-2 font-medium">{u.herdName || <span className="text-gray-400">No herd linked</span>}</td>
+                              <td className="px-3 py-2 font-medium text-orange-700">-{fmtKg(u.quantityKg)}</td>
+                              <td className="px-3 py-2 font-mono">{u.batchNumber || "—"}</td>
+                              <td className="px-3 py-2 text-gray-500">{u.notes || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setTraceBinId(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
     </AppLayout>
   );
 }

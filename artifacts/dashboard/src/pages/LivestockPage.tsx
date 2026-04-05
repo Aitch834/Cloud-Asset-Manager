@@ -125,6 +125,8 @@ interface FeedRecord {
   quantityKg: string | null;
   feedDate: string;
   notes: string | null;
+  feedStockItemId: number | null;
+  deliveryId: number | null;
   createdAt: string;
 }
 
@@ -1615,6 +1617,7 @@ const FEED_TYPE_LABELS: Record<string, string> = {
 const EMPTY_FEED = {
   feedType: "", supplier: "", batchNumber: "", quantityKg: "",
   feedDate: new Date().toISOString().slice(0, 10), notes: "",
+  herdId: "", feedStockItemId: "", deliveryId: "",
 };
 
 function FallenStockContractorsSection({ farmId }: { farmId: number }) {
@@ -1783,11 +1786,30 @@ function FallenStockContractorsSection({ farmId }: { farmId: number }) {
 function FeedSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const base = `/api/farms/${farmId}/feed-records`;
+
   const { data, isLoading } = useQuery<{ records: FeedRecord[] }>({
     queryKey: ["feed-records", farmId],
     queryFn: () => fetch(base).then(r => r.json()),
   });
   const records = data?.records ?? [];
+
+  const { data: herdsData } = useQuery<{ records: any[] }>({
+    queryKey: ["herds", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()),
+  });
+  const herds: any[] = herdsData?.records ?? [];
+
+  const { data: feedBinsData } = useQuery<{ records: any[] }>({
+    queryKey: ["feed-stock", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/feed-stock`).then(r => r.json()),
+  });
+  const feedBins: any[] = feedBinsData?.records ?? [];
+
+  const { data: deliveriesData } = useQuery<{ records: any[] }>({
+    queryKey: ["feed-deliveries", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/feed-deliveries`).then(r => r.json()),
+  });
+  const allDeliveries: any[] = deliveriesData?.records ?? [];
 
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -1797,26 +1819,77 @@ function FeedSection({ farmId }: { farmId: number }) {
 
   function setField(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
+  const binDeliveries = form.feedStockItemId
+    ? allDeliveries.filter((d: any) => String(d.feedStockItemId) === String(form.feedStockItemId))
+    : allDeliveries;
+
+  const herdMap = Object.fromEntries(herds.map((h: any) => [h.id, h.name]));
+  const binMap = Object.fromEntries(feedBins.map((b: any) => [b.id, b]));
+
   const createMut = useMutation({
-    mutationFn: (body: typeof EMPTY_FEED) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-records", farmId] }); setShowForm(false); setForm(EMPTY_FEED); },
+    mutationFn: (body: typeof EMPTY_FEED) => {
+      const payload: any = { ...body };
+      if (!payload.feedStockItemId) delete payload.feedStockItemId; else payload.feedStockItemId = Number(payload.feedStockItemId);
+      if (!payload.deliveryId) delete payload.deliveryId; else payload.deliveryId = Number(payload.deliveryId);
+      if (!payload.herdId) delete payload.herdId; else payload.herdId = Number(payload.herdId);
+      return fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-records", farmId] }); qc.invalidateQueries({ queryKey: ["feed-stock", farmId] }); setShowForm(false); setForm(EMPTY_FEED); },
   });
   const updateMut = useMutation({
-    mutationFn: (body: typeof EMPTY_FEED & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-records", farmId] }); setEditing(null); setShowForm(false); setForm(EMPTY_FEED); },
+    mutationFn: (body: typeof EMPTY_FEED & { id: number }) => {
+      const payload: any = { ...body };
+      if (!payload.feedStockItemId) delete payload.feedStockItemId; else payload.feedStockItemId = Number(payload.feedStockItemId);
+      if (!payload.deliveryId) delete payload.deliveryId; else payload.deliveryId = Number(payload.deliveryId);
+      if (!payload.herdId) delete payload.herdId; else payload.herdId = Number(payload.herdId);
+      return fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(r => r.json());
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-records", farmId] }); qc.invalidateQueries({ queryKey: ["feed-stock", farmId] }); setEditing(null); setShowForm(false); setForm(EMPTY_FEED); },
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-records", farmId] }); setDeleteId(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-records", farmId] }); qc.invalidateQueries({ queryKey: ["feed-stock", farmId] }); setDeleteId(null); },
   });
 
   function openEdit(r: FeedRecord) {
     setEditing(r);
     setForm({
-      feedType: r.feedType, supplier: r.supplier ?? "", batchNumber: r.batchNumber ?? "",
-      quantityKg: r.quantityKg ?? "", feedDate: r.feedDate?.slice(0, 10) ?? "", notes: r.notes ?? "",
+      feedType: r.feedType,
+      supplier: r.supplier ?? "",
+      batchNumber: r.batchNumber ?? "",
+      quantityKg: r.quantityKg ?? "",
+      feedDate: r.feedDate?.slice(0, 10) ?? "",
+      notes: r.notes ?? "",
+      herdId: r.herdId ? String(r.herdId) : "",
+      feedStockItemId: r.feedStockItemId ? String(r.feedStockItemId) : "",
+      deliveryId: r.deliveryId ? String(r.deliveryId) : "",
     });
     setShowForm(true);
+  }
+
+  function handleBinSelect(binId: string) {
+    if (binId === "__none__") {
+      setForm(f => ({ ...f, feedStockItemId: "", deliveryId: "" }));
+      return;
+    }
+    const bin = feedBins.find((b: any) => String(b.id) === binId);
+    setForm(f => ({
+      ...f,
+      feedStockItemId: binId,
+      deliveryId: "",
+      feedType: bin?.feedType ?? f.feedType,
+    }));
+  }
+
+  function handleDeliverySelect(delivId: string) {
+    if (delivId === "__none__") { setForm(f => ({ ...f, deliveryId: "" })); return; }
+    const d = allDeliveries.find((x: any) => String(x.id) === delivId);
+    setForm(f => ({
+      ...f,
+      deliveryId: delivId,
+      supplier: d?.supplierName ?? f.supplier,
+      batchNumber: d?.batchNumber ?? d?.lotNumber ?? f.batchNumber,
+    }));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -1844,7 +1917,7 @@ function FeedSection({ farmId }: { farmId: number }) {
       </div>
 
       <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
-        <strong>Traceability requirement:</strong> Record all feed deliveries with supplier name and batch/lot number. Retain purchase invoices and delivery notes for 3 years.
+        <strong>Traceability requirement:</strong> Link each feeding event to a source bin and delivery batch. This creates a full audit chain from supplier → bin → herd. Retain invoices and delivery notes for 3 years.
       </div>
 
       {isLoading ? (
@@ -1852,7 +1925,7 @@ function FeedSection({ farmId }: { farmId: number }) {
       ) : filtered.length === 0 ? (
         <Card><CardContent className="py-16 text-center">
           <Package className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">{search ? "No matching records." : "No feed records yet. Add your first delivery."}</p>
+          <p className="text-muted-foreground">{search ? "No matching records." : "No feed records yet. Add the first feeding event."}</p>
         </CardContent></Card>
       ) : (
         <div className="border rounded-lg overflow-hidden">
@@ -1860,29 +1933,34 @@ function FeedSection({ farmId }: { farmId: number }) {
             <thead className="bg-muted/50">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Date</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Herd</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Feed Type</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Supplier</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Source Bin</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Batch No.</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Qty (kg)</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filtered.map(r => (
-                <tr key={r.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs">{formatDate(r.feedDate)}</td>
-                  <td className="px-4 py-3 font-medium">{FEED_TYPE_LABELS[r.feedType] ?? r.feedType}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{r.supplier || "—"}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{r.batchNumber || "—"}</td>
-                  <td className="px-4 py-3 font-medium">{r.quantityKg ? `${Number(r.quantityKg).toLocaleString()} kg` : "—"}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map(r => {
+                const bin = r.feedStockItemId ? binMap[r.feedStockItemId] : null;
+                return (
+                  <tr key={r.id} className="hover:bg-muted/30">
+                    <td className="px-4 py-3 font-mono text-xs">{formatDate(r.feedDate)}</td>
+                    <td className="px-4 py-3 text-sm">{r.herdId ? (herdMap[r.herdId] ?? `Herd ${r.herdId}`) : <span className="text-muted-foreground">—</span>}</td>
+                    <td className="px-4 py-3 font-medium">{FEED_TYPE_LABELS[r.feedType] ?? r.feedType}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{bin ? (bin.productName || bin.feedType) + (bin.storageLocation ? ` — ${bin.storageLocation}` : "") : <span>—</span>}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{r.batchNumber || "—"}</td>
+                    <td className="px-4 py-3 font-medium">{r.quantityKg ? `${Number(r.quantityKg).toLocaleString()} kg` : "—"}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1890,14 +1968,61 @@ function FeedSection({ farmId }: { farmId: number }) {
 
       {showForm && (
         <Dialog open onOpenChange={o => { if (!o) { setShowForm(false); setEditing(null); } }}>
-          <DialogContent style={{ maxWidth: "38rem" }}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
             <DialogHeader>
-              <DialogTitle>{editing ? "Edit Feed Record" : "Add Feed Record"}</DialogTitle>
-              <DialogDescription>Record feed deliveries with supplier and batch number for traceability.</DialogDescription>
+              <DialogTitle>{editing ? "Edit Feed Record" : "Record Feeding Event"}</DialogTitle>
+              <DialogDescription>Link to a source bin and delivery batch to build the full traceability chain.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+                <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide">Traceability Links</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                  <div>
+                    <Label className="text-xs">Source Bin</Label>
+                    <Select value={form.feedStockItemId || "__none__"} onValueChange={handleBinSelect}>
+                      <SelectTrigger className="text-xs"><SelectValue placeholder="Select feed bin…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not linked</SelectItem>
+                        {feedBins.map((b: any) => (
+                          <SelectItem key={b.id} value={String(b.id)}>
+                            {b.productName || FEED_TYPE_LABELS[b.feedType] || b.feedType}{b.storageLocation ? ` — ${b.storageLocation}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Delivery Batch</Label>
+                    <Select value={form.deliveryId || "__none__"} onValueChange={handleDeliverySelect}>
+                      <SelectTrigger className="text-xs"><SelectValue placeholder="Select delivery…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not linked</SelectItem>
+                        {binDeliveries.map((d: any) => (
+                          <SelectItem key={d.id} value={String(d.id)}>
+                            {d.deliveryDate?.slice(0, 10)} — {d.batchNumber || d.lotNumber || "no batch"} — {d.supplierName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div><Label>Feed Type *</Label>
+                <div>
+                  <Label>Herd / Group</Label>
+                  <Select value={form.herdId || "__none__"} onValueChange={v => setField("herdId", v === "__none__" ? "" : v)}>
+                    <SelectTrigger><SelectValue placeholder="Select herd…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not specified</SelectItem>
+                      {herds.map((h: any) => <SelectItem key={h.id} value={String(h.id)}>{h.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Feed Date *</Label><Input type="date" value={form.feedDate} onChange={e => setField("feedDate", e.target.value)} required /></div>
+                <div>
+                  <Label>Feed Type *</Label>
                   <Select value={form.feedType || undefined} onValueChange={v => setField("feedType", v)}>
                     <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                     <SelectContent>
@@ -1905,12 +2030,11 @@ function FeedSection({ farmId }: { farmId: number }) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Feed Date *</Label><Input type="date" value={form.feedDate} onChange={e => setField("feedDate", e.target.value)} required /></div>
-                <div><Label>Supplier</Label><Input value={form.supplier} onChange={e => setField("supplier", e.target.value)} placeholder="Supplier name" /></div>
-                <div><Label>Batch / Lot Number</Label><Input value={form.batchNumber} onChange={e => setField("batchNumber", e.target.value)} placeholder="As on delivery note" /></div>
-                <div><Label>Quantity (kg)</Label><Input type="number" value={form.quantityKg} onChange={e => setField("quantityKg", e.target.value)} placeholder="e.g. 500" min="0" /></div>
+                <div><Label>Quantity (kg)</Label><Input type="number" value={form.quantityKg} onChange={e => setField("quantityKg", e.target.value)} placeholder="e.g. 500" min="0" step="0.1" /></div>
+                <div><Label>Supplier</Label><Input value={form.supplier} onChange={e => setField("supplier", e.target.value)} placeholder="Auto-filled from delivery" /></div>
+                <div><Label>Batch / Lot Number</Label><Input value={form.batchNumber} onChange={e => setField("batchNumber", e.target.value)} placeholder="Auto-filled from delivery" /></div>
               </div>
-              <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Ration changes, refusals, etc." rows={2} /></div>
+              <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setField("notes", e.target.value)} placeholder="Ration changes, refusals, withdrawal periods, etc." rows={2} /></div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
                 <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
@@ -1925,7 +2049,7 @@ function FeedSection({ farmId }: { farmId: number }) {
       {deleteId !== null && (
         <Dialog open onOpenChange={o => { if (!o) setDeleteId(null); }}>
           <DialogContent className="max-w-sm">
-            <DialogHeader><DialogTitle>Delete Feed Record?</DialogTitle><DialogDescription>This cannot be undone.</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>Delete Feed Record?</DialogTitle><DialogDescription>This will also restore the consumed quantity to the source bin. This cannot be undone.</DialogDescription></DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
               <Button variant="destructive" onClick={() => deleteMut.mutate(deleteId!)} disabled={deleteMut.isPending}>

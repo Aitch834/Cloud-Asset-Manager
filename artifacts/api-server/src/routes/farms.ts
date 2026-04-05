@@ -1989,6 +1989,9 @@ router.post("/farms/:farmId/feed-records", requireAuth, requireTenant, requireMo
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(livestockFeedRecordsTable).values({ ...req.body, farmId }).returning();
+  if (record.feedStockItemId && record.quantityKg) {
+    await adjustFeedStockForConsumption(farmId, record.feedStockItemId, -Number(record.quantityKg));
+  }
   res.status(201).json({ record });
 });
 
@@ -3088,6 +3091,16 @@ async function recalcFeedStockForPO(farmId: number, poId: number): Promise<void>
   await Promise.all(ids.map(id => recalcFeedStockAwaiting(farmId, id)));
 }
 
+async function adjustFeedStockForConsumption(farmId: number, feedStockItemId: number, deltaKg: number): Promise<void> {
+  try {
+    await db.update(feedStockLevelsTable)
+      .set({ currentStockKg: sql`GREATEST(0, ${feedStockLevelsTable.currentStockKg} + ${deltaKg})`, lastUpdated: new Date() })
+      .where(and(eq(feedStockLevelsTable.id, feedStockItemId), eq(feedStockLevelsTable.farmId, farmId)));
+  } catch (err) {
+    console.error("[FEED STOCK] adjustFeedStockForConsumption failed:", err);
+  }
+}
+
 // ─── Purchase Orders ────────────────────────────────
 router.get("/farms/:farmId/purchase-orders", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -3633,8 +3646,16 @@ router.put("/farms/:farmId/feed-records/:recordId", requireAuth, requireTenant, 
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [old] = await db.select().from(livestockFeedRecordsTable).where(and(eq(livestockFeedRecordsTable.id, recordId), eq(livestockFeedRecordsTable.farmId, farmId))).limit(1);
+  if (!old) { res.status(404).json({ error: "Not found" }); return; }
   const [record] = await db.update(livestockFeedRecordsTable).set(req.body).where(and(eq(livestockFeedRecordsTable.id, recordId), eq(livestockFeedRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  const oldBin = old.feedStockItemId;
+  const newBin = record.feedStockItemId;
+  const oldQty = Number(old.quantityKg ?? 0);
+  const newQty = Number(record.quantityKg ?? 0);
+  if (oldBin && oldQty) await adjustFeedStockForConsumption(farmId, oldBin, oldQty);
+  if (newBin && newQty) await adjustFeedStockForConsumption(farmId, newBin, -newQty);
   res.json({ record });
 });
 
@@ -3643,7 +3664,9 @@ router.delete("/farms/:farmId/feed-records/:recordId", requireAuth, requireTenan
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [old] = await db.select().from(livestockFeedRecordsTable).where(and(eq(livestockFeedRecordsTable.id, recordId), eq(livestockFeedRecordsTable.farmId, farmId))).limit(1);
   await db.delete(livestockFeedRecordsTable).where(and(eq(livestockFeedRecordsTable.id, recordId), eq(livestockFeedRecordsTable.farmId, farmId)));
+  if (old?.feedStockItemId && old.quantityKg) await adjustFeedStockForConsumption(farmId, old.feedStockItemId, Number(old.quantityKg));
   res.json({ success: true });
 });
 
@@ -12116,6 +12139,86 @@ router.delete("/farms/:farmId/feed-stock/:recordId", requireAuth, requireTenant,
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(feedStockLevelsTable).where(and(eq(feedStockLevelsTable.id, recordId), eq(feedStockLevelsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Feed Stock Traceability ──────────────────────────────
+
+router.get("/farms/:farmId/feed-stock/:binId/trace", requireAuth, requireTenant, requireModuleByKey("feed-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const binId = Number(req.params.binId);
+  if (!binId) { res.status(400).json({ error: "Invalid bin ID" }); return; }
+  const [bin] = await db.select().from(feedStockLevelsTable).where(and(eq(feedStockLevelsTable.id, binId), eq(feedStockLevelsTable.farmId, farmId))).limit(1);
+  if (!bin) { res.status(404).json({ error: "Not found" }); return; }
+  const deliveries = await db.select({
+    id: feedDeliveriesTable.id,
+    deliveryDate: feedDeliveriesTable.deliveryDate,
+    supplierName: feedDeliveriesTable.supplierName,
+    productName: feedDeliveriesTable.productName,
+    quantityKg: feedDeliveriesTable.quantityKg,
+    batchNumber: feedDeliveriesTable.batchNumber,
+    lotNumber: feedDeliveriesTable.lotNumber,
+    deliveryNoteNumber: feedDeliveriesTable.deliveryNoteNumber,
+    invoiceReference: feedDeliveriesTable.invoiceReference,
+    medicatedFeed: feedDeliveriesTable.medicatedFeed,
+  }).from(feedDeliveriesTable).where(and(eq(feedDeliveriesTable.farmId, farmId), eq(feedDeliveriesTable.feedStockItemId, binId))).orderBy(asc(feedDeliveriesTable.deliveryDate));
+  const usageRows = await db.select({
+    id: livestockFeedRecordsTable.id,
+    feedDate: livestockFeedRecordsTable.feedDate,
+    quantityKg: livestockFeedRecordsTable.quantityKg,
+    herdId: livestockFeedRecordsTable.herdId,
+    batchNumber: livestockFeedRecordsTable.batchNumber,
+    notes: livestockFeedRecordsTable.notes,
+    deliveryId: livestockFeedRecordsTable.deliveryId,
+  }).from(livestockFeedRecordsTable).where(and(eq(livestockFeedRecordsTable.farmId, farmId), eq(livestockFeedRecordsTable.feedStockItemId, binId))).orderBy(asc(livestockFeedRecordsTable.feedDate));
+  const herdIds = [...new Set(usageRows.map(r => r.herdId).filter(Boolean) as number[])];
+  const herds = herdIds.length ? await db.select({ id: herdFlockRegisterTable.id, name: herdFlockRegisterTable.name }).from(herdFlockRegisterTable).where(inArray(herdFlockRegisterTable.id, herdIds)) : [];
+  const herdMap = Object.fromEntries(herds.map(h => [h.id, h.name]));
+  const usageWithNames = usageRows.map(r => ({ ...r, herdName: r.herdId ? (herdMap[r.herdId] ?? null) : null }));
+  res.json({ bin, deliveries, usage: usageWithNames });
+});
+
+router.get("/farms/:farmId/feed-batch-trace", requireAuth, requireTenant, requireModuleByKey("feed-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const batch = String(req.query.batch ?? "").trim();
+  if (!batch) { res.status(400).json({ error: "batch param required" }); return; }
+  const deliveries = await db.select({
+    id: feedDeliveriesTable.id,
+    deliveryDate: feedDeliveriesTable.deliveryDate,
+    supplierName: feedDeliveriesTable.supplierName,
+    productName: feedDeliveriesTable.productName,
+    feedType: feedDeliveriesTable.feedType,
+    quantityKg: feedDeliveriesTable.quantityKg,
+    batchNumber: feedDeliveriesTable.batchNumber,
+    lotNumber: feedDeliveriesTable.lotNumber,
+    deliveryNoteNumber: feedDeliveriesTable.deliveryNoteNumber,
+    storageLocation: feedDeliveriesTable.storageLocation,
+    feedStockItemId: feedDeliveriesTable.feedStockItemId,
+    medicatedFeed: feedDeliveriesTable.medicatedFeed,
+    withdrawalPeriodDays: feedDeliveriesTable.withdrawalPeriodDays,
+  }).from(feedDeliveriesTable).where(and(eq(feedDeliveriesTable.farmId, farmId), sql`(${feedDeliveriesTable.batchNumber} ILIKE ${'%' + batch + '%'} OR ${feedDeliveriesTable.lotNumber} ILIKE ${'%' + batch + '%'})`));
+  const usageRows = await db.select({
+    id: livestockFeedRecordsTable.id,
+    feedDate: livestockFeedRecordsTable.feedDate,
+    quantityKg: livestockFeedRecordsTable.quantityKg,
+    herdId: livestockFeedRecordsTable.herdId,
+    batchNumber: livestockFeedRecordsTable.batchNumber,
+    feedStockItemId: livestockFeedRecordsTable.feedStockItemId,
+    deliveryId: livestockFeedRecordsTable.deliveryId,
+    notes: livestockFeedRecordsTable.notes,
+  }).from(livestockFeedRecordsTable).where(and(eq(livestockFeedRecordsTable.farmId, farmId), sql`${livestockFeedRecordsTable.batchNumber} ILIKE ${'%' + batch + '%'}`));
+  const herdIds = [...new Set(usageRows.map(r => r.herdId).filter(Boolean) as number[])];
+  const herds = herdIds.length ? await db.select({ id: herdFlockRegisterTable.id, name: herdFlockRegisterTable.name }).from(herdFlockRegisterTable).where(inArray(herdFlockRegisterTable.id, herdIds)) : [];
+  const herdMap = Object.fromEntries(herds.map(h => [h.id, h.name]));
+  const binIds = [...new Set([...deliveries.map(d => d.feedStockItemId), ...usageRows.map(r => r.feedStockItemId)].filter(Boolean) as number[])];
+  const bins = binIds.length ? await db.select({ id: feedStockLevelsTable.id, productName: feedStockLevelsTable.productName, storageLocation: feedStockLevelsTable.storageLocation }).from(feedStockLevelsTable).where(inArray(feedStockLevelsTable.id, binIds)) : [];
+  const binMap = Object.fromEntries(bins.map(b => [b.id, b]));
+  res.json({
+    batch,
+    deliveries: deliveries.map(d => ({ ...d, bin: d.feedStockItemId ? (binMap[d.feedStockItemId] ?? null) : null })),
+    usage: usageRows.map(r => ({ ...r, herdName: r.herdId ? (herdMap[r.herdId] ?? null) : null, bin: r.feedStockItemId ? (binMap[r.feedStockItemId] ?? null) : null })),
+  });
 });
 
 // Get current user's role/access level on a specific farm

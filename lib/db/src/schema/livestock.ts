@@ -105,6 +105,8 @@ export const livestockFeedRecordsTable = pgTable("livestock_feed_records", {
   quantityKg: numeric("quantity_kg", { precision: 10, scale: 2 }),
   feedDate: timestamp("feed_date", { withTimezone: true }).notNull(),
   notes: text("notes"),
+  feedStockItemId: integer("feed_stock_item_id"),
+  deliveryId: integer("delivery_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
