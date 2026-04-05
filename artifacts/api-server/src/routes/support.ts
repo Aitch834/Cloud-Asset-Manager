@@ -9,7 +9,7 @@ const SYSTEM_PROMPT = `You are a helpful support assistant for BDE Farm Trac, a 
 
 Key product information:
 - Monthly per-farm subscription with module-based pricing
-- Modules include: Red Tractor Compliance, Field & Crop Management, Stock & Supplier Tracking, Equipment & Vehicle Management, Document Management, Financial Records, Weather Tracking, Livestock Management, Nutrient Management, Biosecurity, Staff Training
+- Modules include: Red Tractor Compliance, Field & Crop Management, Stock & Supplier Tracking, Equipment & Vehicle Management, Document Management, Financial Records, Weather Tracking, Livestock Management, Nutrient Management, Biosecurity, Staff Training, Fuel & Energy (HMRC red diesel register, LPG, oil storage inspections, physical stock checks with discrepancy alerts, grid energy meter readings, printable HMRC and Red Tractor compliance reports), Water & Irrigation, Carbon & Sustainability, Farm Diversification, Horticulture, Pig Production, Poultry Production
 - Mobile apps with offline-first capability, GPS field mapping, and photo capture
 - Supports arable and livestock farming (beef, dairy, pig, poultry)
 - UK GDPR compliant
