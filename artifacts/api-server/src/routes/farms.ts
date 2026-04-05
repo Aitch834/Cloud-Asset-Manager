@@ -9044,6 +9044,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     diversInsuranceRows, renewableServiceRows, irrigEquipCalibRows,
     hortiWaterTestRows,
     taskAssignmentRows, fuelDiscrepancyRows,
+    feedStockStatusRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -9249,6 +9250,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .from(fuelStockChecksTable)
       .leftJoin(fuelTanksTable, eq(fuelStockChecksTable.tankId, fuelTanksTable.id))
       .where(and(eq(fuelStockChecksTable.farmId, farmId), lt(fuelStockChecksTable.varianceLitres, "-50"), gte(fuelStockChecksTable.checkDate, overdueStart.toISOString().split("T")[0]))),
+
+    // ── Feed stock: low/out-of-stock and awaiting delivery ──
+    db.select({ id: feedStockLevelsTable.id, productName: feedStockLevelsTable.productName, feedType: feedStockLevelsTable.feedType, storageLocation: feedStockLevelsTable.storageLocation, currentStockKg: feedStockLevelsTable.currentStockKg, reorderThresholdKg: feedStockLevelsTable.reorderThresholdKg, awaitingDelivery: feedStockLevelsTable.awaitingDelivery, expectedDeliveryDate: feedStockLevelsTable.expectedDeliveryDate, supplierName: feedStockLevelsTable.supplierName })
+      .from(feedStockLevelsTable)
+      .where(eq(feedStockLevelsTable.farmId, farmId)),
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -9428,6 +9434,29 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of feedBestBeforeRows) {
     if (!r.bestBeforeDate) continue;
     tasks.push({ id: `feedbb-${r.id}`, type: "feed_best_before", title: `Feed Best Before Date — ${r.productName || r.feedType}`, description: `A batch of ${r.productName || r.feedType} is approaching its best before date. Review usage and dispose of any stock that cannot be used in time. Check in Feed Management.`, dueDate: toISO(r.bestBeforeDate)!, module: "Feed Management", href: "/livestock", colour: "amber" });
+  }
+  for (const r of feedStockStatusRows) {
+    const current = parseFloat(String(r.currentStockKg ?? 0));
+    const reorder = r.reorderThresholdKg ? parseFloat(String(r.reorderThresholdKg)) : null;
+    const name = String(r.productName || r.feedType || "feed");
+    const location = r.storageLocation ? ` at ${r.storageLocation}` : "";
+    const supplier = r.supplierName ? ` Contact: ${String(r.supplierName)}.` : "";
+    if (r.awaitingDelivery) {
+      let dueIso: string;
+      if (r.expectedDeliveryDate) {
+        const d = new Date(String(r.expectedDeliveryDate) + "T00:00:00Z");
+        if (d < overdueStart || d >= rangeEnd) continue;
+        dueIso = d.toISOString();
+      } else {
+        dueIso = now.toISOString();
+      }
+      tasks.push({ id: `feedstock-await-${r.id}`, type: "feed_delivery_expected", title: `Feed Delivery Expected — ${name}`, description: `Delivery of ${name}${location} is expected. Confirm receipt and update stock levels in Feed Management.${supplier}`, dueDate: dueIso, module: "Feed Management", href: "/livestock", colour: "blue" });
+    } else if (current <= 0) {
+      const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+      tasks.push({ id: `feedstock-out-${r.id}`, type: "feed_out_of_stock", title: `Feed Out of Stock — ${name}`, description: `${name}${location} is completely out of stock. Arrange an urgent delivery to avoid a gap in feeding.${supplier}`, dueDate: yesterday.toISOString(), module: "Feed Management", href: "/livestock", colour: "red" });
+    } else if (reorder !== null && current <= reorder) {
+      tasks.push({ id: `feedstock-low-${r.id}`, type: "feed_low_stock", title: `Feed Low Stock — Reorder Required — ${name}`, description: `${name}${location} has ${current.toLocaleString("en-GB")} kg remaining — at or below the reorder threshold of ${reorder.toLocaleString("en-GB")} kg. Place a reorder now.${supplier}`, dueDate: now.toISOString(), module: "Feed Management", href: "/livestock", colour: "orange" });
+    }
   }
   for (const r of diversInsuranceRows) {
     if (!r.insuranceRenewalDate) continue;
