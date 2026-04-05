@@ -1,5 +1,5 @@
 import { db, rolesTable, modulesTable, tenantsTable, farmsTable, subscriptionsTable } from "@workspace/db";
-import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, suppliersTable, gridEnergyMetersTable, gridEnergyReadingsTable } from "@workspace/db/schema";
+import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, feedStockLevelsTable, suppliersTable, gridEnergyMetersTable, gridEnergyReadingsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const SYSTEM_ROLES = [
@@ -133,6 +133,7 @@ async function seedDevData() {
   await seedLpgAndHeatingOilTanks(farm.id);
   await seedGridEnergyData(farm.id);
   await seedFeedDeliveryData(farm.id);
+  await seedFeedStockData(farm.id);
 }
 
 async function seedCropData(farmId: number) {
@@ -763,4 +764,120 @@ async function seedFeedDeliveryData(farmId: number) {
   ]);
 
   console.log("[SEED] Feed delivery records seeded for farm:", farmId);
+}
+
+async function seedFeedStockData(farmId: number) {
+  const existing = await db.select().from(feedStockLevelsTable).where(eq(feedStockLevelsTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) return;
+
+  // Expected delivery date — 3 days from now
+  const deliveryDate = new Date();
+  deliveryDate.setDate(deliveryDate.getDate() + 3);
+  const expectedDate = deliveryDate.toISOString().substring(0, 10);
+
+  await db.insert(feedStockLevelsTable).values([
+    {
+      farmId,
+      feedType: "compound_pellets",
+      productName: "Beef Finisher 18% — Nuts",
+      storageLocation: "Grain store — Bay 4",
+      currentStockKg: "2840",
+      capacityKg: "8000",
+      reorderThresholdKg: "500",
+      speciesIntended: "cattle",
+      supplierName: "Yorkshire Feeds Ltd (01748 822 445)",
+      awaitingDelivery: false,
+      notes: "Main finishing ration for beef cattle. Silo topped up Jan and Feb.",
+    },
+    {
+      farmId,
+      feedType: "straights",
+      productName: "Soya Hipro 48%",
+      storageLocation: "Feed store — Bin 2",
+      currentStockKg: "850",
+      capacityKg: "2000",
+      reorderThresholdKg: "200",
+      speciesIntended: "cattle",
+      supplierName: "Yorkshire Feeds Ltd (01748 822 445)",
+      awaitingDelivery: false,
+      notes: "Protein supplement blended into TMR for finishing steers.",
+    },
+    {
+      farmId,
+      feedType: "mineral_bucket",
+      productName: "Dalton Mineral Bucket — Beef",
+      storageLocation: "Feed store — Shelf 3",
+      currentStockKg: "60",
+      reorderThresholdKg: "100",
+      speciesIntended: "cattle",
+      supplierName: "Yorkshire Feeds Ltd (01748 822 445)",
+      awaitingDelivery: false,
+      notes: "Lick buckets for grazing cattle. 60 kg = 1.5 buckets remaining.",
+    },
+    {
+      farmId,
+      feedType: "compound_pellets",
+      productName: "High Fibre Calf Nuts",
+      storageLocation: "Cattle shed — Bin 1",
+      currentStockKg: "0",
+      reorderThresholdKg: "150",
+      speciesIntended: "cattle",
+      supplierName: "Yorkshire Feeds Ltd (01748 822 445)",
+      awaitingDelivery: false,
+      notes: "Weaning ration for calves. Bin is empty — needs ordering.",
+    },
+    {
+      farmId,
+      feedType: "compound_pellets",
+      productName: "Sheep & Lamb Nut 16%",
+      storageLocation: "Sheep shed — Feed room",
+      currentStockKg: "180",
+      reorderThresholdKg: "300",
+      speciesIntended: "sheep",
+      supplierName: "Dalesbred Farm Supplies (01423 561 200)",
+      awaitingDelivery: true,
+      expectedDeliveryDate: expectedDate,
+      notes: "Flushing ration for ewes. Order placed with Dalesbred — 1 tonne arriving shortly.",
+    },
+    {
+      farmId,
+      feedType: "hay_straw",
+      productName: "Meadow Hay — Round Bales",
+      storageLocation: "Hay barn",
+      currentStockKg: "3600",
+      capacityKg: "18000",
+      reorderThresholdKg: "2000",
+      speciesIntended: "mixed",
+      supplierName: "R. Postlethwaite & Sons (01765 689 140)",
+      awaitingDelivery: false,
+      notes: "Approx 24 x 150kg bales. Sufficient to end of housing season.",
+    },
+    {
+      farmId,
+      feedType: "silage",
+      productName: "Wholecrop Silage — Clamp 1",
+      storageLocation: "Silage clamp — West",
+      currentStockKg: "42000",
+      capacityKg: "120000",
+      reorderThresholdKg: "8000",
+      speciesIntended: "cattle",
+      awaitingDelivery: false,
+      notes: "Self-produced. Cut May/June. D-value 67.2, dry matter 32%. Analysed by NRM.",
+    },
+    {
+      farmId,
+      feedType: "liquid_feed",
+      productName: "Molasses — Liquid Feed",
+      storageLocation: "Feed store — Liquid tank",
+      currentStockKg: "420",
+      capacityKg: "1000",
+      reorderThresholdKg: "150",
+      speciesIntended: "cattle",
+      supplierName: "Billington's Agriculture (0113 270 4400)",
+      awaitingDelivery: false,
+      notes: "Palatability enhancer blended into TMR at 1.5 kg/head/day.",
+    },
+  ]);
+
+  console.log("[SEED] Feed stock records seeded for farm:", farmId);
 }
