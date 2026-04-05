@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import {
   Plus, AlertTriangle, Package, Truck, ShieldCheck, Info, Trash2,
-  Edit2, MapPin, Clock, Phone, CheckCircle2, XCircle, AlertCircle,
+  Edit2, MapPin, Clock, CheckCircle2, XCircle, AlertCircle,
   GitBranch, Search, ChevronDown, ChevronRight, ArrowDown, ArrowUp
 } from "lucide-react";
 
@@ -215,14 +215,20 @@ export default function FeedManagementPage() {
   const [showStockDialog, setShowStockDialog] = useState(false);
   const [editStock, setEditStock] = useState<Record<string, unknown> | null>(null);
   const [stockForm, setStockForm] = useState<Record<string, string>>({});
+  const [stockAdjustment, setStockAdjustment] = useState("");
+  const [stockAdjustReason, setStockAdjustReason] = useState("");
 
   function openStockAdd() {
     setEditStock(null);
+    setStockAdjustment("");
+    setStockAdjustReason("");
     setStockForm({ feedType: "compound_pellets", currentStockKg: "0", awaitingDelivery: "false" });
     setShowStockDialog(true);
   }
   function openStockEdit(s: Record<string, unknown>) {
     setEditStock(s);
+    setStockAdjustment("");
+    setStockAdjustReason("");
     setStockForm({
       feedType: String(s.feedType ?? "compound_pellets"),
       productName: String(s.productName ?? ""),
@@ -248,18 +254,28 @@ export default function FeedManagementPage() {
       if (!res.ok) throw new Error("Failed to save");
       return res.json();
     },
-    onSuccess: () => { invalidate(); setShowStockDialog(false); toast({ title: "Feed stock updated" }); },
+    onSuccess: () => { invalidate(); setShowStockDialog(false); toast({ title: editStock ? "Feed bin updated" : "Feed bin registered" }); },
     onError: () => toast({ title: "Error saving", variant: "destructive" }),
   });
   const delStockMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-stock/${id}`, { method: "DELETE" }).then(r => r.json()),
-    onSuccess: () => { invalidate(); toast({ title: "Removed" }); },
+    onSuccess: () => { invalidate(); toast({ title: "Bin removed" }); },
   });
 
   const deliveries: Record<string, unknown>[] = deliveriesQ.data ?? [];
   const stock: Record<string, unknown>[] = stockQ.data ?? [];
   const feedSuppliers: Record<string, unknown>[] = suppliersQ.data ?? [];
   const suppliers: Record<string, unknown>[] = feedSuppliers.filter((s: Record<string, unknown>) => s.supplierType === "feed" || s.category === "Feed & Nutrition");
+
+  // Autocomplete options derived from existing data
+  const knownLocations = Array.from(new Set([
+    ...stock.map(s => String(s.storageLocation ?? "")).filter(Boolean),
+    ...deliveries.map(d => String(d.storageLocation ?? "")).filter(Boolean),
+  ])).sort();
+  const knownProducts = Array.from(new Set([
+    ...stock.map(s => String(s.productName ?? "")).filter(Boolean),
+    ...deliveries.map(d => String(d.productName ?? "")).filter(Boolean),
+  ])).sort();
 
   const medicatedDeliveries = deliveries.filter(d => d.medicatedFeed);
   const noUfasDeliveries = deliveries.filter(d => !d.ufasNumberOnNote);
@@ -347,7 +363,7 @@ export default function FeedManagementPage() {
         </div>
 
         <TabBar className="mb-6">
-          <TabButton active={tab === "stock"} onClick={() => setTab("stock")}>Feed Stock ({stock.length})</TabButton>
+          <TabButton active={tab === "stock"} onClick={() => setTab("stock")}>Feed Bins ({stock.length})</TabButton>
           <TabButton active={tab === "deliveries"} onClick={() => setTab("deliveries")}>Delivery Records / GRN ({deliveries.length})</TabButton>
           <TabButton active={tab === "trace"} onClick={() => setTab("trace")}><GitBranch className="w-3.5 h-3.5 mr-1 inline" />Batch Trace</TabButton>
         </TabBar>
@@ -357,11 +373,11 @@ export default function FeedManagementPage() {
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <div>
-                <h3 className="font-semibold text-gray-800">Feed Stock Status</h3>
-                <p className="text-xs text-gray-500">Current stock held at each storage location — set reorder thresholds and flag orders placed</p>
+                <h3 className="font-semibold text-gray-800">Registered Feed Bins</h3>
+                <p className="text-xs text-gray-500">Each entry is a physical storage bin or location on your farm. Stock levels update automatically when deliveries are recorded and feed usage is logged.</p>
               </div>
               <Button onClick={openStockAdd} className="bg-green-800 hover:bg-green-900 text-white shrink-0">
-                <Plus className="w-4 h-4 mr-1" />Add Feed Stock
+                <Plus className="w-4 h-4 mr-1" />Register Feed Bin
               </Button>
             </div>
 
@@ -383,9 +399,9 @@ export default function FeedManagementPage() {
             {stock.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
                 <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p className="font-medium">No feed stock records</p>
-                <p className="text-sm">Add a stock record for each feed type you hold on farm to track levels</p>
-                <Button onClick={openStockAdd} className="mt-4 bg-green-800 hover:bg-green-900 text-white"><Plus className="w-4 h-4 mr-1" />Add Feed Stock</Button>
+                <p className="font-medium">No feed bins registered</p>
+                <p className="text-sm">Register a bin for each feed type and storage location you hold on farm. Deliveries and feed usage records will then update its stock level automatically.</p>
+                <Button onClick={openStockAdd} className="mt-4 bg-green-800 hover:bg-green-900 text-white"><Plus className="w-4 h-4 mr-1" />Register Feed Bin</Button>
               </div>
             ) : filteredStock.length === 0 ? (
               <div className="text-center py-10 text-gray-400">
@@ -435,7 +451,7 @@ export default function FeedManagementPage() {
 
                             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                               {!!s.supplierName && (
-                                <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{String(s.supplierName)}</span>
+                                <span className="flex items-center gap-1"><Truck className="w-3 h-3" />Supplier: {String(s.supplierName)}</span>
                               )}
                               {!!s.awaitingDelivery && !!s.expectedDeliveryDate && (
                                 <span className="flex items-center gap-1 text-blue-600 font-medium"><Clock className="w-3 h-3" />Delivery expected {fmtDate(String(s.expectedDeliveryDate))}</span>
@@ -657,21 +673,35 @@ export default function FeedManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── STOCK DIALOG ── */}
+      {/* ── STOCK / BIN DIALOG ── */}
       <Dialog open={showStockDialog} onOpenChange={setShowStockDialog}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editStock ? "Update Feed Stock" : "Add Feed Stock"}</DialogTitle></DialogHeader>
-          <div className="grid gap-3 py-2">
+        <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editStock ? "Edit Feed Bin" : "Register Feed Bin"}</DialogTitle>
+          </DialogHeader>
+
+          {/* Purpose banner */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800 leading-relaxed">
+            {editStock
+              ? "This is the bin's configuration record. Stock level is managed automatically by deliveries and feed usage. Use the adjustment section below only to correct an error."
+              : "This registers a physical bin or storage location so the system can track its stock level. To record feed arriving, use \u201cRecord Delivery\u201d. To record feed being used, use the Feed Records section in Livestock."}
+          </div>
+
+          <div className="grid gap-3 py-1">
+
+            {/* Section: Identity */}
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Feed type *</Label>
+              <div>
+                <Label>Feed type *</Label>
                 <Select value={stockForm.feedType ?? "compound_pellets"} onValueChange={v => setStockForm(f => ({ ...f, feedType: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{FEED_TYPES.map(ft => <SelectItem key={ft.value} value={ft.value}>{ft.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Species intended</Label>
+              <div>
+                <Label>Species intended</Label>
                 <Select value={stockForm.speciesIntended ?? "__none__"} onValueChange={v => setStockForm(f => ({ ...f, speciesIntended: v === "__none__" ? "" : v }))}>
-                  <SelectTrigger><SelectValue placeholder="Any" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Any species" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Not specified</SelectItem>
                     {SPECIES.map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
@@ -679,54 +709,181 @@ export default function FeedManagementPage() {
                 </Select>
               </div>
             </div>
-            <div><Label>Product name</Label><Input value={stockForm.productName ?? ""} onChange={e => setStockForm(f => ({ ...f, productName: e.target.value }))} placeholder="e.g. Beef Finisher 18% Nuts" /></div>
-            <div><Label>Storage location</Label><Input value={stockForm.storageLocation ?? ""} onChange={e => setStockForm(f => ({ ...f, storageLocation: e.target.value }))} placeholder="e.g. Grain store Bay 4, Cattle shed bin" /></div>
 
+            <div>
+              <Label>Product name</Label>
+              <Input
+                value={stockForm.productName ?? ""}
+                onChange={e => setStockForm(f => ({ ...f, productName: e.target.value }))}
+                placeholder="e.g. Beef Finisher 18% Nuts"
+                list="known-products"
+              />
+              {knownProducts.length > 0 && (
+                <datalist id="known-products">
+                  {knownProducts.map(p => <option key={p} value={p} />)}
+                </datalist>
+              )}
+            </div>
+
+            <div>
+              <Label>Storage location *</Label>
+              <Input
+                value={stockForm.storageLocation ?? ""}
+                onChange={e => setStockForm(f => ({ ...f, storageLocation: e.target.value }))}
+                placeholder="e.g. Grain Store Bay 4, Cattle Shed Bin"
+                list="known-locations"
+              />
+              {knownLocations.length > 0 && (
+                <datalist id="known-locations">
+                  {knownLocations.map(l => <option key={l} value={l} />)}
+                </datalist>
+              )}
+              <p className="text-xs text-gray-400 mt-1">Bins in the same location are grouped together on the stock page.</p>
+            </div>
+
+            {/* Section: Preferred supplier */}
+            <div>
+              <Label>Preferred supplier</Label>
+              {suppliers.length > 0 ? (
+                <Select
+                  value={stockForm.supplierName || "__none__"}
+                  onValueChange={v => setStockForm(f => ({ ...f, supplierName: v === "__none__" ? "" : v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select supplier…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not specified</SelectItem>
+                    {suppliers.map((s: any) => (
+                      <SelectItem key={String(s.id)} value={String(s.name)}>{String(s.name)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={stockForm.supplierName ?? ""}
+                  onChange={e => setStockForm(f => ({ ...f, supplierName: e.target.value }))}
+                  placeholder="Who to contact when reordering"
+                />
+              )}
+              <p className="text-xs text-gray-400 mt-1">
+                {suppliers.length === 0
+                  ? "Add suppliers in the Suppliers section to get a dropdown here."
+                  : "The supplier you typically order this feed from."}
+              </p>
+            </div>
+
+            {/* Section: Thresholds */}
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-              <p className="text-xs font-semibold text-gray-600 mb-2">Stock quantities</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div><Label>Current stock (kg) *</Label><Input type="number" value={stockForm.currentStockKg ?? "0"} onChange={e => setStockForm(f => ({ ...f, currentStockKg: e.target.value }))} /></div>
-                <div><Label>Reorder at (kg)</Label><Input type="number" value={stockForm.reorderThresholdKg ?? ""} onChange={e => setStockForm(f => ({ ...f, reorderThresholdKg: e.target.value }))} placeholder="e.g. 500" /></div>
-                <div><Label>Capacity (kg)</Label><Input type="number" value={stockForm.capacityKg ?? ""} onChange={e => setStockForm(f => ({ ...f, capacityKg: e.target.value }))} placeholder="Optional — silo/bin size" /></div>
+              <p className="text-xs font-semibold text-gray-600 mb-2.5">Stock thresholds</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Reorder at (kg)</Label>
+                  <Input type="number" value={stockForm.reorderThresholdKg ?? ""} onChange={e => setStockForm(f => ({ ...f, reorderThresholdKg: e.target.value }))} placeholder="e.g. 500" min="0" />
+                  <p className="text-xs text-gray-400 mt-1">Triggers a Low Stock alert when reached.</p>
+                </div>
+                <div>
+                  <Label>Bin capacity (kg)</Label>
+                  <Input type="number" value={stockForm.capacityKg ?? ""} onChange={e => setStockForm(f => ({ ...f, capacityKg: e.target.value }))} placeholder="Optional — silo/bin size" min="0" />
+                </div>
               </div>
             </div>
 
-            <div><Label>Usual supplier</Label><Input value={stockForm.supplierName ?? ""} onChange={e => setStockForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="Who to call when reordering" /></div>
+            {/* Section: Opening balance (create only) OR Stock adjustment (edit only) */}
+            {!editStock ? (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-green-800 mb-1">Opening balance</p>
+                <p className="text-xs text-green-700 mb-2">If you already have feed in this bin, enter the current amount. Set to 0 if the bin is empty or you'll be recording the first delivery separately.</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-40">
+                    <Label>Quantity (kg)</Label>
+                    <Input type="number" value={stockForm.currentStockKg ?? "0"} onChange={e => setStockForm(f => ({ ...f, currentStockKg: e.target.value }))} min="0" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-gray-600 mb-1">Current stock level</p>
+                <p className="text-2xl font-bold text-gray-800 mb-1">{fmtKg(stockForm.currentStockKg)}</p>
+                <p className="text-xs text-gray-400 mb-3">Managed automatically by delivery records and feed usage. Only adjust below if correcting a data error.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Manual adjustment (kg)</Label>
+                    <Input
+                      type="number"
+                      value={stockAdjustment}
+                      onChange={e => setStockAdjustment(e.target.value)}
+                      placeholder="+500 to add, −200 to remove"
+                    />
+                  </div>
+                  <div>
+                    <Label>Reason</Label>
+                    <Input
+                      value={stockAdjustReason}
+                      onChange={e => setStockAdjustReason(e.target.value)}
+                      placeholder="e.g. Stocktake correction"
+                    />
+                  </div>
+                </div>
+                {stockAdjustment && !isNaN(parseFloat(stockAdjustment)) && (
+                  <p className="text-xs text-blue-700 mt-2">
+                    New stock level will be: <strong>{fmtKg(Math.max(0, parseFloat(stockForm.currentStockKg ?? "0") + parseFloat(stockAdjustment)))}</strong>
+                  </p>
+                )}
+              </div>
+            )}
 
+            {/* Section: Manual awaiting flag — for when no PO exists in the system */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-xs font-semibold text-blue-700 mb-2">Order / delivery status</p>
+              <p className="text-xs font-semibold text-blue-700 mb-1">Awaiting delivery flag</p>
+              <p className="text-xs text-blue-600 mb-2">This flag is set automatically when a linked Purchase Order is sent or confirmed. Only set it manually here if you have placed an order outside the system.</p>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Order placed?</Label>
+                <div>
+                  <Label>Order placed outside system?</Label>
                   <Select value={stockForm.awaitingDelivery ?? "false"} onValueChange={v => setStockForm(f => ({ ...f, awaitingDelivery: v, expectedDeliveryDate: v === "false" ? "" : f.expectedDeliveryDate }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="false">No order placed</SelectItem>
+                      <SelectItem value="false">No — not awaiting</SelectItem>
                       <SelectItem value="true">Yes — awaiting delivery</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 {stockForm.awaitingDelivery === "true" && (
-                  <div><Label>Expected delivery date</Label><Input type="date" value={stockForm.expectedDeliveryDate ?? ""} onChange={e => setStockForm(f => ({ ...f, expectedDeliveryDate: e.target.value }))} /></div>
+                  <div>
+                    <Label>Expected delivery date</Label>
+                    <Input type="date" value={stockForm.expectedDeliveryDate ?? ""} onChange={e => setStockForm(f => ({ ...f, expectedDeliveryDate: e.target.value }))} />
+                  </div>
                 )}
               </div>
             </div>
 
-            <div><Label>Notes</Label><Textarea value={stockForm.notes ?? ""} onChange={e => setStockForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            <div><Label>Notes</Label><Textarea value={stockForm.notes ?? ""} onChange={e => setStockForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any notes about this bin or feed type" /></div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowStockDialog(false)}>Cancel</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
+              if (!stockForm.storageLocation?.trim()) {
+                toast({ title: "Storage location is required", variant: "destructive" });
+                return;
+              }
               const data: Record<string, unknown> = {
                 ...stockForm,
                 awaitingDelivery: stockForm.awaitingDelivery === "true",
               };
+              // On edit: apply adjustment to current stock
+              if (editStock && stockAdjustment && !isNaN(parseFloat(stockAdjustment))) {
+                const newKg = Math.max(0, parseFloat(stockForm.currentStockKg ?? "0") + parseFloat(stockAdjustment));
+                data.currentStockKg = String(newKg);
+                if (stockAdjustReason) {
+                  data.notes = [stockForm.notes, `Stock adjusted by ${stockAdjustment} kg: ${stockAdjustReason}`].filter(Boolean).join(" | ");
+                }
+              }
               if (!data.capacityKg) delete data.capacityKg;
               if (!data.reorderThresholdKg) delete data.reorderThresholdKg;
               if (!data.expectedDeliveryDate || data.awaitingDelivery === false) delete data.expectedDeliveryDate;
               if (!data.supplierName) delete data.supplierName;
               if (!data.speciesIntended || data.speciesIntended === "__none__") delete data.speciesIntended;
               stockMut.mutate(data);
-            }}>{editStock ? "Update Stock" : "Add Stock"}</Button>
+            }}>{editStock ? "Save Changes" : "Register Bin"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
