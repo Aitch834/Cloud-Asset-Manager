@@ -10,7 +10,7 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Redirect } from "wouter";
+import { Redirect, Link } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, Users, Bug, ShieldCheck, Eye,
   CheckCircle2, XCircle, AlertTriangle, Calendar, Printer, FileText,
@@ -1221,195 +1221,84 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
 }
 
 // ─── Biosecurity Plan Tab ──────────────────────────────────────────────────────
+// The Biosecurity Plan is now managed in full from Compliance & Plans, which
+// provides the complete 13-section editor plus emergency contacts and document
+// control. This tab shows current review status and directs users there.
 
-interface BiosecurityPlan {
-  id?: number;
-  restrictedAreas: string | null;
-  visitorProcedures: string | null;
-  vehicleEntryProcedures: string | null;
-  cleaningProtocols: string | null;
-  pestManagementApproach: string | null;
-  diseaseResponsePlan: string | null;
-  wasteManagementProcedures: string | null;
-  waterSourceProtection: string | null;
-  staffResponsibilities: string | null;
-  planAuthor: string | null;
+interface BiosecurityPlanStatus {
   lastReviewedDate: string | null;
   nextReviewDate: string | null;
+  planAuthor: string | null;
   approvedBy: string | null;
-  notes: string | null;
+  restrictedAreas: string | null;
+  visitorProcedures: string | null;
 }
 
-const EMPTY_PLAN: BiosecurityPlan = {
-  restrictedAreas: "", visitorProcedures: "", vehicleEntryProcedures: "",
-  cleaningProtocols: "", pestManagementApproach: "", diseaseResponsePlan: "",
-  wasteManagementProcedures: "", waterSourceProtection: "", staffResponsibilities: "",
-  planAuthor: "", lastReviewedDate: "", nextReviewDate: "", approvedBy: "", notes: "",
-};
-
-function planField(label: string, value: string | null | undefined) {
-  if (!value) return null;
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#6b7280", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: "0.875rem", color: "#111827", whiteSpace: "pre-wrap", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 12px" }}>{value}</div>
-    </div>
-  );
-}
-
-function printBiosecurityPlan(plan: BiosecurityPlan, farmName: string) {
-  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-  const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
-  const row = (label: string, val: string | null | undefined) =>
-    val ? `<tr><td style="font-weight:600;padding:6px 10px;background:#f9fafb;border:1px solid #e5e7eb;width:34%;vertical-align:top">${label}</td><td style="padding:6px 10px;border:1px solid #e5e7eb;white-space:pre-wrap">${val}</td></tr>` : "";
-
-  const html = `<html><head><title>Biosecurity Plan</title>
-<style>body{font-family:Arial,sans-serif;font-size:11px;margin:2cm;color:#000}
-h1{font-size:14px;font-weight:700;margin:0 0 2px}p{font-size:10px;color:#555;margin:1px 0}
-h2{font-size:11px;font-weight:700;margin:18px 0 6px;border-bottom:1px solid #e5e7eb;padding-bottom:3px}
-table{width:100%;border-collapse:collapse;margin-bottom:14px}
-.hdr{display:flex;justify-content:space-between;border-bottom:2px solid #16a34a;padding-bottom:10px;margin-bottom:16px}
-.hdr-r{text-align:right;font-size:10px;color:#555}.hdr-r b{display:block;font-size:13px;font-weight:700;color:#000}
-.sig{margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:40px}
-.sig-box{border-top:1px solid #000;padding-top:6px;font-size:10px}
-.footer{font-size:9px;color:#888;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:24px}
-@media print{@page{margin:1.5cm}}</style></head><body>
-<div class="hdr"><div><h1>${farmName}</h1><p>Biosecurity Plan — Red Tractor Compliance Document</p></div>
-<div class="hdr-r"><b>Biosecurity Plan</b>Last reviewed: ${fmtD(plan.lastReviewedDate)}<br>Printed: ${today}</div></div>
-<table>${row("Restricted Areas", plan.restrictedAreas)}${row("Visitor Procedures", plan.visitorProcedures)}${row("Vehicle Entry Procedures", plan.vehicleEntryProcedures)}${row("Cleaning &amp; Disinfection Protocols", plan.cleaningProtocols)}${row("Pest Management Approach", plan.pestManagementApproach)}${row("Disease Response Plan", plan.diseaseResponsePlan)}${row("Waste Management Procedures", plan.wasteManagementProcedures)}${row("Water Source Protection", plan.waterSourceProtection)}${row("Staff Responsibilities", plan.staffResponsibilities)}</table>
-<h2>Document Control</h2>
-<table>${row("Plan Author", plan.planAuthor)}${row("Approved By", plan.approvedBy)}${row("Last Reviewed", fmtD(plan.lastReviewedDate))}${row("Next Review Due", fmtD(plan.nextReviewDate))}${row("Additional Notes", plan.notes)}</table>
-<div class="sig">
-<div class="sig-box">Farm Manager Signature<br><br><br>Name: ____________________________<br><br>Date: ____________________________</div>
-<div class="sig-box">Red Tractor Assessor<br><br><br>Name: ____________________________<br><br>Date: ____________________________</div>
-</div>
-<div class="footer">Biosecurity Plan — retained as part of Red Tractor Combinable Crops compliance documentation. Make available at audit and review annually. BDE Farm Trac · ${today}</div>
-</body></html>`;
-  const w = window.open("", "_blank");
-  if (w) { w.document.write(html); w.document.close(); w.addEventListener("afterprint", () => w.close()); w.print(); }
-}
-
-function BiosecurityPlanTab({ farmId, farmName }: { farmId: number; farmName: string }) {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const [editOpen, setEditOpen] = useState(false);
-  const [form, setForm] = useState<BiosecurityPlan>({ ...EMPTY_PLAN });
-
-  const q = useQuery<{ plan: BiosecurityPlan | null }>({
+function BiosecurityPlanTab({ farmId }: { farmId: number }) {
+  const q = useQuery<{ plan: BiosecurityPlanStatus | null }>({
     queryKey: ["biosecurity-plan", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/biosecurity-plan`).then(r => r.json()),
     enabled: !!farmId,
   });
-
   const plan = q.data?.plan ?? null;
-
-  const saveMut = useMutation({
-    mutationFn: (body: BiosecurityPlan) => fetch(`/api/farms/${farmId}/biosecurity-plan`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Biosecurity plan saved" }); qc.invalidateQueries({ queryKey: ["biosecurity-plan", farmId] }); setEditOpen(false); },
-  });
-
-  function openEdit() {
-    if (plan) {
-      setForm({
-        ...plan,
-        lastReviewedDate: plan.lastReviewedDate ? plan.lastReviewedDate.slice(0, 10) : "",
-        nextReviewDate: plan.nextReviewDate ? plan.nextReviewDate.slice(0, 10) : "",
-      });
-    } else {
-      setForm({ ...EMPTY_PLAN });
-    }
-    setEditOpen(true);
-  }
-
-  const hasPlan = plan && (plan.visitorProcedures || plan.restrictedAreas || plan.cleaningProtocols);
+  const hasPlan = !!(plan?.restrictedAreas || plan?.visitorProcedures);
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "flex-start" }}>
-        <div style={{ flex: 1 }}>
-          <p style={{ fontSize: "0.875rem", color: "#6b7280", margin: 0 }}>
-            Red Tractor requires a written Biosecurity Plan documenting your on-farm procedures. This document is reviewed at inspection.
+    <div style={{ maxWidth: 640 }}>
+      <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "18px 20px", marginBottom: 20, display: "flex", gap: 14, alignItems: "flex-start" }}>
+        <ShieldCheck size={22} style={{ color: "#2563eb", flexShrink: 0, marginTop: 1 }} />
+        <div>
+          <p style={{ fontWeight: 600, color: "#1d4ed8", margin: "0 0 4px", fontSize: "0.9375rem" }}>
+            Biosecurity Plan — managed in Compliance &amp; Plans
           </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-          {hasPlan && (
-            <Button variant="outline" size="sm" onClick={() => printBiosecurityPlan(plan!, farmName)}>
-              <Printer size={14} className="mr-2" /> Print Plan
+          <p style={{ fontSize: "0.875rem", color: "#1e40af", margin: "0 0 12px", lineHeight: 1.5 }}>
+            Your Biosecurity Plan now lives in <strong>Compliance &amp; Plans</strong>, giving you access to the full 13-section editor, emergency contacts (vet &amp; APHA area office), version control, and the printable Red Tractor document. Any edits made there are reflected here automatically.
+          </p>
+          <Link href="/compliance">
+            <Button size="sm">
+              <FileText size={14} className="mr-2" />
+              Open Biosecurity Plan
             </Button>
-          )}
-          <Button size="sm" onClick={openEdit}>
-            <Pencil size={14} className="mr-2" /> {hasPlan ? "Edit Plan" : "Create Plan"}
-          </Button>
+          </Link>
         </div>
       </div>
 
       {q.isLoading ? (
-        <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>Loading…</p>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Loading…</p>
       ) : !hasPlan ? (
-        <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#9ca3af", border: "2px dashed #e5e7eb", borderRadius: 12 }}>
-          <FileText size={32} style={{ margin: "0 auto 10px", opacity: 0.4 }} />
-          <p style={{ fontWeight: 600, color: "#374151", margin: "0 0 4px" }}>No Biosecurity Plan on file</p>
-          <p style={{ fontSize: "0.875rem", margin: "0 0 16px" }}>Create your written Biosecurity Plan — inspectors will ask to see this document.</p>
-          <Button onClick={openEdit}>Create Biosecurity Plan</Button>
+        <div style={{ textAlign: "center", padding: "2rem 1rem", border: "2px dashed #e5e7eb", borderRadius: 10, color: "#9ca3af" }}>
+          <FileText size={28} style={{ margin: "0 auto 8px", opacity: 0.4 }} />
+          <p style={{ fontWeight: 600, color: "#374151", margin: "0 0 4px" }}>No Biosecurity Plan on file yet</p>
+          <p style={{ fontSize: "0.875rem", margin: "0 0 14px" }}>Inspectors will ask to see this document. Create it in Compliance &amp; Plans.</p>
+          <Link href="/compliance">
+            <Button size="sm" variant="outline">Go to Compliance &amp; Plans</Button>
+          </Link>
         </div>
       ) : (
-        <div style={{ display: "grid", gap: 4 }}>
-          {plan.lastReviewedDate && (
-            <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "8px 14px", marginBottom: 12, display: "flex", gap: 8, alignItems: "center", fontSize: "0.875rem" }}>
-              <CheckCircle2 size={16} style={{ color: "#16a34a", flexShrink: 0 }} />
-              <span><strong>Plan last reviewed:</strong> {formatDate(plan.lastReviewedDate)}{plan.nextReviewDate && ` · Next review due: ${formatDate(plan.nextReviewDate)}`}</span>
-            </div>
-          )}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <div>
-              {planField("Restricted Areas", plan.restrictedAreas)}
-              {planField("Visitor Procedures", plan.visitorProcedures)}
-              {planField("Vehicle Entry Procedures", plan.vehicleEntryProcedures)}
-              {planField("Pest Management", plan.pestManagementApproach)}
-              {planField("Disease Response Plan", plan.diseaseResponsePlan)}
-            </div>
-            <div>
-              {planField("Cleaning & Disinfection Protocols", plan.cleaningProtocols)}
-              {planField("Waste Management", plan.wasteManagementProcedures)}
-              {planField("Water Source Protection", plan.waterSourceProtection)}
-              {planField("Staff Responsibilities", plan.staffResponsibilities)}
-              {planField("Notes", plan.notes)}
-            </div>
-          </div>
-          <div style={{ marginTop: 8, paddingTop: 12, borderTop: "1px solid #e5e7eb", display: "flex", gap: 24, fontSize: "0.8125rem", color: "#6b7280" }}>
-            {plan.planAuthor && <span><strong>Author:</strong> {plan.planAuthor}</span>}
-            {plan.approvedBy && <span><strong>Approved by:</strong> {plan.approvedBy}</span>}
+        <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "14px 18px" }}>
+          <p style={{ fontWeight: 600, color: "#111827", margin: "0 0 10px", fontSize: "0.875rem" }}>Current plan status</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 24px", fontSize: "0.8125rem", color: "#374151" }}>
+            {plan.lastReviewedDate && (
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <CheckCircle2 size={14} style={{ color: "#16a34a", flexShrink: 0 }} />
+                <span><strong>Last reviewed:</strong> {formatDate(plan.lastReviewedDate)}</span>
+              </div>
+            )}
+            {plan.nextReviewDate && (
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <Calendar size={14} style={{ color: "#d97706", flexShrink: 0 }} />
+                <span><strong>Next review due:</strong> {formatDate(plan.nextReviewDate)}</span>
+              </div>
+            )}
+            {plan.planAuthor && (
+              <div><strong>Author:</strong> {plan.planAuthor}</div>
+            )}
+            {plan.approvedBy && (
+              <div><strong>Approved by:</strong> {plan.approvedBy}</div>
+            )}
           </div>
         </div>
       )}
-
-      <Dialog open={editOpen} onOpenChange={open => { if (!open) setEditOpen(false); }}>
-        <DialogContent style={{ maxWidth: 680 }}>
-          <DialogHeader><DialogTitle>Biosecurity Plan</DialogTitle></DialogHeader>
-          <div className="max-h-[72vh] overflow-y-auto" style={{ display: "grid", gap: 14 }}>
-            <div><Label>Restricted Areas on Farm</Label><Textarea className="mt-1" rows={3} placeholder="e.g. Grain store restricted to authorised personnel. Livestock areas signed and gated…" value={form.restrictedAreas ?? ""} onChange={e => setForm(f => ({ ...f, restrictedAreas: e.target.value }))} /></div>
-            <div><Label>Visitor Procedures</Label><Textarea className="mt-1" rows={3} placeholder="e.g. All visitors must sign in/out, declare any recent animal contact, wear clean PPE provided…" value={form.visitorProcedures ?? ""} onChange={e => setForm(f => ({ ...f, visitorProcedures: e.target.value }))} /></div>
-            <div><Label>Vehicle Entry Procedures</Label><Textarea className="mt-1" rows={2} placeholder="e.g. All vehicles entering the yard must use the wheel wash. Contractors must be accompanied…" value={form.vehicleEntryProcedures ?? ""} onChange={e => setForm(f => ({ ...f, vehicleEntryProcedures: e.target.value }))} /></div>
-            <div><Label>Cleaning & Disinfection Protocols</Label><Textarea className="mt-1" rows={3} placeholder="e.g. All equipment cleaned and disinfected before use. Chemical name, dilution rate, contact time…" value={form.cleaningProtocols ?? ""} onChange={e => setForm(f => ({ ...f, cleaningProtocols: e.target.value }))} /></div>
-            <div><Label>Pest Management Approach</Label><Textarea className="mt-1" rows={2} placeholder="e.g. Bait points checked monthly by certificated contractor. Records maintained in pest control log…" value={form.pestManagementApproach ?? ""} onChange={e => setForm(f => ({ ...f, pestManagementApproach: e.target.value }))} /></div>
-            <div><Label>Disease Response Plan</Label><Textarea className="mt-1" rows={3} placeholder="e.g. In the event of a suspected notifiable disease, farming operations cease immediately. Vet contacted on…" value={form.diseaseResponsePlan ?? ""} onChange={e => setForm(f => ({ ...f, diseaseResponsePlan: e.target.value }))} /></div>
-            <div><Label>Waste Management Procedures</Label><Textarea className="mt-1" rows={2} placeholder="e.g. Chemical containers triple rinsed and returned to authorised collection scheme…" value={form.wasteManagementProcedures ?? ""} onChange={e => setForm(f => ({ ...f, wasteManagementProcedures: e.target.value }))} /></div>
-            <div><Label>Water Source Protection</Label><Textarea className="mt-1" rows={2} placeholder="e.g. Borehole locked. Water test conducted annually. No chemicals stored within 10m of water source…" value={form.waterSourceProtection ?? ""} onChange={e => setForm(f => ({ ...f, waterSourceProtection: e.target.value }))} /></div>
-            <div><Label>Staff Responsibilities</Label><Textarea className="mt-1" rows={2} placeholder="e.g. Farm manager: plan owner. All staff: biosecurity induction on joining. Named deputy: …" value={form.staffResponsibilities ?? ""} onChange={e => setForm(f => ({ ...f, staffResponsibilities: e.target.value }))} /></div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div><Label>Plan Author</Label><Input className="mt-1" value={form.planAuthor ?? ""} onChange={e => setForm(f => ({ ...f, planAuthor: e.target.value }))} /></div>
-              <div><Label>Approved By</Label><Input className="mt-1" value={form.approvedBy ?? ""} onChange={e => setForm(f => ({ ...f, approvedBy: e.target.value }))} /></div>
-              <div><Label>Last Reviewed Date</Label><Input type="date" className="mt-1" value={form.lastReviewedDate ?? ""} onChange={e => setForm(f => ({ ...f, lastReviewedDate: e.target.value }))} /></div>
-              <div><Label>Next Review Due</Label><Input type="date" className="mt-1" value={form.nextReviewDate ?? ""} onChange={e => setForm(f => ({ ...f, nextReviewDate: e.target.value }))} /></div>
-            </div>
-            <div><Label>Notes</Label><Textarea className="mt-1" rows={2} value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending}>Save Plan</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -1441,7 +1330,7 @@ export default function BiosecurityPage({ defaultTab = "visitors" }: { defaultTa
       {tab === "pest-control" && <PestControlTab farmId={farmId} farmName={farmName} />}
       {tab === "cleaning" && <CleaningTab farmId={farmId} farmName={farmName} />}
       {tab === "coshh" && <CoshhTab farmId={farmId} farmName={farmName} />}
-      {tab === "biosecurity-plan" && <BiosecurityPlanTab farmId={farmId} farmName={farmName} />}
+      {tab === "biosecurity-plan" && <BiosecurityPlanTab farmId={farmId} />}
     </AppLayout>
   );
 }
