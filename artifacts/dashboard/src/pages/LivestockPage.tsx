@@ -2528,7 +2528,7 @@ function AnimalQuickViewDialog({ animal, herds, onClose, onEdit, onProfile }: {
             <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Sex</p><p className="capitalize">{animal.sex || "—"}</p></div>
             <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Date of Birth</p><p>{formatDate(animal.dateOfBirth)}</p></div>
             <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Herd / Flock</p><p>{herdName(animal.herdId)}</p></div>
-            <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Acquired</p><p>{formatDate(animal.acquisitionDate)}</p></div>
+            <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Arrived on Holding</p><p>{formatDate(animal.acquisitionDate)}</p></div>
             <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">From</p><p>{animal.acquisitionSource || "—"}</p></div>
             <div><p className="text-xs text-gray-500 uppercase font-semibold mb-0.5">Alt. ID</p><p className="font-mono text-xs">{animal.tagNumber || "—"}</p></div>
           </div>
@@ -2696,7 +2696,7 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
                 { label: "Date of Birth", val: formatDate(animal.dateOfBirth) },
                 { label: "Age", val: animal.dateOfBirth ? `${Math.floor((Date.now() - new Date(animal.dateOfBirth).getTime()) / (365.25 * 24 * 3600 * 1000))} years` : null },
                 { label: "Herd / Flock", val: data.herd ? `${data.herd.name} (${data.herd.herdNumber || "no reg. no."})` : null },
-                { label: "Acquisition Date", val: formatDate(animal.acquisitionDate) },
+                { label: "Arrival Date (on Holding)", val: formatDate(animal.acquisitionDate) },
                 { label: "Acquired From", val: animal.acquisitionSource },
                 { label: "QR / Animal Code", val: animal.animalCode, mono: true },
               ].map(f => (
@@ -3244,7 +3244,8 @@ function AnimalsSection({ farmId }: { farmId: number }) {
                   </Select>
                 </div>
                 <div>
-                  <Label>Acquisition Date</Label>
+                  <Label>Arrival Date (on Holding)</Label>
+                  <p className="text-xs text-muted-foreground mb-1">Date the animal physically arrived at this holding — used for BCMS notifications and movement records</p>
                   <Input type="date" value={form.acquisitionDate} onChange={e => setField("acquisitionDate", e.target.value)} />
                 </div>
                 <div>
