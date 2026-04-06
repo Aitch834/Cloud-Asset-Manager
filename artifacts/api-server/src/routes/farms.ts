@@ -1790,9 +1790,25 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
       .limit(1),
   ]);
 
-  // Merge direct and herd-level medicine records, deduplicate by id, sort newest first
+  // For group-scope herd records, only include this animal if its ear tag appears
+  // in the verified treatedAnimalTags list (these are validated tags saved by the UI).
+  // For whole_herd scope, all animals in the herd are included unconditionally.
+  const animalEarTag = (animal.earTagNumber ?? "").toLowerCase();
+  const animalTagNumber = (animal.tagNumber ?? "").toLowerCase();
+  const filteredHerdMedicines = herdMedicines.filter(m => {
+    if (m.treatmentScope === "whole_herd") return true;
+    if (m.treatmentScope === "group") {
+      if (!m.treatedAnimalTags) return false; // no verified tags — cannot link
+      const verifiedTags = m.treatedAnimalTags.split(",").map((t: string) => t.trim().toLowerCase());
+      return (animalEarTag && verifiedTags.includes(animalEarTag)) ||
+             (animalTagNumber && verifiedTags.includes(animalTagNumber));
+    }
+    return false;
+  });
+
+  // Merge direct and filtered herd-level records, deduplicate by id, sort newest first
   const seenIds = new Set<number>();
-  const medicines = [...directMedicines, ...herdMedicines]
+  const medicines = [...directMedicines, ...filteredHerdMedicines]
     .filter(m => { if (seenIds.has(m.id)) return false; seenIds.add(m.id); return true; })
     .sort((a, b) => new Date(b.administeredDate).getTime() - new Date(a.administeredDate).getTime())
     .map(m => ({ ...m, _source: m.animalId === recordId ? "individual" : "herd_treatment" }));

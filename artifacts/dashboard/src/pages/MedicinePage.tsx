@@ -1,23 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { printProReport } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
-import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
+import { currentCropYear, isInCropYear } from "@/lib/cropYear";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, HeartPulse, Printer,
   AlertTriangle, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp, Eye,
-  Tag, Users, User,
+  Tag, Users, User, RefreshCw, ShieldAlert, ShieldCheck,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 
 type StatusFilter = "all" | "in_withdrawal" | "cleared" | "no_withdrawal";
@@ -55,8 +53,34 @@ function getRecordStatus(r: MedicineRecord): "in_withdrawal" | "cleared" | "no_w
   return "cleared";
 }
 
+// ─── Tag validation helpers ────────────────────────────────────────────────────
+function normalizeTag(raw: string): string {
+  return raw.trim().toUpperCase().replace(/\s+/g, "");
+}
+function lookupAnimalByTag(tag: string, pool: Animal[]): Animal | null {
+  if (!tag) return null;
+  const t = tag.toLowerCase();
+  return pool.find(a =>
+    (a.earTagNumber?.toLowerCase() === t) ||
+    (a.tagNumber?.toLowerCase() === t)
+  ) ?? null;
+}
+function animalShortLabel(a: Animal): string {
+  return [a.earTagNumber ?? a.tagNumber, a.breed, a.species].filter(Boolean).join(" · ");
+}
+
+// ─── Interfaces ────────────────────────────────────────────────────────────────
 interface Herd { id: number; name: string; type: string; }
-interface Animal { id: number; earTagNumber: string | null; tagNumber: string | null; species: string; breed: string | null; herdId: number | null; }
+interface Animal {
+  id: number; earTagNumber: string | null; tagNumber: string | null;
+  species: string; breed: string | null; herdId: number | null;
+}
+interface TagValidation {
+  raw: string;
+  normalized: string;
+  animal: Animal | null;
+  correction: string;
+}
 interface MedicineRecord {
   id: number; farmId: number; animalId: number | null; herdId: number | null;
   medicineRef: string | null;
@@ -82,9 +106,117 @@ const EMPTY_FORM = {
   administeredBy: "", administeredDate: new Date().toISOString().slice(0, 10),
   withdrawalPeriodDays: "", reason: "", vetName: "", notes: "",
 };
-
 const ADMIN_ROUTES = ["Oral", "Subcutaneous injection", "Intramuscular injection", "Intravenous injection", "Intramammary", "Topical / Pour-on", "Intrauterine", "Ocular", "Nasal", "Other"];
 
+// ─── Ear Tag Validator Component ───────────────────────────────────────────────
+function EarTagValidatorPanel({
+  rawInput, onRawChange, validations, onValidate, onCorrect,
+}: {
+  rawInput: string;
+  onRawChange: (v: string) => void;
+  validations: TagValidation[];
+  onValidate: () => void;
+  onCorrect: (index: number, correction: string) => void;
+}) {
+  const matched = validations.filter(v => v.animal);
+  const unmatched = validations.filter(v => !v.animal);
+  const hasValidated = validations.length > 0;
+
+  return (
+    <div className="col-span-2 space-y-2">
+      <label className="text-sm font-medium text-foreground/70 block">
+        Ear Tags / Animal IDs <span className="text-red-500">*</span>
+        <span className="ml-1 text-xs text-foreground/40 font-normal">Comma-separated. Each tag will be verified against registered animals.</span>
+      </label>
+      <div className="flex gap-2 items-start">
+        <textarea
+          className="flex-1 min-h-[64px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-y"
+          placeholder="e.g. UK123456/0001, UK123456/0002, UK123456/0003"
+          value={rawInput}
+          onChange={e => onRawChange(e.target.value)}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0 gap-1.5 mt-0.5"
+          onClick={onValidate}
+          disabled={!rawInput.trim()}
+        >
+          <RefreshCw className="w-3.5 h-3.5" />Validate Tags
+        </Button>
+      </div>
+
+      {hasValidated && (
+        <div className="rounded-xl border border-border overflow-hidden">
+          {/* Summary bar */}
+          <div className={`px-3 py-2 flex items-center gap-2 text-sm font-medium ${unmatched.length === 0 ? "bg-green-50 border-b border-green-200 text-green-800" : "bg-amber-50 border-b border-amber-200 text-amber-800"}`}>
+            {unmatched.length === 0
+              ? <><ShieldCheck className="w-4 h-4" />{matched.length} of {validations.length} ear tag{validations.length !== 1 ? "s" : ""} verified — all animals matched</>
+              : <><ShieldAlert className="w-4 h-4" />{matched.length} of {validations.length} matched · {unmatched.length} need{unmatched.length === 1 ? "s" : ""} attention</>
+            }
+          </div>
+
+          {/* Matched animals */}
+          {matched.length > 0 && (
+            <div className="p-3 space-y-1.5">
+              <p className="text-[10px] uppercase font-semibold text-foreground/40 tracking-wide">Verified Animals</p>
+              <div className="flex flex-wrap gap-1.5">
+                {matched.map((v, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium bg-green-50 text-green-800 border border-green-200 px-2.5 py-1 rounded-full"
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span className="font-mono">{v.normalized}</span>
+                    <span className="opacity-70">· {v.animal!.breed ?? v.animal!.species}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Unmatched — each gets a correction row */}
+          {unmatched.length > 0 && (
+            <div className={`p-3 space-y-2 ${matched.length > 0 ? "border-t border-border" : ""}`}>
+              <p className="text-[10px] uppercase font-semibold text-foreground/40 tracking-wide">Unrecognised Tags — Correction Required</p>
+              {validations.map((v, i) => {
+                if (v.animal) return null;
+                return (
+                  <div key={i} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <XCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="font-mono text-xs text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">{v.raw}</span>
+                    <span className="text-xs text-amber-700 shrink-0">not found</span>
+                    <Input
+                      className="h-7 text-xs font-mono flex-1"
+                      placeholder="Correct ear tag..."
+                      value={v.correction}
+                      onChange={e => onCorrect(i, e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); onCorrect(i, v.correction); } }}
+                    />
+                    <Button
+                      type="button" variant="outline" size="sm"
+                      className="h-7 px-2 text-xs shrink-0"
+                      onClick={() => onCorrect(i, v.correction)}
+                      disabled={!v.correction.trim()}
+                    >
+                      Re-check
+                    </Button>
+                  </div>
+                );
+              })}
+              <p className="text-xs text-amber-700">
+                Correct each tag above or remove it from the list. Tags that remain unmatched will not be linked to individual animal records.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Status badge ──────────────────────────────────────────────────────────────
 function StatusBadge({ record }: { record: MedicineRecord }) {
   const status = getRecordStatus(record);
   const days = daysUntil(record.withdrawalEndDate);
@@ -144,20 +276,13 @@ function TreatmentScopeBadge({ record, herds, animals }: { record: MedicineRecor
   return null;
 }
 
-function animalLabel(a: Animal): string {
-  const tag = a.earTagNumber ?? a.tagNumber ?? `#${a.id}`;
-  return `${tag}${a.breed ? ` — ${a.breed}` : ""} (${a.species})`;
-}
-
 function treatmentTraceDetail(record: MedicineRecord, herds: Herd[], animals: Animal[]): string {
   const scope = record.treatmentScope;
   if (scope === "individual" && record.animalId) {
     const animal = animals.find(a => a.id === record.animalId);
     return animal ? `Individual: ${animal.earTagNumber ?? animal.tagNumber ?? `#${animal.id}`}` : `Individual: Animal #${record.animalId}`;
   }
-  if (scope === "individual" && record.treatedAnimalTags) {
-    return `Individual: ${record.treatedAnimalTags}`;
-  }
+  if (scope === "individual" && record.treatedAnimalTags) return `Individual: ${record.treatedAnimalTags}`;
   if (scope === "group") {
     const herdName = herds.find(h => h.id === record.herdId)?.name ?? "Group";
     const tags = record.treatedAnimalTags ? ` · Tags: ${record.treatedAnimalTags}` : "";
@@ -176,7 +301,6 @@ function RecordCard({ record, herds, animals, onEdit, onDelete, onView }: {
   const [expanded, setExpanded] = useState(false);
   const status = getRecordStatus(record);
   const borderColor = status === "in_withdrawal" ? "border-l-amber-400" : status === "cleared" ? "border-l-green-400" : "border-l-blue-400";
-
   return (
     <div className={`bg-white border border-border rounded-xl border-l-4 ${borderColor} p-4 shadow-sm`}>
       <div className="flex items-start justify-between gap-3">
@@ -199,15 +323,9 @@ function RecordCard({ record, herds, animals, onEdit, onDelete, onView }: {
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={() => onView(record)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/30 hover:text-blue-600">
-            <Eye className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => onEdit(record)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/30 hover:text-primary">
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => onDelete(record.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/30 hover:text-red-500">
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          <button onClick={() => onView(record)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/30 hover:text-blue-600"><Eye className="w-3.5 h-3.5" /></button>
+          <button onClick={() => onEdit(record)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/30 hover:text-primary"><Pencil className="w-3.5 h-3.5" /></button>
+          <button onClick={() => onDelete(record.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/30 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
           <button onClick={() => setExpanded(e => !e)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/30">
             {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
@@ -232,9 +350,7 @@ function RecordCard({ record, herds, animals, onEdit, onDelete, onView }: {
           <div>
             <p className="text-foreground/40 uppercase tracking-wide font-semibold text-[10px]">Timeline</p>
             <p className="text-foreground/80 font-medium">Administered {formatDate(record.administeredDate)}</p>
-            {record.withdrawalEndDate && (
-              <p className="text-foreground/80 font-medium">Withdrawal ends {formatDate(record.withdrawalEndDate)}</p>
-            )}
+            {record.withdrawalEndDate && <p className="text-foreground/80 font-medium">Withdrawal ends {formatDate(record.withdrawalEndDate)}</p>}
           </div>
         </div>
       )}
@@ -254,12 +370,11 @@ function printMedicineRegister(records: MedicineRecord[], herds: Herd[], animals
       : status === "cleared"
       ? `<span style="background:#dcfce7;color:#166534;padding:1px 5px;border-radius:3px;font-weight:600">Cleared</span>`
       : `<span style="background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px;font-weight:600">No W/D</span>`;
-    const traceDetail = treatmentTraceDetail(r, herds, animals);
     return `<tr>
       <td style="font-family:monospace">${r.medicineRef ?? "—"}</td>
       <td><strong>${r.medicineName}</strong></td>
       <td style="font-family:monospace">${r.batchNumber ?? "—"}</td>
-      <td>${traceDetail}</td>
+      <td>${treatmentTraceDetail(r, herds, animals)}</td>
       <td style="white-space:nowrap">${formatDateLong(r.administeredDate)}</td>
       <td>${[r.dosage, r.administrationRoute].filter(Boolean).join(" · ") || "—"}</td>
       <td>${r.withdrawalPeriodDays ?? "—"}</td>
@@ -282,6 +397,7 @@ function printMedicineRegister(records: MedicineRecord[], herds: Herd[], animals
   });
 }
 
+// ─── Page root ─────────────────────────────────────────────────────────────────
 export default function MedicinePageDedicated() {
   const { farmId } = useAppStore();
   if (!farmId) return <Redirect to="/select" />;
@@ -292,6 +408,7 @@ export default function MedicinePageDedicated() {
   );
 }
 
+// ─── Main content ──────────────────────────────────────────────────────────────
 function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -303,6 +420,11 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<MedicineRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  // Tag validation state — used only when treatmentScope === "group"
+  const [tagValidations, setTagValidations] = useState<TagValidation[]>([]);
+  // Show a "save anyway?" confirm when there are still unmatched tags on submit
+  const [pendingBodyWithUnmatched, setPendingBodyWithUnmatched] = useState<Record<string, unknown> | null>(null);
 
   const farmQ = useQuery<{ record: Farm }>({
     queryKey: ["farm-detail", farmId],
@@ -326,32 +448,76 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const animals: Animal[] = animalsQ.data?.records ?? [];
   const allRecords: MedicineRecord[] = medicineQ.data?.records ?? [];
 
-  // Animals filtered to the selected herd (for group/whole_herd scopes)
-  const herdAnimals = form.herdId
+  // Pool of animals valid for tag lookup — filtered to herd if one is selected
+  const tagPool = form.herdId
     ? animals.filter(a => a.herdId === Number(form.herdId))
     : animals;
+
+  // Reset tag validations whenever scope or herd changes
+  useEffect(() => {
+    setTagValidations([]);
+    setPendingBodyWithUnmatched(null);
+  }, [form.treatmentScope, form.herdId]);
+
+  function runTagValidation() {
+    const parts = form.treatedAnimalTags.split(",").map(s => s.trim()).filter(Boolean);
+    if (!parts.length) return;
+    const results: TagValidation[] = parts.map(raw => {
+      const normalized = normalizeTag(raw);
+      return { raw, normalized, animal: lookupAnimalByTag(normalized, tagPool), correction: "" };
+    });
+    setTagValidations(results);
+  }
+
+  function applyCorrection(index: number, correction: string) {
+    const normalized = normalizeTag(correction);
+    const animal = lookupAnimalByTag(normalized, tagPool);
+    setTagValidations(vs => vs.map((v, i) =>
+      i === index ? { ...v, correction, normalized: animal ? normalized : v.normalized, animal } : v
+    ));
+  }
+
+  // Derive the final verified tag string and count from validation results
+  function getVerifiedTags(): { tags: string; count: number; hasUnmatched: boolean } {
+    if (form.treatmentScope !== "group" || tagValidations.length === 0) {
+      return { tags: form.treatedAnimalTags, count: Number(form.treatedAnimalCount) || 0, hasUnmatched: false };
+    }
+    const matched = tagValidations.filter(v => v.animal);
+    const unmatched = tagValidations.filter(v => !v.animal);
+    return {
+      tags: matched.map(v => v.normalized).join(", "),
+      count: matched.length,
+      hasUnmatched: unmatched.length > 0,
+    };
+  }
 
   const createM = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       fetch(`/api/farms/${farmId}/medicine-records`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_FORM); toast({ title: "Medicine record saved" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); closeForm(); toast({ title: "Medicine record saved" }); },
   });
   const updateM = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
       fetch(`/api/farms/${farmId}/medicine-records/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_FORM); toast({ title: "Record updated" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); closeForm(); toast({ title: "Record updated" }); },
   });
   const deleteM = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/medicine-records/${id}`, { method: "DELETE", credentials: "include" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["medicine-records", farmId] }); setDeleteId(null); toast({ title: "Record deleted" }); },
   });
 
-  const yearRecords = allRecords.filter(r => isInCropYear(r.administeredDate, cropYear));
+  function closeForm() {
+    setFormOpen(false);
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setTagValidations([]);
+    setPendingBodyWithUnmatched(null);
+  }
 
+  const yearRecords = allRecords.filter(r => isInCropYear(r.administeredDate, cropYear));
   const inWithdrawal = yearRecords.filter(r => getRecordStatus(r) === "in_withdrawal");
   const cleared = yearRecords.filter(r => getRecordStatus(r) === "cleared");
   const noWithdrawal = yearRecords.filter(r => getRecordStatus(r) === "no_withdrawal");
-
   const tabCounts = { all: yearRecords.length, in_withdrawal: inWithdrawal.length, cleared: cleared.length, no_withdrawal: noWithdrawal.length };
 
   const baseFiltered = statusFilter === "all" ? yearRecords
@@ -373,7 +539,9 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
 
   function openEdit(r: MedicineRecord) {
     setEditing(r);
-    setForm({
+    setTagValidations([]);
+    setPendingBodyWithUnmatched(null);
+    const newForm = {
       treatmentScope: (r.treatmentScope as TreatmentScope) ?? "whole_herd",
       animalId: r.animalId ? String(r.animalId) : "",
       herdId: r.herdId ? String(r.herdId) : "",
@@ -384,20 +552,29 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       administeredBy: r.administeredBy ?? "", administeredDate: r.administeredDate?.slice(0, 10) ?? "",
       withdrawalPeriodDays: r.withdrawalPeriodDays ? String(r.withdrawalPeriodDays) : "",
       reason: r.reason ?? "", vetName: r.vetName ?? "", notes: r.notes ?? "",
-    });
+    };
+    setForm(newForm);
+    // If editing a group record that already has tags, pre-validate them
+    if (r.treatmentScope === "group" && r.treatedAnimalTags) {
+      const herdPool = r.herdId ? animals.filter(a => a.herdId === r.herdId) : animals;
+      const parts = r.treatedAnimalTags.split(",").map(s => s.trim()).filter(Boolean);
+      setTagValidations(parts.map(raw => {
+        const normalized = normalizeTag(raw);
+        return { raw, normalized, animal: lookupAnimalByTag(normalized, herdPool), correction: "" };
+      }));
+    }
     setFormOpen(true);
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function buildBody(verifiedTags: string, verifiedCount: number): Record<string, unknown> {
     const wdDays = form.withdrawalPeriodDays ? Number(form.withdrawalPeriodDays) : null;
     const wdEnd = wdDays && form.administeredDate ? new Date(addDays(form.administeredDate, wdDays)).toISOString() : null;
-    const body: Record<string, unknown> = {
+    return {
       treatmentScope: form.treatmentScope,
       animalId: form.treatmentScope === "individual" && form.animalId ? Number(form.animalId) : null,
       herdId: form.treatmentScope !== "individual" && form.herdId ? Number(form.herdId) : null,
-      treatedAnimalCount: (form.treatmentScope === "group" || form.treatmentScope === "whole_herd") && form.treatedAnimalCount ? Number(form.treatedAnimalCount) : null,
-      treatedAnimalTags: form.treatedAnimalTags || null,
+      treatedAnimalCount: (form.treatmentScope === "group" || form.treatmentScope === "whole_herd") && verifiedCount > 0 ? verifiedCount : null,
+      treatedAnimalTags: verifiedTags || null,
       medicineName: form.medicineName, batchNumber: form.batchNumber || null,
       dosage: form.dosage || null, administrationRoute: form.administrationRoute || null,
       administeredBy: form.administeredBy || null,
@@ -405,11 +582,40 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       withdrawalPeriodDays: wdDays, withdrawalEndDate: wdEnd,
       reason: form.reason || null, vetName: form.vetName || null, notes: form.notes || null,
     };
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const { tags, count, hasUnmatched } = getVerifiedTags();
+
+    // Group scope: if user typed tags but hasn't validated yet, force validation first
+    if (form.treatmentScope === "group" && form.treatedAnimalTags && tagValidations.length === 0) {
+      runTagValidation();
+      toast({ title: "Tags validated — please review and save again", variant: "default" });
+      return;
+    }
+
+    const body = buildBody(tags, count);
+
+    // Group scope: warn if some tags are unmatched
+    if (form.treatmentScope === "group" && hasUnmatched) {
+      setPendingBodyWithUnmatched(body);
+      return;
+    }
+
     if (editing) { updateM.mutate({ id: editing.id, body }); } else { createM.mutate(body); }
+  }
+
+  function confirmSaveWithUnmatched() {
+    if (!pendingBodyWithUnmatched) return;
+    if (editing) { updateM.mutate({ id: editing.id, body: pendingBodyWithUnmatched }); }
+    else { createM.mutate(pendingBodyWithUnmatched); }
+    setPendingBodyWithUnmatched(null);
   }
 
   const isSubmitting = createM.isPending || updateM.isPending;
   const previewWdEnd = form.withdrawalPeriodDays && form.administeredDate ? addDays(form.administeredDate, Number(form.withdrawalPeriodDays)) : null;
+  const unmatchedCount = tagValidations.filter(v => !v.animal).length;
 
   return (
     <>
@@ -429,18 +635,10 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       )}
 
       <TabBar className="mb-5">
-        <TabButton active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>
-          All <span className="ml-1 text-xs opacity-60">({tabCounts.all})</span>
-        </TabButton>
-        <TabButton active={statusFilter === "in_withdrawal"} onClick={() => setStatusFilter("in_withdrawal")}>
-          In Withdrawal <span className="ml-1 text-xs opacity-60">({tabCounts.in_withdrawal})</span>
-        </TabButton>
-        <TabButton active={statusFilter === "cleared"} onClick={() => setStatusFilter("cleared")}>
-          Cleared <span className="ml-1 text-xs opacity-60">({tabCounts.cleared})</span>
-        </TabButton>
-        <TabButton active={statusFilter === "no_withdrawal"} onClick={() => setStatusFilter("no_withdrawal")}>
-          No W/D Required <span className="ml-1 text-xs opacity-60">({tabCounts.no_withdrawal})</span>
-        </TabButton>
+        <TabButton active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>All <span className="ml-1 text-xs opacity-60">({tabCounts.all})</span></TabButton>
+        <TabButton active={statusFilter === "in_withdrawal"} onClick={() => setStatusFilter("in_withdrawal")}>In Withdrawal <span className="ml-1 text-xs opacity-60">({tabCounts.in_withdrawal})</span></TabButton>
+        <TabButton active={statusFilter === "cleared"} onClick={() => setStatusFilter("cleared")}>Cleared <span className="ml-1 text-xs opacity-60">({tabCounts.cleared})</span></TabButton>
+        <TabButton active={statusFilter === "no_withdrawal"} onClick={() => setStatusFilter("no_withdrawal")}>No W/D Required <span className="ml-1 text-xs opacity-60">({tabCounts.no_withdrawal})</span></TabButton>
       </TabBar>
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
@@ -453,7 +651,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
           <Button variant="outline" size="sm" onClick={() => printMedicineRegister(filtered, herds, animals, farm, filterLabel)} className="gap-2">
             <Printer className="w-4 h-4" /> Print Register
           </Button>
-          <Button onClick={() => { setEditing(null); setForm(EMPTY_FORM); setFormOpen(true); }} className="gap-2" size="sm">
+          <Button onClick={() => { setEditing(null); setForm(EMPTY_FORM); setTagValidations([]); setFormOpen(true); }} className="gap-2" size="sm">
             <Plus className="w-4 h-4" /> Add Record
           </Button>
         </div>
@@ -479,23 +677,19 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      {/* View dialog */}
+      {/* ── View dialog ──────────────────────────────────── */}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: 520 }}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <HeartPulse className="w-5 h-5 text-primary" />
-                Medicine Record
-              </DialogTitle>
+              <DialogTitle className="flex items-center gap-2"><HeartPulse className="w-5 h-5 text-primary" />Medicine Record</DialogTitle>
+              <DialogDescription>Full record detail for audit and compliance purposes.</DialogDescription>
             </DialogHeader>
             <div className="space-y-3 text-sm py-1">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Medicine</p><p className="font-semibold">{viewRecord.medicineName}</p></div>
                 {viewRecord.medicineRef && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Reference</p><p className="font-mono text-xs">{viewRecord.medicineRef}</p></div>}
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Status</p><StatusBadge record={viewRecord} /></div>
-
-                {/* Traceability section */}
                 <div className="col-span-2 bg-violet-50 border border-violet-200 rounded-lg p-3">
                   <p className="text-xs text-violet-700 uppercase font-semibold mb-2 flex items-center gap-1.5">
                     <Tag className="w-3.5 h-3.5" />Animal Traceability
@@ -506,42 +700,40 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                       <p className="font-semibold capitalize">
                         {viewRecord.treatmentScope === "individual" ? "Individual Animal" :
                          viewRecord.treatmentScope === "group" ? "Group / Batch" :
-                         viewRecord.treatmentScope === "whole_herd" ? "Whole Herd" :
-                         "—"}
+                         viewRecord.treatmentScope === "whole_herd" ? "Whole Herd" : "—"}
                       </p>
                     </div>
                     {viewRecord.treatmentScope === "individual" && viewRecord.animalId && (
                       <div>
                         <p className="text-gray-500 uppercase font-medium mb-0.5 text-[10px]">Ear Tag</p>
                         <p className="font-semibold font-mono">
-                          {(() => {
-                            const a = animals.find(x => x.id === viewRecord.animalId);
-                            return a?.earTagNumber ?? a?.tagNumber ?? `Animal #${viewRecord.animalId}`;
-                          })()}
+                          {(() => { const a = animals.find(x => x.id === viewRecord.animalId); return a?.earTagNumber ?? a?.tagNumber ?? `Animal #${viewRecord.animalId}`; })()}
                         </p>
                       </div>
                     )}
                     {viewRecord.herdId && (
-                      <div>
-                        <p className="text-gray-500 uppercase font-medium mb-0.5 text-[10px]">Herd / Group</p>
-                        <p className="font-semibold">{herds.find(h => h.id === viewRecord.herdId)?.name ?? `Herd #${viewRecord.herdId}`}</p>
-                      </div>
+                      <div><p className="text-gray-500 uppercase font-medium mb-0.5 text-[10px]">Herd / Group</p><p className="font-semibold">{herds.find(h => h.id === viewRecord.herdId)?.name ?? `Herd #${viewRecord.herdId}`}</p></div>
                     )}
                     {viewRecord.treatedAnimalCount && (
-                      <div>
-                        <p className="text-gray-500 uppercase font-medium mb-0.5 text-[10px]">Animals Treated</p>
-                        <p className="font-semibold">{viewRecord.treatedAnimalCount}</p>
-                      </div>
+                      <div><p className="text-gray-500 uppercase font-medium mb-0.5 text-[10px]">Animals Treated</p><p className="font-semibold">{viewRecord.treatedAnimalCount}</p></div>
                     )}
                     {viewRecord.treatedAnimalTags && (
                       <div className="col-span-2">
-                        <p className="text-gray-500 uppercase font-medium mb-0.5 text-[10px]">Ear Tags / Animal IDs</p>
-                        <p className="font-mono text-xs break-all">{viewRecord.treatedAnimalTags}</p>
+                        <p className="text-gray-500 uppercase font-medium mb-1 text-[10px]">Verified Ear Tags</p>
+                        <div className="flex flex-wrap gap-1">
+                          {viewRecord.treatedAnimalTags.split(",").map(t => t.trim()).filter(Boolean).map(tag => {
+                            const a = lookupAnimalByTag(tag, animals);
+                            return (
+                              <span key={tag} className={`inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full border ${a ? "bg-green-50 text-green-800 border-green-200" : "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                                {a && <CheckCircle2 className="w-3 h-3" />}{tag}
+                              </span>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
-
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Administered Date</p><p>{formatDate(viewRecord.administeredDate)}</p></div>
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Administered By</p><p>{viewRecord.administeredBy || "—"}</p></div>
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Dosage</p><p>{viewRecord.dosage || "—"}</p></div>
@@ -562,7 +754,8 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
         </Dialog>
       )}
 
-      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_FORM); } }}>
+      {/* ── Add / Edit form dialog ────────────────────────── */}
+      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) closeForm(); }}>
         <DialogContent style={{ maxWidth: "60rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -571,16 +764,18 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
             </DialogTitle>
             <DialogDescription>
               {editing?.medicineRef && <span className="font-mono text-xs text-foreground/50 mr-2">Ref: {editing.medicineRef}</span>}
-              Record all veterinary medicines — required under Red Tractor Livestock Standards and the Veterinary Medicines Regulations 2013. Ensure withdrawal periods are observed.
+              Required under Red Tractor Livestock Standards and the Veterinary Medicines Regulations 2013.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-5 pt-1">
 
-            {/* Treatment scope — the traceability section */}
+            {/* Traceability section */}
             <div className="border border-violet-200 bg-violet-50 rounded-xl p-4">
               <p className="text-xs font-semibold text-violet-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5" />Animal Traceability (Red Tractor / VMR 2013 required)
               </p>
+
+              {/* Scope selector */}
               <div className="flex gap-2 mb-4">
                 {(["individual", "group", "whole_herd"] as TreatmentScope[]).map(scope => (
                   <button
@@ -596,17 +791,17 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                       ? "border-violet-500 bg-violet-100 text-violet-800"
                       : "border-border bg-white text-foreground/60 hover:border-violet-300"}`}
                   >
-                    {scope === "individual" ? (
-                      <span className="flex items-center justify-center gap-1.5"><User className="w-3.5 h-3.5" />Individual Animal</span>
-                    ) : scope === "group" ? (
-                      <span className="flex items-center justify-center gap-1.5"><Users className="w-3.5 h-3.5" />Group / Batch</span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-1.5"><Users className="w-3.5 h-3.5" />Whole Herd</span>
-                    )}
+                    {scope === "individual"
+                      ? <span className="flex items-center justify-center gap-1.5"><User className="w-3.5 h-3.5" />Individual Animal</span>
+                      : scope === "group"
+                      ? <span className="flex items-center justify-center gap-1.5"><Users className="w-3.5 h-3.5" />Group / Batch</span>
+                      : <span className="flex items-center justify-center gap-1.5"><Users className="w-3.5 h-3.5" />Whole Herd</span>
+                    }
                   </button>
                 ))}
               </div>
 
+              {/* Individual scope */}
               {form.treatmentScope === "individual" && (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
@@ -619,7 +814,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                         required={form.treatmentScope === "individual"}
                       >
                         <option value="">Select animal by ear tag...</option>
-                        {animals.map(a => <option key={a.id} value={a.id}>{animalLabel(a)}</option>)}
+                        {animals.map(a => <option key={a.id} value={a.id}>{animalShortLabel(a)}</option>)}
                       </select>
                     ) : (
                       <div>
@@ -636,54 +831,77 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                 </div>
               )}
 
-              {(form.treatmentScope === "group" || form.treatmentScope === "whole_herd") && (
+              {/* Group scope — with ear tag validator */}
+              {form.treatmentScope === "group" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="text-sm font-medium text-foreground/70 mb-1 block">Herd / Group <span className="text-red-500">*</span></label>
+                    <select
+                      className="w-full h-12 rounded-xl border-2 border-border bg-white px-4 py-2 text-base focus:outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10"
+                      value={form.herdId}
+                      onChange={e => setForm(f => ({ ...f, herdId: e.target.value }))}
+                      required
+                    >
+                      <option value="">Select herd / group...</option>
+                      {herds.map(h => <option key={h.id} value={h.id}>{h.name} ({h.type})</option>)}
+                    </select>
+                  </div>
+                  <EarTagValidatorPanel
+                    rawInput={form.treatedAnimalTags}
+                    onRawChange={v => setForm(f => ({ ...f, treatedAnimalTags: v }))}
+                    validations={tagValidations}
+                    onValidate={runTagValidation}
+                    onCorrect={applyCorrection}
+                  />
+                  {/* Auto-updated count from validation */}
+                  <div>
+                    <label className="text-sm font-medium text-foreground/70 mb-1 block">Animals Treated</label>
+                    <Input
+                      type="number" min="1"
+                      value={tagValidations.length > 0 ? String(tagValidations.filter(v => v.animal).length) : form.treatedAnimalCount}
+                      readOnly={tagValidations.length > 0}
+                      onChange={e => setForm(f => ({ ...f, treatedAnimalCount: e.target.value }))}
+                      className={tagValidations.length > 0 ? "bg-green-50 text-green-800 font-semibold" : ""}
+                    />
+                    {tagValidations.length > 0 && (
+                      <p className="text-xs text-green-700 mt-1">Auto-set from {tagValidations.filter(v => v.animal).length} verified tags.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Whole herd scope */}
+              {form.treatmentScope === "whole_herd" && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm font-medium text-foreground/70 mb-1 block">Herd / Group <span className="text-red-500">*</span></label>
+                    <label className="text-sm font-medium text-foreground/70 mb-1 block">Herd <span className="text-red-500">*</span></label>
                     <select
                       className="w-full h-12 rounded-xl border-2 border-border bg-white px-4 py-2 text-base focus:outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10"
                       value={form.herdId}
                       onChange={e => {
                         const newHerdId = e.target.value;
-                        const autoCount = form.treatmentScope === "whole_herd" && newHerdId
+                        const autoCount = newHerdId
                           ? String(animals.filter(a => a.herdId === Number(newHerdId)).length || "")
                           : form.treatedAnimalCount;
                         setForm(f => ({ ...f, herdId: newHerdId, treatedAnimalCount: autoCount }));
                       }}
-                      required={form.treatmentScope === "group" || form.treatmentScope === "whole_herd"}
+                      required
                     >
                       <option value="">Select herd...</option>
                       {herds.map(h => <option key={h.id} value={h.id}>{h.name} ({h.type})</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-foreground/70 mb-1 block">
-                      Number of Animals Treated{form.treatmentScope === "whole_herd" && " (whole herd)"}
-                    </label>
+                    <label className="text-sm font-medium text-foreground/70 mb-1 block">Total Animals in Herd</label>
                     <Input
                       type="number" min="1"
-                      placeholder="e.g. 42"
+                      placeholder="Auto-filled from registered animals"
                       value={form.treatedAnimalCount}
                       onChange={e => setForm(f => ({ ...f, treatedAnimalCount: e.target.value }))}
                     />
-                    {form.treatmentScope === "whole_herd" && form.herdId && Number(form.treatedAnimalCount) > 0 && (
-                      <p className="text-xs text-violet-700 mt-1">Auto-filled from registered animals in this herd. Adjust if needed.</p>
+                    {form.herdId && Number(form.treatedAnimalCount) > 0 && (
+                      <p className="text-xs text-violet-700 mt-1">Auto-filled · adjust if animals have moved in/out.</p>
                     )}
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-sm font-medium text-foreground/70 mb-1 block">
-                      Ear Tags / Animal IDs
-                      <span className="ml-1 text-xs text-foreground/40 font-normal">
-                        {form.treatmentScope === "whole_herd" ? "Optional — enter if you have a finite list" : "Recommended for Red Tractor compliance"}
-                      </span>
-                    </label>
-                    <textarea
-                      className="w-full min-h-[64px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-y"
-                      placeholder="e.g. UK123456/0001, UK123456/0002, UK123456/0003"
-                      value={form.treatedAnimalTags}
-                      onChange={e => setForm(f => ({ ...f, treatedAnimalTags: e.target.value }))}
-                    />
-                    <p className="text-xs text-foreground/40 mt-1">Comma-separated list. For small groups, listing individual ear tags provides the strongest audit trail.</p>
                   </div>
                 </div>
               )}
@@ -721,11 +939,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Withdrawal Period (days)</label>
                 <Input type="number" min="0" placeholder="e.g. 7 — leave blank if none" value={form.withdrawalPeriodDays} onChange={e => setForm(f => ({ ...f, withdrawalPeriodDays: e.target.value }))} />
-                {previewWdEnd && (
-                  <p className="text-xs text-amber-700 mt-1 font-medium">
-                    Withdrawal ends: {formatDate(previewWdEnd)}
-                  </p>
-                )}
+                {previewWdEnd && <p className="text-xs text-amber-700 mt-1 font-medium">Withdrawal ends: {formatDate(previewWdEnd)}</p>}
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Prescribing Vet</label>
@@ -740,8 +954,17 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                 <Input placeholder="Any additional information..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
               </div>
             </div>
+
+            {/* Unmatched tag warning inline */}
+            {form.treatmentScope === "group" && unmatchedCount > 0 && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-sm text-amber-800">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{unmatchedCount} ear tag{unmatchedCount !== 1 ? "s" : ""} still unmatched. Correct them above before saving, or save now and they will not appear on individual animal records.</span>
+              </div>
+            )}
+
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); setForm(EMPTY_FORM); }}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={closeForm}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 {editing ? "Save Changes" : "Add to Register"}
@@ -751,6 +974,32 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
         </DialogContent>
       </Dialog>
 
+      {/* ── Unmatched tags confirmation dialog ───────────── */}
+      <Dialog open={!!pendingBodyWithUnmatched} onOpenChange={() => setPendingBodyWithUnmatched(null)}>
+        <DialogContent style={{ maxWidth: "30rem" }}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-amber-600" />
+              Unverified Ear Tags
+            </DialogTitle>
+            <DialogDescription>
+              {unmatchedCount} ear tag{unmatchedCount !== 1 ? "s" : ""} could not be matched to a registered animal. Those animals will not have this medicine record on their individual profile.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-foreground/70 px-1">
+            You can go back and correct the tags, or save now. The unmatched tags will be discarded from the record — only the verified animals will be linked.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingBodyWithUnmatched(null)}>Go back and fix</Button>
+            <Button variant="destructive" onClick={confirmSaveWithUnmatched} disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Save with verified tags only
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete confirmation ───────────────────────────── */}
       <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <DialogContent style={{ maxWidth: "28rem" }}>
           <DialogHeader>
