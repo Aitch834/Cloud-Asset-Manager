@@ -1237,22 +1237,27 @@ function MortalitySection({ farmId }: { farmId: number }) {
   });
   const records = data?.records ?? [];
 
-  const { data: animals = [] } = useQuery<Animal[]>({
-    queryKey: ["livestock-animals", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/livestock-animals`).then(r => r.json()).then(d => d.records ?? []),
+  // Shares cache with AnimalsSection — correct endpoint and shape
+  const { data: animalsForMortality } = useQuery<{ records: Animal[] }>({
+    queryKey: ["animals", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/animals`).then(r => r.json()),
   });
+  const animals: Animal[] = animalsForMortality?.records ?? [];
   const activeAnimals = animals.filter(a => a.status === "active");
 
   const { data: contractors = [] } = useQuery<FallenStockContractor[]>({
     queryKey: ["fallen-stock-contractors", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/fallen-stock-contractors`).then(r => r.json()),
   });
-  const activeContractors = contractors.filter(c => c.isActive);
+  const activeContractors = Array.isArray(contractors) ? contractors.filter(c => c.isActive) : [];
 
-  const { data: vetPlans = [] } = useQuery<VetHealthPlan[]>({
-    queryKey: ["vet-health-plans", farmId],
+  // Use a distinct key to avoid cache shape conflict with VetHealthPlansSection
+  const { data: vetPlansData } = useQuery({
+    queryKey: ["mortality-vet-plans", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/vet-health-plans`).then(r => r.json()).then(d => d.records ?? []),
   });
+  const vetPlans: VetHealthPlan[] = Array.isArray(vetPlansData) ? vetPlansData : [];
+
   // Deduplicated list of vets from health plans (most recent plan for each vet)
   const knownVets = vetPlans.reduce<{ label: string; value: string }[]>((acc, p) => {
     const value = [p.vetName, p.practiceName].filter(Boolean).join(" — ");
@@ -1295,7 +1300,7 @@ function MortalitySection({ farmId }: { farmId: number }) {
     mutationFn: (body: typeof EMPTY_MORTALITY) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["mortality", farmId] });
-      qc.invalidateQueries({ queryKey: ["livestock-animals", farmId] });
+      qc.invalidateQueries({ queryKey: ["animals", farmId] });
       setShowForm(false); setForm(EMPTY_MORTALITY); setUseOtherVet(false);
     },
   });
