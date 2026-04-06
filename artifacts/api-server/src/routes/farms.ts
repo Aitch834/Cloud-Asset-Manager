@@ -35,6 +35,7 @@ import {
   equipmentCalibrationRecordsTable,
   herdFlockRegisterTable,
   herdHealthEventsTable,
+  livestockPurchasesTable,
   livestockAnimalsTable,
   animalDocumentsTable,
   livestockMovementsTable,
@@ -2011,6 +2012,109 @@ router.delete("/farms/:farmId/herd-health-events/:recordId", requireAuth, requir
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(herdHealthEventsTable).where(and(eq(herdHealthEventsTable.id, recordId), eq(herdHealthEventsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Livestock Purchases ───────────────────────────
+router.get("/farms/:farmId/livestock-purchases", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(livestockPurchasesTable).where(eq(livestockPurchasesTable.farmId, farmId)).orderBy(desc(livestockPurchasesTable.invoiceDate));
+  // Auto-mark overdue records in the response (don't update DB on every read — just annotate)
+  const now = new Date();
+  const enriched = records.map(r => {
+    if (r.paymentStatus === "outstanding" && r.paymentDueDate && new Date(r.paymentDueDate) < now) {
+      return { ...r, paymentStatus: "overdue" };
+    }
+    return r;
+  });
+  res.json({ records: enriched });
+});
+
+router.post("/farms/:farmId/livestock-purchases", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const body = req.body;
+  const invoiceDate = body.invoiceDate ? new Date(body.invoiceDate) : null;
+  const arrivalDate = body.arrivalDate ? new Date(body.arrivalDate) : null;
+  const paymentTermsDays = Number(body.paymentTermsDays ?? 0);
+  const paymentDueDate = invoiceDate && paymentTermsDays > 0
+    ? new Date(invoiceDate.getTime() + paymentTermsDays * 86400000)
+    : (invoiceDate && paymentTermsDays === 0 ? invoiceDate : null);
+  const now = new Date();
+  const paymentStatus = body.paidDate ? "paid"
+    : (paymentDueDate && paymentDueDate < now ? "overdue" : "outstanding");
+  const [record] = await db.insert(livestockPurchasesTable).values({
+    farmId,
+    invoiceDate: invoiceDate!,
+    arrivalDate: arrivalDate ?? undefined,
+    supplierName: body.supplierName,
+    supplierCph: body.supplierCph ?? null,
+    marketName: body.marketName ?? null,
+    invoiceRef: body.invoiceRef ?? null,
+    species: body.species,
+    numberOfHead: Number(body.numberOfHead),
+    pricePerHeadPence: body.pricePerHeadPence ? Number(body.pricePerHeadPence) : null,
+    totalAmountPence: Number(body.totalAmountPence),
+    vatAmountPence: body.vatAmountPence ? Number(body.vatAmountPence) : null,
+    paymentTermsDays,
+    paymentDueDate: paymentDueDate ?? undefined,
+    paidDate: body.paidDate ? new Date(body.paidDate) : null,
+    paymentStatus,
+    paymentMethod: body.paymentMethod ?? null,
+    paymentReference: body.paymentReference ?? null,
+    herdId: body.herdId ? Number(body.herdId) : null,
+    notes: body.notes ?? null,
+  }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/livestock-purchases/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const body = req.body;
+  const invoiceDate = body.invoiceDate ? new Date(body.invoiceDate) : undefined;
+  const arrivalDate = body.arrivalDate ? new Date(body.arrivalDate) : null;
+  const paymentTermsDays = body.paymentTermsDays !== undefined ? Number(body.paymentTermsDays) : undefined;
+  const paymentDueDate = invoiceDate && paymentTermsDays !== undefined
+    ? (paymentTermsDays > 0 ? new Date(invoiceDate.getTime() + paymentTermsDays * 86400000) : invoiceDate)
+    : undefined;
+  const now = new Date();
+  const paymentStatus = body.paidDate ? "paid"
+    : (paymentDueDate && paymentDueDate < now ? "overdue" : "outstanding");
+  const updatePayload: Record<string, unknown> = {
+    ...(invoiceDate && { invoiceDate }),
+    ...(arrivalDate !== undefined && { arrivalDate }),
+    ...(body.supplierName !== undefined && { supplierName: body.supplierName }),
+    ...(body.supplierCph !== undefined && { supplierCph: body.supplierCph }),
+    ...(body.marketName !== undefined && { marketName: body.marketName }),
+    ...(body.invoiceRef !== undefined && { invoiceRef: body.invoiceRef }),
+    ...(body.species !== undefined && { species: body.species }),
+    ...(body.numberOfHead !== undefined && { numberOfHead: Number(body.numberOfHead) }),
+    ...(body.pricePerHeadPence !== undefined && { pricePerHeadPence: body.pricePerHeadPence ? Number(body.pricePerHeadPence) : null }),
+    ...(body.totalAmountPence !== undefined && { totalAmountPence: Number(body.totalAmountPence) }),
+    ...(body.vatAmountPence !== undefined && { vatAmountPence: body.vatAmountPence ? Number(body.vatAmountPence) : null }),
+    ...(paymentTermsDays !== undefined && { paymentTermsDays }),
+    ...(paymentDueDate !== undefined && { paymentDueDate }),
+    ...(body.paidDate !== undefined && { paidDate: body.paidDate ? new Date(body.paidDate) : null }),
+    paymentStatus,
+    ...(body.paymentMethod !== undefined && { paymentMethod: body.paymentMethod }),
+    ...(body.paymentReference !== undefined && { paymentReference: body.paymentReference }),
+    ...(body.herdId !== undefined && { herdId: body.herdId ? Number(body.herdId) : null }),
+    ...(body.notes !== undefined && { notes: body.notes }),
+  };
+  const [record] = await db.update(livestockPurchasesTable).set(updatePayload).where(and(eq(livestockPurchasesTable.id, recordId), eq(livestockPurchasesTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/livestock-purchases/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(livestockPurchasesTable).where(and(eq(livestockPurchasesTable.id, recordId), eq(livestockPurchasesTable.farmId, farmId)));
   res.json({ success: true });
 });
 
