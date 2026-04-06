@@ -15,7 +15,8 @@ import {
   Fuel, Plus, AlertTriangle, CheckCircle2, XCircle, Droplets,
   Truck, ClipboardCheck, Gauge, ShieldAlert, Trash2, Zap,
   Flame, Wind, Edit2, Plug, ChevronDown, ChevronRight, ClipboardList,
-  Eye, Paperclip, Filter, X as XIcon, ExternalLink, Camera, FileText
+  Eye, Paperclip, Filter, X as XIcon, ExternalLink, Camera, FileText,
+  Sun, PoundSterling
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
@@ -39,7 +40,16 @@ function buildCropYearOptions(): { label: string; start: Date; end: Date }[] {
   return options;
 }
 
-type Tab = "tanks" | "deliveries" | "usage" | "inspections" | "grid-energy" | "reports";
+type Tab = "tanks" | "deliveries" | "usage" | "inspections" | "grid-energy" | "solar" | "reports";
+
+const TECH_TYPES = [
+  { value: "solar_pv", label: "Solar PV (Photovoltaic)" },
+  { value: "wind_turbine", label: "Wind Turbine" },
+  { value: "hydro", label: "Hydroelectric" },
+  { value: "biomass_boiler", label: "Biomass Boiler" },
+  { value: "anaerobic_digester", label: "Anaerobic Digester (AD)" },
+  { value: "other", label: "Other" },
+];
 
 const FUEL_TYPES = [
   "red_diesel", "white_diesel", "heating_oil", "lpg_bulk", "lpg_bottles",
@@ -587,6 +597,449 @@ function ReportsTab({
   );
 }
 
+function SolarRenewablesTab({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const base = `/api/farms/${farmId}`;
+  type SolarSubTab = "installations" | "generation" | "payments";
+  const [subTab, setSubTab] = useState<SolarSubTab>("installations");
+
+  const EMPTY_INSTALL = { installationName: "", technologyType: "solar_pv", installedCapacityKw: "", installationDate: "", installerName: "", gridConnectionRef: "", fitOrSegContractRef: "", tariffProvider: "", tariffRatePence: "", maintenanceContractor: "", nextServiceDate: "", notes: "", panelCount: "", mcsCertificateNumber: "", installerMcsNumber: "", buildingName: "" };
+  const EMPTY_GEN = { readingDate: "", installationId: "", generationKwh: "", exportKwh: "", selfConsumedKwh: "", fitPaymentPeriod: "", fitPaymentAmount: "", meterReference: "", notes: "" };
+  const EMPTY_PAYMENT = { paymentDate: "", installationId: "", periodFrom: "", periodTo: "", exportKwh: "", rateUsedPencePerKwh: "", paymentAmountPence: "", paymentReference: "", supplierName: "", notes: "" };
+
+  const [showInstallDialog, setShowInstallDialog] = useState(false);
+  const [editInstall, setEditInstall] = useState<any | null>(null);
+  const [deleteInstallId, setDeleteInstallId] = useState<number | null>(null);
+  const [installForm, setInstallForm] = useState<any>(EMPTY_INSTALL);
+
+  const [showGenDialog, setShowGenDialog] = useState(false);
+  const [editGen, setEditGen] = useState<any | null>(null);
+  const [deleteGenId, setDeleteGenId] = useState<number | null>(null);
+  const [genForm, setGenForm] = useState<any>(EMPTY_GEN);
+
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [editPayment, setEditPayment] = useState<any | null>(null);
+  const [deletePaymentId, setDeletePaymentId] = useState<number | null>(null);
+  const [paymentForm, setPaymentForm] = useState<any>(EMPTY_PAYMENT);
+
+  const { data: installsData, isLoading: installsLoading } = useQuery({
+    queryKey: ["solar-installations", farmId],
+    queryFn: () => fetch(`${base}/solar-installations`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const installs: any[] = Array.isArray(installsData) ? installsData : [];
+
+  const { data: genData, isLoading: genLoading } = useQuery({
+    queryKey: ["solar-generation", farmId],
+    queryFn: () => fetch(`${base}/solar-generation`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const genReadings: any[] = Array.isArray(genData) ? genData : [];
+
+  const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
+    queryKey: ["solar-payments", farmId],
+    queryFn: () => fetch(`${base}/solar-export-payments`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const payments: any[] = Array.isArray(paymentsData) ? paymentsData : [];
+
+  const totalCapacityKw = installs.filter(i => i.isActive !== false).reduce((s, i) => s + parseFloat(String(i.installedCapacityKw || "0")), 0);
+  const currentYear = new Date().getFullYear();
+  const ytdGen = genReadings.filter(r => r.readingDate && new Date(r.readingDate).getFullYear() === currentYear).reduce((s, r) => s + parseFloat(String(r.generationKwh || "0")), 0);
+  const ytdExport = genReadings.filter(r => r.readingDate && new Date(r.readingDate).getFullYear() === currentYear).reduce((s, r) => s + parseFloat(String(r.exportKwh || "0")), 0);
+  const ytdSegIncome = payments.filter(p => p.paymentDate && new Date(p.paymentDate).getFullYear() === currentYear).reduce((s, p) => s + (Number(p.paymentAmountPence) || 0), 0);
+
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ["solar-installations", farmId] });
+    qc.invalidateQueries({ queryKey: ["solar-generation", farmId] });
+    qc.invalidateQueries({ queryKey: ["solar-payments", farmId] });
+  };
+
+  const createInstallMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-installations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Installation added" }); qc.invalidateQueries({ queryKey: ["solar-installations", farmId] }); setShowInstallDialog(false); setInstallForm(EMPTY_INSTALL); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
+  const updateInstallMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-installations/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Installation updated" }); qc.invalidateQueries({ queryKey: ["solar-installations", farmId] }); setShowInstallDialog(false); setEditInstall(null); setInstallForm(EMPTY_INSTALL); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
+  const deleteInstallMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/solar-installations/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["solar-installations", farmId] }); setDeleteInstallId(null); } });
+
+  const createGenMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-generation`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Reading logged" }); qc.invalidateQueries({ queryKey: ["solar-generation", farmId] }); setShowGenDialog(false); setGenForm(EMPTY_GEN); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
+  const updateGenMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-generation/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Reading updated" }); qc.invalidateQueries({ queryKey: ["solar-generation", farmId] }); setShowGenDialog(false); setEditGen(null); setGenForm(EMPTY_GEN); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
+  const deleteGenMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/solar-generation/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["solar-generation", farmId] }); setDeleteGenId(null); } });
+
+  const createPaymentMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-export-payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...b, paymentAmountPence: b.paymentAmountPence ? Math.round(parseFloat(b.paymentAmountPence) * 100) : 0 }) }).then(r => r.json()), onSuccess: () => { toast({ title: "Payment recorded" }); qc.invalidateQueries({ queryKey: ["solar-payments", farmId] }); setShowPaymentDialog(false); setPaymentForm(EMPTY_PAYMENT); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
+  const updatePaymentMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-export-payments/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...b, paymentAmountPence: b.paymentAmountPence ? Math.round(parseFloat(b.paymentAmountPence) * 100) : undefined }) }).then(r => r.json()), onSuccess: () => { toast({ title: "Payment updated" }); qc.invalidateQueries({ queryKey: ["solar-payments", farmId] }); setShowPaymentDialog(false); setEditPayment(null); setPaymentForm(EMPTY_PAYMENT); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
+  const deletePaymentMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/solar-export-payments/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["solar-payments", farmId] }); setDeletePaymentId(null); } });
+
+  void invalidateAll;
+  const techLabel = (t: string) => TECH_TYPES.find(x => x.value === t)?.label ?? t;
+
+  return (
+    <div>
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Capacity</p>
+          <p className="text-2xl font-bold text-gray-900">{totalCapacityKw.toFixed(2)} kW</p>
+          <p className="text-xs text-gray-400">{installs.filter(i => i.isActive !== false).length} active installation{installs.filter(i => i.isActive !== false).length !== 1 ? "s" : ""}</p>
+        </div>
+        <div className="bg-white border border-amber-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">YTD Generation</p>
+          <p className="text-2xl font-bold text-amber-600">{ytdGen.toLocaleString(undefined, { maximumFractionDigits: 0 })} kWh</p>
+          <p className="text-xs text-gray-400">Jan–Dec {currentYear}</p>
+        </div>
+        <div className="bg-white border border-blue-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">YTD Export</p>
+          <p className="text-2xl font-bold text-blue-600">{ytdExport.toLocaleString(undefined, { maximumFractionDigits: 0 })} kWh</p>
+          <p className="text-xs text-gray-400">exported to grid</p>
+        </div>
+        <div className="bg-white border border-green-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">YTD SEG Income</p>
+          <p className="text-2xl font-bold text-green-700">£{(ytdSegIncome / 100).toFixed(2)}</p>
+          <p className="text-xs text-gray-400">Smart Export Guarantee</p>
+        </div>
+      </div>
+
+      {/* Info banner */}
+      <div className="flex gap-2 items-start bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+        <Sun className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+        <p className="text-xs text-amber-800">
+          <strong>Smart Export Guarantee (SEG)</strong> — Any farm generating electricity from a certified (MCS) installation and exporting to the grid must register with a licensed SEG provider. Payments are typically quarterly. Log your MCS certificate number, tariff provider, and SEG rate on each installation. Record quarterly payments in the Export Payments tab to track your total SEG income.
+        </p>
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-4 border-b border-gray-200 mb-4">
+        {(["installations", "generation", "payments"] as SolarSubTab[]).map(t => (
+          <button key={t} onClick={() => setSubTab(t)} className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${subTab === t ? "border-green-700 text-green-800" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+            {t === "installations" ? `Installations (${installs.length})` : t === "generation" ? `Generation Log (${genReadings.length})` : `Export Payments (${payments.length})`}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── INSTALLATIONS ─── */}
+      {subTab === "installations" && (
+        <div>
+          <div className="flex justify-end mb-3">
+            <Button onClick={() => { setEditInstall(null); setInstallForm(EMPTY_INSTALL); setShowInstallDialog(true); }} className="bg-green-800 hover:bg-green-900 text-white">
+              <Plus className="w-4 h-4 mr-1" />Add Installation
+            </Button>
+          </div>
+          {installsLoading ? <p className="text-sm text-gray-400 text-center py-10">Loading…</p> : installs.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <Sun className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p className="font-medium text-gray-600">No renewable energy installations registered</p>
+              <p className="text-sm">Add a Solar PV array, wind turbine, or other installation to get started</p>
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {installs.map((inst: any) => {
+                const isSolar = String(inst.technologyType) === "solar_pv";
+                return (
+                  <div key={inst.id} className="bg-white border border-gray-200 rounded-xl p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-2">
+                        {isSolar ? <Sun className="w-5 h-5 text-amber-500" /> : <Wind className="w-5 h-5 text-blue-500" />}
+                        <div>
+                          <p className="font-semibold text-gray-900">{String(inst.installationName)}</p>
+                          <p className="text-xs text-gray-400">{techLabel(String(inst.technologyType))}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => { setEditInstall(inst); setInstallForm({ ...inst, installedCapacityKw: inst.installedCapacityKw ?? "", panelCount: inst.panelCount ?? "", tariffRatePence: inst.tariffRatePence ?? "" }); setShowInstallDialog(true); }}><Edit2 className="w-3.5 h-3.5" /></Button>
+                        <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setDeleteInstallId(Number(inst.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                      <span className="text-gray-400">Capacity</span>
+                      <span className="font-medium">{inst.installedCapacityKw ? `${parseFloat(String(inst.installedCapacityKw)).toFixed(2)} kW${isSolar ? "p" : ""}` : "—"}</span>
+                      {isSolar && <><span className="text-gray-400">Panel count</span><span className="font-medium">{inst.panelCount ?? "—"}</span></>}
+                      <span className="text-gray-400">Building / location</span>
+                      <span className="font-medium">{inst.buildingName || "—"}</span>
+                      <span className="text-gray-400">Install date</span>
+                      <span className="font-medium">{inst.installationDate ? new Date(inst.installationDate).toLocaleDateString("en-GB") : "—"}</span>
+                      <span className="text-gray-400">MCS cert</span>
+                      <span className="font-medium">{inst.mcsCertificateNumber || "—"}</span>
+                      <span className="text-gray-400">SEG / FiT rate</span>
+                      <span className="font-medium">{inst.tariffRatePence ? `${parseFloat(String(inst.tariffRatePence)).toFixed(2)}p/kWh` : "—"}</span>
+                      <span className="text-gray-400">Tariff provider</span>
+                      <span className="font-medium">{inst.tariffProvider || "—"}</span>
+                      {inst.nextServiceDate && <><span className="text-gray-400">Next service</span><span className="font-medium text-amber-600">{new Date(inst.nextServiceDate).toLocaleDateString("en-GB")}</span></>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── GENERATION LOG ─── */}
+      {subTab === "generation" && (
+        <div>
+          <div className="flex justify-end mb-3">
+            <Button onClick={() => { setEditGen(null); setGenForm(EMPTY_GEN); setShowGenDialog(true); }} className="bg-green-800 hover:bg-green-900 text-white">
+              <Plus className="w-4 h-4 mr-1" />Log Reading
+            </Button>
+          </div>
+          {genLoading ? <p className="text-sm text-gray-400 text-center py-10">Loading…</p> : genReadings.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <Zap className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p className="font-medium text-gray-600">No generation readings recorded</p>
+              <p className="text-sm">Log monthly meter readings to track generation, export, and self-consumption</p>
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    {["Date", "Installation", "Generated (kWh)", "Exported (kWh)", "Self-used (kWh)", "FiT/SEG Period", "Payment (£)", ""].map(h => (
+                      <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {genReadings.map((r: any, i: number) => {
+                    const inst = installs.find(x => Number(x.id) === Number(r.installationId));
+                    return (
+                      <tr key={r.id} className={i < genReadings.length - 1 ? "border-b border-gray-100" : ""}>
+                        <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{r.readingDate ? new Date(r.readingDate).toLocaleDateString("en-GB") : "—"}</td>
+                        <td className="px-3 py-2 font-medium">{inst?.installationName ?? "—"}</td>
+                        <td className="px-3 py-2 text-amber-700 font-medium">{r.generationKwh ? parseFloat(String(r.generationKwh)).toLocaleString() : "—"}</td>
+                        <td className="px-3 py-2 text-blue-700">{r.exportKwh ? parseFloat(String(r.exportKwh)).toLocaleString() : "—"}</td>
+                        <td className="px-3 py-2 text-green-700">{r.selfConsumedKwh ? parseFloat(String(r.selfConsumedKwh)).toLocaleString() : "—"}</td>
+                        <td className="px-3 py-2 text-gray-500">{r.fitPaymentPeriod || "—"}</td>
+                        <td className="px-3 py-2 font-medium text-green-700">{r.fitPaymentAmount ? `£${parseFloat(String(r.fitPaymentAmount)).toFixed(2)}` : "—"}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => { setEditGen(r); setGenForm({ ...r, generationKwh: r.generationKwh ?? "", exportKwh: r.exportKwh ?? "", selfConsumedKwh: r.selfConsumedKwh ?? "", fitPaymentAmount: r.fitPaymentAmount ?? "", installationId: r.installationId ? String(r.installationId) : "" }); setShowGenDialog(true); }}><Edit2 className="w-3.5 h-3.5" /></Button>
+                            <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setDeleteGenId(Number(r.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── EXPORT PAYMENTS ─── */}
+      {subTab === "payments" && (
+        <div>
+          <div className="flex justify-between items-center mb-3">
+            {payments.length > 0 && <p className="text-sm text-gray-500">YTD SEG income: <span className="font-semibold text-green-700">£{(ytdSegIncome / 100).toFixed(2)}</span></p>}
+            <div className="ml-auto">
+              <Button onClick={() => { setEditPayment(null); setPaymentForm(EMPTY_PAYMENT); setShowPaymentDialog(true); }} className="bg-green-800 hover:bg-green-900 text-white">
+                <Plus className="w-4 h-4 mr-1" />Record SEG Payment
+              </Button>
+            </div>
+          </div>
+          {paymentsLoading ? <p className="text-sm text-gray-400 text-center py-10">Loading…</p> : payments.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <PoundSterling className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p className="font-medium text-gray-600">No SEG payments recorded yet</p>
+              <p className="text-sm">Record each quarterly Smart Export Guarantee payment received from your energy supplier</p>
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    {["Payment Date", "Period", "Installation", "kWh Exported", "Rate", "Amount", "Reference", "Supplier", ""].map(h => (
+                      <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map((p: any, i: number) => {
+                    const inst = installs.find(x => Number(x.id) === Number(p.installationId));
+                    const periodStr = (p.periodFrom && p.periodTo) ? `${new Date(p.periodFrom).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} – ${new Date(p.periodTo).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}` : "—";
+                    return (
+                      <tr key={p.id} className={i < payments.length - 1 ? "border-b border-gray-100" : ""}>
+                        <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{p.paymentDate ? new Date(p.paymentDate).toLocaleDateString("en-GB") : "—"}</td>
+                        <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{periodStr}</td>
+                        <td className="px-3 py-2 font-medium">{inst?.installationName ?? "—"}</td>
+                        <td className="px-3 py-2 text-blue-700">{p.exportKwh ? parseFloat(String(p.exportKwh)).toLocaleString() : "—"}</td>
+                        <td className="px-3 py-2 text-gray-600">{p.rateUsedPencePerKwh ? `${parseFloat(String(p.rateUsedPencePerKwh)).toFixed(2)}p/kWh` : "—"}</td>
+                        <td className="px-3 py-2 font-semibold text-green-700">£{((Number(p.paymentAmountPence) || 0) / 100).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-gray-500">{p.paymentReference || "—"}</td>
+                        <td className="px-3 py-2 text-gray-500">{p.supplierName || "—"}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => { setEditPayment(p); setPaymentForm({ ...p, exportKwh: p.exportKwh ?? "", rateUsedPencePerKwh: p.rateUsedPencePerKwh ?? "", paymentAmountPence: p.paymentAmountPence ? (Number(p.paymentAmountPence) / 100).toFixed(2) : "", installationId: p.installationId ? String(p.installationId) : "" }); setShowPaymentDialog(true); }}><Edit2 className="w-3.5 h-3.5" /></Button>
+                            <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setDeletePaymentId(Number(p.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── INSTALLATION DIALOG ─── */}
+      <Dialog open={showInstallDialog} onOpenChange={o => { if (!o) { setShowInstallDialog(false); setEditInstall(null); setInstallForm(EMPTY_INSTALL); } }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>{editInstall ? "Edit Installation" : "Register New Installation"}</DialogTitle></DialogHeader>
+          <div className="grid gap-3 py-2 max-h-[65vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Installation name *</Label><Input value={installForm.installationName ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, installationName: e.target.value }))} placeholder="e.g. Grain Store South Array" /></div>
+              <div><Label>Technology type *</Label>
+                <Select value={installForm.technologyType ?? "solar_pv"} onValueChange={v => setInstallForm((f: any) => ({ ...f, technologyType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{TECH_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Capacity (kW{installForm.technologyType === "solar_pv" ? "p" : ""})</Label><Input type="number" step="0.01" value={installForm.installedCapacityKw ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, installedCapacityKw: e.target.value }))} placeholder="e.g. 49.92" /></div>
+              {installForm.technologyType === "solar_pv" && <div><Label>Panel count</Label><Input type="number" value={installForm.panelCount ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, panelCount: e.target.value }))} placeholder="e.g. 144" /></div>}
+              <div><Label>Building / location</Label><Input value={installForm.buildingName ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, buildingName: e.target.value }))} placeholder="e.g. Main grain store roof" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Installation date</Label><Input type="date" value={installForm.installationDate ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, installationDate: e.target.value }))} /></div>
+              <div><Label>Installer name</Label><Input value={installForm.installerName ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, installerName: e.target.value }))} placeholder="Installer company" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>MCS certificate no.</Label><Input value={installForm.mcsCertificateNumber ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, mcsCertificateNumber: e.target.value }))} placeholder="MCS-..." /></div>
+              <div><Label>Installer MCS no.</Label><Input value={installForm.installerMcsNumber ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, installerMcsNumber: e.target.value }))} placeholder="MCSXXXX" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>SEG / FiT tariff provider</Label><Input value={installForm.tariffProvider ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, tariffProvider: e.target.value }))} placeholder="e.g. Octopus Energy" /></div>
+              <div><Label>SEG / FiT rate (p/kWh)</Label><Input type="number" step="0.01" value={installForm.tariffRatePence ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, tariffRatePence: e.target.value }))} placeholder="e.g. 7.50" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>FiT / SEG contract ref</Label><Input value={installForm.fitOrSegContractRef ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, fitOrSegContractRef: e.target.value }))} /></div>
+              <div><Label>DNO grid connection ref</Label><Input value={installForm.gridConnectionRef ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, gridConnectionRef: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Maintenance contractor</Label><Input value={installForm.maintenanceContractor ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, maintenanceContractor: e.target.value }))} /></div>
+              <div><Label>Next service date</Label><Input type="date" value={installForm.nextServiceDate ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, nextServiceDate: e.target.value }))} /></div>
+            </div>
+            <div><Label>Notes</Label><Textarea value={installForm.notes ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowInstallDialog(false); setEditInstall(null); setInstallForm(EMPTY_INSTALL); }}>Cancel</Button>
+            <Button className="bg-green-800 hover:bg-green-900 text-white" disabled={createInstallMut.isPending || updateInstallMut.isPending} onClick={() => {
+              if (!installForm.installationName || !installForm.technologyType) { toast({ title: "Name and technology type are required", variant: "destructive" }); return; }
+              const body = { ...installForm, installedCapacityKw: installForm.installedCapacityKw || null, panelCount: installForm.panelCount ? parseInt(String(installForm.panelCount)) : null, tariffRatePence: installForm.tariffRatePence || null, nextServiceDate: installForm.nextServiceDate || null, installationDate: installForm.installationDate || null };
+              if (editInstall) updateInstallMut.mutate({ ...body, id: editInstall.id });
+              else createInstallMut.mutate(body);
+            }}>{editInstall ? "Save Changes" : "Add Installation"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── GENERATION DIALOG ─── */}
+      <Dialog open={showGenDialog} onOpenChange={o => { if (!o) { setShowGenDialog(false); setEditGen(null); setGenForm(EMPTY_GEN); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editGen ? "Edit Reading" : "Log Generation Reading"}</DialogTitle></DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Reading date *</Label><Input type="date" value={genForm.readingDate ?? ""} onChange={e => setGenForm((f: any) => ({ ...f, readingDate: e.target.value }))} /></div>
+              <div><Label>Installation *</Label>
+                <Select value={String(genForm.installationId || "__none__")} onValueChange={v => setGenForm((f: any) => ({ ...f, installationId: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select installation" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Select —</SelectItem>
+                    {installs.map((i: any) => <SelectItem key={String(i.id)} value={String(i.id)}>{String(i.installationName)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Generated (kWh)</Label><Input type="number" step="0.01" value={genForm.generationKwh ?? ""} onChange={e => setGenForm((f: any) => ({ ...f, generationKwh: e.target.value }))} placeholder="0.00" /></div>
+              <div><Label>Exported (kWh)</Label><Input type="number" step="0.01" value={genForm.exportKwh ?? ""} onChange={e => setGenForm((f: any) => ({ ...f, exportKwh: e.target.value }))} placeholder="0.00" /></div>
+              <div><Label>Self-used (kWh)</Label><Input type="number" step="0.01" value={genForm.selfConsumedKwh ?? ""} onChange={e => setGenForm((f: any) => ({ ...f, selfConsumedKwh: e.target.value }))} placeholder="0.00" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>FiT / SEG period</Label><Input value={genForm.fitPaymentPeriod ?? ""} onChange={e => setGenForm((f: any) => ({ ...f, fitPaymentPeriod: e.target.value }))} placeholder="e.g. Q1 2025" /></div>
+              <div><Label>FiT / SEG payment (£)</Label><Input type="number" step="0.01" value={genForm.fitPaymentAmount ?? ""} onChange={e => setGenForm((f: any) => ({ ...f, fitPaymentAmount: e.target.value }))} placeholder="0.00" /></div>
+            </div>
+            <div><Label>Notes</Label><Textarea value={genForm.notes ?? ""} onChange={e => setGenForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowGenDialog(false); setEditGen(null); setGenForm(EMPTY_GEN); }}>Cancel</Button>
+            <Button className="bg-green-800 hover:bg-green-900 text-white" disabled={createGenMut.isPending || updateGenMut.isPending} onClick={() => {
+              if (!genForm.readingDate || !genForm.installationId || genForm.installationId === "__none__") { toast({ title: "Date and installation are required", variant: "destructive" }); return; }
+              const body = { ...genForm, installationId: parseInt(String(genForm.installationId)), generationKwh: genForm.generationKwh || null, exportKwh: genForm.exportKwh || null, selfConsumedKwh: genForm.selfConsumedKwh || null, fitPaymentAmount: genForm.fitPaymentAmount || null };
+              if (editGen) updateGenMut.mutate({ ...body, id: editGen.id });
+              else createGenMut.mutate(body);
+            }}>{editGen ? "Save Changes" : "Log Reading"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── PAYMENT DIALOG ─── */}
+      <Dialog open={showPaymentDialog} onOpenChange={o => { if (!o) { setShowPaymentDialog(false); setEditPayment(null); setPaymentForm(EMPTY_PAYMENT); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editPayment ? "Edit SEG Payment" : "Record SEG Payment"}</DialogTitle></DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Payment date *</Label><Input type="date" value={paymentForm.paymentDate ?? ""} onChange={e => setPaymentForm((f: any) => ({ ...f, paymentDate: e.target.value }))} /></div>
+              <div><Label>Installation</Label>
+                <Select value={String(paymentForm.installationId || "__none__")} onValueChange={v => setPaymentForm((f: any) => ({ ...f, installationId: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select installation" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Select —</SelectItem>
+                    {installs.map((i: any) => <SelectItem key={String(i.id)} value={String(i.id)}>{String(i.installationName)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Period from</Label><Input type="date" value={paymentForm.periodFrom ?? ""} onChange={e => setPaymentForm((f: any) => ({ ...f, periodFrom: e.target.value }))} /></div>
+              <div><Label>Period to</Label><Input type="date" value={paymentForm.periodTo ?? ""} onChange={e => setPaymentForm((f: any) => ({ ...f, periodTo: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>kWh exported</Label><Input type="number" step="0.01" value={paymentForm.exportKwh ?? ""} onChange={e => setPaymentForm((f: any) => ({ ...f, exportKwh: e.target.value }))} placeholder="0.00" /></div>
+              <div><Label>Rate (p/kWh)</Label><Input type="number" step="0.01" value={paymentForm.rateUsedPencePerKwh ?? ""} onChange={e => setPaymentForm((f: any) => ({ ...f, rateUsedPencePerKwh: e.target.value }))} placeholder="e.g. 7.50" /></div>
+              <div><Label>Amount (£) *</Label><Input type="number" step="0.01" value={paymentForm.paymentAmountPence ?? ""} onChange={e => setPaymentForm((f: any) => ({ ...f, paymentAmountPence: e.target.value }))} placeholder="0.00" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Payment reference</Label><Input value={paymentForm.paymentReference ?? ""} onChange={e => setPaymentForm((f: any) => ({ ...f, paymentReference: e.target.value }))} /></div>
+              <div><Label>Supplier / payer</Label><Input value={paymentForm.supplierName ?? ""} onChange={e => setPaymentForm((f: any) => ({ ...f, supplierName: e.target.value }))} placeholder="e.g. Octopus Energy" /></div>
+            </div>
+            <div><Label>Notes</Label><Textarea value={paymentForm.notes ?? ""} onChange={e => setPaymentForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowPaymentDialog(false); setEditPayment(null); setPaymentForm(EMPTY_PAYMENT); }}>Cancel</Button>
+            <Button className="bg-green-800 hover:bg-green-900 text-white" disabled={createPaymentMut.isPending || updatePaymentMut.isPending} onClick={() => {
+              if (!paymentForm.paymentDate || !paymentForm.paymentAmountPence) { toast({ title: "Payment date and amount are required", variant: "destructive" }); return; }
+              const body = { ...paymentForm, installationId: paymentForm.installationId && paymentForm.installationId !== "__none__" ? parseInt(String(paymentForm.installationId)) : null, exportKwh: paymentForm.exportKwh || null, rateUsedPencePerKwh: paymentForm.rateUsedPencePerKwh || null, periodFrom: paymentForm.periodFrom || null, periodTo: paymentForm.periodTo || null };
+              if (editPayment) updatePaymentMut.mutate({ ...body, id: editPayment.id });
+              else createPaymentMut.mutate(body);
+            }}>{editPayment ? "Save Changes" : "Record Payment"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirms */}
+      <Dialog open={deleteInstallId !== null} onOpenChange={o => { if (!o) setDeleteInstallId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}><DialogHeader><DialogTitle>Delete Installation</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">This will permanently delete this installation and all associated records.</p>
+          <DialogFooter><Button variant="outline" onClick={() => setDeleteInstallId(null)}>Cancel</Button><Button variant="destructive" disabled={deleteInstallMut.isPending} onClick={() => deleteInstallId !== null && deleteInstallMut.mutate(deleteInstallId)}>Delete</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={deleteGenId !== null} onOpenChange={o => { if (!o) setDeleteGenId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}><DialogHeader><DialogTitle>Delete Reading</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Delete this generation reading?</p>
+          <DialogFooter><Button variant="outline" onClick={() => setDeleteGenId(null)}>Cancel</Button><Button variant="destructive" disabled={deleteGenMut.isPending} onClick={() => deleteGenId !== null && deleteGenMut.mutate(deleteGenId)}>Delete</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={deletePaymentId !== null} onOpenChange={o => { if (!o) setDeletePaymentId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}><DialogHeader><DialogTitle>Delete Payment</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Delete this SEG payment record?</p>
+          <DialogFooter><Button variant="outline" onClick={() => setDeletePaymentId(null)}>Cancel</Button><Button variant="destructive" disabled={deletePaymentMut.isPending} onClick={() => deletePaymentId !== null && deletePaymentMut.mutate(deletePaymentId)}>Delete</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function FuelEnergyPage() {
   const [tab, setTab] = useState<Tab>("tanks");
   const { farmId } = useAppStore();
@@ -951,6 +1404,9 @@ export default function FuelEnergyPage() {
           <TabButton active={tab === "inspections"} onClick={() => setTab("inspections")}>Inspections ({inspections.length})</TabButton>
           <TabButton active={tab === "grid-energy"} onClick={() => setTab("grid-energy")}>
             <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5" />Grid Energy ({meters.length})</span>
+          </TabButton>
+          <TabButton active={tab === "solar"} onClick={() => setTab("solar")}>
+            <span className="flex items-center gap-1"><Sun className="w-3.5 h-3.5" />Solar &amp; Renewables</span>
           </TabButton>
           <TabButton active={tab === "reports"} onClick={() => setTab("reports")}>
             <span className="flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5" />Reports</span>
@@ -1500,6 +1956,19 @@ export default function FuelEnergyPage() {
           </div>
         )}
       </div>
+
+      {/* ── SOLAR & RENEWABLES ── */}
+      {tab === "solar" && farmId && (
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <div>
+              <h3 className="font-semibold text-gray-800">Solar &amp; Renewable Energy</h3>
+              <p className="text-xs text-gray-500">Track installations, monthly generation, and Smart Export Guarantee (SEG) income</p>
+            </div>
+          </div>
+          <SolarRenewablesTab farmId={farmId} />
+        </div>
+      )}
 
       {/* ── REPORTS ── */}
       {tab === "reports" && (

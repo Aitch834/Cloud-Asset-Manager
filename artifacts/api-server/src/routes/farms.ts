@@ -157,6 +157,7 @@ import {
   equineHealthEventsTable,
   renewableEnergyInstallationsTable,
   renewableEnergyMeterReadingsTable,
+  solarExportPaymentsTable,
   shootingAndGameRecordsTable,
   waterAbstractionLicencesTable,
   waterMeterReadingsTable,
@@ -11523,6 +11524,80 @@ router.delete("/farms/:farmId/renewable-meter-readings/:id", requireAuth, requir
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(renewableEnergyMeterReadingsTable).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ── Solar Installations (fuel-energy module) ──────────────────────────────────
+router.get("/farms/:farmId/solar-installations", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(renewableEnergyInstallationsTable).where(eq(renewableEnergyInstallationsTable.farmId, farmId)).orderBy(renewableEnergyInstallationsTable.installationName);
+  res.json(rows);
+});
+router.post("/farms/:farmId/solar-installations", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(renewableEnergyInstallationsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/solar-installations/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(renewableEnergyInstallationsTable).set(req.body).where(and(eq(renewableEnergyInstallationsTable.id, id), eq(renewableEnergyInstallationsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/solar-installations/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(renewableEnergyInstallationsTable).where(and(eq(renewableEnergyInstallationsTable.id, id), eq(renewableEnergyInstallationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ── Solar Generation Readings (fuel-energy module) ───────────────────────────
+router.get("/farms/:farmId/solar-generation", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(renewableEnergyMeterReadingsTable).where(eq(renewableEnergyMeterReadingsTable.farmId, farmId)).orderBy(desc(renewableEnergyMeterReadingsTable.readingDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/solar-generation", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(renewableEnergyMeterReadingsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/solar-generation/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(renewableEnergyMeterReadingsTable).set(req.body).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/solar-generation/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(renewableEnergyMeterReadingsTable).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ── Solar Export (SEG) Payments (fuel-energy module) ─────────────────────────
+router.get("/farms/:farmId/solar-export-payments", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(solarExportPaymentsTable).where(eq(solarExportPaymentsTable.farmId, farmId)).orderBy(desc(solarExportPaymentsTable.paymentDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/solar-export-payments", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const body = { ...req.body, farmId, paymentAmountPence: req.body.paymentAmountPence ? Math.round(parseFloat(req.body.paymentAmountPence)) : 0 };
+  const [row] = await db.insert(solarExportPaymentsTable).values(body).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/solar-export-payments/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const body = { ...req.body, paymentAmountPence: req.body.paymentAmountPence ? Math.round(parseFloat(req.body.paymentAmountPence)) : undefined };
+  const [row] = await db.update(solarExportPaymentsTable).set(body).where(and(eq(solarExportPaymentsTable.id, id), eq(solarExportPaymentsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/solar-export-payments/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(solarExportPaymentsTable).where(and(eq(solarExportPaymentsTable.id, id), eq(solarExportPaymentsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

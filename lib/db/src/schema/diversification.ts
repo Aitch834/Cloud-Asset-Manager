@@ -101,6 +101,11 @@ export const renewableEnergyInstallationsTable = pgTable("renewable_energy_insta
   maintenanceContractor: text("maintenance_contractor"),
   nextServiceDate: date("next_service_date"),
   notes: text("notes"),
+  panelCount: integer("panel_count"),
+  mcsCertificateNumber: text("mcs_certificate_number"),
+  installerMcsNumber: text("installer_mcs_number"),
+  buildingName: text("building_name"),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -115,6 +120,22 @@ export const renewableEnergyMeterReadingsTable = pgTable("renewable_energy_meter
   selfConsumedKwh: numeric("self_consumed_kwh", { precision: 10, scale: 2 }),
   fitPaymentPeriod: text("fit_payment_period"),
   fitPaymentAmount: numeric("fit_payment_amount", { precision: 8, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const solarExportPaymentsTable = pgTable("solar_export_payments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  installationId: integer("installation_id").references(() => renewableEnergyInstallationsTable.id),
+  paymentDate: date("payment_date").notNull(),
+  periodFrom: date("period_from"),
+  periodTo: date("period_to"),
+  exportKwh: numeric("export_kwh", { precision: 10, scale: 2 }),
+  rateUsedPencePerKwh: numeric("rate_used_pence_per_kwh", { precision: 6, scale: 2 }),
+  paymentAmountPence: integer("payment_amount_pence").notNull(),
+  paymentReference: text("payment_reference"),
+  supplierName: text("supplier_name"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

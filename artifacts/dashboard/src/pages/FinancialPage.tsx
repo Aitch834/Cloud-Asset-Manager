@@ -51,6 +51,14 @@ const SOURCE_CONFIG: Record<string, { label: string; bg: string; color: string; 
 
 const PAYMENT_METHODS = ["Bank Transfer", "Direct Debit", "Cheque", "Cash", "Card", "BACS", "Other"];
 
+const SPECIES_LIST = ["Cattle", "Sheep", "Pigs", "Goats", "Horses", "Deer", "Poultry", "Other"];
+
+const PURCHASE_STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
+  outstanding: { label: "Outstanding", bg: "#fef3c7", color: "#92400e" },
+  overdue:     { label: "Overdue",     bg: "#fee2e2", color: "#991b1b" },
+  paid:        { label: "Paid",        bg: "#dcfce7", color: "#166534" },
+};
+
 const CROP_CONTRACT_STATUSES = [
   { value: "pending", label: "Pending", bg: "#f3f4f6", color: "#374151" },
   { value: "active", label: "Active", bg: "#dcfce7", color: "#166534" },
@@ -712,6 +720,253 @@ function GrantsTab({ farmId }: { farmId: number }) {
   );
 }
 
+function LivestockPurchasesTab({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [markPaidId, setMarkPaidId] = useState<number | null>(null);
+  const [paidDate, setPaidDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paidRef, setPaidRef] = useState("");
+  const [paidMethod, setPaidMethod] = useState("Bank Transfer");
+
+  const EMPTY: any = { invoiceDate: "", arrivalDate: "", supplierName: "", supplierCph: "", marketName: "", invoiceRef: "", species: "Cattle", numberOfHead: "", pricePerHeadPence: "", totalAmountPence: "", vatAmountPence: "", paymentTermsDays: "30", herdId: "", notes: "", paymentMethod: "Bank Transfer" };
+  const [form, setForm] = useState<any>(EMPTY);
+
+  const herdsQ = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.records ?? [] });
+  const herds: any[] = herdsQ.data ?? [];
+
+  const q = useQuery({ queryKey: ["livestock-purchases", farmId], queryFn: () => fetch(`/api/farms/${farmId}/livestock-purchases`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.records ?? [] });
+  const records: any[] = q.data ?? [];
+  const filtered = statusFilter === "all" ? records : records.filter(r => r.paymentStatus === statusFilter);
+
+  const outstanding = records.filter(r => r.paymentStatus === "outstanding").reduce((s, r) => s + (Number(r.totalAmountPence) || 0), 0);
+  const overdue = records.filter(r => r.paymentStatus === "overdue").reduce((s, r) => s + (Number(r.totalAmountPence) || 0), 0);
+  const paidYtd = records.filter(r => r.paymentStatus === "paid" && r.paidDate && new Date(r.paidDate).getFullYear() === new Date().getFullYear()).reduce((s, r) => s + (Number(r.totalAmountPence) || 0), 0);
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["livestock-purchases", farmId] });
+
+  const createMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/livestock-purchases`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Invoice added" }); invalidate(); setAddOpen(false); setForm(EMPTY); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
+  const updateMut = useMutation({ mutationFn: (b: any) => fetch(`/api/farms/${farmId}/livestock-purchases/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Invoice updated" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(EMPTY); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
+  const deleteMut = useMutation({ mutationFn: (id: number) => fetch(`/api/farms/${farmId}/livestock-purchases/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); } });
+  const markPaidMut = useMutation({
+    mutationFn: (b: { id: number; paidDate: string; paymentMethod: string; paymentReference: string }) => fetch(`/api/farms/${farmId}/livestock-purchases/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentStatus: "paid", paidDate: b.paidDate, paymentMethod: b.paymentMethod, paymentReference: b.paymentReference }) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Marked as paid" }); invalidate(); setMarkPaidId(null); },
+  });
+
+  const sCfg = (s: string) => PURCHASE_STATUS_CONFIG[s] ?? { label: s, bg: "#f3f4f6", color: "#374151" };
+
+  return (
+    <div>
+      {/* Summary cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: "1.25rem" }}>
+        <div style={{ background: "#fff", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem 1.25rem" }}>
+          <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 4, textTransform: "uppercase", fontWeight: 500 }}>Outstanding</p>
+          <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#92400e" }}>{fmtAmt(outstanding)}</p>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>{records.filter(r => r.paymentStatus === "outstanding").length} invoice{records.filter(r => r.paymentStatus === "outstanding").length !== 1 ? "s" : ""}</p>
+        </div>
+        <div style={{ background: "#fff", border: "1px solid #fecaca", borderRadius: 10, padding: "1rem 1.25rem" }}>
+          <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 4, textTransform: "uppercase", fontWeight: 500 }}>Overdue</p>
+          <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#991b1b" }}>{fmtAmt(overdue)}</p>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>{records.filter(r => r.paymentStatus === "overdue").length} overdue</p>
+        </div>
+        <div style={{ background: "#fff", border: "1px solid #bbf7d0", borderRadius: 10, padding: "1rem 1.25rem" }}>
+          <p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 4, textTransform: "uppercase", fontWeight: 500 }}>Paid — YTD {new Date().getFullYear()}</p>
+          <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#166534" }}>{fmtAmt(paidYtd)}</p>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>{records.filter(r => r.paymentStatus === "paid" && r.paidDate && new Date(r.paidDate).getFullYear() === new Date().getFullYear()).length} paid</p>
+        </div>
+      </div>
+
+      {/* Filter + Add button */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          {(["all", "outstanding", "overdue", "paid"] as const).map(s => (
+            <button key={s} onClick={() => setStatusFilter(s)} style={{ padding: "5px 12px", borderRadius: 8, fontSize: "0.78rem", fontWeight: 500, border: `1px solid ${statusFilter === s ? "#166534" : "#e5e7eb"}`, background: statusFilter === s ? "#166534" : "#fff", color: statusFilter === s ? "#fff" : "#374151", cursor: "pointer", transition: "all 0.15s" }}>
+              {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}{s !== "all" ? ` (${records.filter(r => r.paymentStatus === s).length})` : ""}
+            </button>
+          ))}
+        </div>
+        <Button onClick={() => { setEditRecord(null); setForm(EMPTY); setAddOpen(true); }} className="bg-green-800 hover:bg-green-900 text-white">
+          <Plus className="w-4 h-4 mr-1" />Add Invoice
+        </Button>
+      </div>
+
+      {/* Table */}
+      {q.isLoading ? <p className="text-sm text-gray-400 text-center py-10">Loading…</p> : filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <ShoppingBag size={32} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>{statusFilter === "all" ? "No livestock purchase invoices recorded" : `No ${statusFilter} invoices`}</p>
+          <p style={{ fontSize: "0.875rem" }}>{statusFilter === "all" ? "Record purchases from markets, dealers and direct farm-to-farm sales here" : "Try changing the status filter"}</p>
+        </div>
+      ) : (
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                {["Invoice Date", "Supplier / Market", "Species", "Head", "Total ex-VAT", "VAT", "Status", "Due / Paid", "Actions"].map(h => (
+                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r: any, i: number) => {
+                const cfg = sCfg(r.paymentStatus);
+                const herd = herds.find((h: any) => Number(h.id) === Number(r.herdId));
+                return (
+                  <tr key={r.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>
+                      <div>{fmt(r.invoiceDate)}</div>
+                      {r.invoiceRef && <div style={{ fontSize: "0.7rem", color: "#9ca3af" }}>{r.invoiceRef}</div>}
+                    </td>
+                    <td style={{ padding: "0.625rem 0.875rem" }}>
+                      <div style={{ fontWeight: 500 }}>{r.supplierName || "—"}</div>
+                      {r.marketName && <div style={{ fontSize: "0.7rem", color: "#9ca3af" }}>{r.marketName}</div>}
+                      {r.supplierCph && <div style={{ fontSize: "0.7rem", color: "#9ca3af" }}>CPH: {r.supplierCph}</div>}
+                    </td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#374151" }}>
+                      {r.species || "—"}
+                      {herd && <div style={{ fontSize: "0.7rem", color: "#9ca3af" }}>{herd.herdName || herd.name}</div>}
+                    </td>
+                    <td style={{ padding: "0.625rem 0.875rem", textAlign: "center", fontWeight: 600 }}>{r.numberOfHead ?? "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600 }}>{fmtAmt(r.totalAmountPence)}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.vatAmountPence ? fmtAmt(r.vatAmountPence) : "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem" }}>
+                      <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}>{cfg.label}</span>
+                    </td>
+                    <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>
+                      {r.paymentStatus === "paid" ? (
+                        <div style={{ fontSize: "0.8rem", color: "#166534" }}>Paid {fmt(r.paidDate)}</div>
+                      ) : (
+                        <div style={{ fontSize: "0.8rem", color: r.paymentStatus === "overdue" ? "#dc2626" : "#6b7280" }}>{r.paymentDueDate ? fmt(r.paymentDueDate) : "—"}</div>
+                      )}
+                    </td>
+                    <td style={{ padding: "0.625rem 0.875rem" }}>
+                      <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "nowrap" }}>
+                        {(r.paymentStatus === "outstanding" || r.paymentStatus === "overdue") && (
+                          <Button size="sm" variant="outline" style={{ fontSize: "0.7rem", padding: "2px 8px", height: "auto", color: "#166534", borderColor: "#bbf7d0" }} onClick={() => { setMarkPaidId(Number(r.id)); setPaidDate(new Date().toISOString().slice(0, 10)); setPaidRef(r.invoiceRef ?? ""); setPaidMethod("Bank Transfer"); }}>
+                            <CheckCircle2 size={11} className="mr-1" />Mark Paid
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={() => { setEditRecord(r); setForm({ ...r, invoiceDate: r.invoiceDate ?? "", arrivalDate: r.arrivalDate ?? "", numberOfHead: r.numberOfHead ?? "", pricePerHeadPence: r.pricePerHeadPence ? (Number(r.pricePerHeadPence) / 100).toFixed(2) : "", totalAmountPence: r.totalAmountPence ? (Number(r.totalAmountPence) / 100).toFixed(2) : "", vatAmountPence: r.vatAmountPence ? (Number(r.vatAmountPence) / 100).toFixed(2) : "", paymentTermsDays: r.paymentTermsDays ?? "30", herdId: r.herdId ? String(r.herdId) : "" }); setAddOpen(true); }}>
+                          <Pencil size={13} />
+                        </Button>
+                        <Button size="sm" variant="ghost" style={{ color: "#ef4444" }} onClick={() => setDeleteId(Number(r.id))}>
+                          <Trash2 size={13} />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ─── MARK AS PAID DIALOG ─── */}
+      <Dialog open={markPaidId !== null} onOpenChange={o => { if (!o) setMarkPaidId(null); }}>
+        <DialogContent style={{ maxWidth: 420 }}>
+          <DialogHeader><DialogTitle>Mark Invoice as Paid</DialogTitle></DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div><Label>Payment date *</Label><Input type="date" value={paidDate} onChange={e => setPaidDate(e.target.value)} /></div>
+            <div><Label>Payment method</Label>
+              <Select value={paidMethod} onValueChange={setPaidMethod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Payment reference</Label><Input value={paidRef} onChange={e => setPaidRef(e.target.value)} placeholder="BACS ref, cheque number…" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMarkPaidId(null)}>Cancel</Button>
+            <Button className="bg-green-800 hover:bg-green-900 text-white" disabled={markPaidMut.isPending} onClick={() => {
+              if (!paidDate) { toast({ title: "Payment date is required", variant: "destructive" }); return; }
+              markPaidMut.mutate({ id: markPaidId!, paidDate, paymentMethod: paidMethod, paymentReference: paidRef });
+            }}>Confirm Payment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── ADD / EDIT DIALOG ─── */}
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(EMPTY); } }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>{editRecord ? "Edit Livestock Purchase Invoice" : "Add Livestock Purchase Invoice"}</DialogTitle></DialogHeader>
+          <div className="grid gap-3 py-2 max-h-[65vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Invoice date *</Label><Input type="date" value={form.invoiceDate ?? ""} onChange={e => setForm((f: any) => ({ ...f, invoiceDate: e.target.value }))} /></div>
+              <div><Label>Arrival date</Label><Input type="date" value={form.arrivalDate ?? ""} onChange={e => setForm((f: any) => ({ ...f, arrivalDate: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Supplier name *</Label><Input value={form.supplierName ?? ""} onChange={e => setForm((f: any) => ({ ...f, supplierName: e.target.value }))} placeholder="Seller name or auction mart" /></div>
+              <div><Label>Supplier CPH no.</Label><Input value={form.supplierCph ?? ""} onChange={e => setForm((f: any) => ({ ...f, supplierCph: e.target.value }))} placeholder="XX/XXX/XXXX" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Market / auction</Label><Input value={form.marketName ?? ""} onChange={e => setForm((f: any) => ({ ...f, marketName: e.target.value }))} placeholder="e.g. Newark Livestock Market" /></div>
+              <div><Label>Invoice / lot ref</Label><Input value={form.invoiceRef ?? ""} onChange={e => setForm((f: any) => ({ ...f, invoiceRef: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Species *</Label>
+                <Select value={form.species ?? "Cattle"} onValueChange={v => setForm((f: any) => ({ ...f, species: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{SPECIES_LIST.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>No. of head *</Label><Input type="number" min="1" value={form.numberOfHead ?? ""} onChange={e => setForm((f: any) => ({ ...f, numberOfHead: e.target.value }))} /></div>
+              <div><Label>Herd / flock</Label>
+                <Select value={form.herdId || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, herdId: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="— None —" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {herds.map((h: any) => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.herdName || h.name)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Price / head (£)</Label><Input type="number" step="0.01" value={form.pricePerHeadPence ?? ""} onChange={e => setForm((f: any) => ({ ...f, pricePerHeadPence: e.target.value }))} placeholder="0.00" /></div>
+              <div><Label>Total ex-VAT (£) *</Label><Input type="number" step="0.01" value={form.totalAmountPence ?? ""} onChange={e => setForm((f: any) => ({ ...f, totalAmountPence: e.target.value }))} placeholder="0.00" /></div>
+              <div><Label>VAT amount (£)</Label><Input type="number" step="0.01" value={form.vatAmountPence ?? ""} onChange={e => setForm((f: any) => ({ ...f, vatAmountPence: e.target.value }))} placeholder="0.00" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Payment terms (days)</Label><Input type="number" value={form.paymentTermsDays ?? "30"} onChange={e => setForm((f: any) => ({ ...f, paymentTermsDays: e.target.value }))} /></div>
+              <div><Label>Payment method</Label>
+                <Select value={form.paymentMethod || "Bank Transfer"} onValueChange={v => setForm((f: any) => ({ ...f, paymentMethod: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(EMPTY); }}>Cancel</Button>
+            <Button className="bg-green-800 hover:bg-green-900 text-white" disabled={createMut.isPending || updateMut.isPending} onClick={() => {
+              if (!form.invoiceDate || !form.supplierName || !form.numberOfHead || !form.totalAmountPence) { toast({ title: "Invoice date, supplier, head count and total are required", variant: "destructive" }); return; }
+              const body = { ...form, numberOfHead: parseInt(String(form.numberOfHead)), pricePerHeadPence: form.pricePerHeadPence ? Math.round(parseFloat(form.pricePerHeadPence) * 100) : null, totalAmountPence: Math.round(parseFloat(form.totalAmountPence) * 100), vatAmountPence: form.vatAmountPence ? Math.round(parseFloat(form.vatAmountPence) * 100) : null, paymentTermsDays: form.paymentTermsDays ? parseInt(String(form.paymentTermsDays)) : 30, herdId: form.herdId && form.herdId !== "__none__" ? parseInt(String(form.herdId)) : null };
+              if (editRecord) updateMut.mutate({ ...body, id: editRecord.id });
+              else createMut.mutate(body);
+            }}>{editRecord ? "Save Changes" : "Add Invoice"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── DELETE DIALOG ─── */}
+      <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader><DialogTitle>Delete Invoice</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">Permanently delete this livestock purchase invoice?</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteId !== null && deleteMut.mutate(deleteId)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function FinancialPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("transactions");
@@ -726,10 +981,14 @@ export default function FinancialPage() {
           <TabButton active={tab === "transactions"} onClick={() => setTab("transactions")}>Transactions</TabButton>
           <TabButton active={tab === "crop-contracts"} onClick={() => setTab("crop-contracts")}>Crop Contracts</TabButton>
           <TabButton active={tab === "grants"} onClick={() => setTab("grants")}>Subsidies &amp; Grants</TabButton>
+          <TabButton active={tab === "livestock-purchases"} onClick={() => setTab("livestock-purchases")}>
+            <span className="flex items-center gap-1"><ShoppingBag className="w-3.5 h-3.5" />Livestock Purchases</span>
+          </TabButton>
         </TabBar>
         {farmId && tab === "transactions" && <TransactionsTab farmId={farmId} />}
         {farmId && tab === "crop-contracts" && <CropContractsTab farmId={farmId} />}
         {farmId && tab === "grants" && <GrantsTab farmId={farmId} />}
+        {farmId && tab === "livestock-purchases" && <LivestockPurchasesTab farmId={farmId} />}
       </div>
     </AppLayout>
   );
