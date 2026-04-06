@@ -229,7 +229,7 @@ const recordOptions: RecordOption[] = [
   {
     id: "livestock-movement",
     title: "Livestock Movement",
-    description: "Record on-farm, off-farm and between-holding animal movements with CPH details",
+    description: "Record on/off-farm movements with CPH details — syncs to dashboard where cattle go to BCMS and sheep/goats/deer go to LIS with one click",
     icon: "repeat",
     color: colors.info,
     bgColor: colors.infoBg,
@@ -441,6 +441,16 @@ const recordOptions: RecordOption[] = [
     bgColor: "#e0f2fe",
     route: "/add-farm-location",
     moduleKeys: ["biosecurity"],
+  },
+  {
+    id: "disease-incident",
+    title: "Disease & Incident Report",
+    description: "Log a disease suspicion, notifiable disease alert, welfare concern or environmental incident — captures GPS, actions taken and APHA reference",
+    icon: "alert-triangle",
+    color: "#dc2626",
+    bgColor: "#fee2e2",
+    route: "/disease-incident",
+    moduleKeys: ["biosecurity", "livestock-management"],
   },
   {
     id: "fly-tipping",

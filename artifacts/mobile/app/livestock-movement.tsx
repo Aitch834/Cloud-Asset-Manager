@@ -104,11 +104,15 @@ export default function LivestockMovementScreen() {
     await appendToList(STORAGE_KEYS.LIVESTOCK_MOVEMENTS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Saved", "Livestock movement recorded. Print or save the movement certificate?", [
-      { text: "Print", onPress: async () => { await print(livestockMovementHtml(record, currentFarm)); router.back(); } },
-      { text: "Save PDF", onPress: async () => { await savePdf(livestockMovementHtml(record, currentFarm), "Livestock Movement"); router.back(); } },
-      { text: "Done", onPress: () => router.back() },
-    ]);
+    Alert.alert(
+      "Movement Recorded",
+      `Movement saved and queued for sync.\n\nOnce synced, open the Movements register on the dashboard to submit${record.species === "Cattle" ? " to BCMS" : ["Sheep", "Goats", "Deer"].includes(record.species) ? " to LIS (Livestock Information Service)" : " to the relevant government portal"} with one click.`,
+      [
+        { text: "Print AML", onPress: async () => { await print(livestockMovementHtml(record, currentFarm)); router.back(); } },
+        { text: "Save PDF", onPress: async () => { await savePdf(livestockMovementHtml(record, currentFarm), "Livestock Movement"); router.back(); } },
+        { text: "Done", onPress: () => router.back() },
+      ],
+    );
   };
 
   return (

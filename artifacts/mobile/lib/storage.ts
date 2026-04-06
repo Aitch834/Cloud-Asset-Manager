@@ -178,4 +178,5 @@ export const STORAGE_KEYS = {
   LIVESTOCK_SALE_RECORDS: "bde_livestock_sale_records",
   DIRECT_SALE_RECORDS: "bde_direct_sale_records",
   MILK_STATEMENT_RECORDS: "bde_milk_statement_records",
+  DISEASE_INCIDENTS: "bde_disease_incidents",
 } as const;
