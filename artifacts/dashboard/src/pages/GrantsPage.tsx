@@ -367,7 +367,7 @@ export default function GrantsPage() {
               <button key={s} onClick={() => setStatusFilter(s)}
                 style={{
                   padding: "4px 12px", borderRadius: 20, fontSize: "0.8rem", fontWeight: active ? 700 : 500, cursor: "pointer", border: "1px solid",
-                  background: active ? (cfg ? cfg.bg.replace("bg-","").replace("-50","") === "gray" ? "#f3f4f6" : "#f0f4ff" : "#111827") : "#fff",
+                  background: active ? "#f0f4ff" : "#fff",
                   borderColor: active ? "#6366f1" : "#e5e7eb",
                   color: active ? "#3730a3" : "#374151",
                 }}>
