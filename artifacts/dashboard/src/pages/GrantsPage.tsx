@@ -351,8 +351,8 @@ export default function GrantsPage() {
           <Info size={16} color="#4338ca" style={{ marginTop: 2, flexShrink: 0 }} />
           <div style={{ fontSize: "0.82rem", color: "#3730a3", lineHeight: 1.5 }}>
             <strong>FETF 2026:</strong> The full published item list and grant rates for the 2026 round have not yet been confirmed by the RPA. Item reference codes shown in the picker are based on previous FETF rounds — verify codes and eligible costs against the current prospectus before applying at{" "}
-            <a href="https://www.gov.uk/guidance/farming-equipment-and-technology-fund" target="_blank" rel="noopener noreferrer" style={{ color: "#4338ca", textDecoration: "underline" }}>
-              gov.uk/fetf <ExternalLink size={11} style={{ display: "inline", verticalAlign: "middle" }} />
+            <a href="https://www.gov.uk/government/publications/farming-equipment-and-technology-fund-2025" target="_blank" rel="noopener noreferrer" style={{ color: "#4338ca", textDecoration: "underline" }}>
+              gov.uk FETF guidance <ExternalLink size={11} style={{ display: "inline", verticalAlign: "middle" }} />
             </a>
           </div>
         </div>
