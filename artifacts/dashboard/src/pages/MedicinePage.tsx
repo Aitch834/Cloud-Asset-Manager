@@ -586,7 +586,12 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                   <button
                     key={scope}
                     type="button"
-                    onClick={() => setForm(f => ({ ...f, treatmentScope: scope, animalId: "", treatedAnimalCount: "", treatedAnimalTags: "" }))}
+                    onClick={() => {
+                      const autoCount = scope === "whole_herd" && form.herdId
+                        ? String(animals.filter(a => a.herdId === Number(form.herdId)).length || "")
+                        : "";
+                      setForm(f => ({ ...f, treatmentScope: scope, animalId: "", treatedAnimalCount: autoCount, treatedAnimalTags: "" }));
+                    }}
                     className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-all ${form.treatmentScope === scope
                       ? "border-violet-500 bg-violet-100 text-violet-800"
                       : "border-border bg-white text-foreground/60 hover:border-violet-300"}`}
@@ -638,7 +643,13 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                     <select
                       className="w-full h-12 rounded-xl border-2 border-border bg-white px-4 py-2 text-base focus:outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10"
                       value={form.herdId}
-                      onChange={e => setForm(f => ({ ...f, herdId: e.target.value }))}
+                      onChange={e => {
+                        const newHerdId = e.target.value;
+                        const autoCount = form.treatmentScope === "whole_herd" && newHerdId
+                          ? String(animals.filter(a => a.herdId === Number(newHerdId)).length || "")
+                          : form.treatedAnimalCount;
+                        setForm(f => ({ ...f, herdId: newHerdId, treatedAnimalCount: autoCount }));
+                      }}
                       required={form.treatmentScope === "group" || form.treatmentScope === "whole_herd"}
                     >
                       <option value="">Select herd...</option>
@@ -655,6 +666,9 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                       value={form.treatedAnimalCount}
                       onChange={e => setForm(f => ({ ...f, treatedAnimalCount: e.target.value }))}
                     />
+                    {form.treatmentScope === "whole_herd" && form.herdId && Number(form.treatedAnimalCount) > 0 && (
+                      <p className="text-xs text-violet-700 mt-1">Auto-filled from registered animals in this herd. Adjust if needed.</p>
+                    )}
                   </div>
                   <div className="col-span-2">
                     <label className="text-sm font-medium text-foreground/70 mb-1 block">

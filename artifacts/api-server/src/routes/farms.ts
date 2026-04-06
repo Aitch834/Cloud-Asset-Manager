@@ -1761,10 +1761,21 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
     ? (await db.select().from(herdFlockRegisterTable).where(eq(herdFlockRegisterTable.id, animal.herdId)).limit(1))[0] ?? null
     : null;
 
-  const [medicines, movements, calvings, mastitis, mortalityRows] = await Promise.all([
+  const [directMedicines, herdMedicines, movements, calvings, mastitis, mortalityRows] = await Promise.all([
+    // Direct: medicine records linked to this specific animal
     db.select().from(livestockMedicineRecordsTable)
       .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), eq(livestockMedicineRecordsTable.animalId, recordId)))
       .orderBy(desc(livestockMedicineRecordsTable.administeredDate)),
+    // Indirect: group/whole-herd treatments for this animal's herd
+    animal.herdId
+      ? db.select().from(livestockMedicineRecordsTable)
+          .where(and(
+            eq(livestockMedicineRecordsTable.farmId, farmId),
+            eq(livestockMedicineRecordsTable.herdId, animal.herdId),
+            inArray(livestockMedicineRecordsTable.treatmentScope, ["group", "whole_herd"]),
+          ))
+          .orderBy(desc(livestockMedicineRecordsTable.administeredDate))
+      : Promise.resolve([]),
     db.select().from(livestockMovementsTable)
       .where(and(eq(livestockMovementsTable.farmId, farmId), eq(livestockMovementsTable.animalId, recordId)))
       .orderBy(desc(livestockMovementsTable.movementDate)),
@@ -1778,6 +1789,13 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
       .where(and(eq(livestockMortalityTable.farmId, farmId), eq(livestockMortalityTable.animalId, recordId)))
       .limit(1),
   ]);
+
+  // Merge direct and herd-level medicine records, deduplicate by id, sort newest first
+  const seenIds = new Set<number>();
+  const medicines = [...directMedicines, ...herdMedicines]
+    .filter(m => { if (seenIds.has(m.id)) return false; seenIds.add(m.id); return true; })
+    .sort((a, b) => new Date(b.administeredDate).getTime() - new Date(a.administeredDate).getTime())
+    .map(m => ({ ...m, _source: m.animalId === recordId ? "individual" : "herd_treatment" }));
 
   res.json({
     animal,
