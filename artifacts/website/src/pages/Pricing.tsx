@@ -13,7 +13,7 @@ const MODULES = [
   { id: "sprays-inputs", name: "Sprays & Inputs", price: 15 },
   { id: "soil-management", name: "Soil Management", price: 10 },
   { id: "equipment-workshop", name: "Equipment, Workshop & Fuel", price: 30, note: "Combines Equipment, Workshop & Fuel modules" },
-  { id: "livestock-management", name: "Livestock & Feed Management", price: 35, note: "Includes Feed Management" },
+  { id: "livestock-management", name: "Livestock & Feed Management", price: 35, note: "Includes Feed Management, BCMS one-click cattle submission (CTS Web Services), and LIS one-click sheep/goat/deer submission (England CLA API)" },
   { id: "biosecurity", name: "Biosecurity & Visitors", price: 10 },
   { id: "organic-compliance", name: "Organic Compliance", price: 12, note: "Complementary records alongside Soil Association / OF&G portal — certification, field status, inspections & restricted inputs" },
   { id: "staff-training", name: "Staff & Training", price: 10 },

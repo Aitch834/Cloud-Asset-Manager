@@ -192,7 +192,7 @@ const sections: Section[] = [
   },
   {
     title: "Livestock",
-    description: "Complete livestock and feed management — welfare records, movements, medicine, breeding traceability, and feed audit trails in one module.",
+    description: "Complete livestock and feed management — welfare records, movements with one-click BCMS and LIS government submission, medicine, breeding traceability, and feed audit trails in one module.",
     modules: [
       {
         title: "Livestock & Feed Management",
@@ -200,11 +200,13 @@ const sections: Section[] = [
         color: "bg-rose-50 text-rose-600 border-rose-100",
         badge: "module",
         features: [
-          "Herd & flock register",
-          "Movement records (eAML2 / ScotEID / EIDCymru)",
-          "Medicine records & withdrawal tracking",
-          "Animal mortality records — cause, disposal & BCMS",
-          "Annual water quality testing — herd-linked records, lab certificate storage & automated welfare alerts",
+          "Herd & flock register — record every animal with species, ear tag / EID, breed, date of birth, sex, and current location; full audit trail from birth or arrival to sale or death",
+          "Livestock Movements register — log all on/off movements with species, animals, origin and destination holding, transport details, and AML reference; register covers cattle, sheep, goats, pigs, deer, and equines across all UK movement databases",
+          "BCMS / CTS One-Click Submission (cattle) — connect your CTS Web Services credentials once in Farm Settings; a single click from each cattle movement row submits directly to the British Cattle Movement Service without leaving the dashboard; BCMS reference is stored back against the record automatically; sandbox mode lets you set up and test before your DEFRA vendor credentials are issued",
+          "LIS One-Click Submission (sheep, goats & deer) — connect your Livestock Information Service account in Farm Settings; a single click from each sheep, goat or deer movement row submits directly to the England government CLA API; full submission history with reference numbers, status, and JSON payload log; sandbox mode active until the BDE platform subscription key is configured",
+          "Medicine records & withdrawal tracking — log product, batch number, dose, route of administration, and withdrawal period; BDE Farm Trac calculates the end date automatically and warns if an animal with an active withdrawal is recorded as sold or slaughtered",
+          "Animal mortality records — record cause of death, disposal method, collection contractor, and BCMS mortality notification reference",
+          "Annual water quality testing — herd-linked records, lab certificate storage, and automated welfare alerts",
           "Daily welfare checks with condition scoring",
           "Annual vet health plans (signed, printable)",
           "Sire Register — centralised directory of bulls, rams, boars, and bucks (owned, hired, or AI stud) with species, breed, ear tag or registration number, date of birth, source, and health status notes; sire auto-fills breed on every AI and reproduction record",

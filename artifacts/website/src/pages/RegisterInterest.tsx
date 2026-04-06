@@ -25,8 +25,8 @@ const FARM_TYPES = [
 
 const MODULES = [
   { id: "crop-management", label: "Crop Management (spray records, field journal, varieties)" },
-  { id: "soil-management", label: "Soil Management (NMP, NVZ, sampling)" },
-  { id: "livestock-management", label: "Livestock & Feed Management" },
+  { id: "soil-management", label: "Soil Management (NMP, NVZ, sampling, soil sensors)" },
+  { id: "livestock-management", label: "Livestock & Feed Management (incl. BCMS & LIS government submissions)" },
   { id: "biosecurity", label: "Biosecurity & Visitors" },
   { id: "organic-compliance", label: "Organic Compliance" },
   { id: "staff-training", label: "Staff & Training" },
@@ -36,6 +36,11 @@ const MODULES = [
   { id: "equipment-workshop", label: "Equipment, Workshop & Fuel" },
   { id: "biofuel-rtfo", label: "Biofuel / RTFO Compliance" },
   { id: "water-irrigation", label: "Water & Irrigation Management" },
+  { id: "horticulture", label: "Horticulture & Fresh Produce" },
+  { id: "pig-production", label: "Pig Production" },
+  { id: "poultry-production", label: "Poultry Production" },
+  { id: "crop-trials", label: "Crop Trials" },
+  { id: "farm-diversification", label: "Farm Diversification" },
 ];
 
 const HEARD_VIA = [
