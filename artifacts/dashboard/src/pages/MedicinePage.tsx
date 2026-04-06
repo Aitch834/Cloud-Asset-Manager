@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { printProReport } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear } from "@/lib/cropYear";
@@ -12,11 +12,12 @@ import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, HeartPulse, Printer,
   AlertTriangle, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp, Eye,
-  Tag, Users, User, RefreshCw, ShieldAlert, ShieldCheck,
+  Tag, Users, User, RefreshCw, ShieldAlert, ShieldCheck, BadgeCheck, Info,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { VMD_MEDICINES, DOSE_UNITS, findVmdMedicine, type VmdMedicine } from "@/data/vmdMedicines";
 
 type StatusFilter = "all" | "in_withdrawal" | "cleared" | "no_withdrawal";
 type TreatmentScope = "individual" | "group" | "whole_herd";
@@ -102,7 +103,9 @@ const EMPTY_FORM = {
   herdId: "",
   treatedAnimalCount: "",
   treatedAnimalTags: "",
-  medicineName: "", batchNumber: "", dosage: "", administrationRoute: "",
+  medicineName: "", batchNumber: "", dosage: "",
+  doseAmount: "", doseUnit: "ml" as string,
+  administrationRoute: "",
   administeredBy: "", administeredDate: new Date().toISOString().slice(0, 10),
   withdrawalPeriodDays: "", reason: "", vetName: "", notes: "",
 };
@@ -425,6 +428,8 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const [tagValidations, setTagValidations] = useState<TagValidation[]>([]);
   // Show a "save anyway?" confirm when there are still unmatched tags on submit
   const [pendingBodyWithUnmatched, setPendingBodyWithUnmatched] = useState<Record<string, unknown> | null>(null);
+  // VMD medicine reference match for the currently typed medicine name
+  const [vmdMatch, setVmdMatch] = useState<VmdMedicine | null>(null);
 
   const farmQ = useQuery<{ record: Farm }>({
     queryKey: ["farm-detail", farmId],
@@ -442,11 +447,22 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
     queryKey: ["medicine-records", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/medicine-records`, { credentials: "include" }).then(r => r.json()),
   });
+  const vetPlansQ = useQuery<{ records: Array<{ vetName: string; practiceName: string | null }> }>({
+    queryKey: ["vet-health-plans", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/vet-health-plans`, { credentials: "include" }).then(r => r.json()),
+  });
 
   const farm: Farm = farmQ.data?.record ?? { id: farmId, name: "Farm", address: null, postcode: null, cphNumber: null, redTractorId: null };
   const herds: Herd[] = herdsQ.data?.records ?? [];
   const animals: Animal[] = animalsQ.data?.records ?? [];
   const allRecords: MedicineRecord[] = medicineQ.data?.records ?? [];
+
+  const uniqueVetNames = useMemo(() => {
+    const names = new Set<string>();
+    vetPlansQ.data?.records?.forEach(p => { if (p.vetName) names.add(p.vetName); });
+    allRecords.forEach(r => { if (r.vetName) names.add(r.vetName); });
+    return Array.from(names).sort();
+  }, [vetPlansQ.data, allRecords]);
 
   // Pool of animals valid for tag lookup — filtered to herd if one is selected
   const tagPool = form.herdId
@@ -512,6 +528,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
     setForm(EMPTY_FORM);
     setTagValidations([]);
     setPendingBodyWithUnmatched(null);
+    setVmdMatch(null);
   }
 
   const yearRecords = allRecords.filter(r => isInCropYear(r.administeredDate, cropYear));
@@ -541,6 +558,8 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
     setEditing(r);
     setTagValidations([]);
     setPendingBodyWithUnmatched(null);
+    setVmdMatch(findVmdMedicine(r.medicineName));
+    const doseMatch = (r.dosage ?? "").match(/^(\d+(?:\.\d+)?)\s*(ml|mg|g|IU|tablets?|capsules?|doses?|sachets?)$/i);
     const newForm = {
       treatmentScope: (r.treatmentScope as TreatmentScope) ?? "whole_herd",
       animalId: r.animalId ? String(r.animalId) : "",
@@ -548,7 +567,10 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       treatedAnimalCount: r.treatedAnimalCount ? String(r.treatedAnimalCount) : "",
       treatedAnimalTags: r.treatedAnimalTags ?? "",
       medicineName: r.medicineName, batchNumber: r.batchNumber ?? "",
-      dosage: r.dosage ?? "", administrationRoute: r.administrationRoute ?? "",
+      dosage: r.dosage ?? "",
+      doseAmount: doseMatch ? doseMatch[1] : "",
+      doseUnit: doseMatch ? doseMatch[2].toLowerCase() : "ml",
+      administrationRoute: r.administrationRoute ?? "",
       administeredBy: r.administeredBy ?? "", administeredDate: r.administeredDate?.slice(0, 10) ?? "",
       withdrawalPeriodDays: r.withdrawalPeriodDays ? String(r.withdrawalPeriodDays) : "",
       reason: r.reason ?? "", vetName: r.vetName ?? "", notes: r.notes ?? "",
@@ -576,7 +598,8 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
       treatedAnimalCount: (form.treatmentScope === "group" || form.treatmentScope === "whole_herd") && verifiedCount > 0 ? verifiedCount : null,
       treatedAnimalTags: verifiedTags || null,
       medicineName: form.medicineName, batchNumber: form.batchNumber || null,
-      dosage: form.dosage || null, administrationRoute: form.administrationRoute || null,
+      dosage: form.doseAmount ? `${form.doseAmount} ${form.doseUnit}`.trim() : (form.dosage || null),
+      administrationRoute: form.administrationRoute || null,
       administeredBy: form.administeredBy || null,
       administeredDate: form.administeredDate ? new Date(form.administeredDate).toISOString() : null,
       withdrawalPeriodDays: wdDays, withdrawalEndDate: wdEnd,
@@ -908,11 +931,57 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
             </div>
 
             {/* Medicine details */}
+            <datalist id="vmd-medicine-list">
+              {VMD_MEDICINES.map(m => <option key={m.name} value={m.name} />)}
+            </datalist>
+            <datalist id="vet-name-list">
+              {uniqueVetNames.map(n => <option key={n} value={n} />)}
+            </datalist>
+
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Medicine Name <span className="text-red-500">*</span></label>
-                <Input placeholder="e.g. Alamycin 300, Metacam 20mg/ml" value={form.medicineName} onChange={e => setForm(f => ({ ...f, medicineName: e.target.value }))} required />
+              {/* Medicine Name — VMD autocomplete */}
+              <div className="col-span-2">
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">
+                  Medicine Name <span className="text-red-500">*</span>
+                  <span className="ml-2 text-xs font-normal text-foreground/40">Start typing to search the UK VMD reference list of licensed veterinary medicines</span>
+                </label>
+                <Input
+                  list="vmd-medicine-list"
+                  placeholder="e.g. Alamycin 300, Metacam 20 mg/ml, Draxxin..."
+                  value={form.medicineName}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const match = findVmdMedicine(val);
+                    setVmdMatch(match);
+                    setForm(f => ({
+                      ...f,
+                      medicineName: val,
+                      administrationRoute: match?.route && !f.administrationRoute ? match.route : f.administrationRoute,
+                    }));
+                  }}
+                  required
+                />
+                {/* VMD verification badge */}
+                {form.medicineName.length >= 3 && (
+                  vmdMatch ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                        <BadgeCheck className="w-3 h-3" />VMD Reference Listed
+                      </span>
+                      <span className="text-xs text-foreground/60">{vmdMatch.activeIngredient}</span>
+                      <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-foreground/70">{vmdMatch.legalCategory}</span>
+                      <span className="text-xs text-foreground/50">{vmdMatch.species.join(", ")}</span>
+                    </div>
+                  ) : (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-700">
+                      <Info className="w-3 h-3 shrink-0" />
+                      Not found in VMD reference list — verify product name against{" "}
+                      <a href="https://www.vmd.defra.gov.uk/productinformationdatabase/" target="_blank" rel="noopener noreferrer" className="underline">vmd.defra.gov.uk</a>
+                    </div>
+                  )
+                )}
               </div>
+
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Batch / Licence Number</label>
                 <Input placeholder="e.g. UK/V/0083451/0001" value={form.batchNumber} onChange={e => setForm(f => ({ ...f, batchNumber: e.target.value }))} />
@@ -931,20 +1000,61 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
                   <option value="">Select route...</option>
                   {ADMIN_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
+                {vmdMatch && form.administrationRoute && form.administrationRoute !== vmdMatch.route && (
+                  <p className="text-xs text-foreground/50 mt-1">VMD reference typical route: {vmdMatch.route}</p>
+                )}
               </div>
+
+              {/* Structured dosage — amount + unit */}
               <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Dosage</label>
-                <Input placeholder="e.g. 5ml/100kg" value={form.dosage} onChange={e => setForm(f => ({ ...f, dosage: e.target.value }))} />
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">
+                  Dose Given (per animal)
+                  <span className="ml-1 text-xs font-normal text-foreground/40">total amount administered</span>
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    placeholder="Amount"
+                    className="flex-1"
+                    value={form.doseAmount}
+                    onChange={e => setForm(f => ({ ...f, doseAmount: e.target.value }))}
+                  />
+                  <select
+                    className="h-12 rounded-xl border-2 border-border bg-transparent px-3 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 min-w-[90px]"
+                    value={form.doseUnit}
+                    onChange={e => setForm(f => ({ ...f, doseUnit: e.target.value }))}
+                  >
+                    {DOSE_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+                {/* If editing and original dosage didn't parse, show it as a hint */}
+                {editing && form.dosage && !form.doseAmount && (
+                  <p className="text-xs text-foreground/50 mt-1">Saved value: {form.dosage}</p>
+                )}
               </div>
+
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Withdrawal Period (days)</label>
                 <Input type="number" min="0" placeholder="e.g. 7 — leave blank if none" value={form.withdrawalPeriodDays} onChange={e => setForm(f => ({ ...f, withdrawalPeriodDays: e.target.value }))} />
                 {previewWdEnd && <p className="text-xs text-amber-700 mt-1 font-medium">Withdrawal ends: {formatDate(previewWdEnd)}</p>}
               </div>
+
+              {/* Prescribing Vet — lookup from vet health plans */}
               <div>
-                <label className="text-sm font-medium text-foreground/70 mb-1 block">Prescribing Vet</label>
-                <Input placeholder="Vet name / practice" value={form.vetName} onChange={e => setForm(f => ({ ...f, vetName: e.target.value }))} />
+                <label className="text-sm font-medium text-foreground/70 mb-1 block">
+                  Prescribing Vet
+                  {uniqueVetNames.length > 0 && <span className="ml-1 text-xs font-normal text-foreground/40">— select from your registered vets or type a new name</span>}
+                </label>
+                <Input
+                  list="vet-name-list"
+                  placeholder={uniqueVetNames.length > 0 ? "Type or select vet name..." : "Vet name / practice"}
+                  value={form.vetName}
+                  onChange={e => setForm(f => ({ ...f, vetName: e.target.value }))}
+                />
               </div>
+
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Reason / Indication</label>
                 <Input placeholder="e.g. Mastitis, lameness, respiratory" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} />

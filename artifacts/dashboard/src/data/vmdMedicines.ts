@@ -1,0 +1,218 @@
+export interface VmdMedicine {
+  name: string;
+  activeIngredient: string;
+  legalCategory: "POM-V" | "POM-VPS" | "NFA-VPS" | "AVM-GSL";
+  species: string[];
+  route: string;
+  category: string;
+}
+
+export const VMD_MEDICINES: VmdMedicine[] = [
+  // ── Antibiotics ──────────────────────────────────────────────────────────────
+  { name: "Alamycin 300", activeIngredient: "Oxytetracycline", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Engemycin 100 mg/ml", activeIngredient: "Oxytetracycline", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Terramycin/LA", activeIngredient: "Oxytetracycline", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Duphacycline LA 200 mg/ml", activeIngredient: "Oxytetracycline", legalCategory: "POM-V", species: ["Cattle", "Pigs", "Sheep"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Baytril 100 mg/ml", activeIngredient: "Enrofloxacin", legalCategory: "POM-V", species: ["Cattle", "Pigs"], route: "Subcutaneous injection", category: "Antibiotic" },
+  { name: "Advocin 180 mg/ml", activeIngredient: "Danofloxacin", legalCategory: "POM-V", species: ["Cattle", "Pigs"], route: "Subcutaneous injection", category: "Antibiotic" },
+  { name: "Draxxin 100 mg/ml", activeIngredient: "Tulathromycin", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Subcutaneous injection", category: "Antibiotic" },
+  { name: "Nuflor 300 mg/ml", activeIngredient: "Florfenicol", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Antibiotic" },
+  { name: "Florkem 300 mg/ml", activeIngredient: "Florfenicol", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Antibiotic" },
+  { name: "Marbocyl 10%", activeIngredient: "Marbofloxacin", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Antibiotic" },
+  { name: "Eficur 150 mg/ml", activeIngredient: "Ceftiofur", legalCategory: "POM-V", species: ["Cattle", "Pigs"], route: "Subcutaneous injection", category: "Antibiotic" },
+  { name: "Excenel RTU", activeIngredient: "Ceftiofur", legalCategory: "POM-V", species: ["Cattle", "Pigs"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Naxcel", activeIngredient: "Ceftiofur", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Antibiotic" },
+  { name: "Cobactan 4.5%", activeIngredient: "Cefquinome", legalCategory: "POM-V", species: ["Cattle", "Pigs"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Maxim 4.5%", activeIngredient: "Cefquinome", legalCategory: "POM-V", species: ["Cattle"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Pen & Strep", activeIngredient: "Procaine Penicillin + Streptomycin", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Depocillin", activeIngredient: "Procaine Penicillin", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Norocillin", activeIngredient: "Procaine Penicillin", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Duplocillin LA", activeIngredient: "Procaine Penicillin", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Betamox LA 150 mg/ml", activeIngredient: "Amoxicillin", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Subcutaneous injection", category: "Antibiotic" },
+  { name: "Vetrimoxin LA", activeIngredient: "Amoxicillin", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Tylan 200", activeIngredient: "Tylosin", legalCategory: "POM-V", species: ["Cattle", "Pigs"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Tylan Soluble", activeIngredient: "Tylosin", legalCategory: "POM-V", species: ["Cattle", "Pigs", "Poultry"], route: "Oral", category: "Antibiotic" },
+  { name: "Aivlosin 625 mg/g", activeIngredient: "Tylvalosin", legalCategory: "POM-V", species: ["Pigs", "Poultry"], route: "Oral", category: "Antibiotic" },
+  { name: "Lincoject", activeIngredient: "Lincomycin", legalCategory: "POM-V", species: ["Pigs"], route: "Intramuscular injection", category: "Antibiotic" },
+  { name: "Denagard 10%", activeIngredient: "Tiamulin", legalCategory: "POM-V", species: ["Pigs"], route: "Oral", category: "Antibiotic" },
+  { name: "Pulmotil 230 mg/g", activeIngredient: "Tilmicosin", legalCategory: "POM-V", species: ["Pigs"], route: "Oral", category: "Antibiotic" },
+  { name: "Doxysol 50 mg/ml", activeIngredient: "Doxycycline", legalCategory: "POM-V", species: ["Cattle", "Pigs", "Poultry"], route: "Oral", category: "Antibiotic" },
+  { name: "Nasymvo", activeIngredient: "Tulathromycin", legalCategory: "POM-V", species: ["Cattle"], route: "Nasal", category: "Antibiotic" },
+  { name: "Spectinomycin 100 mg/ml", activeIngredient: "Spectinomycin", legalCategory: "POM-V", species: ["Pigs", "Poultry"], route: "Oral", category: "Antibiotic" },
+
+  // ── Anthelmintics – Broad Spectrum ───────────────────────────────────────────
+  { name: "Panacur 2.5% Suspension", activeIngredient: "Fenbendazole", legalCategory: "NFA-VPS", species: ["Cattle", "Sheep"], route: "Oral", category: "Anthelmintic" },
+  { name: "Panacur 10% Suspension", activeIngredient: "Fenbendazole", legalCategory: "NFA-VPS", species: ["Cattle"], route: "Oral", category: "Anthelmintic" },
+  { name: "Panacur Pellets", activeIngredient: "Fenbendazole", legalCategory: "NFA-VPS", species: ["Cattle", "Sheep"], route: "Oral", category: "Anthelmintic" },
+  { name: "Panacur SC 10%", activeIngredient: "Fenbendazole", legalCategory: "NFA-VPS", species: ["Cattle"], route: "Subcutaneous injection", category: "Anthelmintic" },
+  { name: "Valbazen 2.5%", activeIngredient: "Albendazole", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Oral", category: "Anthelmintic" },
+  { name: "Levacide High Potency", activeIngredient: "Levamisole", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Oral", category: "Anthelmintic" },
+  { name: "Chanazine Liquid", activeIngredient: "Piperazine", legalCategory: "NFA-VPS", species: ["Pigs", "Poultry"], route: "Oral", category: "Anthelmintic" },
+  { name: "Ivomec Classic Injection", activeIngredient: "Ivermectin", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Subcutaneous injection", category: "Anthelmintic" },
+  { name: "Ivomec Pour-on", activeIngredient: "Ivermectin", legalCategory: "POM-V", species: ["Cattle"], route: "Topical / Pour-on", category: "Anthelmintic" },
+  { name: "Genesis Pour-on", activeIngredient: "Ivermectin", legalCategory: "POM-V", species: ["Cattle"], route: "Topical / Pour-on", category: "Anthelmintic" },
+  { name: "Noromectin Injection", activeIngredient: "Ivermectin", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Subcutaneous injection", category: "Anthelmintic" },
+  { name: "Oramec Drench", activeIngredient: "Ivermectin", legalCategory: "NFA-VPS", species: ["Sheep"], route: "Oral", category: "Anthelmintic" },
+  { name: "Dectomax Injectable", activeIngredient: "Doramectin", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Subcutaneous injection", category: "Anthelmintic" },
+  { name: "Dectomax Pour-on", activeIngredient: "Doramectin", legalCategory: "POM-V", species: ["Cattle"], route: "Topical / Pour-on", category: "Anthelmintic" },
+  { name: "Cydectin 1% Injection", activeIngredient: "Moxidectin", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Anthelmintic" },
+  { name: "Cydectin 0.5% Oral Drench", activeIngredient: "Moxidectin", legalCategory: "POM-V", species: ["Sheep"], route: "Oral", category: "Anthelmintic" },
+  { name: "Cydectin Pour-on", activeIngredient: "Moxidectin", legalCategory: "POM-V", species: ["Cattle"], route: "Topical / Pour-on", category: "Anthelmintic" },
+  { name: "Eprinex Pour-on", activeIngredient: "Eprinomectin", legalCategory: "POM-V", species: ["Cattle"], route: "Topical / Pour-on", category: "Anthelmintic" },
+  { name: "Closamectin Pour-on", activeIngredient: "Ivermectin + Closantel", legalCategory: "POM-V", species: ["Cattle"], route: "Topical / Pour-on", category: "Anthelmintic" },
+  { name: "Startect Oral Drench", activeIngredient: "Derquantel + Abamectin", legalCategory: "POM-V", species: ["Sheep"], route: "Oral", category: "Anthelmintic" },
+  { name: "Zolvix 25 mg/ml", activeIngredient: "Monepantel", legalCategory: "POM-V", species: ["Sheep"], route: "Oral", category: "Anthelmintic" },
+  { name: "Levafas Diamond", activeIngredient: "Levamisole + Oxyclozanide", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Oral", category: "Anthelmintic" },
+  { name: "Nilzan Plus", activeIngredient: "Levamisole + Oxyclozanide", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Oral", category: "Anthelmintic" },
+
+  // ── Flukicides ────────────────────────────────────────────────────────────────
+  { name: "Fasinex 5% Oral Suspension", activeIngredient: "Triclabendazole", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Oral", category: "Flukicide" },
+  { name: "Tribex 900 mg/ml", activeIngredient: "Triclabendazole", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Oral", category: "Flukicide" },
+  { name: "Flukiver 5%", activeIngredient: "Closantel", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Oral", category: "Flukicide" },
+  { name: "Zanil Flukicide", activeIngredient: "Oxyclozanide", legalCategory: "NFA-VPS", species: ["Cattle", "Sheep"], route: "Oral", category: "Flukicide" },
+  { name: "Trodax 34%", activeIngredient: "Nitroxynil", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Subcutaneous injection", category: "Flukicide" },
+  { name: "Dovenix 34%", activeIngredient: "Nitroxynil", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Subcutaneous injection", category: "Flukicide" },
+  { name: "Endofluke 100 mg/ml", activeIngredient: "Closantel", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Subcutaneous injection", category: "Flukicide" },
+
+  // ── Ectoparasiticides ─────────────────────────────────────────────────────────
+  { name: "Crovect Pour-on", activeIngredient: "Cypermethrin", legalCategory: "POM-VPS", species: ["Cattle", "Sheep"], route: "Topical / Pour-on", category: "Ectoparasiticide" },
+  { name: "Goldbond Pour-on", activeIngredient: "Cypermethrin", legalCategory: "POM-VPS", species: ["Cattle", "Sheep"], route: "Topical / Pour-on", category: "Ectoparasiticide" },
+  { name: "Flectron Pour-on", activeIngredient: "Cypermethrin", legalCategory: "POM-VPS", species: ["Cattle", "Sheep"], route: "Topical / Pour-on", category: "Ectoparasiticide" },
+  { name: "Dysect Cattle Pour-on", activeIngredient: "Cypermethrin", legalCategory: "POM-VPS", species: ["Cattle"], route: "Topical / Pour-on", category: "Ectoparasiticide" },
+  { name: "Butox 7.5 mg/ml", activeIngredient: "Deltamethrin", legalCategory: "POM-VPS", species: ["Cattle", "Sheep"], route: "Topical / Pour-on", category: "Ectoparasiticide" },
+  { name: "Bayticol 1% Pour-on", activeIngredient: "Flumethrin", legalCategory: "POM-V", species: ["Cattle"], route: "Topical / Pour-on", category: "Ectoparasiticide" },
+  { name: "Switch Pour-on", activeIngredient: "Cypermethrin", legalCategory: "POM-VPS", species: ["Cattle", "Sheep"], route: "Topical / Pour-on", category: "Ectoparasiticide" },
+  { name: "Spot On Concentrate (Permethrin)", activeIngredient: "Permethrin", legalCategory: "POM-VPS", species: ["Sheep"], route: "Topical / Pour-on", category: "Ectoparasiticide" },
+  { name: "Coopers Fly Repellent Plus", activeIngredient: "Pyrethrins + Piperonyl Butoxide", legalCategory: "NFA-VPS", species: ["Cattle"], route: "Topical / Pour-on", category: "Ectoparasiticide" },
+  { name: "Vetrazin (Cyromazine)", activeIngredient: "Cyromazine", legalCategory: "POM-VPS", species: ["Sheep"], route: "Topical / Pour-on", category: "Ectoparasiticide" },
+
+  // ── Anti-inflammatory / Analgesic ─────────────────────────────────────────────
+  { name: "Metacam 5 mg/ml", activeIngredient: "Meloxicam", legalCategory: "POM-V", species: ["Cattle", "Pigs"], route: "Intravenous injection", category: "Anti-inflammatory" },
+  { name: "Metacam 20 mg/ml", activeIngredient: "Meloxicam", legalCategory: "POM-V", species: ["Cattle", "Pigs"], route: "Subcutaneous injection", category: "Anti-inflammatory" },
+  { name: "Loxicom 5 mg/ml", activeIngredient: "Meloxicam", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Subcutaneous injection", category: "Anti-inflammatory" },
+  { name: "Rheumocam 5 mg/ml", activeIngredient: "Meloxicam", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Anti-inflammatory" },
+  { name: "Melovem 5 mg/ml", activeIngredient: "Meloxicam", legalCategory: "POM-V", species: ["Cattle"], route: "Intravenous injection", category: "Anti-inflammatory" },
+  { name: "Finadyne 50 mg/ml", activeIngredient: "Flunixin Meglumine", legalCategory: "POM-V", species: ["Cattle", "Pigs"], route: "Intravenous injection", category: "Anti-inflammatory" },
+  { name: "Meflosyl 50 mg/ml", activeIngredient: "Flunixin Meglumine", legalCategory: "POM-V", species: ["Cattle"], route: "Intravenous injection", category: "Anti-inflammatory" },
+  { name: "Binixin 50 mg/ml", activeIngredient: "Flunixin Meglumine", legalCategory: "POM-V", species: ["Cattle"], route: "Intravenous injection", category: "Anti-inflammatory" },
+  { name: "Ketofen 10%", activeIngredient: "Ketoprofen", legalCategory: "POM-V", species: ["Cattle"], route: "Intravenous injection", category: "Anti-inflammatory" },
+  { name: "Onsior 20 mg/ml", activeIngredient: "Robenacoxib", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Anti-inflammatory" },
+  { name: "Tolfedine 40 mg/ml", activeIngredient: "Tolfenamic Acid", legalCategory: "POM-V", species: ["Cattle", "Pigs"], route: "Intramuscular injection", category: "Anti-inflammatory" },
+  { name: "Dexadreson 2 mg/ml", activeIngredient: "Dexamethasone", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs", "Poultry"], route: "Intramuscular injection", category: "Anti-inflammatory" },
+  { name: "Voren 2 mg/ml", activeIngredient: "Dexamethasone", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Intramuscular injection", category: "Anti-inflammatory" },
+  { name: "Colvasone 2 mg/ml", activeIngredient: "Dexamethasone", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Intramuscular injection", category: "Anti-inflammatory" },
+
+  // ── Coccidiostats / Protozoa ──────────────────────────────────────────────────
+  { name: "Baycox 5% Pig", activeIngredient: "Toltrazuril", legalCategory: "POM-V", species: ["Pigs"], route: "Oral", category: "Coccidiostat" },
+  { name: "Vecoxan 2.5 mg/ml", activeIngredient: "Diclazuril", legalCategory: "NFA-VPS", species: ["Sheep", "Cattle"], route: "Oral", category: "Coccidiostat" },
+  { name: "Halocur 0.5 mg/ml", activeIngredient: "Halofuginone", legalCategory: "POM-V", species: ["Cattle"], route: "Oral", category: "Coccidiostat" },
+  { name: "Toltranil 50 mg/ml", activeIngredient: "Toltrazuril", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Oral", category: "Coccidiostat" },
+
+  // ── Minerals / Nutritional ────────────────────────────────────────────────────
+  { name: "Viteselen", activeIngredient: "Selenium + Vitamin E", legalCategory: "NFA-VPS", species: ["Cattle", "Sheep"], route: "Subcutaneous injection", category: "Mineral/Vitamin" },
+  { name: "Selevit", activeIngredient: "Selenium + Vitamin E", legalCategory: "NFA-VPS", species: ["Cattle", "Sheep"], route: "Subcutaneous injection", category: "Mineral/Vitamin" },
+  { name: "MulTimin", activeIngredient: "Multi-mineral (Se, Cu, Zn, Mn)", legalCategory: "NFA-VPS", species: ["Cattle", "Sheep"], route: "Subcutaneous injection", category: "Mineral/Vitamin" },
+  { name: "Animax Cattle Bolus", activeIngredient: "Se, Co, Cu, Zn, Vitamin E", legalCategory: "NFA-VPS", species: ["Cattle"], route: "Oral", category: "Mineral/Vitamin" },
+  { name: "Animax Sheep Bolus", activeIngredient: "Se, Co, I, Cu, Zn, Vitamin E", legalCategory: "NFA-VPS", species: ["Sheep"], route: "Oral", category: "Mineral/Vitamin" },
+  { name: "Cosecure Cattle Bolus", activeIngredient: "Cobalt + Selenium + Iodine", legalCategory: "NFA-VPS", species: ["Cattle"], route: "Oral", category: "Mineral/Vitamin" },
+  { name: "Cloracal SE Bolus", activeIngredient: "Cobalt + Selenium", legalCategory: "NFA-VPS", species: ["Cattle", "Sheep"], route: "Oral", category: "Mineral/Vitamin" },
+  { name: "Calptomin Injection", activeIngredient: "Calcium Borogluconate", legalCategory: "POM-V", species: ["Cattle"], route: "Intravenous injection", category: "Mineral/Vitamin" },
+  { name: "Duphatral Multivitamin", activeIngredient: "Vitamins A, D3, E", legalCategory: "NFA-VPS", species: ["Cattle", "Sheep", "Pigs"], route: "Oral", category: "Mineral/Vitamin" },
+  { name: "No-Mag Liquid", activeIngredient: "Magnesium Sulphate", legalCategory: "NFA-VPS", species: ["Cattle"], route: "Oral", category: "Mineral/Vitamin" },
+  { name: "Calol (Calcium Drench)", activeIngredient: "Calcium Propionate", legalCategory: "NFA-VPS", species: ["Cattle"], route: "Oral", category: "Mineral/Vitamin" },
+  { name: "Kepromec Oral for Pigs", activeIngredient: "Ivermectin", legalCategory: "POM-V", species: ["Pigs"], route: "Oral", category: "Anthelmintic" },
+
+  // ── Vaccines – Cattle ─────────────────────────────────────────────────────────
+  { name: "Bovilis BVD", activeIngredient: "BVD vaccine (inactivated)", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Rispoval 4", activeIngredient: "BVD/IBR/PI3/RSV (inactivated)", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Rispoval IBR Intranasal", activeIngredient: "IBR (live attenuated)", legalCategory: "POM-V", species: ["Cattle"], route: "Nasal", category: "Vaccine" },
+  { name: "Bovilis IBR Marker Live", activeIngredient: "IBR (live marker vaccine)", legalCategory: "POM-V", species: ["Cattle"], route: "Nasal", category: "Vaccine" },
+  { name: "Bovilis Bovipast RSP", activeIngredient: "Mannheimia/Pasteurella/PI3/RSV (inactivated)", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Rispoval RS + PI3", activeIngredient: "RSV + PI3 (live)", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Bovilis Leptavoid H", activeIngredient: "Leptospira (inactivated)", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Leptavoid H", activeIngredient: "Leptospira (inactivated)", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Rotavec Corona", activeIngredient: "Rotavirus/Coronavirus/K99 E.coli", legalCategory: "POM-V", species: ["Cattle"], route: "Intramuscular injection", category: "Vaccine" },
+  { name: "Bovilis Rotavec Corona", activeIngredient: "Rotavirus/Coronavirus/E.coli (live)", legalCategory: "POM-V", species: ["Cattle"], route: "Intramuscular injection", category: "Vaccine" },
+  { name: "Scourguard 4K/C", activeIngredient: "Rotavirus/Coronavirus/K99 E.coli (inactivated)", legalCategory: "POM-V", species: ["Cattle"], route: "Intramuscular injection", category: "Vaccine" },
+  { name: "Huskvac", activeIngredient: "Mannheimia haemolytica (inactivated)", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Covexin 10", activeIngredient: "Clostridial (10-way, inactivated)", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Covexin 8", activeIngredient: "Clostridial (8-way, inactivated)", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Subcutaneous injection", category: "Vaccine" },
+
+  // ── Vaccines – Sheep ──────────────────────────────────────────────────────────
+  { name: "Heptavac-P Plus", activeIngredient: "Clostridial + Pasteurella (inactivated)", legalCategory: "POM-VPS", species: ["Sheep"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Ovivac-P Plus", activeIngredient: "Clostridial + Pasteurella (inactivated)", legalCategory: "POM-VPS", species: ["Sheep"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Toxovax", activeIngredient: "Toxoplasma gondii (live)", legalCategory: "POM-V", species: ["Sheep"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Enzovax", activeIngredient: "Chlamydophila abortus (inactivated)", legalCategory: "POM-V", species: ["Sheep"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Footvax", activeIngredient: "Dichelobacter nodosus (inactivated)", legalCategory: "POM-VPS", species: ["Sheep"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Ovilis Enzovax", activeIngredient: "Chlamydophila abortus (inactivated)", legalCategory: "POM-V", species: ["Sheep"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Ovilis Toxovax", activeIngredient: "Toxoplasma gondii (live)", legalCategory: "POM-V", species: ["Sheep"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Ovilis Jakovac 6", activeIngredient: "Clostridial (6-way, inactivated)", legalCategory: "POM-V", species: ["Sheep"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Lambivac", activeIngredient: "Clostridial (7-way, inactivated)", legalCategory: "POM-VPS", species: ["Sheep"], route: "Subcutaneous injection", category: "Vaccine" },
+
+  // ── Vaccines – Pigs ───────────────────────────────────────────────────────────
+  { name: "Porcilis PRRS", activeIngredient: "PRRS virus (live attenuated)", legalCategory: "POM-V", species: ["Pigs"], route: "Intramuscular injection", category: "Vaccine" },
+  { name: "Porcilis M Hyo", activeIngredient: "Mycoplasma hyopneumoniae (inactivated)", legalCategory: "POM-V", species: ["Pigs"], route: "Intramuscular injection", category: "Vaccine" },
+  { name: "Porcilis PCV2 + M Hyo", activeIngredient: "PCV2 + M.hyo (inactivated)", legalCategory: "POM-V", species: ["Pigs"], route: "Intramuscular injection", category: "Vaccine" },
+  { name: "Circumvent PCV M", activeIngredient: "PCV2 + M.hyo (inactivated)", legalCategory: "POM-V", species: ["Pigs"], route: "Intramuscular injection", category: "Vaccine" },
+  { name: "Ingelvac PRRS MLV", activeIngredient: "PRRS virus (modified live)", legalCategory: "POM-V", species: ["Pigs"], route: "Intramuscular injection", category: "Vaccine" },
+  { name: "Porcilis Ery + Parvo", activeIngredient: "Erysipelothrix + Parvovirus (inactivated)", legalCategory: "POM-V", species: ["Pigs"], route: "Intramuscular injection", category: "Vaccine" },
+  { name: "Stellamune Mycoplasma", activeIngredient: "Mycoplasma hyopneumoniae (inactivated)", legalCategory: "POM-V", species: ["Pigs"], route: "Intramuscular injection", category: "Vaccine" },
+
+  // ── Vaccines – Poultry ────────────────────────────────────────────────────────
+  { name: "Nobilis ND Clone 30", activeIngredient: "Newcastle disease (live)", legalCategory: "POM-V", species: ["Poultry"], route: "Oral", category: "Vaccine" },
+  { name: "Nobilis IB 4-91", activeIngredient: "Infectious Bronchitis (live)", legalCategory: "POM-V", species: ["Poultry"], route: "Oral", category: "Vaccine" },
+  { name: "Nobilis Reo 1133", activeIngredient: "Reovirus (live)", legalCategory: "POM-V", species: ["Poultry"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Poulvac IB Primer", activeIngredient: "Infectious Bronchitis (live)", legalCategory: "POM-V", species: ["Poultry"], route: "Oral", category: "Vaccine" },
+  { name: "VAXXITEK HVT + IBD", activeIngredient: "Marek's HVT + Gumboro (live)", legalCategory: "POM-V", species: ["Poultry"], route: "Subcutaneous injection", category: "Vaccine" },
+  { name: "Poulvac Marek HVT FC126", activeIngredient: "Marek's HVT (live)", legalCategory: "POM-V", species: ["Poultry"], route: "Subcutaneous injection", category: "Vaccine" },
+
+  // ── Hormones / Reproduction ───────────────────────────────────────────────────
+  { name: "Estrumate 250 mcg/ml", activeIngredient: "Cloprostenol", legalCategory: "POM-V", species: ["Cattle", "Pigs"], route: "Intramuscular injection", category: "Hormonal" },
+  { name: "Lutalyse 5 mg/ml", activeIngredient: "Dinoprost (PGF2α)", legalCategory: "POM-V", species: ["Cattle", "Pigs"], route: "Intramuscular injection", category: "Hormonal" },
+  { name: "Dinolytic", activeIngredient: "Dinoprost (PGF2α)", legalCategory: "POM-V", species: ["Cattle"], route: "Intramuscular injection", category: "Hormonal" },
+  { name: "Receptal 4 mcg/ml", activeIngredient: "Buserelin (GnRH)", legalCategory: "POM-V", species: ["Cattle"], route: "Intramuscular injection", category: "Hormonal" },
+  { name: "Fertagyl 100 mcg/ml", activeIngredient: "Gonadorelin (GnRH)", legalCategory: "POM-V", species: ["Cattle"], route: "Intramuscular injection", category: "Hormonal" },
+  { name: "Chorulon 1500 IU", activeIngredient: "Human Chorionic Gonadotrophin (hCG)", legalCategory: "POM-V", species: ["Cattle"], route: "Intravenous injection", category: "Hormonal" },
+  { name: "Oxytocin 10 IU/ml", activeIngredient: "Oxytocin", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Intramuscular injection", category: "Hormonal" },
+  { name: "CIDR 1.38 g", activeIngredient: "Progesterone", legalCategory: "POM-V", species: ["Cattle"], route: "Intrauterine", category: "Hormonal" },
+  { name: "Crestar Implant", activeIngredient: "Norgestomet", legalCategory: "POM-V", species: ["Cattle"], route: "Subcutaneous injection", category: "Hormonal" },
+  { name: "Improvac 400 mcg/2ml", activeIngredient: "GnRH immunogen", legalCategory: "POM-V", species: ["Pigs"], route: "Subcutaneous injection", category: "Hormonal" },
+
+  // ── Intramammary – Cattle ─────────────────────────────────────────────────────
+  { name: "Orbenin Extra Dry Cow", activeIngredient: "Cloxacillin", legalCategory: "POM-V", species: ["Cattle"], route: "Intramammary", category: "Intramammary" },
+  { name: "Orbenin Quick Release", activeIngredient: "Cloxacillin", legalCategory: "POM-V", species: ["Cattle"], route: "Intramammary", category: "Intramammary" },
+  { name: "Orbeseal Teat Sealant", activeIngredient: "Bismuth Subnitrate", legalCategory: "POM-V", species: ["Cattle"], route: "Intramammary", category: "Intramammary" },
+  { name: "Tetra-Delta", activeIngredient: "Tetracycline + Novobiocin", legalCategory: "POM-V", species: ["Cattle"], route: "Intramammary", category: "Intramammary" },
+  { name: "Bovaclox DC Extra", activeIngredient: "Cephalexin + Neomycin (DCT)", legalCategory: "POM-V", species: ["Cattle"], route: "Intramammary", category: "Intramammary" },
+  { name: "Bovaclox Milking", activeIngredient: "Cephalexin + Kanamycin", legalCategory: "POM-V", species: ["Cattle"], route: "Intramammary", category: "Intramammary" },
+  { name: "Ubrolexin", activeIngredient: "Cephalexin + Kanamycin", legalCategory: "POM-V", species: ["Cattle"], route: "Intramammary", category: "Intramammary" },
+  { name: "Pirsue 5 mg/ml", activeIngredient: "Pirlimycin", legalCategory: "POM-V", species: ["Cattle"], route: "Intramammary", category: "Intramammary" },
+  { name: "Mastiplan LC", activeIngredient: "Procaine Penicillin + Streptomycin", legalCategory: "POM-V", species: ["Cattle"], route: "Intramammary", category: "Intramammary" },
+  { name: "Kloxerate Plus", activeIngredient: "Benzylpenicillin + Cloxacillin", legalCategory: "POM-V", species: ["Cattle"], route: "Intramammary", category: "Intramammary" },
+
+  // ── Sedation / Anaesthesia ────────────────────────────────────────────────────
+  { name: "Rompun 2%", activeIngredient: "Xylazine", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Intramuscular injection", category: "Sedative" },
+  { name: "Dormosedan 10 mg/ml", activeIngredient: "Detomidine", legalCategory: "POM-V", species: ["Cattle"], route: "Intravenous injection", category: "Sedative" },
+  { name: "Ketamidor 100 mg/ml", activeIngredient: "Ketamine", legalCategory: "POM-V", species: ["Cattle", "Sheep", "Pigs"], route: "Intravenous injection", category: "Sedative" },
+  { name: "Animalgesic 10 mg/ml", activeIngredient: "Butorphanol", legalCategory: "POM-V", species: ["Cattle", "Sheep"], route: "Intramuscular injection", category: "Sedative" },
+];
+
+export function searchVmdMedicines(query: string): VmdMedicine[] {
+  if (!query || query.length < 2) return [];
+  const q = query.toLowerCase();
+  return VMD_MEDICINES.filter(
+    m =>
+      m.name.toLowerCase().includes(q) ||
+      m.activeIngredient.toLowerCase().includes(q) ||
+      m.category.toLowerCase().includes(q)
+  ).slice(0, 12);
+}
+
+export function findVmdMedicine(name: string): VmdMedicine | null {
+  if (!name) return null;
+  const n = name.toLowerCase().trim();
+  return VMD_MEDICINES.find(m => m.name.toLowerCase() === n) ?? null;
+}
+
+export const DOSE_UNITS = ["ml", "mg", "g", "IU", "tablets", "capsules", "doses", "sachets"] as const;
+export type DoseUnit = (typeof DOSE_UNITS)[number];
