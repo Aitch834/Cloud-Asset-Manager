@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ import {
 } from "@workspace/api-client-react/src/generated/api";
 import type { Farm } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Redirect } from "wouter";
-import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound } from "lucide-react";
+import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2 } from "lucide-react";
 
 const SECTORS = [
   { key: "sectorArable", label: "Arable" },
@@ -150,6 +151,172 @@ function SectionHeader({ title, description }: { title: string; description?: st
         <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
       )}
     </div>
+  );
+}
+
+function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bcmsHoldingNumber?: string }) {
+  const { toast } = useToast();
+  const [showPass, setShowPass] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [holding, setHolding] = useState(bcmsHoldingNumber ?? "");
+  const [dirty, setDirty] = useState(false);
+
+  const credsQ = useQuery({
+    queryKey: ["bcms-credentials", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/bcms-credentials`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const creds = credsQ.data;
+
+  useEffect(() => {
+    if (creds?.ctwsUsername) setUsername(creds.ctwsUsername);
+    if (creds?.holdingNumber) setHolding(creds.holdingNumber);
+    else if (bcmsHoldingNumber) setHolding(bcmsHoldingNumber);
+  }, [creds, bcmsHoldingNumber]);
+
+  const saveMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/bcms-credentials`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "BCMS credentials saved" }); credsQ.refetch(); setDirty(false); setPassword(""); },
+    onError: () => toast({ title: "Failed to save credentials", variant: "destructive" }),
+  });
+  const testMut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/bcms-credentials/test`, { method: "POST" }).then(r => r.json()),
+    onSuccess: (d) => toast({ title: d.success ? (d.sandbox ? "Sandbox test passed" : "Connected to CTWS") : "Connection failed", description: d.message, variant: d.success ? "default" : "destructive" }),
+    onError: () => toast({ title: "Test failed", variant: "destructive" }),
+  });
+  const deleteMut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/bcms-credentials`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Credentials removed" }); credsQ.refetch(); setUsername(""); setPassword(""); setHolding(bcmsHoldingNumber ?? ""); },
+  });
+
+  const statusBadge = () => {
+    if (!creds) return null;
+    if (!creds.configured) return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#f3f4f6", color: "#6b7280", borderRadius: 6, padding: "3px 10px", fontSize: "0.75rem", fontWeight: 600 }}>
+        <WifiOff size={12} />Not configured
+      </span>
+    );
+    if (creds.sandboxMode) return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#fef3c7", color: "#92400e", borderRadius: 6, padding: "3px 10px", fontSize: "0.75rem", fontWeight: 600 }}>
+        <Shield size={12} />Sandbox mode — credentials saved
+      </span>
+    );
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#dcfce7", color: "#166534", borderRadius: 6, padding: "3px 10px", fontSize: "0.75rem", fontWeight: 600 }}>
+        <ShieldCheck size={12} />Live — connected to CTWS
+      </span>
+    );
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-6 md:p-8 space-y-5">
+        <SectionHeader
+          title="BCMS / CTS One-Click Submission"
+          description="Connect your CTS Web Services (CTWS) credentials to enable one-click cattle movement submission directly from the Movements register. Sandbox mode is active until BDE obtains DEFRA software vendor credentials."
+        />
+
+        {/* Platform status banner */}
+        <div style={{ background: creds?.ddtsConfigured ? "#f0fdf4" : "#fffbeb", border: `1px solid ${creds?.ddtsConfigured ? "#bbf7d0" : "#fde68a"}`, borderRadius: 10, padding: "0.875rem 1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <div style={{ marginTop: 2 }}>{creds?.ddtsConfigured ? <ShieldCheck size={15} color="#166534" /> : <Shield size={15} color="#92400e" />}</div>
+          <div>
+            <p style={{ fontSize: "0.82rem", fontWeight: 600, color: creds?.ddtsConfigured ? "#166534" : "#92400e", marginBottom: 2 }}>
+              {creds?.ddtsConfigured ? "Platform live credentials active" : "Sandbox mode active"}
+            </p>
+            <p style={{ fontSize: "0.78rem", color: "#6b7280", lineHeight: 1.5 }}>
+              {creds?.ddtsConfigured
+                ? "BDE Farm Trac is registered with DEFRA as an approved CTWS software vendor. Submissions go directly to BCMS."
+                : "DEFRA/DDTS vendor credentials have not yet been configured by BDE. Submissions will simulate the full CTWS flow and log the XML payload — no data will be sent to BCMS. This lets you set up and test your credentials now so the system is ready to go live the moment BDE completes DEFRA registration."}
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+          <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>Credential status:</p>
+          {credsQ.isLoading ? <Loader2 size={14} className="animate-spin" /> : statusBadge()}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <Label>CTWS Username</Label>
+            <Input
+              placeholder="nnn-nnn-nnn"
+              value={username}
+              onChange={e => { setUsername(e.target.value); setDirty(true); }}
+              className="mt-1 font-mono"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Your CTS Web Services username — format <span className="font-mono">nnn-nnn-nnn</span>. <strong>Different</strong> from your CTS Online web login. Contact BCMS (0345 050 1234) if you don't have one.</p>
+          </div>
+          <div>
+            <Label>CTWS Password</Label>
+            <div className="relative mt-1">
+              <Input
+                type={showPass ? "text" : "password"}
+                placeholder={creds?.configured && !dirty ? "••••••••••• (saved)" : "Enter password"}
+                value={password}
+                onChange={e => { setPassword(e.target.value); setDirty(true); }}
+                className="pr-10"
+              />
+              <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Your CTWS portal password. Stored with base64 encoding — do not share this page.</p>
+          </div>
+          <div>
+            <Label>Holding Number</Label>
+            <Input
+              placeholder="e.g. 32/541/0001"
+              value={holding}
+              onChange={e => { setHolding(e.target.value); setDirty(true); }}
+              className="mt-1 font-mono"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Your CPH / BCMS holding number. Pre-filled from Livestock Movement Reporting above if set.</p>
+          </div>
+          <div className="flex items-end gap-2 pb-0.5">
+            <Button
+              disabled={saveMut.isPending || !username || !holding}
+              onClick={() => saveMut.mutate({ ctwsUsername: username, ctwsPassword: password || undefined, holdingNumber: holding })}
+              className="bg-green-800 hover:bg-green-900 text-white"
+            >
+              {saveMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
+              Save Credentials
+            </Button>
+            <Button
+              variant="outline"
+              disabled={testMut.isPending || !creds?.configured}
+              onClick={() => testMut.mutate()}
+              title={!creds?.configured ? "Save credentials first" : "Test connection to CTWS"}
+            >
+              {testMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Wifi size={14} className="mr-1" />}
+              Test Connection
+            </Button>
+            {creds?.configured && (
+              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => { if (confirm("Remove BCMS credentials for this farm?")) deleteMut.mutate(); }}>
+                <Trash2 size={14} />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {creds?.lastTestedAt && (
+          <div style={{ fontSize: "0.78rem", color: creds.testStatus === "ok" ? "#166534" : "#dc2626", display: "flex", alignItems: "center", gap: 6 }}>
+            {creds.testStatus === "ok" ? <ShieldCheck size={13} /> : <WifiOff size={13} />}
+            Last test: {new Date(creds.lastTestedAt).toLocaleString("en-GB")} — {creds.testMessage}
+          </div>
+        )}
+
+        <div style={{ background: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 10, padding: "0.875rem 1rem" }}>
+          <p style={{ fontSize: "0.78rem", color: "#3730a3", fontWeight: 600, marginBottom: 4 }}>How to get your CTWS credentials</p>
+          <ol style={{ fontSize: "0.78rem", color: "#4338ca", paddingLeft: "1.25rem", lineHeight: 1.8, margin: 0 }}>
+            <li>Call BCMS on <strong>0345 050 1234</strong> (Mon–Fri 8:30–17:00) and ask for your CTS Web Services username and password.</li>
+            <li>Your CTWS username is in the format <span className="font-mono">nnn-nnn-nnn</span> — it is <strong>not</strong> the same as your CTS Online web login.</li>
+            <li>Once saved, click "Test Connection" to verify your credentials against the BCMS test server.</li>
+          </ol>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -801,6 +968,9 @@ export default function FarmSettings() {
             </div>
           </CardContent>
         </Card>
+
+        {/* ── BCMS / CTS One-Click Submission ── */}
+        {farmId && <BcmsCredentialsCard farmId={farmId} bcmsHoldingNumber={formData.bcmsHoldingNumber || undefined} />}
 
         {/* ── Emergency Contact ── */}
         <Card>

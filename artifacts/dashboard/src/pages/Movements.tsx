@@ -9,7 +9,9 @@ import { Redirect } from "wouter";
 import {
   Plus, Search, RefreshCw, Loader2, Pencil, Eye, Trash2, X, Printer,
   ArrowRight, Paperclip, CheckCircle2, AlertTriangle, Upload, File, Skull, Download, ExternalLink,
+  Send, ShieldCheck, Shield, WifiOff, Clock,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -860,8 +862,11 @@ export default function Movements() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [printRecord, setPrintRecord] = useState<Movement | null>(null);
   const [expandedAttachments, setExpandedAttachments] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"movements" | "mortality">("movements");
+  const [activeTab, setActiveTab] = useState<"movements" | "mortality" | "bcms-submissions">("movements");
   const [bcmsFilter, setBcmsFilter] = useState<"all" | "pending" | "submitted">("all");
+  const { toast } = useToast();
+  const [submitConfirmId, setSubmitConfirmId] = useState<number | null>(null);
+  const [submittingId, setSubmittingId] = useState<number | null>(null);
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -930,6 +935,39 @@ export default function Movements() {
       queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
       setDeleteConfirmId(null);
     },
+  });
+
+  const { data: submissionsData, refetch: refetchSubmissions } = useQuery({
+    queryKey: ["bcms-submissions", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/bcms-submissions`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => d.records ?? [],
+  });
+  const bcmsSubmissions: any[] = submissionsData ?? [];
+
+  const { data: bcmsCredsData } = useQuery({
+    queryKey: ["bcms-credentials", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/bcms-credentials`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const bcmsConfigured = !!bcmsCredsData?.configured;
+
+  const submitBcmsMut = useMutation({
+    mutationFn: (movementId: number) =>
+      fetch(`/api/farms/${farmId}/bcms-submit/${movementId}`, { method: "POST" }).then(r => r.json()),
+    onMutate: (id) => setSubmittingId(id),
+    onSuccess: (d, id) => {
+      setSubmittingId(null);
+      setSubmitConfirmId(null);
+      queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
+      refetchSubmissions();
+      if (d.success) {
+        toast({ title: d.sandbox ? "Submitted (sandbox)" : "Submitted to BCMS", description: d.sandbox ? `Sandbox ref: ${d.reference}` : `BCMS ref: ${d.reference}` });
+      } else {
+        toast({ title: "Submission failed", description: d.error, variant: "destructive" });
+      }
+    },
+    onError: () => { setSubmittingId(null); toast({ title: "Submission error", variant: "destructive" }); },
   });
 
   const records: Movement[] = movementsData?.records ?? [];
@@ -1063,6 +1101,12 @@ export default function Movements() {
       <TabBar className="mb-6">
         <TabButton active={activeTab === "movements"} onClick={() => setActiveTab("movements")}>Movements</TabButton>
         <TabButton active={activeTab === "mortality"} onClick={() => setActiveTab("mortality")}>Mortality Log</TabButton>
+        <TabButton active={activeTab === "bcms-submissions"} onClick={() => setActiveTab("bcms-submissions")}>
+          <span className="flex items-center gap-1.5">
+            <Send className="w-3.5 h-3.5" />BCMS Submissions
+            {bcmsSubmissions.length > 0 && <span className="text-xs opacity-60">({bcmsSubmissions.length})</span>}
+          </span>
+        </TabButton>
       </TabBar>
 
       {activeTab === "movements" && (<>
@@ -1479,7 +1523,27 @@ export default function Movements() {
                       </td>
                       <td className="p-4 text-sm text-foreground/70">{r.numberOfAnimals ?? "—"}</td>
                       <td className="p-4 text-sm font-mono text-foreground/70">{r.licenceNumber || "—"}</td>
-                      <td className="p-4"><BcmsStatusBadge movement={r} /></td>
+                      <td className="p-4">
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                          <BcmsStatusBadge movement={r} />
+                          {(() => {
+                            const isCattle = r.species?.toLowerCase() === "cattle" || !r.species;
+                            const isSubmittable = isCattle && (r.movementType === "on" || r.movementType === "off" || r.movementType === "birth" || r.movementType === "death");
+                            if (!isSubmittable) return null;
+                            if (r.legalNotificationSubmitted && r.bcmsSubmissionRef?.startsWith("SANDBOX-") === false) return null;
+                            return (
+                              <button
+                                onClick={() => setSubmitConfirmId(r.id)}
+                                disabled={submittingId === r.id}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.7rem", padding: "2px 8px", borderRadius: 6, border: "1px solid #bbf7d0", background: "#f0fdf4", color: "#166534", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                              >
+                                {submittingId === r.id ? <Loader2 size={10} className="animate-spin" /> : <Send size={10} />}
+                                {bcmsCredsData?.sandboxMode !== false ? "Test Submit" : "Submit to BCMS"}
+                              </button>
+                            );
+                          })()}
+                        </div>
+                      </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
@@ -1533,7 +1597,147 @@ export default function Movements() {
         )}
       </Card>
       </>)}
+      {/* Submit to BCMS confirmation dialog */}
+      <Dialog open={submitConfirmId !== null} onOpenChange={o => { if (!o) setSubmitConfirmId(null); }}>
+        <DialogContent style={{ maxWidth: 440 }}>
+          <DialogHeader><DialogTitle>Submit to BCMS</DialogTitle></DialogHeader>
+          {(() => {
+            const r = records.find(m => m.id === submitConfirmId);
+            if (!r) return null;
+            const isSandbox = bcmsCredsData?.sandboxMode !== false;
+            return (
+              <div className="space-y-4 py-1">
+                {isSandbox && (
+                  <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 14px", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <Shield size={14} style={{ color: "#92400e", marginTop: 2, flexShrink: 0 }} />
+                    <p style={{ fontSize: "0.78rem", color: "#92400e", lineHeight: 1.5 }}>
+                      <strong>Sandbox mode:</strong> This will simulate the CTWS submission and log the XML payload — no data will be sent to BCMS. Go to Farm Settings → BCMS Integration to configure your credentials.
+                    </p>
+                  </div>
+                )}
+                {!bcmsConfigured && !isSandbox && (
+                  <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 14px" }}>
+                    <p style={{ fontSize: "0.78rem", color: "#dc2626" }}><strong>Not configured:</strong> Set up your CTWS credentials in Farm Settings first.</p>
+                  </div>
+                )}
+                <div style={{ background: "#f9fafb", borderRadius: 8, padding: "10px 14px", fontSize: "0.82rem" }}>
+                  <div className="grid grid-cols-2 gap-y-1.5">
+                    {[["Movement", r.movementType.toUpperCase()], ["Date", formatDate(r.movementDate)], ["Species", r.species ?? "—"], ["Animals", String(r.numberOfAnimals ?? "—")], ["From", r.fromLocation ?? "—"], ["To", r.toLocation ?? "—"], ["AML Ref", r.licenceNumber ?? "—"]].map(([k, v]) => (
+                      <React.Fragment key={k}><span style={{ color: "#6b7280", fontWeight: 500 }}>{k}</span><span style={{ fontWeight: 600 }}>{v}</span></React.Fragment>
+                    ))}
+                  </div>
+                </div>
+                <p style={{ fontSize: "0.82rem", color: "#6b7280" }}>
+                  {isSandbox ? "The CTWS XML payload will be logged on the server. Once BDE obtains DEFRA vendor credentials, live submissions will be enabled automatically." : "This will send the movement notification directly to BCMS via CTS Web Services. Ensure the details above are correct before proceeding."}
+                </p>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSubmitConfirmId(null)}>Cancel</Button>
+            <Button
+              className="bg-green-800 hover:bg-green-900 text-white"
+              disabled={submitBcmsMut.isPending}
+              onClick={() => submitConfirmId !== null && submitBcmsMut.mutate(submitConfirmId)}
+            >
+              {submitBcmsMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Send size={14} className="mr-1" />}
+              {bcmsCredsData?.sandboxMode !== false ? "Run Sandbox Test" : "Submit to BCMS"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {activeTab === "mortality" && <MortalitySection farmId={farmId} />}
+
+      {activeTab === "bcms-submissions" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+            <div>
+              <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "#1f2937", marginBottom: 2 }}>BCMS / CTWS Submission History</h3>
+              <p style={{ fontSize: "0.82rem", color: "#6b7280" }}>All cattle movement submissions sent (or simulated) via CTS Web Services from this farm.</p>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {bcmsCredsData && (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: bcmsCredsData.configured ? "#f0fdf4" : "#f9fafb", border: `1px solid ${bcmsCredsData.configured ? "#bbf7d0" : "#e5e7eb"}`, borderRadius: 8, padding: "6px 12px", fontSize: "0.75rem", fontWeight: 600, color: bcmsCredsData.configured ? "#166534" : "#6b7280" }}>
+                  {bcmsCredsData.configured ? <ShieldCheck size={13} /> : <WifiOff size={13} />}
+                  {bcmsCredsData.configured ? (bcmsCredsData.sandboxMode ? "Sandbox mode" : "Live mode") : "Not configured"}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {!bcmsConfigured && (
+            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <Shield size={16} style={{ color: "#92400e", flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#92400e", marginBottom: 4 }}>CTWS credentials not configured</p>
+                <p style={{ fontSize: "0.8rem", color: "#78350f" }}>To enable one-click submissions, go to <strong>Farm Settings → BCMS / CTS One-Click Submission</strong> and enter your CTS Web Services username and password. The Submit button will appear on each cattle movement row.</p>
+              </div>
+            </div>
+          )}
+
+          {bcmsSubmissions.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10 }}>
+              <Send size={32} style={{ margin: "0 auto 12px", opacity: 0.3, color: "#6b7280" }} />
+              <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>No submissions yet</p>
+              <p style={{ fontSize: "0.875rem", color: "#9ca3af" }}>Use the "Test Submit" button on any cattle movement row to run a sandbox submission test.</p>
+            </div>
+          ) : (
+            <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                <thead>
+                  <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                    {["Date & Time", "Movement", "Type", "Status", "Mode", "Reference", "Error"].map(h => (
+                      <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {bcmsSubmissions.map((s: any, i: number) => {
+                    const mov = records.find(m => m.id === s.movementId);
+                    const statusCfg: Record<string, { bg: string; color: string }> = {
+                      submitted: { bg: "#dcfce7", color: "#166534" },
+                      pending:   { bg: "#fef3c7", color: "#92400e" },
+                      failed:    { bg: "#fee2e2", color: "#991b1b" },
+                    };
+                    const sc = statusCfg[s.status] ?? { bg: "#f3f4f6", color: "#6b7280" };
+                    return (
+                      <tr key={s.id} style={{ borderBottom: i < bcmsSubmissions.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                        <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap", color: "#6b7280" }}>
+                          <div>{new Date(s.createdAt).toLocaleDateString("en-GB")}</div>
+                          <div style={{ fontSize: "0.7rem" }}>{new Date(s.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</div>
+                        </td>
+                        <td style={{ padding: "0.625rem 0.875rem" }}>
+                          {mov ? (
+                            <div>
+                              <div style={{ fontWeight: 500 }}>{formatDate(mov.movementDate)}</div>
+                              <div style={{ fontSize: "0.7rem", color: "#9ca3af" }}>{mov.species ?? ""} · {mov.numberOfAnimals ?? "?"} head</div>
+                            </div>
+                          ) : <span style={{ color: "#9ca3af" }}>#{s.movementId}</span>}
+                        </td>
+                        <td style={{ padding: "0.625rem 0.875rem", color: "#374151", textTransform: "uppercase", fontSize: "0.75rem", fontWeight: 600 }}>{s.submissionType?.replace("_", " ")}</td>
+                        <td style={{ padding: "0.625rem 0.875rem" }}>
+                          <span style={{ background: sc.bg, color: sc.color, borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}>{s.status}</span>
+                        </td>
+                        <td style={{ padding: "0.625rem 0.875rem" }}>
+                          {s.sandboxMode
+                            ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fef3c7", color: "#92400e", borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}><Shield size={10} />Sandbox</span>
+                            : <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#dcfce7", color: "#166534", borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}><ShieldCheck size={10} />Live</span>
+                          }
+                        </td>
+                        <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontSize: "0.75rem", color: "#374151" }}>{s.bcmsReference || "—"}</td>
+                        <td style={{ padding: "0.625rem 0.875rem", color: "#dc2626", fontSize: "0.75rem", maxWidth: 200 }}>
+                          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.errorMessage || "—"}</div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </AppLayout>
   );
 }

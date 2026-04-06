@@ -39,6 +39,8 @@ import {
   livestockAnimalsTable,
   animalDocumentsTable,
   livestockMovementsTable,
+  bcmsFarmCredentialsTable,
+  bcmsSubmissionsTable,
   livestockMedicineRecordsTable,
   livestockFeedRecordsTable,
   livestockWaterRecordsTable,
@@ -214,6 +216,7 @@ import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray } fro
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
+import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
 
 const router: IRouter = Router();
 
@@ -13694,6 +13697,140 @@ router.delete("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant
   if (!farmId) return;
   await db.delete(diseaseIncidentLogTable).where(and(eq(diseaseIncidentLogTable.id, parseInt(req.params.id)), eq(diseaseIncidentLogTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── BCMS / CTS Web Services ─────────────────────────────────────────────────
+
+// GET credentials status (never returns the raw password)
+router.get("/farms/:farmId/bcms-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [creds] = await db.select().from(bcmsFarmCredentialsTable).where(eq(bcmsFarmCredentialsTable.farmId, farmId));
+  if (!creds) { res.json({ configured: false, sandboxMode: isSandboxMode(), ddtsConfigured: !isSandboxMode() }); return; }
+  res.json({
+    configured: creds.isConfigured,
+    sandboxMode: creds.sandboxMode || isSandboxMode(),
+    ddtsConfigured: !isSandboxMode(),
+    ctwsUsername: creds.ctwsUsername,
+    holdingNumber: creds.holdingNumber,
+    lastTestedAt: creds.lastTestedAt,
+    testStatus: creds.testStatus,
+    testMessage: creds.testMessage,
+  });
+});
+
+// PUT save credentials
+router.put("/farms/:farmId/bcms-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { ctwsUsername, ctwsPassword, holdingNumber } = req.body as { ctwsUsername?: string; ctwsPassword?: string; holdingNumber?: string };
+  const [existing] = await db.select().from(bcmsFarmCredentialsTable).where(eq(bcmsFarmCredentialsTable.farmId, farmId));
+  const passwordToStore = ctwsPassword ? Buffer.from(ctwsPassword, "utf-8").toString("base64") : existing?.ctwsPasswordEncrypted;
+  const data = {
+    ctwsUsername: ctwsUsername ?? existing?.ctwsUsername,
+    ctwsPasswordEncrypted: passwordToStore,
+    holdingNumber: holdingNumber ?? existing?.holdingNumber,
+    isConfigured: !!(ctwsUsername || existing?.ctwsUsername) && !!passwordToStore && !!(holdingNumber || existing?.holdingNumber),
+    sandboxMode: isSandboxMode(),
+    updatedAt: new Date(),
+  };
+  let record;
+  if (existing) {
+    [record] = await db.update(bcmsFarmCredentialsTable).set(data).where(eq(bcmsFarmCredentialsTable.farmId, farmId)).returning();
+  } else {
+    [record] = await db.insert(bcmsFarmCredentialsTable).values({ ...data, farmId }).returning();
+  }
+  res.json({ success: true, configured: record.isConfigured });
+});
+
+// DELETE credentials
+router.delete("/farms/:farmId/bcms-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(bcmsFarmCredentialsTable).where(eq(bcmsFarmCredentialsTable.farmId, farmId));
+  res.json({ success: true });
+});
+
+// POST test connection
+router.post("/farms/:farmId/bcms-credentials/test", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [creds] = await db.select().from(bcmsFarmCredentialsTable).where(eq(bcmsFarmCredentialsTable.farmId, farmId));
+  if (!creds?.isConfigured) { res.status(400).json({ error: "No credentials configured" }); return; }
+  const password = Buffer.from(creds.ctwsPasswordEncrypted ?? "", "base64").toString("utf-8");
+  const result = await testConnection({ ctwsUsername: creds.ctwsUsername!, ctwsPassword: password, holdingNumber: creds.holdingNumber! });
+  const testStatus = result.success ? "ok" : "failed";
+  await db.update(bcmsFarmCredentialsTable).set({ testStatus, testMessage: result.errorMessage ?? (result.sandbox ? "Sandbox test passed" : "Connection successful"), lastTestedAt: new Date() }).where(eq(bcmsFarmCredentialsTable.farmId, farmId));
+  res.json({ success: result.success, sandbox: result.sandbox, message: result.errorMessage ?? (result.sandbox ? "Sandbox mode — payload verified, not sent to BCMS" : "Connected to CTWS successfully") });
+});
+
+// GET submission history
+router.get("/farms/:farmId/bcms-submissions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(bcmsSubmissionsTable).where(eq(bcmsSubmissionsTable.farmId, farmId)).orderBy(desc(bcmsSubmissionsTable.createdAt));
+  res.json({ records });
+});
+
+// POST submit a movement to CTWS
+router.post("/farms/:farmId/bcms-submit/:movementId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const movementId = parseInt(req.params.movementId);
+
+  const [movement] = await db.select().from(livestockMovementsTable).where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)));
+  if (!movement) { res.status(404).json({ error: "Movement not found" }); return; }
+
+  const [creds] = await db.select().from(bcmsFarmCredentialsTable).where(eq(bcmsFarmCredentialsTable.farmId, farmId));
+  if (!creds?.isConfigured) { res.status(400).json({ error: "BCMS credentials not configured. Go to Farm Settings → BCMS / CTS Integration to set up your credentials." }); return; }
+
+  const password = Buffer.from(creds.ctwsPasswordEncrypted ?? "", "base64").toString("utf-8");
+  const typeMap: Record<string, "movement_on" | "movement_off" | "birth" | "death"> = { on: "movement_on", off: "movement_off", birth: "birth", death: "death" };
+  const submissionType = typeMap[movement.movementType] ?? "movement_on";
+
+  const movDate = movement.movementDate ? new Date(movement.movementDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+
+  const [submission] = await db.insert(bcmsSubmissionsTable).values({
+    farmId, movementId, submissionType, status: "pending",
+    sandboxMode: isSandboxMode(), submittedAt: new Date(),
+  }).returning();
+
+  try {
+    const result = await submitMovement({
+      ctwsUsername: creds.ctwsUsername!,
+      ctwsPassword: password,
+      holdingNumber: creds.holdingNumber!,
+      movementType: submissionType,
+      movementDate: movDate,
+      numberOfAnimals: movement.numberOfAnimals ?? 1,
+      earTagNumbers: movement.earTagNumbers ?? undefined,
+      fromLocation: movement.fromLocation ?? creds.holdingNumber!,
+      toLocation: movement.toLocation ?? creds.holdingNumber!,
+      licenceNumber: movement.licenceNumber ?? undefined,
+      species: movement.species ?? undefined,
+    });
+
+    const status = result.success ? "submitted" : "failed";
+    await db.update(bcmsSubmissionsTable).set({
+      status, sandboxMode: result.sandbox,
+      bcmsReference: result.reference, errorMessage: result.errorMessage,
+      xmlPayload: result.xmlPayload, responsePayload: result.responseXml,
+      acknowledgedAt: result.success ? new Date() : undefined,
+    }).where(eq(bcmsSubmissionsTable.id, submission.id));
+
+    if (result.success) {
+      await db.update(livestockMovementsTable).set({
+        legalNotificationSubmitted: true,
+        legalNotificationDate: new Date(),
+        bcmsSubmissionRef: result.reference ?? `SANDBOX-${submission.id}`,
+      }).where(eq(livestockMovementsTable.id, movementId));
+    }
+
+    res.json({ success: result.success, sandbox: result.sandbox, reference: result.reference, error: result.errorMessage });
+  } catch (err: any) {
+    await db.update(bcmsSubmissionsTable).set({ status: "failed", errorMessage: err?.message ?? "Unknown error" }).where(eq(bcmsSubmissionsTable.id, submission.id));
+    res.status(500).json({ error: err?.message ?? "Submission failed" });
+  }
 });
 
 export default router;

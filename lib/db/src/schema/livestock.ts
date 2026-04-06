@@ -507,3 +507,37 @@ export const livestockPurchasesTable = pgTable("livestock_purchases", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
+
+export const bcmsFarmCredentialsTable = pgTable("bcms_farm_credentials", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id).unique(),
+  ctwsUsername: text("ctws_username"),
+  ctwsPasswordEncrypted: text("ctws_password_encrypted"),
+  holdingNumber: text("holding_number"),
+  isConfigured: boolean("is_configured").notNull().default(false),
+  sandboxMode: boolean("sandbox_mode").notNull().default(true),
+  lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
+  testStatus: text("test_status"),
+  testMessage: text("test_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const bcmsSubmissionsTable = pgTable("bcms_submissions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  movementId: integer("movement_id").references(() => livestockMovementsTable.id),
+  submissionType: text("submission_type").notNull(),
+  status: text("status").notNull().default("pending"),
+  sandboxMode: boolean("sandbox_mode").notNull().default(true),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  bcmsReference: text("bcms_reference"),
+  errorMessage: text("error_message"),
+  xmlPayload: text("xml_payload"),
+  responsePayload: text("response_payload"),
+  retryCount: integer("retry_count").notNull().default(0),
+  submittedByUserId: integer("submitted_by_user_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
