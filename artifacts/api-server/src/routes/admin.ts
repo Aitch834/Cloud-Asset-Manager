@@ -1072,4 +1072,16 @@ router.delete("/admin/platform-config/:key", requireAuth, async (req: Request, r
   res.json({ success: true });
 });
 
+router.post("/admin/seed-demo-data", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  try {
+    const { seedDemoData } = await import("../lib/seedDemoData");
+    await seedDemoData();
+    res.json({ success: true, message: "Demo data seeded successfully" });
+  } catch (err) {
+    console.error("[SEED] Failed:", err);
+    res.status(500).json({ error: "Seed failed", details: String(err) });
+  }
+});
+
 export default router;
