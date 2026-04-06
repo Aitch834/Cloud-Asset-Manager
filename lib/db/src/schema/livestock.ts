@@ -508,6 +508,43 @@ export const livestockPurchasesTable = pgTable("livestock_purchases", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+export const lisFarmTokensTable = pgTable("lis_farm_tokens", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id).unique(),
+  lisUsername: text("lis_username"),
+  lisPasswordEncrypted: text("lis_password_encrypted"),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  isConfigured: boolean("is_configured").notNull().default(false),
+  sandboxMode: boolean("sandbox_mode").notNull().default(true),
+  lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
+  testStatus: text("test_status"),
+  testMessage: text("test_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const lisSubmissionsTable = pgTable("lis_submissions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  movementId: integer("movement_id").references(() => livestockMovementsTable.id),
+  submissionType: text("submission_type").notNull(),
+  species: text("species"),
+  status: text("status").notNull().default("pending"),
+  sandboxMode: boolean("sandbox_mode").notNull().default(true),
+  lisReference: text("lis_reference"),
+  requestPayload: text("request_payload"),
+  responsePayload: text("response_payload"),
+  errorMessage: text("error_message"),
+  retryCount: integer("retry_count").notNull().default(0),
+  submittedByUserId: integer("submitted_by_user_id"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const bcmsFarmCredentialsTable = pgTable("bcms_farm_credentials", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id).unique(),

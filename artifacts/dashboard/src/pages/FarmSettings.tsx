@@ -320,6 +320,163 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
   );
 }
 
+function LisConnectionCard({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const [showPass, setShowPass] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [dirty, setDirty] = useState(false);
+
+  const credsQ = useQuery({
+    queryKey: ["lis-credentials", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/lis-credentials`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const creds = credsQ.data;
+
+  useEffect(() => {
+    if (creds?.lisUsername) setUsername(creds.lisUsername);
+  }, [creds]);
+
+  const saveMut = useMutation({
+    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/lis-credentials`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "LIS credentials saved" }); credsQ.refetch(); setDirty(false); setPassword(""); },
+    onError: () => toast({ title: "Failed to save credentials", variant: "destructive" }),
+  });
+  const testMut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/lis-credentials/test`, { method: "POST" }).then(r => r.json()),
+    onSuccess: (d) => { credsQ.refetch(); toast({ title: d.success ? (d.sandbox ? "Sandbox test passed" : "Connected to LIS") : "Connection failed", description: d.message, variant: d.success ? "default" : "destructive" }); },
+    onError: () => toast({ title: "Test failed", variant: "destructive" }),
+  });
+  const deleteMut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/lis-credentials`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "LIS credentials removed" }); credsQ.refetch(); setUsername(""); setPassword(""); },
+  });
+
+  const statusBadge = () => {
+    if (!creds) return null;
+    if (!creds.configured) return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#f3f4f6", color: "#6b7280", borderRadius: 6, padding: "3px 10px", fontSize: "0.75rem", fontWeight: 600 }}>
+        <WifiOff size={12} />Not configured
+      </span>
+    );
+    if (creds.sandboxMode) return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#eff6ff", color: "#1d4ed8", borderRadius: 6, padding: "3px 10px", fontSize: "0.75rem", fontWeight: 600 }}>
+        <Shield size={12} />Sandbox mode — credentials saved
+      </span>
+    );
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#dcfce7", color: "#166534", borderRadius: 6, padding: "3px 10px", fontSize: "0.75rem", fontWeight: 600 }}>
+        <ShieldCheck size={12} />Live — connected to LIS
+      </span>
+    );
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-6 md:p-8 space-y-5">
+        <SectionHeader
+          title="LIS / Livestock Information Service"
+          description="Connect your Livestock Information Service (LIS) account to enable one-click sheep, goat and deer movement submission directly from the Movements register. LIS is the England government platform for sheep/goat/deer movement reporting, replacing the old paper AML forms."
+        />
+
+        {/* Platform status banner */}
+        <div style={{ background: creds?.subscriptionKeyConfigured ? "#f0fdf4" : "#eff6ff", border: `1px solid ${creds?.subscriptionKeyConfigured ? "#bbf7d0" : "#bfdbfe"}`, borderRadius: 10, padding: "0.875rem 1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <div style={{ marginTop: 2 }}>{creds?.subscriptionKeyConfigured ? <ShieldCheck size={15} color="#166534" /> : <Shield size={15} color="#1d4ed8" />}</div>
+          <div>
+            <p style={{ fontSize: "0.82rem", fontWeight: 600, color: creds?.subscriptionKeyConfigured ? "#166534" : "#1d4ed8", marginBottom: 2 }}>
+              {creds?.subscriptionKeyConfigured ? "Platform subscription key active" : "Sandbox mode active"}
+            </p>
+            <p style={{ fontSize: "0.78rem", color: "#6b7280", lineHeight: 1.5 }}>
+              {creds?.subscriptionKeyConfigured
+                ? "BDE Farm Trac has a registered LIS Developer Hub subscription key. Submissions go directly to the Livestock Information Service."
+                : "A LIS Developer Hub subscription key has not yet been configured by BDE. Submissions will simulate the full CLA API flow and log the JSON payload — no data will be sent to LIS. This lets you set up and test your credentials now so the system is ready the moment BDE completes developer hub registration."}
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+          <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>Connection status:</p>
+          {credsQ.isLoading ? <Loader2 size={14} className="animate-spin" /> : statusBadge()}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <Label>LIS Username</Label>
+            <Input
+              placeholder="e.g. john.smith@example.com"
+              value={username}
+              onChange={e => { setUsername(e.target.value); setDirty(true); }}
+              className="mt-1"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Your Livestock Information Service login email. Register or log in at <a href="https://cla.livestockinformation.org.uk" target="_blank" rel="noopener noreferrer" className="underline text-blue-600">cla.livestockinformation.org.uk</a>.</p>
+          </div>
+          <div>
+            <Label>LIS Password</Label>
+            <div className="relative mt-1">
+              <Input
+                type={showPass ? "text" : "password"}
+                placeholder={creds?.configured && !dirty ? "••••••••••• (saved)" : "Enter password"}
+                value={password}
+                onChange={e => { setPassword(e.target.value); setDirty(true); }}
+                className="pr-10"
+              />
+              <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Your LIS portal password. Stored with base64 encoding. Credentials are used to authenticate with the LIS Azure B2C service on your behalf.</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button
+            size="sm"
+            disabled={saveMut.isPending || (!dirty && !username)}
+            onClick={() => saveMut.mutate({ lisUsername: username, ...(password && { lisPassword: password }) })}
+          >
+            {saveMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
+            Save Credentials
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={testMut.isPending || !creds?.configured}
+            onClick={() => testMut.mutate()}
+            title={!creds?.configured ? "Save credentials first" : "Test LIS authentication"}
+          >
+            {testMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Wifi size={14} className="mr-1" />}
+            Test Connection
+          </Button>
+          {creds?.configured && (
+            <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => { if (confirm("Remove LIS credentials for this farm?")) deleteMut.mutate(); }}>
+              <Trash2 size={14} />
+            </Button>
+          )}
+        </div>
+
+        {creds?.lastTestedAt && (
+          <div style={{ fontSize: "0.78rem", color: creds.testStatus === "ok" ? "#166534" : "#dc2626", display: "flex", alignItems: "center", gap: 6 }}>
+            {creds.testStatus === "ok" ? <ShieldCheck size={13} /> : <WifiOff size={13} />}
+            Last test: {new Date(creds.lastTestedAt).toLocaleString("en-GB")} — {creds.testMessage}
+          </div>
+        )}
+
+        <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "0.875rem 1rem" }}>
+          <p style={{ fontSize: "0.78rem", color: "#1d4ed8", fontWeight: 600, marginBottom: 4 }}>How to get your LIS credentials &amp; how to go live</p>
+          <ol style={{ fontSize: "0.78rem", color: "#1e40af", paddingLeft: "1.25rem", lineHeight: 1.8, margin: 0 }}>
+            <li>Register or sign in at <a href="https://cla.livestockinformation.org.uk" target="_blank" rel="noopener noreferrer" className="underline">cla.livestockinformation.org.uk</a> using your email address.</li>
+            <li>Enter your LIS username (email) and password above and click <strong>Save Credentials</strong>.</li>
+            <li>Click <strong>Test Connection</strong> to verify — in sandbox mode this simulates a successful connection.</li>
+            <li>Once connected, a blue <strong>Test Submit (LIS)</strong> button will appear on each sheep, goat and deer movement row in the Movements register.</li>
+            <li>For live submissions: BDE must register on the <a href="https://livestockinformation.org.uk/developer-hub/" target="_blank" rel="noopener noreferrer" className="underline">LIS Developer Hub</a> and set the <span className="font-mono">LIS_SUBSCRIPTION_KEY</span> environment variable. Submissions then go directly to LIS automatically.</li>
+          </ol>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function FarmSettings() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
@@ -971,6 +1128,9 @@ export default function FarmSettings() {
 
         {/* ── BCMS / CTS One-Click Submission ── */}
         {farmId && <BcmsCredentialsCard farmId={farmId} bcmsHoldingNumber={formData.bcmsHoldingNumber || undefined} />}
+
+        {/* ── LIS / Livestock Information Service ── */}
+        {farmId && <LisConnectionCard farmId={farmId} />}
 
         {/* ── Emergency Contact ── */}
         <Card>

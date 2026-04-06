@@ -862,11 +862,13 @@ export default function Movements() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [printRecord, setPrintRecord] = useState<Movement | null>(null);
   const [expandedAttachments, setExpandedAttachments] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"movements" | "mortality" | "bcms-submissions">("movements");
+  const [activeTab, setActiveTab] = useState<"movements" | "mortality" | "bcms-submissions" | "lis-submissions">("movements");
   const [bcmsFilter, setBcmsFilter] = useState<"all" | "pending" | "submitted">("all");
   const { toast } = useToast();
   const [submitConfirmId, setSubmitConfirmId] = useState<number | null>(null);
   const [submittingId, setSubmittingId] = useState<number | null>(null);
+  const [lisSubmitConfirmId, setLisSubmitConfirmId] = useState<number | null>(null);
+  const [lisSubmittingId, setLisSubmittingId] = useState<number | null>(null);
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -951,6 +953,39 @@ export default function Movements() {
     enabled: !!farmId,
   });
   const bcmsConfigured = !!bcmsCredsData?.configured;
+
+  const { data: lisSubmissionsData, refetch: refetchLisSubmissions } = useQuery({
+    queryKey: ["lis-submissions", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/lis-submissions`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => d.submissions ?? [],
+  });
+  const lisSubmissions: any[] = lisSubmissionsData ?? [];
+
+  const { data: lisCredsData } = useQuery({
+    queryKey: ["lis-credentials", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/lis-credentials`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const lisConfigured = !!lisCredsData?.configured;
+
+  const submitLisMut = useMutation({
+    mutationFn: (movementId: number) =>
+      fetch(`/api/farms/${farmId}/lis-submit/${movementId}`, { method: "POST" }).then(r => r.json()),
+    onMutate: (id) => setLisSubmittingId(id),
+    onSuccess: (d, id) => {
+      setLisSubmittingId(null);
+      setLisSubmitConfirmId(null);
+      queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
+      refetchLisSubmissions();
+      if (d.success) {
+        toast({ title: d.sandbox ? "Submitted to LIS (sandbox)" : "Submitted to LIS", description: d.sandbox ? `Sandbox ref: ${d.reference}` : `LIS ref: ${d.reference}` });
+      } else {
+        toast({ title: "LIS submission failed", description: d.error, variant: "destructive" });
+      }
+    },
+    onError: () => { setLisSubmittingId(null); toast({ title: "LIS submission error", variant: "destructive" }); },
+  });
 
   const submitBcmsMut = useMutation({
     mutationFn: (movementId: number) =>
@@ -1105,6 +1140,12 @@ export default function Movements() {
           <span className="flex items-center gap-1.5">
             <Send className="w-3.5 h-3.5" />BCMS Submissions
             {bcmsSubmissions.length > 0 && <span className="text-xs opacity-60">({bcmsSubmissions.length})</span>}
+          </span>
+        </TabButton>
+        <TabButton active={activeTab === "lis-submissions"} onClick={() => setActiveTab("lis-submissions")}>
+          <span className="flex items-center gap-1.5">
+            <Send className="w-3.5 h-3.5" />LIS Submissions
+            {lisSubmissions.length > 0 && <span className="text-xs opacity-60">({lisSubmissions.length})</span>}
           </span>
         </TabButton>
       </TabBar>
@@ -1527,11 +1568,12 @@ export default function Movements() {
                         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                           <BcmsStatusBadge movement={r} />
                           {(() => {
-                            const isCattle = r.species?.toLowerCase() === "cattle" || !r.species;
-                            const isSubmittable = isCattle && (r.movementType === "on" || r.movementType === "off" || r.movementType === "birth" || r.movementType === "death");
-                            if (!isSubmittable) return null;
-                            if (r.legalNotificationSubmitted && r.bcmsSubmissionRef?.startsWith("SANDBOX-") === false) return null;
-                            return (
+                            const speciesLower = (r.species ?? "").toLowerCase();
+                            const isCattle = speciesLower === "cattle" || (!r.species && r.movementType !== "birth");
+                            const isLisSpecies = speciesLower === "sheep" || speciesLower === "goat" || speciesLower === "deer";
+                            const isSubmittableType = r.movementType === "on" || r.movementType === "off" || r.movementType === "birth" || r.movementType === "death";
+
+                            const bcmsBtn = isCattle && isSubmittableType && !(r.legalNotificationSubmitted && !r.bcmsSubmissionRef?.startsWith("SANDBOX-")) ? (
                               <button
                                 onClick={() => setSubmitConfirmId(r.id)}
                                 disabled={submittingId === r.id}
@@ -1540,7 +1582,20 @@ export default function Movements() {
                                 {submittingId === r.id ? <Loader2 size={10} className="animate-spin" /> : <Send size={10} />}
                                 {bcmsCredsData?.sandboxMode !== false ? "Test Submit" : "Submit to BCMS"}
                               </button>
-                            );
+                            ) : null;
+
+                            const lisBtn = isLisSpecies && isSubmittableType && !(r.legalNotificationSubmitted && r.bcmsSubmissionRef && !r.bcmsSubmissionRef.startsWith("LIS-SANDBOX-")) ? (
+                              <button
+                                onClick={() => setLisSubmitConfirmId(r.id)}
+                                disabled={lisSubmittingId === r.id}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.7rem", padding: "2px 8px", borderRadius: 6, border: "1px solid #bfdbfe", background: "#eff6ff", color: "#1d4ed8", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+                              >
+                                {lisSubmittingId === r.id ? <Loader2 size={10} className="animate-spin" /> : <Send size={10} />}
+                                {lisCredsData?.sandboxMode !== false ? "Test Submit (LIS)" : "Submit to LIS"}
+                              </button>
+                            ) : null;
+
+                            return <>{bcmsBtn}{lisBtn}</>;
                           })()}
                         </div>
                       </td>
@@ -1647,6 +1702,58 @@ export default function Movements() {
         </DialogContent>
       </Dialog>
 
+      {/* Submit to LIS confirmation dialog */}
+      <Dialog open={lisSubmitConfirmId !== null} onOpenChange={o => { if (!o) setLisSubmitConfirmId(null); }}>
+        <DialogContent style={{ maxWidth: 440 }}>
+          <DialogHeader><DialogTitle>Submit to LIS</DialogTitle></DialogHeader>
+          {(() => {
+            const r = records.find(m => m.id === lisSubmitConfirmId);
+            if (!r) return null;
+            const isSandbox = lisCredsData?.sandboxMode !== false;
+            return (
+              <div className="space-y-4 py-1">
+                {isSandbox && (
+                  <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 14px", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <Shield size={14} style={{ color: "#1d4ed8", marginTop: 2, flexShrink: 0 }} />
+                    <p style={{ fontSize: "0.78rem", color: "#1d4ed8", lineHeight: 1.5 }}>
+                      <strong>Sandbox mode:</strong> This will simulate the LIS submission and log the request payload — no data will be sent to the Livestock Information Service. Go to Farm Settings → LIS Integration to configure your credentials.
+                    </p>
+                  </div>
+                )}
+                {!lisConfigured && !isSandbox && (
+                  <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 14px" }}>
+                    <p style={{ fontSize: "0.78rem", color: "#dc2626" }}><strong>Not configured:</strong> Set up your LIS credentials in Farm Settings first.</p>
+                  </div>
+                )}
+                <div style={{ background: "#f9fafb", borderRadius: 8, padding: "10px 14px", fontSize: "0.82rem" }}>
+                  <div className="grid grid-cols-2 gap-y-1.5">
+                    {[["Movement", r.movementType.toUpperCase()], ["Date", formatDate(r.movementDate)], ["Species", r.species ?? "—"], ["Animals", String(r.numberOfAnimals ?? "—")], ["From CPH", r.fromLocation ?? "—"], ["To CPH", r.toLocation ?? "—"], ["Licence Ref", r.licenceNumber ?? "—"]].map(([k, v]) => (
+                      <React.Fragment key={k}><span style={{ color: "#6b7280", fontWeight: 500 }}>{k}</span><span style={{ fontWeight: 600 }}>{v}</span></React.Fragment>
+                    ))}
+                  </div>
+                </div>
+                <p style={{ fontSize: "0.82rem", color: "#6b7280" }}>
+                  {isSandbox
+                    ? "The LIS CLA API JSON payload will be logged on the server. Once BDE registers on the LIS Developer Hub and sets a subscription key, live submissions will be enabled automatically."
+                    : "This will send the movement notification directly to the Livestock Information Service (LIS) via the CLA API. Sheep/goat/deer movements must be reported within the required timescales."}
+                </p>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLisSubmitConfirmId(null)}>Cancel</Button>
+            <Button
+              className="bg-blue-700 hover:bg-blue-800 text-white"
+              disabled={submitLisMut.isPending}
+              onClick={() => lisSubmitConfirmId !== null && submitLisMut.mutate(lisSubmitConfirmId)}
+            >
+              {submitLisMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Send size={14} className="mr-1" />}
+              {lisCredsData?.sandboxMode !== false ? "Run Sandbox Test" : "Submit to LIS"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {activeTab === "mortality" && <MortalitySection farmId={farmId} />}
 
       {activeTab === "bcms-submissions" && (
@@ -1726,6 +1833,96 @@ export default function Movements() {
                           }
                         </td>
                         <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontSize: "0.75rem", color: "#374151" }}>{s.bcmsReference || "—"}</td>
+                        <td style={{ padding: "0.625rem 0.875rem", color: "#dc2626", fontSize: "0.75rem", maxWidth: 200 }}>
+                          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.errorMessage || "—"}</div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+      {activeTab === "lis-submissions" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+            <div>
+              <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "#1f2937", marginBottom: 2 }}>LIS Submission History</h3>
+              <p style={{ fontSize: "0.82rem", color: "#6b7280" }}>All sheep, goat and deer movement submissions sent (or simulated) via the Livestock Information Service CLA API from this farm.</p>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {lisCredsData && (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: lisCredsData.configured ? "#eff6ff" : "#f9fafb", border: `1px solid ${lisCredsData.configured ? "#bfdbfe" : "#e5e7eb"}`, borderRadius: 8, padding: "6px 12px", fontSize: "0.75rem", fontWeight: 600, color: lisCredsData.configured ? "#1d4ed8" : "#6b7280" }}>
+                  {lisCredsData.configured ? <ShieldCheck size={13} /> : <WifiOff size={13} />}
+                  {lisCredsData.configured ? (lisCredsData.sandboxMode ? "Sandbox mode" : "Live mode") : "Not configured"}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {!lisConfigured && (
+            <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <Shield size={16} style={{ color: "#1d4ed8", flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#1d4ed8", marginBottom: 4 }}>LIS credentials not configured</p>
+                <p style={{ fontSize: "0.8rem", color: "#1e40af" }}>To enable one-click submissions for sheep, goat and deer movements, go to <strong>Farm Settings → LIS Integration</strong> and enter your LIS username and password. The Submit button will appear on each eligible movement row.</p>
+              </div>
+            </div>
+          )}
+
+          {lisSubmissions.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10 }}>
+              <Send size={32} style={{ margin: "0 auto 12px", opacity: 0.3, color: "#6b7280" }} />
+              <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>No LIS submissions yet</p>
+              <p style={{ fontSize: "0.875rem", color: "#9ca3af" }}>Use the "Test Submit (LIS)" button on any sheep, goat or deer movement row to run a sandbox submission test.</p>
+            </div>
+          ) : (
+            <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                <thead>
+                  <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                    {["Date & Time", "Movement", "Species", "Type", "Status", "Mode", "LIS Reference", "Error"].map(h => (
+                      <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lisSubmissions.map((s: any, i: number) => {
+                    const mov = records.find(m => m.id === s.movementId);
+                    const statusCfg: Record<string, { bg: string; color: string }> = {
+                      submitted: { bg: "#dcfce7", color: "#166534" },
+                      pending:   { bg: "#fef3c7", color: "#92400e" },
+                      failed:    { bg: "#fee2e2", color: "#991b1b" },
+                    };
+                    const sc = statusCfg[s.status] ?? { bg: "#f3f4f6", color: "#6b7280" };
+                    return (
+                      <tr key={s.id} style={{ borderBottom: i < lisSubmissions.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                        <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap", color: "#6b7280" }}>
+                          <div>{new Date(s.submittedAt).toLocaleDateString("en-GB")}</div>
+                          <div style={{ fontSize: "0.7rem" }}>{new Date(s.submittedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</div>
+                        </td>
+                        <td style={{ padding: "0.625rem 0.875rem" }}>
+                          {mov ? (
+                            <div>
+                              <div style={{ fontWeight: 500 }}>{formatDate(mov.movementDate)}</div>
+                              <div style={{ fontSize: "0.7rem", color: "#9ca3af" }}>{mov.numberOfAnimals ?? "?"} head</div>
+                            </div>
+                          ) : <span style={{ color: "#9ca3af" }}>#{s.movementId}</span>}
+                        </td>
+                        <td style={{ padding: "0.625rem 0.875rem", color: "#374151", fontSize: "0.75rem", fontWeight: 600, textTransform: "capitalize" }}>{s.species ?? "—"}</td>
+                        <td style={{ padding: "0.625rem 0.875rem", color: "#374151", textTransform: "uppercase", fontSize: "0.75rem", fontWeight: 600 }}>{s.submissionType?.replace("_", " ")}</td>
+                        <td style={{ padding: "0.625rem 0.875rem" }}>
+                          <span style={{ background: sc.bg, color: sc.color, borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}>{s.status}</span>
+                        </td>
+                        <td style={{ padding: "0.625rem 0.875rem" }}>
+                          {s.sandboxMode
+                            ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#eff6ff", color: "#1d4ed8", borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}><Shield size={10} />Sandbox</span>
+                            : <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#dcfce7", color: "#166534", borderRadius: 6, padding: "2px 8px", fontSize: "0.72rem", fontWeight: 600 }}><ShieldCheck size={10} />Live</span>
+                          }
+                        </td>
+                        <td style={{ padding: "0.625rem 0.875rem", fontFamily: "monospace", fontSize: "0.75rem", color: "#374151" }}>{s.lisReference || "—"}</td>
                         <td style={{ padding: "0.625rem 0.875rem", color: "#dc2626", fontSize: "0.75rem", maxWidth: 200 }}>
                           <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.errorMessage || "—"}</div>
                         </td>

@@ -39,6 +39,8 @@ import {
   livestockAnimalsTable,
   animalDocumentsTable,
   livestockMovementsTable,
+  lisFarmTokensTable,
+  lisSubmissionsTable,
   bcmsFarmCredentialsTable,
   bcmsSubmissionsTable,
   livestockMedicineRecordsTable,
@@ -217,6 +219,7 @@ import { createNonconformanceNotification, createFieldActionNotification, create
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
+import { submitLisMovement, testLisConnection, fetchLisToken, isLisSandboxMode } from "../lib/lis";
 
 const router: IRouter = Router();
 
@@ -13829,6 +13832,212 @@ router.post("/farms/:farmId/bcms-submit/:movementId", requireAuth, requireTenant
     res.json({ success: result.success, sandbox: result.sandbox, reference: result.reference, error: result.errorMessage });
   } catch (err: any) {
     await db.update(bcmsSubmissionsTable).set({ status: "failed", errorMessage: err?.message ?? "Unknown error" }).where(eq(bcmsSubmissionsTable.id, submission.id));
+    res.status(500).json({ error: err?.message ?? "Submission failed" });
+  }
+});
+
+// ─── LIS / Livestock Information Service ──────────────────────────────────────
+
+// GET connection status (never returns raw password or access token)
+router.get("/farms/:farmId/lis-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [token] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+  if (!token) {
+    res.json({ configured: false, sandboxMode: isLisSandboxMode(), subscriptionKeyConfigured: !isLisSandboxMode() });
+    return;
+  }
+  res.json({
+    configured: token.isConfigured,
+    sandboxMode: isLisSandboxMode(),
+    subscriptionKeyConfigured: !isLisSandboxMode(),
+    lisUsername: token.lisUsername,
+    lastTestedAt: token.lastTestedAt,
+    testStatus: token.testStatus,
+    testMessage: token.testMessage,
+    tokenExpiresAt: token.tokenExpiresAt,
+  });
+});
+
+// PUT save credentials
+router.put("/farms/:farmId/lis-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { lisUsername, lisPassword } = req.body as { lisUsername?: string; lisPassword?: string };
+  const [existing] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+  const passwordToStore = lisPassword ? Buffer.from(lisPassword, "utf-8").toString("base64") : existing?.lisPasswordEncrypted;
+  const data = {
+    lisUsername: lisUsername ?? existing?.lisUsername,
+    lisPasswordEncrypted: passwordToStore,
+    isConfigured: !!(lisUsername || existing?.lisUsername) && !!passwordToStore,
+    sandboxMode: isLisSandboxMode(),
+    updatedAt: new Date(),
+  };
+  let record;
+  if (existing) {
+    [record] = await db.update(lisFarmTokensTable).set(data).where(eq(lisFarmTokensTable.farmId, farmId)).returning();
+  } else {
+    [record] = await db.insert(lisFarmTokensTable).values({ ...data, farmId }).returning();
+  }
+  res.json({ success: true, configured: record.isConfigured });
+});
+
+// DELETE credentials
+router.delete("/farms/:farmId/lis-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  await db.delete(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+  res.json({ success: true });
+});
+
+// POST test connection — authenticates with Azure B2C and updates stored token
+router.post("/farms/:farmId/lis-credentials/test", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [creds] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+  if (!creds?.isConfigured) {
+    res.status(400).json({ success: false, message: "LIS credentials not configured. Please enter your username and password first." });
+    return;
+  }
+  const password = Buffer.from(creds.lisPasswordEncrypted ?? "", "base64").toString("utf-8");
+  const result = await testLisConnection(creds.lisUsername!, password);
+
+  await db.update(lisFarmTokensTable).set({
+    testStatus: result.success ? "ok" : "failed",
+    testMessage: result.success
+      ? (result.sandbox ? "Sandbox test passed — no data sent to LIS" : "Connected to LIS — credentials verified")
+      : (result.errorMessage ?? "Connection failed"),
+    lastTestedAt: new Date(),
+    ...(result.accessToken && {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken ?? undefined,
+      tokenExpiresAt: result.tokenExpiresAt ?? undefined,
+    }),
+    updatedAt: new Date(),
+  }).where(eq(lisFarmTokensTable.farmId, farmId));
+
+  res.json({ success: result.success, sandbox: result.sandbox, message: result.errorMessage ?? (result.success ? "OK" : "Failed") });
+});
+
+// GET submission history
+router.get("/farms/:farmId/lis-submissions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const submissions = await db
+    .select({
+      id: lisSubmissionsTable.id,
+      movementId: lisSubmissionsTable.movementId,
+      submissionType: lisSubmissionsTable.submissionType,
+      species: lisSubmissionsTable.species,
+      status: lisSubmissionsTable.status,
+      sandboxMode: lisSubmissionsTable.sandboxMode,
+      lisReference: lisSubmissionsTable.lisReference,
+      errorMessage: lisSubmissionsTable.errorMessage,
+      submittedAt: lisSubmissionsTable.submittedAt,
+      acknowledgedAt: lisSubmissionsTable.acknowledgedAt,
+      movementDate: livestockMovementsTable.movementDate,
+      movementType: livestockMovementsTable.movementType,
+      numberOfAnimals: livestockMovementsTable.numberOfAnimals,
+      fromLocation: livestockMovementsTable.fromLocation,
+      toLocation: livestockMovementsTable.toLocation,
+    })
+    .from(lisSubmissionsTable)
+    .leftJoin(livestockMovementsTable, eq(lisSubmissionsTable.movementId, livestockMovementsTable.id))
+    .where(eq(lisSubmissionsTable.farmId, farmId))
+    .orderBy(desc(lisSubmissionsTable.submittedAt))
+    .limit(200);
+  res.json({ submissions });
+});
+
+// POST submit a movement to LIS
+router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const movementId = parseInt(req.params.movementId);
+
+  const [movement] = await db.select().from(livestockMovementsTable).where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)));
+  if (!movement) { res.status(404).json({ error: "Movement not found" }); return; }
+
+  const species = (movement.species ?? "").toLowerCase();
+  const lisSpecies = species.includes("goat") ? "GOAT" : species.includes("deer") ? "DEER" : "SHEEP";
+
+  const [creds] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+
+  const typeMap: Record<string, "movement_on" | "movement_off" | "birth" | "death"> = {
+    on: "movement_on", off: "movement_off", birth: "birth", death: "death",
+  };
+  const submissionType = typeMap[movement.movementType] ?? "movement_off";
+  const movDate = movement.movementDate ? new Date(movement.movementDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+
+  const password = creds?.lisPasswordEncrypted ? Buffer.from(creds.lisPasswordEncrypted, "base64").toString("utf-8") : "";
+
+  // Refresh token if expired or not present
+  let accessToken = creds?.accessToken ?? undefined;
+  if (!isLisSandboxMode() && creds?.isConfigured) {
+    if (!accessToken || (creds.tokenExpiresAt && new Date(creds.tokenExpiresAt) < new Date(Date.now() + 60000))) {
+      const tokenResult = await fetchLisToken(creds.lisUsername!, password);
+      if (tokenResult.success && tokenResult.accessToken) {
+        accessToken = tokenResult.accessToken;
+        await db.update(lisFarmTokensTable).set({
+          accessToken: tokenResult.accessToken,
+          refreshToken: tokenResult.refreshToken ?? undefined,
+          tokenExpiresAt: tokenResult.expiresIn ? new Date(Date.now() + tokenResult.expiresIn * 1000) : undefined,
+          updatedAt: new Date(),
+        }).where(eq(lisFarmTokensTable.farmId, farmId));
+      }
+    }
+  }
+
+  const [submission] = await db.insert(lisSubmissionsTable).values({
+    farmId,
+    movementId,
+    submissionType,
+    species: lisSpecies,
+    status: "pending",
+    sandboxMode: isLisSandboxMode(),
+    submittedAt: new Date(),
+  }).returning();
+
+  try {
+    const result = await submitLisMovement({
+      lisUsername: creds?.lisUsername ?? "",
+      lisPassword: password,
+      accessToken,
+      movementType: submissionType,
+      movementDate: movDate,
+      species: lisSpecies,
+      numberOfAnimals: movement.numberOfAnimals ?? 1,
+      departureCph: movement.fromLocation ?? undefined,
+      destinationCph: movement.toLocation ?? undefined,
+      earTagNumbers: movement.earTagNumbers ?? undefined,
+      licenceNumber: movement.licenceNumber ?? undefined,
+      fromLocation: movement.fromLocation ?? undefined,
+      toLocation: movement.toLocation ?? undefined,
+    });
+
+    const status = result.success ? "submitted" : "failed";
+    await db.update(lisSubmissionsTable).set({
+      status,
+      sandboxMode: result.sandbox,
+      lisReference: result.reference,
+      errorMessage: result.errorMessage,
+      requestPayload: result.requestPayload,
+      responsePayload: result.responsePayload,
+      acknowledgedAt: result.success ? new Date() : undefined,
+      updatedAt: new Date(),
+    }).where(eq(lisSubmissionsTable.id, submission.id));
+
+    if (result.success) {
+      await db.update(livestockMovementsTable).set({
+        legalNotificationSubmitted: true,
+        legalNotificationDate: new Date(),
+        bcmsSubmissionRef: result.reference ?? `LIS-SANDBOX-${submission.id}`,
+      }).where(eq(livestockMovementsTable.id, movementId));
+    }
+
+    res.json({ success: result.success, sandbox: result.sandbox, reference: result.reference, error: result.errorMessage });
+  } catch (err: any) {
+    await db.update(lisSubmissionsTable).set({ status: "failed", errorMessage: err?.message ?? "Unknown error", updatedAt: new Date() }).where(eq(lisSubmissionsTable.id, submission.id));
     res.status(500).json({ error: err?.message ?? "Submission failed" });
   }
 });
