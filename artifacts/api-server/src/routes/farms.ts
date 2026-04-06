@@ -3306,37 +3306,188 @@ router.get("/farms/:farmId/stock-deliveries/by-product/:stockItemId", requireAut
 router.get("/farms/:farmId/financial-transactions", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select({
-    id: financialTransactionsTable.id,
-    farmId: financialTransactionsTable.farmId,
-    stockDeliveryId: financialTransactionsTable.stockDeliveryId,
-    transactionType: financialTransactionsTable.transactionType,
-    category: financialTransactionsTable.category,
-    description: financialTransactionsTable.description,
-    amountPence: financialTransactionsTable.amountPence,
-    currency: financialTransactionsTable.currency,
-    transactionDate: financialTransactionsTable.transactionDate,
-    reference: financialTransactionsTable.reference,
-    vendorCustomer: financialTransactionsTable.vendorCustomer,
-    paymentMethod: financialTransactionsTable.paymentMethod,
-    vatAmountPence: financialTransactionsTable.vatAmountPence,
-    vatRate: financialTransactionsTable.vatRate,
-    notes: financialTransactionsTable.notes,
-    createdAt: financialTransactionsTable.createdAt,
-    linkedDeliveryDate: stockDeliveriesTable.deliveryDate,
-    linkedDeliveryProductName: stockItemsTable.name,
-    linkedDeliveryProductUnit: stockItemsTable.unit,
-    linkedDeliveryQuantity: stockDeliveriesTable.quantity,
-    linkedDeliveryBatchNumber: stockDeliveriesTable.batchNumber,
-    linkedDeliveryInvoiceRef: stockDeliveriesTable.invoiceReference,
-    linkedDeliverySupplierName: suppliersTable.name,
-  }).from(financialTransactionsTable)
-    .leftJoin(stockDeliveriesTable, eq(financialTransactionsTable.stockDeliveryId, stockDeliveriesTable.id))
-    .leftJoin(stockItemsTable, eq(stockDeliveriesTable.stockItemId, stockItemsTable.id))
-    .leftJoin(suppliersTable, eq(stockDeliveriesTable.supplierId, suppliersTable.id))
-    .where(eq(financialTransactionsTable.farmId, farmId))
-    .orderBy(desc(financialTransactionsTable.transactionDate));
-  res.json({ records });
+
+  const [manual, grainSales, deadweightSales, martSales, milkStmts, feedDelivs, fuelDelivs] = await Promise.all([
+    db.select({
+      id: financialTransactionsTable.id,
+      farmId: financialTransactionsTable.farmId,
+      stockDeliveryId: financialTransactionsTable.stockDeliveryId,
+      transactionType: financialTransactionsTable.transactionType,
+      category: financialTransactionsTable.category,
+      description: financialTransactionsTable.description,
+      amountPence: financialTransactionsTable.amountPence,
+      currency: financialTransactionsTable.currency,
+      transactionDate: financialTransactionsTable.transactionDate,
+      reference: financialTransactionsTable.reference,
+      vendorCustomer: financialTransactionsTable.vendorCustomer,
+      paymentMethod: financialTransactionsTable.paymentMethod,
+      vatAmountPence: financialTransactionsTable.vatAmountPence,
+      vatRate: financialTransactionsTable.vatRate,
+      notes: financialTransactionsTable.notes,
+      createdAt: financialTransactionsTable.createdAt,
+      linkedDeliveryDate: stockDeliveriesTable.deliveryDate,
+      linkedDeliveryProductName: stockItemsTable.name,
+      linkedDeliveryProductUnit: stockItemsTable.unit,
+      linkedDeliveryQuantity: stockDeliveriesTable.quantity,
+      linkedDeliveryBatchNumber: stockDeliveriesTable.batchNumber,
+      linkedDeliveryInvoiceRef: stockDeliveriesTable.invoiceReference,
+      linkedDeliverySupplierName: suppliersTable.name,
+    }).from(financialTransactionsTable)
+      .leftJoin(stockDeliveriesTable, eq(financialTransactionsTable.stockDeliveryId, stockDeliveriesTable.id))
+      .leftJoin(stockItemsTable, eq(stockDeliveriesTable.stockItemId, stockItemsTable.id))
+      .leftJoin(suppliersTable, eq(stockDeliveriesTable.supplierId, suppliersTable.id))
+      .where(eq(financialTransactionsTable.farmId, farmId)),
+
+    db.select().from(grainSalesTable).where(and(eq(grainSalesTable.farmId, farmId), isNotNull(grainSalesTable.grossValuePence))),
+    db.select().from(livestockDeadweightSalesTable).where(and(eq(livestockDeadweightSalesTable.farmId, farmId), isNotNull(livestockDeadweightSalesTable.grossValuePence))),
+    db.select().from(livestockMartSalesTable).where(and(eq(livestockMartSalesTable.farmId, farmId), isNotNull(livestockMartSalesTable.grossValuePence))),
+    db.select().from(milkStatementsTable).where(and(eq(milkStatementsTable.farmId, farmId), isNotNull(milkStatementsTable.grossValuePence))),
+    db.select().from(feedDeliveriesTable).where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence))),
+    db.select().from(fuelDeliveriesTable).where(and(eq(fuelDeliveriesTable.farmId, farmId), isNotNull(fuelDeliveriesTable.totalCostPence))),
+  ]);
+
+  const manualRecords = manual.map(r => ({ ...r, isAutoGenerated: false, source: "manual", sourceId: null, sourceModule: null, sourceLabel: null }));
+
+  const derived: unknown[] = [
+    ...grainSales.map(r => ({
+      id: `grain_sale_${r.id}`,
+      isAutoGenerated: true,
+      source: "grain_sale",
+      sourceId: r.id,
+      sourceModule: "/trading",
+      sourceLabel: "Grain Sales",
+      transactionType: "income",
+      category: "Crop Sales",
+      description: `${r.commodity} grain sale${r.variety ? ` (${r.variety})` : ""} — ${r.tonnage}t @ ${r.buyer}`,
+      amountPence: r.netValuePence ?? r.grossValuePence,
+      currency: "GBP",
+      transactionDate: r.saleDate,
+      reference: r.invoiceNumber ?? r.merchantRef ?? null,
+      vendorCustomer: r.buyer,
+      paymentMethod: null,
+      vatAmountPence: null,
+      vatRate: null,
+      notes: r.notes,
+      createdAt: r.createdAt,
+    })),
+    ...deadweightSales.map(r => ({
+      id: `livestock_deadweight_${r.id}`,
+      isAutoGenerated: true,
+      source: "livestock_deadweight",
+      sourceId: r.id,
+      sourceModule: "/trading",
+      sourceLabel: "Livestock Deadweight Sales",
+      transactionType: "income",
+      category: "Livestock Sales",
+      description: `${r.species} deadweight sale — ${r.headCount} head${r.breed ? ` (${r.breed})` : ""} @ ${r.processor}`,
+      amountPence: r.netPaymentPence ?? r.grossValuePence,
+      currency: "GBP",
+      transactionDate: r.killDate,
+      reference: r.killSheetRef ?? r.abattoirRef ?? null,
+      vendorCustomer: r.processor,
+      paymentMethod: null,
+      vatAmountPence: null,
+      vatRate: null,
+      notes: r.notes,
+      createdAt: r.createdAt,
+    })),
+    ...martSales.map(r => {
+      const deductions = (r.commissionPence ?? 0) + (r.levyPence ?? 0) + (r.transportCostPence ?? 0) + (r.otherCostsPence ?? 0);
+      const net = r.netPaymentPence ?? (r.grossValuePence != null ? r.grossValuePence - deductions : r.grossValuePence);
+      return {
+        id: `livestock_mart_${r.id}`,
+        isAutoGenerated: true,
+        source: "livestock_mart",
+        sourceId: r.id,
+        sourceModule: "/trading",
+        sourceLabel: "Livestock Mart Sales",
+        transactionType: "income",
+        category: "Livestock Sales",
+        description: `${r.species} mart sale — ${r.headCount} head @ ${r.martName}${r.martLocation ? `, ${r.martLocation}` : ""}`,
+        amountPence: net,
+        currency: "GBP",
+        transactionDate: r.saleDate,
+        reference: r.auctioneerRef ?? r.lotNumber ?? null,
+        vendorCustomer: r.martName,
+        paymentMethod: null,
+        vatAmountPence: null,
+        vatRate: null,
+        notes: r.notes,
+        createdAt: r.createdAt,
+      };
+    }),
+    ...milkStmts.map(r => ({
+      id: `milk_statement_${r.id}`,
+      isAutoGenerated: true,
+      source: "milk_statement",
+      sourceId: r.id,
+      sourceModule: "/livestock",
+      sourceLabel: "Milk Statements",
+      transactionType: "income",
+      category: "Milk Sales",
+      description: `Milk statement — ${r.statementMonth} — ${r.litresSupplied ?? "—"}L @ ${r.buyer}`,
+      amountPence: r.netPaymentPence ?? r.grossValuePence,
+      currency: "GBP",
+      transactionDate: r.paymentDate ?? new Date(`${r.statementMonth}-01`),
+      reference: r.statementRef ?? null,
+      vendorCustomer: r.buyer,
+      paymentMethod: null,
+      vatAmountPence: null,
+      vatRate: null,
+      notes: r.notes,
+      createdAt: r.createdAt,
+    })),
+    ...feedDelivs.filter(r => (r.costPence ?? 0) > 0).map(r => ({
+      id: `feed_delivery_${r.id}`,
+      isAutoGenerated: true,
+      source: "feed_delivery",
+      sourceId: r.id,
+      sourceModule: "/feed-management",
+      sourceLabel: "Feed Management",
+      transactionType: "expense",
+      category: "Feed & Forage",
+      description: `Feed delivery — ${r.productName ?? r.feedType} (${r.quantityKg}kg)`,
+      amountPence: r.costPence,
+      currency: "GBP",
+      transactionDate: r.deliveryDate,
+      reference: r.invoiceReference ?? r.deliveryNoteNumber ?? null,
+      vendorCustomer: r.supplierName,
+      paymentMethod: null,
+      vatAmountPence: null,
+      vatRate: null,
+      notes: r.notes,
+      createdAt: r.createdAt,
+    })),
+    ...fuelDelivs.filter(r => (r.totalCostPence ?? 0) > 0).map(r => ({
+      id: `fuel_delivery_${r.id}`,
+      isAutoGenerated: true,
+      source: "fuel_delivery",
+      sourceId: r.id,
+      sourceModule: "/fuel-energy",
+      sourceLabel: "Fuel & Energy",
+      transactionType: "expense",
+      category: "Fuel & Energy",
+      description: `Fuel delivery — ${r.fuelType.replace("_", " ")} (${r.quantityLitres}L)`,
+      amountPence: r.totalCostPence,
+      currency: "GBP",
+      transactionDate: r.deliveryDate,
+      reference: r.invoiceReference ?? r.deliveryNoteNumber ?? null,
+      vendorCustomer: r.supplierName ?? null,
+      paymentMethod: null,
+      vatAmountPence: null,
+      vatRate: null,
+      notes: r.notes,
+      createdAt: r.createdAt,
+    })),
+  ];
+
+  const all = [...manualRecords, ...derived].sort((a: any, b: any) => {
+    const da = a.transactionDate ? new Date(a.transactionDate).getTime() : 0;
+    const db2 = b.transactionDate ? new Date(b.transactionDate).getTime() : 0;
+    return db2 - da;
+  });
+
+  res.json({ records: all });
 });
 
 router.post("/farms/:farmId/financial-transactions", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
