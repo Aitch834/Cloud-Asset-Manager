@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -25,8 +25,63 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { kvGet, kvSet } from "@/lib/database";
 import type { HaulageConfirmation } from "@/lib/types";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
+
+interface Haulier { id: number; companyName: string; }
+
+async function _getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS !== "web") {
+      const SS = await import("expo-secure-store");
+      const t = await SS.getItemAsync("auth_session_token");
+      if (t) return t;
+    } else {
+      try { const t = localStorage.getItem("auth_session_token"); if (t) return t; } catch { }
+    }
+    const raw = await kvGet("bde_auth_token");
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+async function _getTenantSlug(): Promise<string> {
+  try {
+    const raw = await kvGet("bde_current_farm");
+    if (raw) { const f = JSON.parse(raw); return f.tenantSlug || f.slug || ""; }
+  } catch { }
+  return "";
+}
+
+function useHaulierLookup(farmId: string | number | undefined): Haulier[] {
+  const [hauliers, setHauliers] = useState<Haulier[]>([]);
+  useEffect(() => {
+    if (!farmId) return;
+    let cancelled = false;
+    (async () => {
+      const cacheKey = `hauliers_${farmId}`;
+      try {
+        const cached = await kvGet(cacheKey);
+        if (cached && !cancelled) setHauliers(JSON.parse(cached));
+      } catch { }
+      const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
+      if (!apiDomain) return;
+      try {
+        const [token, slug] = await Promise.all([_getAuthToken(), _getTenantSlug()]);
+        if (!slug) return;
+        const headers: Record<string, string> = { "Content-Type": "application/json", "x-tenant-slug": slug };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const res = await fetch(`https://${apiDomain}/api/farms/${farmId}/hauliers`, { headers });
+        if (!res.ok) return;
+        const json = await res.json() as { records?: Haulier[] };
+        const records = json.records ?? [];
+        if (!cancelled) { setHauliers(records); await kvSet(cacheKey, JSON.stringify(records)); }
+      } catch { }
+    })();
+    return () => { cancelled = true; };
+  }, [farmId]);
+  return hauliers;
+}
 
 const CROP_TYPES_FALLBACK = [
   "Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley",
@@ -38,7 +93,9 @@ export default function HaulageConfirmScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const cropTypes = useMobileLookup("commodity_types", CROP_TYPES_FALLBACK);
+  const registeredHauliers = useHaulierLookup(currentFarm?.id);
   const [saving, setSaving] = useState(false);
+  const [selectedHaulierId, setSelectedHaulierId] = useState<number | null>(null);
 
   const [haulierName, setHaulierName] = useState("");
   const [vehicleReg, setVehicleReg] = useState("");
@@ -124,7 +181,7 @@ export default function HaulageConfirmScreen() {
     await appendToList(STORAGE_KEYS.HAULAGE_CONFIRMATIONS, record);
     await refreshPendingCount();
     setSaving(false);
-    Alert.alert("Confirmed", "Delivery confirmed and logged successfully.", [
+    Alert.alert("Dispatch Confirmed", "Grain dispatch confirmed and logged successfully.", [
       { text: "OK", onPress: () => router.back() },
     ]);
   };
@@ -154,11 +211,49 @@ export default function HaulageConfirmScreen() {
             <Feather name="truck" size={14} color="#0284c7" />
             <Text style={styles.sectionTitle}>Haulier Details <Text style={styles.required}>*</Text></Text>
           </View>
+
+          {registeredHauliers.length > 0 && (
+            <>
+              <Text style={styles.lookupHint}>Select a registered haulier or enter manually below</Text>
+              <View style={styles.chipGrid}>
+                {registeredHauliers.map((h) => {
+                  const selected = selectedHaulierId === h.id;
+                  return (
+                    <Pressable
+                      key={h.id}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        if (selected) {
+                          setSelectedHaulierId(null);
+                          setHaulierName("");
+                        } else {
+                          setSelectedHaulierId(h.id);
+                          setHaulierName(h.companyName);
+                        }
+                      }}
+                      style={[
+                        styles.chip,
+                        { flexDirection: "row", alignItems: "center" },
+                        selected && { backgroundColor: "#dbeafe", borderColor: "#0284c7" },
+                      ]}
+                    >
+                      {selected && <Feather name="check" size={12} color="#0284c7" style={{ marginRight: 4 }} />}
+                      <Text style={[styles.chipText, selected && { color: "#0284c7", fontFamily: fonts.semiBold }]}>
+                        {h.companyName}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          )}
+
           <Input
-            label="Haulier / Haulage Company"
+            label={registeredHauliers.length > 0 ? "Or enter haulier name manually" : "Haulier / Haulage Company"}
             placeholder="e.g. Smith's Transport Ltd"
             value={haulierName}
-            onChangeText={setHaulierName}
+            onChangeText={(t) => { setSelectedHaulierId(null); setHaulierName(t); }}
+            editable={selectedHaulierId === null}
           />
           <View style={styles.row}>
             <Input
@@ -205,7 +300,7 @@ export default function HaulageConfirmScreen() {
 
           <View style={styles.sectionLabel}>
             <Feather name="camera" size={14} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Delivery Photos</Text>
+            <Text style={styles.sectionTitle}>Dispatch Photos</Text>
           </View>
           <Text style={styles.photoHint}>
             Photograph the vehicle, ticket, docket or load for traceability records.
@@ -312,6 +407,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   required: { color: colors.error },
+  lookupHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+    lineHeight: 18,
+  },
   row: { flexDirection: "row", gap: spacing.md },
   chipGrid: {
     flexDirection: "row",
