@@ -1,5 +1,5 @@
 import { db, rolesTable, modulesTable, tenantsTable, farmsTable, subscriptionsTable } from "@workspace/db";
-import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, feedStockLevelsTable, suppliersTable, gridEnergyMetersTable, gridEnergyReadingsTable, grainStorageBinsTable, sprayProductsTable, sprayApplicationsTable, grainSalesTable, livestockDeadweightSalesTable, livestockMartSalesTable, financialTransactionsTable, cropContractsTable, farmGrantsTable } from "@workspace/db/schema";
+import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, feedStockLevelsTable, suppliersTable, gridEnergyMetersTable, gridEnergyReadingsTable, grainStorageBinsTable, sprayProductsTable, sprayApplicationsTable, grainSalesTable, livestockDeadweightSalesTable, livestockMartSalesTable, financialTransactionsTable, cropContractsTable, farmGrantsTable, cropStockLevelsTable, cropStockMovementsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const SYSTEM_ROLES = [
@@ -130,6 +130,7 @@ async function seedDevData() {
   await seedMovementData(farm.id);
   await seedFieldOperations(farm.id);
   await seedGrainBins(farm.id);
+  await seedCropStockLevels(farm.id);
   await seedSprayData(farm.id);
   await seedGrainSales(farm.id);
   await seedLivestockSales(farm.id);
@@ -1225,4 +1226,46 @@ async function seedGrainBins(farmId: number) {
     },
   ]);
   console.log("[SEED] Grain storage bins seeded for farm:", farmId);
+}
+
+async function seedCropStockLevels(farmId: number) {
+  // Get bins for this farm so we can reference them by name
+  const bins = await db.select().from(grainStorageBinsTable).where(eq(grainStorageBinsTable.farmId, farmId));
+  if (bins.length === 0) return; // need bins first
+
+  const existing = await db.select().from(cropStockLevelsTable).where(eq(cropStockLevelsTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) return;
+
+  const bayA = bins.find(b => b.binName.includes("Bay A"))?.id;
+  const bayB = bins.find(b => b.binName.includes("Bay B"))?.id;
+  const bayC = bins.find(b => b.binName.includes("Bay C"))?.id;
+  if (!bayA || !bayB || !bayC) return;
+
+  const levels = await db.insert(cropStockLevelsTable).values([
+    { farmId, binId: bayA, commodity: "Winter Wheat",  variety: "KWS Zyatt",   cropYear: "2024 Harvest", quantityTonnes: "268.500", notes: "Main milling wheat lot — Frontier contract WS-2024-0891" },
+    { farmId, binId: bayA, commodity: "Winter Wheat",  variety: "Extase",       cropYear: "2024 Harvest", quantityTonnes:  "42.800", notes: "Feed wheat lot — Gleadell" },
+    { farmId, binId: bayB, commodity: "Winter Barley", variety: "SY Kingsbarn", cropYear: "2024 Harvest", quantityTonnes:  "95.200", notes: "Feed barley — spot sale ABP" },
+    { farmId, binId: bayB, commodity: "Oilseed Rape",  variety: "DK Exstorm",   cropYear: "2024 Harvest", quantityTonnes: "112.500", notes: "OSR — Openfield pool contract" },
+    { farmId, binId: bayC, commodity: "Winter Wheat",  variety: "KWS Zyatt",   cropYear: "2023 Harvest", quantityTonnes:  "28.000", notes: "Carryover old-crop lot — awaiting movement" },
+  ]).returning();
+
+  // Seed corresponding movement history
+  const [l1, l2, l3, l4, l5] = levels;
+  await db.insert(cropStockMovementsTable).values([
+    { farmId, binId: bayA, cropStockLevelId: l1.id, movementType: "harvest_in",  direction: "in",  commodity: "Winter Wheat",  variety: "KWS Zyatt",   cropYear: "2024 Harvest", quantityTonnes: "68.500", referenceType: "harvest_record", performedBy: "James Barnett", notes: "Home Farm North — Day 1", movedAt: new Date("2024-08-07T08:30:00Z") },
+    { farmId, binId: bayA, cropStockLevelId: l1.id, movementType: "harvest_in",  direction: "in",  commodity: "Winter Wheat",  variety: "KWS Zyatt",   cropYear: "2024 Harvest", quantityTonnes: "71.200", referenceType: "harvest_record", performedBy: "James Barnett", notes: "Home Farm North — Day 2", movedAt: new Date("2024-08-08T09:00:00Z") },
+    { farmId, binId: bayA, cropStockLevelId: l1.id, movementType: "harvest_in",  direction: "in",  commodity: "Winter Wheat",  variety: "KWS Zyatt",   cropYear: "2024 Harvest", quantityTonnes: "65.300", referenceType: "harvest_record", performedBy: "James Barnett", notes: "Top Field — Day 3", movedAt: new Date("2024-08-09T07:45:00Z") },
+    { farmId, binId: bayA, cropStockLevelId: l1.id, movementType: "harvest_in",  direction: "in",  commodity: "Winter Wheat",  variety: "KWS Zyatt",   cropYear: "2024 Harvest", quantityTonnes: "63.500", referenceType: "harvest_record", performedBy: "James Barnett", notes: "Top Field — Day 4", movedAt: new Date("2024-08-12T10:15:00Z") },
+    { farmId, binId: bayA, cropStockLevelId: l1.id, movementType: "drying_loss", direction: "out", commodity: "Winter Wheat",  variety: "KWS Zyatt",   cropYear: "2024 Harvest", quantityTonnes:  "1.500", referenceType: "adjustment",     performedBy: "James Barnett", notes: "Moisture reduction 15% → 14%", movedAt: new Date("2024-08-20T09:00:00Z") },
+    { farmId, binId: bayA, cropStockLevelId: l1.id, movementType: "dispatch_out",direction: "out", commodity: "Winter Wheat",  variety: "KWS Zyatt",   cropYear: "2024 Harvest", quantityTonnes: "31.500", referenceType: "grain_sale",     performedBy: "Tom Davies",    notes: "Frontier Ag Ltd — WS-2024-0891 Part 1", movedAt: new Date("2024-09-05T13:00:00Z") },
+    { farmId, binId: bayA, cropStockLevelId: l1.id, movementType: "dispatch_out",direction: "out", commodity: "Winter Wheat",  variety: "KWS Zyatt",   cropYear: "2024 Harvest", quantityTonnes: "24.500", referenceType: "grain_sale",     performedBy: "Tom Davies",    notes: "Frontier Ag Ltd — WS-2024-0891 Part 2", movedAt: new Date("2024-09-18T07:30:00Z") },
+    { farmId, binId: bayA, cropStockLevelId: l1.id, movementType: "dispatch_out",direction: "out", commodity: "Winter Wheat",  variety: "KWS Zyatt",   cropYear: "2024 Harvest", quantityTonnes: "10.500", referenceType: "grain_sale",     performedBy: "Tom Davies",    notes: "Gleadell — spot sale GS-2025-117", movedAt: new Date("2025-01-14T08:00:00Z") },
+    { farmId, binId: bayA, cropStockLevelId: l2.id, movementType: "harvest_in",  direction: "in",  commodity: "Winter Wheat",  variety: "Extase",       cropYear: "2024 Harvest", quantityTonnes: "42.800", referenceType: "harvest_record", performedBy: "James Barnett", notes: "Langford Field — full cut", movedAt: new Date("2024-08-14T11:30:00Z") },
+    { farmId, binId: bayB, cropStockLevelId: l3.id, movementType: "harvest_in",  direction: "in",  commodity: "Winter Barley", variety: "SY Kingsbarn", cropYear: "2024 Harvest", quantityTonnes: "52.700", referenceType: "harvest_record", performedBy: "James Barnett", notes: "Mill Field — Day 1", movedAt: new Date("2024-07-31T07:00:00Z") },
+    { farmId, binId: bayB, cropStockLevelId: l3.id, movementType: "harvest_in",  direction: "in",  commodity: "Winter Barley", variety: "SY Kingsbarn", cropYear: "2024 Harvest", quantityTonnes: "42.500", referenceType: "harvest_record", performedBy: "James Barnett", notes: "Mill Field — Day 2", movedAt: new Date("2024-08-01T08:00:00Z") },
+    { farmId, binId: bayB, cropStockLevelId: l4.id, movementType: "harvest_in",  direction: "in",  commodity: "Oilseed Rape",  variety: "DK Exstorm",   cropYear: "2024 Harvest", quantityTonnes: "112.500", referenceType: "harvest_record",performedBy: "Tom Davies",    notes: "20-acre OSR field — full harvest", movedAt: new Date("2024-08-02T14:00:00Z") },
+    { farmId, binId: bayC, cropStockLevelId: l5.id, movementType: "harvest_in",  direction: "in",  commodity: "Winter Wheat",  variety: "KWS Zyatt",   cropYear: "2023 Harvest", quantityTonnes: "85.000", referenceType: "harvest_record", performedBy: "James Barnett", notes: "2023 harvest opening balance", movedAt: new Date("2023-09-01T09:00:00Z") },
+    { farmId, binId: bayC, cropStockLevelId: l5.id, movementType: "dispatch_out",direction: "out", commodity: "Winter Wheat",  variety: "KWS Zyatt",   cropYear: "2023 Harvest", quantityTonnes: "57.000", referenceType: "grain_sale",     performedBy: "Tom Davies",    notes: "Gleadell — old crop sold forward", movedAt: new Date("2024-02-15T08:30:00Z") },
+  ]);
+  console.log("[SEED] Crop stock levels + movements seeded for farm:", farmId);
 }

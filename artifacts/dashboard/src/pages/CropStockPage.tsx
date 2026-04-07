@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Wheat, Plus, ArrowDown, ArrowUp, ArrowLeftRight, Pencil, Trash2 } from "lucide-react";
+import { Wheat, Plus, ArrowDown, ArrowUp, ArrowLeftRight, Pencil, Trash2, History, Database } from "lucide-react";
 
 type Tab = "stock" | "movements";
 
@@ -188,6 +188,191 @@ function DirectionIcon({ dir }: { dir: string }) {
   return <ArrowUp size={14} style={{ color: "#dc2626" }} />;
 }
 
+// ─── Movement History Modal ────────────────────────────────────────────────────
+function MovementHistoryModal({ parcel, movements, onClose }: {
+  parcel: any; movements: any[]; onClose: () => void;
+}) {
+  const movTypeLabel = (t: string) => MOVEMENT_TYPES.find(m => m.value === t)?.label ?? t;
+
+  const sorted = [...movements].sort((a, b) => new Date(a.movedAt).getTime() - new Date(b.movedAt).getTime());
+  let bal = 0;
+  const withBalance = sorted.map(m => {
+    const qty = parseFloat(m.quantityTonnes ?? "0");
+    bal += m.direction === "in" ? qty : -qty;
+    return { ...m, runningBalance: bal };
+  }).reverse();
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent style={{ maxWidth: 720 }}>
+        <DialogHeader>
+          <DialogTitle style={{ fontSize: "1rem" }}>
+            Movement History — {parcel.commodity}{parcel.variety ? ` / ${parcel.variety}` : ""}
+            {parcel.cropYear ? <span style={{ marginLeft: 6, fontSize: "0.75rem", color: "#6b7280", fontWeight: 400 }}>({parcel.cropYear})</span> : null}
+          </DialogTitle>
+        </DialogHeader>
+        <div style={{ display: "flex", gap: 16, fontSize: "0.8rem", color: "#6b7280", marginBottom: 12 }}>
+          <span><strong style={{ color: "#374151" }}>Bin:</strong> {parcel.binName ?? "Unassigned"}</span>
+          <span><strong style={{ color: "#374151" }}>Current balance:</strong> <span style={{ color: "#16a34a", fontWeight: 700 }}>{parseFloat(parcel.quantityTonnes ?? "0").toFixed(3)} t</span></span>
+        </div>
+
+        {movements.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "2rem", color: "#9ca3af" }}>
+            <History size={28} style={{ margin: "0 auto 8px", opacity: 0.4 }} />
+            <p style={{ fontSize: "0.875rem" }}>No movements recorded for this parcel yet.</p>
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto", maxHeight: 380, overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: 8 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+              <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
+                <tr style={{ background: "#f9fafb", borderBottom: "2px solid #e5e7eb" }}>
+                  {["Date","Type","Movement","Running Balance","Performed By","Notes"].map(h => (
+                    <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.7rem", whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {withBalance.map((m, i) => (
+                  <tr key={m.id} style={{ borderBottom: i < withBalance.length - 1 ? "1px solid #f3f4f6" : "none", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(m.movedAt)}</td>
+                    <td style={{ padding: "0.5rem 0.75rem" }}>
+                      <Badge style={{ fontSize: "0.65rem", background: m.direction === "in" ? "#dcfce7" : "#fee2e2", color: m.direction === "in" ? "#166534" : "#991b1b", border: "none" }}>
+                        {movTypeLabel(m.movementType)}
+                      </Badge>
+                    </td>
+                    <td style={{ padding: "0.5rem 0.75rem", fontWeight: 700, color: m.direction === "in" ? "#16a34a" : "#dc2626" }}>
+                      {m.direction === "in" ? "+" : "−"}{parseFloat(m.quantityTonnes ?? "0").toFixed(3)} t
+                    </td>
+                    <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600, color: "#374151" }}>{m.runningBalance.toFixed(3)} t</td>
+                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>{m.performedBy || "—"}</td>
+                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.notes || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <DialogFooter style={{ marginTop: 12 }}>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Bin Card ─────────────────────────────────────────────────────────────────
+function BinCard({ bin, parcels, allMovements, onEdit, onDelete, onHarvestIn }: {
+  bin: any; parcels: any[]; allMovements: any[];
+  onEdit: (p: any) => void; onDelete: (id: number) => void; onHarvestIn: (binId: number) => void;
+}) {
+  const [historyParcel, setHistoryParcel] = useState<any | null>(null);
+  const binTotal = parcels.reduce((s, p) => s + parseFloat(p.quantityTonnes ?? "0"), 0);
+  const cap = parseFloat(bin.capacityTonnes ?? "0");
+  const fillPct = cap > 0 ? Math.min(100, (binTotal / cap) * 100) : 0;
+  const fillColor = fillPct >= 90 ? "#dc2626" : fillPct >= 70 ? "#f59e0b" : "#16a34a";
+
+  const parcelMovements = (p: any) =>
+    allMovements.filter(m => m.binId === bin.id && m.commodity === p.commodity && (m.variety ?? "") === (p.variety ?? ""));
+
+  return (
+    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, marginBottom: 16, overflow: "hidden", background: "#fff" }}>
+      {/* Bin header */}
+      <div style={{ background: "#f9fafb", padding: "0.875rem 1rem", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #e5e7eb" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Database size={15} style={{ color: "#6b7280" }} />
+          <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#111827" }}>{bin.binName}</span>
+          {bin.binType && (
+            <Badge style={{ fontSize: "0.65rem", background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", textTransform: "capitalize" }}>
+              {bin.binType.replace(/_/g, " ")}
+            </Badge>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <span style={{ fontSize: "0.9rem", fontWeight: 700, color: "#111827" }}>
+            {binTotal.toFixed(1)} t
+            {cap > 0 && <span style={{ fontSize: "0.8rem", color: "#9ca3af", fontWeight: 400 }}> / {cap.toFixed(0)} t capacity</span>}
+          </span>
+          <button
+            onClick={() => onHarvestIn(bin.id)}
+            title="Record harvest into this bin"
+            style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: "0.75rem", color: "#16a34a", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}
+          >
+            <ArrowDown size={12} />Harvest In
+          </button>
+        </div>
+      </div>
+
+      {/* Fill bar */}
+      {cap > 0 && (
+        <div style={{ padding: "0.5rem 1rem 0.25rem" }}>
+          <div style={{ height: 7, background: "#f3f4f6", borderRadius: 4, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${fillPct}%`, background: fillColor, borderRadius: 4, transition: "width 0.6s ease" }} />
+          </div>
+          <p style={{ fontSize: "0.68rem", color: "#9ca3af", marginTop: 3 }}>{fillPct.toFixed(0)}% full</p>
+        </div>
+      )}
+
+      {/* Parcels */}
+      {parcels.length === 0 ? (
+        <div style={{ padding: "1.5rem", textAlign: "center", color: "#9ca3af", fontSize: "0.875rem" }}>
+          No stock currently in this bin
+        </div>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+          <thead>
+            <tr style={{ background: "#fafafa", borderTop: "1px solid #f3f4f6" }}>
+              {["Commodity","Variety","Crop Year","Live Quantity","Last Updated",""].map(h => (
+                <th key={h} style={{ padding: "0.45rem 1rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {parcels.map((p, i) => (
+              <tr key={p.id} style={{ borderTop: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                <td style={{ padding: "0.625rem 1rem", fontWeight: 600, color: "#111827" }}>{p.commodity}</td>
+                <td style={{ padding: "0.625rem 1rem", color: "#374151" }}>{p.variety || <span style={{ color: "#9ca3af" }}>—</span>}</td>
+                <td style={{ padding: "0.625rem 1rem" }}>
+                  {p.cropYear
+                    ? <Badge style={{ fontSize: "0.65rem", background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd" }}>{p.cropYear}</Badge>
+                    : <span style={{ color: "#9ca3af" }}>—</span>}
+                </td>
+                <td style={{ padding: "0.625rem 1rem" }}>
+                  <span style={{ fontWeight: 700, color: parseFloat(p.quantityTonnes) > 0 ? "#16a34a" : "#dc2626", fontSize: "0.95rem" }}>
+                    {parseFloat(p.quantityTonnes ?? "0").toFixed(3)} t
+                  </span>
+                </td>
+                <td style={{ padding: "0.625rem 1rem", color: "#9ca3af", fontSize: "0.8rem" }}>{fmt(p.lastUpdated)}</td>
+                <td style={{ padding: "0.5rem 0.75rem" }}>
+                  <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                    <button title="View movement history" onClick={() => setHistoryParcel({ ...p, binName: bin.binName })} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: 4, borderRadius: 4 }}>
+                      <History size={14} />
+                    </button>
+                    <button title="Edit stock record" onClick={() => onEdit(p)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4, borderRadius: 4 }}>
+                      <Pencil size={13} />
+                    </button>
+                    <button title="Delete stock record" onClick={() => onDelete(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4, borderRadius: 4 }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {historyParcel && (
+        <MovementHistoryModal
+          parcel={historyParcel}
+          movements={parcelMovements(historyParcel)}
+          onClose={() => setHistoryParcel(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Stock Levels Tab ─────────────────────────────────────────────────────────
 function StockLevelsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
@@ -196,13 +381,14 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
   const [editRow, setEditRow] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [harvestOpen, setHarvestOpen] = useState(false);
+  const [harvestBinId, setHarvestBinId] = useState<number | null>(null);
 
   const emptyLevel = { binId: null as number | null, commodity: "", variety: "", quantityTonnes: "", notes: "" };
   const emptyHarvest = { binId: null as number | null, commodity: "", variety: "", harvestDate: todayISO(), quantityTonnes: "", performedBy: "", notes: "" };
   const [levelForm, setLevelForm] = useState<any>(emptyLevel);
   const [harvestForm, setHarvestForm] = useState<any>(emptyHarvest);
 
-  // Bins: API returns plain array
+  // Bins
   const binsQ = useQuery({
     queryKey: ["grain-storage-bins", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/grain-storage-bins`).then(r => r.json()),
@@ -210,11 +396,19 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
     select: (d: any) => Array.isArray(d) ? d : (d.rows ?? d.records ?? []),
   });
   const bins: any[] = binsQ.data ?? [];
-  const binName = (id: number | null | undefined) => bins.find(b => b.id === id)?.binName ?? "—";
 
+  // Stock levels
   const q = useQuery({
     queryKey: ["crop-stock-levels", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/crop-stock-levels`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
+
+  // All movements (for drill-down history)
+  const movQ = useQuery({
+    queryKey: ["crop-stock-movements", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/crop-stock-movements`).then(r => r.json()),
     enabled: !!farmId,
     select: d => d.records ?? [],
   });
@@ -238,82 +432,94 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Failed to record harvest", variant: "destructive" }),
   });
 
-  // Derive crop year from harvest date
   const derivedCropYear = useMemo(() => deriveCropYear(harvestForm.harvestDate), [harvestForm.harvestDate]);
 
   const records: any[] = q.data ?? [];
-  const totalTonnes = records.reduce((s, r) => s + parseFloat(r.quantityTonnes ?? "0"), 0);
+  const allMovements: any[] = movQ.data ?? [];
 
-  const byCommodity: Record<string, number> = {};
-  for (const r of records) {
-    byCommodity[r.commodity] = (byCommodity[r.commodity] ?? 0) + parseFloat(r.quantityTonnes ?? "0");
-  }
+  // Summary: total + per-commodity breakdown
+  const totalTonnes = records.reduce((s, r) => s + parseFloat(r.quantityTonnes ?? "0"), 0);
+  const byCommodity = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of records) m[r.commodity] = (m[r.commodity] ?? 0) + parseFloat(r.quantityTonnes ?? "0");
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  }, [records]);
+
+  // Group parcels by binId (0 = unassigned)
+  const byBin = useMemo(() => {
+    const m: Record<number, any[]> = {};
+    for (const r of records) {
+      const k = r.binId ?? 0;
+      if (!m[k]) m[k] = [];
+      m[k].push(r);
+    }
+    return m;
+  }, [records]);
+
+  const openHarvestForBin = (binId: number) => {
+    setHarvestBinId(binId);
+    setHarvestForm({ ...emptyHarvest, binId });
+    setHarvestOpen(true);
+  };
 
   return (
     <div>
-      {/* Summary cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginBottom: 20 }}>
-        <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "0.875rem", gridColumn: "span 1" }}>
-          <p style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", color: "#16a34a" }}>Total in Store</p>
-          <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#14532d" }}>{totalTonnes.toFixed(1)} t</p>
+      {/* ── Summary strip ─────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 18, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "0.75rem 1rem" }}>
+        <div style={{ marginRight: 8 }}>
+          <p style={{ fontSize: "0.65rem", fontWeight: 600, textTransform: "uppercase", color: "#15803d", letterSpacing: "0.05em" }}>Total In Store</p>
+          <p style={{ fontSize: "1.5rem", fontWeight: 800, color: "#14532d", lineHeight: 1 }}>{totalTonnes.toFixed(1)} t</p>
         </div>
-        {Object.entries(byCommodity).sort((a, b) => b[1] - a[1]).map(([commodity, tonnes]) => (
-          <div key={commodity} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "0.875rem" }}>
-            <p style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", color: "#6b7280" }}>{commodity}</p>
-            <p style={{ fontSize: "1.25rem", fontWeight: 700, color: "#111827" }}>{tonnes.toFixed(1)} t</p>
+        <div style={{ width: 1, height: 32, background: "#bbf7d0" }} />
+        {byCommodity.map(([commodity, tonnes]) => (
+          <div key={commodity} style={{ background: "#fff", border: "1px solid #d1fae5", borderRadius: 8, padding: "0.35rem 0.75rem", minWidth: 90 }}>
+            <p style={{ fontSize: "0.65rem", fontWeight: 600, textTransform: "uppercase", color: "#6b7280", letterSpacing: "0.04em" }}>{commodity}</p>
+            <p style={{ fontSize: "0.95rem", fontWeight: 700, color: "#111827" }}>{tonnes.toFixed(1)} t</p>
           </div>
         ))}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <Button size="sm" variant="outline" onClick={() => { setHarvestBinId(null); setHarvestForm(emptyHarvest); setHarvestOpen(true); }}>
+            <ArrowDown size={13} className="mr-1" style={{ color: "#16a34a" }} />Record Harvest In
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => { setEditRow(null); setLevelForm(emptyLevel); setAddOpen(true); }}>
+            <Plus size={13} className="mr-1" />Manual Entry
+          </Button>
+        </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginBottom: 12 }}>
-        <Button size="sm" variant="outline" onClick={() => { setHarvestForm(emptyHarvest); setHarvestOpen(true); }}>
-          <ArrowDown size={14} className="mr-1" style={{ color: "#16a34a" }} />Record Harvest In
-        </Button>
-        <Button size="sm" onClick={() => { setEditRow(null); setLevelForm(emptyLevel); setAddOpen(true); }}>
-          <Plus size={14} className="mr-1" />Manual Stock Entry
-        </Button>
-      </div>
-
-      {records.length === 0 ? (
+      {/* ── Bin cards ─────────────────────────────────────────────── */}
+      {records.length === 0 && bins.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
           <Wheat size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
           <p style={{ fontWeight: 600, color: "#374151" }}>No crop stock records yet</p>
-          <p style={{ fontSize: "0.875rem" }}>Use "Record Harvest In" to initialise your grain stock levels, or confirm dispatches and transfers to update them automatically.</p>
+          <p style={{ fontSize: "0.875rem" }}>Use "Record Harvest In" to initialise grain stock levels.</p>
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Commodity","Variety","Harvest Year","Bin / Store","Live Quantity","Last Updated",""].map(h => (
-                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((r: any, i: number) => (
-                <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                  <td style={{ padding: "0.625rem 0.875rem", fontWeight: 500 }}>{r.commodity}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.variety || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.cropYear || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{binName(r.binId)}</td>
-                  <td style={{ padding: "0.625rem 0.875rem" }}>
-                    <span style={{ fontWeight: 700, color: parseFloat(r.quantityTonnes) > 0 ? "#16a34a" : "#dc2626", fontSize: "1rem" }}>
-                      {parseFloat(r.quantityTonnes ?? "0").toFixed(3)} t
-                    </span>
-                  </td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontSize: "0.8rem" }}>{fmt(r.lastUpdated)}</td>
-                  <td style={{ padding: "0.5rem" }}>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <button onClick={() => { setEditRow(r); setLevelForm({ ...r, quantityTonnes: r.quantityTonnes }); setAddOpen(true); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}><Pencil size={13} /></button>
-                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {bins.map(bin => (
+            <BinCard
+              key={bin.id}
+              bin={bin}
+              parcels={byBin[bin.id] ?? []}
+              allMovements={allMovements}
+              onEdit={p => { setEditRow(p); setLevelForm({ ...p }); setAddOpen(true); }}
+              onDelete={id => setDeleteId(id)}
+              onHarvestIn={openHarvestForBin}
+            />
+          ))}
+          {/* Unassigned parcels (no bin linked) */}
+          {(byBin[0] ?? []).length > 0 && (
+            <BinCard
+              key={0}
+              bin={{ id: 0, binName: "Unassigned / Field Heap", binType: null, capacityTonnes: null }}
+              parcels={byBin[0]}
+              allMovements={allMovements}
+              onEdit={p => { setEditRow(p); setLevelForm({ ...p }); setAddOpen(true); }}
+              onDelete={id => setDeleteId(id)}
+              onHarvestIn={() => { setHarvestBinId(null); setHarvestForm(emptyHarvest); setHarvestOpen(true); }}
+            />
+          )}
+        </>
       )}
 
       {/* Record Harvest In */}
