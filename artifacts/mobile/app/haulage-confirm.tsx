@@ -133,7 +133,7 @@ export default function HaulageConfirmScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Button title="" icon="arrow-left" variant="ghost" size="sm" onPress={() => router.back()} />
-        <Text style={styles.title}>Confirm Delivery</Text>
+        <Text style={styles.title}>Confirm Grain Dispatch</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -238,7 +238,7 @@ export default function HaulageConfirmScreen() {
             <Text style={styles.sectionTitle}>Notes & Sign-off <Text style={styles.required}>*</Text></Text>
           </View>
           <Input
-            label="Delivery Notes"
+            label="Dispatch Notes"
             placeholder="Any discrepancies, damage, weight queries, or special instructions noted..."
             value={deliveryNotes}
             onChangeText={setDeliveryNotes}
@@ -253,7 +253,7 @@ export default function HaulageConfirmScreen() {
           />
 
           <Button
-            title="Confirm Delivery"
+            title="Confirm Dispatch"
             onPress={handleSave}
             loading={saving}
             fullWidth

@@ -156,8 +156,8 @@ const recordOptions: RecordOption[] = [
   },
   {
     id: "haulage-confirm",
-    title: "Confirm Grain Delivery",
-    description: "Confirm a grain lorry collection — haulier, vehicle reg, commodity, quantity, delivery photos and sign-off",
+    title: "Confirm Grain Dispatch",
+    description: "Confirm a grain lorry collection — haulier, vehicle reg, commodity, quantity, dispatch photos and sign-off",
     icon: "check-circle",
     color: "#0284c7",
     bgColor: "#e0f2fe",
