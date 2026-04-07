@@ -456,11 +456,32 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
     return m;
   }, [records]);
 
+  // Map binId → existing parcel (Red Tractor: one lot per location)
+  const binOccupancyMap = useMemo(() => {
+    const m: Record<number, any> = {};
+    for (const r of records) if (r.binId) m[r.binId] = r;
+    return m;
+  }, [records]);
+
   const openHarvestForBin = (binId: number) => {
     setHarvestBinId(binId);
-    setHarvestForm({ ...emptyHarvest, binId });
+    // Auto-fill commodity/variety from existing parcel in bin (Red Tractor: must match)
+    const existing = binOccupancyMap[binId];
+    setHarvestForm({ ...emptyHarvest, binId, commodity: existing?.commodity ?? "", variety: existing?.variety ?? "" });
     setHarvestOpen(true);
   };
+
+  // Conflict detection — harvest dialog
+  const harvestExistingParcel = harvestForm.binId ? binOccupancyMap[harvestForm.binId] : null;
+  const harvestHasConflict = harvestExistingParcel && harvestForm.commodity &&
+    (harvestExistingParcel.commodity !== harvestForm.commodity ||
+     (harvestExistingParcel.variety ?? "") !== (harvestForm.variety ?? ""));
+
+  // Conflict detection — manual stock entry dialog (skip when editing the same record)
+  const levelExistingParcel = (levelForm.binId && !editRow) ? binOccupancyMap[levelForm.binId] : null;
+  const levelHasConflict = levelExistingParcel && levelForm.commodity &&
+    (levelExistingParcel.commodity !== levelForm.commodity ||
+     (levelExistingParcel.variety ?? "") !== (levelForm.variety ?? ""));
 
   return (
     <div>
@@ -582,7 +603,31 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
             {/* Destination bin */}
             <div>
               <Label>Destination Bin / Store</Label>
-              <BinSelect farmId={farmId} value={harvestForm.binId} onChange={id => setHarvestForm((f: any) => ({ ...f, binId: id }))} placeholder="Select destination bin or store..." />
+              <BinSelect
+                farmId={farmId}
+                value={harvestForm.binId}
+                onChange={id => {
+                  // Auto-fill commodity/variety from existing parcel to prevent mix
+                  const existing = id ? binOccupancyMap[id] : null;
+                  setHarvestForm((f: any) => ({
+                    ...f,
+                    binId: id,
+                    commodity: existing ? existing.commodity : f.commodity,
+                    variety: existing ? (existing.variety ?? "") : f.variety,
+                  }));
+                }}
+                placeholder="Select destination bin or store..."
+              />
+              {harvestExistingParcel && !harvestHasConflict && (
+                <div style={{ marginTop: 6, padding: "0.5rem 0.75rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, fontSize: "0.8rem", color: "#15803d" }}>
+                  <strong>Existing lot:</strong> {harvestExistingParcel.commodity} / {harvestExistingParcel.variety ?? "—"} ({harvestExistingParcel.cropYear ?? "—"}) — {parseFloat(harvestExistingParcel.quantityTonnes ?? 0).toFixed(1)}t in store. Harvest-in will add to this lot.
+                </div>
+              )}
+              {harvestHasConflict && (
+                <div style={{ marginTop: 6, padding: "0.5rem 0.75rem", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, fontSize: "0.8rem", color: "#b91c1c" }}>
+                  <strong>Red Tractor conflict:</strong> This bin already holds {harvestExistingParcel.commodity} / {harvestExistingParcel.variety ?? "—"}. You cannot mix {harvestForm.commodity} into the same registered location. Select a different bin, or clear the existing lot first.
+                </div>
+              )}
             </div>
 
             {/* Recorded By — staff lookup */}
@@ -610,7 +655,7 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
                 notes: harvestForm.notes || null,
                 movedAt: harvestForm.harvestDate ? new Date(harvestForm.harvestDate).toISOString() : undefined,
               })}
-              disabled={!harvestForm.commodity || !harvestForm.quantityTonnes || !harvestForm.harvestDate || harvestMut.isPending}
+              disabled={!harvestForm.commodity || !harvestForm.quantityTonnes || !harvestForm.harvestDate || !!harvestHasConflict || harvestMut.isPending}
             >
               {harvestMut.isPending ? "Recording…" : "Record Harvest In"}
             </Button>
@@ -644,12 +689,25 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
               <Label>Quantity (tonnes) <span style={{ color: "#ef4444" }}>*</span></Label>
               <Input type="number" step="0.001" min="0" value={levelForm.quantityTonnes} onChange={e => setLevelForm((f: any) => ({ ...f, quantityTonnes: e.target.value }))} />
             </div>
-            <div><Label>Bin / Store Location</Label><BinSelect farmId={farmId} value={levelForm.binId} onChange={id => setLevelForm((f: any) => ({ ...f, binId: id }))} /></div>
+            <div>
+              <Label>Bin / Store Location</Label>
+              <BinSelect farmId={farmId} value={levelForm.binId} onChange={id => setLevelForm((f: any) => ({ ...f, binId: id }))} />
+              {levelHasConflict && (
+                <div style={{ marginTop: 6, padding: "0.5rem 0.75rem", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, fontSize: "0.8rem", color: "#b91c1c" }}>
+                  <strong>Red Tractor conflict:</strong> This bin already holds {levelExistingParcel.commodity} / {levelExistingParcel.variety ?? "—"} ({levelExistingParcel.cropYear ?? "—"}). Each location must hold one commodity only. Select a different location, or clear the existing lot first.
+                </div>
+              )}
+              {levelExistingParcel && !levelHasConflict && levelForm.commodity && (
+                <div style={{ marginTop: 6, padding: "0.5rem 0.75rem", background: "#fef9c3", border: "1px solid #fde047", borderRadius: 6, fontSize: "0.8rem", color: "#854d0e" }}>
+                  <strong>Note:</strong> This bin already has a stock record for {levelExistingParcel.commodity} / {levelExistingParcel.variety ?? "—"}. Saving will be blocked by the API — use "Record Harvest In" to add tonnage to the existing lot, or delete the existing record first.
+                </div>
+              )}
+            </div>
             <div><Label>Notes</Label><Textarea rows={2} value={levelForm.notes} onChange={e => setLevelForm((f: any) => ({ ...f, notes: e.target.value }))} /></div>
           </div>
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditRow(null); setLevelForm(emptyLevel); }}>Cancel</Button>
-            <Button onClick={() => saveLevelMut.mutate(levelForm)} disabled={!levelForm.commodity || !levelForm.quantityTonnes || saveLevelMut.isPending}>
+            <Button onClick={() => saveLevelMut.mutate(levelForm)} disabled={!levelForm.commodity || !levelForm.quantityTonnes || !!levelHasConflict || !!levelExistingParcel || saveLevelMut.isPending}>
               {saveLevelMut.isPending ? "Saving…" : editRow ? "Save Changes" : "Create Record"}
             </Button>
           </DialogFooter>

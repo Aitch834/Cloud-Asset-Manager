@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, numeric, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { grainStorageBinsTable } from "./equipment";
 import { suppliersTable } from "./stock-suppliers";
@@ -75,12 +75,15 @@ export const cropStockLevelsTable = pgTable("crop_stock_levels", {
   binId: integer("bin_id").references(() => grainStorageBinsTable.id), // null = no specific bin (field heap, temporary store)
   commodity: text("commodity").notNull(),
   variety: text("variety"),
-  cropYear: text("crop_year"), // e.g. "2024/25"
+  cropYear: text("crop_year"), // e.g. "2024 Harvest"
   quantityTonnes: numeric("quantity_tonnes", { precision: 10, scale: 3 }).notNull().default("0"),
   lastUpdated: timestamp("last_updated", { withTimezone: true }).notNull().defaultNow(),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // Red Tractor compliance: one stock lot per physical store location
+  uniqueIndex("crop_stock_levels_farm_bin_unique").on(t.farmId, t.binId),
+]);
 
 // ─── Crop Stock Movements ──────────────────────────────────────────────────────
 // Immutable audit log of every change to crop stock.

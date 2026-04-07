@@ -3073,6 +3073,20 @@ router.get("/farms/:farmId/crop-stock-levels", requireAuth, requireTenant, requi
 router.post("/farms/:farmId/crop-stock-levels", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
+  // Red Tractor compliance: one lot per registered store location
+  if (req.body.binId) {
+    const existing = await db.select().from(cropStockLevelsTable)
+      .where(and(eq(cropStockLevelsTable.farmId, farmId), eq(cropStockLevelsTable.binId, req.body.binId)))
+      .limit(1);
+    if (existing.length > 0) {
+      const lot = existing[0];
+      res.status(409).json({
+        error: `Red Tractor compliance: this store location already contains ${lot.commodity} / ${lot.variety ?? "—"} (${lot.cropYear ?? "—"}). Each location must hold only one commodity, variety and crop year. Clear the existing lot first, or select a different location.`,
+        existing: lot,
+      });
+      return;
+    }
+  }
   const [record] = await db.insert(cropStockLevelsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
 });
@@ -3112,6 +3126,27 @@ router.post("/farms/:farmId/crop-stock-movements", requireAuth, requireTenant, r
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const { binId, commodity, variety, cropYear, movementType, direction, quantityTonnes, referenceType, referenceId, performedBy, notes } = req.body;
+
+  // Red Tractor compliance: for inbound movements, check the bin doesn't already hold a different lot
+  if (binId && direction === "in") {
+    const existingLot = await db.select().from(cropStockLevelsTable)
+      .where(and(eq(cropStockLevelsTable.farmId, farmId), eq(cropStockLevelsTable.binId, binId)))
+      .limit(1);
+    if (existingLot.length > 0) {
+      const lot = existingLot[0];
+      const sameIdentity =
+        lot.commodity === commodity &&
+        (lot.variety ?? "") === (variety ?? "") &&
+        (lot.cropYear ?? "") === (cropYear ?? "");
+      if (!sameIdentity) {
+        res.status(409).json({
+          error: `Red Tractor compliance: this location already contains ${lot.commodity} / ${lot.variety ?? "—"} (${lot.cropYear ?? "—"}). Moving ${commodity} / ${variety ?? "—"} into the same location would mix lots. Use a separate registered location.`,
+          existing: lot,
+        });
+        return;
+      }
+    }
+  }
 
   // Insert the movement record
   const [movement] = await db.insert(cropStockMovementsTable).values({
