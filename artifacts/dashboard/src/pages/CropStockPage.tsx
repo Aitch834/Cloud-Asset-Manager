@@ -437,12 +437,27 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
   const records: any[] = q.data ?? [];
   const allMovements: any[] = movQ.data ?? [];
 
-  // Summary: total + per-commodity breakdown
+  // Summary: total + per-commodity/variety breakdown
   const totalTonnes = records.reduce((s, r) => s + parseFloat(r.quantityTonnes ?? "0"), 0);
+
+  // Group by commodity, then by variety within each commodity
   const byCommodity = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const r of records) m[r.commodity] = (m[r.commodity] ?? 0) + parseFloat(r.quantityTonnes ?? "0");
-    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+    const m: Record<string, { total: number; varieties: { variety: string; tonnes: number; cropYear: string }[] }> = {};
+    for (const r of records) {
+      const qty = parseFloat(r.quantityTonnes ?? "0");
+      if (!m[r.commodity]) m[r.commodity] = { total: 0, varieties: [] };
+      m[r.commodity].total += qty;
+      const existing = m[r.commodity].varieties.find(v => v.variety === (r.variety ?? "—") && v.cropYear === (r.cropYear ?? "—"));
+      if (existing) existing.tonnes += qty;
+      else m[r.commodity].varieties.push({ variety: r.variety ?? "—", tonnes: qty, cropYear: r.cropYear ?? "—" });
+    }
+    return Object.entries(m)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([commodity, data]) => ({
+        commodity,
+        total: data.total,
+        varieties: data.varieties.sort((a, b) => b.tonnes - a.tonnes),
+      }));
   }, [records]);
 
   // Group parcels by binId (0 = unassigned)
@@ -492,10 +507,23 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
           <p style={{ fontSize: "1.5rem", fontWeight: 800, color: "#14532d", lineHeight: 1 }}>{totalTonnes.toFixed(1)} t</p>
         </div>
         <div style={{ width: 1, height: 32, background: "#bbf7d0" }} />
-        {byCommodity.map(([commodity, tonnes]) => (
-          <div key={commodity} style={{ background: "#fff", border: "1px solid #d1fae5", borderRadius: 8, padding: "0.35rem 0.75rem", minWidth: 90 }}>
-            <p style={{ fontSize: "0.65rem", fontWeight: 600, textTransform: "uppercase", color: "#6b7280", letterSpacing: "0.04em" }}>{commodity}</p>
-            <p style={{ fontSize: "0.95rem", fontWeight: 700, color: "#111827" }}>{tonnes.toFixed(1)} t</p>
+        {byCommodity.map(({ commodity, total, varieties }) => (
+          <div key={commodity} style={{ background: "#fff", border: "1px solid #d1fae5", borderRadius: 8, padding: "0.4rem 0.75rem", minWidth: 110 }}>
+            {/* Commodity header with total */}
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: varieties.length > 1 ? 4 : 0 }}>
+              <p style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#6b7280", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{commodity}</p>
+              <p style={{ fontSize: "0.75rem", fontWeight: 700, color: "#374151", marginLeft: "auto", whiteSpace: "nowrap" }}>{total.toFixed(1)} t</p>
+            </div>
+            {/* Variety rows */}
+            {varieties.map(v => (
+              <div key={`${v.variety}-${v.cropYear}`} style={{ display: "flex", alignItems: "baseline", gap: 6, borderTop: "1px solid #f0fdf4", paddingTop: 3, marginTop: 2 }}>
+                <div>
+                  <p style={{ fontSize: "0.78rem", fontWeight: 600, color: "#111827", whiteSpace: "nowrap" }}>{v.variety}</p>
+                  <p style={{ fontSize: "0.6rem", color: "#9ca3af", whiteSpace: "nowrap" }}>{v.cropYear}</p>
+                </div>
+                <p style={{ fontSize: "0.85rem", fontWeight: 700, color: "#15803d", marginLeft: "auto", whiteSpace: "nowrap" }}>{v.tonnes.toFixed(1)} t</p>
+              </div>
+            ))}
           </div>
         ))}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
