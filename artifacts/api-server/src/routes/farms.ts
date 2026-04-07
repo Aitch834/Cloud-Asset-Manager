@@ -90,6 +90,8 @@ import {
   environmentalManagementEventsTable,
   haulageRecordsTable,
   hauliersTable,
+  cropStockLevelsTable,
+  cropStockMovementsTable,
   suppliersTable,
   stockItemsTable,
   purchaseOrdersTable,
@@ -2971,6 +2973,86 @@ router.post("/farms/:farmId/haulage", requireAuth, requireTenant, requireModuleB
   res.status(201).json({ record });
 });
 
+// ─── Mobile haulage confirmation sync endpoint ────────────────────────────────
+// Accepts the mobile HaulageConfirmation format, creates a haulage record,
+// marks it immediately dispatched, and deducts crop stock if a bin is specified.
+router.post("/farms/:farmId/haulage-mobile", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const {
+    haulierName,
+    vehicleReg,
+    driverName,
+    cropType,
+    quantityTonnes,
+    binId,
+    destination,
+    customerName,
+    customerRef,
+    dispatchNotes,
+    confirmedBy,
+    confirmationDate,
+    latitude,
+    longitude,
+  } = req.body;
+
+  const qty = quantityTonnes ? parseFloat(String(quantityTonnes)) : null;
+  const now = confirmationDate ? new Date(confirmationDate) : new Date();
+
+  // Create the haulage record as a farm_exit_dispatch, immediately confirmed
+  const [record] = await db.insert(haulageRecordsTable).values({
+    farmId,
+    movementType: "farm_exit_dispatch",
+    haulierName: haulierName ?? null,
+    vehicleReg: vehicleReg ?? null,
+    driverName: driverName ?? null,
+    commodity: cropType ?? null,
+    weightTonnes: qty != null ? String(qty) : null,
+    binId: binId ? parseInt(String(binId)) : null,
+    destination: destination ?? null,
+    customerRef: customerRef ?? null,
+    deliveryStatus: "dispatched",
+    deliveryConfirmedAt: now,
+    deliveryConfirmedBy: confirmedBy ?? null,
+    deliveryConfirmationNotes: dispatchNotes ?? null,
+    loadingDate: now,
+    notes: dispatchNotes ?? null,
+  }).returning();
+
+  // If we have a bin and crop type and quantity, deduct stock
+  if (record && record.binId && record.commodity && qty && qty > 0) {
+    await db.insert(cropStockMovementsTable).values({
+      farmId,
+      binId: record.binId,
+      commodity: record.commodity,
+      movementType: "dispatch_out",
+      direction: "out",
+      quantityTonnes: String(qty),
+      referenceType: "haulage_record",
+      referenceId: record.id,
+      performedBy: confirmedBy ?? "mobile",
+      notes: dispatchNotes ?? undefined,
+      movedAt: now,
+    });
+
+    const existing = await db.select().from(cropStockLevelsTable)
+      .where(and(
+        eq(cropStockLevelsTable.farmId, farmId),
+        eq(cropStockLevelsTable.binId, record.binId),
+        eq(cropStockLevelsTable.commodity, record.commodity),
+      )).limit(1);
+
+    if (existing.length > 0) {
+      const updated = Math.max(0, parseFloat(existing[0].quantityTonnes ?? "0") - qty);
+      await db.update(cropStockLevelsTable).set({ quantityTonnes: String(updated), lastUpdated: new Date() })
+        .where(eq(cropStockLevelsTable.id, existing[0].id));
+    }
+  }
+
+  res.status(201).json({ record });
+});
+
 router.put("/farms/:farmId/haulage/:recordId", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -2978,6 +3060,91 @@ router.put("/farms/:farmId/haulage/:recordId", requireAuth, requireTenant, requi
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.update(haulageRecordsTable).set(req.body).where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId))).returning();
   res.json({ record });
+});
+
+// ─── Crop Stock Levels ──────────────────────────────
+router.get("/farms/:farmId/crop-stock-levels", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(cropStockLevelsTable).where(eq(cropStockLevelsTable.farmId, farmId)).orderBy(cropStockLevelsTable.commodity, cropStockLevelsTable.variety);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/crop-stock-levels", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(cropStockLevelsTable).values({ ...req.body, farmId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/crop-stock-levels/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = getRecordId(req);
+  if (!id) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(cropStockLevelsTable).set({ ...req.body, lastUpdated: new Date() }).where(and(eq(cropStockLevelsTable.id, id), eq(cropStockLevelsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/crop-stock-levels/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = getRecordId(req);
+  if (!id) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(cropStockLevelsTable).where(and(eq(cropStockLevelsTable.id, id), eq(cropStockLevelsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Crop Stock Movements ────────────────────────────
+// Read movements (full audit log for a farm, optionally filtered by binId)
+router.get("/farms/:farmId/crop-stock-movements", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const binId = req.query.binId ? parseInt(String(req.query.binId)) : null;
+  const conditions = [eq(cropStockMovementsTable.farmId, farmId)];
+  if (binId) conditions.push(eq(cropStockMovementsTable.binId, binId));
+  const records = await db.select().from(cropStockMovementsTable).where(and(...conditions)).orderBy(desc(cropStockMovementsTable.movedAt));
+  res.json({ records });
+});
+
+// Post a movement and update the associated stock level
+router.post("/farms/:farmId/crop-stock-movements", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { binId, commodity, variety, cropYear, movementType, direction, quantityTonnes, referenceType, referenceId, performedBy, notes } = req.body;
+
+  // Insert the movement record
+  const [movement] = await db.insert(cropStockMovementsTable).values({
+    farmId, binId, commodity, variety, cropYear, movementType, direction, quantityTonnes, referenceType, referenceId, performedBy, notes,
+  }).returning();
+
+  // Upsert the stock level: find existing row or create new
+  if (binId && commodity) {
+    const existing = await db.select().from(cropStockLevelsTable)
+      .where(and(
+        eq(cropStockLevelsTable.farmId, farmId),
+        eq(cropStockLevelsTable.binId, binId),
+        eq(cropStockLevelsTable.commodity, commodity),
+        variety ? eq(cropStockLevelsTable.variety, variety) : eq(cropStockLevelsTable.variety, variety ?? ""),
+      )).limit(1);
+
+    const qty = parseFloat(quantityTonnes ?? "0");
+    const delta = direction === "in" ? qty : -qty;
+
+    if (existing.length > 0) {
+      const current = parseFloat(existing[0].quantityTonnes ?? "0");
+      const updated = Math.max(0, current + delta);
+      await db.update(cropStockLevelsTable)
+        .set({ quantityTonnes: String(updated), lastUpdated: new Date() })
+        .where(eq(cropStockLevelsTable.id, existing[0].id));
+    } else if (direction === "in") {
+      await db.insert(cropStockLevelsTable).values({
+        farmId, binId, commodity, variety, cropYear, quantityTonnes: String(qty), lastUpdated: new Date(),
+      });
+    }
+  }
+
+  res.status(201).json({ movement });
 });
 
 // ─── Suppliers ─────────────────────────────────────
@@ -13085,6 +13252,73 @@ router.delete("/farms/:farmId/vehicle-weather-readings/:id", requireAuth, requir
 });
 
 // --- Delivery Confirmation on Haulage ---
+router.post("/farms/:farmId/haulage/:recordId/confirm-dispatch", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const { confirmedBy, notes } = req.body;
+
+  // Update the haulage record
+  const [record] = await db.update(haulageRecordsTable).set({
+    deliveryConfirmedAt: new Date(),
+    deliveryConfirmedBy: confirmedBy,
+    deliveryConfirmationNotes: notes,
+    deliveryStatus: "dispatched",
+  }).where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId))).returning();
+
+  // If this is a farm_exit_dispatch with a source bin, create a dispatch_out stock movement
+  if (record && record.movementType === "farm_exit_dispatch" && record.binId && record.commodity && record.weightTonnes) {
+    const qtyTonnes = parseFloat(String(record.weightTonnes));
+    if (qtyTonnes > 0) {
+      const [movement] = await db.insert(cropStockMovementsTable).values({
+        farmId,
+        binId: record.binId,
+        commodity: record.commodity,
+        variety: record.variety ?? undefined,
+        movementType: "dispatch_out",
+        direction: "out",
+        quantityTonnes: String(qtyTonnes),
+        referenceType: "haulage_record",
+        referenceId: recordId,
+        performedBy: confirmedBy,
+        notes: notes ?? undefined,
+        movedAt: new Date(),
+      }).returning();
+
+      // Decrement the stock level
+      const existing = await db.select().from(cropStockLevelsTable)
+        .where(and(eq(cropStockLevelsTable.farmId, farmId), eq(cropStockLevelsTable.binId, record.binId), eq(cropStockLevelsTable.commodity, record.commodity))).limit(1);
+      if (existing.length > 0) {
+        const updated = Math.max(0, parseFloat(existing[0].quantityTonnes ?? "0") - qtyTonnes);
+        await db.update(cropStockLevelsTable).set({ quantityTonnes: String(updated), lastUpdated: new Date() }).where(eq(cropStockLevelsTable.id, existing[0].id));
+      }
+    }
+  }
+
+  // Also support on_farm_transfer: deduct from binId, add to destinationBinId
+  if (record && record.movementType === "on_farm_transfer" && record.binId && record.destinationBinId && record.commodity && record.weightTonnes) {
+    const qtyTonnes = parseFloat(String(record.weightTonnes));
+    if (qtyTonnes > 0) {
+      // transfer_out from source bin
+      await db.insert(cropStockMovementsTable).values({ farmId, binId: record.binId, commodity: record.commodity, variety: record.variety ?? undefined, movementType: "transfer_out", direction: "out", quantityTonnes: String(qtyTonnes), referenceType: "haulage_record", referenceId: recordId, performedBy: confirmedBy, movedAt: new Date() }).returning();
+      const srcLevel = await db.select().from(cropStockLevelsTable).where(and(eq(cropStockLevelsTable.farmId, farmId), eq(cropStockLevelsTable.binId, record.binId), eq(cropStockLevelsTable.commodity, record.commodity))).limit(1);
+      if (srcLevel.length > 0) {
+        await db.update(cropStockLevelsTable).set({ quantityTonnes: String(Math.max(0, parseFloat(srcLevel[0].quantityTonnes ?? "0") - qtyTonnes)), lastUpdated: new Date() }).where(eq(cropStockLevelsTable.id, srcLevel[0].id));
+      }
+      // transfer_in to destination bin
+      await db.insert(cropStockMovementsTable).values({ farmId, binId: record.destinationBinId, commodity: record.commodity, variety: record.variety ?? undefined, movementType: "transfer_in", direction: "in", quantityTonnes: String(qtyTonnes), referenceType: "haulage_record", referenceId: recordId, performedBy: confirmedBy, movedAt: new Date() }).returning();
+      const dstLevel = await db.select().from(cropStockLevelsTable).where(and(eq(cropStockLevelsTable.farmId, farmId), eq(cropStockLevelsTable.binId, record.destinationBinId), eq(cropStockLevelsTable.commodity, record.commodity))).limit(1);
+      if (dstLevel.length > 0) {
+        await db.update(cropStockLevelsTable).set({ quantityTonnes: String(parseFloat(dstLevel[0].quantityTonnes ?? "0") + qtyTonnes), lastUpdated: new Date() }).where(eq(cropStockLevelsTable.id, dstLevel[0].id));
+      } else {
+        await db.insert(cropStockLevelsTable).values({ farmId, binId: record.destinationBinId, commodity: record.commodity, variety: record.variety ?? undefined, quantityTonnes: String(qtyTonnes), lastUpdated: new Date() });
+      }
+    }
+  }
+
+  res.json({ record });
+});
+
+// Legacy alias kept for backward compatibility
 router.post("/farms/:farmId/haulage/:recordId/confirm-delivery", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
   const recordId = parseInt(req.params.recordId);
@@ -13093,7 +13327,7 @@ router.post("/farms/:farmId/haulage/:recordId/confirm-delivery", requireAuth, re
     deliveryConfirmedAt: new Date(),
     deliveryConfirmedBy: confirmedBy,
     deliveryConfirmationNotes: notes,
-    deliveryStatus: "delivered",
+    deliveryStatus: "dispatched",
   }).where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });

@@ -44,6 +44,30 @@ const CHART_COLORS = ["#16a34a", "#2563eb", "#d97706", "#dc2626", "#7c3aed", "#0
 
 type Tab = "grain" | "livestock" | "milk" | "poultry" | "pigs" | "direct" | "reports";
 
+// ─── Grain Bin Selector ───────────────────────────────────────────────────────
+function GrainBinSelect({ farmId, value, onChange }: { farmId: number; value: number | null; onChange: (id: number | null, name: string) => void }) {
+  const q = useQuery({
+    queryKey: ["grain-storage-bins", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/grain-storage-bins`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.rows ?? d.records ?? [],
+  });
+  const bins: any[] = q.data ?? [];
+  return (
+    <Select value={value ? String(value) : "__none__"} onValueChange={v => {
+      if (v === "__none__") { onChange(null, ""); return; }
+      const bin = bins.find((b: any) => String(b.id) === v);
+      onChange(bin?.id ?? null, bin?.binName ?? "");
+    }}>
+      <SelectTrigger><SelectValue placeholder="Select bin / store..." /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__none__">— None —</SelectItem>
+        {bins.map((b: any) => <SelectItem key={b.id} value={String(b.id)}>{b.binName}{b.binType ? ` (${b.binType})` : ""}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}
+
 // ─── Grain Sales Tab ─────────────────────────────────────────────────────────
 const COMMODITIES = [
   "Winter Wheat","Spring Wheat","Winter Barley","Spring Barley","Malting Barley",
@@ -70,7 +94,8 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
     tonnage: "", pricePerTonnePence: "", grossValuePence: "", deductionsPence: "", netValuePence: "",
     moisture: "", specificWeight: "", protein: "", gradeAchieved: "", qualitySpec: "",
     deliveryDate: "", deliveryLocation: "", haulierName: "", vehicleReg: "",
-    weighbridgeTicket: "", invoiceNumber: "", paymentDate: "", cropYear: "", field: "", storeBin: "", notes: "",
+    weighbridgeTicket: "", invoiceNumber: "", paymentDate: "", cropYear: "", field: "", storeBin: "",
+    storeBinId: null as number | null, notes: "",
   };
   const [form, setForm] = useState<any>(empty);
 
@@ -305,6 +330,14 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
               <div>
                 <Label>Crop Year</Label>
                 <Input value={form.cropYear} onChange={e => setForm((f: any) => ({ ...f, cropYear: e.target.value }))} placeholder="e.g. 2024/25" />
+              </div>
+              <div>
+                <Label>Source Bin / Store</Label>
+                <GrainBinSelect
+                  farmId={farmId}
+                  value={form.storeBinId}
+                  onChange={(id, name) => setForm((f: any) => ({ ...f, storeBinId: id, storeBin: name }))}
+                />
               </div>
               <div>
                 <Label>Delivery Date</Label>

@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { suppliersTable } from "./stock-suppliers";
+import { grainStorageBinsTable } from "./equipment";
 
 // ─── Grain Sales ──────────────────────────────────────────────────────────────
 // Covers spot sales, contract call-offs, and pool scheme allocations
@@ -36,7 +37,11 @@ export const grainSalesTable = pgTable("grain_sales", {
   linkedContractId: integer("linked_contract_id"), // FK to crop_contracts if call-off
   cropYear: text("crop_year"), // e.g. "2024/25"
   field: text("field"),
-  storeBin: text("store_bin"),
+  storeBin: text("store_bin"),             // legacy free-text; prefer storeBinId
+  storeBinId: integer("store_bin_id").references(() => grainStorageBinsTable.id), // FK to grain_storage_bins
+  // ─── Dispatch linkage (soft ref — no FK to avoid circular schema) ──────────
+  // Set when this sale has a corresponding haulage dispatch record
+  haulageRecordId: integer("haulage_record_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

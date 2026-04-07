@@ -44,6 +44,7 @@ import BiofuelPage from "@/pages/BiofuelPage";
 import InspectionsPageFull from "@/pages/InspectionsPageFull";
 import WeatherPageFull from "@/pages/WeatherPageFull";
 import HaulagePageFull from "@/pages/HaulagePageFull";
+import CropStockPage from "@/pages/CropStockPage";
 import EnvironmentalPageFull from "@/pages/EnvironmentalPageFull";
 import StorageLocationsPage from "@/pages/StorageLocationsPage";
 import AccountSettings from "@/pages/AccountSettings";
@@ -210,6 +211,7 @@ function Router() {
       <Route path="/field-inspections" component={FieldInspectionsPage} />
       <Route path="/environmental" component={EnvironmentalPage} />
       <Route path="/haulage" component={HaulagePage} />
+      <Route path="/crop-stock" component={CropStockPage} />
       <Route path="/documents" component={DocumentsPageCustom} />
       <Route path="/weather" component={WeatherPage} />
       <Route path="/help" component={HelpPage} />

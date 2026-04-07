@@ -12,38 +12,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2, ArrowLeftRight, ArrowUpRight } from "lucide-react";
 
-type Tab = "records" | "grain-position" | "directory";
+type Tab = "dispatches" | "transfers" | "grain-position" | "directory";
 
-const DELIVERY_STATUSES = [
+const DISPATCH_STATUSES = [
   { value: "booked", label: "Booked", bg: "#eff6ff", color: "#1e40af" },
   { value: "in-transit", label: "In Transit", bg: "#fef3c7", color: "#92400e" },
-  { value: "delivered", label: "Delivered", bg: "#dcfce7", color: "#166534" },
+  { value: "dispatched", label: "Dispatched", bg: "#dcfce7", color: "#166534" },
   { value: "rejected", label: "Rejected", bg: "#fee2e2", color: "#991b1b" },
   { value: "cancelled", label: "Cancelled", bg: "#f3f4f6", color: "#6b7280" },
 ];
 
 const GRAIN_COMMODITIES = [
-  "Winter Wheat",
-  "Spring Wheat",
-  "Winter Barley",
-  "Spring Barley",
-  "Malting Barley",
-  "Winter Oats",
-  "Spring Oats",
-  "Oilseed Rape",
-  "Winter Beans",
-  "Spring Beans",
-  "Peas",
-  "Maize",
-  "Rye",
-  "Triticale",
-  "Linseed",
-  "Other",
+  "Winter Wheat","Spring Wheat","Winter Barley","Spring Barley","Malting Barley",
+  "Winter Oats","Spring Oats","Oilseed Rape","Winter Beans","Spring Beans",
+  "Peas","Maize","Rye","Triticale","Linseed","Other",
 ];
 
-const LOAD_TYPES = ["Grain", "Straw", "Silage", "Livestock", "Fertiliser", "Machinery", "Waste", "Other"];
+const LOAD_TYPES = ["Grain","Straw","Silage","Fertiliser","Machinery","Waste","Other"];
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -53,13 +40,79 @@ const fmtCost = (pence: number | null | undefined) => {
   if (pence == null) return "—";
   return `£${(pence / 100).toFixed(2)}`;
 };
+const F = ({ label, value }: { label: string; value?: string | null }) => (
+  <div>
+    <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+    <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div>
+  </div>
+);
 
-function DeliveryStatusBadge({ status }: { status: string }) {
-  const s = DELIVERY_STATUSES.find(d => d.value === status) ?? { label: status, bg: "#f3f4f6", color: "#374151" };
+function StatusBadge({ status }: { status: string }) {
+  const s = DISPATCH_STATUSES.find(d => d.value === status) ?? { label: status, bg: "#f3f4f6", color: "#374151" };
   return <Badge style={{ background: s.bg, color: s.color, border: "none", fontSize: "0.7rem" }}>{s.label}</Badge>;
 }
 
-function HaulageRecordsTab({ farmId }: { farmId: number }) {
+// ─── Buyer combobox (same pattern as SalesTradingPage) ─────────────────────
+function BuyerSelect({ farmId, valueId, valueName, onChange }: {
+  farmId: number; valueId: number | null; valueName: string;
+  onChange: (id: number | null, name: string) => void;
+}) {
+  const q = useQuery({
+    queryKey: ["buyers", farmId, "grain_merchant,merchant,customer"],
+    queryFn: () => fetch(`/api/farms/${farmId}/buyers?types=grain_merchant,merchant,customer`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
+  const buyers: any[] = q.data ?? [];
+  return (
+    <Select
+      value={valueId ? String(valueId) : "__none__"}
+      onValueChange={v => {
+        if (v === "__none__") { onChange(null, ""); return; }
+        const buyer = buyers.find((b: any) => String(b.id) === v);
+        onChange(buyer?.id ?? null, buyer?.name ?? "");
+      }}
+    >
+      <SelectTrigger><SelectValue placeholder="Select buyer / merchant..." /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__none__">— Select buyer —</SelectItem>
+        {buyers.map((b: any) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// ─── Grain bin selector ────────────────────────────────────────────────────
+function BinSelect({ farmId, value, onChange, placeholder }: {
+  farmId: number; value: number | null; onChange: (id: number | null, name: string) => void; placeholder?: string;
+}) {
+  const q = useQuery({
+    queryKey: ["grain-storage-bins", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/grain-storage-bins`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.rows ?? d.records ?? [],
+  });
+  const bins: any[] = q.data ?? [];
+  return (
+    <Select
+      value={value ? String(value) : "__none__"}
+      onValueChange={v => {
+        if (v === "__none__") { onChange(null, ""); return; }
+        const bin = bins.find((b: any) => String(b.id) === v);
+        onChange(bin?.id ?? null, bin?.binName ?? "");
+      }}
+    >
+      <SelectTrigger><SelectValue placeholder={placeholder ?? "Select bin / store..."} /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__none__">— None —</SelectItem>
+        {bins.map((b: any) => <SelectItem key={b.id} value={String(b.id)}>{b.binName}{b.binType ? ` (${b.binType})` : ""}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// ─── Dispatches Tab ────────────────────────────────────────────────────────
+function DispatchesTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const commodityTypes = useLookupStrings("commodity_types", GRAIN_COMMODITIES);
@@ -68,13 +121,24 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<any>(null);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [confirmForm, setConfirmForm] = useState({ confirmedBy: "", notes: "" });
 
   const emptyForm = {
-    departureDate: "", arrivalDate: "", loadType: "", loadDescription: "",
-    commodity: "", variety: "", grade: "", moisturePercent: "", specificWeightKgHl: "",
-    weighbridgeTicketNo: "", storageLocation: "", deliveryStatus: "delivered",
-    weightTonnes: "", vehicleRegistration: "", driverName: "", haulierCompany: "",
-    origin: "", destination: "", waybillNumber: "", costPence: "", notes: "",
+    movementType: "farm_exit_dispatch",
+    loadType: "", loadDescription: "",
+    commodity: "", variety: "", grade: "",
+    moisturePercent: "", specificWeightKgHl: "",
+    weighbridgeTicketNo: "",
+    binId: null as number | null, binName: "",
+    buyerId: null as number | null, buyerName: "",
+    customerRef: "",
+    haulierRegisteredId: null as number | null, haulierCompany: "",
+    deliveryStatus: "booked",
+    weightTonnes: "", vehicleRegistration: "", driverName: "",
+    origin: "", destination: "",
+    departureDate: "", arrivalDate: "",
+    waybillNumber: "", costPence: "", notes: "",
   };
   const [form, setForm] = useState<any>(emptyForm);
 
@@ -82,14 +146,14 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
     queryKey: ["haulage", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/haulage`).then(r => r.json()),
     enabled: !!farmId,
-    select: (d) => d.records ?? [],
+    select: d => (d.records ?? []).filter((r: any) => r.movementType !== "on_farm_transfer"),
   });
 
   const hauliersQ = useQuery({
     queryKey: ["hauliers", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/hauliers`).then(r => r.json()),
     enabled: !!farmId,
-    select: (d) => d.records ?? [],
+    select: d => d.records ?? [],
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["haulage", farmId] });
@@ -98,28 +162,32 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
     mutationFn: (body: any) => {
       const payload = {
         ...body,
+        movementType: "farm_exit_dispatch",
         costPence: body.costPence ? Math.round(parseFloat(body.costPence) * 100) : null,
         weightTonnes: body.weightTonnes || null,
         moisturePercent: body.moisturePercent || null,
         specificWeightKgHl: body.specificWeightKgHl || null,
+        binId: body.binId || null,
+        buyerId: body.buyerId || null,
+        haulierRegisteredId: body.haulierRegisteredId || null,
       };
       if (editRecord) return fetch(`/api/farms/${farmId}/haulage/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       return fetch(`/api/farms/${farmId}/haulage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     },
-    onSuccess: () => { toast({ title: editRecord ? "Record updated" : "Record saved" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(emptyForm); },
+    onSuccess: () => { toast({ title: editRecord ? "Dispatch updated" : "Dispatch recorded" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulage/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
-    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
   const confirmMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulage/${id}/confirm-delivery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }),
-    onSuccess: () => { toast({ title: "Delivery confirmed" }); invalidate(); },
-    onError: () => toast({ title: "Failed to confirm delivery", variant: "destructive" }),
+    mutationFn: ({ id, body }: { id: number; body: any }) =>
+      fetch(`/api/farms/${farmId}/haulage/${id}/confirm-dispatch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => { toast({ title: "Dispatch confirmed — stock deducted from bin" }); invalidate(); setConfirmId(null); setConfirmForm({ confirmedBy: "", notes: "" }); },
+    onError: () => toast({ title: "Failed to confirm dispatch", variant: "destructive" }),
   });
 
   const records: any[] = q.data ?? [];
@@ -132,24 +200,27 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
     setAddOpen(true);
   };
 
+  const isGrain = (f: any) => f.loadType === "Grain" || GRAIN_COMMODITIES.includes(f.commodity);
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Add Movement Record</Button>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Crop and commodity dispatches leaving the farm — stock deducted on confirmation.</p>
+        <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" /><ArrowUpRight size={14} className="mr-1" />Record Dispatch</Button>
       </div>
 
-      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
+      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading…</p> : records.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
           <Truck size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
-          <p style={{ fontWeight: 600, color: "#374151" }}>No haulage records</p>
-          <p style={{ fontSize: "0.875rem" }}>Record all commodity movements — grain, straw, livestock and inputs — for full traceability.</p>
+          <p style={{ fontWeight: 600, color: "#374151" }}>No dispatches recorded</p>
+          <p style={{ fontSize: "0.875rem" }}>Record crop dispatches leaving the farm — grain, straw, or other commodities sent to merchants or customers.</p>
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "auto" }}>
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Date", "Load Type", "Commodity / Variety", "Grade", "Weight (t)", "Moisture", "Sp. Wt.", "Weighbridge", "Vehicle", "Origin", "Destination", "Waybill", "Store", "Status", "Cost", ""].map(h => (
+                {["Date","Load","Commodity","Buyer / Merchant","Weight (t)","Source Bin","Waybill","Vehicle","Status","Cost",""].map(h => (
                   <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -163,29 +234,30 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
                     <p style={{ fontWeight: 500 }}>{r.commodity || r.loadDescription || "—"}</p>
                     {r.variety && <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>{r.variety}</p>}
                   </td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.grade || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.weightTonnes ?? "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.moisturePercent ? `${r.moisturePercent}%` : "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.specificWeightKgHl ? `${r.specificWeightKgHl}` : "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontFamily: r.weighbridgeTicketNo ? "monospace" : "inherit", fontSize: "0.8rem" }}>{r.weighbridgeTicketNo || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.vehicleRegistration || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.origin || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.destination || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.waybillNumber || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.storageLocation || "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem" }}>
-                    {r.deliveryStatus ? <DeliveryStatusBadge status={r.deliveryStatus} /> : "—"}
+                    {r.destination ? <p style={{ fontWeight: 500 }}>{r.destination}</p> : "—"}
+                    {r.customerRef && <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>Ref: {r.customerRef}</p>}
                   </td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.weightTonnes ?? "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.storageLocation || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.waybillNumber || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.vehicleRegistration || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem" }}>{r.deliveryStatus ? <StatusBadge status={r.deliveryStatus} /> : "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmtCost(r.costPence)}</td>
                   <td style={{ padding: "0.5rem" }}>
                     <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                       {!r.deliveryConfirmedAt && r.deliveryStatus !== "cancelled" && (
-                        <button onClick={() => confirmMut.mutate(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#16a34a", padding: 4 }} title="Confirm delivery received"><CheckCircle2 size={14} /></button>
+                        <button
+                          onClick={() => { setConfirmId(r.id); setConfirmForm({ confirmedBy: "", notes: "" }); }}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#16a34a", padding: 4 }}
+                          title="Confirm dispatch & deduct stock"
+                        ><CheckCircle2 size={14} /></button>
                       )}
                       {r.deliveryConfirmedAt && (
-                        <span title={`Confirmed ${new Date(r.deliveryConfirmedAt).toLocaleDateString("en-GB")}${r.deliveryConfirmedBy ? ` by ${r.deliveryConfirmedBy}` : ""}`} style={{ color: "#16a34a", padding: 4, lineHeight: 1, display: "inline-flex" }}><CheckCircle2 size={14} /></span>
+                        <span title={`Confirmed ${new Date(r.deliveryConfirmedAt).toLocaleDateString("en-GB")}${r.deliveryConfirmedBy ? ` by ${r.deliveryConfirmedBy}` : ""}`} style={{ color: "#16a34a", padding: 4, display: "inline-flex" }}><CheckCircle2 size={14} /></span>
                       )}
                       <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
+                      <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
                       <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                     </div>
                   </td>
@@ -196,68 +268,96 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
+      {/* Confirm Dispatch Dialog */}
+      <Dialog open={confirmId !== null} onOpenChange={o => { if (!o) setConfirmId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader><DialogTitle>Confirm Dispatch</DialogTitle></DialogHeader>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+            Confirming this dispatch will deduct the recorded tonnage from the source bin stock level. This cannot be undone.
+          </p>
+          <div className="space-y-3 mt-2">
+            <div><Label>Confirmed By</Label><Input placeholder="Your name" value={confirmForm.confirmedBy} onChange={e => setConfirmForm(f => ({ ...f, confirmedBy: e.target.value }))} /></div>
+            <div><Label>Notes (optional)</Label><Textarea rows={2} value={confirmForm.notes} onChange={e => setConfirmForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setConfirmId(null)}>Cancel</Button>
+            <Button
+              style={{ background: "#16a34a", color: "#fff" }}
+              onClick={() => confirmId !== null && confirmMut.mutate({ id: confirmId, body: confirmForm })}
+              disabled={confirmMut.isPending}
+            >
+              {confirmMut.isPending ? "Confirming…" : "Confirm Dispatch"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Dialog */}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: 600 }}>
-            <DialogHeader><DialogTitle>Haulage Record</DialogTitle></DialogHeader>
-            {(() => {
-              const r = viewRecord;
-              const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
-              const fmtCost = (p: number | null) => p != null ? `£${(p / 100).toFixed(2)}` : null;
-              const F = ({ label, value }: { label: string; value?: string | null }) => (
-                <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
-                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
-              );
-              return (
-                <div style={{ display: "grid", gap: 14 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                    <F label="Date" value={fmt(r.departureDate)} />
-                    <F label="Load Type" value={r.loadType} />
-                    <F label="Status" value={r.deliveryStatus} />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                    <F label="Commodity" value={r.commodity || r.loadDescription} />
-                    <F label="Variety" value={r.variety} />
-                    <F label="Grade" value={r.grade} />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                    <F label="Weight (t)" value={r.weightTonnes != null ? String(r.weightTonnes) : null} />
-                    <F label="Moisture %" value={r.moisturePercent != null ? `${r.moisturePercent}%` : null} />
-                    <F label="Sp. Weight (kg/hl)" value={r.specificWeightKgHl != null ? String(r.specificWeightKgHl) : null} />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <F label="Weighbridge Ticket" value={r.weighbridgeTicketNo} />
-                    <F label="Vehicle Reg." value={r.vehicleRegistration} />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <F label="Origin" value={r.origin} />
-                    <F label="Destination" value={r.destination} />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                    <F label="Waybill Number" value={r.waybillNumber} />
-                    <F label="Storage Location" value={r.storageLocation} />
-                    <F label="Cost" value={fmtCost(r.costPence)} />
-                  </div>
-                  {r.notes && <F label="Notes" value={r.notes} />}
+            <DialogHeader><DialogTitle>Dispatch Record</DialogTitle></DialogHeader>
+            <div style={{ display: "grid", gap: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                <F label="Departure Date" value={fmt(viewRecord.departureDate)} />
+                <F label="Load Type" value={viewRecord.loadType} />
+                <F label="Status" value={viewRecord.deliveryStatus} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                <F label="Commodity" value={viewRecord.commodity || viewRecord.loadDescription} />
+                <F label="Variety" value={viewRecord.variety} />
+                <F label="Grade" value={viewRecord.grade} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                <F label="Weight (t)" value={viewRecord.weightTonnes != null ? String(viewRecord.weightTonnes) : null} />
+                <F label="Moisture %" value={viewRecord.moisturePercent != null ? `${viewRecord.moisturePercent}%` : null} />
+                <F label="Sp. Weight (kg/hl)" value={viewRecord.specificWeightKgHl != null ? String(viewRecord.specificWeightKgHl) : null} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <F label="Buyer / Destination" value={viewRecord.destination} />
+                <F label="Customer Ref" value={viewRecord.customerRef} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <F label="Source Bin / Store" value={viewRecord.storageLocation} />
+                <F label="Weighbridge Ticket" value={viewRecord.weighbridgeTicketNo} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                <F label="Vehicle Reg." value={viewRecord.vehicleRegistration} />
+                <F label="Driver" value={viewRecord.driverName} />
+                <F label="Haulier" value={viewRecord.haulierCompany} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <F label="Waybill" value={viewRecord.waybillNumber} />
+                <F label="Cost" value={fmtCost(viewRecord.costPence)} />
+              </div>
+              {viewRecord.deliveryConfirmedAt && (
+                <div style={{ background: "#dcfce7", borderRadius: 8, padding: 10, display: "flex", gap: 8, alignItems: "center" }}>
+                  <CheckCircle2 size={16} style={{ color: "#16a34a", flexShrink: 0 }} />
+                  <p style={{ fontSize: "0.875rem", color: "#166534" }}>
+                    Dispatch confirmed {fmt(viewRecord.deliveryConfirmedAt)}{viewRecord.deliveryConfirmedBy ? ` by ${viewRecord.deliveryConfirmedBy}` : ""}. Stock deducted from bin.
+                  </p>
                 </div>
-              );
-            })()}
+              )}
+              {viewRecord.notes && <F label="Notes" value={viewRecord.notes} />}
+            </div>
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
-              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Record</Button>
+              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
+      {/* Add / Edit Dialog */}
       <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
-        <DialogContent style={{ maxWidth: 640 }}>
-          <DialogHeader><DialogTitle>{editRecord ? "Edit Haulage Record" : "Add Movement Record"}</DialogTitle></DialogHeader>
+        <DialogContent style={{ maxWidth: 680, maxHeight: "90vh", overflowY: "auto" }}>
+          <DialogHeader><DialogTitle>{editRecord ? "Edit Dispatch" : "Record Dispatch"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Departure Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.departureDate} onChange={e => setForm((f: any) => ({ ...f, departureDate: e.target.value }))} /></div>
-              <div><Label>Arrival Date</Label><Input type="date" value={form.arrivalDate} onChange={e => setForm((f: any) => ({ ...f, arrivalDate: e.target.value }))} /></div>
+              <div><Label>Arrival / Expected Date</Label><Input type="date" value={form.arrivalDate} onChange={e => setForm((f: any) => ({ ...f, arrivalDate: e.target.value }))} /></div>
             </div>
+
             <div className="grid grid-cols-3 gap-3">
               <div><Label>Load Type <span style={{ color: "#ef4444" }}>*</span></Label>
                 <Select value={form.loadType} onValueChange={v => setForm((f: any) => ({ ...f, loadType: v }))}>
@@ -266,17 +366,18 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div><Label>Weight (tonnes)</Label><Input type="number" step="0.01" min="0" value={form.weightTonnes} onChange={e => setForm((f: any) => ({ ...f, weightTonnes: e.target.value }))} /></div>
-              <div><Label>Delivery Status</Label>
+              <div><Label>Status</Label>
                 <Select value={form.deliveryStatus} onValueChange={v => setForm((f: any) => ({ ...f, deliveryStatus: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>{DELIVERY_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{DISPATCH_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>
 
-            {(form.loadType === "Grain" || GRAIN_COMMODITIES.includes(form.commodity)) && (
+            {/* Grain-specific quality fields */}
+            {isGrain(form) && (
               <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "0.75rem" }}>
-                <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Grain Quality Details</p>
+                <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Crop Quality</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Commodity</Label>
                     <Select value={form.commodity} onValueChange={v => setForm((f: any) => ({ ...f, commodity: v }))}>
@@ -288,51 +389,70 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
                 </div>
                 <div className="grid grid-cols-3 gap-3" style={{ marginTop: "0.75rem" }}>
                   <div><Label>Grade</Label><Input placeholder="e.g. Group 1, Feed" value={form.grade} onChange={e => setForm((f: any) => ({ ...f, grade: e.target.value }))} /></div>
-                  <div><Label>Moisture (%)</Label><Input type="number" step="0.1" min="0" max="40" placeholder="e.g. 14.5" value={form.moisturePercent} onChange={e => setForm((f: any) => ({ ...f, moisturePercent: e.target.value }))} /></div>
-                  <div><Label>Specific Weight (kg/hl)</Label><Input type="number" step="0.1" min="0" placeholder="e.g. 76.0" value={form.specificWeightKgHl} onChange={e => setForm((f: any) => ({ ...f, specificWeightKgHl: e.target.value }))} /></div>
+                  <div><Label>Moisture (%)</Label><Input type="number" step="0.1" min="0" max="40" value={form.moisturePercent} onChange={e => setForm((f: any) => ({ ...f, moisturePercent: e.target.value }))} /></div>
+                  <div><Label>Sp. Weight (kg/hl)</Label><Input type="number" step="0.1" min="0" value={form.specificWeightKgHl} onChange={e => setForm((f: any) => ({ ...f, specificWeightKgHl: e.target.value }))} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3" style={{ marginTop: "0.75rem" }}>
                   <div><Label>Weighbridge Ticket No.</Label><Input placeholder="e.g. WB-2025-00123" value={form.weighbridgeTicketNo} onChange={e => setForm((f: any) => ({ ...f, weighbridgeTicketNo: e.target.value }))} style={{ fontFamily: "monospace" }} /></div>
-                  <div><Label>Storage Location</Label><Input placeholder="e.g. Barn 2, Bay 3 / Saxham Silos" value={form.storageLocation} onChange={e => setForm((f: any) => ({ ...f, storageLocation: e.target.value }))} /></div>
+                  <div><Label>Source Bin / Store Location</Label><BinSelect farmId={farmId} value={form.binId} onChange={(id, name) => setForm((f: any) => ({ ...f, binId: id, storageLocation: name }))} /></div>
                 </div>
               </div>
             )}
 
-            {form.loadType !== "Grain" && (
-              <div><Label>Load Description</Label><Input placeholder="e.g. Baled barley straw — 200 bales" value={form.loadDescription} onChange={e => setForm((f: any) => ({ ...f, loadDescription: e.target.value }))} /></div>
+            {!isGrain(form) && (
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Load Description</Label><Input placeholder="e.g. 200 bales barley straw" value={form.loadDescription} onChange={e => setForm((f: any) => ({ ...f, loadDescription: e.target.value }))} /></div>
+                <div><Label>Source Bin / Store</Label><BinSelect farmId={farmId} value={form.binId} onChange={(id, name) => setForm((f: any) => ({ ...f, binId: id, storageLocation: name }))} /></div>
+              </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Vehicle Registration</Label><Input placeholder="e.g. AB12 CDE" value={form.vehicleRegistration} onChange={e => setForm((f: any) => ({ ...f, vehicleRegistration: e.target.value }))} /></div>
-              <div><Label>Driver Name</Label><Input value={form.driverName} onChange={e => setForm((f: any) => ({ ...f, driverName: e.target.value }))} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Haulier Company</Label>
-                {hauliers.length > 0 ? (
-                  <Select value={form.haulierCompany} onValueChange={v => setForm((f: any) => ({ ...f, haulierCompany: v === "__none__" ? "" : v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select or type below..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— None —</SelectItem>
-                      {hauliers.map((h: any) => <SelectItem key={h.id} value={h.companyName}>{h.companyName}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input placeholder="Haulier company name" value={form.haulierCompany} onChange={e => setForm((f: any) => ({ ...f, haulierCompany: e.target.value }))} />
-                )}
+            {/* Buyer / customer */}
+            <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "0.75rem" }}>
+              <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Buyer / Customer</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Buyer / Merchant</Label><BuyerSelect farmId={farmId} valueId={form.buyerId} valueName={form.buyerName} onChange={(id, name) => setForm((f: any) => ({ ...f, buyerId: id, buyerName: name, destination: name || f.destination }))} /></div>
+                <div><Label>Customer Reference</Label><Input placeholder="Contract / order ref" value={form.customerRef} onChange={e => setForm((f: any) => ({ ...f, customerRef: e.target.value }))} /></div>
               </div>
-              <div><Label>Waybill / Ref No.</Label><Input value={form.waybillNumber} onChange={e => setForm((f: any) => ({ ...f, waybillNumber: e.target.value }))} /></div>
+              <div className="grid grid-cols-1 gap-3" style={{ marginTop: "0.75rem" }}>
+                <div><Label>Destination (merchant store / location)</Label><Input placeholder="e.g. Gleadell Agriculture Ltd — Bury St Edmunds" value={form.destination} onChange={e => setForm((f: any) => ({ ...f, destination: e.target.value }))} /></div>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Origin</Label><Input placeholder="e.g. Home Farm" value={form.origin} onChange={e => setForm((f: any) => ({ ...f, origin: e.target.value }))} /></div>
-              <div><Label>Destination</Label><Input placeholder="e.g. Grain store, Huntingdon" value={form.destination} onChange={e => setForm((f: any) => ({ ...f, destination: e.target.value }))} /></div>
+
+            {/* Transport */}
+            <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "0.75rem" }}>
+              <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Transport</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Vehicle Registration</Label><Input placeholder="e.g. AB12 CDE" value={form.vehicleRegistration} onChange={e => setForm((f: any) => ({ ...f, vehicleRegistration: e.target.value }))} /></div>
+                <div><Label>Driver Name</Label><Input value={form.driverName} onChange={e => setForm((f: any) => ({ ...f, driverName: e.target.value }))} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3" style={{ marginTop: "0.75rem" }}>
+                <div><Label>Haulier Company</Label>
+                  {hauliers.length > 0 ? (
+                    <Select value={form.haulierCompany || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, haulierCompany: v === "__none__" ? "" : v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select haulier..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— None —</SelectItem>
+                        {hauliers.map((h: any) => <SelectItem key={h.id} value={h.companyName}>{h.companyName}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input placeholder="Haulier company name" value={form.haulierCompany} onChange={e => setForm((f: any) => ({ ...f, haulierCompany: e.target.value }))} />
+                  )}
+                </div>
+                <div><Label>Waybill / Docket Ref</Label><Input value={form.waybillNumber} onChange={e => setForm((f: any) => ({ ...f, waybillNumber: e.target.value }))} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3" style={{ marginTop: "0.75rem" }}>
+                <div><Label>Origin (farm / field)</Label><Input placeholder="e.g. Home Farm, Barn 2" value={form.origin} onChange={e => setForm((f: any) => ({ ...f, origin: e.target.value }))} /></div>
+                <div><Label>Haulage Cost (£)</Label><Input type="number" step="0.01" min="0" value={form.costPence} onChange={e => setForm((f: any) => ({ ...f, costPence: e.target.value }))} /></div>
+              </div>
             </div>
-            <div><Label>Cost (£)</Label><Input type="number" step="0.01" min="0" value={form.costPence} onChange={e => setForm((f: any) => ({ ...f, costPence: e.target.value }))} /></div>
+
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
             <Button onClick={() => saveMut.mutate(form)} disabled={!form.departureDate || !form.loadType || saveMut.isPending}>
-              {saveMut.isPending ? "Saving…" : editRecord ? "Save Changes" : "Save Record"}
+              {saveMut.isPending ? "Saving…" : editRecord ? "Save Changes" : "Save Dispatch"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -340,8 +460,8 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
 
       <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
         <DialogContent style={{ maxWidth: 400 }}>
-          <DialogHeader><DialogTitle>Delete Haulage Record</DialogTitle></DialogHeader>
-          <p className="text-sm text-gray-600 py-2">Are you sure you want to delete this haulage record?</p>
+          <DialogHeader><DialogTitle>Delete Dispatch?</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">This cannot be undone. Any confirmed stock movements will not be reversed.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
@@ -352,172 +472,125 @@ function HaulageRecordsTab({ farmId }: { farmId: number }) {
   );
 }
 
-function GrainPositionTab({ farmId }: { farmId: number }) {
+// ─── On-Farm Transfers Tab ─────────────────────────────────────────────────
+function TransfersTab({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const commodityTypes = useLookupStrings("commodity_types", GRAIN_COMMODITIES);
+  const loadTypes = useLookupStrings("load_types", LOAD_TYPES);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editRecord, setEditRecord] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [confirmForm, setConfirmForm] = useState({ confirmedBy: "", notes: "" });
+
+  const emptyForm = {
+    movementType: "on_farm_transfer",
+    loadType: "Grain",
+    commodity: "", variety: "",
+    binId: null as number | null, fromBinName: "",
+    destinationBinId: null as number | null, toBinName: "",
+    weightTonnes: "", vehicleRegistration: "", driverName: "",
+    departureDate: "", notes: "",
+  };
+  const [form, setForm] = useState<any>(emptyForm);
+
   const q = useQuery({
     queryKey: ["haulage", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/haulage`).then(r => r.json()),
     enabled: !!farmId,
-    select: (d) => (d.records ?? []).filter((r: any) => r.loadType === "Grain" && r.commodity),
+    select: d => (d.records ?? []).filter((r: any) => r.movementType === "on_farm_transfer"),
   });
 
-  const records: any[] = q.data ?? [];
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["haulage", farmId] });
 
-  const position = useMemo(() => {
-    const byComm: Record<string, { commodity: string; varieties: string[]; totalTonnes: number; avgMoisture: number | null; moistureReadings: number[]; deliveredCount: number; pendingCount: number; locations: string[] }> = {};
-    for (const r of records) {
-      const key = r.commodity;
-      if (!byComm[key]) byComm[key] = { commodity: key, varieties: [], totalTonnes: 0, avgMoisture: null, moistureReadings: [], deliveredCount: 0, pendingCount: 0, locations: [] };
-      const entry = byComm[key];
-      if (r.weightTonnes) entry.totalTonnes += parseFloat(r.weightTonnes);
-      if (r.moisturePercent) entry.moistureReadings.push(parseFloat(r.moisturePercent));
-      if (r.deliveryStatus === "delivered") entry.deliveredCount++;
-      else if (r.deliveryStatus === "booked" || r.deliveryStatus === "in-transit") entry.pendingCount++;
-      if (r.variety && !entry.varieties.includes(r.variety)) entry.varieties.push(r.variety);
-      if (r.storageLocation && !entry.locations.includes(r.storageLocation)) entry.locations.push(r.storageLocation);
-    }
-    for (const key in byComm) {
-      const e = byComm[key];
-      if (e.moistureReadings.length > 0) e.avgMoisture = e.moistureReadings.reduce((a, b) => a + b, 0) / e.moistureReadings.length;
-    }
-    return Object.values(byComm).sort((a, b) => b.totalTonnes - a.totalTonnes);
-  }, [records]);
-
-  const totalTonnes = position.reduce((s, p) => s + p.totalTonnes, 0);
-
-  return (
-    <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: "1.5rem" }}>
-        <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ background: "#dcfce7", borderRadius: 8, padding: 8 }}><Wheat size={18} color="#16a34a" /></div>
-          <div><p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Total Tonnage</p><p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{totalTonnes.toFixed(1)}t</p></div>
-        </div>
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ background: "#f3f4f6", borderRadius: 8, padding: 8 }}><BarChart3 size={18} color="#374151" /></div>
-          <div><p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Commodities</p><p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{position.length}</p></div>
-        </div>
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem 1.25rem", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ background: "#f3f4f6", borderRadius: 8, padding: 8 }}><Truck size={18} color="#374151" /></div>
-          <div><p style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: 2 }}>Movements</p><p style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111827" }}>{records.length}</p></div>
-        </div>
-      </div>
-
-      {records.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
-          <Wheat size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
-          <p style={{ fontWeight: 600, color: "#374151" }}>No grain movements recorded</p>
-          <p style={{ fontSize: "0.875rem" }}>Add haulage records with Load Type "Grain" and select a commodity to see your grain position summary here.</p>
-        </div>
-      ) : (
-        <div style={{ display: "grid", gap: 12 }}>
-          {position.map(p => (
-            <div key={p.commodity} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-              <div style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", padding: "0.75rem 1rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Wheat size={15} color="#374151" />
-                  <span style={{ fontWeight: 600, fontSize: "0.9rem", color: "#111827" }}>{p.commodity}</span>
-                  {p.varieties.length > 0 && <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>— {p.varieties.join(", ")}</span>}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  {p.pendingCount > 0 && <Badge style={{ background: "#fef3c7", color: "#92400e", border: "none", fontSize: "0.72rem" }}>{p.pendingCount} in transit</Badge>}
-                  <span style={{ fontSize: "1.125rem", fontWeight: 700, color: "#166534" }}>{p.totalTonnes.toFixed(1)}t</span>
-                </div>
-              </div>
-              <div style={{ padding: "0.75rem 1rem", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "1rem", fontSize: "0.875rem" }}>
-                <div>
-                  <p style={{ fontSize: "0.7rem", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", marginBottom: 2 }}>Delivered</p>
-                  <p style={{ color: "#374151", fontWeight: 500 }}>{p.deliveredCount} load{p.deliveredCount !== 1 ? "s" : ""}</p>
-                </div>
-                <div>
-                  <p style={{ fontSize: "0.7rem", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", marginBottom: 2 }}>Avg Moisture</p>
-                  <p style={{ color: "#374151", fontWeight: 500 }}>{p.avgMoisture !== null ? `${p.avgMoisture.toFixed(1)}%` : "—"}</p>
-                </div>
-                <div>
-                  <p style={{ fontSize: "0.7rem", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", marginBottom: 2 }}>Storage Locations</p>
-                  <p style={{ color: "#374151", fontWeight: 500 }}>{p.locations.length > 0 ? p.locations.join(", ") : "—"}</p>
-                </div>
-                <div>
-                  <p style={{ fontSize: "0.7rem", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", marginBottom: 2 }}>% of Total</p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ flex: 1, background: "#e5e7eb", borderRadius: 999, height: 6 }}>
-                      <div style={{ background: "#16a34a", borderRadius: 999, height: 6, width: `${totalTonnes > 0 ? (p.totalTonnes / totalTonnes) * 100 : 0}%` }} />
-                    </div>
-                    <span style={{ fontWeight: 500, color: "#374151", fontSize: "0.8rem" }}>{totalTonnes > 0 ? ((p.totalTonnes / totalTonnes) * 100).toFixed(0) : 0}%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function HaulierDirectoryTab({ farmId }: { farmId: number }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [addOpen, setAddOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState<any>({ companyName: "", contactName: "", phone: "", email: "", address: "", vehicleTypes: "", operatorLicence: "", notes: "" });
-
-  const q = useQuery({
-    queryKey: ["hauliers", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/hauliers`).then(r => r.json()),
-    enabled: !!farmId,
-    select: (d) => d.records ?? [],
-  });
-
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["hauliers", farmId] });
-
-  const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/hauliers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Haulier added" }); invalidate(); setAddOpen(false); resetForm(); },
+  const saveMut = useMutation({
+    mutationFn: (body: any) => {
+      const payload = {
+        ...body,
+        movementType: "on_farm_transfer",
+        weightTonnes: body.weightTonnes || null,
+        binId: body.binId || null,
+        destinationBinId: body.destinationBinId || null,
+        deliveryStatus: "booked",
+      };
+      if (editRecord) return fetch(`/api/farms/${farmId}/haulage/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      return fetch(`/api/farms/${farmId}/haulage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    },
+    onSuccess: () => { toast({ title: editRecord ? "Transfer updated" : "Transfer recorded" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(emptyForm); },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/hauliers/${id}`, { method: "DELETE" }),
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulage/${id}`, { method: "DELETE" }),
     onSuccess: () => { toast({ title: "Deleted" }); invalidate(); setDeleteId(null); },
-    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
-  const resetForm = () => setForm({ companyName: "", contactName: "", phone: "", email: "", address: "", vehicleTypes: "", operatorLicence: "", notes: "" });
+  const confirmMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: any }) =>
+      fetch(`/api/farms/${farmId}/haulage/${id}/confirm-dispatch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSuccess: () => { toast({ title: "Transfer confirmed — stock moved between bins" }); invalidate(); setConfirmId(null); setConfirmForm({ confirmedBy: "", notes: "" }); },
+    onError: () => toast({ title: "Failed to confirm transfer", variant: "destructive" }),
+  });
+
   const records: any[] = q.data ?? [];
+
+  const openAdd = () => { setEditRecord(null); setForm(emptyForm); setAddOpen(true); };
+  const openEdit = (r: any) => {
+    setEditRecord(r);
+    setForm({ ...r, departureDate: r.departureDate?.slice(0, 10) ?? "" });
+    setAddOpen(true);
+  };
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Approved hauliers used by this farm. Linked automatically when adding movement records.</p>
-        <Button size="sm" onClick={() => { resetForm(); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Haulier</Button>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>On-farm movements between bins or storage locations — stock is deducted from source and added to destination.</p>
+        <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" /><ArrowLeftRight size={14} className="mr-1" />Record Transfer</Button>
       </div>
 
-      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
+      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading…</p> : records.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
-          <Building2 size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
-          <p style={{ fontWeight: 600, color: "#374151" }}>No hauliers in directory</p>
-          <p style={{ fontSize: "0.875rem" }}>Add approved hauliers here to quickly select them when logging movements.</p>
+          <ArrowLeftRight size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>No on-farm transfers recorded</p>
+          <p style={{ fontSize: "0.875rem" }}>Record internal movements of crop between grain bins, stores, or field heaps.</p>
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Company", "Contact", "Phone", "Email", "Vehicle Types", "Operator Licence", ""].map(h => (
-                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
+                {["Date","Commodity","From Bin / Store","To Bin / Store","Weight (t)","Confirmed",""].map(h => (
+                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {records.map((r: any, i: number) => (
                 <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                  <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600 }}>{r.companyName}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.contactName || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.phone || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.email ? <a href={`mailto:${r.email}`} style={{ color: "#2563eb" }}>{r.email}</a> : "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.vehicleTypes || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.operatorLicence || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.departureDate)}</td>
+                  <td style={{ padding: "0.625rem 0.875rem" }}>
+                    <p style={{ fontWeight: 500 }}>{r.commodity || r.loadType || "—"}</p>
+                    {r.variety && <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>{r.variety}</p>}
+                  </td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.storageLocation || r.origin || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.destination || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.weightTonnes ?? "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem" }}>
+                    {r.deliveryConfirmedAt ? (
+                      <span style={{ color: "#16a34a", display: "flex", alignItems: "center", gap: 4, fontSize: "0.8rem" }}>
+                        <CheckCircle2 size={14} /> {new Date(r.deliveryConfirmedAt).toLocaleDateString("en-GB")}
+                      </span>
+                    ) : <span style={{ color: "#d1d5db", fontSize: "0.8rem" }}>Pending</span>}
+                  </td>
                   <td style={{ padding: "0.5rem" }}>
-                    <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      {!r.deliveryConfirmedAt && (
+                        <button onClick={() => { setConfirmId(r.id); setConfirmForm({ confirmedBy: "", notes: "" }); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#16a34a", padding: 4 }} title="Confirm transfer complete"><CheckCircle2 size={14} /></button>
+                      )}
+                      <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}><Pencil size={13} /></button>
+                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}><Trash2 size={14} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -526,37 +599,71 @@ function HaulierDirectoryTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>
-        <DialogContent style={{ maxWidth: 500 }}>
-          <DialogHeader><DialogTitle>Add Haulier to Directory</DialogTitle></DialogHeader>
+      {/* Confirm Transfer Dialog */}
+      <Dialog open={confirmId !== null} onOpenChange={o => { if (!o) setConfirmId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader><DialogTitle>Confirm Transfer Complete</DialogTitle></DialogHeader>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Stock will be deducted from the source bin and added to the destination bin.</p>
+          <div className="space-y-3 mt-2">
+            <div><Label>Confirmed By</Label><Input placeholder="Your name" value={confirmForm.confirmedBy} onChange={e => setConfirmForm(f => ({ ...f, confirmedBy: e.target.value }))} /></div>
+            <div><Label>Notes (optional)</Label><Textarea rows={2} value={confirmForm.notes} onChange={e => setConfirmForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setConfirmId(null)}>Cancel</Button>
+            <Button style={{ background: "#16a34a", color: "#fff" }} onClick={() => confirmId !== null && confirmMut.mutate({ id: confirmId, body: confirmForm })} disabled={confirmMut.isPending}>
+              {confirmMut.isPending ? "Confirming…" : "Confirm Transfer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
+        <DialogContent style={{ maxWidth: 580 }}>
+          <DialogHeader><DialogTitle>{editRecord ? "Edit Transfer" : "Record On-Farm Transfer"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
-            <div><Label>Company Name <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Smith Agricultural Haulage Ltd" value={form.companyName} onChange={e => setForm((f: any) => ({ ...f, companyName: e.target.value }))} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Contact Name</Label><Input value={form.contactName} onChange={e => setForm((f: any) => ({ ...f, contactName: e.target.value }))} /></div>
-              <div><Label>Phone</Label><Input type="tel" value={form.phone} onChange={e => setForm((f: any) => ({ ...f, phone: e.target.value }))} /></div>
+              <div><Label>Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.departureDate} onChange={e => setForm((f: any) => ({ ...f, departureDate: e.target.value }))} /></div>
+              <div><Label>Weight (tonnes) <span style={{ color: "#ef4444" }}>*</span></Label><Input type="number" step="0.01" min="0" value={form.weightTonnes} onChange={e => setForm((f: any) => ({ ...f, weightTonnes: e.target.value }))} /></div>
             </div>
-            <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => setForm((f: any) => ({ ...f, email: e.target.value }))} /></div>
-            <div><Label>Address</Label><Input value={form.address} onChange={e => setForm((f: any) => ({ ...f, address: e.target.value }))} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Vehicle Types</Label><Input placeholder="e.g. Artic, Rigid 7.5t" value={form.vehicleTypes} onChange={e => setForm((f: any) => ({ ...f, vehicleTypes: e.target.value }))} /></div>
-              <div><Label>Operator Licence No.</Label><Input value={form.operatorLicence} onChange={e => setForm((f: any) => ({ ...f, operatorLicence: e.target.value }))} /></div>
+              <div><Label>Commodity</Label>
+                <Select value={form.commodity || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, commodity: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select commodity..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Select —</SelectItem>
+                    {commodityTypes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Variety</Label><Input placeholder="e.g. KWS Zyatt" value={form.variety} onChange={e => setForm((f: any) => ({ ...f, variety: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>From Bin / Store <span style={{ color: "#ef4444" }}>*</span></Label><BinSelect farmId={farmId} value={form.binId} onChange={(id, name) => setForm((f: any) => ({ ...f, binId: id, fromBinName: name, storageLocation: name, origin: name }))} placeholder="Source bin..." /></div>
+              <div><Label>To Bin / Store <span style={{ color: "#ef4444" }}>*</span></Label><BinSelect farmId={farmId} value={form.destinationBinId} onChange={(id, name) => setForm((f: any) => ({ ...f, destinationBinId: id, toBinName: name, destination: name }))} placeholder="Destination bin..." /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Vehicle Reg (if applicable)</Label><Input placeholder="e.g. AB12 CDE" value={form.vehicleRegistration} onChange={e => setForm((f: any) => ({ ...f, vehicleRegistration: e.target.value }))} /></div>
+              <div><Label>Driver / Operator</Label><Input value={form.driverName} onChange={e => setForm((f: any) => ({ ...f, driverName: e.target.value }))} /></div>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={() => createMut.mutate(form)} disabled={!form.companyName || createMut.isPending}>Save Haulier</Button>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
+            <Button onClick={() => saveMut.mutate(form)} disabled={!form.departureDate || !form.weightTonnes || saveMut.isPending}>
+              {saveMut.isPending ? "Saving…" : editRecord ? "Save Changes" : "Save Transfer"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
         <DialogContent style={{ maxWidth: 400 }}>
-          <DialogHeader><DialogTitle>Remove Haulier</DialogTitle></DialogHeader>
-          <p className="text-sm text-gray-600 py-2">Remove this haulier from the directory? Existing movement records will not be affected.</p>
+          <DialogHeader><DialogTitle>Delete Transfer?</DialogTitle></DialogHeader>
+          <p className="text-sm text-gray-600 py-2">This cannot be undone. Confirmed stock movements will not be reversed.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Remove</Button>
+            <Button variant="destructive" onClick={() => deleteId !== null && deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -564,22 +671,193 @@ function HaulierDirectoryTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Grain Position Tab ─────────────────────────────────────────────────────
+function GrainPositionTab({ farmId }: { farmId: number }) {
+  const stockQ = useQuery({
+    queryKey: ["crop-stock-levels", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/crop-stock-levels`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
+
+  // Fallback: calculate from haulage records if stock levels empty
+  const haulageQ = useQuery({
+    queryKey: ["haulage", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/haulage`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => (d.records ?? []).filter((r: any) => r.movementType !== "on_farm_transfer" && r.commodity),
+  });
+
+  const stockLevels: any[] = stockQ.data ?? [];
+  const haulageRecords: any[] = haulageQ.data ?? [];
+
+  const totalStockTonnes = stockLevels.reduce((s, r) => s + parseFloat(r.quantityTonnes ?? "0"), 0);
+  const totalDispatched = haulageRecords.filter(r => r.deliveryConfirmedAt).reduce((s, r) => s + parseFloat(r.weightTonnes ?? "0"), 0);
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: "1.5rem" }}>
+        <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "1rem" }}>
+          <p style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>Live Stock in Store</p>
+          <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#14532d" }}>{totalStockTonnes.toFixed(1)} t</p>
+          <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>across {stockLevels.length} bin/commodity rows</p>
+        </div>
+        <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem" }}>
+          <p style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", color: "#92400e", marginBottom: 4 }}>Total Dispatched (confirmed)</p>
+          <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#78350f" }}>{totalDispatched.toFixed(1)} t</p>
+          <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>from {haulageRecords.filter(r => r.deliveryConfirmedAt).length} dispatch records</p>
+        </div>
+        <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "1rem" }}>
+          <p style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", color: "#1e40af", marginBottom: 4 }}>Pending Dispatches</p>
+          <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#1e3a8a" }}>{haulageRecords.filter(r => !r.deliveryConfirmedAt).reduce((s, r) => s + parseFloat(r.weightTonnes ?? "0"), 0).toFixed(1)} t</p>
+          <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>booked but not yet confirmed</p>
+        </div>
+      </div>
+
+      {stockLevels.length > 0 ? (
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ padding: "0.75rem 1rem", borderBottom: "1px solid #e5e7eb", background: "#f9fafb" }}>
+            <p style={{ fontWeight: 600, color: "#374151", fontSize: "0.875rem" }}>Live Stock Levels</p>
+            <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>Updated automatically when dispatches and transfers are confirmed</p>
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+                {["Commodity","Variety","Crop Year","Quantity (t)","Last Updated"].map(h => (
+                  <th key={h} style={{ padding: "0.625rem 1rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {stockLevels.map((r: any, i: number) => (
+                <tr key={r.id} style={{ borderBottom: i < stockLevels.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                  <td style={{ padding: "0.625rem 1rem", fontWeight: 500 }}>{r.commodity}</td>
+                  <td style={{ padding: "0.625rem 1rem", color: "#6b7280" }}>{r.variety || "—"}</td>
+                  <td style={{ padding: "0.625rem 1rem", color: "#6b7280" }}>{r.cropYear || "—"}</td>
+                  <td style={{ padding: "0.625rem 1rem" }}>
+                    <span style={{ fontWeight: 700, color: parseFloat(r.quantityTonnes) > 0 ? "#16a34a" : "#dc2626" }}>
+                      {parseFloat(r.quantityTonnes ?? "0").toFixed(2)} t
+                    </span>
+                  </td>
+                  <td style={{ padding: "0.625rem 1rem", color: "#6b7280", fontSize: "0.8rem" }}>{fmt(r.lastUpdated)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <Wheat size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>No live stock data yet</p>
+          <p style={{ fontSize: "0.875rem" }}>Stock levels are updated automatically when dispatches and transfers are confirmed. Add harvest-in records via the Crop Stock page to initialise your position.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Haulier Directory Tab ──────────────────────────────────────────────────
+function HaulierDirectoryTab({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
+  const [editHaulier, setEditHaulier] = useState<any | null>(null);
+
+  const empty = { companyName: "", contactName: "", phone: "", email: "", address: "", vehicleTypes: "", operatorLicence: "", notes: "" };
+  const [form, setForm] = useState<any>(empty);
+
+  const q = useQuery({
+    queryKey: ["hauliers", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/hauliers`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
+
+  const saveMut = useMutation({
+    mutationFn: (body: any) => {
+      if (editHaulier) return fetch(`/api/farms/${farmId}/hauliers/${editHaulier.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      return fetch(`/api/farms/${farmId}/hauliers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    },
+    onSuccess: () => { toast({ title: editHaulier ? "Haulier updated" : "Haulier added" }); qc.invalidateQueries({ queryKey: ["hauliers", farmId] }); setAddOpen(false); setEditHaulier(null); setForm(empty); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const records: any[] = q.data ?? [];
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <Button size="sm" onClick={() => { setEditHaulier(null); setForm(empty); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Haulier</Button>
+      </div>
+
+      {records.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <Building2 size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>No hauliers registered</p>
+          <p style={{ fontSize: "0.875rem" }}>Add your approved hauliers to select them quickly when recording dispatches.</p>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 10 }}>
+          {records.map((h: any) => (
+            <div key={h.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <p style={{ fontWeight: 600, color: "#111827" }}>{h.companyName}</p>
+                {h.contactName && <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>{h.contactName}</p>}
+                <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
+                  {h.phone && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>{h.phone}</p>}
+                  {h.email && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>{h.email}</p>}
+                  {h.operatorLicence && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>Licence: {h.operatorLicence}</p>}
+                </div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => { setEditHaulier(h); setForm({ ...h }); setAddOpen(true); }}><Pencil size={14} /></Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditHaulier(null); setForm(empty); } }}>
+        <DialogContent style={{ maxWidth: 500 }}>
+          <DialogHeader><DialogTitle>{editHaulier ? "Edit Haulier" : "Add Haulier"}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><Label>Company Name <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Smith Agricultural Haulage Ltd" value={form.companyName} onChange={e => setForm((f: any) => ({ ...f, companyName: e.target.value }))} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Contact Name</Label><Input value={form.contactName} onChange={e => setForm((f: any) => ({ ...f, contactName: e.target.value }))} /></div>
+              <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm((f: any) => ({ ...f, phone: e.target.value }))} /></div>
+            </div>
+            <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => setForm((f: any) => ({ ...f, email: e.target.value }))} /></div>
+            <div><Label>Operator Licence No.</Label><Input value={form.operatorLicence} onChange={e => setForm((f: any) => ({ ...f, operatorLicence: e.target.value }))} /></div>
+            <div><Label>Vehicle Types</Label><Input placeholder="e.g. Articulated tipper, grain trailer" value={form.vehicleTypes} onChange={e => setForm((f: any) => ({ ...f, vehicleTypes: e.target.value }))} /></div>
+            <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditHaulier(null); setForm(empty); }}>Cancel</Button>
+            <Button onClick={() => saveMut.mutate(form)} disabled={!form.companyName || saveMut.isPending}>
+              {saveMut.isPending ? "Saving…" : editHaulier ? "Save Changes" : "Add Haulier"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Page Shell ─────────────────────────────────────────────────────────────
 export default function HaulagePageFull() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("records");
+  const [tab, setTab] = useState<Tab>("dispatches");
 
   return (
     <AppLayout title="Haulage & Transport">
-      <div style={{ maxWidth: 1300, margin: "0 auto" }}>
-        <p className="text-sm text-gray-500 mb-4">
-          Record commodity movements for traceability. View your grain position by commodity. Manage approved hauliers in the directory for quick selection.
-        </p>
-        <TabBar className="mb-6">
-          <TabButton active={tab === "records"} onClick={() => setTab("records")}>Movement Records</TabButton>
-          <TabButton active={tab === "grain-position"} onClick={() => setTab("grain-position")}>Grain Position</TabButton>
-          <TabButton active={tab === "directory"} onClick={() => setTab("directory")}>Haulier Directory</TabButton>
-        </TabBar>
-        {farmId && tab === "records" && <HaulageRecordsTab farmId={farmId} />}
+      <TabBar>
+        <TabButton active={tab === "dispatches"} onClick={() => setTab("dispatches")}><ArrowUpRight size={14} className="mr-1" />Dispatches</TabButton>
+        <TabButton active={tab === "transfers"} onClick={() => setTab("transfers")}><ArrowLeftRight size={14} className="mr-1" />On-Farm Transfers</TabButton>
+        <TabButton active={tab === "grain-position"} onClick={() => setTab("grain-position")}><Wheat size={14} className="mr-1" />Grain Position</TabButton>
+        <TabButton active={tab === "directory"} onClick={() => setTab("directory")}><Building2 size={14} className="mr-1" />Haulier Directory</TabButton>
+      </TabBar>
+
+      <div style={{ marginTop: 20 }}>
+        {farmId && tab === "dispatches" && <DispatchesTab farmId={farmId} />}
+        {farmId && tab === "transfers" && <TransfersTab farmId={farmId} />}
         {farmId && tab === "grain-position" && <GrainPositionTab farmId={farmId} />}
         {farmId && tab === "directory" && <HaulierDirectoryTab farmId={farmId} />}
       </div>
