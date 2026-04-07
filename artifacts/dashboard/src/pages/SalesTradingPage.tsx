@@ -423,6 +423,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
   const [openMart, setOpenMart] = useState(false);
   const [editingMart, setEditingMart] = useState<any | null>(null);
   const [deleteMartId, setDeleteMartId] = useState<number | null>(null);
+  const [lsYearFilter, setLsYearFilter] = useState("__all__");
 
   const emptyDW = {
     killDate: "", processorId: null as number | null, processor: "", species: "", breed: "", headCount: "",
@@ -510,8 +511,14 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
     });
   };
 
-  const dwTotal = dwRecords.reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0);
-  const martTotal = martRecords.reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0);
+  const lsYears = [...new Set<string>([
+    ...dwRecords.map((r: any) => r.killDate ? new Date(r.killDate).getFullYear().toString() : null),
+    ...martRecords.map((r: any) => r.saleDate ? new Date(r.saleDate).getFullYear().toString() : null),
+  ].filter(Boolean) as string[])].sort().reverse();
+  const filteredDW = lsYearFilter === "__all__" ? dwRecords : dwRecords.filter((r: any) => r.killDate && new Date(r.killDate).getFullYear().toString() === lsYearFilter);
+  const filteredMart = lsYearFilter === "__all__" ? martRecords : martRecords.filter((r: any) => r.saleDate && new Date(r.saleDate).getFullYear().toString() === lsYearFilter);
+  const dwTotal = filteredDW.reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0);
+  const martTotal = filteredMart.reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0);
 
   return (
     <div>
@@ -531,14 +538,20 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
         </div>
       </div>
 
-      {/* Sub-tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <button onClick={() => setSubTab("deadweight")} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid", borderColor: subTab === "deadweight" ? "#15803d" : "#d1d5db", background: subTab === "deadweight" ? "#15803d" : "#fff", color: subTab === "deadweight" ? "#fff" : "#374151", fontWeight: 600, cursor: "pointer", fontSize: "0.875rem" }}>
-          Deadweight / Kill Sheets
-        </button>
-        <button onClick={() => setSubTab("mart")} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid", borderColor: subTab === "mart" ? "#2563eb" : "#d1d5db", background: subTab === "mart" ? "#2563eb" : "#fff", color: subTab === "mart" ? "#fff" : "#374151", fontWeight: 600, cursor: "pointer", fontSize: "0.875rem" }}>
-          Mart / Auction Sales
-        </button>
+      {/* Sub-tabs + year filter */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setSubTab("deadweight")} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid", borderColor: subTab === "deadweight" ? "#15803d" : "#d1d5db", background: subTab === "deadweight" ? "#15803d" : "#fff", color: subTab === "deadweight" ? "#fff" : "#374151", fontWeight: 600, cursor: "pointer", fontSize: "0.875rem" }}>
+            Deadweight / Kill Sheets
+          </button>
+          <button onClick={() => setSubTab("mart")} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid", borderColor: subTab === "mart" ? "#2563eb" : "#d1d5db", background: subTab === "mart" ? "#2563eb" : "#fff", color: subTab === "mart" ? "#fff" : "#374151", fontWeight: 600, cursor: "pointer", fontSize: "0.875rem" }}>
+            Mart / Auction Sales
+          </button>
+        </div>
+        <select value={lsYearFilter} onChange={e => setLsYearFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff", cursor: "pointer" }}>
+          <option value="__all__">All Years</option>
+          {lsYears.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
       </div>
 
       {subTab === "deadweight" && (
@@ -557,8 +570,8 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
               </tr>
             </thead>
             <tbody>
-              {dwRecords.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>No kill sheets yet</td></tr>}
-              {dwRecords.map((r: any) => (
+              {filteredDW.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{dwRecords.length === 0 ? "No kill sheets yet" : `No kill sheets for ${lsYearFilter}`}</td></tr>}
+              {filteredDW.map((r: any) => (
                 <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "8px 12px" }}>{fmtDate(r.killDate)}</td>
                   <td style={{ padding: "8px 12px", fontWeight: 500 }}>{r.processor}</td>
@@ -598,8 +611,8 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
               </tr>
             </thead>
             <tbody>
-              {martRecords.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>No mart sales yet</td></tr>}
-              {martRecords.map((r: any) => (
+              {filteredMart.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{martRecords.length === 0 ? "No mart sales yet" : `No mart sales for ${lsYearFilter}`}</td></tr>}
+              {filteredMart.map((r: any) => (
                 <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "8px 12px" }}>{fmtDate(r.saleDate)}</td>
                   <td style={{ padding: "8px 12px", fontWeight: 500 }}>{r.martName}</td>
@@ -789,6 +802,7 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [milkYearFilter, setMilkYearFilter] = useState("__all__");
 
   const empty = {
     statementMonth: "", buyerId: null as number | null, buyer: "", cphNumber: "", litresSupplied: "", pencePerLitre: "",
@@ -842,9 +856,11 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
     });
   };
 
-  const totalLitres = records.reduce((s: number, r: any) => s + parseFloat(r.litresSupplied ?? "0"), 0);
-  const totalNet = records.reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0);
-  const avgPpl = records.length > 0 ? records.reduce((s: number, r: any) => s + parseFloat(r.pencePerLitre ?? "0"), 0) / records.length : 0;
+  const milkYears = [...new Set<string>(records.map((r: any) => r.statementMonth ? new Date(r.statementMonth).getFullYear().toString() : null).filter(Boolean) as string[])].sort().reverse();
+  const filteredMilk = milkYearFilter === "__all__" ? records : records.filter((r: any) => r.statementMonth && new Date(r.statementMonth).getFullYear().toString() === milkYearFilter);
+  const totalLitres = filteredMilk.reduce((s: number, r: any) => s + parseFloat(r.litresSupplied ?? "0"), 0);
+  const totalNet = filteredMilk.reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0);
+  const avgPpl = filteredMilk.length > 0 ? filteredMilk.reduce((s: number, r: any) => s + parseFloat(r.pencePerLitre ?? "0"), 0) / filteredMilk.length : 0;
 
   return (
     <div>
@@ -863,9 +879,15 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
             <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "#6d28d9" }}>{avgPpl > 0 ? `${avgPpl.toFixed(2)}p` : "—"}</div>
           </div>
         </div>
-        <Button onClick={() => { setEditing(null); setForm(empty); setOpen(true); }} style={{ background: "#1d4ed8", color: "#fff" }}>
-          <Plus size={16} style={{ marginRight: 6 }} /> Add Milk Statement
-        </Button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select value={milkYearFilter} onChange={e => setMilkYearFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff", cursor: "pointer" }}>
+            <option value="__all__">All Years</option>
+            {milkYears.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <Button onClick={() => { setEditing(null); setForm(empty); setOpen(true); }} style={{ background: "#1d4ed8", color: "#fff" }}>
+            <Plus size={16} style={{ marginRight: 6 }} /> Add Milk Statement
+          </Button>
+        </div>
       </div>
 
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
@@ -877,8 +899,8 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
           </tr>
         </thead>
         <tbody>
-          {records.length === 0 && <tr><td colSpan={9} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>No milk statements yet</td></tr>}
-          {records.map((r: any) => {
+          {filteredMilk.length === 0 && <tr><td colSpan={9} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{records.length === 0 ? "No milk statements yet" : `No milk statements for ${milkYearFilter}`}</td></tr>}
+          {filteredMilk.map((r: any) => {
             const sccWarning = r.scc && parseInt(r.scc) > 200;
             return (
               <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
@@ -977,6 +999,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
   const [editingEgg, setEditingEgg] = useState<any | null>(null);
   const [deleteBatchId, setDeleteBatchId] = useState<number | null>(null);
   const [deleteEggId, setDeleteEggId] = useState<number | null>(null);
+  const [poultryYearFilter, setPoultryYearFilter] = useState("__all__");
 
   const emptyBatch = {
     flockRef: "", integratorId: null as number | null, integratorName: "", species: "broiler", placementDate: "", catchDate: "",
@@ -1054,8 +1077,14 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
     });
   };
 
-  const batchTotal = batchRecords.reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0);
-  const eggTotal = eggRecords.reduce((s: number, r: any) => s + (r.netValuePence ?? r.grossValuePence ?? 0), 0);
+  const poultryYears = [...new Set<string>([
+    ...batchRecords.map((r: any) => r.catchDate ? new Date(r.catchDate).getFullYear().toString() : null),
+    ...eggRecords.map((r: any) => r.weekEnding ? new Date(r.weekEnding).getFullYear().toString() : null),
+  ].filter(Boolean) as string[])].sort().reverse();
+  const filteredBatch = poultryYearFilter === "__all__" ? batchRecords : batchRecords.filter((r: any) => r.catchDate && new Date(r.catchDate).getFullYear().toString() === poultryYearFilter);
+  const filteredEgg = poultryYearFilter === "__all__" ? eggRecords : eggRecords.filter((r: any) => r.weekEnding && new Date(r.weekEnding).getFullYear().toString() === poultryYearFilter);
+  const batchTotal = filteredBatch.reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0);
+  const eggTotal = filteredEgg.reduce((s: number, r: any) => s + (r.netValuePence ?? r.grossValuePence ?? 0), 0);
 
   return (
     <div>
@@ -1070,9 +1099,15 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <button onClick={() => setSubTab("batch")} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid", borderColor: subTab === "batch" ? "#b45309" : "#d1d5db", background: subTab === "batch" ? "#b45309" : "#fff", color: subTab === "batch" ? "#fff" : "#374151", fontWeight: 600, cursor: "pointer", fontSize: "0.875rem" }}>Broiler / Turkey Batches</button>
-        <button onClick={() => setSubTab("eggs")} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid", borderColor: subTab === "eggs" ? "#ea580c" : "#d1d5db", background: subTab === "eggs" ? "#ea580c" : "#fff", color: subTab === "eggs" ? "#fff" : "#374151", fontWeight: 600, cursor: "pointer", fontSize: "0.875rem" }}>Egg Sales</button>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setSubTab("batch")} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid", borderColor: subTab === "batch" ? "#b45309" : "#d1d5db", background: subTab === "batch" ? "#b45309" : "#fff", color: subTab === "batch" ? "#fff" : "#374151", fontWeight: 600, cursor: "pointer", fontSize: "0.875rem" }}>Broiler / Turkey Batches</button>
+          <button onClick={() => setSubTab("eggs")} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid", borderColor: subTab === "eggs" ? "#ea580c" : "#d1d5db", background: subTab === "eggs" ? "#ea580c" : "#fff", color: subTab === "eggs" ? "#fff" : "#374151", fontWeight: 600, cursor: "pointer", fontSize: "0.875rem" }}>Egg Sales</button>
+        </div>
+        <select value={poultryYearFilter} onChange={e => setPoultryYearFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff", cursor: "pointer" }}>
+          <option value="__all__">All Years</option>
+          {poultryYears.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
       </div>
 
       {subTab === "batch" && (
@@ -1089,8 +1124,8 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
               </tr>
             </thead>
             <tbody>
-              {batchRecords.length === 0 && <tr><td colSpan={11} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>No batch settlements yet</td></tr>}
-              {batchRecords.map((r: any) => (
+              {filteredBatch.length === 0 && <tr><td colSpan={11} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{batchRecords.length === 0 ? "No batch settlements yet" : `No batch settlements for ${poultryYearFilter}`}</td></tr>}
+              {filteredBatch.map((r: any) => (
                 <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "8px 10px", fontWeight: 500 }}>{r.flockRef}</td>
                   <td style={{ padding: "8px 10px" }}>{r.integratorName}</td>
@@ -1129,8 +1164,8 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
               </tr>
             </thead>
             <tbody>
-              {eggRecords.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>No egg sales yet</td></tr>}
-              {eggRecords.map((r: any) => (
+              {filteredEgg.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{eggRecords.length === 0 ? "No egg sales yet" : `No egg sales for ${poultryYearFilter}`}</td></tr>}
+              {filteredEgg.map((r: any) => (
                 <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "8px 10px" }}>{fmtDate(r.weekEnding)}</td>
                   <td style={{ padding: "8px 10px" }}>{r.salesChannel}</td>
@@ -1308,6 +1343,7 @@ function PigSalesTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [pigYearFilter, setPigYearFilter] = useState("__all__");
 
   const empty = {
     killDate: "", processorId: null as number | null, processor: "", headCount: "", totalDeadweightKg: "", averageDeadweightKg: "",
@@ -1359,9 +1395,11 @@ function PigSalesTab({ farmId }: { farmId: number }) {
     });
   };
 
-  const totalNet = records.reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0);
-  const totalHead = records.reduce((s: number, r: any) => s + (r.headCount ?? 0), 0);
-  const avgP2 = records.length > 0 ? records.reduce((s: number, r: any) => s + parseFloat(r.averageP2BackfatMm ?? "0"), 0) / records.filter((r: any) => r.averageP2BackfatMm).length : 0;
+  const pigYears = [...new Set<string>(records.map((r: any) => r.killDate ? new Date(r.killDate).getFullYear().toString() : null).filter(Boolean) as string[])].sort().reverse();
+  const filteredPig = pigYearFilter === "__all__" ? records : records.filter((r: any) => r.killDate && new Date(r.killDate).getFullYear().toString() === pigYearFilter);
+  const totalNet = filteredPig.reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0);
+  const totalHead = filteredPig.reduce((s: number, r: any) => s + (r.headCount ?? 0), 0);
+  const avgP2 = filteredPig.filter((r: any) => r.averageP2BackfatMm).length > 0 ? filteredPig.reduce((s: number, r: any) => s + parseFloat(r.averageP2BackfatMm ?? "0"), 0) / filteredPig.filter((r: any) => r.averageP2BackfatMm).length : 0;
 
   return (
     <div>
@@ -1382,9 +1420,15 @@ function PigSalesTab({ farmId }: { farmId: number }) {
             </div>
           )}
         </div>
-        <Button onClick={() => { setEditing(null); setForm(empty); setOpen(true); }} style={{ background: "#86198f", color: "#fff" }}>
-          <Plus size={16} style={{ marginRight: 6 }} /> Add Kill Record
-        </Button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select value={pigYearFilter} onChange={e => setPigYearFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff", cursor: "pointer" }}>
+            <option value="__all__">All Years</option>
+            {pigYears.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <Button onClick={() => { setEditing(null); setForm(empty); setOpen(true); }} style={{ background: "#86198f", color: "#fff" }}>
+            <Plus size={16} style={{ marginRight: 6 }} /> Add Kill Record
+          </Button>
+        </div>
       </div>
 
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
@@ -1396,8 +1440,8 @@ function PigSalesTab({ farmId }: { farmId: number }) {
           </tr>
         </thead>
         <tbody>
-          {records.length === 0 && <tr><td colSpan={12} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>No kill records yet</td></tr>}
-          {records.map((r: any) => {
+          {filteredPig.length === 0 && <tr><td colSpan={12} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{records.length === 0 ? "No kill records yet" : `No kill records for ${pigYearFilter}`}</td></tr>}
+          {filteredPig.map((r: any) => {
             const sppVar = r.sppVariancePence;
             return (
               <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
@@ -1511,6 +1555,7 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [channelFilter, setChannelFilter] = useState("all");
+  const [directYearFilter, setDirectYearFilter] = useState("__all__");
 
   const empty = {
     saleDate: "", customerId: null as number | null, channel: "farm_shop", productName: "", productCategory: "",
@@ -1523,7 +1568,10 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
   const q = useQuery({ queryKey: ["direct-sales", farmId], queryFn: () => fetch(`/api/farms/${farmId}/direct-sales`).then(r => r.json()), enabled: !!farmId });
   const records = q.data?.records ?? [];
 
-  const filtered = channelFilter === "all" ? records : records.filter((r: any) => r.channel === channelFilter);
+  const directYears = [...new Set<string>(records.map((r: any) => r.saleDate ? new Date(r.saleDate).getFullYear().toString() : null).filter(Boolean) as string[])].sort().reverse();
+  const filtered = records
+    .filter((r: any) => channelFilter === "all" || r.channel === channelFilter)
+    .filter((r: any) => directYearFilter === "__all__" || (r.saleDate && new Date(r.saleDate).getFullYear().toString() === directYearFilter));
 
   const mut = useMutation({
     mutationFn: (body: any) => editing
@@ -1550,11 +1598,11 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
     });
   };
 
-  const totalGross = records.reduce((s: number, r: any) => s + (r.grossValuePence ?? 0), 0);
-  const totalNet = records.reduce((s: number, r: any) => s + (r.netValuePence ?? r.grossValuePence ?? 0), 0);
+  const totalGross = filtered.reduce((s: number, r: any) => s + (r.grossValuePence ?? 0), 0);
+  const totalNet = filtered.reduce((s: number, r: any) => s + (r.netValuePence ?? r.grossValuePence ?? 0), 0);
   const byChannel = DIRECT_CHANNELS.map(c => ({
     channel: c.label,
-    value: records.filter((r: any) => r.channel === c.value).reduce((s: number, r: any) => s + (r.grossValuePence ?? 0), 0) / 100,
+    value: filtered.filter((r: any) => r.channel === c.value).reduce((s: number, r: any) => s + (r.grossValuePence ?? 0), 0) / 100,
   })).filter(c => c.value > 0);
 
   return (
@@ -1571,12 +1619,18 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
           </div>
           <div style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 8, padding: "10px 18px" }}>
             <div style={{ fontSize: "0.72rem", color: "#7c3aed", fontWeight: 600 }}>Transactions</div>
-            <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "#6d28d9" }}>{records.length}</div>
+            <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "#6d28d9" }}>{filtered.length}</div>
           </div>
         </div>
-        <Button onClick={() => { setEditing(null); setForm(empty); setOpen(true); }} style={{ background: "#0891b2", color: "#fff" }}>
-          <Plus size={16} style={{ marginRight: 6 }} /> Record Sale
-        </Button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select value={directYearFilter} onChange={e => setDirectYearFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff", cursor: "pointer" }}>
+            <option value="__all__">All Years</option>
+            {directYears.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <Button onClick={() => { setEditing(null); setForm(empty); setOpen(true); }} style={{ background: "#0891b2", color: "#fff" }}>
+            <Plus size={16} style={{ marginRight: 6 }} /> Record Sale
+          </Button>
+        </div>
       </div>
 
       {/* Channel filter */}
@@ -1730,6 +1784,8 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
 
 // ─── Reports Tab ───────────────────────────────────────────────────────────────
 function ReportsTab({ farmId }: { farmId: number }) {
+  const [reportYearFilter, setReportYearFilter] = useState("__all__");
+
   const grainQ = useQuery({ queryKey: ["grain-sales", farmId], queryFn: () => fetch(`/api/farms/${farmId}/grain-sales`).then(r => r.json()), enabled: !!farmId });
   const dwQ = useQuery({ queryKey: ["dw-sales", farmId], queryFn: () => fetch(`/api/farms/${farmId}/livestock-deadweight-sales`).then(r => r.json()), enabled: !!farmId });
   const martQ = useQuery({ queryKey: ["mart-sales", farmId], queryFn: () => fetch(`/api/farms/${farmId}/livestock-mart-sales`).then(r => r.json()), enabled: !!farmId });
@@ -1739,17 +1795,34 @@ function ReportsTab({ farmId }: { farmId: number }) {
   const pigQ = useQuery({ queryKey: ["pig-kill-records", farmId], queryFn: () => fetch(`/api/farms/${farmId}/pig-kill-records`).then(r => r.json()), enabled: !!farmId });
   const directQ = useQuery({ queryKey: ["direct-sales", farmId], queryFn: () => fetch(`/api/farms/${farmId}/direct-sales`).then(r => r.json()), enabled: !!farmId });
 
-  const totals = useMemo(() => {
-    const grain = (grainQ.data?.records ?? []).reduce((s: number, r: any) => s + (r.netValuePence ?? r.grossValuePence ?? 0), 0) / 100;
-    const dw = (dwQ.data?.records ?? []).reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0) / 100;
-    const mart = (martQ.data?.records ?? []).reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0) / 100;
-    const milk = (milkQ.data?.records ?? []).reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0) / 100;
-    const batch = (batchQ.data?.records ?? []).reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0) / 100;
-    const eggs = (eggQ.data?.records ?? []).reduce((s: number, r: any) => s + (r.netValuePence ?? r.grossValuePence ?? 0), 0) / 100;
-    const pigs = (pigQ.data?.records ?? []).reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0) / 100;
-    const direct = (directQ.data?.records ?? []).reduce((s: number, r: any) => s + (r.grossValuePence ?? 0), 0) / 100;
-    return { grain, dw, mart, milk, batch, eggs, pigs, direct };
+  const allYears = useMemo(() => {
+    const yrOf = (d: string | null | undefined) => d ? new Date(d).getFullYear().toString() : null;
+    return [...new Set<string>([
+      ...(grainQ.data?.records ?? []).map((r: any) => yrOf(r.saleDate)),
+      ...(dwQ.data?.records ?? []).map((r: any) => yrOf(r.killDate)),
+      ...(martQ.data?.records ?? []).map((r: any) => yrOf(r.saleDate)),
+      ...(milkQ.data?.records ?? []).map((r: any) => yrOf(r.statementMonth)),
+      ...(batchQ.data?.records ?? []).map((r: any) => yrOf(r.catchDate)),
+      ...(eggQ.data?.records ?? []).map((r: any) => yrOf(r.weekEnding)),
+      ...(pigQ.data?.records ?? []).map((r: any) => yrOf(r.killDate)),
+      ...(directQ.data?.records ?? []).map((r: any) => yrOf(r.saleDate)),
+    ].filter(Boolean) as string[])].sort().reverse();
   }, [grainQ.data, dwQ.data, martQ.data, milkQ.data, batchQ.data, eggQ.data, pigQ.data, directQ.data]);
+
+  const totals = useMemo(() => {
+    const yr = reportYearFilter;
+    const yrOf = (d: string | null | undefined) => d ? new Date(d).getFullYear().toString() : null;
+    const byYr = (date: string | null | undefined) => yr === "__all__" || yrOf(date) === yr;
+    const grain = (grainQ.data?.records ?? []).filter((r: any) => byYr(r.saleDate)).reduce((s: number, r: any) => s + (r.netValuePence ?? r.grossValuePence ?? 0), 0) / 100;
+    const dw = (dwQ.data?.records ?? []).filter((r: any) => byYr(r.killDate)).reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0) / 100;
+    const mart = (martQ.data?.records ?? []).filter((r: any) => byYr(r.saleDate)).reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0) / 100;
+    const milk = (milkQ.data?.records ?? []).filter((r: any) => byYr(r.statementMonth)).reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0) / 100;
+    const batch = (batchQ.data?.records ?? []).filter((r: any) => byYr(r.catchDate)).reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0) / 100;
+    const eggs = (eggQ.data?.records ?? []).filter((r: any) => byYr(r.weekEnding)).reduce((s: number, r: any) => s + (r.netValuePence ?? r.grossValuePence ?? 0), 0) / 100;
+    const pigs = (pigQ.data?.records ?? []).filter((r: any) => byYr(r.killDate)).reduce((s: number, r: any) => s + (r.netPaymentPence ?? r.grossValuePence ?? 0), 0) / 100;
+    const direct = (directQ.data?.records ?? []).filter((r: any) => byYr(r.saleDate)).reduce((s: number, r: any) => s + (r.grossValuePence ?? 0), 0) / 100;
+    return { grain, dw, mart, milk, batch, eggs, pigs, direct };
+  }, [reportYearFilter, grainQ.data, dwQ.data, martQ.data, milkQ.data, batchQ.data, eggQ.data, pigQ.data, directQ.data]);
 
   const sectorData = [
     { name: "Grain", value: totals.grain },
@@ -1777,9 +1850,17 @@ function ReportsTab({ farmId }: { farmId: number }) {
 
   return (
     <div>
+      {/* Year filter */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+        <select value={reportYearFilter} onChange={e => setReportYearFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff", cursor: "pointer" }}>
+          <option value="__all__">All Years</option>
+          {allYears.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+
       {/* Grand total */}
       <div style={{ background: "linear-gradient(135deg, #16a34a, #15803d)", borderRadius: 12, padding: "20px 28px", color: "#fff", marginBottom: 24 }}>
-        <div style={{ fontSize: "0.875rem", opacity: 0.8, marginBottom: 4 }}>Total Farm Sales Revenue</div>
+        <div style={{ fontSize: "0.875rem", opacity: 0.8, marginBottom: 4 }}>{reportYearFilter === "__all__" ? "Total Farm Sales Revenue — All Time" : `Total Farm Sales Revenue — ${reportYearFilter}`}</div>
         <div style={{ fontSize: "2.5rem", fontWeight: 800 }}>£{totalAll.toLocaleString("en-GB", { minimumFractionDigits: 2 })}</div>
         <div style={{ fontSize: "0.8rem", opacity: 0.7, marginTop: 4 }}>All sectors combined</div>
       </div>
