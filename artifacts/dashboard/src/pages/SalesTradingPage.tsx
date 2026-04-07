@@ -424,6 +424,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
   const [editingMart, setEditingMart] = useState<any | null>(null);
   const [deleteMartId, setDeleteMartId] = useState<number | null>(null);
   const [lsYearFilter, setLsYearFilter] = useState("__all__");
+  const [expandedDWId, setExpandedDWId] = useState<number | null>(null);
 
   const emptyDW = {
     killDate: "", processorId: null as number | null, processor: "", species: "", breed: "", headCount: "",
@@ -572,23 +573,46 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
             <tbody>
               {filteredDW.length === 0 && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{dwRecords.length === 0 ? "No kill sheets yet" : `No kill sheets for ${lsYearFilter}`}</td></tr>}
               {filteredDW.map((r: any) => (
-                <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "8px 12px" }}>{fmtDate(r.killDate)}</td>
-                  <td style={{ padding: "8px 12px", fontWeight: 500 }}>{r.processor}</td>
-                  <td style={{ padding: "8px 12px" }}>{r.species}</td>
-                  <td style={{ padding: "8px 12px" }}>{r.headCount}</td>
-                  <td style={{ padding: "8px 12px" }}>{r.totalDeadweightKg ? `${parseFloat(r.totalDeadweightKg).toFixed(1)} kg` : "—"}</td>
-                  <td style={{ padding: "8px 12px" }}>{r.averageDeadweightKg ? `${parseFloat(r.averageDeadweightKg).toFixed(1)} kg` : "—"}</td>
-                  <td style={{ padding: "8px 12px" }}>{r.pricePerKgPence ? `${(r.pricePerKgPence / 100).toFixed(2)}p` : "—"}</td>
-                  <td style={{ padding: "8px 12px", fontWeight: 600, color: "#15803d" }}>{pToGBP(r.netPaymentPence)}</td>
-                  <td style={{ padding: "8px 12px" }}>{r.gradeClassification ?? "—"}</td>
-                  <td style={{ padding: "8px 12px" }}>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <Button size="sm" variant="ghost" onClick={() => { setEditingDW(r); setFormDW({ ...r, killDate: r.killDate?.slice(0, 10) ?? "", paymentDate: r.paymentDate?.slice(0, 10) ?? "" }); setOpenDW(true); }}><Pencil size={14} /></Button>
-                      <Button size="sm" variant="ghost" style={{ color: "#dc2626" }} onClick={() => setDeleteDWId(r.id)}><Trash2 size={14} /></Button>
-                    </div>
-                  </td>
-                </tr>
+                <React.Fragment key={r.id}>
+                  <tr style={{ borderBottom: expandedDWId === r.id ? "none" : "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "8px 12px" }}>{fmtDate(r.killDate)}</td>
+                    <td style={{ padding: "8px 12px", fontWeight: 500 }}>{r.processor}</td>
+                    <td style={{ padding: "8px 12px" }}>{r.species}</td>
+                    <td style={{ padding: "8px 12px" }}>{r.headCount}</td>
+                    <td style={{ padding: "8px 12px" }}>{r.totalDeadweightKg ? `${parseFloat(r.totalDeadweightKg).toFixed(1)} kg` : "—"}</td>
+                    <td style={{ padding: "8px 12px" }}>{r.averageDeadweightKg ? `${parseFloat(r.averageDeadweightKg).toFixed(1)} kg` : "—"}</td>
+                    <td style={{ padding: "8px 12px" }}>{r.pricePerKgPence ? `${r.pricePerKgPence}p/kg` : "—"}</td>
+                    <td style={{ padding: "8px 12px", fontWeight: 600, color: "#15803d" }}>{pToGBP(r.netPaymentPence)}</td>
+                    <td style={{ padding: "8px 12px" }}>{r.gradeClassification ?? "—"}</td>
+                    <td style={{ padding: "8px 12px" }}>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {r.animalIds && (
+                          <Button size="sm" variant="ghost" title="View ear tags" onClick={() => setExpandedDWId(expandedDWId === r.id ? null : r.id)}>
+                            {expandedDWId === r.id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={() => { setEditingDW(r); setFormDW({ ...r, killDate: r.killDate?.slice(0, 10) ?? "", paymentDate: r.paymentDate?.slice(0, 10) ?? "" }); setOpenDW(true); }}><Pencil size={14} /></Button>
+                        <Button size="sm" variant="ghost" style={{ color: "#dc2626" }} onClick={() => setDeleteDWId(r.id)}><Trash2 size={14} /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedDWId === r.id && r.animalIds && (
+                    <tr style={{ background: "#f0fdf4", borderBottom: "1px solid #bbf7d0" }}>
+                      <td colSpan={10} style={{ padding: "8px 16px 12px" }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#15803d", marginBottom: 6 }}>
+                          Animal Ear Tags — {r.animalIds.split(",").length} head
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                          {r.animalIds.split(",").map((tag: string, i: number) => (
+                            <span key={i} style={{ background: "#dcfce7", border: "1px solid #86efac", borderRadius: 4, padding: "2px 8px", fontSize: 12, fontFamily: "monospace", color: "#166534" }}>
+                              {tag.trim()}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -669,8 +693,8 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
               <div><Label>Avg Deadweight (kg)</Label><Input type="number" step="0.1" value={formDW.averageDeadweightKg} onChange={e => setFormDW((f: any) => ({ ...f, averageDeadweightKg: e.target.value }))} /></div>
               <div>
                 <Label>Price (pence/kg)</Label>
-                <Input type="number" step="0.01" value={formDW.pricePerKgPence ? (formDW.pricePerKgPence / 100).toFixed(2) : ""}
-                  onChange={e => setFormDW((f: any) => ({ ...f, pricePerKgPence: Math.round(parseFloat(e.target.value || "0") * 100) }))} placeholder="pence per kg" />
+                <Input type="number" step="1" value={formDW.pricePerKgPence ? String(formDW.pricePerKgPence) : ""}
+                  onChange={e => setFormDW((f: any) => ({ ...f, pricePerKgPence: Math.round(parseFloat(e.target.value || "0")) }))} placeholder="e.g. 512" />
               </div>
               <div><Label>Grade / Classification</Label><Input value={formDW.gradeClassification} onChange={e => setFormDW((f: any) => ({ ...f, gradeClassification: e.target.value }))} placeholder="e.g. R4L, U3" /></div>
               <div><Label>Fat Class</Label><Input value={formDW.fatClass} onChange={e => setFormDW((f: any) => ({ ...f, fatClass: e.target.value }))} placeholder="e.g. 3" /></div>
@@ -1450,7 +1474,7 @@ function PigSalesTab({ farmId }: { farmId: number }) {
                 <td style={{ padding: "8px 10px" }}>{r.headCount}</td>
                 <td style={{ padding: "8px 10px" }}>{r.totalDeadweightKg ? `${parseFloat(r.totalDeadweightKg).toFixed(1)} kg` : "—"}</td>
                 <td style={{ padding: "8px 10px" }}>{r.averageDeadweightKg ? `${parseFloat(r.averageDeadweightKg).toFixed(1)} kg` : "—"}</td>
-                <td style={{ padding: "8px 10px" }}>{r.pricePerKgPence ? `${(r.pricePerKgPence / 100).toFixed(2)}p` : "—"}</td>
+                <td style={{ padding: "8px 10px" }}>{r.pricePerKgPence ? `${r.pricePerKgPence}p/kg` : "—"}</td>
                 <td style={{ padding: "8px 10px" }}>{r.averageP2BackfatMm ? `${parseFloat(r.averageP2BackfatMm).toFixed(1)} mm` : "—"}</td>
                 <td style={{ padding: "8px 10px" }}>{r.leanMeatPct ? `${parseFloat(r.leanMeatPct).toFixed(1)}%` : "—"}</td>
                 <td style={{ padding: "8px 10px" }}>{r.gradeOut ?? "—"}</td>
@@ -1497,7 +1521,7 @@ function PigSalesTab({ farmId }: { farmId: number }) {
               <div><Label>Herd Mark</Label><Input value={form.herdMark} onChange={e => setForm((f: any) => ({ ...f, herdMark: e.target.value }))} /></div>
               <div><Label>Total Deadweight (kg)</Label><Input type="number" step="0.1" value={form.totalDeadweightKg} onChange={e => setForm((f: any) => ({ ...f, totalDeadweightKg: e.target.value }))} /></div>
               <div><Label>Avg Deadweight (kg)</Label><Input type="number" step="0.1" value={form.averageDeadweightKg} onChange={e => setForm((f: any) => ({ ...f, averageDeadweightKg: e.target.value }))} /></div>
-              <div><Label>Price (pence/kg)</Label><Input type="number" step="0.01" value={form.pricePerKgPence ? (form.pricePerKgPence / 100).toFixed(2) : ""} onChange={e => setForm((f: any) => ({ ...f, pricePerKgPence: Math.round(parseFloat(e.target.value || "0") * 100) }))} /></div>
+              <div><Label>Price (pence/kg)</Label><Input type="number" step="1" value={form.pricePerKgPence ? String(form.pricePerKgPence) : ""} onChange={e => setForm((f: any) => ({ ...f, pricePerKgPence: Math.round(parseFloat(e.target.value || "0")) }))} placeholder="e.g. 485" /></div>
               <div><Label>Avg P2 Backfat (mm)</Label><Input type="number" step="0.1" value={form.averageP2BackfatMm} onChange={e => setForm((f: any) => ({ ...f, averageP2BackfatMm: e.target.value }))} /></div>
               <div><Label>Avg Muscle Depth (mm)</Label><Input type="number" step="0.1" value={form.averageMuscleDepthMm} onChange={e => setForm((f: any) => ({ ...f, averageMuscleDepthMm: e.target.value }))} /></div>
               <div><Label>Lean Meat %</Label><Input type="number" step="0.1" value={form.leanMeatPct} onChange={e => setForm((f: any) => ({ ...f, leanMeatPct: e.target.value }))} /></div>
