@@ -1185,7 +1185,12 @@ export interface HaulageConfirmation {
   driverName: string;
   cropType: string;
   quantityTonnes: string;
-  deliveryNotes: string;
+  storageLocationName?: string;
+  binId?: number;
+  destination?: string;
+  customerName?: string;
+  customerRef?: string;
+  dispatchNotes: string;
   confirmedBy: string;
   photoUris: string[];
   latitude?: number;
