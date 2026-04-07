@@ -1,5 +1,5 @@
 import { db, rolesTable, modulesTable, tenantsTable, farmsTable, subscriptionsTable } from "@workspace/db";
-import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, feedStockLevelsTable, suppliersTable, gridEnergyMetersTable, gridEnergyReadingsTable } from "@workspace/db/schema";
+import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, feedStockLevelsTable, suppliersTable, gridEnergyMetersTable, gridEnergyReadingsTable, grainStorageBinsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const SYSTEM_ROLES = [
@@ -129,6 +129,7 @@ async function seedDevData() {
   await seedCropData(farm.id);
   await seedMovementData(farm.id);
   await seedFieldOperations(farm.id);
+  await seedGrainBins(farm.id);
   await seedFuelData(farm.id);
   await seedLpgAndHeatingOilTanks(farm.id);
   await seedGridEnergyData(farm.id);
@@ -880,4 +881,43 @@ async function seedFeedStockData(farmId: number) {
   ]);
 
   console.log("[SEED] Feed stock records seeded for farm:", farmId);
+}
+
+async function seedGrainBins(farmId: number) {
+  const existing = await db.select().from(grainStorageBinsTable).where(eq(grainStorageBinsTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) return;
+  await db.insert(grainStorageBinsTable).values([
+    {
+      farmId,
+      binName: "Main Store — Bay A (Wheat)",
+      binType: "flat_bottom",
+      capacityTonnes: "400",
+      dryingSystem: "on-floor drying — 2 x 15kW fans",
+      aerationSystem: true,
+      temperatureMonitoring: true,
+      sensorCount: 6,
+      notes: "Grain Pro temperature cables. Threshold 14°C.",
+    },
+    {
+      farmId,
+      binName: "Main Store — Bay B (Barley/OSR)",
+      binType: "flat_bottom",
+      capacityTonnes: "300",
+      aerationSystem: true,
+      temperatureMonitoring: true,
+      sensorCount: 4,
+      notes: "Flexible segregation — moveable boards.",
+    },
+    {
+      farmId,
+      binName: "Main Store — Bay C (Long-Term)",
+      binType: "flat_bottom",
+      capacityTonnes: "280",
+      aerationSystem: true,
+      temperatureMonitoring: true,
+      sensorCount: 4,
+      notes: "Propionic acid applicator fitted.",
+    },
+  ]);
+  console.log("[SEED] Grain storage bins seeded for farm:", farmId);
 }
