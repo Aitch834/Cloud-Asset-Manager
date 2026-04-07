@@ -1,6 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, numeric } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
-import { stockDeliveriesTable } from "./stock-suppliers";
+import { stockDeliveriesTable, suppliersTable } from "./stock-suppliers";
 
 export const financialTransactionsTable = pgTable("financial_transactions", {
   id: serial("id").primaryKey(),
@@ -39,6 +39,7 @@ export const cropContractsTable = pgTable("crop_contracts", {
   // Instrument type — determines which fields apply
   contractType: text("contract_type").notNull().default("forward"), // forward | pool
   cropYear: text("crop_year"), // e.g. "2024 Harvest" — which harvest the contract relates to
+  buyerId: integer("buyer_id").references(() => suppliersTable.id),
   buyer: text("buyer").notNull(),
   commodity: text("commodity").notNull(),
   variety: text("variety"),

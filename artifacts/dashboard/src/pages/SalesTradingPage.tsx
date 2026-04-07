@@ -1875,13 +1875,13 @@ function GrainContractsTab({ farmId }: { farmId: number }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const emptyForward = {
-    contractType: "forward", cropYear: "", buyer: "", commodity: "", variety: "",
+    contractType: "forward", cropYear: "", buyerId: null as number | null, buyer: "", commodity: "", variety: "",
     qualitySpec: "", quantityTonnes: "", contractedPricePence: "", contractDate: "",
     deliveryWindowStart: "", deliveryWindowEnd: "", deliveryLocation: "",
     callOffWindowNotes: "", contractReference: "", status: "active", notes: "",
   };
   const emptyPool = {
-    contractType: "pool", cropYear: "", buyer: "", commodity: "", variety: "",
+    contractType: "pool", cropYear: "", buyerId: null as number | null, buyer: "", commodity: "", variety: "",
     qualitySpec: "", quantityTonnes: "", advancePaymentPence: "", poolLevyPence: "",
     poolClosingDate: "", poolSettlementDate: "", deliveryLocation: "",
     contractReference: "", status: "active", notes: "",
@@ -2211,7 +2211,16 @@ function GrainContractsTab({ farmId }: { farmId: number }) {
                 <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>
                   {isPool ? "Pool Operator" : "Merchant / Buyer"} *
                 </label>
-                <Input required value={form.buyer ?? ""} onChange={e => setForm((f: any) => ({ ...f, buyer: e.target.value }))} placeholder={isPool ? "e.g. Openfield Agriculture" : "e.g. Frontier Agriculture"} />
+                <BuyerCombobox
+                  farmId={farmId}
+                  types={["grain_merchant"]}
+                  valueId={form.buyerId}
+                  valueName={form.buyer}
+                  onChange={(id, name) => setForm((f: any) => ({ ...f, buyerId: id, buyer: name }))}
+                  required
+                  placeholder={isPool ? "Search or add pool operator..." : "Search or add grain merchant..."}
+                  typeLabel={isPool ? "Pool Operator" : "Grain Merchant"}
+                />
               </div>
               <div>
                 <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Commodity *</label>
