@@ -2220,6 +2220,7 @@ function GrainContractsTab({ farmId }: { farmId: number }) {
                   required
                   placeholder={isPool ? "Search or add pool operator..." : "Search or add grain merchant..."}
                   typeLabel={isPool ? "Pool Operator" : "Grain Merchant"}
+                  postAddNavigatePath="/suppliers-stock?tab=suppliers"
                 />
               </div>
               <div>

@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 interface BuyerRecord {
   id: number;
@@ -27,6 +28,7 @@ interface BuyerComboboxProps {
   placeholder?: string;
   typeLabel?: string;
   disabled?: boolean;
+  postAddNavigatePath?: string;
 }
 
 export function BuyerCombobox({
@@ -39,13 +41,16 @@ export function BuyerCombobox({
   placeholder = "Search or select...",
   typeLabel = "Contact",
   disabled,
+  postAddNavigatePath,
 }: BuyerComboboxProps) {
   const [open, setOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [addName, setAddName] = useState("");
   const [addAccount, setAddAccount] = useState("");
+  const [goToContacts, setGoToContacts] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
 
   const qKey = ["buyers", String(farmId), types.join(",")];
 
@@ -72,10 +77,13 @@ export function BuyerCombobox({
       if (result.record) {
         onChange(result.record.id, result.record.name);
       }
+      const shouldNavigate = goToContacts && !!postAddNavigatePath;
       setAddOpen(false);
       setAddName("");
       setAddAccount("");
-      toast({ title: `${typeLabel} added` });
+      setGoToContacts(false);
+      toast({ title: `${typeLabel} added${shouldNavigate ? " — opening Suppliers & Contacts" : ""}` });
+      if (shouldNavigate) navigate(postAddNavigatePath!);
     },
     onError: () => toast({ title: "Failed to add", variant: "destructive" }),
   });
@@ -190,8 +198,23 @@ export function BuyerCombobox({
                 placeholder="Optional account number"
               />
             </div>
+            {postAddNavigatePath && (
+              <label className="flex items-start gap-2.5 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={goToContacts}
+                  onChange={e => setGoToContacts(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border accent-brand shrink-0"
+                />
+                <span className="text-xs text-foreground/80 group-hover:text-foreground leading-relaxed">
+                  Open Suppliers &amp; Contacts to complete this record after adding
+                </span>
+              </label>
+            )}
             <p className="text-xs text-muted-foreground">
-              This will be saved to your contacts list. You can add more details in Suppliers &amp; Contacts.
+              {postAddNavigatePath
+                ? "A full record lets you add contact details, account number, certification numbers and more."
+                : "This will be saved to your contacts list. You can add more details in Suppliers & Contacts."}
             </p>
           </div>
           <DialogFooter>

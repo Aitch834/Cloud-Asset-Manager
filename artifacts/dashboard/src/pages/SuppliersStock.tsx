@@ -108,6 +108,13 @@ export default function SuppliersStockPage() {
   const [tab, setTab] = useState<"suppliers" | "products" | "purchase-orders" | "received" | "levels" | "movements" | "trade-history">("levels");
   const [prefilledPo, setPrefilledPo] = useState<{ form: any; lines: any[] } | null>(null);
   const { farmId } = useAppStore();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get("tab") as typeof tab | null;
+    const valid: (typeof tab)[] = ["suppliers", "products", "purchase-orders", "received", "levels", "movements", "trade-history"];
+    if (requested && valid.includes(requested)) setTab(requested);
+  }, []);
   const { toast } = useToast();
   const qc = useQueryClient();
 
