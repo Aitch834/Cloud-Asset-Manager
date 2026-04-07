@@ -1,5 +1,5 @@
 import { db, rolesTable, modulesTable, tenantsTable, farmsTable, subscriptionsTable } from "@workspace/db";
-import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, feedStockLevelsTable, suppliersTable, gridEnergyMetersTable, gridEnergyReadingsTable, grainStorageBinsTable } from "@workspace/db/schema";
+import { cropsTable, fieldCropAssignmentsTable, fieldsTable, livestockMovementsTable, fieldOperationsTable, fuelTanksTable, fuelDeliveriesTable, fuelUsageTable, fuelStorageInspectionsTable, feedDeliveriesTable, feedStockLevelsTable, suppliersTable, gridEnergyMetersTable, gridEnergyReadingsTable, grainStorageBinsTable, sprayProductsTable, sprayApplicationsTable, grainSalesTable, livestockDeadweightSalesTable, livestockMartSalesTable, financialTransactionsTable, cropContractsTable, farmGrantsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const SYSTEM_ROLES = [
@@ -130,6 +130,10 @@ async function seedDevData() {
   await seedMovementData(farm.id);
   await seedFieldOperations(farm.id);
   await seedGrainBins(farm.id);
+  await seedSprayData(farm.id);
+  await seedGrainSales(farm.id);
+  await seedLivestockSales(farm.id);
+  await seedFinancialData(farm.id);
   await seedFuelData(farm.id);
   await seedLpgAndHeatingOilTanks(farm.id);
   await seedGridEnergyData(farm.id);
@@ -881,6 +885,307 @@ async function seedFeedStockData(farmId: number) {
   ]);
 
   console.log("[SEED] Feed stock records seeded for farm:", farmId);
+}
+
+async function seedSprayData(farmId: number) {
+  const existing = await db.select().from(sprayProductsTable).where(eq(sprayProductsTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) return;
+
+  const products = await db.insert(sprayProductsTable).values([
+    { farmId, productName: "Roundup ProBio", activeIngredient: "Glyphosate 360 g/L", mappaNumber: "16284", manufacturer: "Bayer CropScience", category: "Herbicide", harvestInterval: 0, maxApplicationsPerSeason: 2, storageRequirements: "Cool, dry, frost-free store. Keep away from food/feed." },
+    { farmId, productName: "Atlantis WG", activeIngredient: "Mesosulfuron-methyl 30 g/kg + Iodosulfuron-methyl-sodium 6 g/kg", mappaNumber: "14808", manufacturer: "Bayer CropScience", category: "Herbicide", harvestInterval: 0, maxApplicationsPerSeason: 1, storageRequirements: "Store below 25°C in original container." },
+    { farmId, productName: "Proline 275", activeIngredient: "Prothioconazole 275 g/L", mappaNumber: "13654", manufacturer: "Bayer CropScience", category: "Fungicide", harvestInterval: 35, maxApplicationsPerSeason: 2, storageRequirements: "Store in original container at ambient temperature." },
+    { farmId, productName: "Aviator 235 Xpro", activeIngredient: "Bixafen 75 g/L + Prothioconazole 150 g/L", mappaNumber: "15797", manufacturer: "Bayer CropScience", category: "Fungicide", harvestInterval: 35, maxApplicationsPerSeason: 2, storageRequirements: "Store in original container. Do not freeze." },
+    { farmId, productName: "Kaiso Sorbie 5 WG", activeIngredient: "Lambda-cyhalothrin 50 g/kg", mappaNumber: "11828", manufacturer: "FMC Agro Ltd", category: "Insecticide", harvestInterval: 14, maxApplicationsPerSeason: 2, storageRequirements: "Store in original packaging in cool, dry conditions." },
+    { farmId, productName: "Yara Vita Thiotrac", activeIngredient: "Manganese 6% + Sulphur 22%", mappaNumber: null, manufacturer: "Yara UK", category: "Foliar Feed", harvestInterval: 0, maxApplicationsPerSeason: 4, storageRequirements: "Store in frost-free conditions." },
+  ]).returning({ id: sprayProductsTable.id, productName: sprayProductsTable.productName });
+
+  const fields = await db.select({ id: fieldsTable.id, name: fieldsTable.name }).from(fieldsTable).where(eq(fieldsTable.farmId, farmId)).limit(4);
+  if (fields.length === 0) { console.log("[SEED] No fields found, skipping spray applications"); return; }
+
+  const [herbicide1, herbicide2, fungicide1, fungicide2, insecticide, foliar] = products;
+  const f = (name: string) => fields.find(f => f.name?.includes(name)) ?? fields[0];
+
+  await db.insert(sprayApplicationsTable).values([
+    {
+      farmId, fieldId: fields[0].id, productId: herbicide1.id,
+      applicationDate: new Date("2025-10-12T09:30:00Z"),
+      applicationRate: "3.0", rateUnit: "L/ha", areaSprayedHa: "12.5",
+      waterVolumeLitres: "100", windSpeedKmh: "8.5", windDirection: "SW",
+      temperatureC: "9.5", operatorName: "James Davies", certificateNumber: "PA1/PA2 — 004821",
+      equipmentUsed: "Amazone UX 4200 Super (24m boom)", reasonForApplication: "Pre-emergence stubble & grassweed control before autumn drilling",
+      notes: "Good conditions. Low humidity. Brassica crops in field margin buffer observed.",
+    },
+    {
+      farmId, fieldId: fields[1 % fields.length].id, productId: herbicide2.id,
+      applicationDate: new Date("2025-11-08T10:00:00Z"),
+      applicationRate: "0.5", rateUnit: "kg/ha", areaSprayedHa: "18.3",
+      waterVolumeLitres: "150", windSpeedKmh: "6.0", windDirection: "W",
+      temperatureC: "7.0", operatorName: "James Davies", certificateNumber: "PA1/PA2 — 004821",
+      equipmentUsed: "Amazone UX 4200 Super (24m boom)", reasonForApplication: "Post-emergence blackgrass & ryegrass control — winter wheat",
+      notes: "Applied at GS12-13. Tank mix with Bacara Forte.",
+    },
+    {
+      farmId, fieldId: fields[0].id, productId: fungicide1.id,
+      applicationDate: new Date("2025-05-02T08:45:00Z"),
+      applicationRate: "0.8", rateUnit: "L/ha", areaSprayedHa: "12.5",
+      waterVolumeLitres: "200", windSpeedKmh: "10.0", windDirection: "NW",
+      temperatureC: "13.5", operatorName: "James Davies", certificateNumber: "PA1/PA2 — 004821",
+      equipmentUsed: "Amazone UX 4200 Super (24m boom)", reasonForApplication: "T2 flag leaf fungicide — septoria and yellow rust control",
+      batchNumber: "BL-2025-3847",
+    },
+    {
+      farmId, fieldId: fields[2 % fields.length].id, productId: fungicide2.id,
+      applicationDate: new Date("2025-05-18T09:00:00Z"),
+      applicationRate: "1.0", rateUnit: "L/ha", areaSprayedHa: "9.8",
+      waterVolumeLitres: "200", windSpeedKmh: "7.5", windDirection: "N",
+      temperatureC: "16.0", operatorName: "Robert Barnes", certificateNumber: "PA1/PA6 — 009341",
+      equipmentUsed: "Amazone UX 4200 Super (24m boom)", reasonForApplication: "T3 ear spray — fusarium and mycotoxin reduction",
+      batchNumber: "AX-2025-1122",
+    },
+    {
+      farmId, fieldId: fields[1 % fields.length].id, productId: insecticide.id,
+      applicationDate: new Date("2025-04-24T07:30:00Z"),
+      applicationRate: "0.075", rateUnit: "kg/ha", areaSprayedHa: "18.3",
+      waterVolumeLitres: "150", windSpeedKmh: "5.0", windDirection: "E",
+      temperatureC: "11.0", operatorName: "James Davies", certificateNumber: "PA1/PA2 — 004821",
+      equipmentUsed: "Amazone UX 4200 Super (24m boom)", reasonForApplication: "Orange blossom midge threshold reached — 2 adults per 5 plants at GS55",
+      notes: "Threshold monitoring records available in field note book.",
+    },
+    {
+      farmId, fieldId: fields[0].id, productId: foliar.id,
+      applicationDate: new Date("2025-04-03T11:00:00Z"),
+      applicationRate: "2.0", rateUnit: "L/ha", areaSprayedHa: "12.5",
+      waterVolumeLitres: "150", windSpeedKmh: "9.0", windDirection: "SW",
+      temperatureC: "10.5", operatorName: "James Davies", certificateNumber: "PA1/PA2 — 004821",
+      equipmentUsed: "Amazone UX 4200 Super (24m boom)", reasonForApplication: "Manganese deficiency — visual symptoms GS30. Previous soil index 0.",
+    },
+  ]);
+  console.log("[SEED] Spray products and applications seeded for farm:", farmId);
+}
+
+async function seedGrainSales(farmId: number) {
+  const existing = await db.select().from(grainSalesTable).where(eq(grainSalesTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) return;
+
+  const bins = await db.select({ id: grainStorageBinsTable.id, binName: grainStorageBinsTable.binName }).from(grainStorageBinsTable).where(eq(grainStorageBinsTable.farmId, farmId)).limit(3);
+  const binA = bins.find(b => b.binName?.includes("Bay A")) ?? bins[0];
+  const binB = bins.find(b => b.binName?.includes("Bay B")) ?? bins[0];
+
+  await db.insert(grainSalesTable).values([
+    {
+      farmId, saleDate: new Date("2024-09-05T10:00:00Z"), saleType: "spot",
+      buyer: "Frontier Agriculture", merchantRef: "FR-2024-OAK-001",
+      commodity: "Winter Wheat", variety: "KWS Zyatt", tonnage: "185.5",
+      pricePerTonnePence: 18500, grossValuePence: 3431750, deductionsPence: 34317,
+      netValuePence: 3397433, moisture: "13.8", specificWeight: "76.2",
+      protein: "11.8", screenings: "1.2", gradeAchieved: "Group 3 Feed Wheat",
+      deliveryDate: new Date("2024-09-12T08:00:00Z"), deliveryLocation: "Frontier — Sleaford Depot",
+      haulierName: "Tanfield Haulage", vehicleReg: "LK21 BNA",
+      weighbridgeTicket: "WB-2024-09-1843", invoiceNumber: "FR-INV-2024-7701",
+      paymentDate: new Date("2024-10-05T00:00:00Z"), cropYear: "2024/25",
+      field: "Home Field", storeBinId: binA?.id ?? null, storeBin: binA?.binName ?? "Bay A",
+    },
+    {
+      farmId, saleDate: new Date("2024-10-14T10:00:00Z"), saleType: "forward",
+      buyer: "Gleadell Agriculture", merchantRef: "GL-2024-OAK-F12",
+      commodity: "Winter Wheat", variety: "KWS Zyatt", tonnage: "200.0",
+      pricePerTonnePence: 19200, grossValuePence: 3840000, deductionsPence: 38400,
+      netValuePence: 3801600, moisture: "14.1", specificWeight: "75.8",
+      protein: "11.5", screenings: "1.5", gradeAchieved: "Group 4 Feed Wheat",
+      deliveryDate: new Date("2024-11-01T08:00:00Z"), deliveryLocation: "Gleadell — Boston",
+      haulierName: "Tanfield Haulage", vehicleReg: "YD22 XMF",
+      weighbridgeTicket: "WB-2024-10-2211", invoiceNumber: "GL-INV-2024-4418",
+      paymentDate: new Date("2024-11-15T00:00:00Z"), cropYear: "2024/25",
+      field: "Top Field", storeBinId: binA?.id ?? null, storeBin: binA?.binName ?? "Bay A",
+    },
+    {
+      farmId, saleDate: new Date("2025-01-20T10:00:00Z"), saleType: "spot",
+      buyer: "Openfield", merchantRef: "OF-2025-OAK-003",
+      commodity: "Winter Barley", variety: "KWS Irina", tonnage: "97.3",
+      pricePerTonnePence: 17400, grossValuePence: 1693020, deductionsPence: 16930,
+      netValuePence: 1676090, moisture: "13.2", specificWeight: "68.5",
+      gradeAchieved: "Feed Barley", deliveryDate: new Date("2025-01-27T08:00:00Z"),
+      deliveryLocation: "Openfield — Lincoln", haulierName: "Tanfield Haulage",
+      weighbridgeTicket: "WB-2025-01-0487", invoiceNumber: "OF-INV-2025-0219",
+      paymentDate: new Date("2025-02-17T00:00:00Z"), cropYear: "2024/25",
+      field: "Long Meadow", storeBinId: binB?.id ?? null, storeBin: binB?.binName ?? "Bay B",
+    },
+    {
+      farmId, saleDate: new Date("2025-02-11T10:00:00Z"), saleType: "forward",
+      buyer: "Frontier Agriculture", merchantRef: "FR-2025-OAK-F04",
+      commodity: "Oilseed Rape", variety: "Extase", tonnage: "54.8",
+      pricePerTonnePence: 41500, grossValuePence: 2274200, deductionsPence: 45484,
+      netValuePence: 2228716, moisture: "8.5", protein: null,
+      gradeAchieved: "EU Spec (2% impurities)", deliveryDate: new Date("2025-02-20T08:00:00Z"),
+      deliveryLocation: "Frontier — Sleaford Depot", haulierName: "Tanfield Haulage",
+      weighbridgeTicket: "WB-2025-02-0801", invoiceNumber: "FR-INV-2025-1102",
+      paymentDate: new Date("2025-03-14T00:00:00Z"), cropYear: "2024/25",
+      field: "Bottom Pasture", storeBinId: binB?.id ?? null, storeBin: binB?.binName ?? "Bay B",
+    },
+    {
+      farmId, saleDate: new Date("2025-03-28T10:00:00Z"), saleType: "pool",
+      buyer: "Openfield Pool", merchantRef: "OF-POOL-2025-OAK",
+      commodity: "Winter Wheat", variety: "KWS Zyatt", tonnage: "120.0",
+      pricePerTonnePence: null, grossValuePence: null, deductionsPence: null,
+      netValuePence: null, cropYear: "2024/25", field: "Home Field",
+      storeBinId: binA?.id ?? null, storeBin: binA?.binName ?? "Bay A",
+      notes: "Pool allocation — advance payment received. Final settlement due Aug 2025.",
+    },
+  ]);
+
+  await db.insert(cropContractsTable).values([
+    {
+      farmId, buyer: "Frontier Agriculture", commodity: "Winter Wheat", variety: "KWS Zyatt",
+      qualitySpec: "Group 3/4 Feed, min 76 SWt, max 15% moisture", quantityTonnes: "200",
+      contractedPricePence: 19200, totalValuePence: 3840000,
+      contractDate: new Date("2024-06-15T00:00:00Z"),
+      deliveryWindowStart: new Date("2024-10-01T00:00:00Z"),
+      deliveryWindowEnd: new Date("2024-10-31T00:00:00Z"),
+      deliveryLocation: "Gleadell — Boston", status: "fulfilled",
+      contractReference: "FR-FWD-2024-OAK-001",
+      notes: "Harvest forward. Filled in full Oct 14.",
+    },
+    {
+      farmId, buyer: "Gleadell Agriculture", commodity: "Winter Barley",
+      qualitySpec: "Feed, min 62 SWt, max 16% moisture", quantityTonnes: "150",
+      contractedPricePence: 17800, totalValuePence: 2670000,
+      contractDate: new Date("2025-03-01T00:00:00Z"),
+      deliveryWindowStart: new Date("2025-08-01T00:00:00Z"),
+      deliveryWindowEnd: new Date("2025-08-31T00:00:00Z"),
+      deliveryLocation: "Gleadell — Boston", status: "active",
+      contractReference: "GL-FWD-2025-OAK-002",
+      notes: "2025 harvest forward contract. Awaiting outturn.",
+    },
+  ]);
+  console.log("[SEED] Grain sales and crop contracts seeded for farm:", farmId);
+}
+
+async function seedLivestockSales(farmId: number) {
+  const existingDW = await db.select().from(livestockDeadweightSalesTable).where(eq(livestockDeadweightSalesTable.farmId, farmId)).limit(1);
+  if (existingDW.length > 0) return;
+
+  await db.insert(livestockDeadweightSalesTable).values([
+    {
+      farmId, killDate: new Date("2024-11-14T00:00:00Z"),
+      processor: "ABP Food Group — Ellesmere", species: "cattle", breed: "Limousin x Charolais",
+      headCount: 12, totalDeadweightKg: "3516.0", averageDeadweightKg: "293.0",
+      pricePerKgPence: 512, gradeClassification: "R4L", fatClass: "4L",
+      conformationClass: "R", killSheetRef: "ABP-2024-11-OAK-001",
+      grossValuePence: 1800192, transportDeductionPence: 14400, levyDeductionPence: 6600,
+      netPaymentPence: 1779192, paymentDate: new Date("2024-11-28T00:00:00Z"),
+      redTractorAssured: true, organicCertified: false,
+      animalIds: "UK141091 200847,UK141091 200851,UK141091 200864,UK141091 200878,UK141091 200882,UK141091 200891,UK141091 200903,UK141091 200917,UK141091 200924,UK141091 200938,UK141091 200945,UK141091 200953",
+      notes: "Good grade out. 10/12 graded R4. 2 x O3L — hung for extra day.",
+    },
+    {
+      farmId, killDate: new Date("2025-01-23T00:00:00Z"),
+      processor: "ABP Food Group — Ellesmere", species: "cattle", breed: "Limousin x Charolais",
+      headCount: 8, totalDeadweightKg: "2352.0", averageDeadweightKg: "294.0",
+      pricePerKgPence: 520, gradeClassification: "R4L", fatClass: "4L",
+      conformationClass: "R", killSheetRef: "ABP-2025-01-OAK-004",
+      grossValuePence: 1223040, transportDeductionPence: 9600, levyDeductionPence: 4400,
+      netPaymentPence: 1209040, paymentDate: new Date("2025-02-06T00:00:00Z"),
+      redTractorAssured: true, organicCertified: false,
+      animalIds: "UK141091 201044,UK141091 201052,UK141091 201067,UK141091 201079,UK141091 201083,UK141091 201091,UK141091 201107,UK141091 201112",
+    },
+    {
+      farmId, killDate: new Date("2025-03-12T00:00:00Z"),
+      processor: "Foyle Meats — Merthyr", species: "cattle", breed: "Hereford x Friesian",
+      headCount: 6, totalDeadweightKg: "1602.0", averageDeadweightKg: "267.0",
+      pricePerKgPence: 498, gradeClassification: "O4L", fatClass: "4L",
+      conformationClass: "O", killSheetRef: "FM-2025-03-OAK-002",
+      grossValuePence: 797796, transportDeductionPence: 7200, levyDeductionPence: 3300,
+      netPaymentPence: 787296, paymentDate: new Date("2025-03-27T00:00:00Z"),
+      redTractorAssured: true, organicCertified: false,
+      notes: "Culled cows — native breed culls from beef suckler herd.",
+    },
+  ]);
+
+  await db.insert(livestockMartSalesTable).values([
+    {
+      farmId, saleDate: new Date("2024-10-02T09:00:00Z"),
+      martName: "Newark & Notts Agricultural Society", martLocation: "Newark Livestock Market",
+      species: "cattle", category: "store", headCount: 24,
+      averageLiveweightKg: "380.0", priceType: "per_head",
+      pricePerUnitPence: 132500, grossValuePence: 3180000,
+      commissionPence: 95400, levyPence: 13200, transportCostPence: 24000,
+      otherCostsPence: 3600, netPaymentPence: 3043800,
+      buyerName: "H.T. Moore & Son", buyerNumber: "NWK-04421",
+      auctioneerRef: "NWK-2024-10-OAK-001",
+      paymentDate: new Date("2024-10-04T00:00:00Z"),
+      animalIds: "UK141091 198831,UK141091 198845,UK141091 198867,UK141091 198872",
+      notes: "24 mixed Limousin x store bullocks. Well-presented, strong trade. Average sold £1,325/head.",
+    },
+    {
+      farmId, saleDate: new Date("2025-02-19T09:00:00Z"),
+      martName: "Bakewell Livestock Market", martLocation: "Bakewell, Derbyshire",
+      species: "cattle", category: "breeding", headCount: 5,
+      averageLiveweightKg: "620.0", priceType: "per_head",
+      pricePerUnitPence: 285000, grossValuePence: 1425000,
+      commissionPence: 42750, levyPence: 5500, transportCostPence: 15000,
+      otherCostsPence: 2500, netPaymentPence: 1359250,
+      buyerName: "R. Whitfield Farms", buyerNumber: "BKW-00318",
+      auctioneerRef: "BKW-2025-02-OAK-009",
+      paymentDate: new Date("2025-02-21T00:00:00Z"),
+      notes: "5 x in-calf Limousin suckler cows scanned 3-5 months. Sold to pedigree breeder.",
+    },
+  ]);
+  console.log("[SEED] Livestock deadweight and mart sales seeded for farm:", farmId);
+}
+
+async function seedFinancialData(farmId: number) {
+  const existing = await db.select().from(financialTransactionsTable).where(eq(financialTransactionsTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) return;
+
+  const today = new Date();
+  const d = (y: number, m: number, day: number) => new Date(`${y}-${String(m).padStart(2,"0")}-${String(day).padStart(2,"0")}T00:00:00Z`);
+
+  await db.insert(financialTransactionsTable).values([
+    { farmId, transactionType: "income", category: "Crop Sales", description: "Winter wheat — spot sale to Frontier Agriculture (185.5t @ £185/t)", amountPence: 3397433, transactionDate: d(2024,10,5), reference: "FR-INV-2024-7701", vendorCustomer: "Frontier Agriculture", paymentMethod: "Bank Transfer", vatRate: "0", vatAmountPence: 0 },
+    { farmId, transactionType: "income", category: "Livestock Sales", description: "12 x Limousin x Charolais finished cattle — ABP Ellesmere (DW)", amountPence: 1779192, transactionDate: d(2024,11,28), reference: "ABP-2024-11-OAK-001", vendorCustomer: "ABP Food Group", paymentMethod: "Bank Transfer", vatRate: "0", vatAmountPence: 0 },
+    { farmId, transactionType: "income", category: "Livestock Sales", description: "24 x store bullocks — Newark Livestock Market", amountPence: 3043800, transactionDate: d(2024,10,4), reference: "NWK-2024-10-OAK-001", vendorCustomer: "Newark Livestock Market", paymentMethod: "Bank Transfer", vatRate: "0", vatAmountPence: 0 },
+    { farmId, transactionType: "income", category: "Crop Sales", description: "Oilseed rape — forward call-off to Frontier Agriculture (54.8t @ £415/t)", amountPence: 2228716, transactionDate: d(2025,3,14), reference: "FR-INV-2025-1102", vendorCustomer: "Frontier Agriculture", paymentMethod: "Bank Transfer", vatRate: "0", vatAmountPence: 0 },
+    { farmId, transactionType: "income", category: "Agri-Environment Scheme", description: "Sustainable Farming Incentive — Quarter 4 2024 payment", amountPence: 1875000, transactionDate: d(2025,1,15), reference: "SFI-2024-Q4-OAK", vendorCustomer: "Rural Payments Agency", paymentMethod: "BACS", vatRate: "0", vatAmountPence: 0 },
+    { farmId, transactionType: "expense", category: "Fertiliser", description: "Spring fertiliser order — ammonium nitrate 34.5% (40t bulk)", amountPence: 940000, transactionDate: d(2025,2,18), reference: "CF-2025-0294", vendorCustomer: "CF Fertilisers (Billingham)", paymentMethod: "Direct Debit", vatRate: "20", vatAmountPence: 156667, notes: "Delivered 3 March 2025 to main yard. 20t to Home Field, 20t to Long Meadow." },
+    { farmId, transactionType: "expense", category: "Seeds & Seed Treatments", description: "Winter wheat seed — KWS Zyatt 50t @ £445/t treated", amountPence: 2225000, transactionDate: d(2024,7,22), reference: "SDW-2024-OAK-0882", vendorCustomer: "Seedways Ltd", paymentMethod: "Bank Transfer", vatRate: "0", vatAmountPence: 0, notes: "Treated with Redigo Deter. Collected from Sleaford depot 29 July." },
+    { farmId, transactionType: "expense", category: "Pesticides & Herbicides", description: "Spring spray order — fungicides, herbicides, insecticide", amountPence: 387400, transactionDate: d(2025,3,4), reference: "AGR-2025-1174", vendorCustomer: "Agrovista UK Ltd", paymentMethod: "Direct Debit", vatRate: "20", vatAmountPence: 64567 },
+    { farmId, transactionType: "expense", category: "Fuel", description: "Red diesel — 10,000L delivery to main yard tank", amountPence: 1130000, transactionDate: d(2025,1,9), reference: "CPS-2025-0143", vendorCustomer: "Crown Petroleum Services", paymentMethod: "Direct Debit", vatRate: "20", vatAmountPence: 188333 },
+    { farmId, transactionType: "expense", category: "Machinery & Equipment", description: "Combine service & repair — header knife section + feeder house bearing", amountPence: 285000, transactionDate: d(2024,8,30), reference: "PON-2024-OAK-3841", vendorCustomer: "Pontacs Ltd (New Holland dealer)", paymentMethod: "Bank Transfer", vatRate: "20", vatAmountPence: 47500 },
+    { farmId, transactionType: "expense", category: "Veterinary & Medicine", description: "Vet visit x3 + TB testing — herd of 48 cattle", amountPence: 142500, transactionDate: d(2025,2,28), reference: "CLT-VET-2025-0221", vendorCustomer: "Cliffe Veterinary Group", paymentMethod: "Direct Debit", vatRate: "20", vatAmountPence: 23750 },
+    { farmId, transactionType: "expense", category: "Labour", description: "Contract labour — harvest season (Aug–Sep 2024, 8 weeks)", amountPence: 640000, transactionDate: d(2024,10,1), reference: "PAYROLL-AUG-SEP-2024", vendorCustomer: "In-house payroll", paymentMethod: "BACS", vatRate: "0", vatAmountPence: 0, notes: "Includes harvest overtime. 2 x seasonal workers via AgriRecruit." },
+  ]);
+
+  const existingGrants = await db.select().from(farmGrantsTable).where(eq(farmGrantsTable.farmId, farmId)).limit(1);
+  if (existingGrants.length > 0) { console.log("[SEED] Grants already seeded for farm:", farmId); return; }
+
+  await db.insert(farmGrantsTable).values([
+    {
+      farmId, schemeName: "Sustainable Farming Incentive", schemeType: "SFI",
+      itemReferenceCode: "CMOR1 + CSAM1 + CAHL1", itemDescription: "Moorland (CMOR1) — 48ha; Soil organic matter testing (CSAM1) — 120ha; High ambition arable and horticultural land (CAHL1) — 320ha",
+      applicationReference: "SFI-2024-0049321-OAK", applicationDate: "2024-03-15",
+      approvalDate: "2024-04-20", purchaseDeadline: null, claimDeadline: "2025-03-31",
+      grantAmountPence: 7500000, status: "active",
+      notes: "Annual payment split quarterly. On track. Area commitment audit due Jan 2026.",
+    },
+    {
+      farmId, schemeName: "Countryside Stewardship — Higher Tier", schemeType: "CS",
+      itemReferenceCode: "HT — WT1 + HT — HL2", itemDescription: "Creation of in-field grass margins (WT1) — 3.2ha; Maintenance of traditional orchards (HL2) — 0.8ha",
+      applicationReference: "CS-HT-2023-0017882", applicationDate: "2023-07-01",
+      approvalDate: "2023-10-15", purchaseDeadline: null, claimDeadline: "2026-12-31",
+      grantAmountPence: 2240000, status: "active",
+      notes: "5-year agreement. NVC assessment required by year 3. Compliance visit passed Nov 2024.",
+    },
+    {
+      farmId, schemeName: "Farming Equipment & Technology Fund", schemeType: "FETF",
+      itemReferenceCode: "FETF-NO-TILL-001", itemDescription: "No-till direct drill (John Deere 750A) — 50% grant towards purchase",
+      applicationReference: "FETF-2024-OAK-0841", applicationDate: "2024-09-12",
+      approvalDate: "2024-11-20", purchaseDeadline: "2025-06-30", claimDeadline: "2025-07-31",
+      grantAmountPence: 1875000, actualCostPence: 3750000, status: "approved",
+      notes: "Grant approved for 50% of £37,500 purchase. Equipment ordered, delivery March 2025. Claim to be submitted by July 31.",
+    },
+  ]);
+  console.log("[SEED] Financial transactions and grants seeded for farm:", farmId);
 }
 
 async function seedGrainBins(farmId: number) {

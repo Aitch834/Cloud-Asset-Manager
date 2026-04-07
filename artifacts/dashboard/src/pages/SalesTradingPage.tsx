@@ -50,7 +50,7 @@ function GrainBinSelect({ farmId, value, onChange }: { farmId: number; value: nu
     queryKey: ["grain-storage-bins", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/grain-storage-bins`).then(r => r.json()),
     enabled: !!farmId,
-    select: d => d.rows ?? d.records ?? [],
+    select: (d: any) => Array.isArray(d) ? d : (d.rows ?? d.records ?? []),
   });
   const bins: any[] = q.data ?? [];
   return (

@@ -73,6 +73,7 @@ import GrantsPage from "@/pages/GrantsPage";
 import FuelEnergyPage from "@/pages/FuelEnergyPage";
 import FeedManagementPage from "@/pages/FeedManagementPage";
 import SalesTradingPage from "@/pages/SalesTradingPage";
+import TradeHistory from "@/pages/TradeHistory";
 import OrganicPage from "@/pages/OrganicPage";
 import CompliancePage from "@/pages/CompliancePage";
 
@@ -206,6 +207,7 @@ function Router() {
       <Route path="/stock" component={StockPage} />
       <Route path="/financial" component={FinancialPage} />
       <Route path="/sales-trading" component={SalesTradingPage} />
+      <Route path="/trade-history" component={TradeHistory} />
       <Route path="/business-reports" component={BusinessReportsPage} />
       <Route path="/field-operations" component={FieldOperationsPage} />
       <Route path="/field-inspections" component={FieldInspectionsPage} />

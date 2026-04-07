@@ -51,6 +51,11 @@ The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 - React apps use error boundaries, loading skeletons, and error states with retry.
 - Supports Xero-compatible CSV export and Red Tractor compliance export (CSV/JSON).
 - Modules like Spray, NMP, NVZ, Documents, Soil Tests, Biosecurity, Medicine, Stock & Supplier Management have advanced features.
+- **Spray Records** (`/sprays`): Full spray application log with 6 products (herbicides, fungicides, insecticide, foliar feed — real MAPP numbers), 15+ applications seeded for Oakfield farm. Product register, day-view, and printable assessor log tabs all wired.
+- **Sales & Trading** (`/sales-trading`): Full grain sales (5 records — spot/forward/pool), livestock deadweight sales (3 kill sheets — ABP), mart sales (2 — Newark/Bakewell), crop contracts (2), milk, poultry, pigs, and direct-sales tabs all wired. GrainBinSelect response-format bug fixed (`Array.isArray(d)` check).
+- **Trade History** (`/trade-history`): Analytics/reporting page — routed in App.tsx, sidebar link under Financial section, default export page wrapper added (`TradeHistoryPage` wrapping `TradeHistoryTab`).
+- **Financial Records** (`/financial`): 12 financial transactions seeded (5 income, 7 expense), 2 crop contracts, 3 grants (SFI, CS Higher Tier, FETF) all inserted.
+- **Startup seed (`seedDefaults.ts`)**: `seedSprayData`, `seedGrainSales`, `seedLivestockSales`, `seedFinancialData`, `seedGrainBins` all added — demo farm data automatically restored on server restart/DB reset.
 - Soil Tests page has a "Sensors" tab (SoilSensorsTab) for continuous soil monitoring: register sensor probes (manufacturer, model, depths, GPS, field), add manual readings (moisture %, temperature °C, EC μS/cm), import from CSV (bulk up to 5,000 rows), and view readings as a time-series chart or table. DB tables: soil_sensor_probes, soil_sensor_readings. API: /api/farms/:farmId/soil-sensors and /readings sub-routes.
 - Grain Storage, Workshop, and Health & Safety modules have been restructured and enhanced with specific functionalities, including document management and detailed inventory tracking.
 - Crop Trials module supports the full trial lifecycle, including plot design with GPS, treatment logging, yield comparisons, and a Leaflet-based Map View.

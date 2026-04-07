@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { useAppStore } from "@/hooks/use-app-store";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
@@ -593,5 +595,15 @@ export function TradeHistoryTab({ farmId }: { farmId: number }) {
         <SupplierPerformanceView farmId={farmId} from={from} to={to} />
       )}
     </div>
+  );
+}
+
+export default function TradeHistoryPage() {
+  const { farmId } = useAppStore();
+  if (!farmId) return null;
+  return (
+    <AppLayout title="Trade History">
+      <TradeHistoryTab farmId={farmId} />
+    </AppLayout>
   );
 }
