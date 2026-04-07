@@ -3908,7 +3908,52 @@ router.post("/farms/:farmId/financial-exports", requireAuth, requireTenant, requ
 router.get("/farms/:farmId/crop-contracts", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(cropContractsTable).where(eq(cropContractsTable.farmId, farmId)).orderBy(desc(cropContractsTable.createdAt));
+
+  // Optional filters
+  const contractType = req.query.contractType ? String(req.query.contractType) : null;
+  const cropYear = req.query.cropYear ? String(req.query.cropYear) : null;
+
+  const conditions = [eq(cropContractsTable.farmId, farmId)];
+  if (contractType) conditions.push(eq(cropContractsTable.contractType, contractType));
+  if (cropYear) conditions.push(eq(cropContractsTable.cropYear, cropYear));
+
+  const records = await db.select().from(cropContractsTable)
+    .where(and(...conditions))
+    .orderBy(desc(cropContractsTable.createdAt));
+
+  // Compute calledOffTonnes per contract from linked grain_sales
+  const linkedSales = await db
+    .select({
+      contractId: grainSalesTable.linkedContractId,
+      calledOff: sql<string>`SUM(${grainSalesTable.tonnage}::numeric)`,
+    })
+    .from(grainSalesTable)
+    .where(and(eq(grainSalesTable.farmId, farmId), isNotNull(grainSalesTable.linkedContractId)))
+    .groupBy(grainSalesTable.linkedContractId);
+
+  const calledOffMap: Record<number, number> = {};
+  for (const s of linkedSales) {
+    if (s.contractId) calledOffMap[s.contractId] = parseFloat(s.calledOff ?? "0");
+  }
+
+  const enriched = records.map(c => {
+    const qty = parseFloat(c.quantityTonnes ?? "0");
+    const calledOff = calledOffMap[c.id] ?? 0;
+    return { ...c, calledOffTonnes: calledOff, remainingTonnes: Math.max(0, qty - calledOff) };
+  });
+
+  res.json({ records: enriched });
+});
+
+// Grain sales linked to a specific contract (call-offs and pool allocations)
+router.get("/farms/:farmId/crop-contracts/:contractId/transactions", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const contractId = parseInt(req.params.contractId);
+  if (!contractId) { res.status(400).json({ error: "Invalid contract ID" }); return; }
+  const records = await db.select().from(grainSalesTable)
+    .where(and(eq(grainSalesTable.farmId, farmId), eq(grainSalesTable.linkedContractId, contractId)))
+    .orderBy(desc(grainSalesTable.saleDate));
   res.json({ records });
 });
 

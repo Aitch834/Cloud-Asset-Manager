@@ -1035,30 +1035,74 @@ async function seedGrainSales(farmId: number) {
     },
   ]);
 
-  await db.insert(cropContractsTable).values([
+  const contracts = await db.insert(cropContractsTable).values([
     {
-      farmId, buyer: "Frontier Agriculture", commodity: "Winter Wheat", variety: "KWS Zyatt",
-      qualitySpec: "Group 3/4 Feed, min 76 SWt, max 15% moisture", quantityTonnes: "200",
-      contractedPricePence: 19200, totalValuePence: 3840000,
+      farmId,
+      contractType: "forward", cropYear: "2024 Harvest",
+      buyer: "Frontier Agriculture", commodity: "Winter Wheat", variety: "KWS Zyatt",
+      qualitySpec: "Group 3/4 Feed, min 76 SWt, max 15% moisture",
+      quantityTonnes: "200", contractedPricePence: 19200, totalValuePence: 3840000,
       contractDate: new Date("2024-06-15T00:00:00Z"),
       deliveryWindowStart: new Date("2024-10-01T00:00:00Z"),
       deliveryWindowEnd: new Date("2024-10-31T00:00:00Z"),
       deliveryLocation: "Gleadell — Boston", status: "fulfilled",
       contractReference: "FR-FWD-2024-OAK-001",
+      callOffWindowNotes: "Full tonnage in one movement. Weighbridge ticket WB-24-10-047.",
       notes: "Harvest forward. Filled in full Oct 14.",
     },
     {
-      farmId, buyer: "Gleadell Agriculture", commodity: "Winter Barley",
-      qualitySpec: "Feed, min 62 SWt, max 16% moisture", quantityTonnes: "150",
-      contractedPricePence: 17800, totalValuePence: 2670000,
+      farmId,
+      contractType: "forward", cropYear: "2025 Harvest",
+      buyer: "Gleadell Agriculture", commodity: "Winter Barley",
+      qualitySpec: "Feed, min 62 SWt, max 16% moisture",
+      quantityTonnes: "150", contractedPricePence: 17800, totalValuePence: 2670000,
       contractDate: new Date("2025-03-01T00:00:00Z"),
       deliveryWindowStart: new Date("2025-08-01T00:00:00Z"),
       deliveryWindowEnd: new Date("2025-08-31T00:00:00Z"),
       deliveryLocation: "Gleadell — Boston", status: "active",
       contractReference: "GL-FWD-2025-OAK-002",
+      callOffWindowNotes: "Full tonnage Aug–Sep harvest. Call-off at farm gate.",
       notes: "2025 harvest forward contract. Awaiting outturn.",
     },
-  ]);
+    {
+      farmId,
+      contractType: "pool", cropYear: "2024 Harvest",
+      buyer: "Openfield Agriculture", commodity: "Oilseed Rape", variety: "DK Exstorm",
+      qualitySpec: "HEAR/LLEAR: 1000ppm erucic acid max. Max 9% moisture, max 2% admixture.",
+      quantityTonnes: "112.5",
+      advancePaymentPence: 30000, // £300/t advance
+      poolLevyPence: 150,         // £1.50/t pool levy
+      poolClosingDate: new Date("2024-11-30T00:00:00Z"),
+      poolSettlementDate: new Date("2025-04-30T00:00:00Z"),
+      deliveryLocation: "Openfield — Hemswell",
+      status: "active",
+      contractReference: "OF-POOL-2024-OAK-001",
+      notes: "Full-pool position. Advance payment received £300/t Oct 2024. Pool closes 30 Nov. Awaiting pool bonus declaration.",
+    },
+  ]).returning();
+
+  // Link the forward wheat call-off to the Frontier contract
+  const frontierContract = contracts.find(c => c.contractReference === "FR-FWD-2024-OAK-001");
+  const openFieldContract = contracts.find(c => c.contractReference === "OF-POOL-2024-OAK-001");
+  const grainSalesList = await db.select().from(grainSalesTable).where(eq(grainSalesTable.farmId, farmId));
+
+  const forwardWheatSale = grainSalesList.find(s => s.saleType === "forward" && s.commodity === "Winter Wheat");
+  if (frontierContract && forwardWheatSale) {
+    await db.update(grainSalesTable).set({ linkedContractId: frontierContract.id }).where(eq(grainSalesTable.id, forwardWheatSale.id));
+  }
+
+  // Add pool allocation record linked to the Openfield pool
+  if (openFieldContract) {
+    await db.insert(grainSalesTable).values({
+      farmId, saleDate: new Date("2024-10-01T00:00:00Z"),
+      saleType: "pool", buyer: "Openfield Agriculture", commodity: "Oilseed Rape", variety: "DK Exstorm",
+      tonnage: "112.50", pricePerTonnePence: 30000, grossValuePence: 3375000, netValuePence: 3375000,
+      linkedContractId: openFieldContract.id, cropYear: "2024 Harvest",
+      merchantRef: "OF-POOL-2024-OAK-001",
+      notes: "Full pool allocation — advance payment £300/t. Awaiting pool bonus.",
+    });
+  }
+
   console.log("[SEED] Grain sales and crop contracts seeded for farm:", farmId);
 }
 

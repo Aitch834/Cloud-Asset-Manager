@@ -14,7 +14,8 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import {
   Plus, Trash2, Pencil, Eye, TrendingUp, Wheat, PiggyBank, Bird, Milk,
-  ShoppingCart, BarChart3, Package, Scale, CheckCircle2, DollarSign, AlertCircle
+  ShoppingCart, BarChart3, Package, Scale, CheckCircle2, DollarSign, AlertCircle,
+  FileText, Calendar, ChevronDown, ChevronRight, X, Handshake, Droplets
 } from "lucide-react";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
@@ -42,7 +43,7 @@ const num = (v: any) => (v == null || v === "" ? null : Number(v));
 
 const CHART_COLORS = ["#16a34a", "#2563eb", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#be185d"];
 
-type Tab = "grain" | "livestock" | "milk" | "poultry" | "pigs" | "direct" | "reports";
+type Tab = "grain" | "contracts" | "livestock" | "milk" | "poultry" | "pigs" | "direct" | "reports";
 
 // ─── Grain Bin Selector ───────────────────────────────────────────────────────
 function GrainBinSelect({ farmId, value, onChange }: { farmId: number; value: number | null; onChange: (id: number | null, name: string) => void }) {
@@ -99,8 +100,13 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
   };
   const [form, setForm] = useState<any>(empty);
 
+  const [cropYearFilter, setCropYearFilter] = useState<string>("__all__");
+
   const q = useQuery({ queryKey: ["grain-sales", farmId], queryFn: () => fetch(`/api/farms/${farmId}/grain-sales`).then(r => r.json()), enabled: !!farmId });
   const records = q.data?.records ?? [];
+
+  const availableCropYears = [...new Set<string>(records.map((r: any) => r.cropYear).filter(Boolean))].sort().reverse();
+  const filteredRecords: any[] = cropYearFilter === "__all__" ? records : records.filter((r: any) => r.cropYear === cropYearFilter);
 
   const postMut = useMutation({
     mutationFn: (body: any) => editing
@@ -144,13 +150,13 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
     setOpen(true);
   };
 
-  const totalRevenue = records.reduce((s: number, r: any) => s + (r.netValuePence ?? r.grossValuePence ?? 0), 0);
-  const totalTonnage = records.reduce((s: number, r: any) => s + parseFloat(r.tonnage ?? "0"), 0);
+  const totalRevenue = filteredRecords.reduce((s: number, r: any) => s + (r.netValuePence ?? r.grossValuePence ?? 0), 0);
+  const totalTonnage = filteredRecords.reduce((s: number, r: any) => s + parseFloat(r.tonnage ?? "0"), 0);
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ display: "flex", gap: 32 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 600, textTransform: "uppercase" }}>Total Revenue</div>
             <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#16a34a" }}>{pToGBP(totalRevenue)}</div>
@@ -162,15 +168,25 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
           <div>
             <div style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 600, textTransform: "uppercase" }}>Avg Price</div>
             <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#92400e" }}>
-              {records.length > 0 && totalTonnage > 0
+              {filteredRecords.length > 0 && totalTonnage > 0
                 ? `£${((totalRevenue / 100) / totalTonnage).toFixed(2)}/t`
                 : "—"}
             </div>
           </div>
         </div>
-        <Button onClick={() => { setEditing(null); setForm(empty); setOpen(true); }} style={{ background: "#16a34a", color: "#fff" }}>
-          <Plus size={16} style={{ marginRight: 6 }} /> Record Grain Sale
-        </Button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select
+            value={cropYearFilter}
+            onChange={e => setCropYearFilter(e.target.value)}
+            style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff", cursor: "pointer" }}
+          >
+            <option value="__all__">All Crop Years</option>
+            {availableCropYears.map((y: string) => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <Button onClick={() => { setEditing(null); setForm(empty); setOpen(true); }} style={{ background: "#16a34a", color: "#fff" }}>
+            <Plus size={16} style={{ marginRight: 6 }} /> Record Grain Sale
+          </Button>
+        </div>
       </div>
 
       <div style={{ overflowX: "auto" }}>
@@ -183,10 +199,10 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
             </tr>
           </thead>
           <tbody>
-            {records.length === 0 && (
-              <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>No grain sales recorded yet</td></tr>
+            {filteredRecords.length === 0 && (
+              <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>{records.length === 0 ? "No grain sales recorded yet" : `No grain sales for ${cropYearFilter}`}</td></tr>
             )}
-            {records.map((r: any) => (
+            {filteredRecords.map((r: any) => (
               <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                 <td style={{ padding: "8px 12px" }}>{fmtDate(r.saleDate)}</td>
                 <td style={{ padding: "8px 12px" }}>
@@ -1821,9 +1837,518 @@ function ReportsTab({ farmId }: { farmId: number }) {
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Grain Contracts & Pools Tab ─────────────────────────────────────────────
+
+const CONTRACT_STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
+  active:    { bg: "#dcfce7", color: "#15803d", label: "Active" },
+  fulfilled: { bg: "#dbeafe", color: "#1d4ed8", label: "Fulfilled" },
+  pending:   { bg: "#fef9c3", color: "#92400e", label: "Pending" },
+  cancelled: { bg: "#fee2e2", color: "#b91c1c", label: "Cancelled" },
+  disputed:  { bg: "#fef3c7", color: "#b45309", label: "Disputed" },
+  open:      { bg: "#f3f4f6", color: "#374151", label: "Open" },
+};
+
+function ContractProgressBar({ calledOff, total, type }: { calledOff: number; total: number; type: string }) {
+  const pct = total > 0 ? Math.min(100, (calledOff / total) * 100) : 0;
+  const isPool = type === "pool";
+  const barColor = isPool ? "#7c3aed" : (pct >= 100 ? "#16a34a" : "#2563eb");
+  return (
+    <div>
+      <div style={{ background: "#e5e7eb", borderRadius: 4, height: 6, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, background: barColor, height: "100%", borderRadius: 4, transition: "width 0.3s ease" }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3, fontSize: "0.7rem", color: "#6b7280" }}>
+        <span>{calledOff.toFixed(2)}t {isPool ? "allocated" : "called off"}</span>
+        <span>{Math.max(0, total - calledOff).toFixed(2)}t remaining of {total.toFixed(2)}t</span>
+      </div>
+    </div>
+  );
+}
+
+function GrainContractsTab({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [cropYearFilter, setCropYearFilter] = useState<string>("__all__");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [addType, setAddType] = useState<"forward" | "pool" | null>(null);
+  const [editing, setEditing] = useState<any | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const emptyForward = {
+    contractType: "forward", cropYear: "", buyer: "", commodity: "", variety: "",
+    qualitySpec: "", quantityTonnes: "", contractedPricePence: "", contractDate: "",
+    deliveryWindowStart: "", deliveryWindowEnd: "", deliveryLocation: "",
+    callOffWindowNotes: "", contractReference: "", status: "active", notes: "",
+  };
+  const emptyPool = {
+    contractType: "pool", cropYear: "", buyer: "", commodity: "", variety: "",
+    qualitySpec: "", quantityTonnes: "", advancePaymentPence: "", poolLevyPence: "",
+    poolClosingDate: "", poolSettlementDate: "", deliveryLocation: "",
+    contractReference: "", status: "active", notes: "",
+  };
+  const [form, setForm] = useState<any>(emptyForward);
+
+  const q = useQuery({
+    queryKey: ["crop-contracts", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/crop-contracts`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => d.records ?? [],
+  });
+  const contracts: any[] = q.data ?? [];
+
+  const txQ = useQuery({
+    queryKey: ["contract-transactions", farmId, expandedId],
+    queryFn: () => fetch(`/api/farms/${farmId}/crop-contracts/${expandedId}/transactions`).then(r => r.json()),
+    enabled: !!expandedId,
+    select: (d: any) => d.records ?? [],
+  });
+  const transactions: any[] = txQ.data ?? [];
+
+  const availableCropYears = [...new Set<string>(contracts.map((c: any) => c.cropYear).filter(Boolean))].sort().reverse();
+  const filtered = contracts.filter((c: any) => cropYearFilter === "__all__" || c.cropYear === cropYearFilter);
+  const forwardContracts = filtered.filter((c: any) => c.contractType === "forward" || !c.contractType);
+  const poolContracts = filtered.filter((c: any) => c.contractType === "pool");
+
+  const saveMut = useMutation({
+    mutationFn: (body: any) => editing
+      ? fetch(`/api/farms/${farmId}/crop-contracts/${editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json())
+      : fetch(`/api/farms/${farmId}/crop-contracts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["crop-contracts", farmId] });
+      setAddType(null); setEditing(null); setForm(emptyForward);
+      toast({ title: editing ? "Contract updated" : "Contract created" });
+    },
+    onError: () => toast({ title: "Error saving contract", variant: "destructive" }),
+  });
+
+  const delMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/crop-contracts/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["crop-contracts", farmId] }); setDeleteId(null); toast({ title: "Contract deleted" }); },
+  });
+
+  const isPool = form.contractType === "pool";
+  const isOpen = addType !== null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const body: any = {
+      ...form,
+      quantityTonnes: num(form.quantityTonnes),
+      contractDate: form.contractDate ? new Date(form.contractDate).toISOString() : undefined,
+    };
+    if (isPool) {
+      body.advancePaymentPence = num(form.advancePaymentPence);
+      body.poolLevyPence = num(form.poolLevyPence);
+      body.poolClosingDate = form.poolClosingDate ? new Date(form.poolClosingDate).toISOString() : undefined;
+      body.poolSettlementDate = form.poolSettlementDate ? new Date(form.poolSettlementDate).toISOString() : undefined;
+    } else {
+      body.contractedPricePence = num(form.contractedPricePence);
+      body.deliveryWindowStart = form.deliveryWindowStart ? new Date(form.deliveryWindowStart).toISOString() : undefined;
+      body.deliveryWindowEnd = form.deliveryWindowEnd ? new Date(form.deliveryWindowEnd).toISOString() : undefined;
+    }
+    saveMut.mutate(body);
+  };
+
+  const openEdit = (c: any) => {
+    setEditing(c);
+    setForm({
+      ...c,
+      contractDate: c.contractDate ? c.contractDate.slice(0, 10) : "",
+      deliveryWindowStart: c.deliveryWindowStart ? c.deliveryWindowStart.slice(0, 10) : "",
+      deliveryWindowEnd: c.deliveryWindowEnd ? c.deliveryWindowEnd.slice(0, 10) : "",
+      poolClosingDate: c.poolClosingDate ? c.poolClosingDate.slice(0, 10) : "",
+      poolSettlementDate: c.poolSettlementDate ? c.poolSettlementDate.slice(0, 10) : "",
+      contractedPricePence: c.contractedPricePence ?? "",
+      advancePaymentPence: c.advancePaymentPence ?? "",
+      poolLevyPence: c.poolLevyPence ?? "",
+      quantityTonnes: c.quantityTonnes ?? "",
+    });
+    setAddType(c.contractType as "forward" | "pool");
+  };
+
+  // Summary figures across filtered contracts
+  const totalCommitted = filtered.reduce((s: number, c: any) => s + parseFloat(c.quantityTonnes ?? "0"), 0);
+  const totalCalledOff = filtered.reduce((s: number, c: any) => s + (c.calledOffTonnes ?? 0), 0);
+  const totalForwardValue = filtered
+    .filter((c: any) => c.contractType !== "pool" && c.contractedPricePence)
+    .reduce((s: number, c: any) => s + (parseFloat(c.quantityTonnes ?? "0") * (c.contractedPricePence / 100)), 0);
+
+  const renderContractCard = (c: any) => {
+    const qty = parseFloat(c.quantityTonnes ?? "0");
+    const calledOff = parseFloat(String(c.calledOffTonnes ?? 0));
+    const isExpanded = expandedId === c.id;
+    const sty = CONTRACT_STATUS_STYLE[c.status] ?? CONTRACT_STATUS_STYLE.open;
+    const cardIsPool = c.contractType === "pool";
+    const borderColor = cardIsPool ? "#e9d5ff" : "#e5e7eb";
+    const bgColor = cardIsPool ? "#faf5ff" : "#fff";
+    const txnLabel = cardIsPool ? "Pool Allocations" : "Call-Off Movements";
+    const txnColColor = cardIsPool ? "#7c3aed" : "#6b7280";
+
+    return (
+      <div key={c.id} style={{ border: `1px solid ${borderColor}`, borderRadius: 10, overflow: "hidden", background: bgColor, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+        <div
+          onClick={() => setExpandedId(isExpanded ? null : c.id)}
+          style={{ padding: "14px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}
+        >
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "#111827" }}>{c.buyer}</span>
+              {c.cropYear && (
+                <span style={{ fontSize: "0.72rem", background: cardIsPool ? "#f3e8ff" : "#dbeafe", color: cardIsPool ? "#7c3aed" : "#1d4ed8", borderRadius: 4, padding: "2px 6px", fontWeight: 600 }}>
+                  {c.cropYear}
+                </span>
+              )}
+              <span style={{ fontSize: "0.72rem", background: sty.bg, color: sty.color, borderRadius: 4, padding: "2px 6px", fontWeight: 600 }}>
+                {sty.label}
+              </span>
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "#374151" }}>{c.commodity}{c.variety ? ` — ${c.variety}` : ""}</div>
+            <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 2 }}>
+              {cardIsPool
+                ? `${c.advancePaymentPence ? `£${(c.advancePaymentPence / 100).toFixed(2)}/t advance` : "Pool — no advance set"}${c.poolLevyPence ? ` · £${(c.poolLevyPence / 100).toFixed(2)}/t levy` : ""}`
+                : `${c.contractedPricePence ? `£${(c.contractedPricePence / 100).toFixed(2)}/t` : "Price TBC"}`
+              }
+              {c.contractReference ? ` · ${c.contractReference}` : ""}
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <ContractProgressBar calledOff={calledOff} total={qty} type={c.contractType} />
+            </div>
+          </div>
+          <div style={{ marginLeft: 12, flexShrink: 0 }}>
+            {isExpanded ? <ChevronDown size={16} color="#6b7280" /> : <ChevronRight size={16} color="#6b7280" />}
+          </div>
+        </div>
+
+        {isExpanded && (
+          <div style={{ padding: "0 16px 16px", borderTop: `1px solid ${borderColor}` }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12, marginTop: 12 }}>
+              {cardIsPool ? (
+                <>
+                  {c.poolClosingDate && (
+                    <div>
+                      <div style={{ fontSize: "0.7rem", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase" }}>Pool Closes</div>
+                      <div style={{ fontSize: "0.82rem", color: "#374151" }}>{fmtDate(c.poolClosingDate)}</div>
+                    </div>
+                  )}
+                  {c.poolSettlementDate && (
+                    <div>
+                      <div style={{ fontSize: "0.7rem", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase" }}>Settlement Date</div>
+                      <div style={{ fontSize: "0.82rem", color: "#374151" }}>{fmtDate(c.poolSettlementDate)}</div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {c.deliveryWindowStart && (
+                    <div>
+                      <div style={{ fontSize: "0.7rem", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase" }}>Delivery Window</div>
+                      <div style={{ fontSize: "0.82rem", color: "#374151" }}>{fmtDate(c.deliveryWindowStart)} – {fmtDate(c.deliveryWindowEnd)}</div>
+                    </div>
+                  )}
+                  {c.callOffWindowNotes && (
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <div style={{ fontSize: "0.7rem", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase" }}>Call-Off Notes</div>
+                      <div style={{ fontSize: "0.82rem", color: "#374151" }}>{c.callOffWindowNotes}</div>
+                    </div>
+                  )}
+                </>
+              )}
+              {c.deliveryLocation && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={{ fontSize: "0.7rem", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase" }}>Delivery Location</div>
+                  <div style={{ fontSize: "0.82rem", color: "#374151" }}>{c.deliveryLocation}</div>
+                </div>
+              )}
+              {c.qualitySpec && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={{ fontSize: "0.7rem", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase" }}>Quality Spec</div>
+                  <div style={{ fontSize: "0.82rem", color: "#374151" }}>{c.qualitySpec}</div>
+                </div>
+              )}
+              {c.notes && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={{ fontSize: "0.7rem", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase" }}>Notes</div>
+                  <div style={{ fontSize: "0.82rem", color: "#6b7280" }}>{c.notes}</div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>{txnLabel}</div>
+            {txQ.isPending && expandedId === c.id ? (
+              <div style={{ color: "#9ca3af", fontSize: "0.8rem" }}>Loading...</div>
+            ) : transactions.length === 0 ? (
+              <div style={{ color: "#9ca3af", fontSize: "0.8rem" }}>No {cardIsPool ? "allocations" : "movements"} recorded against this {cardIsPool ? "pool position" : "contract"}.</div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${borderColor}` }}>
+                    <th style={{ textAlign: "left", padding: "3px 6px", color: txnColColor, fontWeight: 600 }}>Date</th>
+                    <th style={{ textAlign: "left", padding: "3px 6px", color: txnColColor, fontWeight: 600 }}>Buyer</th>
+                    <th style={{ textAlign: "right", padding: "3px 6px", color: txnColColor, fontWeight: 600 }}>Tonnes</th>
+                    <th style={{ textAlign: "right", padding: "3px 6px", color: txnColColor, fontWeight: 600 }}>£/t</th>
+                    <th style={{ textAlign: "right", padding: "3px 6px", color: txnColColor, fontWeight: 600 }}>Value</th>
+                    <th style={{ textAlign: "left", padding: "3px 6px", color: txnColColor, fontWeight: 600 }}>Ref</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map((t: any) => (
+                    <tr key={t.id} style={{ borderBottom: `1px solid ${cardIsPool ? "#f3e8ff" : "#f3f4f6"}` }}>
+                      <td style={{ padding: "3px 6px" }}>{fmtDate(t.saleDate)}</td>
+                      <td style={{ padding: "3px 6px" }}>{t.buyer}</td>
+                      <td style={{ padding: "3px 6px", textAlign: "right" }}>{parseFloat(t.tonnage ?? "0").toFixed(2)}t</td>
+                      <td style={{ padding: "3px 6px", textAlign: "right" }}>{t.pricePerTonnePence ? `£${(t.pricePerTonnePence / 100).toFixed(2)}` : "—"}</td>
+                      <td style={{ padding: "3px 6px", textAlign: "right" }}>{(t.netValuePence ?? t.grossValuePence) ? pToGBP(t.netValuePence ?? t.grossValuePence) : "—"}</td>
+                      <td style={{ padding: "3px 6px", color: "#6b7280" }}>{t.merchantRef ?? t.invoiceNumber ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+              <Button size="sm" variant="outline" onClick={() => openEdit(c)} style={{ fontSize: "0.78rem" }}>
+                <Pencil size={12} style={{ marginRight: 4 }} /> Edit
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setDeleteId(c.id)} style={{ fontSize: "0.78rem", borderColor: "#fca5a5", color: "#dc2626" }}>
+                <Trash2 size={12} style={{ marginRight: 4 }} /> Delete
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      {/* Header strip */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 600, textTransform: "uppercase" }}>Total Committed</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1d4ed8" }}>{totalCommitted.toFixed(2)} t</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 600, textTransform: "uppercase" }}>Called Off / Allocated</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#16a34a" }}>{totalCalledOff.toFixed(2)} t</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 600, textTransform: "uppercase" }}>Forward Contract Value</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#92400e" }}>
+              £{totalForwardValue.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            value={cropYearFilter}
+            onChange={e => setCropYearFilter(e.target.value)}
+            style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff", cursor: "pointer" }}
+          >
+            <option value="__all__">All Crop Years</option>
+            {availableCropYears.map((y: string) => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <Button onClick={() => { setEditing(null); setForm(emptyForward); setAddType("forward"); }}
+            style={{ background: "#2563eb", color: "#fff", padding: "6px 14px", fontSize: "0.85rem" }}>
+            <Plus size={14} style={{ marginRight: 5 }} /> Forward Contract
+          </Button>
+          <Button onClick={() => { setEditing(null); setForm(emptyPool); setAddType("pool"); }}
+            style={{ background: "#7c3aed", color: "#fff", padding: "6px 14px", fontSize: "0.85rem" }}>
+            <Droplets size={14} style={{ marginRight: 5 }} /> Pool Scheme
+          </Button>
+        </div>
+      </div>
+
+      {/* Forward Contracts section */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <Handshake size={18} color="#2563eb" />
+          <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#1d4ed8", margin: 0 }}>
+            Forward Contracts ({forwardContracts.length})
+          </h2>
+        </div>
+        {forwardContracts.length === 0 ? (
+          <div style={{ textAlign: "center", color: "#9ca3af", padding: "32px 0", border: "1px dashed #e5e7eb", borderRadius: 8 }}>
+            No forward contracts{cropYearFilter !== "__all__" ? ` for ${cropYearFilter}` : ""}. Add one above.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: 14 }}>
+            {forwardContracts.map(renderContractCard)}
+          </div>
+        )}
+      </div>
+
+      {/* Pool Scheme Positions section */}
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <Droplets size={18} color="#7c3aed" />
+          <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#7c3aed", margin: 0 }}>
+            Pool Scheme Positions ({poolContracts.length})
+          </h2>
+        </div>
+        {poolContracts.length === 0 ? (
+          <div style={{ textAlign: "center", color: "#9ca3af", padding: "32px 0", border: "1px dashed #e5e7eb", borderRadius: 8 }}>
+            No pool scheme positions{cropYearFilter !== "__all__" ? ` for ${cropYearFilter}` : ""}. Add one above.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: 14 }}>
+            {poolContracts.map(renderContractCard)}
+          </div>
+        )}
+      </div>
+
+      {/* Add / Edit dialog */}
+      <Dialog open={isOpen} onOpenChange={v => { if (!v) { setAddType(null); setEditing(null); setForm(emptyForward); } }}>
+        <DialogContent style={{ maxWidth: 600, maxHeight: "80vh", overflowY: "auto" }}>
+          <DialogHeader>
+            <DialogTitle>
+              {editing ? "Edit" : "Add"} {isPool ? "Pool Scheme Position" : "Forward Contract"}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+                  {isPool ? "Pool Operator" : "Merchant / Buyer"} *
+                </label>
+                <Input required value={form.buyer ?? ""} onChange={e => setForm((f: any) => ({ ...f, buyer: e.target.value }))} placeholder={isPool ? "e.g. Openfield Agriculture" : "e.g. Frontier Agriculture"} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Commodity *</label>
+                <select required value={form.commodity ?? ""} onChange={e => setForm((f: any) => ({ ...f, commodity: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem" }}>
+                  <option value="">Select...</option>
+                  {["Winter Wheat","Winter Barley","Spring Barley","Oilseed Rape","Winter Oats","Maize","Spring Oats","Rye","Triticale"].map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Variety</label>
+                <Input value={form.variety ?? ""} onChange={e => setForm((f: any) => ({ ...f, variety: e.target.value }))} placeholder="e.g. KWS Zyatt" />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Crop Year</label>
+                <Input value={form.cropYear ?? ""} onChange={e => setForm((f: any) => ({ ...f, cropYear: e.target.value }))} placeholder="e.g. 2024 Harvest" />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Quantity (tonnes) *</label>
+                <Input required type="number" step="0.01" value={form.quantityTonnes ?? ""} onChange={e => setForm((f: any) => ({ ...f, quantityTonnes: e.target.value }))} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Contract Reference</label>
+                <Input value={form.contractReference ?? ""} onChange={e => setForm((f: any) => ({ ...f, contractReference: e.target.value }))} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Status</label>
+                <select value={form.status ?? "active"} onChange={e => setForm((f: any) => ({ ...f, status: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem" }}>
+                  {["active","pending","fulfilled","cancelled","disputed","open"].map(s => (
+                    <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Forward-specific fields */}
+              {!isPool && (
+                <>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Price (£/t)</label>
+                    <Input type="number" step="0.01"
+                      value={form.contractedPricePence !== "" && form.contractedPricePence !== null ? (Number(form.contractedPricePence) / 100).toFixed(2) : ""}
+                      onChange={e => setForm((f: any) => ({ ...f, contractedPricePence: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : "" }))}
+                      placeholder="e.g. 192.00" />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Delivery From</label>
+                    <Input type="date" value={form.deliveryWindowStart ?? ""} onChange={e => setForm((f: any) => ({ ...f, deliveryWindowStart: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Delivery To</label>
+                    <Input type="date" value={form.deliveryWindowEnd ?? ""} onChange={e => setForm((f: any) => ({ ...f, deliveryWindowEnd: e.target.value }))} />
+                  </div>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Call-Off Notes</label>
+                    <Input value={form.callOffWindowNotes ?? ""} onChange={e => setForm((f: any) => ({ ...f, callOffWindowNotes: e.target.value }))} placeholder="e.g. Full tonnage Aug–Sep, call-off at farm gate" />
+                  </div>
+                </>
+              )}
+
+              {/* Pool-specific fields */}
+              {isPool && (
+                <>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Advance Payment (£/t)</label>
+                    <Input type="number" step="0.01"
+                      value={form.advancePaymentPence !== "" && form.advancePaymentPence !== null ? (Number(form.advancePaymentPence) / 100).toFixed(2) : ""}
+                      onChange={e => setForm((f: any) => ({ ...f, advancePaymentPence: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : "" }))}
+                      placeholder="e.g. 300.00" />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Pool Levy (£/t)</label>
+                    <Input type="number" step="0.01"
+                      value={form.poolLevyPence !== "" && form.poolLevyPence !== null ? (Number(form.poolLevyPence) / 100).toFixed(2) : ""}
+                      onChange={e => setForm((f: any) => ({ ...f, poolLevyPence: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : "" }))}
+                      placeholder="e.g. 1.50" />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Pool Closes</label>
+                    <Input type="date" value={form.poolClosingDate ?? ""} onChange={e => setForm((f: any) => ({ ...f, poolClosingDate: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Settlement Date</label>
+                    <Input type="date" value={form.poolSettlementDate ?? ""} onChange={e => setForm((f: any) => ({ ...f, poolSettlementDate: e.target.value }))} />
+                  </div>
+                </>
+              )}
+
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Delivery Location</label>
+                <Input value={form.deliveryLocation ?? ""} onChange={e => setForm((f: any) => ({ ...f, deliveryLocation: e.target.value }))} />
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Quality Specification</label>
+                <Input value={form.qualitySpec ?? ""} onChange={e => setForm((f: any) => ({ ...f, qualitySpec: e.target.value }))} placeholder="e.g. Feed, min 76 SWt, max 15% moisture" />
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 4 }}>Notes</label>
+                <textarea value={form.notes ?? ""} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))}
+                  rows={2} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", resize: "vertical" }} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setAddType(null); setEditing(null); }}>Cancel</Button>
+              <Button type="submit" disabled={saveMut.isPending}
+                style={{ background: isPool ? "#7c3aed" : "#2563eb", color: "#fff" }}>
+                {saveMut.isPending ? "Saving..." : editing ? "Save Changes" : `Add ${isPool ? "Pool Position" : "Contract"}`}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteId} onOpenChange={v => { if (!v) setDeleteId(null); }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader><DialogTitle>Delete Contract?</DialogTitle></DialogHeader>
+          <p style={{ color: "#6b7280", fontSize: "0.875rem" }}>This will permanently delete this contract record. This action cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button onClick={() => deleteId && delMut.mutate(deleteId)} disabled={delMut.isPending}
+              style={{ background: "#dc2626", color: "#fff" }}>
+              {delMut.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Tabs Config ──────────────────────────────────────────────────────────────
 const TABS: { id: Tab; label: string; icon: React.FC<any> }[] = [
   { id: "grain", label: "Grain Trading", icon: Wheat },
+  { id: "contracts", label: "Grain Contracts", icon: Handshake },
   { id: "livestock", label: "Livestock", icon: Scale },
   { id: "milk", label: "Milk Sales", icon: Milk },
   { id: "poultry", label: "Poultry", icon: Bird },
@@ -1865,6 +2390,7 @@ export default function SalesTradingPage() {
 
         <div style={{ marginTop: 20 }}>
           {tab === "grain" && <GrainSalesTab farmId={farmId} />}
+          {tab === "contracts" && <GrainContractsTab farmId={farmId} />}
           {tab === "livestock" && <LivestockTradingTab farmId={farmId} />}
           {tab === "milk" && <MilkSalesTab farmId={farmId} />}
           {tab === "poultry" && <PoultrySettlementTab farmId={farmId} />}
