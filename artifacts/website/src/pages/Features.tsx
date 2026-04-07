@@ -380,6 +380,7 @@ const sections: Section[] = [
           "3-way matching — Purchase Order → GRN → Supplier Invoice for a complete procurement audit trail",
           "Testing laboratory register — UKAS-accredited labs as a supplier subtype; linked by picker when recording soil samples, grain quality tests, and water quality tests",
           "Grain trading — spot, forward contract, pool scheme and ex-store sales with buyer, tonnage, £/tonne, moisture, protein, grade, crop year, weighbridge ticket and invoice reference; covers wheat, barley, OSR, beans, peas, oats and more",
+          "Grain Contracts & Pools — dedicated register for forward contracts and pool scheme positions; each contract shows total committed tonnage, called-off progress bar, remaining tonnage, and a full linked-transactions table; pool scheme positions track the crop year, estimated outturn, and settlement status separately from spot-market sales",
           "Livestock deadweight sales — kill sheet capture per species with deadweight, pence/kg, grade classification, gross value, deductions, net payment, and ear tag list",
           "Livestock mart / auction sales — lot number, auction mart, price per head, gross proceeds and auctioneer reference",
           "Milk statements — monthly entry per milk buyer with litres supplied, pence per litre, butterfat %, protein %, SCC, quality bonus/penalty, transport deduction and net payment",
