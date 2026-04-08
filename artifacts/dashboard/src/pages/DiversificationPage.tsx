@@ -320,10 +320,13 @@ const VAT_RATES = [
   { value: "outside_scope", label: "Outside Scope" },
 ];
 
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 function IncomeTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState<number | null>(null);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
@@ -355,18 +358,60 @@ function IncomeTab({ farmId }: { farmId: number }) {
   function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""]))); setOpen(true); }
 
   const fmtGbp = (v: unknown) => v ? `£${parseFloat(String(v)).toFixed(2)}` : "—";
+  const fmtGbpLong = (v: number) => `£${v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const summary = useMemo(() => {
     const totals: Record<string, number> = {};
+    const counts: Record<string, number> = {};
     let grand = 0;
     for (const r of records) {
       const type = String(r.incomeType ?? "Other");
       const net = parseFloat(String(r.amountNet ?? "0")) || 0;
       totals[type] = (totals[type] ?? 0) + net;
+      counts[type] = (counts[type] ?? 0) + 1;
       grand += net;
     }
-    return { totals, grand };
+    return { totals, counts, grand };
   }, [records]);
+
+  const displayRecords = useMemo(
+    () => selectedType ? records.filter(r => r.incomeType === selectedType) : records,
+    [records, selectedType]
+  );
+
+  const drillDown = useMemo(() => {
+    if (!selectedType) return null;
+    const filtered = records.filter(r => r.incomeType === selectedType);
+    const amounts = filtered.map(r => parseFloat(String(r.amountNet ?? "0")) || 0);
+    const total = amounts.reduce((a, b) => a + b, 0);
+    const count = filtered.length;
+    const avg = count ? total / count : 0;
+    const largest = Math.max(...amounts, 0);
+
+    const byMonth: Record<string, { total: number; count: number }> = {};
+    for (const r of filtered) {
+      const d = String(r.incomeDate ?? "");
+      if (!d) continue;
+      const key = d.slice(0, 7);
+      const net = parseFloat(String(r.amountNet ?? "0")) || 0;
+      byMonth[key] = { total: (byMonth[key]?.total ?? 0) + net, count: (byMonth[key]?.count ?? 0) + 1 };
+    }
+    const months = Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => {
+      const [yr, mo] = k.split("-");
+      return { label: `${MONTH_NAMES[parseInt(mo, 10) - 1]} ${yr}`, ...v };
+    });
+
+    const byCustomer: Record<string, number> = {};
+    for (const r of filtered) {
+      const name = String(r.customerName ?? "Unknown");
+      byCustomer[name] = (byCustomer[name] ?? 0) + (parseFloat(String(r.amountNet ?? "0")) || 0);
+    }
+    const customers = Object.entries(byCustomer).sort((a, b) => b[1] - a[1]);
+
+    const maxBar = Math.max(...months.map(m => m.total), 1);
+
+    return { total, count, avg, largest, months, customers, maxBar };
+  }, [records, selectedType]);
 
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
@@ -378,7 +423,7 @@ function IncomeTab({ farmId }: { farmId: number }) {
           <select
             className="text-sm border rounded-md px-2 py-1.5 bg-background"
             value={year ?? ""}
-            onChange={e => setYear(e.target.value ? parseInt(e.target.value) : null)}
+            onChange={e => { setYear(e.target.value ? parseInt(e.target.value) : null); setSelectedType(null); }}
           >
             <option value="">All Years</option>
             {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
@@ -389,39 +434,133 @@ function IncomeTab({ farmId }: { farmId: number }) {
 
       {summary.grand > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          <div className="col-span-2 sm:col-span-3 lg:col-span-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+          <button
+            onClick={() => setSelectedType(null)}
+            className={`col-span-2 sm:col-span-3 lg:col-span-4 p-4 rounded-xl border flex items-center justify-between transition-all text-left ${
+              selectedType === null
+                ? "bg-emerald-100 border-emerald-400 ring-2 ring-emerald-400"
+                : "bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
+            }`}
+          >
             <div className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-emerald-600" />
-              <span className="font-semibold text-emerald-900">Total Net Income {year ? year : "— All Time"}</span>
+              <span className="font-semibold text-emerald-900">
+                Total Net Income {year ? year : "— All Time"}
+              </span>
+              {selectedType === null && (
+                <span className="text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full font-medium">All sources</span>
+              )}
             </div>
-            <span className="text-2xl font-bold text-emerald-700">£{summary.grand.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span className="text-2xl font-bold text-emerald-700">{fmtGbpLong(summary.grand)}</span>
+          </button>
+
+          {Object.entries(summary.totals).sort((a, b) => b[1] - a[1]).map(([type, total]) => {
+            const isActive = selectedType === type;
+            return (
+              <button
+                key={type}
+                onClick={() => setSelectedType(isActive ? null : type)}
+                className={`p-3 rounded-lg border text-left transition-all ${
+                  isActive
+                    ? "bg-blue-50 border-blue-400 ring-2 ring-blue-400 shadow-sm"
+                    : "bg-muted/30 hover:bg-muted/60 hover:border-blue-200"
+                }`}
+              >
+                <p className={`text-xs truncate font-medium ${isActive ? "text-blue-700" : "text-muted-foreground"}`}>{type}</p>
+                <p className={`font-bold text-sm mt-0.5 ${isActive ? "text-blue-900" : ""}`}>{fmtGbpLong(total)}</p>
+                <p className={`text-[10px] ${isActive ? "text-blue-600" : "text-muted-foreground"}`}>
+                  {((total / summary.grand) * 100).toFixed(1)}% · {summary.counts[type]} transaction{summary.counts[type] !== 1 ? "s" : ""}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {drillDown && selectedType && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-sm text-blue-900">{selectedType} — Breakdown</h4>
+            <div className="flex gap-3 text-xs text-blue-700 font-medium">
+              <span>{drillDown.count} transactions</span>
+              <span>Avg {fmtGbp(drillDown.avg)}</span>
+              <span>Largest {fmtGbp(drillDown.largest)}</span>
+            </div>
           </div>
-          {Object.entries(summary.totals).sort((a, b) => b[1] - a[1]).map(([type, total]) => (
-            <div key={type} className="p-3 rounded-lg border bg-muted/30">
-              <p className="text-xs text-muted-foreground truncate">{type}</p>
-              <p className="font-semibold text-sm mt-0.5">£{total.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              <p className="text-[10px] text-muted-foreground">{((total / summary.grand) * 100).toFixed(1)}% of total</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-medium text-blue-800 mb-2">Monthly Income</p>
+              {drillDown.months.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No monthly data</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {drillDown.months.map(m => (
+                    <div key={m.label} className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-16 shrink-0">{m.label}</span>
+                      <div className="flex-1 h-4 bg-blue-100 rounded overflow-hidden">
+                        <div
+                          className="h-full bg-blue-400 rounded transition-all"
+                          style={{ width: `${(m.total / drillDown.maxBar) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-medium text-blue-900 w-20 text-right shrink-0">{fmtGbp(m.total)}</span>
+                      <span className="text-[10px] text-muted-foreground w-12 shrink-0">×{m.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ))}
+
+            <div>
+              <p className="text-xs font-medium text-blue-800 mb-2">By Customer / Payer</p>
+              {drillDown.customers.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No customer data</p>
+              ) : (
+                <div className="space-y-1">
+                  {drillDown.customers.map(([name, total], i) => (
+                    <div key={name} className="flex items-center justify-between gap-2 py-0.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-[10px] font-bold text-blue-400 w-4 shrink-0">#{i + 1}</span>
+                        <span className="text-xs truncate">{name}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-semibold text-blue-900">{fmtGbp(total)}</span>
+                        <span className="text-[10px] text-muted-foreground ml-1">{((total / drillDown.total) * 100).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
-        <DataTable
-          cols={[
-            { key: "incomeDate", label: "Date", fmt: r => fmtDate(r.incomeDate) },
-            { key: "activityName", label: "Activity" },
-            { key: "incomeType", label: "Type" },
-            { key: "description", label: "Description" },
-            { key: "customerName", label: "Customer" },
-            { key: "amountNet", label: "Net Amount", fmt: r => fmtGbp(r.amountNet) },
-            { key: "vatRate", label: "VAT", fmt: r => VAT_RATES.find(v => v.value === r.vatRate)?.label ?? String(r.vatRate) },
-            { key: "invoiceRef", label: "Invoice Ref" },
-          ]}
-          rows={records}
-          onEdit={r => openEdit(r)}
-          onDelete={r => { if (confirm("Delete this income record?")) del.mutate(r.id as number); }}
-        />
+        <>
+          {selectedType && (
+            <div className="flex items-center gap-2 text-sm text-blue-700 font-medium">
+              <span>Showing: {selectedType}</span>
+              <button onClick={() => setSelectedType(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear filter</button>
+            </div>
+          )}
+          <DataTable
+            cols={[
+              { key: "incomeDate", label: "Date", fmt: r => fmtDate(r.incomeDate) },
+              { key: "activityName", label: "Activity" },
+              ...(!selectedType ? [{ key: "incomeType", label: "Type" }] : []),
+              { key: "description", label: "Description" },
+              { key: "customerName", label: "Customer" },
+              { key: "amountNet", label: "Net Amount", fmt: r => fmtGbp(r.amountNet) },
+              { key: "vatRate", label: "VAT", fmt: r => VAT_RATES.find(v => v.value === r.vatRate)?.label ?? String(r.vatRate) },
+              { key: "invoiceRef", label: "Invoice Ref" },
+            ]}
+            rows={displayRecords}
+            onEdit={r => openEdit(r)}
+            onDelete={r => { if (confirm("Delete this income record?")) del.mutate(r.id as number); }}
+          />
+        </>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
