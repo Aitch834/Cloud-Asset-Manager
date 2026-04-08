@@ -25,6 +25,8 @@ export const farmShopProductsTable = pgTable("farm_shop_products", {
   description: text("description"),
   unitOfSale: text("unit_of_sale"),
   pricePerUnit: numeric("price_per_unit", { precision: 8, scale: 2 }),
+  currentStock: numeric("current_stock", { precision: 10, scale: 2 }).default("0"),
+  reorderLevel: numeric("reorder_level", { precision: 10, scale: 2 }).default("0"),
   allergens: text("allergens").array(),
   countryOfOrigin: text("country_of_origin"),
   bestBeforeDays: integer("best_before_days"),
@@ -32,6 +34,28 @@ export const farmShopProductsTable = pgTable("farm_shop_products", {
   foodBusinessRegNumber: text("food_business_reg_number"),
   active: boolean("active").default(true),
   notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const farmShopSalesSessionsTable = pgTable("farm_shop_sales_sessions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  saleDate: date("sale_date").notNull(),
+  notes: text("notes"),
+  totalNet: numeric("total_net", { precision: 12, scale: 2 }).notNull().default("0"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const farmShopSaleItemsTable = pgTable("farm_shop_sale_items", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => farmShopSalesSessionsTable.id),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  productId: integer("product_id").references(() => farmShopProductsTable.id),
+  productName: text("product_name").notNull(),
+  quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
+  unitOfSale: text("unit_of_sale"),
+  pricePerUnit: numeric("price_per_unit", { precision: 8, scale: 2 }).notNull(),
+  lineTotal: numeric("line_total", { precision: 12, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

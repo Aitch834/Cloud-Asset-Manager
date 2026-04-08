@@ -158,6 +158,8 @@ import {
   sustainabilityReportsTable,
   diversificationActivitiesTable,
   farmShopProductsTable,
+  farmShopSalesSessionsTable,
+  farmShopSaleItemsTable,
   farmShopHygieneInspectionsTable,
   equineRecordsTable,
   equineHealthEventsTable,
@@ -11688,6 +11690,63 @@ router.delete("/farms/:farmId/farm-shop-hygiene-inspections/:id", requireAuth, r
   await db.delete(farmShopHygieneInspectionsTable).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId)));
   res.json({ success: true });
 });
+
+// ── Farm Shop: Sales Sessions ───────────────────────────────────────────────
+
+router.get("/farms/:farmId/shop-sales", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const sessions = await db.select().from(farmShopSalesSessionsTable).where(eq(farmShopSalesSessionsTable.farmId, farmId)).orderBy(desc(farmShopSalesSessionsTable.saleDate));
+  const items = await db.select().from(farmShopSaleItemsTable).where(eq(farmShopSaleItemsTable.farmId, farmId));
+  const itemsBySession: Record<number, typeof items> = {};
+  for (const item of items) { (itemsBySession[item.sessionId] ??= []).push(item); }
+  res.json(sessions.map(s => ({ ...s, items: itemsBySession[s.id] ?? [] })));
+});
+
+router.post("/farms/:farmId/shop-sales", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { saleDate, notes, items } = req.body as { saleDate: string; notes?: string; items: Array<{ productId?: number; productName: string; quantity: number; unitOfSale?: string; pricePerUnit: number; lineTotal: number }> };
+  if (!saleDate || !Array.isArray(items) || items.length === 0) { res.status(400).json({ error: "saleDate and at least one item are required" }); return; }
+  const totalNet = items.reduce((s, i) => s + (Number(i.lineTotal) || 0), 0);
+  const [session] = await db.insert(farmShopSalesSessionsTable).values({ farmId, saleDate, notes, totalNet: String(totalNet) }).returning();
+  const itemRows = items.map(i => ({ sessionId: session.id, farmId, productId: i.productId ?? null, productName: i.productName, quantity: String(i.quantity), unitOfSale: i.unitOfSale ?? null, pricePerUnit: String(i.pricePerUnit), lineTotal: String(i.lineTotal) }));
+  await db.insert(farmShopSaleItemsTable).values(itemRows);
+  for (const i of items) {
+    if (i.productId && Number(i.quantity) > 0) {
+      await db.execute(sql`UPDATE farm_shop_products SET current_stock = GREATEST(0, COALESCE(current_stock,0) - ${Number(i.quantity)}) WHERE id = ${i.productId} AND farm_id = ${farmId}`);
+    }
+  }
+  res.json({ ...session, items: await db.select().from(farmShopSaleItemsTable).where(eq(farmShopSaleItemsTable.sessionId, session.id)) });
+});
+
+router.delete("/farms/:farmId/shop-sales/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const items = await db.select().from(farmShopSaleItemsTable).where(and(eq(farmShopSaleItemsTable.sessionId, id), eq(farmShopSaleItemsTable.farmId, farmId)));
+  for (const i of items) {
+    if (i.productId && Number(i.quantity) > 0) {
+      await db.execute(sql`UPDATE farm_shop_products SET current_stock = COALESCE(current_stock,0) + ${Number(i.quantity)} WHERE id = ${i.productId} AND farm_id = ${farmId}`);
+    }
+  }
+  await db.delete(farmShopSaleItemsTable).where(eq(farmShopSaleItemsTable.sessionId, id));
+  await db.delete(farmShopSalesSessionsTable).where(and(eq(farmShopSalesSessionsTable.id, id), eq(farmShopSalesSessionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ── Farm Shop: Stock Adjustment ──────────────────────────────────────────────
+
+router.post("/farms/:farmId/shop-products/:id/adjust-stock", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { adjustment } = req.body as { adjustment: number };
+  if (adjustment === undefined || isNaN(Number(adjustment))) { res.status(400).json({ error: "adjustment (number) is required" }); return; }
+  const [prod] = await db.select({ currentStock: farmShopProductsTable.currentStock }).from(farmShopProductsTable).where(and(eq(farmShopProductsTable.id, id), eq(farmShopProductsTable.farmId, farmId)));
+  if (!prod) { res.status(404).json({ error: "Product not found" }); return; }
+  const newStock = Math.max(0, (parseFloat(String(prod.currentStock ?? "0")) || 0) + Number(adjustment));
+  const [updated] = await db.update(farmShopProductsTable).set({ currentStock: String(newStock) }).where(and(eq(farmShopProductsTable.id, id), eq(farmShopProductsTable.farmId, farmId))).returning();
+  res.json(updated);
+});
+
+// ── Equine ───────────────────────────────────────────────────────────────────
 
 router.get("/farms/:farmId/equine-records", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;

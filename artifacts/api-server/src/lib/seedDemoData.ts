@@ -40,7 +40,7 @@ import {
   weatherStationsTable, weatherReadingsTable,
   documentRecordsTable,
   carbonAuditsTable, carbonReductionActionsTable, renewableEnergyProductionTable,
-  diversificationActivitiesTable, shootingAndGameRecordsTable, diversificationIncomeRecordsTable,
+  diversificationActivitiesTable, shootingAndGameRecordsTable, diversificationIncomeRecordsTable, farmShopProductsTable,
   cropTrialsTable, cropTrialPlotsTable, cropTrialYieldsTable,
   farmAdvisorsTable,
 } from "@workspace/db/schema";
@@ -1055,6 +1055,19 @@ async function seedDiversification(farmId: number) {
       { farmId, activityId: storage?.id, incomeDate: `${yr}-03-31`, incomeType: "Storage Let", description: "Q1 grain storage rental — 120t", amountNet: "210.00", vatRate: "standard", vatAmount: "42.00", customerName: "Frontier Agriculture Ltd", invoiceRef: "FRON-Q1" },
       { farmId, activityId: straw?.id, incomeDate: `${yr}-02-14`, incomeType: "Farm Shop Sales", description: "48 x round bales wheat straw", amountNet: "720.00", vatRate: "zero", vatAmount: "0.00", customerName: "Hawthorn Equestrian Centre", invoiceRef: "STRAW-001" },
       { farmId, activityId: holiday?.id, incomeDate: `${prevYr}-08-01`, incomeType: "Holiday Accommodation", description: "August peak week", amountNet: "1800.00", vatRate: "exempt", customerName: "Sykes Cottages", invoiceRef: "SYKES-PREV-0712" },
+    ]);
+  }
+  const shopExists = await db.select().from(farmShopProductsTable).where(eq(farmShopProductsTable.farmId, farmId)).limit(1);
+  if (shopExists.length === 0) {
+    await db.insert(farmShopProductsTable).values([
+      { farmId, productName: "Free Range Eggs", category: "Dairy & Eggs", unitOfSale: "dozen", pricePerUnit: "2.80", currentStock: "36", reorderLevel: "12", countryOfOrigin: "United Kingdom", bestBeforeDays: 28, storageRequirements: "Refrigerated 0-4°C", active: true, description: "Free range eggs from our laying flock. Collected daily." },
+      { farmId, productName: "Rump Steak (500g)", category: "Meat & Poultry", unitOfSale: "500g pack", pricePerUnit: "9.50", currentStock: "18", reorderLevel: "6", countryOfOrigin: "United Kingdom", bestBeforeDays: 7, storageRequirements: "Refrigerated 0-4°C, vacuum sealed", active: true, description: "Dry-aged Hereford beef, 28-day matured." },
+      { farmId, productName: "Beef Mince (500g)", category: "Meat & Poultry", unitOfSale: "500g pack", pricePerUnit: "5.50", currentStock: "24", reorderLevel: "8", countryOfOrigin: "United Kingdom", bestBeforeDays: 7, storageRequirements: "Refrigerated 0-4°C", active: true },
+      { farmId, productName: "Homemade Jam — Strawberry", category: "Jams & Preserves", unitOfSale: "340g jar", pricePerUnit: "3.50", currentStock: "48", reorderLevel: "12", countryOfOrigin: "United Kingdom", bestBeforeDays: 365, storageRequirements: "Cool dry place", active: true, description: "Made with our own strawberries. No artificial preservatives." },
+      { farmId, productName: "Homemade Jam — Blackcurrant", category: "Jams & Preserves", unitOfSale: "340g jar", pricePerUnit: "3.50", currentStock: "36", reorderLevel: "12", countryOfOrigin: "United Kingdom", bestBeforeDays: 365, storageRequirements: "Cool dry place", active: true },
+      { farmId, productName: "Wildflower Honey", category: "Honey", unitOfSale: "454g jar", pricePerUnit: "7.50", currentStock: "20", reorderLevel: "6", countryOfOrigin: "United Kingdom", storageRequirements: "Cool dry place", active: true, description: "Raw wildflower honey from our on-site hives." },
+      { farmId, productName: "New Potatoes (1kg)", category: "Fruit & Vegetables", unitOfSale: "1kg bag", pricePerUnit: "1.80", currentStock: "50", reorderLevel: "20", countryOfOrigin: "United Kingdom", bestBeforeDays: 14, storageRequirements: "Cool dark place", active: true, description: "Washed new potatoes freshly lifted from the field." },
+      { farmId, productName: "Wheat Flour — Stoneground (1.5kg)", category: "Cereals & Bread", unitOfSale: "1.5kg bag", pricePerUnit: "2.50", currentStock: "4", reorderLevel: "10", countryOfOrigin: "United Kingdom", bestBeforeDays: 365, storageRequirements: "Cool dry place", active: false, description: "Stoneground wholemeal wheat flour from our own crop." },
     ]);
   }
   console.log("[DEMO SEED] Diversification seeded");

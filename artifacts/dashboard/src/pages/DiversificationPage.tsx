@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, LayoutList, ShoppingBag, ClipboardCheck, PawPrint, Zap, PoundSterling, Crosshair, TrendingUp } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, LayoutList, ShoppingBag, ClipboardCheck, PawPrint, Zap, PoundSterling, Crosshair, TrendingUp, PackagePlus, ChevronDown, ChevronRight, AlertTriangle, Package } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,32 +86,328 @@ function ActivitiesTab({ farmId }: { farmId: number }) {
   );
 }
 
+const SHOP_CATEGORIES = ["Meat & Poultry", "Dairy & Eggs", "Fruit & Vegetables", "Cereals & Bread", "Jams & Preserves", "Honey", "Alcohol", "Plants & Flowers", "Gifts & Crafts", "Other"];
+
+type SaleItem = { productId?: number; productName: string; quantity: string; unitOfSale: string; pricePerUnit: string; lineTotal: number };
+type Session = { id: number; saleDate: string; notes?: string; totalNet: string; items: Record<string, unknown>[] };
+
 function FarmShopTab({ farmId }: { farmId: number }) {
-  const { data: products, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "farm-shop-products", "shop-products");
+  const qc = useQueryClient();
+  const [shopTab, setShopTab] = useState<"products" | "sales" | "history">("products");
+
+  // ── Products state ──────────────────────────────────────────────────────────
+  const { data: products = [], isLoading: prodLoading } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["shop-products", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/farm-shop-products`), { credentials: "include" }).then(r => r.json()),
+  });
+  const [prodOpen, setProdOpen] = useState(false);
+  const [prodEditing, setProdEditing] = useState<Record<string, unknown> | null>(null);
+  const [prodForm, setProdForm] = useState<Record<string, unknown>>({});
+  const saveProd = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(prodEditing ? api(`farms/${farmId}/farm-shop-products/${prodEditing.id}`) : api(`farms/${farmId}/farm-shop-products`), { method: prodEditing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-products", farmId] }); setProdOpen(false); },
+  });
+  const delProd = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/farm-shop-products/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shop-products", farmId] }),
+  });
+
+  // ── Stock adjustment state ──────────────────────────────────────────────────
+  const [stockTarget, setStockTarget] = useState<Record<string, unknown> | null>(null);
+  const [stockQty, setStockQty] = useState("");
+  const adjustStock = useMutation({
+    mutationFn: ({ id, adjustment }: { id: number; adjustment: number }) =>
+      fetch(api(`farms/${farmId}/shop-products/${id}/adjust-stock`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ adjustment }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-products", farmId] }); setStockTarget(null); setStockQty(""); },
+  });
+
+  // ── Sales session state ─────────────────────────────────────────────────────
+  const { data: sessions = [], isLoading: sessLoading } = useQuery<Session[]>({
+    queryKey: ["shop-sales", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/shop-sales`), { credentials: "include" }).then(r => r.json()),
+    enabled: shopTab === "history",
+  });
+  const [saleDate, setSaleDate] = useState(new Date().toISOString().slice(0, 10));
+  const [saleNotes, setSaleNotes] = useState("");
+  const [saleItems, setSaleItems] = useState<SaleItem[]>([{ productId: undefined, productName: "", quantity: "", unitOfSale: "", pricePerUnit: "", lineTotal: 0 }]);
+  const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
+
+  const saleTotal = saleItems.reduce((s, i) => s + (i.lineTotal || 0), 0);
+
+  function updateSaleItem(idx: number, patch: Partial<SaleItem>) {
+    setSaleItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      const updated = { ...item, ...patch };
+      const qty = parseFloat(updated.quantity) || 0;
+      const price = parseFloat(updated.pricePerUnit) || 0;
+      updated.lineTotal = parseFloat((qty * price).toFixed(2));
+      return updated;
+    }));
+  }
+
+  function pickProduct(idx: number, productId: string) {
+    const prod = (products as Record<string, unknown>[]).find(p => String(p.id) === productId);
+    if (prod) {
+      updateSaleItem(idx, {
+        productId: prod.id as number,
+        productName: String(prod.productName),
+        unitOfSale: String(prod.unitOfSale ?? ""),
+        pricePerUnit: String(prod.pricePerUnit ?? ""),
+      });
+    }
+  }
+
+  const saveSale = useMutation({
+    mutationFn: () => fetch(api(`farms/${farmId}/shop-sales`), {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ saleDate, notes: saleNotes || undefined, items: saleItems.filter(i => i.productName && parseFloat(i.quantity) > 0).map(i => ({ ...i, quantity: parseFloat(i.quantity), pricePerUnit: parseFloat(i.pricePerUnit), lineTotal: i.lineTotal })) }),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shop-products", farmId] });
+      qc.invalidateQueries({ queryKey: ["shop-sales", farmId] });
+      setSaleItems([{ productId: undefined, productName: "", quantity: "", unitOfSale: "", pricePerUnit: "", lineTotal: 0 }]);
+      setSaleNotes("");
+      setShopTab("history");
+    },
+  });
+
+  const delSession = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/shop-sales/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shop-sales", farmId] }),
+  });
+
+  const activeProducts = (products as Record<string, unknown>[]).filter(p => p.active !== false);
+
+  const fmtGbp = (v: unknown) => v ? `£${parseFloat(String(v)).toFixed(2)}` : "—";
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Farm Shop Product List</h3><Button size="sm" onClick={() => openAdd({ active: true })}><Plus className="w-4 h-4 mr-1" />Add Product</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "productName", label: "Product" }, { key: "category", label: "Category" }, { key: "unitOfSale", label: "Unit" }, { key: "pricePerUnit", label: "Price (£)" }, { key: "countryOfOrigin", label: "Origin" }, { key: "active", label: "Active", fmt: r => r.active ? "Yes" : "No" }]} rows={products as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }} />}
-      <Dialog open={open} onOpenChange={setOpen}>
+      {/* Inner sub-tab bar */}
+      <div className="flex gap-1 border-b pb-0">
+        {(["products", "sales", "history"] as const).map(t => (
+          <button key={t} onClick={() => setShopTab(t)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors ${shopTab === t ? "bg-background border border-b-background -mb-px text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            {t === "products" ? "Products & Stock" : t === "sales" ? "Record Sales" : "Sales History"}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Products & Stock ─────────────────────────────────────────────────── */}
+      {shopTab === "products" && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold text-sm">Product Catalogue</h3>
+            <Button size="sm" onClick={() => { setProdEditing(null); setProdForm({ active: true }); setProdOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Product</Button>
+          </div>
+          {prodLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b">
+                  {["Product", "Category", "Unit", "Price", "In Stock", "Reorder At", "Status", ""].map(h => <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {(products as Record<string, unknown>[]).map((p, i) => {
+                    const stock = parseFloat(String(p.currentStock ?? "0")) || 0;
+                    const reorder = parseFloat(String(p.reorderLevel ?? "0")) || 0;
+                    const low = stock > 0 && reorder > 0 && stock <= reorder;
+                    const zero = stock === 0 && p.active;
+                    return (
+                      <tr key={i} className="border-b last:border-0">
+                        <td className="py-2 pr-3 font-medium">{String(p.productName)}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">{String(p.category)}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">{fmt(p.unitOfSale)}</td>
+                        <td className="py-2 pr-3">{fmtGbp(p.pricePerUnit)}</td>
+                        <td className="py-2 pr-3">
+                          <span className={`font-semibold ${zero ? "text-red-600" : low ? "text-amber-600" : "text-emerald-700"}`}>
+                            {stock % 1 === 0 ? stock.toFixed(0) : stock.toFixed(1)}
+                          </span>
+                          {zero && <AlertTriangle className="inline w-3 h-3 ml-1 text-red-500" />}
+                          {low && !zero && <AlertTriangle className="inline w-3 h-3 ml-1 text-amber-500" />}
+                        </td>
+                        <td className="py-2 pr-3 text-muted-foreground">{reorder > 0 ? (reorder % 1 === 0 ? reorder.toFixed(0) : reorder.toFixed(1)) : "—"}</td>
+                        <td className="py-2 pr-3">
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${p.active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>{p.active ? "Active" : "Inactive"}</span>
+                        </td>
+                        <td className="py-2 text-right space-x-1 whitespace-nowrap">
+                          <Button size="icon" variant="ghost" title="Stock In" onClick={() => { setStockTarget(p); setStockQty(""); }}><PackagePlus className="w-3.5 h-3.5 text-emerald-600" /></Button>
+                          <Button size="icon" variant="ghost" onClick={() => { setProdEditing(p); setProdForm(Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v ?? ""]))); setProdOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                          <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete product?")) delProd.mutate(p.id as number); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {products.length === 0 && <tr><td colSpan={8} className="py-6 text-center text-sm text-muted-foreground italic">No products yet.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Low stock summary */}
+          {(products as Record<string, unknown>[]).some(p => {
+            const s = parseFloat(String(p.currentStock ?? "0")) || 0;
+            const r = parseFloat(String(p.reorderLevel ?? "0")) || 0;
+            return s === 0 || (r > 0 && s <= r);
+          }) && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+              <p className="font-medium text-amber-800 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" />Stock alerts</p>
+              <ul className="mt-1 space-y-0.5">
+                {(products as Record<string, unknown>[]).filter(p => {
+                  const s = parseFloat(String(p.currentStock ?? "0")) || 0;
+                  const r = parseFloat(String(p.reorderLevel ?? "0")) || 0;
+                  return s === 0 || (r > 0 && s <= r);
+                }).map((p, i) => {
+                  const s = parseFloat(String(p.currentStock ?? "0")) || 0;
+                  return <li key={i} className={`text-xs ${s === 0 ? "text-red-700 font-medium" : "text-amber-700"}`}>{String(p.productName)}: {s === 0 ? "Out of stock" : `Low stock (${s} remaining, reorder at ${p.reorderLevel})`}</li>;
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Record Sales ──────────────────────────────────────────────────────── */}
+      {shopTab === "sales" && (
+        <div className="space-y-4">
+          <h3 className="font-semibold text-sm">Record Today's Sales</h3>
+          <div className="grid grid-cols-2 gap-3 max-w-md">
+            <div><Label>Sale Date *</Label><Input type="date" value={saleDate} onChange={e => setSaleDate(e.target.value)} /></div>
+            <div><Label>Notes (optional)</Label><Input value={saleNotes} onChange={e => setSaleNotes(e.target.value)} placeholder="e.g. Saturday market" /></div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground px-1">
+              <span className="col-span-4">Product</span>
+              <span className="col-span-2">Qty</span>
+              <span className="col-span-2">Unit</span>
+              <span className="col-span-2">Price (£)</span>
+              <span className="col-span-1 text-right">Total</span>
+              <span className="col-span-1" />
+            </div>
+            {saleItems.map((item, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                <div className="col-span-4">
+                  <Select value={item.productId ? String(item.productId) : "__none__"} onValueChange={v => v !== "__none__" ? pickProduct(idx, v) : updateSaleItem(idx, { productId: undefined, productName: "", unitOfSale: "", pricePerUnit: "" })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pick product…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Select product —</SelectItem>
+                      {activeProducts.map(p => <SelectItem key={String(p.id)} value={String(p.id)}>{String(p.productName)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2"><Input className="h-8 text-xs" type="number" min="0" step="0.5" placeholder="0" value={item.quantity} onChange={e => updateSaleItem(idx, { quantity: e.target.value })} /></div>
+                <div className="col-span-2"><Input className="h-8 text-xs" placeholder="unit" value={item.unitOfSale} onChange={e => updateSaleItem(idx, { unitOfSale: e.target.value })} /></div>
+                <div className="col-span-2"><Input className="h-8 text-xs" type="number" min="0" step="0.01" placeholder="0.00" value={item.pricePerUnit} onChange={e => updateSaleItem(idx, { pricePerUnit: e.target.value })} /></div>
+                <div className="col-span-1 text-right text-xs font-semibold">{item.lineTotal > 0 ? `£${item.lineTotal.toFixed(2)}` : "—"}</div>
+                <div className="col-span-1 text-right">
+                  {saleItems.length > 1 && <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setSaleItems(prev => prev.filter((_, i) => i !== idx))}><Trash2 className="w-3 h-3 text-red-400" /></Button>}
+                </div>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" onClick={() => setSaleItems(prev => [...prev, { productId: undefined, productName: "", quantity: "", unitOfSale: "", pricePerUnit: "", lineTotal: 0 }])}>
+              <Plus className="w-3.5 h-3.5 mr-1" />Add Line
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between border-t pt-3">
+            <div className="text-sm font-semibold">Session Total: <span className="text-lg text-emerald-700">£{saleTotal.toFixed(2)}</span></div>
+            <Button
+              onClick={() => saveSale.mutate()}
+              disabled={saveSale.isPending || saleItems.filter(i => i.productName && parseFloat(i.quantity) > 0).length === 0 || !saleDate}
+            >
+              {saveSale.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Package className="w-4 h-4 mr-1" />}
+              Save Sales Record
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sales History ──────────────────────────────────────────────────────── */}
+      {shopTab === "history" && (
+        <div className="space-y-3">
+          <h3 className="font-semibold text-sm">Sales History</h3>
+          {sessLoading ? <Loader2 className="animate-spin w-5 h-5" /> : sessions.length === 0 ? (
+            <Empty msg="No sales recorded yet. Use 'Record Sales' to log your first session." />
+          ) : sessions.map(sess => {
+            const expanded = expandedSessions.has(sess.id);
+            return (
+              <div key={sess.id} className="rounded-lg border overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 bg-muted/30 cursor-pointer" onClick={() => setExpandedSessions(prev => { const s = new Set(prev); s.has(sess.id) ? s.delete(sess.id) : s.add(sess.id); return s; })}>
+                  <div className="flex items-center gap-3">
+                    {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                    <span className="font-medium text-sm">{fmtDate(sess.saleDate)}</span>
+                    <span className="text-xs text-muted-foreground">{sess.items.length} item{sess.items.length !== 1 ? "s" : ""}</span>
+                    {sess.notes && <span className="text-xs text-muted-foreground italic">— {sess.notes}</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-emerald-700">£{parseFloat(sess.totalNet).toFixed(2)}</span>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={e => { e.stopPropagation(); if (confirm("Delete this sales session? Stock will be restored.")) delSession.mutate(sess.id); }}><Trash2 className="w-3.5 h-3.5 text-red-400" /></Button>
+                  </div>
+                </div>
+                {expanded && (
+                  <div className="px-4 pb-3 pt-2">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b"><th className="text-left py-1.5 font-medium text-muted-foreground">Product</th><th className="text-left py-1.5 font-medium text-muted-foreground">Qty</th><th className="text-left py-1.5 font-medium text-muted-foreground">Unit</th><th className="text-left py-1.5 font-medium text-muted-foreground">Price</th><th className="text-right py-1.5 font-medium text-muted-foreground">Line Total</th></tr></thead>
+                      <tbody>
+                        {(sess.items as Record<string, unknown>[]).map((item, j) => (
+                          <tr key={j} className="border-b last:border-0">
+                            <td className="py-1.5 font-medium">{String(item.productName)}</td>
+                            <td className="py-1.5">{String(item.quantity)}</td>
+                            <td className="py-1.5 text-muted-foreground">{fmt(item.unitOfSale)}</td>
+                            <td className="py-1.5">{fmtGbp(item.pricePerUnit)}</td>
+                            <td className="py-1.5 text-right font-semibold">{fmtGbp(item.lineTotal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Stock In dialog ───────────────────────────────────────────────────── */}
+      <Dialog open={!!stockTarget} onOpenChange={o => { if (!o) setStockTarget(null); }}>
+        <DialogContent style={{ maxWidth: "22rem" }}>
+          <DialogHeader><DialogTitle>Stock In — {stockTarget ? String(stockTarget.productName) : ""}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Current stock: <strong>{parseFloat(String(stockTarget?.currentStock ?? "0")).toFixed(0)} {fmt(stockTarget?.unitOfSale)}</strong></p>
+          <div><Label>Quantity to add *</Label><Input type="number" min="1" step="1" value={stockQty} onChange={e => setStockQty(e.target.value)} placeholder="e.g. 24" /></div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStockTarget(null)}>Cancel</Button>
+            <Button onClick={() => adjustStock.mutate({ id: stockTarget!.id as number, adjustment: parseFloat(stockQty) })} disabled={adjustStock.isPending || !stockQty || parseFloat(stockQty) <= 0}>
+              {adjustStock.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}Add Stock
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add / Edit product dialog ─────────────────────────────────────────── */}
+      <Dialog open={prodOpen} onOpenChange={setProdOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
-          <DialogHeader><DialogTitle>Farm Shop Product</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{prodEditing ? "Edit Product" : "Add Product"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><Label>Product Name *</Label><Input value={String(form.productName ?? "")} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Product Name *</Label><Input value={String(prodForm.productName ?? "")} onChange={e => setProdForm(f => ({ ...f, productName: e.target.value }))} /></div>
             <div><Label>Category *</Label>
-              <Select value={String(form.category ?? "")} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
+              <Select value={String(prodForm.category ?? "")} onValueChange={v => setProdForm(f => ({ ...f, category: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["Meat & Poultry", "Dairy & Eggs", "Fruit & Vegetables", "Cereals & Bread", "Jams & Preserves", "Honey", "Alcohol", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                <SelectContent>{SHOP_CATEGORIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Unit of Sale</Label><Input value={String(form.unitOfSale ?? "")} onChange={e => setForm(f => ({ ...f, unitOfSale: e.target.value }))} /></div>
-            <div><Label>Price per Unit (£)</Label><Input type="number" step="0.01" value={String(form.pricePerUnit ?? "")} onChange={e => setForm(f => ({ ...f, pricePerUnit: e.target.value }))} /></div>
-            <div><Label>Country of Origin</Label><Input value={String(form.countryOfOrigin ?? "")} onChange={e => setForm(f => ({ ...f, countryOfOrigin: e.target.value }))} /></div>
-            <div><Label>Best Before (days)</Label><Input type="number" value={String(form.bestBeforeDays ?? "")} onChange={e => setForm(f => ({ ...f, bestBeforeDays: e.target.value }))} /></div>
-            <div><Label>Storage Requirements</Label><Input value={String(form.storageRequirements ?? "")} onChange={e => setForm(f => ({ ...f, storageRequirements: e.target.value }))} /></div>
-            <div className="flex items-center gap-2 mt-4"><Checkbox id="active" checked={Boolean(form.active)} onCheckedChange={v => setForm(f => ({ ...f, active: Boolean(v) }))} /><Label htmlFor="active">Active product?</Label></div>
-            <div className="col-span-2"><Label>Description</Label><Textarea value={String(form.description ?? "")} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} /></div>
+            <div><Label>Unit of Sale</Label><Input value={String(prodForm.unitOfSale ?? "")} onChange={e => setProdForm(f => ({ ...f, unitOfSale: e.target.value }))} placeholder="e.g. dozen, kg, jar" /></div>
+            <div><Label>Price per Unit (£)</Label><Input type="number" step="0.01" value={String(prodForm.pricePerUnit ?? "")} onChange={e => setProdForm(f => ({ ...f, pricePerUnit: e.target.value }))} /></div>
+            <div><Label>Current Stock</Label><Input type="number" step="1" min="0" value={String(prodForm.currentStock ?? "0")} onChange={e => setProdForm(f => ({ ...f, currentStock: e.target.value }))} /></div>
+            <div><Label>Reorder Level</Label><Input type="number" step="1" min="0" value={String(prodForm.reorderLevel ?? "0")} onChange={e => setProdForm(f => ({ ...f, reorderLevel: e.target.value }))} /></div>
+            <div><Label>Country of Origin</Label><Input value={String(prodForm.countryOfOrigin ?? "")} onChange={e => setProdForm(f => ({ ...f, countryOfOrigin: e.target.value }))} /></div>
+            <div><Label>Best Before (days)</Label><Input type="number" value={String(prodForm.bestBeforeDays ?? "")} onChange={e => setProdForm(f => ({ ...f, bestBeforeDays: e.target.value }))} /></div>
+            <div><Label>Storage Requirements</Label><Input value={String(prodForm.storageRequirements ?? "")} onChange={e => setProdForm(f => ({ ...f, storageRequirements: e.target.value }))} /></div>
+            <div className="flex items-center gap-2 mt-4"><Checkbox id="active-prod" checked={Boolean(prodForm.active)} onCheckedChange={v => setProdForm(f => ({ ...f, active: Boolean(v) }))} /><Label htmlFor="active-prod">Active product?</Label></div>
+            <div className="col-span-2"><Label>Description</Label><Textarea value={String(prodForm.description ?? "")} onChange={e => setProdForm(f => ({ ...f, description: e.target.value }))} rows={2} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProdOpen(false)}>Cancel</Button>
+            <Button onClick={() => saveProd.mutate(prodForm)} disabled={saveProd.isPending || !prodForm.productName || !prodForm.category}>Save</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
