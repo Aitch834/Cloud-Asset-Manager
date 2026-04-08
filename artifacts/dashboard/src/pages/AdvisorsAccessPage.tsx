@@ -65,12 +65,12 @@ const ALL_MODULES = [
   { key: "nvz", label: "NVZ Records" },
   { key: "risk_assessments", label: "Risk Assessments & COSHH" },
   { key: "environmental", label: "Environmental Records" },
-  { key: "pig_production", label: "Pig Production" },
-  { key: "poultry_production", label: "Poultry Production" },
+  { key: "pig-production", label: "Pig Production" },
+  { key: "poultry-production", label: "Poultry Production" },
   { key: "horticulture", label: "Horticulture & Fresh Produce" },
-  { key: "carbon_sustainability", label: "Carbon & Sustainability" },
-  { key: "farm_diversification", label: "Farm Diversification" },
-  { key: "water_irrigation", label: "Water & Irrigation Management" },
+  { key: "carbon-sustainability", label: "Carbon & Sustainability" },
+  { key: "farm-diversification", label: "Farm Diversification" },
+  { key: "water-irrigation", label: "Water & Irrigation Management" },
 ];
 
 const ADVISOR_ROLES = [

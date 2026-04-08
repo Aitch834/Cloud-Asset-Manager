@@ -10216,13 +10216,13 @@ const ACCESS_MODULE_QUERIES: Record<string, (farmId: number) => Promise<unknown>
     patTests: await db.select().from(workshopPatTestsTable).where(eq(workshopPatTestsTable.farmId, farmId)).orderBy(desc(workshopPatTestsTable.testDate)).limit(100),
     fireExtinguishers: await db.select().from(workshopFireExtinguishersTable).where(eq(workshopFireExtinguishersTable.farmId, farmId)).orderBy(workshopFireExtinguishersTable.nextServiceDue).limit(100),
   }),
-  pig_production: async (farmId) => ({
+  "pig-production": async (farmId) => ({
     flocks: await db.select().from(pigFlocksTable).where(eq(pigFlocksTable.farmId, farmId)).limit(100),
     movements: await db.select().from(pigMovementsTable).where(eq(pigMovementsTable.farmId, farmId)).orderBy(desc(pigMovementsTable.movementDate)).limit(100),
     fciDocuments: await db.select().from(pigFciDocumentsTable).where(eq(pigFciDocumentsTable.farmId, farmId)).orderBy(desc(pigFciDocumentsTable.documentDate)).limit(100),
     stockmanshipChecks: await db.select().from(pigStockmanshipChecksTable).where(eq(pigStockmanshipChecksTable.farmId, farmId)).orderBy(desc(pigStockmanshipChecksTable.checkDate)).limit(50),
   }),
-  poultry_production: async (farmId) => ({
+  "poultry-production": async (farmId) => ({
     houses: await db.select().from(poultryHousesTable).where(eq(poultryHousesTable.farmId, farmId)).limit(50),
     flocks: await db.select().from(poultryFlocksTable).where(eq(poultryFlocksTable.farmId, farmId)).orderBy(desc(poultryFlocksTable.placementDate)).limit(100),
     treatments: await db.select().from(poultryTreatmentsTable).where(eq(poultryTreatmentsTable.farmId, farmId)).orderBy(desc(poultryTreatmentsTable.treatmentDate)).limit(100),
@@ -10234,18 +10234,18 @@ const ACCESS_MODULE_QUERIES: Record<string, (farmId: number) => Promise<unknown>
     waterTests: await db.select().from(horticultureWaterTestsTable).where(eq(horticultureWaterTestsTable.farmId, farmId)).orderBy(desc(horticultureWaterTestsTable.testDate)).limit(50),
     harvestRecords: await db.select().from(horticultureHarvestRecordsTable).where(eq(horticultureHarvestRecordsTable.farmId, farmId)).orderBy(desc(horticultureHarvestRecordsTable.harvestDate)).limit(100),
   }),
-  carbon_sustainability: async (farmId) => ({
+  "carbon-sustainability": async (farmId) => ({
     audits: await db.select().from(carbonAuditsTable).where(eq(carbonAuditsTable.farmId, farmId)).orderBy(desc(carbonAuditsTable.auditYear)).limit(10),
     reductionActions: await db.select().from(carbonReductionActionsTable).where(eq(carbonReductionActionsTable.farmId, farmId)).limit(50),
     sustainabilityReports: await db.select().from(sustainabilityReportsTable).where(eq(sustainabilityReportsTable.farmId, farmId)).orderBy(desc(sustainabilityReportsTable.reportYear)).limit(20),
   }),
-  farm_diversification: async (farmId) => ({
+  "farm-diversification": async (farmId) => ({
     activities: await db.select().from(diversificationActivitiesTable).where(eq(diversificationActivitiesTable.farmId, farmId)).limit(50),
     farmShopProducts: await db.select().from(farmShopProductsTable).where(eq(farmShopProductsTable.farmId, farmId)).limit(100),
     equine: await db.select().from(equineRecordsTable).where(eq(equineRecordsTable.farmId, farmId)).limit(100),
     renewableInstallations: await db.select().from(renewableEnergyInstallationsTable).where(eq(renewableEnergyInstallationsTable.farmId, farmId)).limit(50),
   }),
-  water_irrigation: async (farmId) => ({
+  "water-irrigation": async (farmId) => ({
     licences: await db.select().from(waterAbstractionLicencesTable).where(eq(waterAbstractionLicencesTable.farmId, farmId)).limit(20),
     meterReadings: await db.select().from(waterMeterReadingsTable).where(eq(waterMeterReadingsTable.farmId, farmId)).orderBy(desc(waterMeterReadingsTable.readingDate)).limit(100),
     irrigationRecords: await db.select().from(irrigationRecordsTable).where(eq(irrigationRecordsTable.farmId, farmId)).orderBy(desc(irrigationRecordsTable.irrigationDate)).limit(100),

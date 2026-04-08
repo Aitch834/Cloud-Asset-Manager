@@ -42,12 +42,12 @@ const MODULE_LABELS: Record<string, string> = {
   nvz: "NVZ Records",
   risk_assessments: "Risk Assessments & COSHH",
   environmental: "Environmental Records",
-  pig_production: "Pig Production",
-  poultry_production: "Poultry Production",
+  "pig-production": "Pig Production",
+  "poultry-production": "Poultry Production",
   horticulture: "Horticulture & Fresh Produce",
-  carbon_sustainability: "Carbon & Sustainability",
-  farm_diversification: "Farm Diversification",
-  water_irrigation: "Water & Irrigation Management",
+  "carbon-sustainability": "Carbon & Sustainability",
+  "farm-diversification": "Farm Diversification",
+  "water-irrigation": "Water & Irrigation Management",
 };
 
 function fmt(val: unknown): string {
@@ -386,7 +386,7 @@ function SectionCard({ moduleKey, data }: { moduleKey: string; data: unknown }) 
           { key: "lastReviewDate", label: "Last Review" },
         ]} />;
       }
-      case "pig_production": {
+      case "pig-production": {
         const d = data as { herds?: Record<string, unknown>[]; healthRecords?: Record<string, unknown>[]; medicineRecords?: Record<string, unknown>[] };
         return (
           <div className="space-y-5">
@@ -413,7 +413,7 @@ function SectionCard({ moduleKey, data }: { moduleKey: string; data: unknown }) 
           </div>
         );
       }
-      case "poultry_production": {
+      case "poultry-production": {
         const d = data as { flocks?: Record<string, unknown>[]; mortalityRecords?: Record<string, unknown>[] };
         return (
           <div className="space-y-5">
@@ -470,7 +470,7 @@ function SectionCard({ moduleKey, data }: { moduleKey: string; data: unknown }) 
           </div>
         );
       }
-      case "carbon_sustainability": {
+      case "carbon-sustainability": {
         const d = data as { footprints?: Record<string, unknown>[]; actions?: Record<string, unknown>[] };
         return (
           <div className="space-y-5">
@@ -497,7 +497,7 @@ function SectionCard({ moduleKey, data }: { moduleKey: string; data: unknown }) 
           </div>
         );
       }
-      case "farm_diversification": {
+      case "farm-diversification": {
         const d = data as { enterprises?: Record<string, unknown>[]; incomeRecords?: Record<string, unknown>[] };
         return (
           <div className="space-y-5">
@@ -524,7 +524,7 @@ function SectionCard({ moduleKey, data }: { moduleKey: string; data: unknown }) 
           </div>
         );
       }
-      case "water_irrigation": {
+      case "water-irrigation": {
         const d = data as { sources?: Record<string, unknown>[]; usageRecords?: Record<string, unknown>[] };
         return (
           <div className="space-y-5">
