@@ -286,6 +286,7 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
                   required
                   placeholder="Search or add grain merchant..."
                   typeLabel="Grain Merchant"
+                  postAddNavigatePath="/suppliers-stock?tab=suppliers"
                 />
               </div>
               <div>
@@ -678,6 +679,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
                   required
                   placeholder="Search or add processor..."
                   typeLabel="Processor"
+                  postAddNavigatePath="/suppliers-stock?tab=suppliers"
                 />
               </div>
               <div>
@@ -744,6 +746,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
                   required
                   placeholder="Search or add mart..."
                   typeLabel="Livestock Mart"
+                  postAddNavigatePath="/suppliers-stock?tab=suppliers"
                 />
               </div>
               <div><Label>Mart Location</Label><Input value={formMart.martLocation} onChange={e => setFormMart((f: any) => ({ ...f, martLocation: e.target.value }))} /></div>
@@ -969,6 +972,7 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
                   required
                   placeholder="Search or add milk buyer..."
                   typeLabel="Milk Buyer"
+                  postAddNavigatePath="/suppliers-stock?tab=suppliers"
                 />
               </div>
               <div><Label>CPH Number</Label><Input value={form.cphNumber} onChange={e => setForm((f: any) => ({ ...f, cphNumber: e.target.value }))} /></div>
@@ -1231,6 +1235,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
                   required
                   placeholder="Search or add integrator..."
                   typeLabel="Integrator"
+                  postAddNavigatePath="/suppliers-stock?tab=suppliers"
                 />
               </div>
               <div>
@@ -1301,6 +1306,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
                   onChange={(id, name) => setFormEgg((f: any) => ({ ...f, packingStationId: id, packingStation: name }))}
                   placeholder="Search or add packing station..."
                   typeLabel="Packing Station"
+                  postAddNavigatePath="/suppliers-stock?tab=suppliers"
                 />
               </div>
               <div><Label>Flock Ref</Label><Input value={formEgg.flockRef} onChange={e => setFormEgg((f: any) => ({ ...f, flockRef: e.target.value }))} /></div>
@@ -1515,6 +1521,7 @@ function PigSalesTab({ farmId }: { farmId: number }) {
                   required
                   placeholder="Search or add processor..."
                   typeLabel="Pig Processor"
+                  postAddNavigatePath="/suppliers-stock?tab=suppliers"
                 />
               </div>
               <div><Label>Head Count *</Label><Input type="number" value={form.headCount} onChange={e => setForm((f: any) => ({ ...f, headCount: e.target.value }))} required /></div>
@@ -1779,6 +1786,7 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
                   onChange={(id, name) => setForm((f: any) => ({ ...f, customerId: id, customerName: name }))}
                   placeholder="Search or add customer..."
                   typeLabel="Customer"
+                  postAddNavigatePath="/suppliers-stock?tab=suppliers"
                 />
               </div>
               <div><Label>Invoice Number</Label><Input value={form.invoiceNumber} onChange={e => setForm((f: any) => ({ ...f, invoiceNumber: e.target.value }))} /></div>
