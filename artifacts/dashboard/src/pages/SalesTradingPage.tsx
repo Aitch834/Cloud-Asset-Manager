@@ -15,7 +15,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, R
 import {
   Plus, Trash2, Pencil, Eye, TrendingUp, Wheat, PiggyBank, Bird, Milk,
   ShoppingCart, BarChart3, Package, Scale, CheckCircle2, DollarSign, AlertCircle,
-  FileText, Calendar, ChevronDown, ChevronRight, X, Handshake, Droplets
+  FileText, Calendar, ChevronDown, ChevronRight, X, Handshake, Droplets, Printer
 } from "lucide-react";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 
@@ -1818,6 +1818,9 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
 function ReportsTab({ farmId }: { farmId: number }) {
   const [reportYearFilter, setReportYearFilter] = useState("__all__");
 
+  const farmQ = useQuery({ queryKey: ["farm-detail", farmId], queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.record });
+  const farm = farmQ.data;
+
   const grainQ = useQuery({ queryKey: ["grain-sales", farmId], queryFn: () => fetch(`/api/farms/${farmId}/grain-sales`).then(r => r.json()), enabled: !!farmId });
   const dwQ = useQuery({ queryKey: ["dw-sales", farmId], queryFn: () => fetch(`/api/farms/${farmId}/livestock-deadweight-sales`).then(r => r.json()), enabled: !!farmId });
   const martQ = useQuery({ queryKey: ["mart-sales", farmId], queryFn: () => fetch(`/api/farms/${farmId}/livestock-mart-sales`).then(r => r.json()), enabled: !!farmId });
@@ -1880,14 +1883,122 @@ function ReportsTab({ farmId }: { farmId: number }) {
     { label: "Direct Sales", value: totals.direct, color: "#0891b2" },
   ];
 
+  const periodLabel = reportYearFilter === "__all__" ? "All Time" : reportYearFilter;
+
+  const handlePrint = () => {
+    const farmName = farm?.name ?? "Farm";
+    const cph = farm?.cphNumber ? `CPH: ${farm.cphNumber}` : "";
+    const rtId = farm?.redTractorId ? `Red Tractor ID: ${farm.redTractorId}` : "";
+    const address = [farm?.addressLine1, farm?.addressTown, farm?.addressCounty, farm?.addressPostcode].filter(Boolean).join(", ");
+    const generatedAt = new Date().toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" });
+
+    const rows = kpis.map(k => `
+      <tr>
+        <td>${k.label}</td>
+        <td style="text-align:right; font-weight:600; color:${k.value > 0 ? "#166534" : "#6b7280"}">
+          ${k.value > 0 ? `£${k.value.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "No data"}
+        </td>
+        <td style="text-align:right; color:#6b7280">
+          ${totalAll > 0 && k.value > 0 ? `${((k.value / totalAll) * 100).toFixed(1)}%` : "—"}
+        </td>
+      </tr>`).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sales &amp; Trading Report — ${farmName}</title>
+  <style>
+    @page { size: A4 landscape; margin: 18mm 18mm 16mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 10pt; color: #111; background: #fff; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 10px; border-bottom: 2px solid #16a34a; margin-bottom: 14px; }
+    .header-left h1 { font-size: 18pt; font-weight: 800; color: #15803d; }
+    .header-left h2 { font-size: 12pt; font-weight: 600; color: #374151; margin-top: 2px; }
+    .header-left p { font-size: 9pt; color: #6b7280; margin-top: 2px; }
+    .header-right { text-align: right; font-size: 9pt; color: #6b7280; }
+    .header-right strong { display: block; font-size: 11pt; color: #111; font-weight: 700; }
+    .total-box { background: #f0fdf4; border: 2px solid #16a34a; border-radius: 6px; padding: 14px 20px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; }
+    .total-box .amount { font-size: 22pt; font-weight: 800; color: #15803d; }
+    .total-box .label { font-size: 10pt; color: #166534; font-weight: 600; }
+    .total-box .sub { font-size: 9pt; color: #6b7280; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+    th { background: #f9fafb; text-align: left; padding: 7px 10px; font-size: 9pt; font-weight: 700; color: #374151; border-bottom: 2px solid #e5e7eb; }
+    th:not(:first-child) { text-align: right; }
+    td { padding: 7px 10px; border-bottom: 1px solid #f3f4f6; font-size: 10pt; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    .total-row td { border-top: 2px solid #16a34a; font-weight: 700; background: #f9fafb; }
+    .footer { margin-top: 24px; padding-top: 8px; border-top: 1px solid #e5e7eb; font-size: 8pt; color: #9ca3af; display: flex; justify-content: space-between; }
+    .badge { display: inline-block; background: #dcfce7; color: #166534; border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <h1>BDE Farm Trac</h1>
+      <h2>${farmName}</h2>
+      <p>${[address, cph, rtId].filter(Boolean).join(" &nbsp;·&nbsp; ")}</p>
+    </div>
+    <div class="header-right">
+      <strong>Sales &amp; Trading Report</strong>
+      Period: ${periodLabel}<br>
+      Produced: ${generatedAt}<br>
+      <span class="badge">Barnett Davies Enterprises Ltd</span>
+    </div>
+  </div>
+
+  <div class="total-box">
+    <div>
+      <div class="label">Total Farm Sales Revenue</div>
+      <div class="sub">All sectors combined &nbsp;·&nbsp; Period: ${periodLabel}</div>
+    </div>
+    <div class="amount">£${totalAll.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Sales Sector</th>
+        <th style="text-align:right">Revenue</th>
+        <th style="text-align:right">% of Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+      <tr class="total-row">
+        <td>Total</td>
+        <td style="text-align:right">£${totalAll.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="text-align:right">100.0%</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <span>BDE Farm Trac — Barnett Davies Enterprises Ltd &nbsp;·&nbsp; Confidential — not for circulation</span>
+    <span>Generated: ${generatedAt}</span>
+  </div>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=900,height=650");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); }, 400);
+  };
+
   return (
     <div>
-      {/* Year filter */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+      {/* Year filter + Print button */}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <select value={reportYearFilter} onChange={e => setReportYearFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: "0.875rem", color: "#374151", background: "#fff", cursor: "pointer" }}>
           <option value="__all__">All Years</option>
           {allYears.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
+        <Button variant="outline" size="sm" onClick={handlePrint} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Printer size={14} /> Print Report
+        </Button>
       </div>
 
       {/* Grand total */}
