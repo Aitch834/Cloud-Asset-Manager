@@ -40,7 +40,7 @@ import {
   weatherStationsTable, weatherReadingsTable,
   documentRecordsTable,
   carbonAuditsTable, carbonReductionActionsTable, renewableEnergyProductionTable,
-  diversificationActivitiesTable, shootingAndGameRecordsTable,
+  diversificationActivitiesTable, shootingAndGameRecordsTable, diversificationIncomeRecordsTable,
   cropTrialsTable, cropTrialPlotsTable, cropTrialYieldsTable,
   farmAdvisorsTable,
 } from "@workspace/db/schema";
@@ -1037,6 +1037,24 @@ async function seedDiversification(farmId: number) {
     await db.insert(shootingAndGameRecordsTable).values([
       { farmId, shootDate: `${prevYr}-11-08`, shootType: "driven", organiser: "North Block Syndicate", numberOfGuns: 8, bagsPheasant: 68, bagsOther: 4, totalBag: 72, gameDealer: "Bourne Game Dealers", incomeLeaseFee: "600.00", notes: "First shoot of the season. 68 pheasants, 4 woodpigeon." },
       { farmId, shootDate: `${prevYr}-12-06`, shootType: "driven", organiser: "North Block Syndicate", numberOfGuns: 8, bagsPheasant: 82, bagsPartridge: 12, totalBag: 94, gameDealer: "Bourne Game Dealers", incomeLeaseFee: "600.00", notes: "Good day — best of season." },
+    ]);
+  }
+
+  const incomeExists = await db.select().from(diversificationIncomeRecordsTable).where(eq(diversificationIncomeRecordsTable.farmId, farmId)).limit(1);
+  if (incomeExists.length === 0) {
+    const activities = await db.select().from(diversificationActivitiesTable).where(eq(diversificationActivitiesTable.farmId, farmId));
+    const storage = activities.find(a => a.activityName.toLowerCase().includes("storage"));
+    const straw = activities.find(a => a.activityName.toLowerCase().includes("straw"));
+    const shooting = activities.find(a => a.activityName.toLowerCase().includes("shooting"));
+    const holiday = activities.find(a => a.activityName.toLowerCase().includes("farmhouse"));
+    await db.insert(diversificationIncomeRecordsTable).values([
+      { farmId, activityId: holiday?.id, incomeDate: `${yr}-04-12`, incomeType: "Holiday Accommodation", description: "Easter week booking — 4 nights", amountNet: "2800.00", vatRate: "exempt", customerName: "Sykes Cottages", invoiceRef: "SYKES-2026-0441" },
+      { farmId, activityId: holiday?.id, incomeDate: `${yr}-03-08`, incomeType: "Holiday Accommodation", description: "March long weekend", amountNet: "1200.00", vatRate: "exempt", customerName: "Sykes Cottages", invoiceRef: "SYKES-2026-0389" },
+      { farmId, activityId: shooting?.id, incomeDate: `${prevYr}-11-08`, incomeType: "Shoot Day / Let", description: "First driven shoot of the season", amountNet: "600.00", vatRate: "standard", vatAmount: "120.00", customerName: "North Block Syndicate", invoiceRef: "SHOOT-001" },
+      { farmId, activityId: shooting?.id, incomeDate: `${prevYr}-12-06`, incomeType: "Shoot Day / Let", description: "December syndicate day", amountNet: "600.00", vatRate: "standard", vatAmount: "120.00", customerName: "North Block Syndicate", invoiceRef: "SHOOT-002" },
+      { farmId, activityId: storage?.id, incomeDate: `${yr}-03-31`, incomeType: "Storage Let", description: "Q1 grain storage rental — 120t", amountNet: "210.00", vatRate: "standard", vatAmount: "42.00", customerName: "Frontier Agriculture Ltd", invoiceRef: "FRON-Q1" },
+      { farmId, activityId: straw?.id, incomeDate: `${yr}-02-14`, incomeType: "Farm Shop Sales", description: "48 x round bales wheat straw", amountNet: "720.00", vatRate: "zero", vatAmount: "0.00", customerName: "Hawthorn Equestrian Centre", invoiceRef: "STRAW-001" },
+      { farmId, activityId: holiday?.id, incomeDate: `${prevYr}-08-01`, incomeType: "Holiday Accommodation", description: "August peak week", amountNet: "1800.00", vatRate: "exempt", customerName: "Sykes Cottages", invoiceRef: "SYKES-PREV-0712" },
     ]);
   }
   console.log("[DEMO SEED] Diversification seeded");

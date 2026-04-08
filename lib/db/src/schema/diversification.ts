@@ -140,6 +140,22 @@ export const solarExportPaymentsTable = pgTable("solar_export_payments", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const diversificationIncomeRecordsTable = pgTable("diversification_income_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  activityId: integer("activity_id").references(() => diversificationActivitiesTable.id),
+  incomeDate: date("income_date").notNull(),
+  incomeType: text("income_type").notNull(),
+  description: text("description"),
+  amountNet: numeric("amount_net", { precision: 12, scale: 2 }).notNull(),
+  vatRate: text("vat_rate").notNull().default("exempt"),
+  vatAmount: numeric("vat_amount", { precision: 10, scale: 2 }),
+  customerName: text("customer_name"),
+  invoiceRef: text("invoice_ref"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const shootingAndGameRecordsTable = pgTable("shooting_and_game_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

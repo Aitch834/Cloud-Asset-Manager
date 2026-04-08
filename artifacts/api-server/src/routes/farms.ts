@@ -165,6 +165,7 @@ import {
   renewableEnergyMeterReadingsTable,
   solarExportPaymentsTable,
   shootingAndGameRecordsTable,
+  diversificationIncomeRecordsTable,
   waterAbstractionLicencesTable,
   waterMeterReadingsTable,
   boreholeTestsTable,
@@ -11874,6 +11875,45 @@ router.delete("/farms/:farmId/shooting-game-records/:id", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(shootingAndGameRecordsTable).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ============================================================
+// DIVERSIFICATION INCOME RECORDS
+// ============================================================
+router.get("/farms/:farmId/diversification-income", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const year = req.query.year ? parseInt(req.query.year as string) : null;
+  let q = db.select({
+    income: diversificationIncomeRecordsTable,
+    activityName: diversificationActivitiesTable.activityName,
+  }).from(diversificationIncomeRecordsTable)
+    .leftJoin(diversificationActivitiesTable, eq(diversificationIncomeRecordsTable.activityId, diversificationActivitiesTable.id))
+    .where(eq(diversificationIncomeRecordsTable.farmId, farmId))
+    .$dynamic();
+  if (year) {
+    q = q.where(and(eq(diversificationIncomeRecordsTable.farmId, farmId), sql`EXTRACT(YEAR FROM ${diversificationIncomeRecordsTable.incomeDate}) = ${year}`));
+  }
+  const rows = await q.orderBy(desc(diversificationIncomeRecordsTable.incomeDate));
+  res.json(rows.map(r => ({ ...r.income, activityName: r.activityName ?? r.income.activityId })));
+});
+router.post("/farms/:farmId/diversification-income", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { activityId, ...rest } = req.body;
+  const [row] = await db.insert(diversificationIncomeRecordsTable).values({ ...rest, farmId, ...(activityId ? { activityId: parseInt(activityId) } : {}) }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/diversification-income/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { activityId, ...rest } = req.body;
+  const [row] = await db.update(diversificationIncomeRecordsTable).set({ ...rest, ...(activityId !== undefined ? { activityId: activityId ? parseInt(activityId) : null } : {}) }).where(and(eq(diversificationIncomeRecordsTable.id, id), eq(diversificationIncomeRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/diversification-income/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(diversificationIncomeRecordsTable).where(and(eq(diversificationIncomeRecordsTable.id, id), eq(diversificationIncomeRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

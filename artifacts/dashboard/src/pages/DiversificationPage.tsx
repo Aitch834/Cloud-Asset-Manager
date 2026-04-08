@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, LayoutList, ShoppingBag, ClipboardCheck, PawPrint, Heart, Zap, BarChart3, Crosshair } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, LayoutList, ShoppingBag, ClipboardCheck, PawPrint, Zap, PoundSterling, Crosshair, TrendingUp } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -299,7 +299,177 @@ function ShootingTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "activities" | "shop" | "hygiene" | "equine" | "renewable" | "shooting";
+const INCOME_TYPES = [
+  "Farm Shop Sales",
+  "Holiday Accommodation",
+  "Livery / Equine",
+  "Shoot Day / Let",
+  "FIT / SEG Payment",
+  "Event Hire",
+  "Storage Let",
+  "Tourism & Recreation",
+  "Food Processing",
+  "Other",
+];
+
+const VAT_RATES = [
+  { value: "exempt", label: "Exempt" },
+  { value: "zero", label: "Zero Rated (0%)" },
+  { value: "reduced", label: "Reduced (5%)" },
+  { value: "standard", label: "Standard (20%)" },
+  { value: "outside_scope", label: "Outside Scope" },
+];
+
+function IncomeTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const currentYear = new Date().getFullYear();
+  const [year, setYear] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, unknown>>({});
+
+  const { data: activities = [] } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["div-activities", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/diversification-activities`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const { data: records = [], isLoading } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["div-income", farmId, year],
+    queryFn: () => fetch(api(`farms/${farmId}/diversification-income${year ? `?year=${year}` : ""}`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(
+      editing ? api(`farms/${farmId}/diversification-income/${editing.id}`) : api(`farms/${farmId}/diversification-income`),
+      { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
+    ),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["div-income", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/diversification-income/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["div-income", farmId] }),
+  });
+
+  function openAdd() { setEditing(null); setForm({ vatRate: "exempt", incomeDate: new Date().toISOString().slice(0, 10) }); setOpen(true); }
+  function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""]))); setOpen(true); }
+
+  const fmtGbp = (v: unknown) => v ? `£${parseFloat(String(v)).toFixed(2)}` : "—";
+
+  const summary = useMemo(() => {
+    const totals: Record<string, number> = {};
+    let grand = 0;
+    for (const r of records) {
+      const type = String(r.incomeType ?? "Other");
+      const net = parseFloat(String(r.amountNet ?? "0")) || 0;
+      totals[type] = (totals[type] ?? 0) + net;
+      grand += net;
+    }
+    return { totals, grand };
+  }, [records]);
+
+  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h3 className="font-semibold text-sm">Diversification Income</h3>
+        <div className="flex items-center gap-2">
+          <select
+            className="text-sm border rounded-md px-2 py-1.5 bg-background"
+            value={year ?? ""}
+            onChange={e => setYear(e.target.value ? parseInt(e.target.value) : null)}
+          >
+            <option value="">All Years</option>
+            {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Income</Button>
+        </div>
+      </div>
+
+      {summary.grand > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-emerald-600" />
+              <span className="font-semibold text-emerald-900">Total Net Income {year ? year : "— All Time"}</span>
+            </div>
+            <span className="text-2xl font-bold text-emerald-700">£{summary.grand.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+          {Object.entries(summary.totals).sort((a, b) => b[1] - a[1]).map(([type, total]) => (
+            <div key={type} className="p-3 rounded-lg border bg-muted/30">
+              <p className="text-xs text-muted-foreground truncate">{type}</p>
+              <p className="font-semibold text-sm mt-0.5">£{total.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-[10px] text-muted-foreground">{((total / summary.grand) * 100).toFixed(1)}% of total</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "incomeDate", label: "Date", fmt: r => fmtDate(r.incomeDate) },
+            { key: "activityName", label: "Activity" },
+            { key: "incomeType", label: "Type" },
+            { key: "description", label: "Description" },
+            { key: "customerName", label: "Customer" },
+            { key: "amountNet", label: "Net Amount", fmt: r => fmtGbp(r.amountNet) },
+            { key: "vatRate", label: "VAT", fmt: r => VAT_RATES.find(v => v.value === r.vatRate)?.label ?? String(r.vatRate) },
+            { key: "invoiceRef", label: "Invoice Ref" },
+          ]}
+          rows={records}
+          onEdit={r => openEdit(r)}
+          onDelete={r => { if (confirm("Delete this income record?")) del.mutate(r.id as number); }}
+        />
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent style={{ maxWidth: "42rem" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit Income Record" : "Add Income Record"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Income Date *</Label><Input type="date" value={String(form.incomeDate ?? "")} onChange={e => setForm(f => ({ ...f, incomeDate: e.target.value }))} /></div>
+            <div><Label>Income Type *</Label>
+              <Select value={String(form.incomeType ?? "")} onValueChange={v => setForm(f => ({ ...f, incomeType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>{INCOME_TYPES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Linked Activity</Label>
+              <Select value={String(form.activityId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, activityId: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— None —</SelectItem>
+                  {(activities as Record<string, unknown>[]).map((a) => <SelectItem key={String(a.id)} value={String(a.id)}>{String(a.activityName)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Customer / Payer</Label><Input value={String(form.customerName ?? "")} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} /></div>
+            <div><Label>Net Amount (£) *</Label><Input type="number" step="0.01" min="0" value={String(form.amountNet ?? "")} onChange={e => setForm(f => ({ ...f, amountNet: e.target.value }))} /></div>
+            <div><Label>VAT Rate</Label>
+              <Select value={String(form.vatRate ?? "exempt")} onValueChange={v => setForm(f => ({ ...f, vatRate: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{VAT_RATES.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>VAT Amount (£)</Label><Input type="number" step="0.01" min="0" value={String(form.vatAmount ?? "")} onChange={e => setForm(f => ({ ...f, vatAmount: e.target.value }))} /></div>
+            <div><Label>Invoice / Reference</Label><Input value={String(form.invoiceRef ?? "")} onChange={e => setForm(f => ({ ...f, invoiceRef: e.target.value }))} /></div>
+            <div className="col-span-2"><Label>Description</Label><Textarea value={String(form.description ?? "")} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending || !form.incomeDate || !form.incomeType || !form.amountNet}>
+              {save.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+type Tab = "activities" | "shop" | "hygiene" | "equine" | "renewable" | "shooting" | "income";
 
 export default function DiversificationPage() {
   const { farmId } = useAppStore();
@@ -310,6 +480,7 @@ export default function DiversificationPage() {
       <div className="space-y-4">
         <TabBar>
           <TabButton active={tab === "activities"} onClick={() => setTab("activities")}><LayoutList className="w-3.5 h-3.5 mr-1" />Activities</TabButton>
+          <TabButton active={tab === "income"} onClick={() => setTab("income")}><PoundSterling className="w-3.5 h-3.5 mr-1" />Income</TabButton>
           <TabButton active={tab === "shop"} onClick={() => setTab("shop")}><ShoppingBag className="w-3.5 h-3.5 mr-1" />Farm Shop</TabButton>
           <TabButton active={tab === "hygiene"} onClick={() => setTab("hygiene")}><ClipboardCheck className="w-3.5 h-3.5 mr-1" />Hygiene</TabButton>
           <TabButton active={tab === "equine"} onClick={() => setTab("equine")}><PawPrint className="w-3.5 h-3.5 mr-1" />Equine</TabButton>
@@ -318,6 +489,7 @@ export default function DiversificationPage() {
         </TabBar>
         <Card><CardContent className="pt-4">
           {tab === "activities" && <ActivitiesTab farmId={farmId} />}
+          {tab === "income" && <IncomeTab farmId={farmId} />}
           {tab === "shop" && <FarmShopTab farmId={farmId} />}
           {tab === "hygiene" && <HygieneInspectionsTab farmId={farmId} />}
           {tab === "equine" && <EquineTab farmId={farmId} />}
