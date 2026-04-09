@@ -1306,8 +1306,19 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
     onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
 
-  const allActive = (suppliers ?? []).filter((s: any) => s.isActive !== false);
-  const filtered = allActive.filter((s: any) =>
+  const deactivateMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/suppliers/${id}/deactivate`, { method: "PATCH" }),
+    onSuccess: () => { toast({ title: "Contact deactivated — all historic records preserved" }); onRefresh(); },
+  });
+
+  const reactivateMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/suppliers/${id}/reactivate`, { method: "PATCH" }),
+    onSuccess: () => { toast({ title: "Contact reactivated" }); onRefresh(); },
+  });
+
+  const allSuppliers = (suppliers ?? []);
+  const allActive = allSuppliers.filter((s: any) => s.isActive !== false);
+  const filtered = allSuppliers.filter((s: any) =>
     (filterType === "all" || s.supplierType === filterType) &&
     (!search || s.name?.toLowerCase().includes(search.toLowerCase()))
   );
@@ -1372,13 +1383,15 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
           {filtered.map((s: any) => {
             const certStatus = certExpiryStatus(s.certificationExpiry);
+            const isActive = s.isActive !== false;
             return (
-              <div key={s.id} style={{ background: "#fff", border: certStatus === "expired" ? "1.5px solid #ef4444" : certStatus === "soon" ? "1.5px solid #f59e0b" : "1px solid #e5e7eb", borderRadius: 10, padding: "1rem" }}>
+              <div key={s.id} style={{ background: isActive ? "#fff" : "#f9fafb", opacity: isActive ? 1 : 0.7, border: !isActive ? "1px solid #e5e7eb" : certStatus === "expired" ? "1.5px solid #ef4444" : certStatus === "soon" ? "1.5px solid #f59e0b" : "1px solid #e5e7eb", borderRadius: 10, padding: "1rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{s.name}</span>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    {s.isApproved && <Badge style={{ background: "#d1fae5", color: "#065f46", border: "none", fontSize: "0.7rem" }}>Approved</Badge>}
-                    {s.supplierType && s.supplierType !== "general" && (
+                  <span style={{ fontWeight: 600, fontSize: "0.9rem", textDecoration: isActive ? "none" : "line-through", color: isActive ? undefined : "#9ca3af" }}>{s.name}</span>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    {!isActive && <Badge style={{ background: "#f3f4f6", color: "#6b7280", border: "none", fontSize: "0.65rem", letterSpacing: "0.05em" }}>INACTIVE</Badge>}
+                    {isActive && s.isApproved && <Badge style={{ background: "#d1fae5", color: "#065f46", border: "none", fontSize: "0.7rem" }}>Approved</Badge>}
+                    {isActive && s.supplierType && s.supplierType !== "general" && (
                       <Badge style={{ background: "#eff6ff", color: "#1d4ed8", border: "none", fontSize: "0.7rem" }}>
                         {SUPPLIER_TYPES.find(t => t.value === s.supplierType)?.label ?? s.supplierType}
                       </Badge>
@@ -1389,23 +1402,30 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
                 {s.contactName && <p style={{ fontSize: "0.8rem", color: "#374151" }}>{s.contactName}</p>}
                 {s.phone && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>{s.phone}</p>}
                 {s.email && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>{s.email}</p>}
-                {s.ufasNumber && (
+                {isActive && s.ufasNumber && (
                   <p style={{ fontSize: "0.72rem", color: "#065f46", marginTop: 4, fontFamily: "monospace", background: "#d1fae5", borderRadius: 4, padding: "2px 6px", display: "inline-block" }}>
                     UFAS: {s.ufasNumber}
                   </p>
                 )}
-                {s.femasNumber && (
+                {isActive && s.femasNumber && (
                   <p style={{ fontSize: "0.72rem", color: "#5b21b6", marginTop: 2, fontFamily: "monospace", background: "#ede9fe", borderRadius: 4, padding: "2px 6px", display: "inline-block" }}>
                     FEMAS: {s.femasNumber}
                   </p>
                 )}
-                {s.certificationExpiry && (
+                {isActive && s.certificationExpiry && (
                   <p style={{ fontSize: "0.72rem", marginTop: 4, color: certStatus === "expired" ? "#dc2626" : certStatus === "soon" ? "#d97706" : "#6b7280" }}>
                     {certStatus === "expired" ? "⚠ Cert EXPIRED" : certStatus === "soon" ? "⚠ Cert expires soon" : "Cert expires:"}{" "}
                     {new Date(s.certificationExpiry).toLocaleDateString("en-GB")}
                   </p>
                 )}
-                <button onClick={() => openEdit(s)} style={{ marginTop: 8, fontSize: "0.75rem", color: "#166534", cursor: "pointer", background: "none", border: "none", padding: 0 }}>Edit</button>
+                <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+                  {isActive && <button onClick={() => openEdit(s)} style={{ fontSize: "0.75rem", color: "#166534", cursor: "pointer", background: "none", border: "none", padding: 0 }}>Edit</button>}
+                  <button
+                    onClick={() => isActive ? deactivateMut.mutate(s.id) : reactivateMut.mutate(s.id)}
+                    style={{ fontSize: "0.75rem", color: isActive ? "#dc2626" : "#16a34a", cursor: "pointer", background: "none", border: "none", padding: 0 }}>
+                    {isActive ? "Deactivate" : "Reactivate"}
+                  </button>
+                </div>
               </div>
             );
           })}

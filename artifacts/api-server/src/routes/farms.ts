@@ -3252,6 +3252,24 @@ router.delete("/farms/:farmId/suppliers/:recordId", requireAuth, requireTenant, 
   res.json({ success: true });
 });
 
+router.patch("/farms/:farmId/suppliers/:recordId/deactivate", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(suppliersTable).set({ isActive: false }).where(and(eq(suppliersTable.id, recordId), eq(suppliersTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.patch("/farms/:farmId/suppliers/:recordId/reactivate", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(suppliersTable).set({ isActive: true }).where(and(eq(suppliersTable.id, recordId), eq(suppliersTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
 // ─── Labs ─────────────────────────────────────────────────────────────────────
 // Labs are a category of supplier ("laboratory") — accessible to all modules that use lab testing.
 router.get("/farms/:farmId/labs", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
@@ -9173,11 +9191,27 @@ router.put("/farms/:farmId/biofuel/buyers/:recordId", requireAuth, requireTenant
   res.json({ record });
 });
 
+router.patch("/farms/:farmId/biofuel/buyers/:recordId/deactivate", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  const [row] = await db.update(rtfoBuyersTable).set({ isActive: false }).where(and(eq(rtfoBuyersTable.id, recordId), eq(rtfoBuyersTable.farmId, farmId))).returning();
+  res.json({ record: row });
+});
+
+router.patch("/farms/:farmId/biofuel/buyers/:recordId/reactivate", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  const [row] = await db.update(rtfoBuyersTable).set({ isActive: true }).where(and(eq(rtfoBuyersTable.id, recordId), eq(rtfoBuyersTable.farmId, farmId))).returning();
+  res.json({ record: row });
+});
+
 router.delete("/farms/:farmId/biofuel/buyers/:recordId", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
-  await db.delete(rtfoBuyersTable).where(and(eq(rtfoBuyersTable.id, recordId), eq(rtfoBuyersTable.farmId, farmId)));
+  await db.update(rtfoBuyersTable).set({ isActive: false }).where(and(eq(rtfoBuyersTable.id, recordId), eq(rtfoBuyersTable.farmId, farmId)));
   res.json({ success: true });
 });
 

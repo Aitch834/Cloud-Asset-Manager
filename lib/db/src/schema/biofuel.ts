@@ -21,6 +21,7 @@ export const rtfoBuyersTable = pgTable("rtfo_buyers", {
   county: text("county"),
   postcode: text("postcode"),
   notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

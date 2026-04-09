@@ -104,6 +104,7 @@ interface Buyer {
   county?: string;
   postcode?: string;
   notes?: string;
+  isActive?: boolean;
 }
 
 interface GhgSummary {
@@ -250,9 +251,14 @@ export default function BiofuelPage() {
     onError: () => toast({ title: "Error saving buyer", variant: "destructive" }),
   });
 
-  const deleteBuyerMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/buyers/${id}`, { method: "DELETE" }),
-    onSuccess: () => { invalidate(); toast({ title: "Buyer removed" }); },
+  const deactivateBuyerMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/buyers/${id}/deactivate`, { method: "PATCH" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["biofuel-buyers", farmId] }); toast({ title: "Buyer marked inactive — all historic records preserved" }); },
+  });
+
+  const reactivateBuyerMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/biofuel/buyers/${id}/reactivate`, { method: "PATCH" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["biofuel-buyers", farmId] }); toast({ title: "Buyer reactivated" }); },
   });
 
   const handleDeclarationDownload = async (delivery: Delivery) => {
@@ -581,15 +587,18 @@ export default function BiofuelPage() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {buyers.map(b => (
-                  <div key={b.id} style={{ background: "#fff", borderRadius: 12, padding: "20px 24px", border: "1px solid #e5e7eb", display: "flex", alignItems: "flex-start", gap: 16 }}>
-                    <div style={{ background: "#eff6ff", borderRadius: 8, padding: 10, flexShrink: 0 }}>
-                      <Building2 size={20} style={{ color: "#2563eb" }} />
+                {buyers.map(b => {
+                  const isActive = b.isActive !== false;
+                  return (
+                  <div key={b.id} style={{ background: isActive ? "#fff" : "#f9fafb", borderRadius: 12, padding: "20px 24px", border: `1px solid ${isActive ? "#e5e7eb" : "#e5e7eb"}`, display: "flex", alignItems: "flex-start", gap: 16, opacity: isActive ? 1 : 0.65 }}>
+                    <div style={{ background: isActive ? "#eff6ff" : "#f3f4f6", borderRadius: 8, padding: 10, flexShrink: 0 }}>
+                      <Building2 size={20} style={{ color: isActive ? "#2563eb" : "#9ca3af" }} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>
-                        {b.companyName}
-                        {b.tradingName && b.tradingName !== b.companyName && (
+                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ textDecoration: isActive ? "none" : "line-through", color: isActive ? undefined : "#9ca3af" }}>{b.companyName}</span>
+                        {!isActive && <span style={{ fontSize: 10, background: "#f3f4f6", color: "#6b7280", padding: "2px 6px", borderRadius: 4, fontWeight: 500, letterSpacing: "0.05em", textTransform: "uppercase", textDecoration: "none" }}>Inactive</span>}
+                        {b.tradingName && b.tradingName !== b.companyName && isActive && (
                           <span style={{ fontWeight: 400, color: "#6b7280", fontSize: 13 }}> — trading as {b.tradingName}</span>
                         )}
                       </div>
@@ -623,11 +632,15 @@ export default function BiofuelPage() {
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                      <Button size="sm" variant="outline" onClick={() => { setEditingBuyer(b); setBuyerDialog(true); }}><Edit size={14} /></Button>
-                      <Button size="sm" variant="outline" style={{ color: "#dc2626" }} onClick={() => { if (confirm(`Remove ${b.companyName}?`)) deleteBuyerMut.mutate(b.id); }}><Trash2 size={14} /></Button>
+                      {isActive && <Button size="sm" variant="outline" onClick={() => { setEditingBuyer(b); setBuyerDialog(true); }}><Edit size={14} /></Button>}
+                      <Button size="sm" variant="outline" style={{ color: isActive ? "#dc2626" : "#16a34a", borderColor: isActive ? "#fecaca" : "#bbf7d0" }}
+                        onClick={() => isActive ? deactivateBuyerMut.mutate(b.id) : reactivateBuyerMut.mutate(b.id)}>
+                        {isActive ? "Deactivate" : "Reactivate"}
+                      </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
