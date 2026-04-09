@@ -93,7 +93,7 @@ type Session = { id: number; saleDate: string; notes?: string; totalNet: string;
 
 function FarmShopTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
-  const [shopTab, setShopTab] = useState<"products" | "sales" | "history">("products");
+  const [shopTab, setShopTab] = useState<"products" | "sales" | "history" | "suppliers" | "purchases">("products");
 
   // ── Products state ──────────────────────────────────────────────────────────
   const { data: products = [], isLoading: prodLoading } = useQuery<Record<string, unknown>[]>({
@@ -176,6 +176,41 @@ function FarmShopTab({ farmId }: { farmId: number }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shop-sales", farmId] }),
   });
 
+  // ── Suppliers state ──────────────────────────────────────────────────────────
+  const { data: suppliers = [], isLoading: suppLoading } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["shop-suppliers", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/shop-suppliers`), { credentials: "include" }).then(r => r.json()),
+  });
+  const [suppOpen, setSuppOpen] = useState(false);
+  const [suppEditing, setSuppEditing] = useState<Record<string, unknown> | null>(null);
+  const [suppForm, setSuppForm] = useState<Record<string, unknown>>({});
+  const saveSupp = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(suppEditing ? api(`farms/${farmId}/shop-suppliers/${suppEditing.id}`) : api(`farms/${farmId}/shop-suppliers`), { method: suppEditing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-suppliers", farmId] }); setSuppOpen(false); },
+  });
+  const delSupp = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/shop-suppliers/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shop-suppliers", farmId] }),
+  });
+
+  // ── Purchases state ──────────────────────────────────────────────────────────
+  const { data: purchases = [], isLoading: purchLoading } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["shop-purchases", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/shop-purchases`), { credentials: "include" }).then(r => r.json()),
+    enabled: shopTab === "purchases",
+  });
+  const [purchOpen, setPurchOpen] = useState(false);
+  const [purchEditing, setPurchEditing] = useState<Record<string, unknown> | null>(null);
+  const [purchForm, setPurchForm] = useState<Record<string, unknown>>({});
+  const savePurch = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(purchEditing ? api(`farms/${farmId}/shop-purchases/${purchEditing.id}`) : api(`farms/${farmId}/shop-purchases`), { method: purchEditing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-purchases", farmId] }); qc.invalidateQueries({ queryKey: ["shop-products", farmId] }); setPurchOpen(false); },
+  });
+  const delPurch = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/shop-purchases/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shop-purchases", farmId] }),
+  });
+
   const activeProducts = (products as Record<string, unknown>[]).filter(p => p.active !== false);
 
   const fmtGbp = (v: unknown) => v ? `£${parseFloat(String(v)).toFixed(2)}` : "—";
@@ -183,11 +218,11 @@ function FarmShopTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       {/* Inner sub-tab bar */}
-      <div className="flex gap-1 border-b pb-0">
-        {(["products", "sales", "history"] as const).map(t => (
+      <div className="flex gap-1 border-b pb-0 flex-wrap">
+        {(["products", "sales", "history", "suppliers", "purchases"] as const).map(t => (
           <button key={t} onClick={() => setShopTab(t)}
             className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors ${shopTab === t ? "bg-background border border-b-background -mb-px text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-            {t === "products" ? "Products & Stock" : t === "sales" ? "Record Sales" : "Sales History"}
+            {t === "products" ? "Products & Stock" : t === "sales" ? "Record Sales" : t === "history" ? "Sales History" : t === "suppliers" ? "Suppliers" : "Purchases"}
           </button>
         ))}
       </div>
@@ -203,7 +238,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="border-b">
-                  {["Product", "Category", "Unit", "Price", "In Stock", "Reorder At", "Status", ""].map(h => <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>)}
+                  {["Product", "Category", "Unit", "Cost", "Price", "Margin", "In Stock", "Reorder At", "Status", ""].map(h => <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>)}
                 </tr></thead>
                 <tbody>
                   {(products as Record<string, unknown>[]).map((p, i) => {
@@ -211,12 +246,21 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                     const reorder = parseFloat(String(p.reorderLevel ?? "0")) || 0;
                     const low = stock > 0 && reorder > 0 && stock <= reorder;
                     const zero = stock === 0 && p.active;
+                    const costP = parseFloat(String(p.costPrice ?? "")) || 0;
+                    const sellP = parseFloat(String(p.pricePerUnit ?? "")) || 0;
+                    const margin = costP > 0 && sellP > 0 ? ((sellP - costP) / sellP * 100) : null;
                     return (
                       <tr key={i} className="border-b last:border-0">
                         <td className="py-2 pr-3 font-medium">{String(p.productName)}</td>
                         <td className="py-2 pr-3 text-muted-foreground">{String(p.category)}</td>
                         <td className="py-2 pr-3 text-muted-foreground">{fmt(p.unitOfSale)}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">{costP > 0 ? fmtGbp(p.costPrice) : <span className="italic text-xs">—</span>}</td>
                         <td className="py-2 pr-3">{fmtGbp(p.pricePerUnit)}</td>
+                        <td className="py-2 pr-3">
+                          {margin !== null ? (
+                            <span className={`text-xs font-medium ${margin >= 40 ? "text-emerald-700" : margin >= 20 ? "text-amber-600" : "text-red-600"}`}>{margin.toFixed(0)}%</span>
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
+                        </td>
                         <td className="py-2 pr-3">
                           <span className={`font-semibold ${zero ? "text-red-600" : low ? "text-amber-600" : "text-emerald-700"}`}>
                             {stock % 1 === 0 ? stock.toFixed(0) : stock.toFixed(1)}
@@ -367,6 +411,174 @@ function FarmShopTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
+      {/* ── Suppliers ────────────────────────────────────────────────────────── */}
+      {shopTab === "suppliers" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm">Suppliers</h3>
+            <Button size="sm" onClick={() => { setSuppEditing(null); setSuppForm({ name: "", contactName: "", phone: "", email: "", notes: "" }); setSuppOpen(true); }}>
+              <Plus className="w-3.5 h-3.5 mr-1" /> Add Supplier
+            </Button>
+          </div>
+          {suppLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (suppliers as Record<string, unknown>[]).length === 0 ? (
+            <Empty msg="No suppliers yet. Add one to start recording purchases." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b">
+                  {["Supplier", "Contact", "Phone", "Email", "Notes", ""].map(h => <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground">{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {(suppliers as Record<string, unknown>[]).map((s, i) => (
+                    <tr key={i} className="border-b last:border-0">
+                      <td className="py-2 pr-3 font-medium">{String(s.supplierName)}</td>
+                      <td className="py-2 pr-3 text-muted-foreground">{fmt(s.contactName)}</td>
+                      <td className="py-2 pr-3 text-muted-foreground">{fmt(s.phone)}</td>
+                      <td className="py-2 pr-3 text-muted-foreground">{s.email ? <a href={`mailto:${s.email}`} className="underline underline-offset-2">{String(s.email)}</a> : "—"}</td>
+                      <td className="py-2 pr-3 text-muted-foreground max-w-[200px] truncate">{fmt(s.notes)}</td>
+                      <td className="py-2">
+                        <div className="flex gap-1">
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSuppEditing(s); setSuppForm({ name: String(s.supplierName ?? ""), contactName: s.contactName ?? "", phone: s.phone ?? "", email: s.email ?? "", notes: s.notes ?? "" }); setSuppOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { if (confirm("Delete this supplier?")) delSupp.mutate(s.id as number); }}><Trash2 className="w-3.5 h-3.5 text-red-400" /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Purchases ────────────────────────────────────────────────────────── */}
+      {shopTab === "purchases" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm">Purchase Ledger</h3>
+            <Button size="sm" onClick={() => { setPurchEditing(null); setPurchForm({ purchaseDate: new Date().toISOString().slice(0, 10), supplierId: "__none__", productId: "__none__", quantityPurchased: "", costPerUnit: "", totalCost: "", invoiceRef: "", notes: "", updateCostPrice: false }); setPurchOpen(true); }}>
+              <Plus className="w-3.5 h-3.5 mr-1" /> Record Purchase
+            </Button>
+          </div>
+          {purchLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (purchases as Record<string, unknown>[]).length === 0 ? (
+            <Empty msg="No purchases recorded. Hit 'Record Purchase' to log your first order." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b">
+                  {["Date", "Supplier", "Product", "Qty", "Cost/Unit", "Total", "Invoice Ref", ""].map(h => <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {(purchases as Record<string, unknown>[]).map((p, i) => (
+                    <tr key={i} className="border-b last:border-0">
+                      <td className="py-2 pr-3 whitespace-nowrap">{fmtDate(String(p.purchaseDate))}</td>
+                      <td className="py-2 pr-3">{p.supplierName ? fmt(p.supplierName) : <span className="italic text-xs text-muted-foreground">—</span>}</td>
+                      <td className="py-2 pr-3 font-medium">{fmt(p.productName)}</td>
+                      <td className="py-2 pr-3">{fmt(p.quantity)}</td>
+                      <td className="py-2 pr-3">{fmtGbp(p.costPerUnit)}</td>
+                      <td className="py-2 pr-3 font-semibold">{fmtGbp(p.totalCost)}</td>
+                      <td className="py-2 pr-3 text-muted-foreground">{fmt(p.invoiceRef)}</td>
+                      <td className="py-2">
+                        <div className="flex gap-1">
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setPurchEditing(p); setPurchForm({ purchaseDate: String(p.purchaseDate ?? "").slice(0, 10), supplierId: p.supplierId ? String(p.supplierId) : "__none__", productId: p.productId ? String(p.productId) : "__none__", quantityPurchased: String(p.quantity ?? ""), costPerUnit: String(p.costPerUnit ?? ""), totalCost: String(p.totalCost ?? ""), invoiceRef: String(p.invoiceRef ?? ""), notes: String(p.notes ?? ""), updateCostPrice: false }); setPurchOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { if (confirm("Delete this purchase record?")) delPurch.mutate(p.id as number); }}><Trash2 className="w-3.5 h-3.5 text-red-400" /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Supplier dialog ───────────────────────────────────────────────────── */}
+      <Dialog open={suppOpen} onOpenChange={o => { if (!o) setSuppOpen(false); }}>
+        <DialogContent style={{ maxWidth: "26rem" }}>
+          <DialogHeader><DialogTitle>{suppEditing ? "Edit Supplier" : "Add Supplier"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Supplier Name *</Label><Input value={String(suppForm.name ?? "")} onChange={e => setSuppForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Green Valley Feeds" /></div>
+            <div><Label>Contact Name</Label><Input value={String(suppForm.contactName ?? "")} onChange={e => setSuppForm(f => ({ ...f, contactName: e.target.value }))} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Phone</Label><Input value={String(suppForm.phone ?? "")} onChange={e => setSuppForm(f => ({ ...f, phone: e.target.value }))} /></div>
+              <div><Label>Email</Label><Input type="email" value={String(suppForm.email ?? "")} onChange={e => setSuppForm(f => ({ ...f, email: e.target.value }))} /></div>
+            </div>
+            <div><Label>Notes</Label><Input value={String(suppForm.notes ?? "")} onChange={e => setSuppForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSuppOpen(false)}>Cancel</Button>
+            <Button disabled={saveSupp.isPending || !String(suppForm.name ?? "").trim()} onClick={() => saveSupp.mutate({ name: suppForm.name, contactName: suppForm.contactName || undefined, phone: suppForm.phone || undefined, email: suppForm.email || undefined, notes: suppForm.notes || undefined })}>
+              {saveSupp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Purchase dialog ───────────────────────────────────────────────────── */}
+      <Dialog open={purchOpen} onOpenChange={o => { if (!o) setPurchOpen(false); }}>
+        <DialogContent style={{ maxWidth: "28rem" }}>
+          <DialogHeader><DialogTitle>{purchEditing ? "Edit Purchase" : "Record Purchase"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Date *</Label><Input type="date" value={String(purchForm.purchaseDate ?? "")} onChange={e => setPurchForm(f => ({ ...f, purchaseDate: e.target.value }))} /></div>
+            <div>
+              <Label>Supplier</Label>
+              <Select value={String(purchForm.supplierId ?? "__none__")} onValueChange={v => setPurchForm(f => ({ ...f, supplierId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select supplier…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No supplier</SelectItem>
+                  {(suppliers as Record<string, unknown>[]).map(s => <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.name)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Product (optional)</Label>
+              <Select value={String(purchForm.productId ?? "__none__")} onValueChange={v => {
+                const prod = (products as Record<string, unknown>[]).find(p => String(p.id) === v);
+                setPurchForm(f => ({
+                  ...f,
+                  productId: v,
+                  costPerUnit: prod && prod.costPrice ? String(prod.costPrice) : f.costPerUnit,
+                }));
+              }}>
+                <SelectTrigger><SelectValue placeholder="Link to product…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No product</SelectItem>
+                  {(products as Record<string, unknown>[]).map(p => <SelectItem key={String(p.id)} value={String(p.id)}>{String(p.productName)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Qty</Label><Input type="number" step="0.01" min="0" value={String(purchForm.quantityPurchased ?? "")} onChange={e => { const q = parseFloat(e.target.value) || 0; const cpu = parseFloat(String(purchForm.costPerUnit ?? "")) || 0; setPurchForm(f => ({ ...f, quantityPurchased: e.target.value, totalCost: q && cpu ? String((q * cpu).toFixed(2)) : f.totalCost })); }} /></div>
+              <div><Label>Cost/Unit (£)</Label><Input type="number" step="0.01" min="0" value={String(purchForm.costPerUnit ?? "")} onChange={e => { const cpu = parseFloat(e.target.value) || 0; const q = parseFloat(String(purchForm.quantityPurchased ?? "")) || 0; setPurchForm(f => ({ ...f, costPerUnit: e.target.value, totalCost: q && cpu ? String((q * cpu).toFixed(2)) : f.totalCost })); }} /></div>
+              <div><Label>Total Cost (£)</Label><Input type="number" step="0.01" min="0" value={String(purchForm.totalCost ?? "")} onChange={e => setPurchForm(f => ({ ...f, totalCost: e.target.value }))} /></div>
+            </div>
+            <div><Label>Invoice Ref</Label><Input value={String(purchForm.invoiceRef ?? "")} onChange={e => setPurchForm(f => ({ ...f, invoiceRef: e.target.value }))} placeholder="e.g. INV-2024-001" /></div>
+            <div><Label>Notes</Label><Input value={String(purchForm.notes ?? "")} onChange={e => setPurchForm(f => ({ ...f, notes: e.target.value }))} /></div>
+            <div className="flex items-center gap-2 pt-1">
+              <input type="checkbox" id="updateCostPrice" checked={!!purchForm.updateCostPrice} onChange={e => setPurchForm(f => ({ ...f, updateCostPrice: e.target.checked }))} className="w-4 h-4 rounded" />
+              <label htmlFor="updateCostPrice" className="text-sm">Update product's cost price to this cost/unit</label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPurchOpen(false)}>Cancel</Button>
+            <Button disabled={savePurch.isPending || !String(purchForm.purchaseDate ?? "").trim()} onClick={() => savePurch.mutate({
+              purchaseDate: purchForm.purchaseDate,
+              supplierId: purchForm.supplierId && purchForm.supplierId !== "__none__" ? parseInt(String(purchForm.supplierId)) : undefined,
+              productId: purchForm.productId && purchForm.productId !== "__none__" ? parseInt(String(purchForm.productId)) : undefined,
+              quantityPurchased: purchForm.quantityPurchased || undefined,
+              costPerUnit: purchForm.costPerUnit || undefined,
+              totalCost: purchForm.totalCost || undefined,
+              invoiceRef: purchForm.invoiceRef || undefined,
+              notes: purchForm.notes || undefined,
+              updateCostPrice: !!purchForm.updateCostPrice,
+            })}>
+              {savePurch.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Stock In dialog ───────────────────────────────────────────────────── */}
       <Dialog open={!!stockTarget} onOpenChange={o => { if (!o) setStockTarget(null); }}>
         <DialogContent style={{ maxWidth: "22rem" }}>
@@ -395,7 +607,8 @@ function FarmShopTab({ farmId }: { farmId: number }) {
               </Select>
             </div>
             <div><Label>Unit of Sale</Label><Input value={String(prodForm.unitOfSale ?? "")} onChange={e => setProdForm(f => ({ ...f, unitOfSale: e.target.value }))} placeholder="e.g. dozen, kg, jar" /></div>
-            <div><Label>Price per Unit (£)</Label><Input type="number" step="0.01" value={String(prodForm.pricePerUnit ?? "")} onChange={e => setProdForm(f => ({ ...f, pricePerUnit: e.target.value }))} /></div>
+            <div><Label>Cost Price (£)</Label><Input type="number" step="0.01" value={String(prodForm.costPrice ?? "")} onChange={e => setProdForm(f => ({ ...f, costPrice: e.target.value }))} placeholder="What you pay" /></div>
+            <div><Label>Selling Price (£)</Label><Input type="number" step="0.01" value={String(prodForm.pricePerUnit ?? "")} onChange={e => setProdForm(f => ({ ...f, pricePerUnit: e.target.value }))} placeholder="What you charge" /></div>
             <div><Label>Current Stock</Label><Input type="number" step="1" min="0" value={String(prodForm.currentStock ?? "0")} onChange={e => setProdForm(f => ({ ...f, currentStock: e.target.value }))} /></div>
             <div><Label>Reorder Level</Label><Input type="number" step="1" min="0" value={String(prodForm.reorderLevel ?? "0")} onChange={e => setProdForm(f => ({ ...f, reorderLevel: e.target.value }))} /></div>
             <div><Label>Country of Origin</Label><Input value={String(prodForm.countryOfOrigin ?? "")} onChange={e => setProdForm(f => ({ ...f, countryOfOrigin: e.target.value }))} /></div>

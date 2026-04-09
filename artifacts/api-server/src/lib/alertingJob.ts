@@ -6,7 +6,7 @@ import { sendSms } from "./sms";
 
 const ESCALATION_DAYS = 7;
 
-const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue"]);
+const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out"]);
 
 async function tenantHasSmsModule(tenantId: number): Promise<boolean> {
   const [smsModule] = await db
@@ -603,6 +603,51 @@ async function checkOverdueCleaningSchedules() {
       dedupeKey: `cleaning-overdue-${record.id}-week${weekNum}`,
     });
   }
+}
+
+export async function createStockLowNotification(params: {
+  tenantId: number;
+  farmId: number;
+  productId: number;
+  productName: string;
+  stock: number;
+  reorderLevel: number;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  await upsertNotification({
+    tenantId: params.tenantId,
+    farmId: params.farmId,
+    type: "shop_stock_low",
+    severity: "warning",
+    title: `Farm Shop — Low Stock: ${params.productName}`,
+    message: `${params.productName} has dropped to ${params.stock} unit(s) — at or below the reorder level of ${params.reorderLevel}. Consider ordering more stock soon.`,
+    relatedModule: "farm-diversification",
+    relatedId: params.productId,
+    dedupeKey: `shop-stock-low-${params.productId}-${today}`,
+  });
+}
+
+export async function createStockOutNotification(params: {
+  tenantId: number;
+  farmId: number;
+  productId: number;
+  productName: string;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const title = `Farm Shop — Out of Stock: ${params.productName}`;
+  const message = `${params.productName} is now out of stock. Order or produce more to avoid lost sales.`;
+  await upsertNotification({
+    tenantId: params.tenantId,
+    farmId: params.farmId,
+    type: "shop_stock_out",
+    severity: "critical",
+    title,
+    message,
+    relatedModule: "farm-diversification",
+    relatedId: params.productId,
+    dedupeKey: `shop-stock-out-${params.productId}-${today}`,
+  });
+  await dispatchSmsForCriticalAlert(params.tenantId, title, message);
 }
 
 export async function runAlertingJob() {

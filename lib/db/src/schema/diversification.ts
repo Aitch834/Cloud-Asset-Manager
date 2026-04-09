@@ -25,6 +25,7 @@ export const farmShopProductsTable = pgTable("farm_shop_products", {
   description: text("description"),
   unitOfSale: text("unit_of_sale"),
   pricePerUnit: numeric("price_per_unit", { precision: 8, scale: 2 }),
+  costPrice: numeric("cost_price", { precision: 8, scale: 2 }),
   currentStock: numeric("current_stock", { precision: 10, scale: 2 }).default("0"),
   reorderLevel: numeric("reorder_level", { precision: 10, scale: 2 }).default("0"),
   allergens: text("allergens").array(),
@@ -33,6 +34,38 @@ export const farmShopProductsTable = pgTable("farm_shop_products", {
   storageRequirements: text("storage_requirements"),
   foodBusinessRegNumber: text("food_business_reg_number"),
   active: boolean("active").default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const farmShopSuppliersTable = pgTable("farm_shop_suppliers", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  supplierName: text("supplier_name").notNull(),
+  contactName: text("contact_name"),
+  phone: text("phone"),
+  email: text("email"),
+  address: text("address"),
+  accountRef: text("account_ref"),
+  paymentTerms: text("payment_terms"),
+  notes: text("notes"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const farmShopPurchasesTable = pgTable("farm_shop_purchases", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  supplierId: integer("supplier_id").references(() => farmShopSuppliersTable.id),
+  productId: integer("product_id").references(() => farmShopProductsTable.id),
+  productName: text("product_name").notNull(),
+  purchaseDate: date("purchase_date").notNull(),
+  quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
+  unitOfPurchase: text("unit_of_purchase"),
+  costPerUnit: numeric("cost_per_unit", { precision: 8, scale: 2 }).notNull(),
+  totalCost: numeric("total_cost", { precision: 12, scale: 2 }).notNull(),
+  invoiceRef: text("invoice_ref"),
+  deliveryDate: date("delivery_date"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

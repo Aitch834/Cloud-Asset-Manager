@@ -158,6 +158,8 @@ import {
   sustainabilityReportsTable,
   diversificationActivitiesTable,
   farmShopProductsTable,
+  farmShopSuppliersTable,
+  farmShopPurchasesTable,
   farmShopSalesSessionsTable,
   farmShopSaleItemsTable,
   farmShopHygieneInspectionsTable,
@@ -220,7 +222,7 @@ import {
   diseaseIncidentLogTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray } from "drizzle-orm";
-import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification } from "../lib/alertingJob";
+import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
@@ -11715,6 +11717,22 @@ router.post("/farms/:farmId/shop-sales", requireAuth, requireTenant, requireModu
       await db.execute(sql`UPDATE farm_shop_products SET current_stock = GREATEST(0, COALESCE(current_stock,0) - ${Number(i.quantity)}) WHERE id = ${i.productId} AND farm_id = ${farmId}`);
     }
   }
+  // Fire stock notifications
+  const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
+  if (farm) {
+    for (const i of items) {
+      if (!i.productId) continue;
+      const [prod] = await db.select({ productName: farmShopProductsTable.productName, currentStock: farmShopProductsTable.currentStock, reorderLevel: farmShopProductsTable.reorderLevel }).from(farmShopProductsTable).where(eq(farmShopProductsTable.id, i.productId)).limit(1);
+      if (!prod) continue;
+      const stock = parseFloat(String(prod.currentStock ?? "0")) || 0;
+      const reorder = parseFloat(String(prod.reorderLevel ?? "0")) || 0;
+      if (stock === 0) {
+        await createStockOutNotification({ tenantId: farm.tenantId, farmId, productId: i.productId, productName: String(prod.productName) });
+      } else if (reorder > 0 && stock <= reorder) {
+        await createStockLowNotification({ tenantId: farm.tenantId, farmId, productId: i.productId, productName: String(prod.productName), stock, reorderLevel: reorder });
+      }
+    }
+  }
   res.json({ ...session, items: await db.select().from(farmShopSaleItemsTable).where(eq(farmShopSaleItemsTable.sessionId, session.id)) });
 });
 
@@ -11744,6 +11762,115 @@ router.post("/farms/:farmId/shop-products/:id/adjust-stock", requireAuth, requir
   const newStock = Math.max(0, (parseFloat(String(prod.currentStock ?? "0")) || 0) + Number(adjustment));
   const [updated] = await db.update(farmShopProductsTable).set({ currentStock: String(newStock) }).where(and(eq(farmShopProductsTable.id, id), eq(farmShopProductsTable.farmId, farmId))).returning();
   res.json(updated);
+});
+
+// ── Farm Shop: Suppliers ─────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/shop-suppliers", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(farmShopSuppliersTable).where(eq(farmShopSuppliersTable.farmId, farmId)).orderBy(farmShopSuppliersTable.supplierName);
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/shop-suppliers", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { name, supplierName, contactName, phone, email, address, accountRef, paymentTerms, notes } = req.body;
+  const resolvedName = supplierName || name;
+  if (!resolvedName) { res.status(400).json({ error: "Supplier name is required" }); return; }
+  const [row] = await db.insert(farmShopSuppliersTable).values({ farmId, supplierName: resolvedName, contactName: contactName || undefined, phone: phone || undefined, email: email || undefined, address: address || undefined, accountRef: accountRef || undefined, paymentTerms: paymentTerms || undefined, notes: notes || undefined }).returning();
+  res.json(row);
+});
+
+router.put("/farms/:farmId/shop-suppliers/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { name, supplierName, contactName, phone, email, address, accountRef, paymentTerms, notes, active } = req.body;
+  const updatePayload: Record<string, unknown> = {};
+  const resolvedName = supplierName || name;
+  if (resolvedName) updatePayload.supplierName = resolvedName;
+  if (contactName !== undefined) updatePayload.contactName = contactName || null;
+  if (phone !== undefined) updatePayload.phone = phone || null;
+  if (email !== undefined) updatePayload.email = email || null;
+  if (address !== undefined) updatePayload.address = address || null;
+  if (accountRef !== undefined) updatePayload.accountRef = accountRef || null;
+  if (paymentTerms !== undefined) updatePayload.paymentTerms = paymentTerms || null;
+  if (notes !== undefined) updatePayload.notes = notes || null;
+  if (active !== undefined) updatePayload.active = active;
+  const [row] = await db.update(farmShopSuppliersTable).set(updatePayload).where(and(eq(farmShopSuppliersTable.id, id), eq(farmShopSuppliersTable.farmId, farmId))).returning();
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/shop-suppliers/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.update(farmShopPurchasesTable).set({ supplierId: null }).where(and(eq(farmShopPurchasesTable.supplierId, id), eq(farmShopPurchasesTable.farmId, farmId)));
+  await db.delete(farmShopSuppliersTable).where(and(eq(farmShopSuppliersTable.id, id), eq(farmShopSuppliersTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ── Farm Shop: Purchase Ledger ────────────────────────────────────────────────
+
+router.get("/farms/:farmId/shop-purchases", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db
+    .select({
+      id: farmShopPurchasesTable.id,
+      farmId: farmShopPurchasesTable.farmId,
+      supplierId: farmShopPurchasesTable.supplierId,
+      supplierName: farmShopSuppliersTable.supplierName,
+      productId: farmShopPurchasesTable.productId,
+      productName: farmShopPurchasesTable.productName,
+      purchaseDate: farmShopPurchasesTable.purchaseDate,
+      quantity: farmShopPurchasesTable.quantity,
+      unitOfPurchase: farmShopPurchasesTable.unitOfPurchase,
+      costPerUnit: farmShopPurchasesTable.costPerUnit,
+      totalCost: farmShopPurchasesTable.totalCost,
+      invoiceRef: farmShopPurchasesTable.invoiceRef,
+      deliveryDate: farmShopPurchasesTable.deliveryDate,
+      notes: farmShopPurchasesTable.notes,
+      createdAt: farmShopPurchasesTable.createdAt,
+    })
+    .from(farmShopPurchasesTable)
+    .leftJoin(farmShopSuppliersTable, eq(farmShopPurchasesTable.supplierId, farmShopSuppliersTable.id))
+    .where(eq(farmShopPurchasesTable.farmId, farmId))
+    .orderBy(desc(farmShopPurchasesTable.purchaseDate));
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/shop-purchases", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { supplierId, productId, productName: bodyProductName, purchaseDate, quantity: bodyQuantity, quantityPurchased, unitOfPurchase, costPerUnit, totalCost, invoiceRef, deliveryDate, notes, updateCostPrice } = req.body;
+  const quantity = bodyQuantity ?? quantityPurchased;
+  if (!purchaseDate || !quantity || !costPerUnit) { res.status(400).json({ error: "purchaseDate, quantity, and costPerUnit are required" }); return; }
+  let productName = bodyProductName;
+  if (!productName && productId) {
+    const prod = await db.select({ productName: farmShopProductsTable.productName }).from(farmShopProductsTable).where(eq(farmShopProductsTable.id, Number(productId))).limit(1);
+    productName = prod[0]?.productName ?? "Unknown";
+  }
+  if (!productName) productName = "Unknown";
+  const [row] = await db.insert(farmShopPurchasesTable).values({ farmId, supplierId: supplierId || null, productId: productId || null, productName, purchaseDate, quantity: String(quantity), unitOfPurchase: unitOfPurchase || null, costPerUnit: String(costPerUnit), totalCost: String(totalCost || (Number(quantity) * Number(costPerUnit)).toFixed(2)), invoiceRef: invoiceRef || null, deliveryDate: deliveryDate || null, notes: notes || null }).returning();
+  if (updateCostPrice && productId) {
+    await db.update(farmShopProductsTable).set({ costPrice: String(costPerUnit) }).where(and(eq(farmShopProductsTable.id, Number(productId)), eq(farmShopProductsTable.farmId, farmId)));
+  }
+  res.json(row);
+});
+
+router.put("/farms/:farmId/shop-purchases/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { updateCostPrice, ...body } = req.body;
+  const [row] = await db.update(farmShopPurchasesTable).set(body).where(and(eq(farmShopPurchasesTable.id, id), eq(farmShopPurchasesTable.farmId, farmId))).returning();
+  if (updateCostPrice && row?.productId) {
+    await db.update(farmShopProductsTable).set({ costPrice: String(row.costPerUnit) }).where(and(eq(farmShopProductsTable.id, row.productId), eq(farmShopProductsTable.farmId, farmId)));
+  }
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/shop-purchases/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(farmShopPurchasesTable).where(and(eq(farmShopPurchasesTable.id, id), eq(farmShopPurchasesTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 // ── Equine ───────────────────────────────────────────────────────────────────
