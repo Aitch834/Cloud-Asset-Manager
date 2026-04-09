@@ -188,8 +188,9 @@ function FarmShopTab({ farmId }: { farmId: number }) {
     mutationFn: (b: Record<string, unknown>) => fetch(suppEditing ? api(`farms/${farmId}/shop-suppliers/${suppEditing.id}`) : api(`farms/${farmId}/shop-suppliers`), { method: suppEditing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-suppliers", farmId] }); setSuppOpen(false); },
   });
-  const delSupp = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/shop-suppliers/${id}`), { method: "DELETE", credentials: "include" }),
+  const toggleSuppActive = useMutation({
+    mutationFn: ({ id, active }: { id: number; active: boolean }) =>
+      fetch(api(`farms/${farmId}/shop-suppliers/${id}/${active ? "reactivate" : "deactivate"}`), { method: "PATCH", credentials: "include" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shop-suppliers", farmId] }),
   });
 
@@ -429,21 +430,31 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                   {["Supplier", "Contact", "Phone", "Email", "Notes", ""].map(h => <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground">{h}</th>)}
                 </tr></thead>
                 <tbody>
-                  {(suppliers as Record<string, unknown>[]).map((s, i) => (
-                    <tr key={i} className="border-b last:border-0">
-                      <td className="py-2 pr-3 font-medium">{String(s.supplierName)}</td>
-                      <td className="py-2 pr-3 text-muted-foreground">{fmt(s.contactName)}</td>
-                      <td className="py-2 pr-3 text-muted-foreground">{fmt(s.phone)}</td>
-                      <td className="py-2 pr-3 text-muted-foreground">{s.email ? <a href={`mailto:${s.email}`} className="underline underline-offset-2">{String(s.email)}</a> : "—"}</td>
-                      <td className="py-2 pr-3 text-muted-foreground max-w-[200px] truncate">{fmt(s.notes)}</td>
-                      <td className="py-2">
-                        <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSuppEditing(s); setSuppForm({ name: String(s.supplierName ?? ""), contactName: s.contactName ?? "", phone: s.phone ?? "", email: s.email ?? "", notes: s.notes ?? "" }); setSuppOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { if (confirm("Delete this supplier?")) delSupp.mutate(s.id as number); }}><Trash2 className="w-3.5 h-3.5 text-red-400" /></Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {(suppliers as Record<string, unknown>[]).map((s, i) => {
+                    const isActive = s.active !== false;
+                    return (
+                      <tr key={i} className={`border-b last:border-0 ${isActive ? "" : "opacity-50"}`}>
+                        <td className="py-2 pr-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-medium ${isActive ? "" : "line-through text-muted-foreground"}`}>{String(s.supplierName)}</span>
+                            {!isActive && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium uppercase tracking-wide">Inactive</span>}
+                          </div>
+                        </td>
+                        <td className="py-2 pr-3 text-muted-foreground">{fmt(s.contactName)}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">{fmt(s.phone)}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">{s.email ? <a href={`mailto:${s.email}`} className="underline underline-offset-2">{String(s.email)}</a> : "—"}</td>
+                        <td className="py-2 pr-3 text-muted-foreground max-w-[200px] truncate">{fmt(s.notes)}</td>
+                        <td className="py-2">
+                          <div className="flex gap-1">
+                            {isActive && <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSuppEditing(s); setSuppForm({ name: String(s.supplierName ?? ""), contactName: s.contactName ?? "", phone: s.phone ?? "", email: s.email ?? "", notes: s.notes ?? "" }); setSuppOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>}
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => toggleSuppActive.mutate({ id: s.id as number, active: !isActive })}>
+                              {isActive ? "Deactivate" : "Reactivate"}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -527,7 +538,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                 <SelectTrigger><SelectValue placeholder="Select supplier…" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">No supplier</SelectItem>
-                  {(suppliers as Record<string, unknown>[]).map(s => <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.name)}</SelectItem>)}
+                  {(suppliers as Record<string, unknown>[]).filter(s => s.active !== false).map(s => <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.supplierName)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

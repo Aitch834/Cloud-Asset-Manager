@@ -11800,12 +11800,18 @@ router.put("/farms/:farmId/shop-suppliers/:id", requireAuth, requireTenant, requ
   res.json(row);
 });
 
-router.delete("/farms/:farmId/shop-suppliers/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+router.patch("/farms/:farmId/shop-suppliers/:id/deactivate", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  await db.update(farmShopPurchasesTable).set({ supplierId: null }).where(and(eq(farmShopPurchasesTable.supplierId, id), eq(farmShopPurchasesTable.farmId, farmId)));
-  await db.delete(farmShopSuppliersTable).where(and(eq(farmShopSuppliersTable.id, id), eq(farmShopSuppliersTable.farmId, farmId)));
-  res.json({ success: true });
+  const [row] = await db.update(farmShopSuppliersTable).set({ active: false }).where(and(eq(farmShopSuppliersTable.id, id), eq(farmShopSuppliersTable.farmId, farmId))).returning();
+  res.json(row);
+});
+
+router.patch("/farms/:farmId/shop-suppliers/:id/reactivate", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(farmShopSuppliersTable).set({ active: true }).where(and(eq(farmShopSuppliersTable.id, id), eq(farmShopSuppliersTable.farmId, farmId))).returning();
+  res.json(row);
 });
 
 // ── Farm Shop: Purchase Ledger ────────────────────────────────────────────────
