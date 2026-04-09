@@ -11751,6 +11751,24 @@ router.post("/farms/:farmId/shop-sales", requireAuth, requireTenant, requireModu
       await db.execute(sql`UPDATE farm_shop_products SET current_stock = GREATEST(0, COALESCE(current_stock,0) - ${Number(i.quantity)}) WHERE id = ${i.productId} AND farm_id = ${farmId}`);
     }
   }
+  // Mirror each line item into direct_sales_records for the Sales & Trading overview
+  const directRows = items.map(i => ({
+    farmId,
+    saleDate: new Date(saleDate),
+    channel: "farm_shop" as const,
+    productName: i.productName,
+    quantity: String(i.quantity),
+    unit: i.unitOfSale ?? "unit",
+    unitPricePence: Math.round((Number(i.pricePerUnit) || 0) * 100),
+    grossValuePence: Math.round((Number(i.lineTotal) || 0) * 100),
+    netValuePence: Math.round((Number(i.lineTotal) || 0) * 100),
+    paymentStatus: "paid" as const,
+    notes: notes ?? null,
+    shopSaleSessionId: session.id,
+  }));
+  if (directRows.length > 0) {
+    await db.insert(directSalesRecordsTable).values(directRows);
+  }
   // Fire stock notifications
   const [farm] = await db.select({ tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
   if (farm) {
@@ -11781,6 +11799,8 @@ router.delete("/farms/:farmId/shop-sales/:id", requireAuth, requireTenant, requi
   }
   await db.delete(farmShopSaleItemsTable).where(eq(farmShopSaleItemsTable.sessionId, id));
   await db.delete(farmShopSalesSessionsTable).where(and(eq(farmShopSalesSessionsTable.id, id), eq(farmShopSalesSessionsTable.farmId, farmId)));
+  // Remove the mirrored direct_sales_records rows that were auto-created from this session
+  await db.delete(directSalesRecordsTable).where(and(eq(directSalesRecordsTable.shopSaleSessionId, id), eq(directSalesRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

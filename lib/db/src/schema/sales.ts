@@ -272,6 +272,7 @@ export const directSalesRecordsTable = pgTable("direct_sales_records", {
   packingRef: text("packing_ref"),
   certificationRef: text("certification_ref"), // e.g. organic cert
   notes: text("notes"),
+  shopSaleSessionId: integer("shop_sale_session_id"), // set when auto-created from Diversification Farm Shop — links back for cascade delete
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
