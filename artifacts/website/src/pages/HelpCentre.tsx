@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   Search, ChevronDown, ChevronUp, BookOpen, Sprout, ShieldCheck, FlaskConical,
   Tractor, PawPrint, ClipboardCheck, LifeBuoy, Phone, Mail,
-  LeafyGreen, Leaf, AlertTriangle, LineChart, CloudRain, Landmark,
+  LeafyGreen, Leaf, AlertTriangle, LineChart, CloudRain, Landmark, Store, Fuel,
 } from "lucide-react";
 
 interface FaqItem {
@@ -110,6 +110,31 @@ const FAQ: FaqCategory[] = [
       { q: "Can I record Basic Payment / SFI payments?", a: "Yes. The Finance & Business module includes a subsidy and grant register where you can record SFI agreement payments, Countryside Stewardship, and other scheme income. Historic BPS payments can also be logged for year-on-year comparison." },
       { q: "How do I record purchase invoices?", a: "Navigate to Finance > Purchases. Log each purchase with supplier, invoice number, date, category, net amount, VAT, and any relevant field or livestock link. Recurring suppliers are remembered from your Supplier Register, saving data entry time." },
       { q: "How do I track grain forward contracts and pool scheme positions?", a: "Open the Finance & Business page on the dashboard and select the Grain Contracts tab. Forward contracts show the merchant, commodity, crop year, agreed price, and a progress bar displaying called-off tonnage against the total committed. Each card expands to list every grain sale linked to that contract, so you can see exactly which loads have been called off. Pool scheme positions are shown separately and track the merchant, commodity, estimated outturn tonnage, and settlement status. When you record a grain sale, you can optionally link it to an open forward contract — the called-off figure updates automatically." },
+      { q: "What happens when I deactivate a supplier or contact?", a: "BDE Farm Trac never physically deletes any supplier, buyer, or trade contact record — instead, contacts can be marked as inactive (deactivated) when a relationship ends. All historical records, purchase history, delivery logs, and declarations linked to that contact are preserved in full and remain accessible. A deactivated contact is shown with an Inactive badge in the register and is excluded from active dropdowns so it does not appear as an option when logging new transactions. You can reactivate a contact at any time if the relationship resumes. This design ensures your audit trail is never broken." },
+    ],
+  },
+  {
+    title: "Farm Shop & Diversification",
+    icon: Store,
+    color: "bg-violet-50 text-violet-700 border-violet-100",
+    items: [
+      { q: "How does farm shop stock management work?", a: "Each farm shop product has a selling price, cost price, unit, and reorder level. When you record a sale, the product's stock quantity decrements automatically. When you log a purchase delivery from a supplier, stock increases. The live quantity on hand is always visible in the Products tab so you know exactly what is available to sell." },
+      { q: "What is the margin column and how is it calculated?", a: "The margin column in the Products table shows the percentage gross margin for each item — calculated as (selling price minus cost price) divided by selling price. It is colour-coded: green for a healthy margin, amber when margin is tight (below around 20%), and red if the product is priced below cost. If no cost price has been entered, the margin column is blank. You can set or update the cost price at any time, or tick 'Update cost price' when recording a purchase to keep it current automatically." },
+      { q: "How do I receive low-stock alerts for farm shop products?", a: "Set a reorder level on each product in the Products tab. When a sale brings the stock quantity to or below that level, an in-platform low-stock notification is created automatically. If you have the SMS Text Alerts add-on active, an out-of-stock event (stock reaching zero) will also send a text message to your registered number so you can reorder immediately." },
+      { q: "Can I link purchases to specific farm shop suppliers?", a: "Yes. The Suppliers sub-tab within the Farm Shop module lets you maintain a directory of the businesses you buy stock from. When recording a purchase in the Purchases ledger, you select the supplier from this directory — the supplier name is stored with the purchase record for a complete audit trail. Suppliers who are no longer used can be deactivated rather than deleted, preserving all historic purchase records." },
+      { q: "Can I update the cost price of a product when I receive stock at a new price?", a: "Yes. When logging a purchase in the Purchases ledger, tick the 'Update cost price' checkbox before saving. This automatically overwrites the product's stored cost price with the unit cost from that purchase. The margin column will recalculate immediately, keeping your profitability data current without any manual edits to the product record." },
+    ],
+  },
+  {
+    title: "Biofuel / RTFO",
+    icon: Fuel,
+    color: "bg-yellow-50 text-yellow-700 border-yellow-100",
+    items: [
+      { q: "What is the RTFO and who does it apply to?", a: "The Renewable Transport Fuel Obligation (RTFO) is the UK government scheme that requires transport fuel suppliers to blend a proportion of renewable (biofuel) content into the fuel they sell. If you grow OSR, wheat, or other qualifying crops and sell them to an obligated fuel supplier for processing into biofuel, your buyer needs RTFO-compliant sustainability data — including field eligibility records, GHG traceability information, and a signed sustainability declaration from you as the grower. BDE Farm Trac's Biofuel / RTFO module is designed to generate and maintain exactly that documentation." },
+      { q: "What is an RTF Obligation Number and where do I find it?", a: "An RTF Obligation Number is the Department for Transport reference number issued to each obligated fuel supplier (your biofuel buyer). It uniquely identifies the buyer in the RTFO system and must appear on every sustainability declaration you issue to them. Your buyer should be able to provide this number. Enter it into their record in the RTFO Buyers register — it will then auto-populate on all sustainability declarations for that buyer." },
+      { q: "How do I record a biofuel crop delivery?", a: "Go to the Biofuel / RTFO page and open the Deliveries tab. Click New Delivery and fill in the date, buyer (selected from your Registered Buyers list), field or fields supplying the crop, quantity, vehicle or haulier details, and the sustainability declaration reference your buyer issues you. This creates a permanent, audit-ready record of every consignment your buyer can reference in their RTFO return." },
+      { q: "What GHG data does BDE Farm Trac supply for biofuel compliance?", a: "The Biofuel / RTFO overview page automatically counts the number of NVZ fertiliser applications and spray applications recorded in your other modules for RTFO-eligible fields. Your ISCC auditor or biofuel buyer uses these figures to calculate a field-level GHG footprint that must accompany the sustainability declaration. You do not need to enter data twice — it is drawn directly from your existing NVZ and Sprays records." },
+      { q: "What happens to historic sustainability declarations if I stop working with a buyer?", a: "You can deactivate a buyer in the RTFO Buyers register rather than deleting them. The buyer is marked Inactive and no longer appears in the dropdown when logging new deliveries — but every historical delivery and sustainability declaration linked to them is preserved in full on your record. Reactivate them at any time if the relationship resumes." },
     ],
   },
   {
