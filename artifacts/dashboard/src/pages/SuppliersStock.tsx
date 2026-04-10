@@ -34,6 +34,8 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  Loader2,
+  ClipboardCheck,
 } from "lucide-react";
 
 const PRODUCT_CATEGORIES = [
@@ -105,14 +107,14 @@ function EmptyState({ icon: Icon, title, subtitle }: { icon: React.ElementType; 
 }
 
 export default function SuppliersStockPage() {
-  const [tab, setTab] = useState<"suppliers" | "products" | "purchase-orders" | "received" | "levels" | "movements" | "trade-history">("levels");
+  const [tab, setTab] = useState<"suppliers" | "products" | "purchase-orders" | "received" | "levels" | "movements" | "trade-history" | "stocktake">("levels");
   const [prefilledPo, setPrefilledPo] = useState<{ form: any; lines: any[] } | null>(null);
   const { farmId } = useAppStore();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const requested = params.get("tab") as typeof tab | null;
-    const valid: (typeof tab)[] = ["suppliers", "products", "purchase-orders", "received", "levels", "movements", "trade-history"];
+    const valid: (typeof tab)[] = ["suppliers", "products", "purchase-orders", "received", "levels", "movements", "trade-history", "stocktake"];
     if (requested && valid.includes(requested)) setTab(requested);
   }, []);
   const { toast } = useToast();
@@ -195,6 +197,7 @@ export default function SuppliersStockPage() {
         <TabButton active={tab === "products"} onClick={() => setTab("products")}>Product Catalogue</TabButton>
         <TabButton active={tab === "suppliers"} onClick={() => setTab("suppliers")}>Trade Contacts</TabButton>
         <TabButton active={tab === "trade-history"} onClick={() => setTab("trade-history")}>Trade History & Prices</TabButton>
+        <TabButton active={tab === "stocktake"} onClick={() => setTab("stocktake")}>Stocktake</TabButton>
       </TabBar>
 
       {tab === "levels" && (
@@ -270,6 +273,9 @@ export default function SuppliersStockPage() {
       )}
       {tab === "trade-history" && farmId && (
         <TradeHistoryTab farmId={farmId} />
+      )}
+      {tab === "stocktake" && farmId && (
+        <StocktakeTab farmId={farmId} />
       )}
     </div>
     </AppLayout>
@@ -1531,6 +1537,345 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
               editItem ? updateMut.mutate(payload) : createMut.mutate(payload);
             }} disabled={!form.name || (editItem ? updateMut.isPending : createMut.isPending)}>
               {editItem ? "Save Changes" : "Add Supplier"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Main Stock Stocktake Tab ─────────────────────────────────────────────────
+
+const VARIANCE_REASONS: { value: string; label: string }[] = [
+  { value: "calibration", label: "Calibration / weighing error" },
+  { value: "spillage",    label: "Spillage / wastage" },
+  { value: "theft",       label: "Theft / loss" },
+  { value: "data-entry",  label: "Data entry error" },
+  { value: "other",       label: "Other" },
+];
+
+function ConfirmDialogStock({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: {
+  open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void;
+  confirmLabel?: string; confirmVariant?: "default" | "destructive";
+}) {
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
+      <DialogContent style={{ maxWidth: "22rem" }}>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant={confirmVariant} onClick={() => { onConfirm(); onCancel(); }}>{confirmLabel}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StocktakeTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [activeId, setActiveId] = useState<number | null>(null);
+  const [localCounts, setLocalCounts] = useState<Record<number, string>>({});
+  const [newOpen, setNewOpen] = useState(false);
+  const [newForm, setNewForm] = useState({ stocktakeDate: new Date().toISOString().slice(0, 10), notes: "" });
+
+  type ConfirmState = { open: boolean; title: string; message: string; onConfirm: () => void; confirmLabel?: string; variant?: "default" | "destructive" };
+  const [confirmState, setConfirmState] = useState<ConfirmState>({ open: false, title: "", message: "", onConfirm: () => {} });
+  const showConfirm = (title: string, message: string, onConfirm: () => void, opts?: { confirmLabel?: string; variant?: "default" | "destructive" }) =>
+    setConfirmState({ open: true, title, message, onConfirm, ...opts });
+
+  type StocktakeItem = { id: number; stockItemId: number | null; itemName: string; stockType: string | null; unit: string | null; location: string | null; expectedQty: string; countedQty: string | null; variance: string | null; varianceValue: string | null; varianceReason: string | null; notes: string | null; unitCostPence: number | null };
+  type StocktakeSession = { id: number; stocktakeDate: string; status: string; itemCount: number; countedCount: number; totalVarianceValue: string | null; notes?: string; completedAt?: string; items?: StocktakeItem[] };
+
+  const { data: sessions = [], isLoading: sessionsLoading } = useQuery<StocktakeSession[]>({
+    queryKey: ["stocktakes", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/stocktakes`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const { data: activeSession } = useQuery<StocktakeSession>({
+    queryKey: ["stocktake-detail", farmId, activeId],
+    queryFn: () => fetch(`/api/farms/${farmId}/stocktakes/${activeId}`, { credentials: "include" }).then(r => r.json()),
+    enabled: activeId !== null,
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: { stocktakeDate: string; notes?: string }) =>
+      fetch(`/api/farms/${farmId}/stocktakes`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: (data: StocktakeSession) => {
+      qc.invalidateQueries({ queryKey: ["stocktakes", farmId] });
+      setNewOpen(false);
+      setLocalCounts({});
+      setActiveId(data.id);
+    },
+  });
+
+  const updateItemMut = useMutation({
+    mutationFn: ({ sessionId, itemId, body }: { sessionId: number; itemId: number; body: Record<string, unknown> }) =>
+      fetch(`/api/farms/${farmId}/stocktakes/${sessionId}/items/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["stocktake-detail", farmId, activeId] }); },
+  });
+
+  const completeMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/stocktakes/${id}/complete`, { method: "POST", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stocktakes", farmId] });
+      qc.invalidateQueries({ queryKey: ["stocktake-detail", farmId, activeId] });
+      qc.invalidateQueries({ queryKey: ["stock-levels", farmId] });
+    },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/stocktakes/${id}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["stocktakes", farmId] }); setActiveId(null); },
+  });
+
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+  const itemsMissingReason = (activeSession?.items ?? []).filter(i => {
+    const v = i.variance !== null ? parseFloat(i.variance) : 0;
+    return Math.abs(v) > 0.001 && !i.varianceReason;
+  });
+  const canComplete = (activeSession?.countedCount ?? 0) >= (activeSession?.itemCount ?? 0) && itemsMissingReason.length === 0;
+
+  return (
+    <div className="space-y-4">
+      <ConfirmDialogStock
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState(s => ({ ...s, open: false }))}
+        confirmLabel={confirmState.confirmLabel}
+        confirmVariant={confirmState.variant}
+      />
+
+      {activeId === null ? (
+        /* ── List view ──────────────────────────────────────────────────── */
+        <>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h3 className="font-semibold text-sm flex items-center gap-1.5"><ClipboardCheck className="w-4 h-4" />Stocktake Records</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Physically count all farm inputs and compare against system quantities. Variance reasons are required for Red Tractor compliance.</p>
+            </div>
+            <Button size="sm" onClick={() => { setNewForm({ stocktakeDate: new Date().toISOString().slice(0, 10), notes: "" }); setNewOpen(true); }}>
+              <Plus className="w-3.5 h-3.5 mr-1" />New Stocktake
+            </Button>
+          </div>
+
+          {sessionsLoading ? <Loader2 className="animate-spin w-5 h-5" /> : sessions.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground text-sm">No stocktakes recorded yet. Click "New Stocktake" to begin your first count.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b">
+                  {["Date", "Status", "Progress", "Variance £", "Notes", ""].map(h => (
+                    <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {sessions.map(s => {
+                    const varVal = s.totalVarianceValue ? parseFloat(s.totalVarianceValue) : null;
+                    const isDraft = s.status === "draft";
+                    return (
+                      <tr key={s.id} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer" onClick={() => { setLocalCounts({}); setActiveId(s.id); }}>
+                        <td className="py-2 pr-3 whitespace-nowrap font-medium">{fmtDate(s.stocktakeDate)}</td>
+                        <td className="py-2 pr-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${isDraft ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-green-50 text-green-700 border border-green-200"}`}>
+                            {isDraft ? "In Progress" : "Completed"}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-3 text-muted-foreground">{s.countedCount ?? 0} / {s.itemCount ?? 0} counted</td>
+                        <td className="py-2 pr-3">
+                          {varVal === null ? <span className="text-muted-foreground">—</span> : (
+                            <span className={varVal < 0 ? "text-red-600 font-medium" : varVal > 0 ? "text-amber-600 font-medium" : "text-green-600"}>
+                              {varVal >= 0 ? "+" : ""}£{Math.abs(varVal).toFixed(2)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-3 text-muted-foreground text-xs max-w-[180px] truncate">{s.notes || "—"}</td>
+                        <td className="py-2" onClick={e => e.stopPropagation()}>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setLocalCounts({}); setActiveId(s.id); }}>
+                              {isDraft ? "Continue" : "View"}
+                            </Button>
+                            {isDraft && (
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => showConfirm("Delete Stocktake", "Delete this draft stocktake? All counts entered so far will be lost.", () => deleteMut.mutate(s.id), { confirmLabel: "Delete", variant: "destructive" })}>
+                                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      ) : (
+        /* ── Detail view ────────────────────────────────────────────────── */
+        <>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button size="sm" variant="outline" onClick={() => { setActiveId(null); qc.invalidateQueries({ queryKey: ["stocktakes", farmId] }); }}>← Back</Button>
+            {activeSession && (
+              <>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-sm">Stocktake — {fmtDate(activeSession.stocktakeDate)}</h3>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${activeSession.status === "draft" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-green-50 text-green-700 border border-green-200"}`}>
+                      {activeSession.status === "draft" ? "In Progress" : "Completed"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{activeSession.countedCount ?? 0} / {activeSession.itemCount ?? 0} items counted</span>
+                  </div>
+                  {activeSession.notes && <p className="text-xs text-muted-foreground mt-0.5">{activeSession.notes}</p>}
+                </div>
+                {activeSession.status === "draft" && (
+                  <Button size="sm" disabled={!canComplete || completeMut.isPending}
+                    onClick={() => showConfirm("Complete Stocktake", "Stock levels will be updated to match your physical counts. This cannot be undone. Variance records will be created for Red Tractor audit.", () => completeMut.mutate(activeSession.id), { confirmLabel: "Complete Stocktake" })}>
+                    {completeMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                    Complete Stocktake
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+
+          {!activeSession ? <Loader2 className="animate-spin w-5 h-5" /> : (activeSession.items ?? []).length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground text-sm">No stock items found. Add items to the Product Catalogue first, then start a new stocktake.</div>
+          ) : (
+            <>
+              {(() => {
+                const items = activeSession.items ?? [];
+                const totalVar = items.reduce((s, i) => s + (i.varianceValue ? parseFloat(i.varianceValue) : 0), 0);
+                const negCount = items.filter(i => i.variance !== null && parseFloat(i.variance) < 0).length;
+                const uncounted = items.filter(i => i.countedQty === null).length;
+                return (
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "Uncounted", value: String(uncounted), sub: "items remaining", color: uncounted > 0 ? "text-amber-600" : "text-green-600" },
+                      { label: "Total Variance", value: `${totalVar >= 0 ? "+" : ""}£${Math.abs(totalVar).toFixed(2)}`, sub: "cost value difference", color: totalVar < 0 ? "text-red-600" : totalVar > 0 ? "text-amber-600" : "text-green-600" },
+                      { label: "Shortfalls", value: String(negCount), sub: "lines below system qty", color: negCount > 0 ? "text-red-600" : "text-green-600" },
+                    ].map(card => (
+                      <div key={card.label} className="bg-muted/40 rounded-lg p-3 text-center border">
+                        <p className="text-xs text-muted-foreground mb-1">{card.label}</p>
+                        <p className={`text-lg font-bold ${card.color}`}>{card.value}</p>
+                        <p className="text-xs text-muted-foreground">{card.sub}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b">
+                    {["Item", "Type", "Unit", "System Qty", "Counted", "Variance", "Variance £", "Reason *", "Notes"].map(h => (
+                      <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {(activeSession.items ?? []).map(item => {
+                      const varNum = item.variance !== null ? parseFloat(item.variance) : null;
+                      const varVal = item.varianceValue !== null ? parseFloat(item.varianceValue!) : null;
+                      const varColor = varNum === null ? "" : varNum < 0 ? "text-red-600 font-semibold" : varNum === 0 ? "text-green-600" : "text-amber-600 font-semibold";
+                      const rowBg = varNum === null ? "" : varNum < 0 ? "bg-red-50/40" : varNum > 0 ? "bg-amber-50/30" : "";
+                      const hasVariance = varNum !== null && Math.abs(varNum) > 0.001;
+                      const isCompleted = activeSession.status === "completed";
+                      const localVal = localCounts[item.id] !== undefined ? localCounts[item.id] : (item.countedQty ?? "");
+                      return (
+                        <tr key={item.id} className={`border-b last:border-0 ${rowBg}`}>
+                          <td className="py-2 pr-3 font-medium whitespace-nowrap">{item.itemName}</td>
+                          <td className="py-2 pr-3 text-muted-foreground text-xs capitalize">{item.stockType?.replace(/-/g, " ") || "—"}</td>
+                          <td className="py-2 pr-3 text-muted-foreground text-xs">{item.unit || "—"}</td>
+                          <td className="py-2 pr-3">{parseFloat(item.expectedQty).toFixed(2)}</td>
+                          <td className="py-2 pr-3">
+                            {isCompleted ? (
+                              <span>{item.countedQty ?? "—"}</span>
+                            ) : (
+                              <Input type="number" min="0" step="0.01" className="h-7 w-24 text-sm" placeholder="0"
+                                value={localVal}
+                                onChange={e => setLocalCounts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                onBlur={() => {
+                                  const raw = localCounts[item.id];
+                                  if (raw === undefined) return;
+                                  const val = raw.trim() === "" ? null : raw;
+                                  updateItemMut.mutate({ sessionId: activeSession.id, itemId: item.id, body: { countedQty: val } });
+                                }}
+                              />
+                            )}
+                          </td>
+                          <td className={`py-2 pr-3 ${varColor}`}>
+                            {varNum === null ? <span className="text-muted-foreground text-xs">—</span> : `${varNum >= 0 ? "+" : ""}${varNum.toFixed(2)}`}
+                          </td>
+                          <td className={`py-2 pr-3 ${varColor}`}>
+                            {varVal === null ? <span className="text-muted-foreground text-xs">—</span> : `${varVal >= 0 ? "+" : ""}£${Math.abs(varVal).toFixed(2)}`}
+                          </td>
+                          <td className="py-2 pr-3">
+                            {hasVariance && !isCompleted ? (
+                              <Select value={item.varianceReason ?? "__none__"} onValueChange={val => updateItemMut.mutate({ sessionId: activeSession.id, itemId: item.id, body: { varianceReason: val === "__none__" ? null : val } })}>
+                                <SelectTrigger className="h-7 text-xs w-40"><SelectValue placeholder="Select reason" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">— select —</SelectItem>
+                                  {VARIANCE_REASONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            ) : hasVariance && isCompleted ? (
+                              <span className="text-xs">{VARIANCE_REASONS.find(r => r.value === item.varianceReason)?.label ?? item.varianceReason ?? "—"}</span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="py-2">
+                            {isCompleted ? (
+                              <span className="text-xs text-muted-foreground">{item.notes || "—"}</span>
+                            ) : (
+                              <Input className="h-7 text-xs w-32" placeholder="Optional" defaultValue={item.notes ?? ""}
+                                onBlur={e => { if (e.target.value !== (item.notes ?? "")) updateItemMut.mutate({ sessionId: activeSession.id, itemId: item.id, body: { notes: e.target.value || null } }); }}
+                              />
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {(activeSession.items ?? []).some(i => i.unitCostPence === null) && (
+                <p className="text-xs text-muted-foreground border-t pt-2">
+                  * Variance £ shows <span className="font-medium">—</span> for items without a unit cost. Add unit costs in the Product Catalogue to see cost-value variance.
+                </p>
+              )}
+              {activeSession.status === "draft" && itemsMissingReason.length > 0 && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                  <strong>{itemsMissingReason.length} item{itemsMissingReason.length > 1 ? "s have" : " has"} a variance</strong> — a reason must be selected for each before completing (Red Tractor requirement).
+                </p>
+              )}
+              {activeSession.status === "draft" && (activeSession.countedCount ?? 0) < (activeSession.itemCount ?? 0) && (
+                <p className="text-xs text-muted-foreground text-center border-t pt-3">
+                  Count all {(activeSession.itemCount ?? 0) - (activeSession.countedCount ?? 0)} remaining items before you can complete the stocktake.
+                </p>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      <Dialog open={newOpen} onOpenChange={o => { if (!o) setNewOpen(false); }}>
+        <DialogContent style={{ maxWidth: "22rem" }}>
+          <DialogHeader><DialogTitle>New Stocktake</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-1">Snaps the current system stock for all active farm inputs (excl. workshop parts). You'll then count and enter physical quantities.</p>
+          <div className="space-y-3">
+            <div><Label>Stocktake Date *</Label><Input type="date" value={newForm.stocktakeDate} onChange={e => setNewForm(f => ({ ...f, stocktakeDate: e.target.value }))} /></div>
+            <div><Label>Notes</Label><Input value={newForm.notes} placeholder="e.g. Monthly Red Tractor count" onChange={e => setNewForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewOpen(false)}>Cancel</Button>
+            <Button disabled={!newForm.stocktakeDate || createMut.isPending}
+              onClick={() => createMut.mutate({ stocktakeDate: newForm.stocktakeDate, notes: newForm.notes || undefined })}>
+              {createMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Start Stocktake"}
             </Button>
           </DialogFooter>
         </DialogContent>

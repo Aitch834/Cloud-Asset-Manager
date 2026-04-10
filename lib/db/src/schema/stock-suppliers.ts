@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, numeric, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric, boolean, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { fieldsTable } from "./fields-crops";
 
@@ -108,6 +108,38 @@ export const stockMovementsTable = pgTable("stock_movements", {
   deliveryId: integer("delivery_id").references(() => stockDeliveriesTable.id),
   movedAt: timestamp("moved_at", { withTimezone: true }).notNull().defaultNow(),
   performedBy: text("performed_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const stocktakeSessionsTable = pgTable("stocktake_sessions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  stocktakeDate: date("stocktake_date").notNull(),
+  status: text("status").notNull().default("draft"),
+  notes: text("notes"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  itemCount: integer("item_count").default(0),
+  countedCount: integer("counted_count").default(0),
+  totalVarianceValue: numeric("total_variance_value", { precision: 12, scale: 2 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const stocktakeItemsTable = pgTable("stocktake_items", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => stocktakeSessionsTable.id),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  stockItemId: integer("stock_item_id").references(() => stockItemsTable.id),
+  itemName: text("item_name").notNull(),
+  stockType: text("stock_type"),
+  unit: text("unit"),
+  location: text("location"),
+  expectedQty: numeric("expected_qty", { precision: 10, scale: 2 }).notNull(),
+  countedQty: numeric("counted_qty", { precision: 10, scale: 2 }),
+  variance: numeric("variance", { precision: 10, scale: 2 }),
+  unitCostPence: integer("unit_cost_pence"),
+  varianceValue: numeric("variance_value", { precision: 12, scale: 2 }),
+  varianceReason: text("variance_reason"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

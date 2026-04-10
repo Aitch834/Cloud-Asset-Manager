@@ -1454,7 +1454,7 @@ function PartPanel({ farmId, part, onClose, onEdit }: {
 function PartsStoreTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
 
-  const [view, setView] = useState<"catalogue" | "history" | "returns">("catalogue");
+  const [view, setView] = useState<"catalogue" | "history" | "returns" | "stocktake">("catalogue");
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("all");
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
@@ -1537,6 +1537,9 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
           </button>
           <button onClick={() => setView("returns")} className={cn("px-3 py-1 rounded-full text-xs font-medium border transition-colors", view === "returns" ? "bg-primary text-white border-primary" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300")}>
             <ArrowUpFromLine className="h-3 w-3 inline-block mr-1" />Goods Returns
+          </button>
+          <button onClick={() => setView("stocktake")} className={cn("px-3 py-1 rounded-full text-xs font-medium border transition-colors", view === "stocktake" ? "bg-primary text-white border-primary" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300")}>
+            <Package className="h-3 w-3 inline-block mr-1" />Stocktake
           </button>
         </div>
         {view === "catalogue" && <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Part</Button>}
@@ -1723,6 +1726,9 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
       {/* Goods Returns View */}
       {view === "returns" && <GoodsReturnsView farmId={farmId} parts={parts} />}
 
+      {/* Workshop Parts Stocktake View */}
+      {view === "stocktake" && <WorkshopStocktakeView farmId={farmId} />}
+
       {/* Add / Edit Part Dialog */}
       {addOpen && (
         <Dialog open onOpenChange={() => { setAddOpen(false); setEditing(null); setForm(EMPTY_PART); }}>
@@ -1898,5 +1904,303 @@ export default function WorkshopPage() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+// ─── Workshop Parts Stocktake ────────────────────────────────────────────────
+
+function ConfirmDialogWorkshop({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: {
+  open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void;
+  confirmLabel?: string; confirmVariant?: "default" | "destructive";
+}) {
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
+      <DialogContent style={{ maxWidth: "22rem" }}>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant={confirmVariant} onClick={() => { onConfirm(); onCancel(); }}>{confirmLabel}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function WorkshopStocktakeView({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [activeId, setActiveId] = useState<number | null>(null);
+  const [localCounts, setLocalCounts] = useState<Record<number, string>>({});
+  const [newOpen, setNewOpen] = useState(false);
+  const [newForm, setNewForm] = useState({ stocktakeDate: new Date().toISOString().slice(0, 10), notes: "" });
+
+  type ConfirmState = { open: boolean; title: string; message: string; onConfirm: () => void; confirmLabel?: string; variant?: "default" | "destructive" };
+  const [confirmState, setConfirmState] = useState<ConfirmState>({ open: false, title: "", message: "", onConfirm: () => {} });
+  const showConfirm = (title: string, message: string, onConfirm: () => void, opts?: { confirmLabel?: string; variant?: "default" | "destructive" }) =>
+    setConfirmState({ open: true, title, message, onConfirm, ...opts });
+
+  type StocktakeItem = { id: number; stockItemId: number | null; partName: string; partNumber: string | null; unit: string | null; location: string | null; expectedQty: string; countedQty: string | null; variance: string | null; varianceValue: string | null; notes: string | null; unitCostPence: number | null };
+  type StocktakeSession = { id: number; stocktakeDate: string; status: string; itemCount: number; countedCount: number; totalVarianceValue: string | null; notes?: string; completedAt?: string; items?: StocktakeItem[] };
+
+  const { data: sessions = [], isLoading: sessionsLoading } = useQuery<StocktakeSession[]>({
+    queryKey: ["workshop-stocktakes", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/stocktakes`), { credentials: "include" }).then(r => r.json()),
+  });
+
+  const { data: activeSession } = useQuery<StocktakeSession>({
+    queryKey: ["workshop-stocktake-detail", farmId, activeId],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/stocktakes/${activeId}`), { credentials: "include" }).then(r => r.json()),
+    enabled: activeId !== null,
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: { stocktakeDate: string; notes?: string }) =>
+      fetch(api(`farms/${farmId}/workshop/stocktakes`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: (data: StocktakeSession) => {
+      qc.invalidateQueries({ queryKey: ["workshop-stocktakes", farmId] });
+      setNewOpen(false);
+      setLocalCounts({});
+      setActiveId(data.id);
+    },
+  });
+
+  const updateItemMut = useMutation({
+    mutationFn: ({ sessionId, itemId, countedQty }: { sessionId: number; itemId: number; countedQty: string | null }) =>
+      fetch(api(`farms/${farmId}/workshop/stocktakes/${sessionId}/items/${itemId}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ countedQty }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-stocktake-detail", farmId, activeId] }); },
+  });
+
+  const completeMut = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/stocktakes/${id}/complete`), { method: "POST", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workshop-stocktakes", farmId] });
+      qc.invalidateQueries({ queryKey: ["workshop-stocktake-detail", farmId, activeId] });
+      qc.invalidateQueries({ queryKey: ["workshop-parts", farmId] });
+    },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/workshop/stocktakes/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workshop-stocktakes", farmId] }); setActiveId(null); },
+  });
+
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const canComplete = (activeSession?.countedCount ?? 0) >= (activeSession?.itemCount ?? 0);
+
+  return (
+    <div className="space-y-4">
+      <ConfirmDialogWorkshop
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState(s => ({ ...s, open: false }))}
+        confirmLabel={confirmState.confirmLabel}
+        confirmVariant={confirmState.variant}
+      />
+
+      {activeId === null ? (
+        /* ── List view ──────────────────────────────────────────────────── */
+        <>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h3 className="font-semibold text-sm">Parts Store Stocktake</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Count physical workshop parts and compare against system stock quantities to detect discrepancies.</p>
+            </div>
+            <Button size="sm" onClick={() => { setNewForm({ stocktakeDate: new Date().toISOString().slice(0, 10), notes: "" }); setNewOpen(true); }}>
+              <Plus className="h-4 w-4 mr-1" />New Stocktake
+            </Button>
+          </div>
+
+          {sessionsLoading ? <Loader2 className="animate-spin w-5 h-5" /> : sessions.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground text-sm">No stocktakes recorded yet. Click "New Stocktake" to begin your first count.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b">
+                  {["Date", "Status", "Progress", "Variance £", "Notes", ""].map(h => (
+                    <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {sessions.map(s => {
+                    const varVal = s.totalVarianceValue ? parseFloat(s.totalVarianceValue) : null;
+                    const isDraft = s.status === "draft";
+                    return (
+                      <tr key={s.id} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer" onClick={() => { setLocalCounts({}); setActiveId(s.id); }}>
+                        <td className="py-2 pr-3 whitespace-nowrap font-medium">{fmtDate(s.stocktakeDate)}</td>
+                        <td className="py-2 pr-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${isDraft ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-green-50 text-green-700 border border-green-200"}`}>
+                            {isDraft ? "In Progress" : "Completed"}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-3 text-muted-foreground">{s.countedCount ?? 0} / {s.itemCount ?? 0} counted</td>
+                        <td className="py-2 pr-3">
+                          {varVal === null ? <span className="text-muted-foreground">—</span> : (
+                            <span className={varVal < 0 ? "text-red-600 font-medium" : varVal > 0 ? "text-amber-600 font-medium" : "text-green-600"}>
+                              {varVal >= 0 ? "+" : ""}£{Math.abs(varVal).toFixed(2)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-3 text-muted-foreground text-xs max-w-[180px] truncate">{s.notes || "—"}</td>
+                        <td className="py-2" onClick={e => e.stopPropagation()}>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setLocalCounts({}); setActiveId(s.id); }}>
+                              {isDraft ? "Continue" : "View"}
+                            </Button>
+                            {isDraft && (
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => showConfirm("Delete Stocktake", "Delete this draft? All counts entered so far will be lost.", () => deleteMut.mutate(s.id), { confirmLabel: "Delete", variant: "destructive" })}>
+                                <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      ) : (
+        /* ── Detail view ────────────────────────────────────────────────── */
+        <>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button size="sm" variant="outline" onClick={() => { setActiveId(null); qc.invalidateQueries({ queryKey: ["workshop-stocktakes", farmId] }); }}>← Back</Button>
+            {activeSession && (
+              <>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-sm">Stocktake — {fmtDate(activeSession.stocktakeDate)}</h3>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${activeSession.status === "draft" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-green-50 text-green-700 border border-green-200"}`}>
+                      {activeSession.status === "draft" ? "In Progress" : "Completed"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{activeSession.countedCount ?? 0} / {activeSession.itemCount ?? 0} parts counted</span>
+                  </div>
+                  {activeSession.notes && <p className="text-xs text-muted-foreground mt-0.5">{activeSession.notes}</p>}
+                </div>
+                {activeSession.status === "draft" && (
+                  <Button size="sm" disabled={!canComplete || completeMut.isPending}
+                    onClick={() => showConfirm("Complete Stocktake", "Workshop part stock levels will be updated to match your physical counts. This cannot be undone.", () => completeMut.mutate(activeSession.id), { confirmLabel: "Complete Stocktake" })}>
+                    {completeMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                    Complete Stocktake
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+
+          {!activeSession ? <Loader2 className="animate-spin w-5 h-5" /> : (activeSession.items ?? []).length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground text-sm">No workshop parts found. Add parts to the catalogue first, then start a new stocktake.</div>
+          ) : (
+            <>
+              {(() => {
+                const items = activeSession.items ?? [];
+                const totalVar = items.reduce((s, i) => s + (i.varianceValue ? parseFloat(i.varianceValue) : 0), 0);
+                const negCount = items.filter(i => i.variance !== null && parseFloat(i.variance) < 0).length;
+                const uncounted = items.filter(i => i.countedQty === null).length;
+                return (
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "Uncounted", value: String(uncounted), sub: "parts remaining", color: uncounted > 0 ? "text-amber-600" : "text-green-600" },
+                      { label: "Total Variance", value: `${totalVar >= 0 ? "+" : ""}£${Math.abs(totalVar).toFixed(2)}`, sub: "cost value difference", color: totalVar < 0 ? "text-red-600" : totalVar > 0 ? "text-amber-600" : "text-green-600" },
+                      { label: "Shortfalls", value: String(negCount), sub: "parts below system qty", color: negCount > 0 ? "text-red-600" : "text-green-600" },
+                    ].map(card => (
+                      <div key={card.label} className="bg-muted/40 rounded-lg p-3 text-center border">
+                        <p className="text-xs text-muted-foreground mb-1">{card.label}</p>
+                        <p className={`text-lg font-bold ${card.color}`}>{card.value}</p>
+                        <p className="text-xs text-muted-foreground">{card.sub}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b">
+                    {["Part Name", "Part No.", "Location", "Unit", "System Qty", "Counted", "Variance", "Variance £"].map(h => (
+                      <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {(activeSession.items ?? []).map(item => {
+                      const varNum = item.variance !== null ? parseFloat(item.variance) : null;
+                      const varVal = item.varianceValue !== null ? parseFloat(item.varianceValue!) : null;
+                      const varColor = varNum === null ? "" : varNum < 0 ? "text-red-600 font-semibold" : varNum === 0 ? "text-green-600" : "text-amber-600 font-semibold";
+                      const rowBg = varNum === null ? "" : varNum < 0 ? "bg-red-50/40" : varNum > 0 ? "bg-amber-50/30" : "";
+                      const isCompleted = activeSession.status === "completed";
+                      const localVal = localCounts[item.id] !== undefined ? localCounts[item.id] : (item.countedQty ?? "");
+                      return (
+                        <tr key={item.id} className={`border-b last:border-0 ${rowBg}`}>
+                          <td className="py-2 pr-3 font-medium whitespace-nowrap">{item.partName}</td>
+                          <td className="py-2 pr-3 text-muted-foreground text-xs">{item.partNumber || "—"}</td>
+                          <td className="py-2 pr-3 text-muted-foreground text-xs">{item.location || "—"}</td>
+                          <td className="py-2 pr-3 text-muted-foreground text-xs">{item.unit || "—"}</td>
+                          <td className="py-2 pr-3">{parseFloat(item.expectedQty).toFixed(2)}</td>
+                          <td className="py-2 pr-3">
+                            {isCompleted ? (
+                              <span>{item.countedQty ?? "—"}</span>
+                            ) : (
+                              <Input type="number" min="0" step="0.01" className="h-7 w-24 text-sm" placeholder="0"
+                                value={localVal}
+                                onChange={e => setLocalCounts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                onBlur={() => {
+                                  const raw = localCounts[item.id];
+                                  if (raw === undefined) return;
+                                  const val = raw.trim() === "" ? null : raw;
+                                  updateItemMut.mutate({ sessionId: activeSession.id, itemId: item.id, countedQty: val });
+                                }}
+                              />
+                            )}
+                          </td>
+                          <td className={`py-2 pr-3 ${varColor}`}>
+                            {varNum === null ? <span className="text-muted-foreground text-xs">—</span> : `${varNum >= 0 ? "+" : ""}${varNum.toFixed(2)}`}
+                          </td>
+                          <td className={`py-2 ${varColor}`}>
+                            {varVal === null ? <span className="text-muted-foreground text-xs">—</span> : `${varVal >= 0 ? "+" : ""}£${Math.abs(varVal).toFixed(2)}`}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {(activeSession.items ?? []).some(i => i.unitCostPence === null) && (
+                <p className="text-xs text-muted-foreground border-t pt-2">
+                  * Variance £ shows <span className="font-medium">—</span> for parts without a unit cost. Add unit costs in the Parts Catalogue to see cost-value variance.
+                </p>
+              )}
+              {activeSession.status === "draft" && !canComplete && (
+                <p className="text-xs text-muted-foreground text-center border-t pt-3">
+                  Count all {(activeSession.itemCount ?? 0) - (activeSession.countedCount ?? 0)} remaining parts before completing.
+                </p>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* New Stocktake dialog */}
+      <Dialog open={newOpen} onOpenChange={o => { if (!o) setNewOpen(false); }}>
+        <DialogContent style={{ maxWidth: "22rem" }}>
+          <DialogHeader><DialogTitle>New Parts Stocktake</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-1">Snaps the current system stock for all active workshop parts. You'll then count and enter physical quantities.</p>
+          <div className="space-y-3">
+            <div><Label>Stocktake Date *</Label><Input type="date" value={newForm.stocktakeDate} onChange={e => setNewForm(f => ({ ...f, stocktakeDate: e.target.value }))} /></div>
+            <div><Label>Notes</Label><Input value={newForm.notes} placeholder="e.g. Monthly audit" onChange={e => setNewForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewOpen(false)}>Cancel</Button>
+            <Button disabled={!newForm.stocktakeDate || createMut.isPending}
+              onClick={() => createMut.mutate({ stocktakeDate: newForm.stocktakeDate, notes: newForm.notes || undefined })}>
+              {createMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Start Stocktake"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

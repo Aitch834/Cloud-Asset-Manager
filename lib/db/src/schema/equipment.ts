@@ -234,6 +234,37 @@ export const workshopGoodsReturnsTable = pgTable("workshop_goods_returns", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+export const workshopStocktakeSessionsTable = pgTable("workshop_stocktake_sessions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  stocktakeDate: date("stocktake_date").notNull(),
+  status: text("status").notNull().default("draft"),
+  notes: text("notes"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  itemCount: integer("item_count").default(0),
+  countedCount: integer("counted_count").default(0),
+  totalVarianceValue: numeric("total_variance_value", { precision: 12, scale: 2 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const workshopStocktakeItemsTable = pgTable("workshop_stocktake_items", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => workshopStocktakeSessionsTable.id),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  stockItemId: integer("stock_item_id").references(() => stockItemsTable.id),
+  partName: text("part_name").notNull(),
+  partNumber: text("part_number"),
+  unit: text("unit"),
+  location: text("location"),
+  expectedQty: numeric("expected_qty", { precision: 10, scale: 2 }).notNull(),
+  countedQty: numeric("counted_qty", { precision: 10, scale: 2 }),
+  variance: numeric("variance", { precision: 10, scale: 2 }),
+  unitCostPence: integer("unit_cost_pence"),
+  varianceValue: numeric("variance_value", { precision: 12, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const equipmentDefectReportsTable = pgTable("equipment_defect_reports", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

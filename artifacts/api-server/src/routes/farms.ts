@@ -32,6 +32,8 @@ import {
   workshopPartDocumentsTable,
   workshopJobDocumentsTable,
   workshopGoodsReturnsTable,
+  workshopStocktakeSessionsTable,
+  workshopStocktakeItemsTable,
   equipmentCalibrationRecordsTable,
   herdFlockRegisterTable,
   herdHealthEventsTable,
@@ -165,6 +167,8 @@ import {
   farmShopStocktakeSessionsTable,
   farmShopStocktakeItemsTable,
   farmShopHygieneInspectionsTable,
+  stocktakeSessionsTable,
+  stocktakeItemsTable,
   equineRecordsTable,
   equineHealthEventsTable,
   renewableEnergyInstallationsTable,
@@ -11001,6 +11005,93 @@ router.delete("/farms/:farmId/workshop/returns/:returnId", requireAuth, requireT
   res.json({ success: true });
 });
 
+// ─── Workshop: Parts Stocktake ───────────────────────────────────────────────
+
+router.get("/farms/:farmId/workshop/stocktakes", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const sessions = await db.select().from(workshopStocktakeSessionsTable).where(eq(workshopStocktakeSessionsTable.farmId, farmId)).orderBy(desc(workshopStocktakeSessionsTable.stocktakeDate));
+  res.json(sessions);
+});
+
+router.post("/farms/:farmId/workshop/stocktakes", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { stocktakeDate, notes } = req.body as { stocktakeDate: string; notes?: string };
+  if (!stocktakeDate) { res.status(400).json({ error: "stocktakeDate is required" }); return; }
+  const parts = await db.select({ id: stockItemsTable.id, name: stockItemsTable.name, productCode: stockItemsTable.productCode, unit: stockItemsTable.unit, storageLocation: stockItemsTable.storageLocation, unitCostPence: stockItemsTable.unitCostPence }).from(stockItemsTable).where(and(eq(stockItemsTable.farmId, farmId), eq(stockItemsTable.stockType, "workshop-part"), eq(stockItemsTable.isActive, true))).orderBy(asc(stockItemsTable.name));
+  const levels = await db.select({ stockItemId: stockLevelsTable.stockItemId, currentQuantity: stockLevelsTable.currentQuantity }).from(stockLevelsTable).where(eq(stockLevelsTable.farmId, farmId));
+  const levelMap = Object.fromEntries(levels.map(l => [l.stockItemId, l.currentQuantity]));
+  const [session] = await db.insert(workshopStocktakeSessionsTable).values({ farmId, stocktakeDate, notes: notes ?? null, status: "draft", itemCount: parts.length }).returning();
+  if (parts.length > 0) {
+    await db.insert(workshopStocktakeItemsTable).values(parts.map(p => ({ sessionId: session.id, farmId, stockItemId: p.id, partName: String(p.name), partNumber: p.productCode ?? null, unit: p.unit ?? null, location: p.storageLocation ?? null, expectedQty: String(levelMap[p.id] ?? "0"), unitCostPence: p.unitCostPence ?? null })));
+  }
+  const items = await db.select().from(workshopStocktakeItemsTable).where(eq(workshopStocktakeItemsTable.sessionId, session.id)).orderBy(workshopStocktakeItemsTable.partName);
+  res.json({ ...session, items });
+});
+
+router.get("/farms/:farmId/workshop/stocktakes/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [session] = await db.select().from(workshopStocktakeSessionsTable).where(and(eq(workshopStocktakeSessionsTable.id, id), eq(workshopStocktakeSessionsTable.farmId, farmId)));
+  if (!session) { res.status(404).json({ error: "Not found" }); return; }
+  const items = await db.select().from(workshopStocktakeItemsTable).where(eq(workshopStocktakeItemsTable.sessionId, id)).orderBy(workshopStocktakeItemsTable.partName);
+  res.json({ ...session, items });
+});
+
+router.patch("/farms/:farmId/workshop/stocktakes/:id/items/:itemId", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const sessionId = parseInt(req.params.id); const itemId = parseInt(req.params.itemId);
+  if (isNaN(sessionId) || isNaN(itemId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [session] = await db.select().from(workshopStocktakeSessionsTable).where(and(eq(workshopStocktakeSessionsTable.id, sessionId), eq(workshopStocktakeSessionsTable.farmId, farmId)));
+  if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+  if (session.status !== "draft") { res.status(400).json({ error: "Cannot edit a completed stocktake" }); return; }
+  const [item] = await db.select().from(workshopStocktakeItemsTable).where(and(eq(workshopStocktakeItemsTable.id, itemId), eq(workshopStocktakeItemsTable.sessionId, sessionId)));
+  if (!item) { res.status(404).json({ error: "Item not found" }); return; }
+  const { countedQty, notes: itemNotes } = req.body as { countedQty: string | null; notes?: string };
+  const counted = countedQty !== null && countedQty !== undefined && countedQty !== "" ? parseFloat(String(countedQty)) : null;
+  const expected = parseFloat(String(item.expectedQty));
+  const variance = counted !== null ? counted - expected : null;
+  const costPounds = item.unitCostPence !== null ? item.unitCostPence / 100 : null;
+  const varianceValue = variance !== null && costPounds !== null ? variance * costPounds : null;
+  const [updated] = await db.update(workshopStocktakeItemsTable).set({ countedQty: counted !== null ? String(counted) : null, variance: variance !== null ? String(variance) : null, varianceValue: varianceValue !== null ? String(varianceValue) : null, notes: itemNotes !== undefined ? (itemNotes || null) : item.notes }).where(eq(workshopStocktakeItemsTable.id, itemId)).returning();
+  const allItems = await db.select().from(workshopStocktakeItemsTable).where(eq(workshopStocktakeItemsTable.sessionId, sessionId));
+  const countedCount = allItems.filter(i => i.countedQty !== null).length;
+  const totalVarianceValue = allItems.reduce((sum, i) => sum + (i.varianceValue ? parseFloat(String(i.varianceValue)) : 0), 0);
+  await db.update(workshopStocktakeSessionsTable).set({ countedCount, totalVarianceValue: String(totalVarianceValue) }).where(eq(workshopStocktakeSessionsTable.id, sessionId));
+  res.json(updated);
+});
+
+router.post("/farms/:farmId/workshop/stocktakes/:id/complete", requireAuth, requireTenant, requireModuleByKey("workshop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [session] = await db.select().from(workshopStocktakeSessionsTable).where(and(eq(workshopStocktakeSessionsTable.id, id), eq(workshopStocktakeSessionsTable.farmId, farmId)));
+  if (!session) { res.status(404).json({ error: "Not found" }); return; }
+  if (session.status !== "draft") { res.status(400).json({ error: "Already completed" }); return; }
+  const items = await db.select().from(workshopStocktakeItemsTable).where(eq(workshopStocktakeItemsTable.sessionId, id));
+  const uncounted = items.filter(i => i.countedQty === null);
+  if (uncounted.length > 0) { res.status(400).json({ error: `${uncounted.length} part${uncounted.length > 1 ? "s" : ""} still need a count` }); return; }
+  for (const i of items) {
+    if (i.stockItemId && i.countedQty !== null) {
+      const [existing] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, i.stockItemId))).limit(1);
+      if (existing) { await db.update(stockLevelsTable).set({ currentQuantity: String(i.countedQty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id)); }
+      else { await db.insert(stockLevelsTable).values({ farmId, stockItemId: i.stockItemId, currentQuantity: String(i.countedQty) }); }
+    }
+  }
+  const totalVarianceValue = items.reduce((sum, i) => sum + (i.varianceValue ? parseFloat(String(i.varianceValue)) : 0), 0);
+  const [completed] = await db.update(workshopStocktakeSessionsTable).set({ status: "completed", completedAt: new Date(), countedCount: items.length, totalVarianceValue: String(totalVarianceValue) }).where(eq(workshopStocktakeSessionsTable.id, id)).returning();
+  res.json({ ...completed, items });
+});
+
+router.delete("/farms/:farmId/workshop/stocktakes/:id", requireAuth, requireTenant, requireModuleByKey("workshop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [session] = await db.select({ status: workshopStocktakeSessionsTable.status }).from(workshopStocktakeSessionsTable).where(and(eq(workshopStocktakeSessionsTable.id, id), eq(workshopStocktakeSessionsTable.farmId, farmId)));
+  if (!session) { res.status(404).json({ error: "Not found" }); return; }
+  if (session.status !== "draft") { res.status(400).json({ error: "Completed stocktakes cannot be deleted" }); return; }
+  await db.delete(workshopStocktakeItemsTable).where(eq(workshopStocktakeItemsTable.sessionId, id));
+  await db.delete(workshopStocktakeSessionsTable).where(and(eq(workshopStocktakeSessionsTable.id, id), eq(workshopStocktakeSessionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 // ============================================================
 // PIG PRODUCTION
 // ============================================================
@@ -11818,6 +11909,98 @@ router.post("/farms/:farmId/shop-products/:id/adjust-stock", requireAuth, requir
   const newStock = Math.max(0, (parseFloat(String(prod.currentStock ?? "0")) || 0) + Number(adjustment));
   const [updated] = await db.update(farmShopProductsTable).set({ currentStock: String(newStock) }).where(and(eq(farmShopProductsTable.id, id), eq(farmShopProductsTable.farmId, farmId))).returning();
   res.json(updated);
+});
+
+// ─── Main Stock: Stocktakes ──────────────────────────────────────────────────
+
+router.get("/farms/:farmId/stocktakes", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const sessions = await db.select().from(stocktakeSessionsTable).where(eq(stocktakeSessionsTable.farmId, farmId)).orderBy(desc(stocktakeSessionsTable.stocktakeDate));
+  res.json(sessions);
+});
+
+router.post("/farms/:farmId/stocktakes", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { stocktakeDate, notes } = req.body as { stocktakeDate: string; notes?: string };
+  if (!stocktakeDate) { res.status(400).json({ error: "stocktakeDate is required" }); return; }
+  const items_raw = await db.select({ id: stockItemsTable.id, name: stockItemsTable.name, stockType: stockItemsTable.stockType, unit: stockItemsTable.unit, storageLocation: stockItemsTable.storageLocation, unitCostPence: stockItemsTable.unitCostPence }).from(stockItemsTable).where(and(eq(stockItemsTable.farmId, farmId), sql`${stockItemsTable.stockType} != 'workshop-part'`, eq(stockItemsTable.isActive, true))).orderBy(asc(stockItemsTable.name));
+  const levels = await db.select({ stockItemId: stockLevelsTable.stockItemId, currentQuantity: stockLevelsTable.currentQuantity }).from(stockLevelsTable).where(eq(stockLevelsTable.farmId, farmId));
+  const levelMap = Object.fromEntries(levels.map(l => [l.stockItemId, l.currentQuantity]));
+  const [session] = await db.insert(stocktakeSessionsTable).values({ farmId, stocktakeDate, notes: notes ?? null, status: "draft", itemCount: items_raw.length }).returning();
+  if (items_raw.length > 0) {
+    await db.insert(stocktakeItemsTable).values(items_raw.map(p => ({ sessionId: session.id, farmId, stockItemId: p.id, itemName: String(p.name), stockType: p.stockType ?? null, unit: p.unit ?? null, location: p.storageLocation ?? null, expectedQty: String(levelMap[p.id] ?? "0"), unitCostPence: p.unitCostPence ?? null })));
+  }
+  const rows = await db.select().from(stocktakeItemsTable).where(eq(stocktakeItemsTable.sessionId, session.id)).orderBy(stocktakeItemsTable.itemName);
+  res.json({ ...session, items: rows });
+});
+
+router.get("/farms/:farmId/stocktakes/:id", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [session] = await db.select().from(stocktakeSessionsTable).where(and(eq(stocktakeSessionsTable.id, id), eq(stocktakeSessionsTable.farmId, farmId)));
+  if (!session) { res.status(404).json({ error: "Not found" }); return; }
+  const rows = await db.select().from(stocktakeItemsTable).where(eq(stocktakeItemsTable.sessionId, id)).orderBy(stocktakeItemsTable.itemName);
+  res.json({ ...session, items: rows });
+});
+
+router.patch("/farms/:farmId/stocktakes/:id/items/:itemId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const sessionId = parseInt(req.params.id); const itemId = parseInt(req.params.itemId);
+  if (isNaN(sessionId) || isNaN(itemId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [session] = await db.select().from(stocktakeSessionsTable).where(and(eq(stocktakeSessionsTable.id, sessionId), eq(stocktakeSessionsTable.farmId, farmId)));
+  if (!session) { res.status(404).json({ error: "Session not found" }); return; }
+  if (session.status !== "draft") { res.status(400).json({ error: "Cannot edit a completed stocktake" }); return; }
+  const [item] = await db.select().from(stocktakeItemsTable).where(and(eq(stocktakeItemsTable.id, itemId), eq(stocktakeItemsTable.sessionId, sessionId)));
+  if (!item) { res.status(404).json({ error: "Item not found" }); return; }
+  const { countedQty, varianceReason, notes: itemNotes } = req.body as { countedQty: string | null; varianceReason?: string; notes?: string };
+  const counted = countedQty !== null && countedQty !== undefined && countedQty !== "" ? parseFloat(String(countedQty)) : null;
+  const expected = parseFloat(String(item.expectedQty));
+  const variance = counted !== null ? counted - expected : null;
+  const costPounds = item.unitCostPence !== null ? item.unitCostPence / 100 : null;
+  const varianceValue = variance !== null && costPounds !== null ? variance * costPounds : null;
+  const [updated] = await db.update(stocktakeItemsTable).set({ countedQty: counted !== null ? String(counted) : null, variance: variance !== null ? String(variance) : null, varianceValue: varianceValue !== null ? String(varianceValue) : null, varianceReason: varianceReason !== undefined ? (varianceReason || null) : item.varianceReason, notes: itemNotes !== undefined ? (itemNotes || null) : item.notes }).where(eq(stocktakeItemsTable.id, itemId)).returning();
+  const allItems = await db.select().from(stocktakeItemsTable).where(eq(stocktakeItemsTable.sessionId, sessionId));
+  const countedCount = allItems.filter(i => i.countedQty !== null).length;
+  const totalVarianceValue = allItems.reduce((sum, i) => sum + (i.varianceValue ? parseFloat(String(i.varianceValue)) : 0), 0);
+  await db.update(stocktakeSessionsTable).set({ countedCount, totalVarianceValue: String(totalVarianceValue) }).where(eq(stocktakeSessionsTable.id, sessionId));
+  res.json(updated);
+});
+
+router.post("/farms/:farmId/stocktakes/:id/complete", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [session] = await db.select().from(stocktakeSessionsTable).where(and(eq(stocktakeSessionsTable.id, id), eq(stocktakeSessionsTable.farmId, farmId)));
+  if (!session) { res.status(404).json({ error: "Not found" }); return; }
+  if (session.status !== "draft") { res.status(400).json({ error: "Already completed" }); return; }
+  const items = await db.select().from(stocktakeItemsTable).where(eq(stocktakeItemsTable.sessionId, id));
+  const uncounted = items.filter(i => i.countedQty === null);
+  if (uncounted.length > 0) { res.status(400).json({ error: `${uncounted.length} item${uncounted.length > 1 ? "s" : ""} still need a count` }); return; }
+  for (const i of items) {
+    if (i.stockItemId && i.countedQty !== null) {
+      const [existing] = await db.select().from(stockLevelsTable).where(and(eq(stockLevelsTable.farmId, farmId), eq(stockLevelsTable.stockItemId, i.stockItemId))).limit(1);
+      if (existing) { await db.update(stockLevelsTable).set({ currentQuantity: String(i.countedQty), lastUpdated: new Date() }).where(eq(stockLevelsTable.id, existing.id)); }
+      else { await db.insert(stockLevelsTable).values({ farmId, stockItemId: i.stockItemId, currentQuantity: String(i.countedQty) }); }
+      // Audit trail: create stock_movement record for any variance
+      const variance = i.variance ? parseFloat(String(i.variance)) : 0;
+      if (Math.abs(variance) > 0.001) {
+        await db.insert(stockMovementsTable).values({ farmId, stockItemId: i.stockItemId, movementType: "stocktake-adjustment", quantityChange: String(variance), referenceType: "stocktake", referenceId: id, notes: i.varianceReason ? `Stocktake adjustment. Reason: ${i.varianceReason}${i.notes ? ". " + i.notes : ""}` : `Stocktake adjustment.${i.notes ? " " + i.notes : ""}` });
+      }
+    }
+  }
+  const totalVarianceValue = items.reduce((sum, i) => sum + (i.varianceValue ? parseFloat(String(i.varianceValue)) : 0), 0);
+  const [completed] = await db.update(stocktakeSessionsTable).set({ status: "completed", completedAt: new Date(), countedCount: items.length, totalVarianceValue: String(totalVarianceValue) }).where(eq(stocktakeSessionsTable.id, id)).returning();
+  res.json({ ...completed, items });
+});
+
+router.delete("/farms/:farmId/stocktakes/:id", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [session] = await db.select({ status: stocktakeSessionsTable.status }).from(stocktakeSessionsTable).where(and(eq(stocktakeSessionsTable.id, id), eq(stocktakeSessionsTable.farmId, farmId)));
+  if (!session) { res.status(404).json({ error: "Not found" }); return; }
+  if (session.status !== "draft") { res.status(400).json({ error: "Completed stocktakes cannot be deleted" }); return; }
+  await db.delete(stocktakeItemsTable).where(eq(stocktakeItemsTable.sessionId, id));
+  await db.delete(stocktakeSessionsTable).where(and(eq(stocktakeSessionsTable.id, id), eq(stocktakeSessionsTable.farmId, farmId)));
+  res.json({ success: true });
 });
 
 // ── Farm Shop: Stocktakes ────────────────────────────────────────────────────
