@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus, AlertTriangle, Package, Truck, ShieldCheck, Info, Trash2,
   Edit2, MapPin, Clock, CheckCircle2, XCircle, AlertCircle,
-  GitBranch, Search, ChevronDown, ChevronRight, ArrowDown, ArrowUp
+  GitBranch, Search, ChevronDown, ChevronRight, ArrowDown, ArrowUp, ShoppingCart
 } from "lucide-react";
 
 type Tab = "deliveries" | "stock" | "trace";
@@ -262,6 +262,48 @@ export default function FeedManagementPage() {
     onSuccess: () => { invalidate(); toast({ title: "Bin removed" }); },
   });
 
+  // Deep-link: ?bin=BINID — highlight and scroll to the specific bin card
+  const [highlightBinId, setHighlightBinId] = useState<number | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const binParam = params.get("bin");
+    if (binParam) {
+      const id = parseInt(binParam, 10);
+      if (!isNaN(id)) {
+        setHighlightBinId(id);
+        setTab("stock");
+        setTimeout(() => {
+          const el = document.querySelector(`[data-bin-id="${id}"]`);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 400);
+        setTimeout(() => setHighlightBinId(null), 4000);
+      }
+    }
+  }, []);
+
+  // Raise Reorder dialog
+  const [reorderBin, setReorderBin] = useState<Record<string, unknown> | null>(null);
+  const [reorderDate, setReorderDate] = useState("");
+  const [reorderNotes, setReorderNotes] = useState("");
+
+  const reorderMut = useMutation({
+    mutationFn: async ({ id, expectedDeliveryDate, notes }: { id: number; expectedDeliveryDate: string; notes: string }) => {
+      const res = await fetch(`/api/farms/${farmId}/feed-stock/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ awaitingDelivery: true, expectedDeliveryDate: expectedDeliveryDate || null, notes: notes || null }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidate();
+      setReorderBin(null);
+      toast({ title: "Marked as ordered — bin status updated to Awaiting Delivery" });
+    },
+    onError: () => toast({ title: "Error updating bin", variant: "destructive" }),
+  });
+
   const deliveries: Record<string, unknown>[] = deliveriesQ.data ?? [];
   const stock: Record<string, unknown>[] = stockQ.data ?? [];
   const feedSuppliers: Record<string, unknown>[] = suppliersQ.data ?? [];
@@ -430,8 +472,13 @@ export default function FeedManagementPage() {
                           : status === "low" ? "bg-orange-50 border-orange-200"
                           : status === "awaiting" ? "bg-blue-50 border-blue-200"
                           : "bg-white border-gray-200";
+                        const isHighlighted = highlightBinId === Number(s.id);
                         return (
-                          <div key={String(s.id)} className={`rounded-xl border p-4 ${cardBg}`}>
+                          <div
+                            key={String(s.id)}
+                            data-bin-id={String(s.id)}
+                            className={`rounded-xl border p-4 transition-all duration-500 ${cardBg}${isHighlighted ? " ring-2 ring-orange-400 ring-offset-2" : ""}`}
+                          >
                             <div className="flex justify-between items-start mb-1">
                               <div className="flex-1 min-w-0 pr-2">
                                 <p className="font-semibold text-gray-900 leading-tight">{String(s.productName || feedTypeLabel(String(s.feedType ?? "")))}</p>
@@ -462,6 +509,20 @@ export default function FeedManagementPage() {
                             </div>
 
                             {!!s.notes && <p className="text-xs text-gray-400 mt-2 italic">{String(s.notes)}</p>}
+
+                            {!s.awaitingDelivery && (status === "low" || status === "out") && (
+                              <div className="mt-3 pt-3 border-t border-current border-opacity-10">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
+                                  onClick={() => { setReorderBin(s); setReorderDate(""); setReorderNotes(""); }}
+                                >
+                                  <ShoppingCart className="w-3 h-3" />
+                                  Raise Reorder
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -1117,6 +1178,60 @@ export default function FeedManagementPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Raise Reorder dialog */}
+      <Dialog open={!!reorderBin} onOpenChange={open => { if (!open) setReorderBin(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4 text-orange-600" />
+              Raise Reorder
+            </DialogTitle>
+          </DialogHeader>
+          {reorderBin && (
+            <div className="space-y-4 py-1">
+              <div className="rounded-lg bg-orange-50 border border-orange-200 px-4 py-3 text-sm text-orange-800">
+                <p className="font-medium">{String(reorderBin.productName || feedTypeLabel(String(reorderBin.feedType ?? "")))}</p>
+                {!!reorderBin.supplierName && <p className="text-xs mt-0.5 text-orange-600">Supplier: {String(reorderBin.supplierName)}</p>}
+                <p className="text-xs mt-0.5">Current stock: {fmtKg(reorderBin.currentStockKg as string)}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Expected Delivery Date <span className="text-gray-400 font-normal">(optional)</span></Label>
+                <Input
+                  type="date"
+                  className="mt-1"
+                  value={reorderDate}
+                  onChange={e => setReorderDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Notes <span className="text-gray-400 font-normal">(optional)</span></Label>
+                <Textarea
+                  className="mt-1 text-sm"
+                  rows={2}
+                  placeholder="e.g. contact details, quantity needed, urgency..."
+                  value={reorderNotes}
+                  onChange={e => setReorderNotes(e.target.value)}
+                />
+              </div>
+              <p className="text-xs text-gray-500">Confirming will mark this bin as <strong>Awaiting Delivery</strong> and suppress reorder alerts until the delivery is received.</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReorderBin(null)}>Cancel</Button>
+            <Button
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+              disabled={reorderMut.isPending}
+              onClick={() => {
+                if (!reorderBin) return;
+                reorderMut.mutate({ id: Number(reorderBin.id), expectedDeliveryDate: reorderDate, notes: reorderNotes });
+              }}
+            >
+              {reorderMut.isPending ? "Saving…" : "Confirm Reorder Raised"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </AppLayout>
   );

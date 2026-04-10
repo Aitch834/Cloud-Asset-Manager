@@ -10188,12 +10188,12 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       } else {
         dueIso = now.toISOString();
       }
-      tasks.push({ id: `feedstock-await-${r.id}`, type: "feed_delivery_expected", title: `Feed Delivery Expected — ${name}`, description: `Delivery of ${name}${location} is expected. Confirm receipt and update stock levels in Feed Management.${supplier}`, dueDate: dueIso, module: "Feed Management", href: "/feed", colour: "blue" });
+      tasks.push({ id: `feedstock-await-${r.id}`, type: "feed_delivery_expected", title: `Feed Delivery Expected — ${name}`, description: `Delivery of ${name}${location} is expected. Confirm receipt and update stock levels in Feed Management.${supplier}`, dueDate: dueIso, module: "Feed Management", href: `/feed?bin=${r.id}`, colour: "blue" });
     } else if (current <= 0) {
       const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
-      tasks.push({ id: `feedstock-out-${r.id}`, type: "feed_out_of_stock", title: `Feed Out of Stock — ${name}`, description: `${name}${location} is completely out of stock. Arrange an urgent delivery to avoid a gap in feeding.${supplier}`, dueDate: yesterday.toISOString(), module: "Feed Management", href: "/feed", colour: "red" });
+      tasks.push({ id: `feedstock-out-${r.id}`, type: "feed_out_of_stock", title: `Feed Out of Stock — ${name}`, description: `${name}${location} is completely out of stock. Arrange an urgent delivery to avoid a gap in feeding.${supplier}`, dueDate: yesterday.toISOString(), module: "Feed Management", href: `/feed?bin=${r.id}`, colour: "red" });
     } else if (reorder !== null && current <= reorder) {
-      tasks.push({ id: `feedstock-low-${r.id}`, type: "feed_low_stock", title: `Feed Low Stock — Reorder Required — ${name}`, description: `${name}${location} has ${current.toLocaleString("en-GB")} kg remaining — at or below the reorder threshold of ${reorder.toLocaleString("en-GB")} kg. Place a reorder now.${supplier}`, dueDate: now.toISOString(), module: "Feed Management", href: "/feed", colour: "orange" });
+      tasks.push({ id: `feedstock-low-${r.id}`, type: "feed_low_stock", title: `Feed Low Stock — Reorder Required — ${name}`, description: `${name}${location} has ${current.toLocaleString("en-GB")} kg remaining — at or below the reorder threshold of ${reorder.toLocaleString("en-GB")} kg. Place a reorder now.${supplier}`, dueDate: now.toISOString(), module: "Feed Management", href: `/feed?bin=${r.id}`, colour: "orange" });
     }
   }
   for (const r of diversInsuranceRows) {
