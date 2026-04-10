@@ -134,6 +134,11 @@ export default function FeedManagementPage() {
     queryFn: () => fetch(`/api/farms/${farmId}/purchase-orders`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
+  const membersQ = useQuery({
+    queryKey: ["members", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()).then(d => d.members ?? []),
+    enabled: !!farmId,
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["feed-deliveries", farmId] });
@@ -285,23 +290,57 @@ export default function FeedManagementPage() {
   const [reorderBin, setReorderBin] = useState<Record<string, unknown> | null>(null);
   const [reorderDate, setReorderDate] = useState("");
   const [reorderNotes, setReorderNotes] = useState("");
+  const [reorderMemberId, setReorderMemberId] = useState("__none__");
+  const [reorderDueDate, setReorderDueDate] = useState("");
+  const [reorderAssignNote, setReorderAssignNote] = useState("");
 
   const reorderMut = useMutation({
-    mutationFn: async ({ id, expectedDeliveryDate, notes }: { id: number; expectedDeliveryDate: string; notes: string }) => {
-      const res = await fetch(`/api/farms/${farmId}/feed-stock/${id}`, {
+    mutationFn: async ({ id, expectedDeliveryDate, notes, memberId, dueDate, assignNote, binName, supplierName }: {
+      id: number; expectedDeliveryDate: string; notes: string;
+      memberId: string; dueDate: string; assignNote: string;
+      binName: string; supplierName: string;
+    }) => {
+      const binRes = await fetch(`/api/farms/${farmId}/feed-stock/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ awaitingDelivery: true, expectedDeliveryDate: expectedDeliveryDate || null, notes: notes || null }),
       });
-      if (!res.ok) throw new Error("Failed to update");
-      return res.json();
+      if (!binRes.ok) throw new Error("Failed to update bin");
+      let taskResult: { smsSent?: boolean; smsReason?: string | null } | null = null;
+      if (memberId && memberId !== "__none__") {
+        const duePart = expectedDeliveryDate ? ` Delivery expected by ${expectedDeliveryDate}.` : "";
+        const supplierPart = supplierName ? ` Supplier: ${supplierName}.` : "";
+        const taskRes = await fetch(`/api/farms/${farmId}/task-assignments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            assignedToMemberId: Number(memberId),
+            taskType: "feed_reorder",
+            title: `Feed Reorder — ${binName}`,
+            description: `A reorder has been raised for the feed bin: ${binName}.${supplierPart}${duePart} Please confirm the order has been placed and update the bin once the delivery is received.`,
+            dueDate: dueDate || null,
+            module: "Feed Management",
+            href: `/feed?bin=${id}`,
+            assignmentNote: assignNote || null,
+          }),
+        });
+        if (taskRes.ok) taskResult = await taskRes.json();
+      }
+      return taskResult;
     },
-    onSuccess: () => {
+    onSuccess: (taskResult) => {
       invalidate();
       setReorderBin(null);
-      toast({ title: "Marked as ordered — bin status updated to Awaiting Delivery" });
+      if (taskResult) {
+        const smsMsg = taskResult.smsSent
+          ? " SMS notification sent to staff member."
+          : taskResult.smsReason === "no_phone" ? " Staff member has no phone number — no SMS sent." : "";
+        toast({ title: `Reorder raised & task assigned.${smsMsg}` });
+      } else {
+        toast({ title: "Reorder raised — bin status updated to Awaiting Delivery" });
+      }
     },
-    onError: () => toast({ title: "Error updating bin", variant: "destructive" }),
+    onError: () => toast({ title: "Error raising reorder", variant: "destructive" }),
   });
 
   const deliveries: Record<string, unknown>[] = deliveriesQ.data ?? [];
@@ -1180,7 +1219,7 @@ export default function FeedManagementPage() {
       )}
 
       {/* Raise Reorder dialog */}
-      <Dialog open={!!reorderBin} onOpenChange={open => { if (!open) setReorderBin(null); }}>
+      <Dialog open={!!reorderBin} onOpenChange={open => { if (!open) { setReorderBin(null); setReorderMemberId("__none__"); setReorderDueDate(""); setReorderAssignNote(""); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1188,43 +1227,97 @@ export default function FeedManagementPage() {
               Raise Reorder
             </DialogTitle>
           </DialogHeader>
-          {reorderBin && (
-            <div className="space-y-4 py-1">
-              <div className="rounded-lg bg-orange-50 border border-orange-200 px-4 py-3 text-sm text-orange-800">
-                <p className="font-medium">{String(reorderBin.productName || feedTypeLabel(String(reorderBin.feedType ?? "")))}</p>
-                {!!reorderBin.supplierName && <p className="text-xs mt-0.5 text-orange-600">Supplier: {String(reorderBin.supplierName)}</p>}
-                <p className="text-xs mt-0.5">Current stock: {fmtKg(reorderBin.currentStockKg as string)}</p>
+          {reorderBin && (() => {
+            const binName = String(reorderBin.productName || feedTypeLabel(String(reorderBin.feedType ?? "")));
+            const supplierNameStr = String(reorderBin.supplierName ?? "");
+            const members: Record<string, unknown>[] = membersQ.data ?? [];
+            const selectedMember = members.find((m: Record<string, unknown>) => String(m.id) === reorderMemberId);
+            const selectedPhone = selectedMember ? String(selectedMember.phone ?? "") : "";
+            return (
+              <div className="space-y-4 py-1">
+                <div className="rounded-lg bg-orange-50 border border-orange-200 px-4 py-3 text-sm text-orange-800">
+                  <p className="font-medium">{binName}</p>
+                  {!!supplierNameStr && <p className="text-xs mt-0.5 text-orange-600">Supplier: {supplierNameStr}</p>}
+                  <p className="text-xs mt-0.5">Current stock: {fmtKg(reorderBin.currentStockKg as string)}</p>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium">Expected Delivery Date <span className="text-gray-400 font-normal">(optional)</span></Label>
+                  <Input type="date" className="mt-1" value={reorderDate} onChange={e => setReorderDate(e.target.value)} />
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium">Bin Notes <span className="text-gray-400 font-normal">(optional)</span></Label>
+                  <Textarea
+                    className="mt-1 text-sm" rows={2}
+                    placeholder="e.g. quantity needed, urgency, contact details..."
+                    value={reorderNotes} onChange={e => setReorderNotes(e.target.value)}
+                  />
+                </div>
+
+                <div className="border-t pt-4">
+                  <Label className="text-sm font-medium">Assign to Staff Member <span className="text-gray-400 font-normal">(optional)</span></Label>
+                  <Select value={reorderMemberId} onValueChange={setReorderMemberId}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="— No assignment —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— No assignment —</SelectItem>
+                      {members.map((m: Record<string, unknown>) => (
+                        <SelectItem key={String(m.id)} value={String(m.id)}>
+                          {String(m.firstName ?? "")} {String(m.lastName ?? "")}
+                          {m.role ? ` — ${String(m.role)}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {reorderMemberId !== "__none__" && (
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <Label className="text-sm font-medium">Task Due Date <span className="text-gray-400 font-normal">(optional)</span></Label>
+                        <Input type="date" className="mt-1" value={reorderDueDate} onChange={e => setReorderDueDate(e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium">Note to Staff Member <span className="text-gray-400 font-normal">(optional)</span></Label>
+                        <Textarea
+                          className="mt-1 text-sm" rows={2}
+                          placeholder="e.g. call supplier on 01234 567890, min order 1 tonne..."
+                          value={reorderAssignNote} onChange={e => setReorderAssignNote(e.target.value)}
+                        />
+                      </div>
+                      <div className={`rounded-md px-3 py-2 text-xs flex items-start gap-2 ${selectedPhone ? "bg-green-50 border border-green-200 text-green-700" : "bg-gray-50 border border-gray-200 text-gray-500"}`}>
+                        <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                        {selectedPhone
+                          ? `SMS notification will be sent to ${String(selectedMember?.firstName ?? "")} at ${selectedPhone}.`
+                          : "No phone number registered for this staff member — SMS cannot be sent."}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-xs text-gray-500">Confirming will mark this bin as <strong>Awaiting Delivery</strong> and suppress reorder alerts until the delivery is received.</p>
               </div>
-              <div>
-                <Label className="text-sm font-medium">Expected Delivery Date <span className="text-gray-400 font-normal">(optional)</span></Label>
-                <Input
-                  type="date"
-                  className="mt-1"
-                  value={reorderDate}
-                  onChange={e => setReorderDate(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label className="text-sm font-medium">Notes <span className="text-gray-400 font-normal">(optional)</span></Label>
-                <Textarea
-                  className="mt-1 text-sm"
-                  rows={2}
-                  placeholder="e.g. contact details, quantity needed, urgency..."
-                  value={reorderNotes}
-                  onChange={e => setReorderNotes(e.target.value)}
-                />
-              </div>
-              <p className="text-xs text-gray-500">Confirming will mark this bin as <strong>Awaiting Delivery</strong> and suppress reorder alerts until the delivery is received.</p>
-            </div>
-          )}
+            );
+          })()}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReorderBin(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setReorderBin(null); setReorderMemberId("__none__"); setReorderDueDate(""); setReorderAssignNote(""); }}>Cancel</Button>
             <Button
               className="bg-orange-600 hover:bg-orange-700 text-white"
               disabled={reorderMut.isPending}
               onClick={() => {
                 if (!reorderBin) return;
-                reorderMut.mutate({ id: Number(reorderBin.id), expectedDeliveryDate: reorderDate, notes: reorderNotes });
+                const binName = String(reorderBin.productName || feedTypeLabel(String(reorderBin.feedType ?? "")));
+                reorderMut.mutate({
+                  id: Number(reorderBin.id),
+                  expectedDeliveryDate: reorderDate,
+                  notes: reorderNotes,
+                  memberId: reorderMemberId,
+                  dueDate: reorderDueDate,
+                  assignNote: reorderAssignNote,
+                  binName,
+                  supplierName: String(reorderBin.supplierName ?? ""),
+                });
               }}
             >
               {reorderMut.isPending ? "Saving…" : "Confirm Reorder Raised"}
