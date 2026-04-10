@@ -92,6 +92,35 @@ export const farmShopSaleItemsTable = pgTable("farm_shop_sale_items", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const farmShopStocktakeSessionsTable = pgTable("farm_shop_stocktake_sessions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  stocktakeDate: date("stocktake_date").notNull(),
+  status: text("status").notNull().default("draft"), // draft | completed
+  notes: text("notes"),
+  completedAt: timestamp("completed_at"),
+  itemCount: integer("item_count").default(0),
+  countedCount: integer("counted_count").default(0),
+  totalVarianceValue: numeric("total_variance_value", { precision: 12, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const farmShopStocktakeItemsTable = pgTable("farm_shop_stocktake_items", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => farmShopStocktakeSessionsTable.id),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  productId: integer("product_id").references(() => farmShopProductsTable.id),
+  productName: text("product_name").notNull(),
+  unitOfSale: text("unit_of_sale"),
+  expectedQty: numeric("expected_qty", { precision: 10, scale: 2 }).notNull(),
+  countedQty: numeric("counted_qty", { precision: 10, scale: 2 }),
+  variance: numeric("variance", { precision: 10, scale: 2 }),
+  costPrice: numeric("cost_price", { precision: 8, scale: 2 }),
+  varianceValue: numeric("variance_value", { precision: 12, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const farmShopHygieneInspectionsTable = pgTable("farm_shop_hygiene_inspections", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

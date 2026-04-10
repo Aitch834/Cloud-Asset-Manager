@@ -93,7 +93,7 @@ type Session = { id: number; saleDate: string; notes?: string; totalNet: string;
 
 function FarmShopTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
-  const [shopTab, setShopTab] = useState<"products" | "sales" | "history" | "suppliers" | "purchases">("products");
+  const [shopTab, setShopTab] = useState<"products" | "sales" | "history" | "suppliers" | "purchases" | "stocktakes">("products");
 
   // ── Products state ──────────────────────────────────────────────────────────
   const { data: products = [], isLoading: prodLoading } = useQuery<Record<string, unknown>[]>({
@@ -212,6 +212,53 @@ function FarmShopTab({ farmId }: { farmId: number }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shop-purchases", farmId] }),
   });
 
+  // ── Stocktakes state ────────────────────────────────────────────────────────
+  type StocktakeItem = { id: number; productName: string; unitOfSale?: string; expectedQty: string; countedQty: string | null; variance: string | null; varianceValue: string | null; costPrice: string | null; notes?: string };
+  type StocktakeSession = { id: number; stocktakeDate: string; status: string; itemCount: number; countedCount: number; totalVarianceValue: string | null; notes?: string; completedAt?: string; items?: StocktakeItem[] };
+  const { data: stocktakes = [], isLoading: stocktakesLoading } = useQuery<StocktakeSession[]>({
+    queryKey: ["shop-stocktakes", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/farm-shop/stocktakes`), { credentials: "include" }).then(r => r.json()),
+    enabled: shopTab === "stocktakes",
+  });
+  const [activeStocktakeId, setActiveStocktakeId] = useState<number | null>(null);
+  const { data: activeStocktake, refetch: refetchStocktake } = useQuery<StocktakeSession>({
+    queryKey: ["shop-stocktake-detail", farmId, activeStocktakeId],
+    queryFn: () => fetch(api(`farms/${farmId}/farm-shop/stocktakes/${activeStocktakeId}`), { credentials: "include" }).then(r => r.json()),
+    enabled: activeStocktakeId !== null,
+  });
+  const [stocktakeNewOpen, setStocktakeNewOpen] = useState(false);
+  const [stocktakeForm, setStocktakeForm] = useState({ stocktakeDate: new Date().toISOString().slice(0, 10), notes: "" });
+  const [localCounts, setLocalCounts] = useState<Record<number, string>>({});
+
+  const createStocktakeMut = useMutation({
+    mutationFn: (body: { stocktakeDate: string; notes?: string }) =>
+      fetch(api(`farms/${farmId}/farm-shop/stocktakes`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: (data: StocktakeSession) => {
+      qc.invalidateQueries({ queryKey: ["shop-stocktakes", farmId] });
+      setStocktakeNewOpen(false);
+      setLocalCounts({});
+      setActiveStocktakeId(data.id);
+    },
+  });
+  const updateStocktakeItemMut = useMutation({
+    mutationFn: ({ sessionId, itemId, countedQty }: { sessionId: number; itemId: number; countedQty: string | null }) =>
+      fetch(api(`farms/${farmId}/farm-shop/stocktakes/${sessionId}/items/${itemId}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ countedQty }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-stocktake-detail", farmId, activeStocktakeId] }); },
+  });
+  const completeStocktakeMut = useMutation({
+    mutationFn: (sessionId: number) =>
+      fetch(api(`farms/${farmId}/farm-shop/stocktakes/${sessionId}/complete`), { method: "POST", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shop-stocktakes", farmId] });
+      qc.invalidateQueries({ queryKey: ["shop-stocktake-detail", farmId, activeStocktakeId] });
+      qc.invalidateQueries({ queryKey: ["shop-products", farmId] });
+    },
+  });
+  const deleteStocktakeMut = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/farm-shop/stocktakes/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shop-stocktakes", farmId] }); setActiveStocktakeId(null); },
+  });
+
   const activeProducts = (products as Record<string, unknown>[]).filter(p => p.active !== false);
 
   const fmtGbp = (v: unknown) => v ? `£${parseFloat(String(v)).toFixed(2)}` : "—";
@@ -220,10 +267,10 @@ function FarmShopTab({ farmId }: { farmId: number }) {
     <div className="space-y-4">
       {/* Inner sub-tab bar */}
       <div className="flex gap-1 border-b pb-0 flex-wrap">
-        {(["products", "sales", "history", "suppliers", "purchases"] as const).map(t => (
-          <button key={t} onClick={() => setShopTab(t)}
+        {(["products", "sales", "history", "suppliers", "purchases", "stocktakes"] as const).map(t => (
+          <button key={t} onClick={() => { setShopTab(t); if (t !== "stocktakes") setActiveStocktakeId(null); }}
             className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors ${shopTab === t ? "bg-background border border-b-background -mb-px text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-            {t === "products" ? "Products & Stock" : t === "sales" ? "Record Sales" : t === "history" ? "Sales History" : t === "suppliers" ? "Suppliers" : "Purchases"}
+            {t === "products" ? "Products & Stock" : t === "sales" ? "Record Sales" : t === "history" ? "Sales History" : t === "suppliers" ? "Suppliers" : t === "purchases" ? "Purchases" : "Stocktakes"}
           </button>
         ))}
       </div>
@@ -503,6 +550,215 @@ function FarmShopTab({ farmId }: { farmId: number }) {
           )}
         </div>
       )}
+
+      {/* ── Stocktakes ────────────────────────────────────────────────────────── */}
+      {shopTab === "stocktakes" && (
+        <div className="space-y-4">
+          {activeStocktakeId === null ? (
+            /* ── List view ─────────────────────────────────────────────── */
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-sm">Stocktake Records</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Count physical stock and compare against system quantities to detect theft, mis-sales, or data errors.</p>
+                </div>
+                <Button size="sm" onClick={() => { setStocktakeForm({ stocktakeDate: new Date().toISOString().slice(0, 10), notes: "" }); setStocktakeNewOpen(true); }}>
+                  <Plus className="w-3.5 h-3.5 mr-1" /> New Stocktake
+                </Button>
+              </div>
+              {stocktakesLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (stocktakes as StocktakeSession[]).length === 0 ? (
+                <Empty msg="No stocktakes recorded yet. Start your first count with 'New Stocktake'." />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b">
+                      {["Date", "Status", "Progress", "Variance £", "Notes", ""].map(h => (
+                        <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {(stocktakes as StocktakeSession[]).map(s => {
+                        const varVal = s.totalVarianceValue ? parseFloat(s.totalVarianceValue) : null;
+                        const isDraft = s.status === "draft";
+                        return (
+                          <tr key={s.id} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer" onClick={() => { setLocalCounts({}); setActiveStocktakeId(s.id); }}>
+                            <td className="py-2 pr-3 whitespace-nowrap font-medium">{fmtDate(s.stocktakeDate)}</td>
+                            <td className="py-2 pr-3">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${isDraft ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-green-50 text-green-700 border border-green-200"}`}>
+                                {isDraft ? "In Progress" : "Completed"}
+                              </span>
+                            </td>
+                            <td className="py-2 pr-3 text-muted-foreground">{s.countedCount ?? 0} / {s.itemCount ?? 0} counted</td>
+                            <td className="py-2 pr-3">
+                              {varVal === null ? <span className="text-muted-foreground">—</span> : (
+                                <span className={varVal < 0 ? "text-red-600 font-medium" : varVal > 0 ? "text-amber-600 font-medium" : "text-green-600"}>
+                                  {varVal >= 0 ? "+" : ""}£{Math.abs(varVal).toFixed(2)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2 pr-3 text-muted-foreground text-xs">{s.notes || "—"}</td>
+                            <td className="py-2" onClick={e => e.stopPropagation()}>
+                              <div className="flex gap-1">
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setLocalCounts({}); setActiveStocktakeId(s.id); }}>
+                                  {isDraft ? "Continue" : "View"}
+                                </Button>
+                                {isDraft && (
+                                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { if (confirm("Delete this draft stocktake?")) deleteStocktakeMut.mutate(s.id); }}>
+                                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          ) : (
+            /* ── Detail view ────────────────────────────────────────────── */
+            <>
+              <div className="flex items-center gap-3 flex-wrap">
+                <Button size="sm" variant="outline" onClick={() => { setActiveStocktakeId(null); qc.invalidateQueries({ queryKey: ["shop-stocktakes", farmId] }); }}>
+                  ← Back
+                </Button>
+                {activeStocktake && (
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-sm">Stocktake — {fmtDate(activeStocktake.stocktakeDate)}</h3>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${activeStocktake.status === "draft" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-green-50 text-green-700 border border-green-200"}`}>
+                          {activeStocktake.status === "draft" ? "In Progress" : "Completed"}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{activeStocktake.countedCount ?? 0} / {activeStocktake.itemCount ?? 0} products counted</span>
+                      </div>
+                      {activeStocktake.notes && <p className="text-xs text-muted-foreground mt-0.5">{activeStocktake.notes}</p>}
+                    </div>
+                    {activeStocktake.status === "draft" && (
+                      <Button size="sm"
+                        disabled={(activeStocktake.countedCount ?? 0) < (activeStocktake.itemCount ?? 0) || completeStocktakeMut.isPending}
+                        onClick={() => { if (confirm("Complete this stocktake? Stock levels will be updated to match your counts.")) completeStocktakeMut.mutate(activeStocktake.id); }}>
+                        {completeStocktakeMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                        Complete Stocktake
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {!activeStocktake ? <Loader2 className="animate-spin w-5 h-5" /> : (activeStocktake.items ?? []).length === 0 ? (
+                <Empty msg="No products found. Add products to the catalogue first, then start a new stocktake." />
+              ) : (
+                <>
+                  {/* Summary bar */}
+                  {(() => {
+                    const items = activeStocktake.items ?? [];
+                    const totalVar = items.reduce((s, i) => s + (i.varianceValue ? parseFloat(i.varianceValue) : 0), 0);
+                    const negCount = items.filter(i => i.variance !== null && parseFloat(i.variance) < 0).length;
+                    const uncounted = items.filter(i => i.countedQty === null).length;
+                    return (
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { label: "Uncounted", value: String(uncounted), sub: "products remaining", color: uncounted > 0 ? "text-amber-600" : "text-green-600" },
+                          { label: "Total Variance", value: `${totalVar >= 0 ? "+" : ""}£${Math.abs(totalVar).toFixed(2)}`, sub: "cost value difference", color: totalVar < 0 ? "text-red-600" : totalVar > 0 ? "text-amber-600" : "text-green-600" },
+                          { label: "Shortfalls", value: String(negCount), sub: "lines below system qty", color: negCount > 0 ? "text-red-600" : "text-green-600" },
+                        ].map(card => (
+                          <div key={card.label} className="bg-muted/40 rounded-lg p-3 text-center border">
+                            <p className="text-xs text-muted-foreground mb-1">{card.label}</p>
+                            <p className={`text-lg font-bold ${card.color}`}>{card.value}</p>
+                            <p className="text-xs text-muted-foreground">{card.sub}</p>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b">
+                        {["Product", "Unit", "System Qty", "Counted", "Variance", "Variance £"].map(h => (
+                          <th key={h} className="text-left py-2 pr-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr></thead>
+                      <tbody>
+                        {(activeStocktake.items ?? []).map(item => {
+                          const varNum = item.variance !== null ? parseFloat(item.variance) : null;
+                          const varVal = item.varianceValue !== null ? parseFloat(item.varianceValue!) : null;
+                          const varColor = varNum === null ? "" : varNum < 0 ? "text-red-600 font-semibold" : varNum === 0 ? "text-green-600" : "text-amber-600 font-semibold";
+                          const rowBg = varNum === null ? "" : varNum < 0 ? "bg-red-50/40" : varNum > 0 ? "bg-amber-50/30" : "";
+                          const isCounted = item.countedQty !== null;
+                          const localVal = localCounts[item.id] !== undefined ? localCounts[item.id] : (item.countedQty ?? "");
+                          const isCompleted = activeStocktake.status === "completed";
+                          return (
+                            <tr key={item.id} className={`border-b last:border-0 ${rowBg}`}>
+                              <td className="py-2 pr-3 font-medium">{item.productName}</td>
+                              <td className="py-2 pr-3 text-muted-foreground text-xs">{item.unitOfSale || "—"}</td>
+                              <td className="py-2 pr-3">{parseFloat(item.expectedQty).toFixed(2)}</td>
+                              <td className="py-2 pr-3">
+                                {isCompleted ? (
+                                  <span className={isCounted ? "" : "text-muted-foreground italic"}>{item.countedQty ?? "—"}</span>
+                                ) : (
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    className="h-7 w-24 text-sm"
+                                    placeholder="0"
+                                    value={localVal}
+                                    onChange={e => setLocalCounts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                    onBlur={() => {
+                                      const raw = localCounts[item.id];
+                                      if (raw === undefined) return;
+                                      const val = raw.trim() === "" ? null : raw;
+                                      updateStocktakeItemMut.mutate({ sessionId: activeStocktake.id, itemId: item.id, countedQty: val });
+                                    }}
+                                  />
+                                )}
+                              </td>
+                              <td className={`py-2 pr-3 ${varColor}`}>
+                                {varNum === null ? <span className="text-muted-foreground text-xs">—</span> : `${varNum >= 0 ? "+" : ""}${varNum.toFixed(2)}`}
+                              </td>
+                              <td className={`py-2 ${varColor}`}>
+                                {varVal === null ? <span className="text-muted-foreground text-xs">—</span> : `${varVal >= 0 ? "+" : ""}£${Math.abs(varVal).toFixed(2)}`}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {activeStocktake.status === "draft" && (activeStocktake.countedCount ?? 0) < (activeStocktake.itemCount ?? 0) && (
+                    <p className="text-xs text-muted-foreground text-center border-t pt-3">
+                      Count all {(activeStocktake.itemCount ?? 0) - (activeStocktake.countedCount ?? 0)} remaining products before you can complete the stocktake.
+                    </p>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── New Stocktake dialog ──────────────────────────────────────────────── */}
+      <Dialog open={stocktakeNewOpen} onOpenChange={o => { if (!o) setStocktakeNewOpen(false); }}>
+        <DialogContent style={{ maxWidth: "22rem" }}>
+          <DialogHeader><DialogTitle>New Stocktake</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-1">Snaps the current system stock for all active products. You'll then count and enter the physical quantities.</p>
+          <div className="space-y-3">
+            <div><Label>Stocktake Date *</Label><Input type="date" value={stocktakeForm.stocktakeDate} onChange={e => setStocktakeForm(f => ({ ...f, stocktakeDate: e.target.value }))} /></div>
+            <div><Label>Notes</Label><Input value={stocktakeForm.notes} placeholder="e.g. Monthly count, post-market" onChange={e => setStocktakeForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStocktakeNewOpen(false)}>Cancel</Button>
+            <Button disabled={!stocktakeForm.stocktakeDate || createStocktakeMut.isPending} onClick={() => createStocktakeMut.mutate({ stocktakeDate: stocktakeForm.stocktakeDate, notes: stocktakeForm.notes || undefined })}>
+              {createStocktakeMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Start Stocktake"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Supplier dialog ───────────────────────────────────────────────────── */}
       <Dialog open={suppOpen} onOpenChange={o => { if (!o) setSuppOpen(false); }}>
