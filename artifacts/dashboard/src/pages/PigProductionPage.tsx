@@ -22,27 +22,52 @@ const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("e
 function Empty({ msg }: { msg: string }) {
   return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>;
 }
-
+function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
+      <DialogContent style={{ maxWidth: "22rem" }}>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 // ─── Simple table ──────────────────────────────────────────────────────────────
 function DataTable({ cols, rows, onEdit, onDelete }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void }) {
+  const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
   if (!rows.length) return <Empty msg="No records yet. Add one using the button above." />;
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete) && <th />}</tr></thead>
-        <tbody>{rows.map((row, i) => (
-          <tr key={i} className="border-b last:border-0">
-            {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.fmt ? c.fmt(row) : fmt(row[c.key])}</td>)}
-            {(onEdit || onDelete) && (
-              <td className="py-2 text-right space-x-1">
-                {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
-                {onDelete && <Button size="icon" variant="ghost" onClick={() => onDelete(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
-              </td>
-            )}
-          </tr>
-        ))}</tbody>
-      </table>
-    </div>
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete) && <th />}</tr></thead>
+          <tbody>{rows.map((row, i) => (
+            <tr key={i} className="border-b last:border-0">
+              {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.fmt ? c.fmt(row) : fmt(row[c.key])}</td>)}
+              {(onEdit || onDelete) && (
+                <td className="py-2 text-right space-x-1">
+                  {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
+                  {onDelete && <Button size="icon" variant="ghost" onClick={() => setPendingDelete(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
+                </td>
+              )}
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete Record"
+        message="Are you sure you want to delete this record? This cannot be undone."
+        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); } setPendingDelete(null); }}
+        onCancel={() => setPendingDelete(null)}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+      />
+    </>
   );
 }
 
@@ -85,7 +110,7 @@ function FlocksTab({ farmId }: { farmId: number }) {
           ]}
           rows={flocks}
           onEdit={openEdit}
-          onDelete={r => { if (confirm("Delete this flock?")) del.mutate(r.id as number); }}
+          onDelete={r => del.mutate(r.id as number)}
         />
       )}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -157,7 +182,7 @@ function MovementsTab({ farmId }: { farmId: number }) {
           ]}
           rows={movements}
           onEdit={openEdit}
-          onDelete={r => { if (confirm("Delete this movement?")) del.mutate(r.id as number); }}
+          onDelete={r => del.mutate(r.id as number)}
         />
       )}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -227,7 +252,7 @@ function FciDocumentsTab({ farmId }: { farmId: number }) {
           ]}
           rows={docs}
           onEdit={openEdit}
-          onDelete={r => { if (confirm("Delete this FCI document?")) del.mutate(r.id as number); }}
+          onDelete={r => del.mutate(r.id as number)}
         />
       )}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -300,7 +325,7 @@ function FeedRecordsTab({ farmId }: { farmId: number }) {
           ]}
           rows={records}
           onEdit={openEdit}
-          onDelete={r => { if (confirm("Delete this record?")) del.mutate(r.id as number); }}
+          onDelete={r => del.mutate(r.id as number)}
         />
       )}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -372,7 +397,7 @@ function VetAssessmentsTab({ farmId }: { farmId: number }) {
           ]}
           rows={assessments}
           onEdit={openEdit}
-          onDelete={r => { if (confirm("Delete this assessment?")) del.mutate(r.id as number); }}
+          onDelete={r => del.mutate(r.id as number)}
         />
       )}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -447,7 +472,7 @@ function StockmanshipChecksTab({ farmId }: { farmId: number }) {
           ]}
           rows={checks}
           onEdit={openEdit}
-          onDelete={r => { if (confirm("Delete this check?")) del.mutate(r.id as number); }}
+          onDelete={r => del.mutate(r.id as number)}
         />
       )}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -525,7 +550,7 @@ function TailBitingRisksTab({ farmId }: { farmId: number }) {
           ]}
           rows={records}
           onEdit={openEdit}
-          onDelete={r => { if (confirm("Delete this assessment?")) del.mutate(r.id as number); }}
+          onDelete={r => del.mutate(r.id as number)}
         />
       )}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -621,7 +646,7 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
           ]}
           rows={records}
           onEdit={openEdit}
-          onDelete={r => { if (confirm("Delete this farrowing record?")) del.mutate(r.id as number); }}
+          onDelete={r => del.mutate(r.id as number)}
         />
       )}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -705,7 +730,7 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
         ]}
         rows={records as Record<string, unknown>[]}
         onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
-        onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }}
+        onDelete={r => del.mutate(r.id as number)}
       />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "54rem" }}>

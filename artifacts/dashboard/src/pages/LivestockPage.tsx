@@ -32,6 +32,21 @@ function formatDateLong(val: string | null | undefined): string {
   catch { return val; }
 }
 
+function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
+      <DialogContent style={{ maxWidth: "22rem" }}>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface Farm {
   id: number;
   name: string;
@@ -3535,6 +3550,7 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
+  const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
 
   // Lookup data
   const { data: herdsData } = useQuery({
@@ -3676,7 +3692,7 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
                     <td className="py-2 pr-4">{r.expectedDueDate ? new Date(r.expectedDueDate as string).toLocaleDateString("en-GB") : "—"}</td>
                     <td className="py-2 text-right space-x-1">
                       <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete?")) del.mutate(r.id as number); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this AI/Reproduction record? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                     </td>
                   </tr>
                 ))}</tbody>
@@ -3686,6 +3702,15 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
         </CardContent></Card>
       )}
 
+      <ConfirmDialog
+        open={!!pendingConfirm}
+        title="Delete Record"
+        message={pendingConfirm?.msg ?? ""}
+        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
+        onCancel={() => setPendingConfirm(null)}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Record" : "Add AI / Reproduction Record"}</DialogTitle></DialogHeader>
@@ -3833,6 +3858,7 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean | number>>({});
+  const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["vet-prescriptions", farmId],
@@ -3942,7 +3968,7 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
                       <td className="py-2 pr-4 whitespace-nowrap">{r.prescriptionValidUntil ? new Date(r.prescriptionValidUntil as string).toLocaleDateString("en-GB") : "—"}</td>
                       <td className="py-2 text-right space-x-1 whitespace-nowrap">
                         <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete this record?")) del.mutate(r.id as number); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this vet prescription record? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                       </td>
                     </tr>
                   );
@@ -3953,6 +3979,15 @@ function VetPrescriptionsSection({ farmId }: { farmId: number }) {
         </CardContent></Card>
       )}
 
+      <ConfirmDialog
+        open={!!pendingConfirm}
+        title="Delete Prescription Record"
+        message={pendingConfirm?.msg ?? ""}
+        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
+        onCancel={() => setPendingConfirm(null)}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "52rem" }}>
           <DialogHeader>

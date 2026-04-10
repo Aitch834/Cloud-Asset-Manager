@@ -29,6 +29,21 @@ const fmtAmt = (pence: number | null | undefined) => {
   return `£${(pence / 100).toFixed(2)}`;
 };
 
+function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
+      <DialogContent style={{ maxWidth: "22rem" }}>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string }> = {
     active: { bg: "#dcfce7", color: "#166534" },
@@ -1194,6 +1209,7 @@ function SFIActionsTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
 
   const { data: agreements = [], isLoading } = useQuery({
     queryKey: ["sfi-agreements", farmId],
@@ -1250,7 +1266,7 @@ function SFIActionsTab({ farmId }: { farmId: number }) {
                     <td className="px-4 py-3">{r.totalAnnualPayment ? `£${Number(r.totalAnnualPayment).toFixed(2)}` : "—"}</td>
                     <td className="px-4 py-3 text-right space-x-1">
                       <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "")]))); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => { if (confirm("Delete this agreement?")) del.mutate(r.id as number); }}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this SFI/ELMs agreement? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                     </td>
                   </tr>
                 ))}</tbody>
@@ -1259,6 +1275,15 @@ function SFIActionsTab({ farmId }: { farmId: number }) {
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={!!pendingConfirm}
+        title="Delete Agreement"
+        message={pendingConfirm?.msg ?? ""}
+        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
+        onCancel={() => setPendingConfirm(null)}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit SFI Agreement" : "Add SFI / ELMs Agreement"}</DialogTitle></DialogHeader>

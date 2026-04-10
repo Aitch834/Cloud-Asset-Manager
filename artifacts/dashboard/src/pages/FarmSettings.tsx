@@ -25,6 +25,7 @@ import {
 import type { Farm } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Redirect } from "wouter";
 import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const SECTORS = [
   { key: "sectorArable", label: "Arable" },
@@ -154,6 +155,21 @@ function SectionHeader({ title, description }: { title: string; description?: st
   );
 }
 
+function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
+      <DialogContent style={{ maxWidth: "22rem" }}>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bcmsHoldingNumber?: string }) {
   const { toast } = useToast();
   const [showPass, setShowPass] = useState(false);
@@ -161,6 +177,7 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
   const [password, setPassword] = useState("");
   const [holding, setHolding] = useState(bcmsHoldingNumber ?? "");
   const [dirty, setDirty] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
 
   const credsQ = useQuery({
     queryKey: ["bcms-credentials", farmId],
@@ -293,7 +310,7 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
               Test Connection
             </Button>
             {creds?.configured && (
-              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => { if (confirm("Remove BCMS credentials for this farm?")) deleteMut.mutate(); }}>
+              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => setPendingConfirm({ msg: "Remove BCMS credentials for this farm?", fn: () => deleteMut.mutate() })}>
                 <Trash2 size={14} />
               </Button>
             )}
@@ -315,6 +332,15 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
             <li>Once saved, click "Test Connection" to verify your credentials against the BCMS test server.</li>
           </ol>
         </div>
+      <ConfirmDialog
+        open={!!pendingConfirm}
+        title="Remove BCMS Credentials"
+        message={pendingConfirm?.msg ?? ""}
+        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
+        onCancel={() => setPendingConfirm(null)}
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+      />
       </CardContent>
     </Card>
   );
@@ -326,6 +352,7 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
 
   const credsQ = useQuery({
     queryKey: ["lis-credentials", farmId],
@@ -449,7 +476,7 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
             Test Connection
           </Button>
           {creds?.configured && (
-            <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => { if (confirm("Remove LIS credentials for this farm?")) deleteMut.mutate(); }}>
+            <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => setPendingConfirm({ msg: "Remove LIS credentials for this farm?", fn: () => deleteMut.mutate() })}>
               <Trash2 size={14} />
             </Button>
           )}
@@ -472,6 +499,15 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
             <li>For live submissions: BDE must register on the <a href="https://livestockinformation.org.uk/developer-hub/" target="_blank" rel="noopener noreferrer" className="underline">LIS Developer Hub</a> and set the <span className="font-mono">LIS_SUBSCRIPTION_KEY</span> environment variable. Submissions then go directly to LIS automatically.</li>
           </ol>
         </div>
+      <ConfirmDialog
+        open={!!pendingConfirm}
+        title="Remove LIS Credentials"
+        message={pendingConfirm?.msg ?? ""}
+        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
+        onCancel={() => setPendingConfirm(null)}
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+      />
       </CardContent>
     </Card>
   );

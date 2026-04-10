@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type Invoice, type Tenant } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import { FileText, Plus, Printer, CheckCircle, Send, XCircle, ChevronDown, AlertCircle, Clock, Loader2, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 function fmt(pence: number) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
@@ -15,6 +17,21 @@ function fmtPeriod(start: string, end: string) {
   const s = new Date(start);
   const e = new Date(end);
   return `${s.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} – ${e.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
+}
+
+function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
+      <DialogContent style={{ maxWidth: "22rem" }}>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -333,6 +350,7 @@ export default function Invoices() {
   const [showGenerate, setShowGenerate] = useState(false);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
   const [markPaidInvoice, setMarkPaidInvoice] = useState<Invoice | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
 
   const { data: invoicesData, isLoading: invLoading } = useQuery({
     queryKey: ["admin-invoices", statusFilter],
@@ -488,7 +506,7 @@ export default function Invoices() {
                       )}
                       {(inv.status === "draft" || inv.status === "void") && (
                         <button
-                          onClick={() => { if (confirm(`Delete ${inv.invoiceNumber}?`)) deleteMut.mutate(inv.id); }}
+                          onClick={() => setPendingConfirm({ msg: `Delete invoice ${inv.invoiceNumber}? This cannot be undone.`, fn: () => deleteMut.mutate(inv.id) })}
                           className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
                           title="Delete"
                         >
@@ -504,6 +522,15 @@ export default function Invoices() {
         )}
       </div>
 
+      <ConfirmDialog
+        open={!!pendingConfirm}
+        title="Delete Invoice"
+        message={pendingConfirm?.msg ?? ""}
+        onConfirm={() => { pendingConfirm?.fn(); setPendingConfirm(null); }}
+        onCancel={() => setPendingConfirm(null)}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+      />
       {showGenerate && (
         <GenerateDialog
           tenants={tenants}

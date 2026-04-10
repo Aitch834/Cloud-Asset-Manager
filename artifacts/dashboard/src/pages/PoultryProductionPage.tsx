@@ -18,26 +18,51 @@ const api = (path: string) => `/api/${path}`;
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 function Empty({ msg }: { msg: string }) { return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>; }
-
+function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
+      <DialogContent style={{ maxWidth: "22rem" }}>
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 function DataTable({ cols, rows, onEdit, onDelete }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void }) {
+  const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
   if (!rows.length) return <Empty msg="No records yet. Add one using the button above." />;
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete) && <th />}</tr></thead>
-        <tbody>{rows.map((row, i) => (
-          <tr key={i} className="border-b last:border-0">
-            {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.fmt ? c.fmt(row) : fmt(row[c.key])}</td>)}
-            {(onEdit || onDelete) && (
-              <td className="py-2 text-right space-x-1">
-                {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
-                {onDelete && <Button size="icon" variant="ghost" onClick={() => onDelete(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
-              </td>
-            )}
-          </tr>
-        ))}</tbody>
-      </table>
-    </div>
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete) && <th />}</tr></thead>
+          <tbody>{rows.map((row, i) => (
+            <tr key={i} className="border-b last:border-0">
+              {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.fmt ? c.fmt(row) : fmt(row[c.key])}</td>)}
+              {(onEdit || onDelete) && (
+                <td className="py-2 text-right space-x-1">
+                  {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
+                  {onDelete && <Button size="icon" variant="ghost" onClick={() => setPendingDelete(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
+                </td>
+              )}
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete Record"
+        message="Are you sure you want to delete this record? This cannot be undone."
+        onConfirm={() => { if (pendingDelete && onDelete) { onDelete(pendingDelete); } setPendingDelete(null); }}
+        onCancel={() => setPendingDelete(null)}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+      />
+    </>
   );
 }
 
@@ -65,7 +90,7 @@ function HousesTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Poultry Houses</h3><Button size="sm" onClick={() => openAdd()}><Plus className="w-4 h-4 mr-1" />Add House</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "houseName", label: "House Name" }, { key: "houseType", label: "Type" }, { key: "species", label: "Species" }, { key: "productionSystem", label: "System" }, { key: "approvedCapacity", label: "Capacity" }, { key: "ventilationType", label: "Ventilation" }]} rows={houses as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => { if (confirm("Delete this house?")) del.mutate(r.id as number); }} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "houseName", label: "House Name" }, { key: "houseType", label: "Type" }, { key: "species", label: "Species" }, { key: "productionSystem", label: "System" }, { key: "approvedCapacity", label: "Capacity" }, { key: "ventilationType", label: "Ventilation" }]} rows={houses as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit House" : "Add Poultry House"}</DialogTitle></DialogHeader>
@@ -95,7 +120,7 @@ function FlocksTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Flock Register</h3><Button size="sm" onClick={() => openAdd()}><Plus className="w-4 h-4 mr-1" />Add Flock</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "flockNumber", label: "Flock No." }, { key: "houseName", label: "House" }, { key: "species", label: "Species" }, { key: "productionSystem", label: "System" }, { key: "placementDate", label: "Placed", fmt: r => fmtDate(r.placementDate) }, { key: "placementCount", label: "Placed" }, { key: "status", label: "Status" }]} rows={flocks as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => { if (confirm("Delete this flock?")) del.mutate(r.id as number); }} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "flockNumber", label: "Flock No." }, { key: "houseName", label: "House" }, { key: "species", label: "Species" }, { key: "productionSystem", label: "System" }, { key: "placementDate", label: "Placed", fmt: r => fmtDate(r.placementDate) }, { key: "placementCount", label: "Placed" }, { key: "status", label: "Status" }]} rows={flocks as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>Flock Record</DialogTitle></DialogHeader>
@@ -145,7 +170,7 @@ function MortalityTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Daily Mortality Records</h3><Button size="sm" onClick={() => openAdd({ mortalityCount: "0", culledCount: "0" })}><Plus className="w-4 h-4 mr-1" />Log Mortality</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "recordDate", label: "Date", fmt: r => fmtDate(r.recordDate) }, { key: "flockId", label: "Flock" }, { key: "mortalityCount", label: "Deaths" }, { key: "culledCount", label: "Culled" }, { key: "mortalityPercentage", label: "% Running" }, { key: "mainCause", label: "Main Cause" }]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "recordDate", label: "Date", fmt: r => fmtDate(r.recordDate) }, { key: "flockId", label: "Flock" }, { key: "mortalityCount", label: "Deaths" }, { key: "culledCount", label: "Culled" }, { key: "mortalityPercentage", label: "% Running" }, { key: "mainCause", label: "Main Cause" }]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader><DialogTitle>Daily Mortality</DialogTitle></DialogHeader>
@@ -173,7 +198,7 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Medication & Treatment Records</h3><Button size="sm" onClick={() => openAdd()}><Plus className="w-4 h-4 mr-1" />Add Treatment</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "treatmentDate", label: "Date", fmt: r => fmtDate(r.treatmentDate) }, { key: "productName", label: "Product" }, { key: "condition", label: "Condition" }, { key: "routeOfAdministration", label: "Route" }, { key: "withdrawalPeriodDays", label: "Withdrawal Days" }, { key: "withdrawalClearDate", label: "Clear Date", fmt: r => fmtDate(r.withdrawalClearDate) }]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "treatmentDate", label: "Date", fmt: r => fmtDate(r.treatmentDate) }, { key: "productName", label: "Product" }, { key: "condition", label: "Condition" }, { key: "routeOfAdministration", label: "Route" }, { key: "withdrawalPeriodDays", label: "Withdrawal Days" }, { key: "withdrawalClearDate", label: "Clear Date", fmt: r => fmtDate(r.withdrawalClearDate) }]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Treatment Record</DialogTitle></DialogHeader>
@@ -207,7 +232,7 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">House Cleanout & Disinfection Records</h3><Button size="sm" onClick={() => openAdd({ swabsTaken: false })}><Plus className="w-4 h-4 mr-1" />Add Cleanout</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "cleanoutStartDate", label: "Start Date", fmt: r => fmtDate(r.cleanoutStartDate) }, { key: "cleanoutEndDate", label: "End Date", fmt: r => fmtDate(r.cleanoutEndDate) }, { key: "disinfectantUsed", label: "Disinfectant" }, { key: "contactTimeMins", label: "Contact (mins)" }, { key: "swabResults", label: "Swab Results" }, { key: "completedBy", label: "Completed By" }]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "cleanoutStartDate", label: "Start Date", fmt: r => fmtDate(r.cleanoutStartDate) }, { key: "cleanoutEndDate", label: "End Date", fmt: r => fmtDate(r.cleanoutEndDate) }, { key: "disinfectantUsed", label: "Disinfectant" }, { key: "contactTimeMins", label: "Contact (mins)" }, { key: "swabResults", label: "Swab Results" }, { key: "completedBy", label: "Completed By" }]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>House Cleanout Record</DialogTitle></DialogHeader>
@@ -234,7 +259,7 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Environmental Monitoring Logs</h3><Button size="sm" onClick={() => openAdd({ alarmActivated: false })}><Plus className="w-4 h-4 mr-1" />Log Reading</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "logDate", label: "Date", fmt: r => fmtDate(r.logDate) }, { key: "logTime", label: "Time" }, { key: "temperatureMin", label: "Min °C" }, { key: "temperatureMax", label: "Max °C" }, { key: "humidity", label: "Humidity %" }, { key: "ammoniaPpm", label: "Ammonia ppm" }, { key: "stockingDensity", label: "kg/m²" }]} rows={records as Record<string, unknown>[]} onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "logDate", label: "Date", fmt: r => fmtDate(r.logDate) }, { key: "logTime", label: "Time" }, { key: "temperatureMin", label: "Min °C" }, { key: "temperatureMax", label: "Max °C" }, { key: "humidity", label: "Humidity %" }, { key: "ammoniaPpm", label: "Ammonia ppm" }, { key: "stockingDensity", label: "kg/m²" }]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Environmental Log</DialogTitle></DialogHeader>
@@ -263,7 +288,7 @@ function FciTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Food Chain Information (FCI) Documents</h3><Button size="sm" onClick={() => openAdd({ withdrawalPeriodClear: true, signedByFarmer: true, anyDiseaseOrCondition: false, medicationsLast7Days: false })}><Plus className="w-4 h-4 mr-1" />Add FCI Doc</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "documentDate", label: "Date", fmt: r => fmtDate(r.documentDate) }, { key: "destinationAbattoir", label: "Abattoir" }, { key: "numberOfBirds", label: "Birds" }, { key: "catchingContractor", label: "Catching Contractor" }, { key: "withdrawalPeriodClear", label: "Withdrawal Clear", fmt: r => r.withdrawalPeriodClear ? "Yes" : "No" }]} rows={records as Record<string, unknown>[]} onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "documentDate", label: "Date", fmt: r => fmtDate(r.documentDate) }, { key: "destinationAbattoir", label: "Abattoir" }, { key: "numberOfBirds", label: "Birds" }, { key: "catchingContractor", label: "Catching Contractor" }, { key: "withdrawalPeriodClear", label: "Withdrawal Clear", fmt: r => r.withdrawalPeriodClear ? "Yes" : "No" }]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>Poultry FCI Document</DialogTitle></DialogHeader>
@@ -311,7 +336,7 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
           { key: "overallOutcome", label: "Outcome" },
         ]}
         rows={records as Record<string, unknown>[]}
-        onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }}
+        onDelete={r => del.mutate(r.id as number)}
       />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "44rem" }}>
@@ -392,7 +417,7 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
           { key: "doasAtLoading", label: "DOAs at Loading" },
         ]}
         rows={records as Record<string, unknown>[]}
-        onDelete={r => { if (confirm("Delete this thinning record?")) del.mutate(r.id as number); }}
+        onDelete={r => del.mutate(r.id as number)}
       />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "42rem" }}>
@@ -464,7 +489,7 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
         ]}
         rows={records as Record<string, unknown>[]}
         onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
-        onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }}
+        onDelete={r => del.mutate(r.id as number)}
       />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "52rem" }}>
@@ -540,7 +565,7 @@ function SchemeRecordsTab({ farmId }: { farmId: number }) {
         ]}
         rows={records as Record<string, unknown>[]}
         onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
-        onDelete={r => { if (confirm("Delete?")) del.mutate(r.id as number); }}
+        onDelete={r => del.mutate(r.id as number)}
       />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "42rem" }}>
