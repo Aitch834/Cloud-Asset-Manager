@@ -18,6 +18,16 @@ export const fieldsTable = pgTable("fields", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  // Land tenure
+  tenureType: text("tenure_type"),
+  landlordName: text("landlord_name"),
+  landlordContact: text("landlord_contact"),
+  landlordAddress: text("landlord_address"),
+  tenancyStartDate: text("tenancy_start_date"),
+  tenancyEndDate: text("tenancy_end_date"),
+  annualRentPounds: numeric("annual_rent_pounds", { precision: 10, scale: 2 }),
+  rentReviewDate: text("rent_review_date"),
+  tenureNotes: text("tenure_notes"),
 });
 
 export const fieldBoundariesTable = pgTable("field_boundaries", {

@@ -21,6 +21,7 @@ import { StaffSelect } from "@/components/ui/staff-select";
 import {
   Plus, Search, Map as MapIcon, MoreVertical, Pencil, Trash2, AlertTriangle,
   Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote,
+  Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { FieldBoundaryMapDialog } from "@/components/fields/FieldBoundaryMapDialog";
@@ -42,6 +43,15 @@ interface FieldRecord {
   soilType?: string;
   currentUse?: string;
   isActive?: boolean;
+  tenureType?: string | null;
+  landlordName?: string | null;
+  landlordContact?: string | null;
+  landlordAddress?: string | null;
+  tenancyStartDate?: string | null;
+  tenancyEndDate?: string | null;
+  annualRentPounds?: string | number | null;
+  rentReviewDate?: string | null;
+  tenureNotes?: string | null;
 }
 
 interface CropRecord {
@@ -932,7 +942,20 @@ export default function FieldsPage() {
   const [assignForField, setAssignForField] = useState<FieldRecord | null>(null);
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
   const [selectedFieldForHistory, setSelectedFieldForHistory] = useState<FieldRecord | null>(null);
-  const [drawerTab, setDrawerTab] = useState<"overview" | "history" | "nmp">("overview");
+  const [drawerTab, setDrawerTab] = useState<"overview" | "history" | "nmp" | "tenure">("overview");
+  const [tenureEditMode, setTenureEditMode] = useState(false);
+  const [isSavingTenure, setIsSavingTenure] = useState(false);
+  const [tenureForm, setTenureForm] = useState<{
+    tenureType: string;
+    landlordName: string;
+    landlordContact: string;
+    landlordAddress: string;
+    tenancyStartDate: string;
+    tenancyEndDate: string;
+    annualRentPounds: string;
+    rentReviewDate: string;
+    tenureNotes: string;
+  }>({ tenureType: "owned", landlordName: "", landlordContact: "", landlordAddress: "", tenancyStartDate: "", tenancyEndDate: "", annualRentPounds: "", rentReviewDate: "", tenureNotes: "" });
   const [printOpen, setPrintOpen] = useState(false);
   const [expandedVarietyId, setExpandedVarietyId] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -1489,6 +1512,7 @@ export default function FieldsPage() {
                   <TabButton size="sm" active={drawerTab === "overview"} onClick={() => setDrawerTab("overview")}>Overview</TabButton>
                   <TabButton size="sm" active={drawerTab === "history"} onClick={() => setDrawerTab("history")}>Crop History</TabButton>
                   <TabButton size="sm" active={drawerTab === "nmp"} onClick={() => setDrawerTab("nmp")}>NMP</TabButton>
+                  <TabButton size="sm" active={drawerTab === "tenure"} onClick={() => { setDrawerTab("tenure"); setTenureEditMode(false); }}>Land Tenure</TabButton>
                 </TabBar>
               </div>
 
@@ -1676,6 +1700,249 @@ export default function FieldsPage() {
                     )}
                   </div>
                 )}
+
+                {drawerTab === "tenure" && (() => {
+                  const tenureLabels: Record<string, string> = {
+                    owned: "Owned outright",
+                    fbt: "Farm Business Tenancy (FBT)",
+                    aha: "Agricultural Holdings Act tenancy",
+                    contract_farming: "Contract farming agreement",
+                    grazing_licence: "Grazing licence",
+                    other: "Other arrangement",
+                  };
+                  const isRented = f.tenureType && f.tenureType !== "owned";
+                  const endDate = f.tenancyEndDate ? new Date(f.tenancyEndDate) : null;
+                  const today = new Date();
+                  const daysToExpiry = endDate ? Math.ceil((endDate.getTime() - today.getTime()) / 86400000) : null;
+                  const expiryUrgent = daysToExpiry !== null && daysToExpiry <= 90;
+                  const expiryWarning = daysToExpiry !== null && daysToExpiry > 90 && daysToExpiry <= 180;
+                  const reviewDate = f.rentReviewDate ? new Date(f.rentReviewDate) : null;
+                  const daysToReview = reviewDate ? Math.ceil((reviewDate.getTime() - today.getTime()) / 86400000) : null;
+                  const reviewSoon = daysToReview !== null && daysToReview <= 90;
+
+                  if (tenureEditMode) {
+                    const tf = tenureForm;
+                    const setTf = (k: string, v: string) => setTenureForm(prev => ({ ...prev, [k]: v }));
+                    const handleSaveTenure = async () => {
+                      setIsSavingTenure(true);
+                      try {
+                        const body: Record<string, string | null> = {
+                          tenureType: tf.tenureType || null,
+                          landlordName: tf.landlordName || null,
+                          landlordContact: tf.landlordContact || null,
+                          landlordAddress: tf.landlordAddress || null,
+                          tenancyStartDate: tf.tenancyStartDate || null,
+                          tenancyEndDate: tf.tenancyEndDate || null,
+                          annualRentPounds: tf.annualRentPounds || null,
+                          rentReviewDate: tf.rentReviewDate || null,
+                          tenureNotes: tf.tenureNotes || null,
+                        };
+                        const res = await fetch(`/api/farms/${farmId}/fields/${f.id}`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(body),
+                        });
+                        const data = await res.json();
+                        queryClient.invalidateQueries({ queryKey: ["farms", farmId, "fields"] });
+                        setSelectedFieldForHistory(prev => prev ? { ...prev, ...data.record } : null);
+                        setTenureEditMode(false);
+                      } finally {
+                        setIsSavingTenure(false);
+                      }
+                    };
+                    return (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Tenure Type</label>
+                          <select value={tf.tenureType} onChange={e => setTf("tenureType", e.target.value)} className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white">
+                            <option value="owned">Owned outright</option>
+                            <option value="fbt">Farm Business Tenancy (FBT)</option>
+                            <option value="aha">Agricultural Holdings Act tenancy</option>
+                            <option value="contract_farming">Contract farming agreement</option>
+                            <option value="grazing_licence">Grazing licence</option>
+                            <option value="other">Other arrangement</option>
+                          </select>
+                        </div>
+                        {tf.tenureType !== "owned" && (
+                          <>
+                            <div>
+                              <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Landlord / Licensor Name</label>
+                              <Input value={tf.landlordName} onChange={e => setTf("landlordName", e.target.value)} placeholder="e.g. John Smith Estates" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Landlord Contact (phone or email)</label>
+                              <Input value={tf.landlordContact} onChange={e => setTf("landlordContact", e.target.value)} placeholder="e.g. 07700 900000 or agent@example.com" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Landlord Address</label>
+                              <Input value={tf.landlordAddress} onChange={e => setTf("landlordAddress", e.target.value)} placeholder="e.g. Estate Office, High Street, Town" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Tenancy Start</label>
+                                <Input type="date" value={tf.tenancyStartDate} onChange={e => setTf("tenancyStartDate", e.target.value)} />
+                              </div>
+                              <div>
+                                <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Tenancy End</label>
+                                <Input type="date" value={tf.tenancyEndDate} onChange={e => setTf("tenancyEndDate", e.target.value)} />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Annual Rent (£)</label>
+                                <Input type="number" step="0.01" min="0" value={tf.annualRentPounds} onChange={e => setTf("annualRentPounds", e.target.value)} placeholder="e.g. 3200.00" />
+                              </div>
+                              <div>
+                                <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Rent Review Date</label>
+                                <Input type="date" value={tf.rentReviewDate} onChange={e => setTf("rentReviewDate", e.target.value)} />
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        <div>
+                          <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Notes</label>
+                          <textarea value={tf.tenureNotes} onChange={e => setTf("tenureNotes", e.target.value)} rows={3} className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white resize-none" placeholder="Any additional tenancy notes, break clauses, special conditions..." />
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <Button onClick={handleSaveTenure} disabled={isSavingTenure} size="sm" className="gap-2">
+                            {isSavingTenure ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                            {isSavingTenure ? "Saving..." : "Save Land Tenure"}
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => setTenureEditMode(false)}>Cancel</Button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-5">
+                      {(expiryUrgent || expiryWarning) && (
+                        <div className={`flex items-start gap-3 rounded-xl p-3 text-sm ${expiryUrgent ? "bg-red-50 border border-red-200 text-red-800" : "bg-amber-50 border border-amber-200 text-amber-800"}`}>
+                          <AlertTriangle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${expiryUrgent ? "text-red-500" : "text-amber-500"}`} />
+                          <div>
+                            <p className="font-semibold">{expiryUrgent ? "Tenancy expiring soon" : "Tenancy approaching expiry"}</p>
+                            <p className="text-xs mt-0.5">
+                              {daysToExpiry === 0 ? "Expires today" : daysToExpiry! < 0 ? `Expired ${Math.abs(daysToExpiry!)} day${Math.abs(daysToExpiry!) !== 1 ? "s" : ""} ago` : `Expires in ${daysToExpiry} day${daysToExpiry !== 1 ? "s" : ""}`} — check your SFI/CS eligibility for this field.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {reviewSoon && (
+                        <div className="flex items-start gap-3 rounded-xl p-3 text-sm bg-blue-50 border border-blue-200 text-blue-800">
+                          <RefreshCw className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-500" />
+                          <div>
+                            <p className="font-semibold">Rent review due soon</p>
+                            <p className="text-xs mt-0.5">Review date in {daysToReview} day{daysToReview !== 1 ? "s" : ""}. Contact your landlord or agent to initiate review.</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="bg-black/[0.03] rounded-xl p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Landmark className="w-4 h-4 text-foreground/40" />
+                          <p className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Tenure Type</p>
+                        </div>
+                        <p className="text-sm font-semibold text-foreground">
+                          {f.tenureType ? (tenureLabels[f.tenureType] ?? f.tenureType) : <span className="text-foreground/40 font-normal">Not recorded</span>}
+                        </p>
+                      </div>
+                      {isRented && (
+                        <>
+                          <div className="grid grid-cols-1 gap-3">
+                            {f.landlordName && (
+                              <div className="flex items-start gap-3 p-3 bg-black/[0.02] rounded-xl">
+                                <Landmark className="w-4 h-4 text-foreground/30 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-xs text-foreground/40 mb-0.5">Landlord / Licensor</p>
+                                  <p className="text-sm font-medium">{f.landlordName}</p>
+                                </div>
+                              </div>
+                            )}
+                            {f.landlordContact && (
+                              <div className="flex items-start gap-3 p-3 bg-black/[0.02] rounded-xl">
+                                <Phone className="w-4 h-4 text-foreground/30 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-xs text-foreground/40 mb-0.5">Contact</p>
+                                  <p className="text-sm font-medium">{f.landlordContact}</p>
+                                </div>
+                              </div>
+                            )}
+                            {f.landlordAddress && (
+                              <div className="flex items-start gap-3 p-3 bg-black/[0.02] rounded-xl">
+                                <MapPin className="w-4 h-4 text-foreground/30 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-xs text-foreground/40 mb-0.5">Address</p>
+                                  <p className="text-sm font-medium">{f.landlordAddress}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-black/[0.03] rounded-xl p-3">
+                              <p className="text-xs text-foreground/40 mb-1">Tenancy Start</p>
+                              <p className="text-sm font-semibold">{f.tenancyStartDate ? new Date(f.tenancyStartDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</p>
+                            </div>
+                            <div className={`rounded-xl p-3 ${expiryUrgent ? "bg-red-50" : expiryWarning ? "bg-amber-50" : "bg-black/[0.03]"}`}>
+                              <p className="text-xs text-foreground/40 mb-1">Tenancy End</p>
+                              <p className={`text-sm font-semibold ${expiryUrgent ? "text-red-700" : expiryWarning ? "text-amber-700" : ""}`}>
+                                {f.tenancyEndDate ? new Date(f.tenancyEndDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                              </p>
+                              {daysToExpiry !== null && (
+                                <p className={`text-xs mt-0.5 ${expiryUrgent ? "text-red-500" : expiryWarning ? "text-amber-500" : "text-foreground/40"}`}>
+                                  {daysToExpiry < 0 ? `Expired ${Math.abs(daysToExpiry)}d ago` : daysToExpiry === 0 ? "Today" : `${daysToExpiry}d remaining`}
+                                </p>
+                              )}
+                            </div>
+                            <div className="bg-black/[0.03] rounded-xl p-3">
+                              <p className="text-xs text-foreground/40 mb-1 flex items-center gap-1"><BadgePoundSterling className="w-3 h-3" />Annual Rent</p>
+                              <p className="text-sm font-semibold">{f.annualRentPounds ? `£${parseFloat(String(f.annualRentPounds)).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</p>
+                            </div>
+                            <div className={`rounded-xl p-3 ${reviewSoon ? "bg-blue-50" : "bg-black/[0.03]"}`}>
+                              <p className="text-xs text-foreground/40 mb-1 flex items-center gap-1"><RefreshCw className="w-3 h-3" />Rent Review</p>
+                              <p className={`text-sm font-semibold ${reviewSoon ? "text-blue-700" : ""}`}>
+                                {f.rentReviewDate ? new Date(f.rentReviewDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                              </p>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      {f.tenureNotes && (
+                        <div className="flex items-start gap-3 p-3 bg-black/[0.02] rounded-xl">
+                          <FileText className="w-4 h-4 text-foreground/30 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs text-foreground/40 mb-0.5">Notes</p>
+                            <p className="text-sm text-foreground/70 whitespace-pre-line">{f.tenureNotes}</p>
+                          </div>
+                        </div>
+                      )}
+                      {!f.tenureType && !f.landlordName && (
+                        <div className="py-8 text-center">
+                          <Landmark className="w-10 h-10 mx-auto text-foreground/15 mb-3" />
+                          <p className="text-sm text-foreground/40">No land tenure information recorded yet.</p>
+                          <p className="text-xs text-foreground/30 mt-1">Record tenure type, landlord details, and tenancy dates to track SFI eligibility.</p>
+                        </div>
+                      )}
+                      <div className="pt-1">
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => {
+                          setTenureForm({
+                            tenureType: f.tenureType ?? "owned",
+                            landlordName: f.landlordName ?? "",
+                            landlordContact: f.landlordContact ?? "",
+                            landlordAddress: f.landlordAddress ?? "",
+                            tenancyStartDate: f.tenancyStartDate ?? "",
+                            tenancyEndDate: f.tenancyEndDate ?? "",
+                            annualRentPounds: f.annualRentPounds ? String(f.annualRentPounds) : "",
+                            rentReviewDate: f.rentReviewDate ?? "",
+                            tenureNotes: f.tenureNotes ?? "",
+                          });
+                          setTenureEditMode(true);
+                        }}>
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit Land Tenure
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {drawerTab === "history" && (
                   <div>
