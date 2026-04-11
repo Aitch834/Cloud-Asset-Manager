@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, boolean, numeric, jsonb } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { suppliersTable } from "./stock-suppliers";
 
 export const fieldsTable = pgTable("fields", {
   id: serial("id").primaryKey(),
@@ -20,9 +21,7 @@ export const fieldsTable = pgTable("fields", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   // Land tenure
   tenureType: text("tenure_type"),
-  landlordName: text("landlord_name"),
-  landlordContact: text("landlord_contact"),
-  landlordAddress: text("landlord_address"),
+  landlordSupplierId: integer("landlord_supplier_id").references(() => suppliersTable.id),
   tenancyStartDate: text("tenancy_start_date"),
   tenancyEndDate: text("tenancy_end_date"),
   annualRentPounds: numeric("annual_rent_pounds", { precision: 10, scale: 2 }),

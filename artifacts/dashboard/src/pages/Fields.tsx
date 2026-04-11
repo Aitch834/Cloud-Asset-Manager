@@ -19,7 +19,7 @@ import { getListFieldCropAssignmentsQueryKey } from "@workspace/api-client-react
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 import {
-  Plus, Search, Map as MapIcon, MoreVertical, Pencil, Trash2, AlertTriangle,
+  Plus, PlusCircle, Search, Map as MapIcon, MoreVertical, Pencil, Trash2, AlertTriangle,
   Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote,
   Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2, Paperclip, Download,
 } from "lucide-react";
@@ -45,9 +45,7 @@ interface FieldRecord {
   currentUse?: string;
   isActive?: boolean;
   tenureType?: string | null;
-  landlordName?: string | null;
-  landlordContact?: string | null;
-  landlordAddress?: string | null;
+  landlordSupplierId?: number | null;
   tenancyStartDate?: string | null;
   tenancyEndDate?: string | null;
   annualRentPounds?: string | number | null;
@@ -936,6 +934,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
 
 export default function FieldsPage() {
   const { farmId } = useAppStore();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<"fields" | "crops" | "seed">("fields");
   const [search, setSearch] = useState("");
   const [isAddFieldOpen, setIsAddFieldOpen] = useState(false);
@@ -948,15 +947,16 @@ export default function FieldsPage() {
   const [isSavingTenure, setIsSavingTenure] = useState(false);
   const [tenureForm, setTenureForm] = useState<{
     tenureType: string;
-    landlordName: string;
-    landlordContact: string;
-    landlordAddress: string;
+    landlordSupplierId: string;
     tenancyStartDate: string;
     tenancyEndDate: string;
     annualRentPounds: string;
     rentReviewDate: string;
     tenureNotes: string;
-  }>({ tenureType: "owned", landlordName: "", landlordContact: "", landlordAddress: "", tenancyStartDate: "", tenancyEndDate: "", annualRentPounds: "", rentReviewDate: "", tenureNotes: "" });
+  }>({ tenureType: "owned", landlordSupplierId: "__none__", tenancyStartDate: "", tenancyEndDate: "", annualRentPounds: "", rentReviewDate: "", tenureNotes: "" });
+  const [showAddLandlordDialog, setShowAddLandlordDialog] = useState(false);
+  const [landlordQuickForm, setLandlordQuickForm] = useState({ name: "", contactName: "", phone: "", address: "" });
+  const [savingLandlord, setSavingLandlord] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [expandedVarietyId, setExpandedVarietyId] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -978,6 +978,13 @@ export default function FieldsPage() {
     queryFn: () => fetch(`/api/farms/${safeFarmId}/fields/${selectedFieldForHistory?.id}/tenure-documents`).then(r => r.json()).then(d => d.documents ?? []),
     enabled: !!farmId && !!selectedFieldForHistory && drawerTab === "tenure",
   });
+
+  const landlordSuppliersQ = useQuery({
+    queryKey: ["farm-landlords", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/landlords`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+  const landlordSuppliers: { id: number; name: string; contactName?: string | null; phone?: string | null; email?: string | null; address?: string | null }[] = landlordSuppliersQ.data ?? [];
 
   const { uploadFile, isUploading: isUploadingTenureDoc } = useUpload();
 
@@ -1735,11 +1742,9 @@ export default function FieldsPage() {
                     const handleSaveTenure = async () => {
                       setIsSavingTenure(true);
                       try {
-                        const body: Record<string, string | null> = {
+                        const body: Record<string, string | number | null> = {
                           tenureType: tf.tenureType || null,
-                          landlordName: tf.landlordName || null,
-                          landlordContact: tf.landlordContact || null,
-                          landlordAddress: tf.landlordAddress || null,
+                          landlordSupplierId: tf.landlordSupplierId && tf.landlordSupplierId !== "__none__" ? parseInt(tf.landlordSupplierId, 10) : null,
                           tenancyStartDate: tf.tenancyStartDate || null,
                           tenancyEndDate: tf.tenancyEndDate || null,
                           annualRentPounds: tf.annualRentPounds || null,
@@ -1775,17 +1780,31 @@ export default function FieldsPage() {
                         {tf.tenureType !== "owned" && (
                           <>
                             <div>
-                              <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Landlord / Licensor Name</label>
-                              <Input value={tf.landlordName} onChange={e => setTf("landlordName", e.target.value)} placeholder="e.g. John Smith Estates" />
-                            </div>
-                            <div>
-                              <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Landlord Contact (phone or email)</label>
-                              <Input value={tf.landlordContact} onChange={e => setTf("landlordContact", e.target.value)} placeholder="e.g. 07700 900000 or agent@example.com" />
-                            </div>
-                            <div>
-                              <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Landlord Address</label>
-                              <Input value={tf.landlordAddress} onChange={e => setTf("landlordAddress", e.target.value)} placeholder="e.g. Estate Office, High Street, Town" />
-                            </div>
+                              <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Landlord / Licensor</label>
+                              <div className="flex gap-2">
+                                <select value={tf.landlordSupplierId} onChange={e => setTf("landlordSupplierId", e.target.value)} className="flex-1 border border-input rounded-md px-3 py-2 text-sm bg-white">
+                                  <option value="__none__">— None selected —</option>
+                                  {landlordSuppliers.map(s => (
+                                    <option key={s.id} value={String(s.id)}>{s.name}</option>
+                                  ))}
+                                </select>
+                                <Button type="button" variant="outline" size="sm" className="flex-shrink-0 gap-1.5 whitespace-nowrap" onClick={() => { setLandlordQuickForm({ name: "", contactName: "", phone: "", address: "" }); setShowAddLandlordDialog(true); }}>
+                                  <PlusCircle className="w-3.5 h-3.5" />
+                                  New landlord
+                                </Button>
+                              </div>
+                              {tf.landlordSupplierId && tf.landlordSupplierId !== "__none__" && (() => {
+                                const s = landlordSuppliers.find(x => String(x.id) === tf.landlordSupplierId);
+                                if (!s) return null;
+                                return (
+                                  <div className="mt-2 text-xs text-foreground/50 bg-black/[0.02] rounded-lg px-3 py-2 space-y-0.5">
+                                    {s.contactName && <p><span className="font-medium">Contact:</span> {s.contactName}</p>}
+                                    {s.phone && <p><span className="font-medium">Phone:</span> {s.phone}</p>}
+                                    {s.email && <p><span className="font-medium">Email:</span> {s.email}</p>}
+                                    {s.address && <p><span className="font-medium">Address:</span> {s.address}</p>}
+                                  </div>
+                                );
+                              })()}</div>
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Tenancy Start</label>
@@ -1856,35 +1875,39 @@ export default function FieldsPage() {
                       </div>
                       {isRented && (
                         <>
-                          <div className="grid grid-cols-1 gap-3">
-                            {f.landlordName && (
-                              <div className="flex items-start gap-3 p-3 bg-black/[0.02] rounded-xl">
-                                <Landmark className="w-4 h-4 text-foreground/30 flex-shrink-0 mt-0.5" />
-                                <div>
-                                  <p className="text-xs text-foreground/40 mb-0.5">Landlord / Licensor</p>
-                                  <p className="text-sm font-medium">{f.landlordName}</p>
+                          {(() => {
+                            const landlord = f.landlordSupplierId ? landlordSuppliers.find(s => s.id === f.landlordSupplierId) : null;
+                            if (!landlord && !f.landlordSupplierId) return null;
+                            return (
+                              <div className="grid grid-cols-1 gap-3">
+                                <div className="flex items-start gap-3 p-3 bg-black/[0.02] rounded-xl">
+                                  <Landmark className="w-4 h-4 text-foreground/30 flex-shrink-0 mt-0.5" />
+                                  <div>
+                                    <p className="text-xs text-foreground/40 mb-0.5">Landlord / Licensor</p>
+                                    <p className="text-sm font-medium">{landlord?.name ?? <span className="text-foreground/40 italic">Unknown landlord</span>}</p>
+                                  </div>
                                 </div>
+                                {landlord?.contactName && (
+                                  <div className="flex items-start gap-3 p-3 bg-black/[0.02] rounded-xl">
+                                    <Phone className="w-4 h-4 text-foreground/30 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                      <p className="text-xs text-foreground/40 mb-0.5">Contact</p>
+                                      <p className="text-sm font-medium">{landlord.contactName}{landlord.phone ? ` · ${landlord.phone}` : ""}</p>
+                                    </div>
+                                  </div>
+                                )}
+                                {landlord?.address && (
+                                  <div className="flex items-start gap-3 p-3 bg-black/[0.02] rounded-xl">
+                                    <MapPin className="w-4 h-4 text-foreground/30 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                      <p className="text-xs text-foreground/40 mb-0.5">Address</p>
+                                      <p className="text-sm font-medium">{landlord.address}</p>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                            {f.landlordContact && (
-                              <div className="flex items-start gap-3 p-3 bg-black/[0.02] rounded-xl">
-                                <Phone className="w-4 h-4 text-foreground/30 flex-shrink-0 mt-0.5" />
-                                <div>
-                                  <p className="text-xs text-foreground/40 mb-0.5">Contact</p>
-                                  <p className="text-sm font-medium">{f.landlordContact}</p>
-                                </div>
-                              </div>
-                            )}
-                            {f.landlordAddress && (
-                              <div className="flex items-start gap-3 p-3 bg-black/[0.02] rounded-xl">
-                                <MapPin className="w-4 h-4 text-foreground/30 flex-shrink-0 mt-0.5" />
-                                <div>
-                                  <p className="text-xs text-foreground/40 mb-0.5">Address</p>
-                                  <p className="text-sm font-medium">{f.landlordAddress}</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                            );
+                          })()}
                           <div className="grid grid-cols-2 gap-3">
                             <div className="bg-black/[0.03] rounded-xl p-3">
                               <p className="text-xs text-foreground/40 mb-1">Tenancy Start</p>
@@ -1923,7 +1946,7 @@ export default function FieldsPage() {
                           </div>
                         </div>
                       )}
-                      {!f.tenureType && !f.landlordName && (
+                      {!f.tenureType && !f.landlordSupplierId && (
                         <div className="py-8 text-center">
                           <Landmark className="w-10 h-10 mx-auto text-foreground/15 mb-3" />
                           <p className="text-sm text-foreground/40">No land tenure information recorded yet.</p>
@@ -1983,9 +2006,7 @@ export default function FieldsPage() {
                         <Button variant="outline" size="sm" className="gap-2" onClick={() => {
                           setTenureForm({
                             tenureType: f.tenureType ?? "owned",
-                            landlordName: f.landlordName ?? "",
-                            landlordContact: f.landlordContact ?? "",
-                            landlordAddress: f.landlordAddress ?? "",
+                            landlordSupplierId: f.landlordSupplierId ? String(f.landlordSupplierId) : "__none__",
                             tenancyStartDate: f.tenancyStartDate ?? "",
                             tenancyEndDate: f.tenancyEndDate ?? "",
                             annualRentPounds: f.annualRentPounds ? String(f.annualRentPounds) : "",
@@ -2156,6 +2177,56 @@ export default function FieldsPage() {
 
       {/* ── SEED RECORDS TAB ── */}
       {tab === "seed" && <SeedDrillingSection farmId={farmId} fields={fields} />}
+
+      {/* ── Add New Landlord Dialog ── */}
+      <Dialog open={showAddLandlordDialog} onOpenChange={setShowAddLandlordDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Landlord / Landowner</DialogTitle>
+            <DialogDescription>Create a new landlord contact. They will be available to all fields on this farm.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Name <span className="text-red-500">*</span></label>
+              <Input value={landlordQuickForm.name} onChange={e => setLandlordQuickForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Smith Estates Ltd" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Contact Name</label>
+              <Input value={landlordQuickForm.contactName} onChange={e => setLandlordQuickForm(p => ({ ...p, contactName: e.target.value }))} placeholder="e.g. James Smith" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Phone</label>
+              <Input value={landlordQuickForm.phone} onChange={e => setLandlordQuickForm(p => ({ ...p, phone: e.target.value }))} placeholder="e.g. 01234 567890" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-1.5 block">Address</label>
+              <Input value={landlordQuickForm.address} onChange={e => setLandlordQuickForm(p => ({ ...p, address: e.target.value }))} placeholder="e.g. Estate Office, High Street" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddLandlordDialog(false)}>Cancel</Button>
+            <Button disabled={savingLandlord || !landlordQuickForm.name.trim()} onClick={async () => {
+              setSavingLandlord(true);
+              try {
+                const res = await fetch(`/api/farms/${safeFarmId}/landlords`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(landlordQuickForm),
+                });
+                const data = await res.json();
+                queryClient.invalidateQueries({ queryKey: ["farm-landlords", safeFarmId] });
+                setTenureForm(prev => ({ ...prev, landlordSupplierId: String(data.record.id) }));
+                setShowAddLandlordDialog(false);
+              } finally {
+                setSavingLandlord(false);
+              }
+            }}>
+              {savingLandlord ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+              Save Landlord
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

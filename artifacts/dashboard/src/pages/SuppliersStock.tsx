@@ -1278,6 +1278,7 @@ const SUPPLIER_TYPES = [
   { value: "egg_packer", label: "Egg Packing Station" },
   { value: "pig_processor", label: "Pig Processor" },
   { value: "direct_customer", label: "Direct Customer / Wholesale Account" },
+  { value: "landlord", label: "Landlord / Landowner" },
   { value: "other", label: "Other" },
 ];
 

@@ -580,6 +580,30 @@ router.delete("/farms/:farmId/fields/:fieldId/tenure-documents/:docId", requireA
   res.json({ ok: true });
 });
 
+// ─── Landlord Suppliers (field-crop-management scoped) ───────────────────────
+router.get("/farms/:farmId/landlords", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select({
+    id: suppliersTable.id,
+    name: suppliersTable.name,
+    contactName: suppliersTable.contactName,
+    phone: suppliersTable.phone,
+    email: suppliersTable.email,
+    address: suppliersTable.address,
+  }).from(suppliersTable).where(and(eq(suppliersTable.farmId, farmId), eq(suppliersTable.supplierType, "landlord"), eq(suppliersTable.isActive, true))).orderBy(suppliersTable.name);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/landlords", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { name, contactName, phone, email, address } = req.body;
+  if (!name || !name.trim()) { res.status(400).json({ error: "Name is required" }); return; }
+  const [record] = await db.insert(suppliersTable).values({ farmId, name: name.trim(), contactName: contactName ?? null, phone: phone ?? null, email: email ?? null, address: address ?? null, supplierType: "landlord", isApproved: true, isActive: true }).returning({ id: suppliersTable.id, name: suppliersTable.name, contactName: suppliersTable.contactName, phone: suppliersTable.phone, email: suppliersTable.email, address: suppliersTable.address });
+  res.status(201).json({ record });
+});
+
 // ─── All Field Boundaries (for map views) ────────────
 router.get("/farms/:farmId/fields/boundaries/all", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
