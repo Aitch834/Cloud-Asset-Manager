@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Warehouse, Plus, Pencil, Trash2, CheckCircle, XCircle, MapPin, QrCode,
   Loader2, Printer, Thermometer, FlaskConical, ChevronDown, ChevronUp,
-  Banknote, Receipt, Calculator, Building2, Layers,
+  Banknote, Receipt, Calculator, Building2, Layers, Link2, Truck, ShoppingCart, Wheat,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -107,8 +107,52 @@ interface StockMovement {
   cropYear: string | null;
   quantityTonnes: string;
   reference: string | null;
+  linkedRecordType: string | null;
+  linkedRecordId: number | null;
   notes: string | null;
   createdAt: string;
+}
+
+interface HaulageRef {
+  id: number;
+  weighbridgeTicketNo: string | null;
+  commodity: string | null;
+  variety: string | null;
+  weightTonnes: string | null;
+  departureDate: string;
+  destination: string | null;
+  vehicleRegistration: string | null;
+  driverName: string | null;
+  haulierCompany: string | null;
+  movementType: string;
+  customerRef: string | null;
+}
+
+interface GrainSaleRef {
+  id: number;
+  merchantRef: string | null;
+  saleDate: string;
+  buyer: string;
+  commodity: string;
+  variety: string | null;
+  tonnage: string;
+  pricePerTonnePence: number | null;
+  netValuePence: number | null;
+  invoiceNumber: string | null;
+  saleType: string;
+  cropYear: string | null;
+  deliveryDate: string | null;
+}
+
+interface HarvestRef {
+  id: number;
+  harvestDate: string;
+  yieldTonnes: string | null;
+  areaHarvestedHa: string | null;
+  moisturePercent: string | null;
+  qualityGrade: string | null;
+  field: { name: string } | null;
+  crop: { cropType: string; variety: string | null } | null;
 }
 
 const LOCATION_TYPES: { value: string; label: string }[] = [
@@ -226,6 +270,126 @@ function fmtPence(pence: number) {
   return `£${(pence / 100).toFixed(2)}`;
 }
 
+// ─── Linked Record Detail Dialog ─────────────────────────────────────────────
+
+function LinkedRecordDetailDialog({
+  farmId, linkedRecordType, linkedRecordId, onClose,
+}: { farmId: number; linkedRecordType: string; linkedRecordId: number; onClose: () => void }) {
+  const haulQ = useQuery<{ record: HaulageRef }>({
+    queryKey: ["linked-haulage", farmId, linkedRecordId],
+    queryFn: () => fetch(`/api/farms/${farmId}/haulage/${linkedRecordId}`, { credentials: "include" }).then((r) => r.json()),
+    enabled: linkedRecordType === "haulage_record",
+  });
+  const saleQ = useQuery<{ record: GrainSaleRef }>({
+    queryKey: ["linked-grain-sale", farmId, linkedRecordId],
+    queryFn: () => fetch(`/api/farms/${farmId}/grain-sales/${linkedRecordId}`, { credentials: "include" }).then((r) => r.json()),
+    enabled: linkedRecordType === "grain_sale",
+  });
+  const harvestQ = useQuery<{ record: HarvestRef }>({
+    queryKey: ["linked-harvest", farmId, linkedRecordId],
+    queryFn: () => fetch(`/api/farms/${farmId}/harvests/${linkedRecordId}`, { credentials: "include" }).then((r) => r.json()),
+    enabled: linkedRecordType === "harvest_record",
+  });
+
+  const isLoading = haulQ.isLoading || saleQ.isLoading || harvestQ.isLoading;
+
+  function Row({ label, value }: { label: string; value: string | number | null | undefined }) {
+    return value != null && value !== "" ? (
+      <div className="grid grid-cols-[120px_1fr] gap-1 py-1 border-b border-muted/40 last:border-0">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="text-xs font-medium">{value}</span>
+      </div>
+    ) : null;
+  }
+
+  const recordLabel =
+    linkedRecordType === "haulage_record" ? "Haulage Record" :
+    linkedRecordType === "grain_sale"     ? "Grain Sale" :
+    linkedRecordType === "harvest_record" ? "Harvest Record" : "Linked Record";
+
+  const RecordIcon =
+    linkedRecordType === "haulage_record" ? Truck :
+    linkedRecordType === "grain_sale"     ? ShoppingCart :
+    linkedRecordType === "harvest_record" ? Wheat : Link2;
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent style={{ maxWidth: 440 }} aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <RecordIcon className="h-4 w-4 text-muted-foreground" />
+            {recordLabel}
+          </DialogTitle>
+        </DialogHeader>
+
+        {isLoading && <p className="text-sm text-muted-foreground py-4 text-center">Loading…</p>}
+
+        {linkedRecordType === "haulage_record" && haulQ.data?.record && (() => {
+          const r = haulQ.data.record;
+          return (
+            <div className="pt-1">
+              <Row label="Ticket No" value={r.weighbridgeTicketNo} />
+              <Row label="Date" value={r.departureDate ? r.departureDate.slice(0, 10) : null} />
+              <Row label="Movement" value={r.movementType === "farm_exit_dispatch" ? "Farm exit / dispatch" : r.movementType} />
+              <Row label="Commodity" value={[r.commodity, r.variety].filter(Boolean).join(" — ") || null} />
+              <Row label="Weight" value={r.weightTonnes ? `${r.weightTonnes} t` : null} />
+              <Row label="Destination" value={r.destination} />
+              <Row label="Vehicle" value={r.vehicleRegistration} />
+              <Row label="Driver" value={r.driverName} />
+              <Row label="Haulier" value={r.haulierCompany} />
+              <Row label="Customer ref" value={r.customerRef} />
+            </div>
+          );
+        })()}
+
+        {linkedRecordType === "grain_sale" && saleQ.data?.record && (() => {
+          const r = saleQ.data.record;
+          const price = r.pricePerTonnePence != null ? `£${(r.pricePerTonnePence / 100).toFixed(2)}/t` : null;
+          const net   = r.netValuePence      != null ? `£${(r.netValuePence      / 100).toFixed(2)}`   : null;
+          return (
+            <div className="pt-1">
+              <Row label="Merchant ref" value={r.merchantRef} />
+              <Row label="Sale date" value={r.saleDate ? r.saleDate.slice(0, 10) : null} />
+              <Row label="Sale type" value={r.saleType} />
+              <Row label="Buyer" value={r.buyer} />
+              <Row label="Commodity" value={[r.commodity, r.variety].filter(Boolean).join(" — ") || null} />
+              <Row label="Crop year" value={r.cropYear} />
+              <Row label="Tonnage" value={r.tonnage ? `${r.tonnage} t` : null} />
+              <Row label="Price/tonne" value={price} />
+              <Row label="Net value" value={net} />
+              <Row label="Invoice No" value={r.invoiceNumber} />
+              <Row label="Delivery date" value={r.deliveryDate ? r.deliveryDate.slice(0, 10) : null} />
+            </div>
+          );
+        })()}
+
+        {linkedRecordType === "harvest_record" && harvestQ.data?.record && (() => {
+          const r = harvestQ.data.record;
+          return (
+            <div className="pt-1">
+              <Row label="Harvest date" value={r.harvestDate ? r.harvestDate.slice(0, 10) : null} />
+              <Row label="Field" value={r.field?.name} />
+              <Row label="Crop" value={[r.crop?.cropType, r.crop?.variety].filter(Boolean).join(" — ") || null} />
+              <Row label="Yield" value={r.yieldTonnes ? `${r.yieldTonnes} t` : null} />
+              <Row label="Area harvested" value={r.areaHarvestedHa ? `${r.areaHarvestedHa} ha` : null} />
+              <Row label="Moisture" value={r.moisturePercent ? `${r.moisturePercent}%` : null} />
+              <Row label="Grade" value={r.qualityGrade} />
+            </div>
+          );
+        })()}
+
+        {!isLoading && (haulQ.isError || saleQ.isError || harvestQ.isError) && (
+          <p className="text-sm text-destructive py-4 text-center">Could not load record. It may belong to a different module.</p>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Stock Movements Tab ─────────────────────────────────────────────────────
 
 function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId: number }) {
@@ -237,6 +401,9 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
   const [movForm, setMovForm] = useState(emptyMovement());
   const [deleteMovId, setDeleteMovId] = useState<number | null>(null);
   const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
+  const [linkType, setLinkType] = useState<string>("");
+  const [linkId, setLinkId] = useState<number | null>(null);
+  const [viewLinked, setViewLinked] = useState<{ type: string; id: number } | null>(null);
 
   const movQ = useQuery<{ records: StockMovement[] }>({
     queryKey: ["location-movements", farmId, locationId],
@@ -263,7 +430,7 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["location-movements", farmId, locationId] });
-      setAddOpen(false); setEditMovement(null); setMovForm(emptyMovement());
+      setAddOpen(false); setEditMovement(null); setMovForm(emptyMovement()); setLinkType(""); setLinkId(null);
       toast({ title: editMovement ? "Movement updated" : "Movement saved" });
     },
     onError: () => toast({ title: "Failed to save movement", variant: "destructive" }),
@@ -275,7 +442,23 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
-  function openAdd() { setEditMovement(null); setMovForm(emptyMovement()); setAddOpen(true); }
+  const haulPickerQ = useQuery<{ records: HaulageRef[] }>({
+    queryKey: ["picker-haulage", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/haulage`, { credentials: "include" }).then((r) => r.json()),
+    enabled: addOpen && linkType === "haulage_record",
+  });
+  const salePickerQ = useQuery<{ records: GrainSaleRef[] }>({
+    queryKey: ["picker-grain-sales", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/grain-sales`, { credentials: "include" }).then((r) => r.json()),
+    enabled: addOpen && linkType === "grain_sale",
+  });
+  const harvestPickerQ = useQuery<{ records: HarvestRef[] }>({
+    queryKey: ["picker-harvests", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/harvests`, { credentials: "include" }).then((r) => r.json()),
+    enabled: addOpen && linkType === "harvest_record",
+  });
+
+  function openAdd() { setEditMovement(null); setMovForm(emptyMovement()); setLinkType(""); setLinkId(null); setAddOpen(true); }
   function openEdit(m: StockMovement) {
     setEditMovement(m);
     setMovForm({
@@ -283,6 +466,8 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
       commodity: m.commodity ?? "", variety: m.variety ?? "", cropYear: m.cropYear ?? "",
       quantityTonnes: m.quantityTonnes, reference: m.reference ?? "", notes: m.notes ?? "",
     });
+    setLinkType(m.linkedRecordType ?? "");
+    setLinkId(m.linkedRecordId ?? null);
     setAddOpen(true);
   }
 
@@ -302,8 +487,12 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
       quantityTonnes: movForm.quantityTonnes,
       reference: movForm.reference || null,
       notes: movForm.notes || null,
+      linkedRecordType: linkType || null,
+      linkedRecordId: linkId || null,
     });
   }
+
+  function closeDialog() { setAddOpen(false); setEditMovement(null); setMovForm(emptyMovement()); setLinkType(""); setLinkId(null); }
 
   return (
     <div className="space-y-3">
@@ -381,7 +570,19 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
                   </td>
                   <td className="px-3 py-2 hidden sm:table-cell text-muted-foreground">{m.commodity || "—"}{m.variety ? ` — ${m.variety}` : ""}</td>
                   <td className="px-3 py-2 hidden md:table-cell text-muted-foreground">{m.cropYear || "—"}</td>
-                  <td className="px-3 py-2 hidden lg:table-cell text-muted-foreground truncate max-w-[120px]">{m.reference || "—"}</td>
+                  <td className="px-3 py-2 hidden lg:table-cell max-w-[140px]">
+                    {m.linkedRecordId ? (
+                      <button
+                        onClick={() => setViewLinked({ type: m.linkedRecordType!, id: m.linkedRecordId! })}
+                        className="group flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                      >
+                        <span className="truncate max-w-[100px] text-xs underline underline-offset-2">{m.reference || `#${m.linkedRecordId}`}</span>
+                        <Link2 className="h-3 w-3 flex-shrink-0 opacity-60 group-hover:opacity-100" />
+                      </button>
+                    ) : (
+                      <span className="text-muted-foreground text-xs truncate">{m.reference || "—"}</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right">
                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${m.direction === "in" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}>
                       {m.direction === "in" ? "IN" : "OUT"}
@@ -402,7 +603,7 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
       )}
 
       {/* Add / Edit Dialog */}
-      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) { setEditMovement(null); setMovForm(emptyMovement()); } }}>
+      <Dialog open={addOpen} onOpenChange={(o) => { if (!o) closeDialog(); else setAddOpen(true); }}>
         <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>{editMovement ? "Edit Movement" : "Record Stock Movement"}</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-1">
@@ -466,9 +667,95 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
               <Label>Notes</Label>
               <Input placeholder="Optional notes" value={movForm.notes} onChange={(e) => setMovForm((f) => ({ ...f, notes: e.target.value }))} />
             </div>
+
+            {/* Link to record */}
+            <div className="space-y-2 border-t pt-3 mt-1">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Link to existing record <span className="normal-case font-normal">(optional)</span></p>
+              <div className="space-y-1">
+                <Label className="text-xs">Record type</Label>
+                <Select value={linkType || "__none__"} onValueChange={(v) => { setLinkType(v === "__none__" ? "" : v); setLinkId(null); }}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="— None —" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    <SelectItem value="haulage_record">Haulage record</SelectItem>
+                    <SelectItem value="grain_sale">Grain sale</SelectItem>
+                    <SelectItem value="harvest_record">Harvest record</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {linkType === "haulage_record" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Select haulage record</Label>
+                  <Select value={linkId ? String(linkId) : "__none__"} onValueChange={(v) => {
+                    if (v === "__none__") { setLinkId(null); return; }
+                    const id = parseInt(v);
+                    setLinkId(id);
+                    const rec = (haulPickerQ.data?.records ?? []).find((r) => r.id === id);
+                    if (rec) setMovForm((f) => ({ ...f, reference: rec.weighbridgeTicketNo || `HAU-${id}` }));
+                  }}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— None —</SelectItem>
+                      {(haulPickerQ.data?.records ?? []).map((r) => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          {r.weighbridgeTicketNo || `HAU-${r.id}`}{r.commodity ? ` · ${r.commodity}` : ""}{r.weightTonnes ? ` · ${r.weightTonnes}t` : ""}{r.destination ? ` → ${r.destination}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {linkType === "grain_sale" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Select grain sale</Label>
+                  <Select value={linkId ? String(linkId) : "__none__"} onValueChange={(v) => {
+                    if (v === "__none__") { setLinkId(null); return; }
+                    const id = parseInt(v);
+                    setLinkId(id);
+                    const rec = (salePickerQ.data?.records ?? []).find((r) => r.id === id);
+                    if (rec) setMovForm((f) => ({ ...f, reference: rec.merchantRef || `SALE-${id}` }));
+                  }}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— None —</SelectItem>
+                      {(salePickerQ.data?.records ?? []).map((r) => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          {r.merchantRef || `SALE-${r.id}`} · {r.buyer} · {r.commodity} {r.tonnage}t
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {linkType === "harvest_record" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Select harvest record</Label>
+                  <Select value={linkId ? String(linkId) : "__none__"} onValueChange={(v) => {
+                    if (v === "__none__") { setLinkId(null); return; }
+                    const id = parseInt(v);
+                    setLinkId(id);
+                    const rec = (harvestPickerQ.data?.records ?? []).find((r) => r.id === id);
+                    if (rec) setMovForm((f) => ({ ...f, reference: `${rec.harvestDate?.slice(0, 10) ?? ""} ${rec.field?.name ?? ""} ${rec.crop?.cropType ?? ""}`.trim() }));
+                  }}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— None —</SelectItem>
+                      {(harvestPickerQ.data?.records ?? []).map((r) => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          {r.harvestDate?.slice(0, 10) ?? "?"} · {r.field?.name ?? "?"} · {r.crop?.cropType ?? "?"}{r.yieldTonnes ? ` ${r.yieldTonnes}t` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter className="pt-2">
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             <Button disabled={!movForm.movementDate || !movForm.quantityTonnes || saveMov.isPending} onClick={handleSubmit}>
               {saveMov.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editMovement ? "Save Changes" : "Save Movement"}
             </Button>
@@ -489,6 +776,16 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Linked record detail viewer */}
+      {viewLinked && (
+        <LinkedRecordDetailDialog
+          farmId={farmId}
+          linkedRecordType={viewLinked.type}
+          linkedRecordId={viewLinked.id}
+          onClose={() => setViewLinked(null)}
+        />
+      )}
     </div>
   );
 }

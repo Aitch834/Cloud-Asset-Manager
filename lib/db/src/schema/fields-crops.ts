@@ -182,6 +182,8 @@ export const storageLocationMovementsTable = pgTable("storage_location_movements
   cropYear: text("crop_year"),
   quantityTonnes: numeric("quantity_tonnes", { precision: 10, scale: 3 }).notNull(),
   reference: text("reference"),
+  linkedRecordType: text("linked_record_type"),
+  linkedRecordId: integer("linked_record_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

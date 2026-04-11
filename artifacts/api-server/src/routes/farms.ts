@@ -784,6 +784,24 @@ router.get("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleB
   });
 });
 
+router.get("/farms/:farmId/harvests/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const rows = await db
+    .select()
+    .from(harvestRecordsTable)
+    .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
+    .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+    .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+    .leftJoin(equipmentTable, eq(harvestRecordsTable.equipmentId, equipmentTable.id))
+    .where(and(eq(harvestRecordsTable.id, recordId), eq(fieldsTable.farmId, farmId)));
+  if (!rows.length) { res.status(404).json({ error: "Not found" }); return; }
+  const r = rows[0];
+  res.json({ record: { ...r.harvest_records, field: r.fields, crop: r.crops, equipment: r.equipment } });
+});
+
 router.post("/farms/:farmId/harvests", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -3041,6 +3059,16 @@ router.get("/farms/:farmId/haulage", requireAuth, requireTenant, requireModuleBy
   if (!farmId) return;
   const records = await db.select().from(haulageRecordsTable).where(eq(haulageRecordsTable.farmId, farmId)).orderBy(desc(haulageRecordsTable.departureDate));
   res.json({ records });
+});
+
+router.get("/farms/:farmId/haulage/:recordId", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.select().from(haulageRecordsTable).where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId)));
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
 });
 
 router.post("/farms/:farmId/haulage", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -14246,6 +14274,17 @@ router.get("/farms/:farmId/grain-sales", requireAuth, requireTenant, requireModu
   const records = await db.select().from(grainSalesTable).where(eq(grainSalesTable.farmId, farmId)).orderBy(desc(grainSalesTable.saleDate));
   res.json({ records });
 });
+
+router.get("/farms/:farmId/grain-sales/:saleId", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const saleId = parseInt(req.params.saleId);
+  if (isNaN(saleId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.select().from(grainSalesTable).where(and(eq(grainSalesTable.id, saleId), eq(grainSalesTable.farmId, farmId)));
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+});
+
 router.post("/farms/:farmId/grain-sales", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
