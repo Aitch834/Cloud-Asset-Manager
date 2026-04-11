@@ -198,6 +198,7 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
   const [deleteChargeId, setDeleteChargeId] = useState<number | null>(null);
   const [autoGenOpen, setAutoGenOpen] = useState(false);
   const [autoGenForm, setAutoGenForm] = useState(emptyAutoGen());
+  const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
 
   const chargesQ = useQuery<{ records: MerchantCharge[] }>({
     queryKey: ["merchant-charges", farmId, locationId],
@@ -205,7 +206,18 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
     enabled: !!farmId,
   });
   const charges: MerchantCharge[] = chargesQ.data?.records ?? [];
-  const totalPence = charges.reduce((s, c) => s + c.amountPence, 0);
+
+  // Derive available years from charge dates so the dropdown only shows years that have data
+  const availableYears: string[] = Array.from(
+    new Set(charges.map((c) => c.chargeDate.slice(0, 4)))
+  ).sort((a, b) => b.localeCompare(a));
+
+  // Ensure the current-year default is included even when there are no charges yet
+  const currentYear = String(new Date().getFullYear());
+  if (!availableYears.includes(currentYear)) availableYears.unshift(currentYear);
+
+  const visibleCharges = filterYear === "__all__" ? charges : charges.filter((c) => c.chargeDate.startsWith(filterYear));
+  const totalPence = visibleCharges.reduce((s, c) => s + c.amountPence, 0);
 
   const saveCharge = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
@@ -256,13 +268,27 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
   return (
     <td colSpan={7} className="px-0 py-0">
       <div className="bg-muted/20 border-t px-6 py-4 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
             <Receipt className="h-4 w-4 text-amber-600" />
             Merchant Storage Charges
             {location.merchantName && <span className="font-normal text-xs">— {location.merchantName}</span>}
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Year filter */}
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">Year:</label>
+              <select
+                value={filterYear}
+                onChange={(e) => setFilterYear(e.target.value)}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                {availableYears.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+                <option value="__all__">All years</option>
+              </select>
+            </div>
             {hasRates && (
               <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => { setAutoGenForm(emptyAutoGen()); setAutoGenOpen(true); }}>
                 <Calculator className="h-3.5 w-3.5" /> Auto-generate
@@ -280,7 +306,11 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
           <p className="text-xs text-muted-foreground italic">No charges recorded yet.{hasRates ? " Use Auto-generate to create charges from the rate card, or add a manual charge." : " Add a manual charge or set up rate card fields in Edit Location."}</p>
         )}
 
-        {charges.length > 0 && (
+        {!chargesQ.isLoading && charges.length > 0 && visibleCharges.length === 0 && (
+          <p className="text-xs text-muted-foreground italic">No charges for {filterYear}. Select a different year or choose "All years".</p>
+        )}
+
+        {visibleCharges.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -295,7 +325,7 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
                 </tr>
               </thead>
               <tbody className="divide-y divide-muted/30">
-                {charges.map((c) => (
+                {visibleCharges.map((c) => (
                   <tr key={c.id} className="hover:bg-muted/20">
                     <td className="py-1.5 pr-3 tabular-nums">{c.chargeDate}</td>
                     <td className="py-1.5 pr-3">
@@ -319,7 +349,9 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-amber-200">
-                  <td colSpan={5} className="py-2 pr-3 text-right font-semibold text-xs">Total charges:</td>
+                  <td colSpan={5} className="py-2 pr-3 text-right font-semibold text-xs">
+                    {filterYear === "__all__" ? "Total (all years):" : `Total ${filterYear}:`}
+                  </td>
                   <td className="py-2 pr-3 text-right font-bold text-sm text-amber-800">{fmtPence(totalPence)}</td>
                   <td />
                 </tr>
