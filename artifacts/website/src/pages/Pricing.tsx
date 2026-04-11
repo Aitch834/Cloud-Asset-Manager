@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout/Layout";
 import { useState, useMemo, useRef } from "react";
-import { Info, Plus, X, Pencil } from "lucide-react";
+import { Info, Plus, X, Pencil, PoundSterling, CalendarCheck, ToggleRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 
@@ -110,7 +110,43 @@ export default function Pricing() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 mb-24">
+      {/* Small Farm Reassurance Strip */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 mb-12 relative z-10">
+        <div className="bg-white rounded-2xl shadow-xl border border-border/60 p-6 md:p-8">
+          <p className="text-center text-sm font-semibold text-brand-forest uppercase tracking-wider mb-6">Whether you farm 40 acres or 4,000 — this is built for you</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-border/40 gap-0">
+            <div className="flex flex-col items-center text-center px-6 py-4 gap-3">
+              <div className="w-11 h-11 bg-brand-pale rounded-xl flex items-center justify-center">
+                <PoundSterling className="w-5 h-5 text-brand-forest" />
+              </div>
+              <div>
+                <p className="font-bold text-foreground">Start from £40/month</p>
+                <p className="text-sm text-muted-foreground mt-0.5">Base platform + Red Tractor Compliance. Less than £500 a year for a fully compliant farm.</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center text-center px-6 py-4 gap-3">
+              <div className="w-11 h-11 bg-brand-pale rounded-xl flex items-center justify-center">
+                <CalendarCheck className="w-5 h-5 text-brand-forest" />
+              </div>
+              <div>
+                <p className="font-bold text-foreground">Month to month, no contracts</p>
+                <p className="text-sm text-muted-foreground mt-0.5">No annual commitments and nothing to pay upfront. Cancel any time with no questions asked.</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center text-center px-6 py-4 gap-3">
+              <div className="w-11 h-11 bg-brand-pale rounded-xl flex items-center justify-center">
+                <ToggleRight className="w-5 h-5 text-brand-forest" />
+              </div>
+              <div>
+                <p className="font-bold text-foreground">Only pay for what you need</p>
+                <p className="text-sm text-muted-foreground mt-0.5">Pick exactly the modules your farm uses today. Add or remove them as your needs change.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-24">
         <div className="bg-white rounded-3xl shadow-2xl border border-border p-6 md:p-10 flex flex-col lg:flex-row gap-12">
           
           <div className="flex-1 space-y-8">
