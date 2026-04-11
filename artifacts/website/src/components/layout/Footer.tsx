@@ -72,7 +72,27 @@ export function Footer() {
 
         </div>
 
-        <div className="pt-8 border-t border-brand-light/20 flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Accreditations strip */}
+        <div className="pt-10 pb-6 border-t border-brand-light/20">
+          <p className="text-brand-pale/50 text-xs uppercase tracking-widest mb-4 text-center">Integrations &amp; Accreditations — Applications in Progress</p>
+          <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-3">
+            {[
+              { label: "BCMS", sub: "CTS Web Services" },
+              { label: "LIS", sub: "Livestock Information Service" },
+              { label: "Red Tractor", sub: "Assured" },
+              { label: "Soil Association", sub: "/ OF&G Organic" },
+              { label: "ICO", sub: "Data Controller" },
+              { label: "Cyber Essentials+", sub: "NCSC" },
+            ].map((item) => (
+              <div key={item.label} className="flex flex-col items-center text-center opacity-50 hover:opacity-75 transition-opacity">
+                <span className="text-brand-pale text-xs font-semibold leading-tight">{item.label}</span>
+                <span className="text-brand-pale/60 text-[10px] leading-tight">{item.sub}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="pt-6 border-t border-brand-light/10 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-brand-pale/60 text-sm">
             &copy; {currentYear} Barnett Davies Enterprises Ltd. All rights reserved.
           </p>
