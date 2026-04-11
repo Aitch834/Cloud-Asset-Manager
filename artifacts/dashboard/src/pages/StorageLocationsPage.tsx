@@ -1092,7 +1092,7 @@ export default function StorageLocationsPage() {
                   <th className="text-left px-4 py-3 font-medium hidden md:table-cell max-w-[200px]">Location</th>
                   <th className="text-left px-4 py-3 font-medium hidden lg:table-cell w-[130px]">GPS</th>
                   <th className="text-left px-4 py-3 font-medium w-[90px]">Status</th>
-                  <th className="px-4 py-3 w-[156px]" />
+                  <th className="px-4 py-3 w-44" />
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -1154,7 +1154,7 @@ export default function StorageLocationsPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-1 justify-end">
+                          <div className="flex items-center gap-1 justify-end shrink-0">
                             <Button
                               variant="ghost" size="icon"
                               title={isExpanded ? "Collapse" : (isGrain ? "Quality Tests & Temperature" : loc.type === "merchant" ? "Merchant Charges" : "Expand")}
