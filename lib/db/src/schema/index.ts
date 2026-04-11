@@ -39,3 +39,4 @@ export * from "./feed-compliance";
 export * from "./crop-trials";
 export * from "./sales";
 export * from "./organic";
+export * from "./farm-services";

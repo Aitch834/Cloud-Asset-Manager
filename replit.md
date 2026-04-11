@@ -21,9 +21,11 @@ The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 - Provides routes for various farm-specific modules, authentication, and administration.
 
 **Database Layer (`lib/db`):**
-- Utilizes PostgreSQL with Drizzle ORM, comprising over 60 tables.
+- Utilizes PostgreSQL with Drizzle ORM, comprising over 70 tables.
 - Covers authentication, core tenant data, leads, support, and all farm management modules (e.g., fields, crops, livestock, equipment, financial).
 - Includes specific tables for various sales types, `farm_locations` for building/area registry, `workshop_goods_returns` for RTN tracking, `herd_health_events` for the Herd Health Register clinical event log, `sire_register` for bull/ram register (owned, hired-in, loaned sires with BVD/scrapie/fertility records), `feed_contingency_plans` for Red Tractor-required feed supply contingency plans, `feed_recall_incidents` for feed withdrawal/recall incident logging, and `disease_incident_log` for timestamped disease and health incident records with APHA reporting fields. The existing `biosecurity_plans` table was extended with emergency contacts (vet, APHA), footwear hygiene, new animal isolation, feed security, and disease suspicion procedure fields.
+- **Farm Services module** (lib/db/src/schema/farm-services.ts): 6 tables — `farm_customers`, `service_agreements`, `third_party_grain_intakes`, `third_party_grain_movements`, `service_invoices`, `service_invoice_lines`. Tracks customers, storage/drying/land-rental/contracting agreements, traceability lot references for third-party grain, and VAT invoicing.
+- **Insurance schema extended**: `farm_insurance` table now has `annual_premium_pence`, `renewal_date`, `broker`, `broker_contact`, `covers_third_party_goods`, `covers_contract_work`, `covers_employer_liability`, `last_reviewed_date`.
 
 **Dashboard (`artifacts/dashboard`):**
 - React + Vite application using `wouter` for routing and TanStack React Query for data fetching.

@@ -20,6 +20,10 @@ const POLICY_TYPES = [
   { value: "livestock", label: "Livestock", critical: false, legalNote: "" },
   { value: "crop_revenue", label: "Crop & Revenue", critical: false, legalNote: "" },
   { value: "environmental_liability", label: "Environmental Liability", critical: false, legalNote: "" },
+  { value: "goods_in_custody", label: "Goods in Custody", critical: false, legalNote: "Required when storing third-party grain or goods — extends cover to include customers' property" },
+  { value: "contract_work", label: "Contract Work (Machinery)", critical: false, legalNote: "Covers liability arising from contracting operations on third-party land" },
+  { value: "tascc", label: "TASCC Trade Assurance Bond", critical: false, legalNote: "Required for commercial grain storage under TASCC membership" },
+  { value: "hired_in_plant", label: "Hired-in Plant", critical: false, legalNote: "Covers hired machinery and equipment — check if your combined policy already includes this" },
   { value: "other", label: "Other", critical: false, legalNote: "" },
 ] as const;
 
@@ -45,6 +49,14 @@ interface InsuranceRecord {
   notes: string | null;
   documentPath: string | null;
   documentName: string | null;
+  annualPremiumPence: number | null;
+  renewalDate: string | null;
+  broker: string | null;
+  brokerContact: string | null;
+  coversThirdPartyGoods: boolean | null;
+  coversContractWork: boolean | null;
+  coversEmployerLiability: boolean | null;
+  lastReviewedDate: string | null;
 }
 
 function expiryStatus(dateStr: string | null): "expired" | "warning" | "ok" | "none" {
@@ -124,7 +136,7 @@ function DocCell({ record, farmId, onRefresh }: { record: InsuranceRecord; farmI
   );
 }
 
-const emptyForm = { policyType: "employers_liability" as PolicyTypeValue, insurer: "", policyNumber: "", policyholderName: "", coverLevelMillion: "", startDate: "", expiryDate: "", notes: "" };
+const emptyForm = { policyType: "employers_liability" as PolicyTypeValue, insurer: "", policyNumber: "", policyholderName: "", coverLevelMillion: "", startDate: "", expiryDate: "", notes: "", annualPremium: "", renewalDate: "", broker: "", brokerContact: "", coversThirdPartyGoods: false, coversContractWork: false, coversEmployerLiability: false, lastReviewedDate: "" };
 
 function InsuranceDialog({ open, onClose, initial, farmId, onSaved }: { open: boolean; onClose: () => void; initial: InsuranceRecord | null; farmId: number; onSaved: () => void }) {
   const { toast } = useToast();
@@ -137,6 +149,14 @@ function InsuranceDialog({ open, onClose, initial, farmId, onSaved }: { open: bo
     startDate: initial.startDate ?? "",
     expiryDate: initial.expiryDate ?? "",
     notes: initial.notes ?? "",
+    annualPremium: initial.annualPremiumPence ? String(initial.annualPremiumPence / 100) : "",
+    renewalDate: initial.renewalDate ?? "",
+    broker: initial.broker ?? "",
+    brokerContact: initial.brokerContact ?? "",
+    coversThirdPartyGoods: initial.coversThirdPartyGoods ?? false,
+    coversContractWork: initial.coversContractWork ?? false,
+    coversEmployerLiability: initial.coversEmployerLiability ?? false,
+    lastReviewedDate: initial.lastReviewedDate ?? "",
   } : emptyForm);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -154,6 +174,14 @@ function InsuranceDialog({ open, onClose, initial, farmId, onSaved }: { open: bo
         startDate: form.startDate || null,
         expiryDate: form.expiryDate || null,
         notes: form.notes || null,
+        annualPremiumPence: form.annualPremium ? Math.round(parseFloat(form.annualPremium) * 100) : null,
+        renewalDate: form.renewalDate || null,
+        broker: form.broker || null,
+        brokerContact: form.brokerContact || null,
+        coversThirdPartyGoods: form.coversThirdPartyGoods,
+        coversContractWork: form.coversContractWork,
+        coversEmployerLiability: form.coversEmployerLiability,
+        lastReviewedDate: form.lastReviewedDate || null,
       };
       const url = initial ? `/api/farms/${farmId}/insurance/${initial.id}` : `/api/farms/${farmId}/insurance`;
       const method = initial ? "PUT" : "POST";
@@ -240,6 +268,47 @@ function InsuranceDialog({ open, onClose, initial, farmId, onSaved }: { open: bo
             <div>
               <label style={labelStyle}>Expiry Date</label>
               <Input type="date" value={form.expiryDate} onChange={e => set("expiryDate", e.target.value)} />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={labelStyle}>Annual Premium (£)</label>
+              <Input type="number" min="0" step="0.01" value={form.annualPremium} onChange={e => set("annualPremium", e.target.value)} placeholder="e.g. 4250.00" />
+            </div>
+            <div>
+              <label style={labelStyle}>Renewal Date</label>
+              <Input type="date" value={form.renewalDate} onChange={e => set("renewalDate", e.target.value)} />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={labelStyle}>Broker / Agent</label>
+              <Input value={form.broker} onChange={e => set("broker", e.target.value)} placeholder="e.g. Lycetts Farm Insurance" />
+            </div>
+            <div>
+              <label style={labelStyle}>Broker Contact</label>
+              <Input value={form.brokerContact} onChange={e => set("brokerContact", e.target.value)} placeholder="Name / phone / email" />
+            </div>
+          </div>
+          <div>
+            <label style={{ ...labelStyle, marginBottom: 6 }}>Coverage Flags</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {[
+                { key: "coversThirdPartyGoods", label: "Covers third-party goods in custody" },
+                { key: "coversContractWork", label: "Covers contract work on third-party land" },
+                { key: "coversEmployerLiability", label: "Includes employer liability cover" },
+              ].map(({ key, label }) => (
+                <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.875rem", cursor: "pointer" }}>
+                  <input type="checkbox" checked={(form as Record<string, unknown>)[key] as boolean} onChange={e => setForm(f => ({ ...f, [key]: e.target.checked }))} style={{ width: 15, height: 15, cursor: "pointer" }} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={labelStyle}>Last Reviewed</label>
+              <Input type="date" value={form.lastReviewedDate} onChange={e => set("lastReviewedDate", e.target.value)} />
             </div>
           </div>
           <div>

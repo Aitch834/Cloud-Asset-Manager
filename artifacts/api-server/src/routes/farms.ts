@@ -111,6 +111,12 @@ import {
   tenantsTable,
   storageLocationsTable,
   merchantStorageChargesTable,
+  farmCustomersTable,
+  serviceAgreementsTable,
+  thirdPartyGrainIntakesTable,
+  thirdPartyGrainMovementsTable,
+  serviceInvoicesTable,
+  serviceInvoiceLinesTable,
   biosecurityPlansTable,
   nvzRiskAssessmentsTable,
   fieldInspectionsTable,
@@ -15060,6 +15066,169 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
     await db.update(lisSubmissionsTable).set({ status: "failed", errorMessage: err?.message ?? "Unknown error", updatedAt: new Date() }).where(eq(lisSubmissionsTable.id, submission.id));
     res.status(500).json({ error: err?.message ?? "Submission failed" });
   }
+});
+
+// ─── Farm Customers ─────────────────────────────────────────────────────────
+router.get("/farms/:farmId/farm-customers", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const records = await db.select().from(farmCustomersTable).where(eq(farmCustomersTable.farmId, farmId)).orderBy(farmCustomersTable.name);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/farm-customers", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const [record] = await db.insert(farmCustomersTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/farm-customers/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(farmCustomersTable).set(req.body).where(and(eq(farmCustomersTable.id, id), eq(farmCustomersTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/farm-customers/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.update(farmCustomersTable).set({ isActive: false }).where(and(eq(farmCustomersTable.id, id), eq(farmCustomersTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Service Agreements ──────────────────────────────────────────────────────
+router.get("/farms/:farmId/service-agreements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const records = await db.select().from(serviceAgreementsTable).where(eq(serviceAgreementsTable.farmId, farmId)).orderBy(serviceAgreementsTable.startDate);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/service-agreements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const [record] = await db.insert(serviceAgreementsTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/service-agreements/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(serviceAgreementsTable).set(req.body).where(and(eq(serviceAgreementsTable.id, id), eq(serviceAgreementsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/service-agreements/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.update(serviceAgreementsTable).set({ status: "terminated" }).where(and(eq(serviceAgreementsTable.id, id), eq(serviceAgreementsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Third-party Grain Intakes ───────────────────────────────────────────────
+router.get("/farms/:farmId/grain-intakes", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const records = await db.select().from(thirdPartyGrainIntakesTable).where(eq(thirdPartyGrainIntakesTable.farmId, farmId)).orderBy(thirdPartyGrainIntakesTable.intakeDate);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/grain-intakes", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const [record] = await db.insert(thirdPartyGrainIntakesTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/grain-intakes/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(thirdPartyGrainIntakesTable).set(req.body).where(and(eq(thirdPartyGrainIntakesTable.id, id), eq(thirdPartyGrainIntakesTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/grain-intakes/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(thirdPartyGrainIntakesTable).where(and(eq(thirdPartyGrainIntakesTable.id, id), eq(thirdPartyGrainIntakesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Third-party Grain Movements ─────────────────────────────────────────────
+router.get("/farms/:farmId/grain-intakes/:intakeId/movements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const intakeId = parseInt(req.params.intakeId);
+  if (isNaN(intakeId)) { res.status(400).json({ error: "Invalid intake ID" }); return; }
+  const records = await db.select().from(thirdPartyGrainMovementsTable)
+    .where(and(eq(thirdPartyGrainMovementsTable.farmId, farmId), eq(thirdPartyGrainMovementsTable.intakeId, intakeId)))
+    .orderBy(thirdPartyGrainMovementsTable.movementDate);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/grain-intakes/:intakeId/movements", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const intakeId = parseInt(req.params.intakeId);
+  if (isNaN(intakeId)) { res.status(400).json({ error: "Invalid intake ID" }); return; }
+  const [record] = await db.insert(thirdPartyGrainMovementsTable).values({ ...req.body, farmId, intakeId }).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/grain-intakes/:intakeId/movements/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(thirdPartyGrainMovementsTable).where(and(eq(thirdPartyGrainMovementsTable.id, id), eq(thirdPartyGrainMovementsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Service Invoices ────────────────────────────────────────────────────────
+router.get("/farms/:farmId/service-invoices", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const invoices = await db.select().from(serviceInvoicesTable).where(eq(serviceInvoicesTable.farmId, farmId)).orderBy(serviceInvoicesTable.invoiceDate);
+  const lines = await db.select().from(serviceInvoiceLinesTable).where(
+    eq(serviceInvoiceLinesTable.invoiceId, serviceInvoiceLinesTable.invoiceId)
+  );
+  res.json({ records: invoices });
+});
+
+router.post("/farms/:farmId/service-invoices", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const { lines: lineItems, ...invoiceData } = req.body as { lines: Array<{ description: string; quantity?: number; unit?: string; unitPricePence: number; lineTotalPence: number }>; [key: string]: unknown };
+  const [invoice] = await db.insert(serviceInvoicesTable).values({ ...invoiceData, farmId }).returning();
+  if (lineItems?.length) {
+    await db.insert(serviceInvoiceLinesTable).values(lineItems.map((l) => ({ ...l, invoiceId: invoice.id })));
+    const subtotal = lineItems.reduce((s, l) => s + l.lineTotalPence, 0);
+    const vatRate = parseFloat(String(invoiceData.vatRatePercent ?? 20));
+    const vatPence = Math.round(subtotal * vatRate / 100);
+    await db.update(serviceInvoicesTable).set({ subtotalPence: subtotal, vatPence, totalPence: subtotal + vatPence }).where(eq(serviceInvoicesTable.id, invoice.id));
+  }
+  const [updated] = await db.select().from(serviceInvoicesTable).where(eq(serviceInvoicesTable.id, invoice.id));
+  res.json({ record: updated });
+});
+
+router.put("/farms/:farmId/service-invoices/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(serviceInvoicesTable).set(req.body).where(and(eq(serviceInvoicesTable.id, id), eq(serviceInvoicesTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/service-invoices/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(serviceInvoiceLinesTable).where(eq(serviceInvoiceLinesTable.invoiceId, id));
+  await db.delete(serviceInvoicesTable).where(and(eq(serviceInvoicesTable.id, id), eq(serviceInvoicesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/service-invoices/:id/lines", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const records = await db.select().from(serviceInvoiceLinesTable).where(eq(serviceInvoiceLinesTable.invoiceId, id)).orderBy(serviceInvoiceLinesTable.id);
+  res.json({ records });
 });
 
 export default router;

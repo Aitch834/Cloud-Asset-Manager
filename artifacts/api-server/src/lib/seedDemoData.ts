@@ -43,6 +43,12 @@ import {
   diversificationActivitiesTable, shootingAndGameRecordsTable, diversificationIncomeRecordsTable, farmShopProductsTable,
   cropTrialsTable, cropTrialPlotsTable, cropTrialYieldsTable,
   farmAdvisorsTable,
+  farmCustomersTable,
+  serviceAgreementsTable,
+  thirdPartyGrainIntakesTable,
+  thirdPartyGrainMovementsTable,
+  serviceInvoicesTable,
+  serviceInvoiceLinesTable,
 } from "@workspace/db/schema";
 import { eq, inArray, and } from "drizzle-orm";
 
@@ -1181,4 +1187,78 @@ async function seedFeedCompliance(farmId: number) {
     ]);
   }
   console.log("[DEMO SEED] Feed compliance seeded");
+
+  // ─── Farm Services ──────────────────────────────────────────────────────────
+  const farmCustExists = await db.select().from(farmCustomersTable).where(eq(farmCustomersTable.farmId, farmId)).limit(1);
+  if (farmCustExists.length === 0) {
+    const [cust1] = await db.insert(farmCustomersTable).values([
+      { farmId, name: "J R & S Atkinson & Sons", contactName: "Robert Atkinson", contactPhone: "07711 234567", contactEmail: "r.atkinson@atkinsonfarm.co.uk", address: "Willow Farm, Digby, Lincoln, LN4 3LZ", holdingNumber: "30/220/0015", vatNumber: "GB 312 4891 23", notes: "Long-standing neighbours — grain storage relationship since 2018. Two deliveries per harvest season." },
+      { farmId, name: "Meldrum Contracting Ltd", contactName: "David Meldrum", contactPhone: "07890 321654", contactEmail: "david@meldrumcontracting.co.uk", address: "Unit 4, Ruskington Business Park, NG34 9AT", vatNumber: "GB 445 7821 07", notes: "Contracting company — we provide grain storage + drying for harvested crops across their client farms." },
+      { farmId, name: "T & M Houlden Partnership", contactName: "Tim Houlden", contactPhone: "01529 412338", contactEmail: "tim@houldenfarming.co.uk", address: "Grange Farm, Aswarby, Sleaford, NG34 8SP", holdingNumber: "30/310/0022", notes: "Small family partnership. Short-term land rental (20 ha). They also use our drying facilities." },
+    ]).returning();
+
+    const custIds = await db.select().from(farmCustomersTable).where(eq(farmCustomersTable.farmId, farmId));
+    const [c1, c2, c3] = custIds;
+
+    // Agreements
+    const [agr1] = await db.insert(serviceAgreementsTable).values([
+      { farmId, customerId: c1.id, agreementType: "grain_storage", title: "Atkinson Grain Storage Agreement 2024/25", referenceNumber: "SA-2024-001", startDate: `${prevYr}-07-01`, endDate: `${yr}-06-30`, status: "active", maxTonnesContracted: "600", storageRatePptWeek: "0.52", intakeChargePpt: "1.40", outloadingChargePpt: "1.40", dryingChargePpt: "8.50", notes: "Segregated storage in Bay A of Main Grain Store. Red Tractor approved lot references required for each delivery." },
+      { farmId, customerId: c2.id, agreementType: "drying_service", title: "Meldrum Drying & Storage Contract 2024", referenceNumber: "SA-2024-002", startDate: `${prevYr}-07-01`, endDate: `${yr}-03-31`, status: "active", maxTonnesContracted: "400", storageRatePptWeek: "0.48", intakeChargePpt: "1.20", outloadingChargePpt: "1.20", dryingChargePpt: "7.80", notes: "Must supply separate lot reference for each client farm batch. TASCC requirements apply." },
+      { farmId, customerId: c3.id, agreementType: "land_rental", title: "Houlden Partnership — 20 ha Rented Land", referenceNumber: "SA-2024-003", startDate: `${prevYr}-10-01`, endDate: `${yr + 2}-09-30`, status: "active", areaHa: "20.00", annualRentPence: 720000, rentPerHaPence: 36000, paymentFrequency: "annual", nextPaymentDate: `${yr}-10-01`, notes: "Block Fields 12–14 (north parcel). 3-year FBT. VAT excluded." },
+    ]).returning();
+
+    const agrIds = await db.select().from(serviceAgreementsTable).where(eq(serviceAgreementsTable.farmId, farmId));
+    const agr = agrIds[0];
+
+    // Grain intakes
+    const [gi1] = await db.insert(thirdPartyGrainIntakesTable).values([
+      { farmId, customerId: c1.id, agreementId: agrIds[0].id, intakeDate: `${prevYr}-08-05`, commodity: "Winter Wheat", variety: "KWS Zyatt", quantityTonnes: "182.50", moisturePercent: "14.8", screeningsPercent: "1.9", specificWeightKgHl: "77.2", grade: "Group 1", lotReference: "LOT-ATK-WW-2024-001", deliveryNoteRef: "DN-ATK-1041", vehicleReg: "LN22 WXP", haulier: "Atkinson in-house", bayOrBin: "Bay A — North end", status: "in_store", notes: "First delivery of 2024 harvest. Good spec." },
+      { farmId, customerId: c1.id, agreementId: agrIds[0].id, intakeDate: `${prevYr}-08-12`, commodity: "Winter Wheat", variety: "KWS Zyatt", quantityTonnes: "215.80", moisturePercent: "15.6", screeningsPercent: "2.1", specificWeightKgHl: "76.8", grade: "Group 1", lotReference: "LOT-ATK-WW-2024-002", deliveryNoteRef: "DN-ATK-1057", vehicleReg: "LN22 WXP", haulier: "Atkinson in-house", bayOrBin: "Bay A — South end", status: "in_store", notes: "Second delivery. Marginally higher moisture — check drying requirements." },
+      { farmId, customerId: c2.id, agreementId: agrIds[1].id, intakeDate: `${prevYr}-08-20`, commodity: "Winter Barley", variety: "KWS Orwell", quantityTonnes: "94.20", moisturePercent: "16.2", screeningsPercent: "1.4", specificWeightKgHl: "68.5", grade: "Malting", lotReference: "LOT-MEL-WB-2024-001", deliveryNoteRef: "DN-MEL-0312", vehicleReg: "PE71 HXA", haulier: "Fenland Haulage Ltd", bayOrBin: "Bay C", status: "partially_removed", notes: "Meldrum client — Thornton Farm batch. To be dried to 14.5% before outloading." },
+    ]).returning();
+
+    // Grain movement
+    const giAll = await db.select().from(thirdPartyGrainIntakesTable).where(eq(thirdPartyGrainIntakesTable.farmId, farmId));
+    const meldrumIntake = giAll.find((g) => g.lotReference?.includes("MEL"));
+    if (meldrumIntake) {
+      await db.insert(thirdPartyGrainMovementsTable).values({
+        farmId, intakeId: meldrumIntake.id, movementDate: `${prevYr}-09-10`, movementType: "outloading",
+        quantityTonnes: "48.00", destination: "Frontier Ag Sleaford (malting contract)", vehicleReg: "PE71 HXA",
+        haulier: "Fenland Haulage Ltd", deliveryNoteRef: "DON-MEL-0088", notes: "First part-load outloaded to Frontier for malting contract. Balance remains in store.",
+      });
+    }
+
+    // Invoices
+    const [inv1] = await db.insert(serviceInvoicesTable).values({
+      farmId, customerId: c1.id, agreementId: agrIds[0].id, invoiceNumber: "SVC-2024-001",
+      invoiceDate: `${prevYr}-10-01`, dueDate: `${prevYr}-10-31`, status: "paid",
+      subtotalPence: 214200, vatRatePercent: "20", vatPence: 42840, totalPence: 257040,
+      paymentDate: `${prevYr}-10-22`, paymentMethod: "BACS", paymentReference: "ATKINSON OCT24",
+      notes: "Storage charges Q1: 398.3t x 0.52/t/week x 13 weeks (Jul–Sep). Intake charges: 398.3t @ £1.40/t.",
+    }).returning();
+    await db.insert(serviceInvoiceLinesTable).values([
+      { invoiceId: inv1.id, description: "Grain storage — 398.3t x 13 weeks @ £0.52/t/wk", quantity: "398.3", unit: "t", unitPricePence: 676, lineTotalPence: 179832 },
+      { invoiceId: inv1.id, description: "Intake handling — 398.3t @ £1.40/t", quantity: "398.3", unit: "t", unitPricePence: 140, lineTotalPence: 27762 },
+      { invoiceId: inv1.id, description: "Out-of-hours weekend weighbridge supervision", quantity: "1", unit: "visit", unitPricePence: 6500, lineTotalPence: 6500 },
+    ]);
+
+    const [inv2] = await db.insert(serviceInvoicesTable).values({
+      farmId, customerId: c2.id, agreementId: agrIds[1].id, invoiceNumber: "SVC-2024-002",
+      invoiceDate: `${prevYr}-10-01`, dueDate: `${prevYr}-10-31`, status: "sent",
+      subtotalPence: 98640, vatRatePercent: "20", vatPence: 19728, totalPence: 118368,
+      notes: "Storage + drying charges for Meldrum batch Aug–Sep 2024.",
+    }).returning();
+    await db.insert(serviceInvoiceLinesTable).values([
+      { invoiceId: inv2.id, description: "Drying — 94.2t (16.2% to 14.5%) @ £7.80/t", quantity: "94.2", unit: "t", unitPricePence: 780, lineTotalPence: 73476 },
+      { invoiceId: inv2.id, description: "Intake handling — 94.2t @ £1.20/t", quantity: "94.2", unit: "t", unitPricePence: 120, lineTotalPence: 11304 },
+      { invoiceId: inv2.id, description: "Storage — 46.2t x 6 weeks @ £0.48/t/wk", quantity: "46.2", unit: "t", unitPricePence: 288, lineTotalPence: 13858 },
+    ]);
+
+    await db.update(serviceInvoicesTable).set({ subtotalPence: 214200, vatPence: 42840, totalPence: 257040 }).where(eq(serviceInvoicesTable.id, inv1.id));
+    await db.update(serviceInvoicesTable).set({ subtotalPence: 98640, vatPence: 19728, totalPence: 118368 }).where(eq(serviceInvoicesTable.id, inv2.id));
+
+    console.log("[DEMO SEED] Farm services seeded");
+  } else {
+    console.log("[DEMO SEED] Farm services already seeded — skipping");
+  }
 }
