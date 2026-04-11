@@ -111,6 +111,7 @@ import {
   tenantsTable,
   storageLocationsTable,
   merchantStorageChargesTable,
+  storageLocationMovementsTable,
   farmCustomersTable,
   serviceAgreementsTable,
   thirdPartyGrainIntakesTable,
@@ -4775,6 +4776,50 @@ router.delete("/farms/:farmId/storage-locations/:locationId/charges/:chargeId", 
   const chargeId = parseInt(req.params.chargeId);
   if (isNaN(chargeId)) { res.status(400).json({ error: "Invalid charge ID" }); return; }
   await db.delete(merchantStorageChargesTable).where(and(eq(merchantStorageChargesTable.id, chargeId), eq(merchantStorageChargesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Storage Location Movements ────────────────────
+router.get("/farms/:farmId/storage-locations/:locationId/movements", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const locationId = parseInt(req.params.locationId);
+  if (isNaN(locationId)) { res.status(400).json({ error: "Invalid location ID" }); return; }
+  const records = await db.select().from(storageLocationMovementsTable)
+    .where(and(eq(storageLocationMovementsTable.farmId, farmId), eq(storageLocationMovementsTable.locationId, locationId)))
+    .orderBy(storageLocationMovementsTable.movementDate);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/storage-locations/:locationId/movements", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const locationId = parseInt(req.params.locationId);
+  if (isNaN(locationId)) { res.status(400).json({ error: "Invalid location ID" }); return; }
+  const [record] = await db.insert(storageLocationMovementsTable).values({ ...req.body, farmId, locationId }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/storage-locations/:locationId/movements/:movementId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const locationId = parseInt(req.params.locationId);
+  const movementId = parseInt(req.params.movementId);
+  if (isNaN(locationId) || isNaN(movementId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(storageLocationMovementsTable)
+    .set(req.body)
+    .where(and(eq(storageLocationMovementsTable.id, movementId), eq(storageLocationMovementsTable.farmId, farmId), eq(storageLocationMovementsTable.locationId, locationId)))
+    .returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/storage-locations/:locationId/movements/:movementId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const locationId = parseInt(req.params.locationId);
+  const movementId = parseInt(req.params.movementId);
+  if (isNaN(locationId) || isNaN(movementId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(storageLocationMovementsTable).where(and(eq(storageLocationMovementsTable.id, movementId), eq(storageLocationMovementsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

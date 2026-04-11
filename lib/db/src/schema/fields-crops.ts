@@ -170,6 +170,22 @@ export const merchantStorageChargesTable = pgTable("merchant_storage_charges", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const storageLocationMovementsTable = pgTable("storage_location_movements", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id, { onDelete: "cascade" }),
+  locationId: integer("location_id").notNull().references(() => storageLocationsTable.id, { onDelete: "cascade" }),
+  movementDate: text("movement_date").notNull(),
+  movementType: text("movement_type").notNull(),
+  direction: text("direction").notNull(),
+  commodity: text("commodity"),
+  variety: text("variety"),
+  cropYear: text("crop_year"),
+  quantityTonnes: numeric("quantity_tonnes", { precision: 10, scale: 3 }).notNull(),
+  reference: text("reference"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const cropFinancialTransactionsTable = pgTable("crop_financial_transactions", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

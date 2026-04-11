@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Warehouse, Plus, Pencil, Trash2, CheckCircle, XCircle, MapPin, QrCode,
   Loader2, Printer, Thermometer, FlaskConical, ChevronDown, ChevronUp,
-  Banknote, Receipt, Calculator, Building2,
+  Banknote, Receipt, Calculator, Building2, Layers,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -96,6 +96,21 @@ interface TempLog {
   notes?: string | null;
 }
 
+interface StockMovement {
+  id: number;
+  locationId: number;
+  movementDate: string;
+  movementType: string;
+  direction: string;
+  commodity: string | null;
+  variety: string | null;
+  cropYear: string | null;
+  quantityTonnes: string;
+  reference: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
 const LOCATION_TYPES: { value: string; label: string }[] = [
   { value: "grain_store", label: "Grain Store" },
   { value: "silo", label: "Silo" },
@@ -182,8 +197,300 @@ const CHARGE_TYPE_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+const MOVEMENT_TYPES: { value: string; label: string; direction: "in" | "out" | "either" }[] = [
+  { value: "intake",       label: "Intake",       direction: "in"     },
+  { value: "dispatch",     label: "Dispatch",     direction: "out"    },
+  { value: "transfer_in",  label: "Transfer In",  direction: "in"     },
+  { value: "transfer_out", label: "Transfer Out", direction: "out"    },
+  { value: "sample",       label: "Sample Out",   direction: "out"    },
+  { value: "drying_loss",  label: "Drying Loss",  direction: "out"    },
+  { value: "adjustment",   label: "Adjustment",   direction: "either" },
+];
+
+const movTypeDirection = (type: string): "in" | "out" | "either" =>
+  MOVEMENT_TYPES.find((m) => m.value === type)?.direction ?? "in";
+
+const emptyMovement = () => ({
+  movementDate: new Date().toISOString().slice(0, 10),
+  movementType: "intake",
+  direction: "in",
+  commodity: "",
+  variety: "",
+  cropYear: "",
+  quantityTonnes: "",
+  reference: "",
+  notes: "",
+});
+
 function fmtPence(pence: number) {
   return `£${(pence / 100).toFixed(2)}`;
+}
+
+// ─── Stock Movements Tab ─────────────────────────────────────────────────────
+
+function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [editMovement, setEditMovement] = useState<StockMovement | null>(null);
+  const [movForm, setMovForm] = useState(emptyMovement());
+  const [deleteMovId, setDeleteMovId] = useState<number | null>(null);
+  const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
+
+  const movQ = useQuery<{ records: StockMovement[] }>({
+    queryKey: ["location-movements", farmId, locationId],
+    queryFn: () => fetch(`/api/farms/${farmId}/storage-locations/${locationId}/movements`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const movements: StockMovement[] = movQ.data?.records ?? [];
+
+  const currentYear = String(new Date().getFullYear());
+  const availableYears: string[] = Array.from(new Set(movements.map((m) => m.movementDate.slice(0, 4)))).sort((a, b) => b.localeCompare(a));
+  if (!availableYears.includes(currentYear)) availableYears.unshift(currentYear);
+
+  const visible = filterYear === "__all__" ? movements : movements.filter((m) => m.movementDate.startsWith(filterYear));
+  const totalIn  = visible.filter((m) => m.direction === "in").reduce((s, m) => s + parseFloat(m.quantityTonnes || "0"), 0);
+  const totalOut = visible.filter((m) => m.direction === "out").reduce((s, m) => s + parseFloat(m.quantityTonnes || "0"), 0);
+  const balance  = totalIn - totalOut;
+
+  const saveMov = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editMovement
+        ? `/api/farms/${farmId}/storage-locations/${locationId}/movements/${editMovement.id}`
+        : `/api/farms/${farmId}/storage-locations/${locationId}/movements`;
+      return fetch(url, { method: editMovement ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then((r) => r.json());
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["location-movements", farmId, locationId] });
+      setAddOpen(false); setEditMovement(null); setMovForm(emptyMovement());
+      toast({ title: editMovement ? "Movement updated" : "Movement saved" });
+    },
+    onError: () => toast({ title: "Failed to save movement", variant: "destructive" }),
+  });
+
+  const deleteMov = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/storage-locations/${locationId}/movements/${id}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["location-movements", farmId, locationId] }); setDeleteMovId(null); toast({ title: "Movement deleted" }); },
+    onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+  });
+
+  function openAdd() { setEditMovement(null); setMovForm(emptyMovement()); setAddOpen(true); }
+  function openEdit(m: StockMovement) {
+    setEditMovement(m);
+    setMovForm({
+      movementDate: m.movementDate, movementType: m.movementType, direction: m.direction,
+      commodity: m.commodity ?? "", variety: m.variety ?? "", cropYear: m.cropYear ?? "",
+      quantityTonnes: m.quantityTonnes, reference: m.reference ?? "", notes: m.notes ?? "",
+    });
+    setAddOpen(true);
+  }
+
+  function handleTypeChange(type: string) {
+    const dir = movTypeDirection(type);
+    setMovForm((f) => ({ ...f, movementType: type, direction: dir === "either" ? f.direction : dir }));
+  }
+
+  function handleSubmit() {
+    saveMov.mutate({
+      movementDate: movForm.movementDate,
+      movementType: movForm.movementType,
+      direction: movForm.direction,
+      commodity: movForm.commodity || null,
+      variety: movForm.variety || null,
+      cropYear: movForm.cropYear || null,
+      quantityTonnes: movForm.quantityTonnes,
+      reference: movForm.reference || null,
+      notes: movForm.notes || null,
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-1.5">
+          <label className="text-xs text-muted-foreground whitespace-nowrap">Year:</label>
+          <select
+            value={filterYear}
+            onChange={(e) => setFilterYear(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+            <option value="__all__">All years</option>
+          </select>
+        </div>
+        <Button size="sm" className="gap-1.5 text-xs h-8" onClick={openAdd}>
+          <Plus className="h-3.5 w-3.5" /> Record Movement
+        </Button>
+      </div>
+
+      {/* Balance summary */}
+      {visible.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-md border bg-green-50 px-3 py-2 text-center">
+            <p className="text-[10px] text-green-700 font-medium uppercase tracking-wide">Total In</p>
+            <p className="text-sm font-bold text-green-800 tabular-nums">{totalIn.toFixed(2)} t</p>
+          </div>
+          <div className="rounded-md border bg-amber-50 px-3 py-2 text-center">
+            <p className="text-[10px] text-amber-700 font-medium uppercase tracking-wide">Total Out</p>
+            <p className="text-sm font-bold text-amber-800 tabular-nums">{totalOut.toFixed(2)} t</p>
+          </div>
+          <div className={`rounded-md border px-3 py-2 text-center ${balance >= 0 ? "bg-blue-50" : "bg-red-50"}`}>
+            <p className={`text-[10px] font-medium uppercase tracking-wide ${balance >= 0 ? "text-blue-700" : "text-red-700"}`}>Balance</p>
+            <p className={`text-sm font-bold tabular-nums ${balance >= 0 ? "text-blue-800" : "text-red-800"}`}>{balance.toFixed(2)} t</p>
+          </div>
+        </div>
+      )}
+
+      {movQ.isLoading && <p className="text-xs text-muted-foreground">Loading movements…</p>}
+      {!movQ.isLoading && movements.length === 0 && (
+        <div className="border rounded-lg p-8 text-center text-muted-foreground">
+          <Layers className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No stock movements recorded yet.</p>
+          <p className="text-xs mt-1">Use "Record Movement" to log intake, dispatch, or transfers.</p>
+        </div>
+      )}
+      {!movQ.isLoading && movements.length > 0 && visible.length === 0 && (
+        <p className="text-xs text-muted-foreground italic">No movements for {filterYear}. Select a different year or "All years".</p>
+      )}
+
+      {visible.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">Date</th>
+                <th className="text-left px-3 py-2 font-medium">Type</th>
+                <th className="text-left px-3 py-2 font-medium hidden sm:table-cell">Commodity</th>
+                <th className="text-left px-3 py-2 font-medium hidden md:table-cell">Crop Year</th>
+                <th className="text-left px-3 py-2 font-medium hidden lg:table-cell">Reference</th>
+                <th className="text-right px-3 py-2 font-medium">Dir</th>
+                <th className="text-right px-3 py-2 font-medium">Qty (t)</th>
+                <th className="px-2 py-2 w-14" />
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {visible.map((m) => (
+                <tr key={m.id} className="hover:bg-muted/30">
+                  <td className="px-3 py-2 tabular-nums">{m.movementDate}</td>
+                  <td className="px-3 py-2">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-muted text-[10px] font-medium">
+                      {MOVEMENT_TYPES.find((t) => t.value === m.movementType)?.label ?? m.movementType}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 hidden sm:table-cell text-muted-foreground">{m.commodity || "—"}{m.variety ? ` — ${m.variety}` : ""}</td>
+                  <td className="px-3 py-2 hidden md:table-cell text-muted-foreground">{m.cropYear || "—"}</td>
+                  <td className="px-3 py-2 hidden lg:table-cell text-muted-foreground truncate max-w-[120px]">{m.reference || "—"}</td>
+                  <td className="px-3 py-2 text-right">
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${m.direction === "in" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}>
+                      {m.direction === "in" ? "IN" : "OUT"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right font-medium tabular-nums">{parseFloat(m.quantityTonnes).toFixed(3)}</td>
+                  <td className="px-2 py-2">
+                    <div className="flex items-center gap-0.5 justify-end">
+                      <button onClick={() => openEdit(m)} className="p-1 rounded hover:bg-muted/50"><Pencil className="h-3 w-3" /></button>
+                      <button onClick={() => setDeleteMovId(m.id)} className="p-1 rounded hover:bg-muted/50 text-destructive"><Trash2 className="h-3 w-3" /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add / Edit Dialog */}
+      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) { setEditMovement(null); setMovForm(emptyMovement()); } }}>
+        <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>{editMovement ? "Edit Movement" : "Record Stock Movement"}</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Date <span className="text-destructive">*</span></Label>
+                <Input type="date" value={movForm.movementDate} onChange={(e) => setMovForm((f) => ({ ...f, movementDate: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Movement type <span className="text-destructive">*</span></Label>
+                <Select value={movForm.movementType} onValueChange={handleTypeChange}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MOVEMENT_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {movTypeDirection(movForm.movementType) === "either" && (
+              <div className="space-y-1">
+                <Label>Direction</Label>
+                <Select value={movForm.direction} onValueChange={(v) => setMovForm((f) => ({ ...f, direction: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="in">In (stock increase)</SelectItem>
+                    <SelectItem value="out">Out (stock decrease)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Commodity</Label>
+                <Input list="crop-types-list" placeholder="e.g. Wheat" value={movForm.commodity} onChange={(e) => setMovForm((f) => ({ ...f, commodity: e.target.value }))} />
+                <datalist id="crop-types-list">{CROP_TYPES.map((c) => <option key={c} value={c} />)}</datalist>
+              </div>
+              <div className="space-y-1">
+                <Label>Variety</Label>
+                <Input placeholder="e.g. Skyscraper" value={movForm.variety} onChange={(e) => setMovForm((f) => ({ ...f, variety: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Crop year</Label>
+                <Input placeholder="e.g. 2024/25" value={movForm.cropYear} onChange={(e) => setMovForm((f) => ({ ...f, cropYear: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Quantity (tonnes) <span className="text-destructive">*</span></Label>
+                <Input type="number" step="0.001" placeholder="0.000" value={movForm.quantityTonnes} onChange={(e) => setMovForm((f) => ({ ...f, quantityTonnes: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Reference</Label>
+              <Input placeholder="Haulage ticket, contract ref, etc." value={movForm.reference} onChange={(e) => setMovForm((f) => ({ ...f, reference: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <Input placeholder="Optional notes" value={movForm.notes} onChange={(e) => setMovForm((f) => ({ ...f, notes: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button disabled={!movForm.movementDate || !movForm.quantityTonnes || saveMov.isPending} onClick={handleSubmit}>
+              {saveMov.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editMovement ? "Save Changes" : "Save Movement"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm */}
+      <Dialog open={deleteMovId !== null} onOpenChange={(o) => { if (!o) setDeleteMovId(null); }}>
+        <DialogContent style={{ maxWidth: 380 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Delete Movement</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Are you sure? This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteMovId(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={deleteMov.isPending} onClick={() => deleteMovId !== null && deleteMov.mutate(deleteMovId)}>
+              {deleteMov.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
 
 // ─── Merchant Charges Panel ──────────────────────────────────────────────────
@@ -539,7 +846,7 @@ const emptyTempLog = () => ({
 function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: number; locationId: number; locationType: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [tab, setTab] = useState<"quality" | "temperature">("quality");
+  const [tab, setTab] = useState<"stock" | "quality" | "temperature">("stock");
 
   const [testOpen, setTestOpen] = useState(false);
   const [editTest, setEditTest] = useState<QualityTest | null>(null);
@@ -653,6 +960,9 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
         {isGrainMonitored ? (
           <>
             <TabBar>
+              <TabButton active={tab === "stock"} onClick={() => setTab("stock")}>
+                <span className="flex items-center gap-1.5"><Layers className="h-3.5 w-3.5" /> Stock Movements</span>
+              </TabButton>
               <TabButton active={tab === "quality"} onClick={() => setTab("quality")}>
                 <span className="flex items-center gap-1.5"><FlaskConical className="h-3.5 w-3.5" /> Quality Tests</span>
               </TabButton>
@@ -660,6 +970,8 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
                 <span className="flex items-center gap-1.5"><Thermometer className="h-3.5 w-3.5" /> Temperature Logs</span>
               </TabButton>
             </TabBar>
+
+            {tab === "stock" && <StockMovementsTab farmId={farmId} locationId={locationId} />}
 
             {tab === "quality" && (
               <div className="space-y-2">
@@ -765,9 +1077,7 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
             )}
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Quality tests and temperature monitoring are available for grain stores, silos, and bins.
-          </p>
+          <StockMovementsTab farmId={farmId} locationId={locationId} />
         )}
       </div>
 
