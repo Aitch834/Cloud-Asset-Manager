@@ -1,4 +1,5 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { useSearch } from "wouter";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -117,7 +118,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function InspectionsTab({ farmId }: { farmId: number }) {
+function InspectionsTab({ farmId, openInspId }: { farmId: number; openInspId?: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const inspectionTypes = useLookupStrings("inspection_types", ["Red Tractor", "Internal Audit", "EHO", "Trading Standards", "Organic", "Other"]);
@@ -138,6 +139,13 @@ function InspectionsTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
     select: (d) => d.records ?? [],
   });
+
+  // Auto-open a specific inspection record when deep-linked from Week Ahead
+  useEffect(() => {
+    if (!openInspId || !q.data) return;
+    const record = (q.data as any[]).find((r: any) => r.id === openInspId);
+    if (record) setViewRecord(record);
+  }, [openInspId, q.data]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["inspections", farmId] });
 
@@ -425,12 +433,13 @@ function PipelineBar({ step }: { step: number }) {
 }
 
 // ─── Issues Register Tab ──────────────────────────────────────────────────────
-function IssuesRegisterTab({ farmId }: { farmId: number }) {
+function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
   // ── State ──
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const highlightCaRef = useRef<HTMLDivElement | null>(null);
   const [ncAddOpen, setNcAddOpen] = useState(false);
   const [ncEdit, setNcEdit] = useState<any | null>(null);
   const [ncDeleteId, setNcDeleteId] = useState<number | null>(null);
@@ -451,6 +460,19 @@ function IssuesRegisterTab({ farmId }: { farmId: number }) {
     select: (d: any) => d.issues ?? [],
   });
   const issues: any[] = q.data ?? [];
+
+  // Auto-expand NC containing the deep-linked corrective action
+  useEffect(() => {
+    if (!openCaId || !q.data) return;
+    const parentNc = (q.data as any[]).find((nc: any) =>
+      (nc.correctiveActions ?? []).some((ca: any) => ca.id === openCaId)
+    );
+    if (parentNc) {
+      setExpanded(prev => { const s = new Set(prev); s.add(parentNc.id); return s; });
+      // Scroll to the highlighted CA after render
+      setTimeout(() => { highlightCaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); }, 300);
+    }
+  }, [openCaId, q.data]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["issues-register", farmId] });
 
@@ -613,8 +635,9 @@ function IssuesRegisterTab({ farmId }: { farmId: number }) {
                       <div style={{ padding: "8px 14px 4px 40px" }}>
                         {cas.map((ca: any, i: number) => {
                           const isOverdue = ca.dueDate && new Date(ca.dueDate) < new Date() && ca.status !== "verified" && ca.status !== "closed";
+                          const isHighlighted = openCaId === ca.id;
                           return (
-                            <div key={ca.id} style={{ borderBottom: i < cas.length - 1 ? "1px solid #f3f4f6" : "none", padding: "8px 0", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                            <div key={ca.id} ref={isHighlighted ? highlightCaRef : null} style={{ borderBottom: i < cas.length - 1 ? "1px solid #f3f4f6" : "none", padding: "8px 6px", display: "flex", alignItems: "flex-start", gap: 10, borderRadius: isHighlighted ? 8 : 0, background: isHighlighted ? "#fef9c3" : "transparent", outline: isHighlighted ? "2px solid #fbbf24" : "none", transition: "background 0.5s" }}>
                               <div style={{ width: 8, height: 8, borderRadius: "50%", background: ca.status === "verified" ? "#16a34a" : ca.status === "closed" ? "#2563eb" : ca.status === "in_progress" ? "#f59e0b" : "#ef4444", marginTop: 6, flexShrink: 0 }} />
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <p style={{ fontSize: "0.825rem", fontWeight: 500, color: "#374151", margin: 0 }}>{ca.description}</p>
@@ -1447,7 +1470,13 @@ function ComplianceReportModal({ farmId, onClose }: { farmId: number; onClose: (
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function InspectionsPageFull() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("inspections");
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const urlTab = params.get("tab") as Tab | null;
+  const urlInspId = params.get("id") ? parseInt(params.get("id")!, 10) : undefined;
+  const urlCaId = params.get("caId") ? parseInt(params.get("caId")!, 10) : undefined;
+
+  const [tab, setTab] = useState<Tab>(urlTab && ["inspections", "issues-register", "assurance-certs"].includes(urlTab) ? urlTab : "inspections");
   const [reportOpen, setReportOpen] = useState(false);
 
   return (
@@ -1466,8 +1495,8 @@ export default function InspectionsPageFull() {
           <TabButton active={tab === "issues-register"} onClick={() => setTab("issues-register")}>Issues Register</TabButton>
           <TabButton active={tab === "assurance-certs"} onClick={() => setTab("assurance-certs")}>Assurance Certificates</TabButton>
         </TabBar>
-        {farmId && tab === "inspections" && <InspectionsTab farmId={farmId} />}
-        {farmId && tab === "issues-register" && <IssuesRegisterTab farmId={farmId} />}
+        {farmId && tab === "inspections" && <InspectionsTab farmId={farmId} openInspId={urlInspId} />}
+        {farmId && tab === "issues-register" && <IssuesRegisterTab farmId={farmId} openCaId={urlCaId} />}
         {farmId && tab === "assurance-certs"  && <AssuranceCertsTab farmId={farmId} />}
         {farmId && reportOpen && <ComplianceReportModal farmId={farmId} onClose={() => setReportOpen(false)} />}
       </div>

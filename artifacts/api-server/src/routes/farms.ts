@@ -9866,7 +9866,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .from(inspectionRecordsTable)
       .where(and(eq(inspectionRecordsTable.farmId, farmId), isNotNull(inspectionRecordsTable.nextInspectionDue), gte(inspectionRecordsTable.nextInspectionDue, overdueStart), lt(inspectionRecordsTable.nextInspectionDue, rangeEnd))),
 
-    db.select({ id: correctiveActionsTable.id, description: correctiveActionsTable.description, dueDate: correctiveActionsTable.dueDate, status: correctiveActionsTable.status })
+    db.select({ id: correctiveActionsTable.id, nonconformanceId: correctiveActionsTable.nonconformanceId, description: correctiveActionsTable.description, dueDate: correctiveActionsTable.dueDate, status: correctiveActionsTable.status })
       .from(correctiveActionsTable)
       .innerJoin(nonconformanceRecordsTable, eq(correctiveActionsTable.nonconformanceId, nonconformanceRecordsTable.id))
       .where(and(eq(nonconformanceRecordsTable.farmId, farmId), isNotNull(correctiveActionsTable.dueDate), gte(correctiveActionsTable.dueDate, overdueStart), lt(correctiveActionsTable.dueDate, rangeEnd))),
@@ -10081,11 +10081,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   }
   for (const r of inspectionRows) {
     if (!r.nextInspectionDue) continue;
-    tasks.push({ id: `insp-${r.id}`, type: "inspection_due", title: `Inspection Due — ${r.inspectionType || "General"}`, description: `A ${r.inspectionType || "farm inspection"} is scheduled. Log the outcome in Inspections & Audits.`, dueDate: toISO(r.nextInspectionDue)!, module: "Inspections & Audits", href: "/inspections", colour: "violet" });
+    tasks.push({ id: `insp-${r.id}`, type: "inspection_due", title: `Inspection Due — ${r.inspectionType || "General"}`, description: `A ${r.inspectionType || "farm inspection"} is scheduled. Log the outcome in Inspections & Audits.`, dueDate: toISO(r.nextInspectionDue)!, module: "Inspections & Audits", href: `/inspections?id=${r.id}`, colour: "violet" });
   }
   for (const r of correctiveRows) {
     if (!r.dueDate || r.status === "completed" || r.status === "closed") continue;
-    tasks.push({ id: `ca-${r.id}`, type: "corrective_action", title: `Corrective Action Due`, description: `A corrective action '${r.description || "Unnamed"}' must be completed by this date to close the non-conformance.`, dueDate: toISO(r.dueDate)!, module: "Inspections & Audits", href: "/inspections", colour: "violet" });
+    tasks.push({ id: `ca-${r.id}`, type: "corrective_action", title: `Corrective Action Due`, description: `A corrective action '${r.description || "Unnamed"}' must be completed by this date to close the non-conformance.`, dueDate: toISO(r.dueDate)!, module: "Inspections & Audits", href: `/inspections?tab=issues-register&caId=${r.id}`, colour: "violet" });
   }
   for (const r of riskRows) {
     if (!r.reviewDate || r.status === "archived") continue;
