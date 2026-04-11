@@ -1153,23 +1153,23 @@ export default function StorageLocationsPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-1 justify-end shrink-0">
+                        <td className="px-2 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-0.5 justify-end">
                             <Button
                               variant="ghost" size="icon"
                               title={isExpanded ? "Collapse" : (isGrain ? "Quality Tests & Temperature" : loc.type === "merchant" ? "Merchant Charges" : "Expand")}
                               onClick={() => toggleExpand(loc.id)}
-                              className={(isGrain || loc.type === "merchant") ? "text-amber-600" : "text-muted-foreground"}
+                              className={`h-8 w-8 ${(isGrain || loc.type === "merchant") ? "text-amber-600" : "text-muted-foreground"}`}
                             >
                               {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </Button>
-                            <Button variant="ghost" size="icon" title="QR Code" onClick={() => setQrLocation(loc)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" title="QR Code" onClick={() => setQrLocation(loc)}>
                               <QrCode className="h-4 w-4 text-teal-600" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => openEdit(loc)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(loc)}>
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => setDeleteId(loc.id)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteId(loc.id)}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </div>
