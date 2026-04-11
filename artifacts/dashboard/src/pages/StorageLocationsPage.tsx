@@ -678,11 +678,13 @@ export default function StorageLocationsPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6 max-w-5xl mx-auto">
+      <div className="p-6 space-y-6 max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Warehouse className="h-7 w-7 text-amber-600" />
+            <div className="w-11 h-11 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+              <Warehouse className="h-6 w-6 text-amber-600" />
+            </div>
             <div>
               <h1 className="text-2xl font-bold">Storage Locations</h1>
               <p className="text-sm text-muted-foreground">
@@ -712,13 +714,13 @@ export default function StorageLocationsPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium">Name</th>
-                  <th className="text-left px-4 py-3 font-medium">Type</th>
-                  <th className="text-left px-4 py-3 font-medium">Capacity (t)</th>
-                  <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Location</th>
-                  <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">GPS</th>
-                  <th className="text-left px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3" />
+                  <th className="text-left px-4 py-3 font-medium min-w-[200px]">Name</th>
+                  <th className="text-left px-4 py-3 font-medium w-[130px]">Type</th>
+                  <th className="text-left px-4 py-3 font-medium w-[110px]">Capacity (t)</th>
+                  <th className="text-left px-4 py-3 font-medium hidden md:table-cell max-w-[200px]">Location</th>
+                  <th className="text-left px-4 py-3 font-medium hidden lg:table-cell w-[130px]">GPS</th>
+                  <th className="text-left px-4 py-3 font-medium w-[90px]">Status</th>
+                  <th className="px-4 py-3 w-[156px]" />
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -746,7 +748,7 @@ export default function StorageLocationsPage() {
                         <td className="px-4 py-3 text-muted-foreground">
                           {loc.capacityTonnes ? `${loc.capacityTonnes} t` : "—"}
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground hidden md:table-cell max-w-xs truncate">
+                        <td className="px-4 py-3 text-muted-foreground hidden md:table-cell max-w-[200px] truncate">
                           {loc.locationDescription || "—"}
                         </td>
                         <td className="px-4 py-3 hidden lg:table-cell">
@@ -774,7 +776,7 @@ export default function StorageLocationsPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex items-center gap-1 justify-end">
                             <Button
                               variant="ghost" size="icon"
