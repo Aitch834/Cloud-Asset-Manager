@@ -21,8 +21,9 @@ import { StaffSelect } from "@/components/ui/staff-select";
 import {
   Plus, Search, Map as MapIcon, MoreVertical, Pencil, Trash2, AlertTriangle,
   Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote,
-  Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2,
+  Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2, Paperclip, Download,
 } from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
 import { QRCodeSVG } from "qrcode.react";
 import { FieldBoundaryMapDialog } from "@/components/fields/FieldBoundaryMapDialog";
 import { useForm } from "react-hook-form";
@@ -971,6 +972,14 @@ export default function FieldsPage() {
     enabled: !!farmId && !!selectedFieldForHistory && drawerTab === "nmp",
     select: (d: any) => d.entries ?? [],
   });
+
+  const tenureDocsQ = useQuery({
+    queryKey: ["field-tenure-docs", safeFarmId, selectedFieldForHistory?.id],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/fields/${selectedFieldForHistory?.id}/tenure-documents`).then(r => r.json()).then(d => d.documents ?? []),
+    enabled: !!farmId && !!selectedFieldForHistory && drawerTab === "tenure",
+  });
+
+  const { uploadFile, isUploading: isUploadingTenureDoc } = useUpload();
 
   const { mutate: createField, isPending: creatingField } = useAddField(safeFarmId);
   const { mutate: createCrop, isPending: creatingCrop } = useAddCrop(safeFarmId);
@@ -1921,6 +1930,55 @@ export default function FieldsPage() {
                           <p className="text-xs text-foreground/30 mt-1">Record tenure type, landlord details, and tenancy dates to track SFI eligibility.</p>
                         </div>
                       )}
+
+                      {/* ── Tenure Documents ── */}
+                      <div>
+                        <p className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-3">Documents</p>
+                        {tenureDocsQ.isLoading ? (
+                          <div className="flex items-center gap-2 text-sm text-foreground/40 py-2"><Loader2 className="w-4 h-4 animate-spin" />Loading…</div>
+                        ) : tenureDocsQ.data && tenureDocsQ.data.length > 0 ? (
+                          <div className="space-y-2 mb-3">
+                            {(tenureDocsQ.data as any[]).map((doc: any) => (
+                              <div key={doc.id} className="flex items-center gap-2 p-2.5 bg-black/[0.02] border border-border/40 rounded-xl">
+                                <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{doc.title}</p>
+                                  {doc.documentName && <p className="text-xs text-foreground/40 truncate">{doc.documentName}</p>}
+                                </div>
+                                <a href={`/api/storage${doc.documentUrl}`} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors" title="Download">
+                                  <Download className="w-3.5 h-3.5" />
+                                </a>
+                                <button onClick={async () => {
+                                  await fetch(`/api/farms/${farmId}/fields/${f.id}/tenure-documents/${doc.id}`, { method: "DELETE" });
+                                  queryClient.invalidateQueries({ queryKey: ["field-tenure-docs", safeFarmId, f.id] });
+                                }} className="flex-shrink-0 p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors" title="Remove">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-foreground/35 mb-3 italic">No documents attached yet.</p>
+                        )}
+                        <label className={`flex items-center gap-2 cursor-pointer px-3 py-2 border border-dashed border-border rounded-xl hover:border-green-400 hover:bg-green-50 transition-colors ${isUploadingTenureDoc ? "opacity-50 pointer-events-none" : ""}`}>
+                          <Paperclip className="w-4 h-4 text-foreground/40 flex-shrink-0" />
+                          <span className="text-sm text-foreground/50">{isUploadingTenureDoc ? "Uploading…" : "Attach tenancy agreement or document"}</span>
+                          <input type="file" className="hidden" accept="application/pdf,image/*,.doc,.docx" disabled={isUploadingTenureDoc} onChange={async e => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const result = await uploadFile(file);
+                            if (!result) return;
+                            await fetch(`/api/farms/${farmId}/fields/${f.id}/tenure-documents`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ title: file.name.replace(/\.[^.]+$/, ""), documentUrl: result.objectPath, documentName: file.name }),
+                            });
+                            queryClient.invalidateQueries({ queryKey: ["field-tenure-docs", safeFarmId, f.id] });
+                            e.target.value = "";
+                          }} />
+                        </label>
+                      </div>
+
                       <div className="pt-1">
                         <Button variant="outline" size="sm" className="gap-2" onClick={() => {
                           setTenureForm({

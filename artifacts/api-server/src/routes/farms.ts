@@ -8,6 +8,7 @@ import {
   rtfoBuyersTable,
   farmsTable,
   fieldsTable,
+  fieldTenureDocumentsTable,
   fieldBoundariesTable,
   cropsTable,
   fieldCropAssignmentsTable,
@@ -544,6 +545,39 @@ router.delete("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, req
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.update(fieldsTable).set({ isActive: false }).where(and(eq(fieldsTable.id, recordId), eq(fieldsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Field Tenure Documents ────────────
+router.get("/farms/:farmId/fields/:fieldId/tenure-documents", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const fieldId = parseInt(req.params.fieldId, 10);
+  if (isNaN(fieldId)) { res.status(400).json({ error: "Invalid field ID" }); return; }
+  const docs = await db.select().from(fieldTenureDocumentsTable)
+    .where(and(eq(fieldTenureDocumentsTable.farmId, farmId), eq(fieldTenureDocumentsTable.fieldId, fieldId)))
+    .orderBy(desc(fieldTenureDocumentsTable.uploadedAt));
+  res.json({ documents: docs });
+});
+
+router.post("/farms/:farmId/fields/:fieldId/tenure-documents", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const fieldId = parseInt(req.params.fieldId, 10);
+  if (isNaN(fieldId)) { res.status(400).json({ error: "Invalid field ID" }); return; }
+  const { title, documentUrl, documentName } = req.body;
+  if (!title || !documentUrl) { res.status(400).json({ error: "title and documentUrl are required" }); return; }
+  const [doc] = await db.insert(fieldTenureDocumentsTable).values({ farmId, fieldId, title, documentUrl, documentName: documentName ?? null }).returning();
+  res.json({ document: doc });
+});
+
+router.delete("/farms/:farmId/fields/:fieldId/tenure-documents/:docId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const fieldId = parseInt(req.params.fieldId, 10);
+  const docId = parseInt(req.params.docId, 10);
+  if (isNaN(fieldId) || isNaN(docId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(fieldTenureDocumentsTable).where(and(eq(fieldTenureDocumentsTable.id, docId), eq(fieldTenureDocumentsTable.farmId, farmId), eq(fieldTenureDocumentsTable.fieldId, fieldId)));
+  res.json({ ok: true });
 });
 
 // ─── All Field Boundaries (for map views) ────────────

@@ -30,6 +30,16 @@ export const fieldsTable = pgTable("fields", {
   tenureNotes: text("tenure_notes"),
 });
 
+export const fieldTenureDocumentsTable = pgTable("field_tenure_documents", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  fieldId: integer("field_id").notNull().references(() => fieldsTable.id),
+  title: text("title").notNull(),
+  documentUrl: text("document_url").notNull(),
+  documentName: text("document_name"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const fieldBoundariesTable = pgTable("field_boundaries", {
   id: serial("id").primaryKey(),
   fieldId: integer("field_id").notNull().references(() => fieldsTable.id),
