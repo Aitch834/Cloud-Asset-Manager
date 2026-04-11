@@ -298,7 +298,7 @@ type Tab = "blocks" | "crops" | "water" | "harvest" | "packhouse" | "allergen";
 
 export default function HorticulturePage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("blocks");
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["blocks","crops","water","harvest","packhouse","allergen"]; return t && valid.includes(t) ? t : "blocks"; });
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Horticulture & Fresh Produce">

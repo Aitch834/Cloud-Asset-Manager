@@ -448,7 +448,7 @@ type Tab = "licences" | "readings" | "borehole" | "records" | "equipment" | "soi
 
 export default function WaterIrrigationPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("licences");
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["licences","readings","borehole","records","equipment","soil-moisture","drought","cams"]; return t && valid.includes(t) ? t : "licences"; });
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Water & Irrigation Management">

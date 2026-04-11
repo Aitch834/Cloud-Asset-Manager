@@ -604,7 +604,7 @@ type Tab = "houses" | "flocks" | "mortality" | "treatments" | "cleanouts" | "env
 
 export default function PoultryProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("houses");
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["houses","flocks","mortality","treatments","cleanouts","envlogs","fci","bwi","thinning","biosecurity","scheme-records"]; return t && valid.includes(t) ? t : "houses"; });
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Poultry Production">

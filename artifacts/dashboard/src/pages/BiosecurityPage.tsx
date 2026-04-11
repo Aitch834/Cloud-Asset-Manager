@@ -1307,7 +1307,7 @@ function BiosecurityPlanTab({ farmId }: { farmId: number }) {
 
 export default function BiosecurityPage({ defaultTab = "visitors" }: { defaultTab?: MainTab }) {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<MainTab>(defaultTab);
+  const [tab, setTab] = useState<MainTab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as MainTab | null; const valid: MainTab[] = ["visitors","pest-control","cleaning","coshh","biosecurity-plan"]; return t && valid.includes(t) ? t : defaultTab; });
 
   const { data: farmData } = useQuery({
     queryKey: ["farm-detail", farmId],

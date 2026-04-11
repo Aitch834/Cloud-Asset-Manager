@@ -10055,29 +10055,29 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
 
   for (const r of pestRows) {
     if (!r.followUpDate) continue;
-    tasks.push({ id: `pest-${r.id}`, type: "pest_control", title: `Pest Control Follow-Up${r.location ? ` — ${r.location}` : ""}`, description: `${r.pestType} follow-up visit required${r.location ? ` at ${r.location}` : ""}`, dueDate: toISO(r.followUpDate)!, module: "Biosecurity", href: "/pest-control", colour: "red" });
+    tasks.push({ id: `pest-${r.id}`, type: "pest_control", title: `Pest Control Follow-Up${r.location ? ` — ${r.location}` : ""}`, description: `${r.pestType} follow-up visit required${r.location ? ` at ${r.location}` : ""}`, dueDate: toISO(r.followUpDate)!, module: "Biosecurity", href: `/pest-control?open=${r.id}`, colour: "red" });
   }
   for (const r of cleaningRows) {
     if (!r.nextDueDate) continue;
-    tasks.push({ id: `clean-${r.id}`, type: "cleaning", title: `Cleaning & Disinfection Due — ${r.area}`, description: `${r.cleaningType || "Cleaning"} scheduled for ${r.area}`, dueDate: toISO(r.nextDueDate)!, module: "Biosecurity", href: "/cleaning", colour: "red" });
+    tasks.push({ id: `clean-${r.id}`, type: "cleaning", title: `Cleaning & Disinfection Due — ${r.area}`, description: `${r.cleaningType || "Cleaning"} scheduled for ${r.area}`, dueDate: toISO(r.nextDueDate)!, module: "Biosecurity", href: `/cleaning?open=${r.id}`, colour: "red" });
   }
   for (const r of biosecPlanRows) {
     if (!r.nextReviewDate) continue;
-    tasks.push({ id: `biosecplan-${r.id}`, type: "biosecurity_plan_review", title: "Biosecurity Plan Review Due", description: "Your farm biosecurity plan is due for review. Update and re-approve in Biosecurity → Biosecurity Plan.", dueDate: toISO(r.nextReviewDate)!, module: "Biosecurity", href: "/visitors", colour: "red" });
+    tasks.push({ id: `biosecplan-${r.id}`, type: "biosecurity_plan_review", title: "Biosecurity Plan Review Due", description: "Your farm biosecurity plan is due for review. Update and re-approve in Biosecurity → Biosecurity Plan.", dueDate: toISO(r.nextReviewDate)!, module: "Biosecurity", href: `/visitors?tab=biosecurity-plan&open=${r.id}`, colour: "red" });
   }
   for (const r of certRows) {
     if (!r.expiryDate) continue;
     const label = r.certificateType || "Certificate";
-    tasks.push({ id: `cert-${r.id}`, type: "certificate_expiry", title: `${label} Expiring${r.certificateNumber ? ` (${r.certificateNumber})` : ""}`, description: `Staff certificate '${label}' is due to expire. Arrange renewal to remain compliant.`, dueDate: toISO(r.expiryDate)!, module: "Staff & Training", href: "/training", colour: "indigo" });
+    tasks.push({ id: `cert-${r.id}`, type: "certificate_expiry", title: `${label} Expiring${r.certificateNumber ? ` (${r.certificateNumber})` : ""}`, description: `Staff certificate '${label}' is due to expire. Arrange renewal to remain compliant.`, dueDate: toISO(r.expiryDate)!, module: "Staff & Training", href: `/training?tab=certificates&open=${r.id}`, colour: "indigo" });
   }
   for (const r of trainingRows) {
     if (!r.expiryDate) continue;
     const label = r.trainingTitle || "Training record";
-    tasks.push({ id: `train-${r.id}`, type: "training_expiry", title: `${label} Expiring`, description: `Training record '${label}' is approaching expiry. Renew or refresh before the expiry date.`, dueDate: toISO(r.expiryDate)!, module: "Staff & Training", href: "/training", colour: "indigo" });
+    tasks.push({ id: `train-${r.id}`, type: "training_expiry", title: `${label} Expiring`, description: `Training record '${label}' is approaching expiry. Renew or refresh before the expiry date.`, dueDate: toISO(r.expiryDate)!, module: "Staff & Training", href: `/training?tab=training&open=${r.id}`, colour: "indigo" });
   }
   for (const r of rtwRows) {
     if (!r.expiryDate) continue;
-    tasks.push({ id: `rtw-${r.id}`, type: "rtw_expiry", title: `Right to Work Expiring — ${r.staffName}`, description: `${r.staffName}'s right-to-work document (${r.documentType || "time-limited visa"}) is due to expire. Arrange a follow-up check before the expiry date.`, dueDate: toISO(r.expiryDate)!, module: "Staff & Training", href: "/training", colour: "indigo" });
+    tasks.push({ id: `rtw-${r.id}`, type: "rtw_expiry", title: `Right to Work Expiring — ${r.staffName}`, description: `${r.staffName}'s right-to-work document (${r.documentType || "time-limited visa"}) is due to expire. Arrange a follow-up check before the expiry date.`, dueDate: toISO(r.expiryDate)!, module: "Staff & Training", href: `/training?tab=rtw&open=${r.id}`, colour: "indigo" });
   }
   for (const r of inspectionRows) {
     if (!r.nextInspectionDue) continue;
@@ -10089,59 +10089,59 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   }
   for (const r of riskRows) {
     if (!r.reviewDate || r.status === "archived") continue;
-    tasks.push({ id: `risk-${r.id}`, type: "risk_review", title: `Risk Assessment Review — ${r.title || "Unnamed"}`, description: `The ${r.riskLevel ? r.riskLevel + "-risk " : ""}risk assessment '${r.title || "Unnamed"}' is due for review.`, dueDate: toISO(r.reviewDate)!, module: "Risk & Waste", href: "/risks", colour: "amber" });
+    tasks.push({ id: `risk-${r.id}`, type: "risk_review", title: `Risk Assessment Review — ${r.title || "Unnamed"}`, description: `The ${r.riskLevel ? r.riskLevel + "-risk " : ""}risk assessment '${r.title || "Unnamed"}' is due for review.`, dueDate: toISO(r.reviewDate)!, module: "Risk & Waste", href: `/risks?tab=risk&open=${r.id}`, colour: "amber" });
   }
   for (const r of coshhReviewRows) {
     if (!r.reviewDate) continue;
-    tasks.push({ id: `coshh-${r.id}`, type: "coshh_review", title: `COSHH Review Due — ${r.substanceName}`, description: `The COSHH assessment for '${r.substanceName}' is due for review. Update in Risk & Waste → COSHH.`, dueDate: toISO(r.reviewDate)!, module: "Risk & Waste", href: "/risks", colour: "amber" });
+    tasks.push({ id: `coshh-${r.id}`, type: "coshh_review", title: `COSHH Review Due — ${r.substanceName}`, description: `The COSHH assessment for '${r.substanceName}' is due for review. Update in Risk & Waste → COSHH.`, dueDate: toISO(r.reviewDate)!, module: "Risk & Waste", href: `/risks?tab=coshh&open=${r.id}`, colour: "amber" });
   }
   for (const r of maintRows) {
     if (!r.nextDueDate) continue;
-    tasks.push({ id: `maint-${r.id}`, type: "equipment_maintenance", title: `Equipment Maintenance Due`, description: `${r.maintenanceType || "Scheduled maintenance"} is due for a piece of equipment. Log in Equipment → Maintenance.`, dueDate: toISO(r.nextDueDate)!, module: "Equipment & Vehicles", href: "/equipment", colour: "orange" });
+    tasks.push({ id: `maint-${r.id}`, type: "equipment_maintenance", title: `Equipment Maintenance Due`, description: `${r.maintenanceType || "Scheduled maintenance"} is due for a piece of equipment. Log in Equipment → Maintenance.`, dueDate: toISO(r.nextDueDate)!, module: "Equipment & Vehicles", href: `/equipment?open=${r.id}`, colour: "orange" });
   }
   for (const r of calibRows) {
     if (!r.nextDueDate) continue;
-    tasks.push({ id: `calib-${r.id}`, type: "equipment_calibration", title: `Equipment Calibration Due`, description: `${r.calibrationType || "Calibration"} is due for a piece of equipment. Log in Equipment → Calibration.`, dueDate: toISO(r.nextDueDate)!, module: "Equipment & Vehicles", href: "/equipment", colour: "orange" });
+    tasks.push({ id: `calib-${r.id}`, type: "equipment_calibration", title: `Equipment Calibration Due`, description: `${r.calibrationType || "Calibration"} is due for a piece of equipment. Log in Equipment → Calibration.`, dueDate: toISO(r.nextDueDate)!, module: "Equipment & Vehicles", href: `/equipment?open=${r.id}`, colour: "orange" });
   }
   for (const r of patTestRows) {
     if (!r.nextDueDate) continue;
-    tasks.push({ id: `pat-${r.id}`, type: "pat_test_due", title: `PAT Test Due — ${r.itemName}`, description: `Portable appliance test is due for '${r.itemName}'${r.location ? ` at ${r.location}` : ""}. Log the result in Health, Safety & Risk → PAT Testing.`, dueDate: toISO(r.nextDueDate)!, module: "Health & Safety", href: "/risks", colour: "orange" });
+    tasks.push({ id: `pat-${r.id}`, type: "pat_test_due", title: `PAT Test Due — ${r.itemName}`, description: `Portable appliance test is due for '${r.itemName}'${r.location ? ` at ${r.location}` : ""}. Log the result in Health, Safety & Risk → PAT Testing.`, dueDate: toISO(r.nextDueDate)!, module: "Health & Safety", href: `/risks?tab=pat&open=${r.id}`, colour: "orange" });
   }
   for (const r of fireExtRows) {
     if (!r.nextServiceDue) continue;
-    tasks.push({ id: `fireext-${r.id}`, type: "fire_extinguisher_service", title: `Fire Extinguisher Service Due — ${r.location}`, description: `${r.type} extinguisher at ${r.location} is due for its annual service. Book a qualified engineer and update the record in Health, Safety & Risk → Fire Safety.`, dueDate: toISO(r.nextServiceDue)!, module: "Health & Safety", href: "/risks", colour: "orange" });
+    tasks.push({ id: `fireext-${r.id}`, type: "fire_extinguisher_service", title: `Fire Extinguisher Service Due — ${r.location}`, description: `${r.type} extinguisher at ${r.location} is due for its annual service. Book a qualified engineer and update the record in Health, Safety & Risk → Fire Safety.`, dueDate: toISO(r.nextServiceDue)!, module: "Health & Safety", href: `/risks?tab=fire&open=${r.id}`, colour: "orange" });
   }
   for (const r of workshopJobRows) {
     if (!r.estimatedCompletionDate || r.status === "completed" || r.status === "closed") continue;
-    tasks.push({ id: `wjob-${r.id}`, type: "workshop_job_deadline", title: `Workshop Job Due — ${r.title}`, description: `Job '${r.title}' has an estimated completion date approaching. Check progress in Workshop → Job Cards.`, dueDate: toISO(r.estimatedCompletionDate)!, module: "Workshop", href: "/equipment", colour: "orange" });
+    tasks.push({ id: `wjob-${r.id}`, type: "workshop_job_deadline", title: `Workshop Job Due — ${r.title}`, description: `Job '${r.title}' has an estimated completion date approaching. Check progress in Workshop → Job Cards.`, dueDate: toISO(r.estimatedCompletionDate)!, module: "Workshop", href: `/workshop?tab=jobs&open=${r.id}`, colour: "orange" });
   }
   for (const r of medicineWithdrawalRows) {
     if (!r.withdrawalEndDate) continue;
-    tasks.push({ id: `medwd-${r.id}`, type: "medicine_withdrawal", title: `Withdrawal Period Ends — ${r.medicineName}`, description: `The withdrawal period for '${r.medicineName}' ends on this date. Animals may then be cleared for sale or milk production.`, dueDate: toISO(r.withdrawalEndDate)!, module: "Livestock", href: "/livestock", colour: "green" });
+    tasks.push({ id: `medwd-${r.id}`, type: "medicine_withdrawal", title: `Withdrawal Period Ends — ${r.medicineName}`, description: `The withdrawal period for '${r.medicineName}' ends on this date. Animals may then be cleared for sale or milk production.`, dueDate: toISO(r.withdrawalEndDate)!, module: "Livestock", href: `/medicine?open=${r.id}`, colour: "green" });
   }
   for (const r of vetHealthPlanRows) {
     if (!r.reviewDate) continue;
-    tasks.push({ id: `vhp-${r.id}`, type: "vet_health_plan_review", title: `Vet Health Plan Review — ${r.planYear}`, description: `The ${r.planYear} vet health plan (${r.vetName}) is due for its annual review. Update in Livestock → Vet Health Plans.`, dueDate: toISO(r.reviewDate)!, module: "Livestock", href: "/livestock", colour: "green" });
+    tasks.push({ id: `vhp-${r.id}`, type: "vet_health_plan_review", title: `Vet Health Plan Review — ${r.planYear}`, description: `The ${r.planYear} vet health plan (${r.vetName}) is due for its annual review. Update in Livestock → Vet Health Plans.`, dueDate: toISO(r.reviewDate)!, module: "Livestock", href: `/livestock?tab=vet-plans&open=${r.id}`, colour: "green" });
   }
   for (const r of insuranceRows) {
     if (!r.expiryDate) continue;
     const expDate = new Date(r.expiryDate + "T00:00:00Z");
     if (expDate < overdueStart || expDate >= rangeEnd) continue;
-    tasks.push({ id: `ins-${r.id}`, type: "insurance_expiry", title: `Insurance Expiring — ${r.policyType}`, description: `Your ${r.policyType} policy${r.insurer ? ` with ${r.insurer}` : ""}${r.policyNumber ? ` (${r.policyNumber})` : ""} is due to expire. Arrange renewal to remain legally compliant.`, dueDate: expDate.toISOString(), module: "Compliance", href: "/insurance", colour: "blue" });
+    tasks.push({ id: `ins-${r.id}`, type: "insurance_expiry", title: `Insurance Expiring — ${r.policyType}`, description: `Your ${r.policyType} policy${r.insurer ? ` with ${r.insurer}` : ""}${r.policyNumber ? ` (${r.policyNumber})` : ""} is due to expire. Arrange renewal to remain legally compliant.`, dueDate: expDate.toISOString(), module: "Compliance", href: `/insurance?open=${r.id}`, colour: "blue" });
   }
   for (const r of waterLicenceRows) {
     if (!r.licenceExpiryDate) continue;
     const expDate = new Date(r.licenceExpiryDate + "T00:00:00Z");
     if (expDate < overdueStart || expDate >= rangeEnd) continue;
-    tasks.push({ id: `wlic-${r.id}`, type: "water_licence_expiry", title: `Water Abstraction Licence Expiring`, description: `A water abstraction licence is due to expire. Contact the Environment Agency to arrange renewal before this date.`, dueDate: expDate.toISOString(), module: "Water & Irrigation", href: "/water-irrigation", colour: "blue" });
+    tasks.push({ id: `wlic-${r.id}`, type: "water_licence_expiry", title: `Water Abstraction Licence Expiring`, description: `A water abstraction licence is due to expire. Contact the Environment Agency to arrange renewal before this date.`, dueDate: expDate.toISOString(), module: "Water & Irrigation", href: `/water-irrigation?tab=licences&open=${r.id}`, colour: "blue" });
   }
   for (const r of biofuelCertRows) {
     if (!r.expiryDate || r.status === "expired" || r.status === "cancelled") continue;
-    tasks.push({ id: `bio-${r.id}`, type: "biofuel_cert_expiry", title: `Biofuel Certification Expiring — ${r.scheme}`, description: `Your ${r.scheme} certification${r.certificationNumber ? ` (${r.certificationNumber})` : ""} is due to expire. Arrange renewal to continue making RTFO claims.`, dueDate: toISO(r.expiryDate)!, module: "Biofuel / RTFO", href: "/biofuel", colour: "blue" });
+    tasks.push({ id: `bio-${r.id}`, type: "biofuel_cert_expiry", title: `Biofuel Certification Expiring — ${r.scheme}`, description: `Your ${r.scheme} certification${r.certificationNumber ? ` (${r.certificationNumber})` : ""} is due to expire. Arrange renewal to continue making RTFO claims.`, dueDate: toISO(r.expiryDate)!, module: "Biofuel / RTFO", href: `/biofuel?open=${r.id}`, colour: "blue" });
   }
   for (const r of poDeliveryRows) {
     if (!r.expectedDeliveryDate || r.status === "delivered" || r.status === "cancelled") continue;
-    tasks.push({ id: `pod-${r.id}`, type: "po_delivery_due", title: `Delivery Expected — ${r.poNumber || "PO"}`, description: `${r.supplierName ? `Delivery from ${r.supplierName}` : "Delivery"} is expected${r.poNumber ? ` on PO ${r.poNumber}` : ""}. Check in Trade Contacts & Stock → Purchase Orders.`, dueDate: toISO(r.expectedDeliveryDate)!, module: "Trade Contacts & Stock", href: "/suppliers-stock", colour: "amber" });
+    tasks.push({ id: `pod-${r.id}`, type: "po_delivery_due", title: `Delivery Expected — ${r.poNumber || "PO"}`, description: `${r.supplierName ? `Delivery from ${r.supplierName}` : "Delivery"} is expected${r.poNumber ? ` on PO ${r.poNumber}` : ""}. Check in Trade Contacts & Stock → Purchase Orders.`, dueDate: toISO(r.expectedDeliveryDate)!, module: "Trade Contacts & Stock", href: `/suppliers-stock?tab=purchase-orders&open=${r.id}`, colour: "amber" });
   }
   for (const r of plannerEventRows) {
     tasks.push({ id: `planner-${r.id}`, type: "planner_event", title: r.title, description: r.description || "Custom reminder added by you.", dueDate: toISO(r.eventDate)!, module: "Custom", href: "#", colour: r.colour || "slate" });
@@ -10149,68 +10149,68 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of grantPurchaseRows) {
     if (!r.purchaseDeadline || r.status === "purchased" || r.status === "claimed" || r.status === "rejected" || r.status === "withdrawn") continue;
     const itemLabel = r.itemDescription || r.itemReferenceCode || "item";
-    tasks.push({ id: `grant-purchase-${r.id}`, type: "grant_purchase_deadline", title: `Grant Purchase Deadline — ${r.schemeName}`, description: `${r.schemeType} grant for '${itemLabel}' must be purchased by this date. Log in Grants & Funding.`, dueDate: toISO(r.purchaseDeadline)!, module: "Grants & Funding", href: "/grants", colour: "violet" });
+    tasks.push({ id: `grant-purchase-${r.id}`, type: "grant_purchase_deadline", title: `Grant Purchase Deadline — ${r.schemeName}`, description: `${r.schemeType} grant for '${itemLabel}' must be purchased by this date. Log in Grants & Funding.`, dueDate: toISO(r.purchaseDeadline)!, module: "Grants & Funding", href: `/grants?open=${r.id}`, colour: "violet" });
   }
   for (const r of grantClaimRows) {
     if (!r.claimDeadline || r.status === "claimed" || r.status === "rejected" || r.status === "withdrawn") continue;
     const itemLabel = r.itemDescription || r.itemReferenceCode || "item";
-    tasks.push({ id: `grant-claim-${r.id}`, type: "grant_claim_deadline", title: `Grant Claim Deadline — ${r.schemeName}`, description: `${r.schemeType} claim for '${itemLabel}' must be submitted by this date. Log in Grants & Funding.`, dueDate: toISO(r.claimDeadline)!, module: "Grants & Funding", href: "/grants", colour: "violet" });
+    tasks.push({ id: `grant-claim-${r.id}`, type: "grant_claim_deadline", title: `Grant Claim Deadline — ${r.schemeName}`, description: `${r.schemeType} claim for '${itemLabel}' must be submitted by this date. Log in Grants & Funding.`, dueDate: toISO(r.claimDeadline)!, module: "Grants & Funding", href: `/grants?open=${r.id}`, colour: "violet" });
   }
   for (const r of calvingRows) {
     if (!r.expectedCalvingDate) continue;
-    tasks.push({ id: `calving-${r.id}`, type: "expected_calving", title: `Expected Calving — ${r.earTag}`, description: `Animal ${r.earTag} is expected to calve around this date${r.serviceType ? ` (${r.serviceType} service)` : ""}. Ensure calving pen is prepared and observe closely. Record the outcome in Livestock → Breeding & AI.`, dueDate: toISO(r.expectedCalvingDate)!, module: "Livestock", href: "/livestock", colour: "green" });
+    tasks.push({ id: `calving-${r.id}`, type: "expected_calving", title: `Expected Calving — ${r.earTag}`, description: `Animal ${r.earTag} is expected to calve around this date${r.serviceType ? ` (${r.serviceType} service)` : ""}. Ensure calving pen is prepared and observe closely. Record the outcome in Livestock → Breeding & AI.`, dueDate: toISO(r.expectedCalvingDate)!, module: "Livestock", href: `/livestock?tab=ai-repro&open=${r.id}`, colour: "green" });
   }
   for (const r of vetPrescriptionRows) {
     if (!r.expiryDate) continue;
-    tasks.push({ id: `vetpx-${r.id}`, type: "vet_prescription_expiry", title: `Vet Prescription Expiring — ${r.productName}`, description: `The prescription for '${r.productName}'${r.vetName ? ` issued by ${r.vetName}` : ""} is due to expire. Arrange a renewal before use of the medicine continues.`, dueDate: toISO(r.expiryDate)!, module: "Livestock", href: "/livestock", colour: "green" });
+    tasks.push({ id: `vetpx-${r.id}`, type: "vet_prescription_expiry", title: `Vet Prescription Expiring — ${r.productName}`, description: `The prescription for '${r.productName}'${r.vetName ? ` issued by ${r.vetName}` : ""} is due to expire. Arrange a renewal before use of the medicine continues.`, dueDate: toISO(r.expiryDate)!, module: "Livestock", href: `/livestock?tab=vet-rx&open=${r.id}`, colour: "green" });
   }
   for (const r of poultryWithdrawalRows) {
     if (!r.withdrawalClearDate) continue;
-    tasks.push({ id: `ptwd-${r.id}`, type: "poultry_withdrawal_clear", title: `Poultry Withdrawal Clears — ${r.productName}`, description: `Withdrawal period for '${r.productName}' ends on this date. Birds may then be cleared for slaughter or egg collection. Update in Poultry → Treatments.`, dueDate: toISO(r.withdrawalClearDate)!, module: "Poultry", href: "/livestock", colour: "green" });
+    tasks.push({ id: `ptwd-${r.id}`, type: "poultry_withdrawal_clear", title: `Poultry Withdrawal Clears — ${r.productName}`, description: `Withdrawal period for '${r.productName}' ends on this date. Birds may then be cleared for slaughter or egg collection. Update in Poultry → Treatments.`, dueDate: toISO(r.withdrawalClearDate)!, module: "Poultry", href: `/poultry-production?tab=treatments&open=${r.id}`, colour: "green" });
   }
   for (const r of poultrySchemeCARows) {
     if (!r.correctiveActionDeadline) continue;
-    tasks.push({ id: `ptca-${r.id}`, type: "poultry_scheme_corrective_action", title: `Poultry Scheme Corrective Action Due — ${r.scheme}`, description: `A corrective action from the ${r.scheme} assessment must be completed by this date. Review in Poultry → Scheme Records.`, dueDate: toISO(r.correctiveActionDeadline)!, module: "Poultry", href: "/livestock", colour: "red" });
+    tasks.push({ id: `ptca-${r.id}`, type: "poultry_scheme_corrective_action", title: `Poultry Scheme Corrective Action Due — ${r.scheme}`, description: `A corrective action from the ${r.scheme} assessment must be completed by this date. Review in Poultry → Scheme Records.`, dueDate: toISO(r.correctiveActionDeadline)!, module: "Poultry", href: `/poultry-production?tab=scheme-records&open=${r.id}`, colour: "red" });
   }
   for (const r of poultrySchemeNextRows) {
     if (!r.nextAssessmentDue) continue;
-    tasks.push({ id: `ptna-${r.id}`, type: "poultry_scheme_next_assessment", title: `Poultry Scheme Assessment Due — ${r.scheme}`, description: `The next ${r.scheme} inspection is due around this date. Ensure all records are up to date before the assessor visit.`, dueDate: toISO(r.nextAssessmentDue)!, module: "Poultry", href: "/livestock", colour: "violet" });
+    tasks.push({ id: `ptna-${r.id}`, type: "poultry_scheme_next_assessment", title: `Poultry Scheme Assessment Due — ${r.scheme}`, description: `The next ${r.scheme} inspection is due around this date. Ensure all records are up to date before the assessor visit.`, dueDate: toISO(r.nextAssessmentDue)!, module: "Poultry", href: `/poultry-production?tab=scheme-records&open=${r.id}`, colour: "violet" });
   }
   for (const r of pigRtCertRows) {
     if (!r.certificateExpiryDate) continue;
-    tasks.push({ id: `pigrtcert-${r.id}`, type: "pig_rt_certificate_expiry", title: `Pig Red Tractor Certificate Expiring${r.certificateNumber ? ` (${r.certificateNumber})` : ""}`, description: `Your Red Tractor pig certificate${r.certificateNumber ? ` (${r.certificateNumber})` : ""} is due to expire. Arrange your next assessment to maintain assured status.`, dueDate: toISO(r.certificateExpiryDate)!, module: "Pig Production", href: "/livestock", colour: "red" });
+    tasks.push({ id: `pigrtcert-${r.id}`, type: "pig_rt_certificate_expiry", title: `Pig Red Tractor Certificate Expiring${r.certificateNumber ? ` (${r.certificateNumber})` : ""}`, description: `Your Red Tractor pig certificate${r.certificateNumber ? ` (${r.certificateNumber})` : ""} is due to expire. Arrange your next assessment to maintain assured status.`, dueDate: toISO(r.certificateExpiryDate)!, module: "Pig Production", href: `/pig-production?tab=red-tractor&open=${r.id}`, colour: "red" });
   }
   for (const r of pigRtCARows) {
     if (!r.correctiveActionDeadline) continue;
-    tasks.push({ id: `pigrtca-${r.id}`, type: "pig_rt_corrective_action", title: `Pig Red Tractor Corrective Action Due`, description: `A corrective action from the Red Tractor pig checklist must be completed by this date.${r.nonConformanceDetails ? ` Non-conformance: ${r.nonConformanceDetails}` : ""} Review in Pig Production → Red Tractor Checklists.`, dueDate: toISO(r.correctiveActionDeadline)!, module: "Pig Production", href: "/livestock", colour: "red" });
+    tasks.push({ id: `pigrtca-${r.id}`, type: "pig_rt_corrective_action", title: `Pig Red Tractor Corrective Action Due`, description: `A corrective action from the Red Tractor pig checklist must be completed by this date.${r.nonConformanceDetails ? ` Non-conformance: ${r.nonConformanceDetails}` : ""} Review in Pig Production → Red Tractor Checklists.`, dueDate: toISO(r.correctiveActionDeadline)!, module: "Pig Production", href: `/pig-production?tab=red-tractor&open=${r.id}`, colour: "red" });
   }
   for (const r of pigRtNextRows) {
     if (!r.nextAssessmentDue) continue;
-    tasks.push({ id: `pigrtna-${r.id}`, type: "pig_rt_next_assessment", title: `Pig Red Tractor Assessment Due`, description: `Your next Red Tractor pig assessment is due around this date. Ensure all records, welfare checks, and documentation are in order before the assessor visits.`, dueDate: toISO(r.nextAssessmentDue)!, module: "Pig Production", href: "/livestock", colour: "violet" });
+    tasks.push({ id: `pigrtna-${r.id}`, type: "pig_rt_next_assessment", title: `Pig Red Tractor Assessment Due`, description: `Your next Red Tractor pig assessment is due around this date. Ensure all records, welfare checks, and documentation are in order before the assessor visits.`, dueDate: toISO(r.nextAssessmentDue)!, module: "Pig Production", href: `/pig-production?tab=red-tractor&open=${r.id}`, colour: "violet" });
   }
   for (const r of pigVetReviewRows) {
     if (!r.nextReviewDate) continue;
-    tasks.push({ id: `pigvetrev-${r.id}`, type: "pig_vet_review", title: `Pig Vet Assessment Review Due${r.vetName ? ` — ${r.vetName}` : ""}`, description: `A follow-up vet assessment is due around this date. Book a visit and record the outcome in Pig Production → Vet Assessments.`, dueDate: toISO(r.nextReviewDate)!, module: "Pig Production", href: "/livestock", colour: "green" });
+    tasks.push({ id: `pigvetrev-${r.id}`, type: "pig_vet_review", title: `Pig Vet Assessment Review Due${r.vetName ? ` — ${r.vetName}` : ""}`, description: `A follow-up vet assessment is due around this date. Book a visit and record the outcome in Pig Production → Vet Assessments.`, dueDate: toISO(r.nextReviewDate)!, module: "Pig Production", href: `/pig-production?tab=vet&open=${r.id}`, colour: "green" });
   }
   for (const r of sfiEvidenceRows) {
     if (!r.nextEvidenceDate) continue;
-    tasks.push({ id: `sfievid-${r.id}`, type: "sfi_evidence_due", title: `SFI Evidence Required — ${r.actionCode}`, description: `Evidence is due for SFI action '${r.actionTitle}' (${r.actionCode}). Gather and record your evidence in Environmental → SFI Actions before this date.`, dueDate: toISO(r.nextEvidenceDate)!, module: "Environmental", href: "/environmental", colour: "green" });
+    tasks.push({ id: `sfievid-${r.id}`, type: "sfi_evidence_due", title: `SFI Evidence Required — ${r.actionCode}`, description: `Evidence is due for SFI action '${r.actionTitle}' (${r.actionCode}). Gather and record your evidence in Environmental → SFI Actions before this date.`, dueDate: toISO(r.nextEvidenceDate)!, module: "Environmental", href: `/environmental?tab=sfi&open=${r.id}`, colour: "green" });
   }
   for (const r of slurryInspRows) {
     if (!r.nextInspectionDue) continue;
-    tasks.push({ id: `slurryinsp-${r.id}`, type: "slurry_store_inspection", title: `Slurry Store Inspection Due — ${r.storeName}`, description: `The ${r.storeType} slurry store '${r.storeName}' is due for its inspection. Check integrity, freeboard, and leakage and update the record in Environmental → Slurry & Manure.`, dueDate: toISO(r.nextInspectionDue)!, module: "Environmental", href: "/environmental", colour: "orange" });
+    tasks.push({ id: `slurryinsp-${r.id}`, type: "slurry_store_inspection", title: `Slurry Store Inspection Due — ${r.storeName}`, description: `The ${r.storeType} slurry store '${r.storeName}' is due for its inspection. Check integrity, freeboard, and leakage and update the record in Environmental → Slurry & Manure.`, dueDate: toISO(r.nextInspectionDue)!, module: "Environmental", href: `/environmental?tab=slurry&open=${r.id}`, colour: "orange" });
   }
   for (const r of boreholeTestDueRows) {
     if (!r.nextTestDueDate) continue;
-    tasks.push({ id: `boreholetst-${r.id}`, type: "water_quality_test_due", title: `Water Quality Test Due`, description: `A water quality test is scheduled. The last test result was '${r.overallResult || "unknown"}'. Book a test and log the result in Water & Irrigation → Borehole Tests.`, dueDate: toISO(r.nextTestDueDate)!, module: "Water & Irrigation", href: "/water-irrigation", colour: "blue" });
+    tasks.push({ id: `boreholetst-${r.id}`, type: "water_quality_test_due", title: `Water Quality Test Due`, description: `A water quality test is scheduled. The last test result was '${r.overallResult || "unknown"}'. Book a test and log the result in Water & Irrigation → Borehole Tests.`, dueDate: toISO(r.nextTestDueDate)!, module: "Water & Irrigation", href: `/water-irrigation?tab=borehole&open=${r.id}`, colour: "blue" });
   }
   for (const r of droughtPlanReviewRows) {
     if (!r.reviewDate) continue;
-    tasks.push({ id: `droughtrev-${r.id}`, type: "drought_plan_review", title: `Drought Management Plan Review Due — ${r.planTitle}`, description: `The drought management plan '${r.planTitle}' is due for review. Update drought stages and trigger conditions in Water & Irrigation → Drought Management.`, dueDate: toISO(r.reviewDate)!, module: "Water & Irrigation", href: "/water-irrigation", colour: "blue" });
+    tasks.push({ id: `droughtrev-${r.id}`, type: "drought_plan_review", title: `Drought Management Plan Review Due — ${r.planTitle}`, description: `The drought management plan '${r.planTitle}' is due for review. Update drought stages and trigger conditions in Water & Irrigation → Drought Management.`, dueDate: toISO(r.reviewDate)!, module: "Water & Irrigation", href: `/water-irrigation?tab=drought&open=${r.id}`, colour: "blue" });
   }
   for (const r of fuelTankInspRows) {
     if (!r.nextInspectionDue) continue;
-    tasks.push({ id: `fueltankinsp-${r.id}`, type: "fuel_tank_inspection", title: `Fuel Tank Inspection Due — ${r.tankName}`, description: `The ${r.fuelType || "fuel"} tank '${r.tankName}' is due for its inspection. Check bunding, pipework, and fill point. Log the result in Fuel & Energy → Tanks.`, dueDate: toISO(r.nextInspectionDue)!, module: "Fuel & Energy", href: "/fuel-energy", colour: "orange" });
+    tasks.push({ id: `fueltankinsp-${r.id}`, type: "fuel_tank_inspection", title: `Fuel Tank Inspection Due — ${r.tankName}`, description: `The ${r.fuelType || "fuel"} tank '${r.tankName}' is due for its inspection. Check bunding, pipework, and fill point. Log the result in Fuel & Energy → Tanks.`, dueDate: toISO(r.nextInspectionDue)!, module: "Fuel & Energy", href: `/fuel-energy?tab=inspections&open=${r.id}`, colour: "orange" });
   }
   for (const r of fuelDiscrepancyRows) {
     const variance = Math.abs(Number(r.varianceLitres));
@@ -10223,13 +10223,13 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       description: `Stock check on ${r.checkDate} shows a shortfall of ${variance.toFixed(0)} L${isLarge ? ". This is significant — check for theft, leak or metering error. Consider contacting police if theft is suspected. Record your investigation outcome in Fuel & Energy → Tank Register." : ". Investigate meter readings, delivery records and usage logs. Log your findings in Fuel & Energy → Tank Register."}`,
       dueDate: toISO(r.checkDate)!,
       module: "Fuel & Energy",
-      href: "/fuel-energy",
+      href: `/fuel-energy?tab=tanks&open=${r.tankId}`,
       colour: isLarge ? "red" : "orange",
     });
   }
   for (const r of feedBestBeforeRows) {
     if (!r.bestBeforeDate) continue;
-    tasks.push({ id: `feedbb-${r.id}`, type: "feed_best_before", title: `Feed Best Before Date — ${r.productName || r.feedType}`, description: `A batch of ${r.productName || r.feedType} is approaching its best before date. Review usage and dispose of any stock that cannot be used in time. Check in Feed Management.`, dueDate: toISO(r.bestBeforeDate)!, module: "Feed Management", href: "/livestock", colour: "amber" });
+    tasks.push({ id: `feedbb-${r.id}`, type: "feed_best_before", title: `Feed Best Before Date — ${r.productName || r.feedType}`, description: `A batch of ${r.productName || r.feedType} is approaching its best before date. Review usage and dispose of any stock that cannot be used in time. Check in Feed Management.`, dueDate: toISO(r.bestBeforeDate)!, module: "Feed Management", href: `/feed?open=${r.id}`, colour: "amber" });
   }
   for (const r of feedStockStatusRows) {
     const current = parseFloat(String(r.currentStockKg ?? 0));
@@ -10256,19 +10256,19 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   }
   for (const r of diversInsuranceRows) {
     if (!r.insuranceRenewalDate) continue;
-    tasks.push({ id: `diversins-${r.id}`, type: "diversification_insurance_renewal", title: `Diversification Insurance Renewal — ${r.activityName}`, description: `Insurance for '${r.activityName}' (${r.activityType}) is due for renewal. Arrange cover to remain compliant and update in Diversification.`, dueDate: toISO(r.insuranceRenewalDate)!, module: "Diversification", href: "/diversification", colour: "blue" });
+    tasks.push({ id: `diversins-${r.id}`, type: "diversification_insurance_renewal", title: `Diversification Insurance Renewal — ${r.activityName}`, description: `Insurance for '${r.activityName}' (${r.activityType}) is due for renewal. Arrange cover to remain compliant and update in Diversification.`, dueDate: toISO(r.insuranceRenewalDate)!, module: "Diversification", href: `/diversification?tab=activities&open=${r.id}`, colour: "blue" });
   }
   for (const r of renewableServiceRows) {
     if (!r.nextServiceDate) continue;
-    tasks.push({ id: `renewsvc-${r.id}`, type: "renewable_energy_service", title: `Renewable Energy Service Due — ${r.installationName}`, description: `The ${r.technologyType || "renewable energy"} installation '${r.installationName}' is due for its scheduled service. Book the maintenance contractor and update the record in Fuel & Energy → Renewable Energy.`, dueDate: toISO(r.nextServiceDate)!, module: "Fuel & Energy", href: "/fuel-energy", colour: "orange" });
+    tasks.push({ id: `renewsvc-${r.id}`, type: "renewable_energy_service", title: `Renewable Energy Service Due — ${r.installationName}`, description: `The ${r.technologyType || "renewable energy"} installation '${r.installationName}' is due for its scheduled service. Book the maintenance contractor and update the record in Fuel & Energy → Renewable Energy.`, dueDate: toISO(r.nextServiceDate)!, module: "Fuel & Energy", href: `/fuel-energy?tab=solar&open=${r.id}`, colour: "orange" });
   }
   for (const r of irrigEquipCalibRows) {
     if (!r.nextCalibrationDue) continue;
-    tasks.push({ id: `irrigcalib-${r.id}`, type: "irrigation_equipment_calibration", title: `Irrigation Equipment Calibration Due — ${r.equipmentName}`, description: `The ${r.equipmentType || "irrigation equipment"} '${r.equipmentName}' is due for calibration. Carry out the check and log the result in Water & Irrigation → Equipment.`, dueDate: toISO(r.nextCalibrationDue)!, module: "Water & Irrigation", href: "/water-irrigation", colour: "blue" });
+    tasks.push({ id: `irrigcalib-${r.id}`, type: "irrigation_equipment_calibration", title: `Irrigation Equipment Calibration Due — ${r.equipmentName}`, description: `The ${r.equipmentType || "irrigation equipment"} '${r.equipmentName}' is due for calibration. Carry out the check and log the result in Water & Irrigation → Equipment.`, dueDate: toISO(r.nextCalibrationDue)!, module: "Water & Irrigation", href: `/water-irrigation?tab=equipment&open=${r.id}`, colour: "blue" });
   }
   for (const r of hortiWaterTestRows) {
     if (!r.nextTestDueDate) continue;
-    tasks.push({ id: `hortiwatst-${r.id}`, type: "horticulture_water_test_due", title: `Horticulture Water Test Due`, description: `A water quality test is due for your horticulture water supply. Log the result in Horticulture → Water Quality Tests.`, dueDate: toISO(r.nextTestDueDate)!, module: "Horticulture", href: "/horticulture", colour: "blue" });
+    tasks.push({ id: `hortiwatst-${r.id}`, type: "horticulture_water_test_due", title: `Horticulture Water Test Due`, description: `A water quality test is due for your horticulture water supply. Log the result in Horticulture → Water Quality Tests.`, dueDate: toISO(r.nextTestDueDate)!, module: "Horticulture", href: `/horticulture?tab=water&open=${r.id}`, colour: "blue" });
   }
   for (const r of taskAssignmentRows) {
     if (!r.dueDate) continue;

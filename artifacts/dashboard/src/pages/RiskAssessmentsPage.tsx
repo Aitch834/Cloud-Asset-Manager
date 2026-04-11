@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { FarmLocationSelect } from "@/components/ui/FarmLocationSelect";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -130,7 +130,7 @@ const EMPTY: Partial<RiskAssessment> = {
   reviewDate: "", status: "active", notes: "",
 };
 
-function RiskAssessmentTab({ farmId }: { farmId: number }) {
+function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -144,6 +144,9 @@ function RiskAssessmentTab({ farmId }: { farmId: number }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<Partial<RiskAssessment>>(EMPTY);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [hlId, setHlId] = useState<number | null>(openId ?? null);
+  const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const autoOpened = useRef(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["risk-assessments", farmId],
@@ -178,6 +181,20 @@ function RiskAssessmentTab({ farmId }: { farmId: number }) {
     const matchStatus = filterStatus === "all" || r.status === filterStatus;
     return matchSearch && matchRisk && matchStatus;
   });
+
+  useEffect(() => {
+    if (!openId || autoOpened.current || records.length === 0) return;
+    const target = records.find(r => r.id === openId);
+    if (target) {
+      autoOpened.current = true;
+      setViewRecord(target);
+      setTimeout(() => {
+        rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        const t = setTimeout(() => setHlId(null), 4000);
+        return () => clearTimeout(t);
+      }, 200);
+    }
+  }, [openId, records]);
 
   const saveMutation = useMutation({
     mutationFn: (data: Partial<RiskAssessment>) => {
@@ -316,7 +333,7 @@ function RiskAssessmentTab({ farmId }: { farmId: number }) {
             </thead>
             <tbody>
               {filtered.map(r => (
-                <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} className={`border-b border-gray-50 transition-colors${hlId === r.id ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : " hover:bg-gray-50"}`}>
                   <td className="px-4 py-3"><p className="font-medium text-gray-900">{r.title}</p>{r.area && <p className="text-xs text-gray-500">{r.area}</p>}</td>
                   <td className="px-4 py-3">{r.riskLevel ? <Badge className={`capitalize ${RISK_COLORS[r.riskLevel] ?? ""}`}>{r.riskLevel}</Badge> : "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{r.assessedBy || "—"}</td>
@@ -521,7 +538,7 @@ const COSHH_PPE_OPTIONS = [
   "Apron",
 ];
 
-function CoshhTab({ farmId }: { farmId: number }) {
+function CoshhTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
@@ -530,6 +547,9 @@ function CoshhTab({ farmId }: { farmId: number }) {
   const emptyForm = { substanceName: "", manufacturer: "", hazardClassification: "", usageArea: "", storageLocation: "", controlMeasures: "", ppe: "", emergencyProcedures: "", assessedBy: "", assessmentDate: new Date().toISOString().slice(0, 10), reviewDate: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const [search, setSearch] = useState("");
+  const [hlId, setHlId] = useState<number | null>(openId ?? null);
+  const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const autoOpened = useRef(false);
 
   const q = useQuery({
     queryKey: ["risk-coshh", farmId],
@@ -562,6 +582,14 @@ function CoshhTab({ farmId }: { farmId: number }) {
 
   const records: any[] = q.data ?? [];
   const filtered = records.filter(r => !search || r.substanceName?.toLowerCase().includes(search.toLowerCase()) || r.manufacturer?.toLowerCase().includes(search.toLowerCase()) || r.usageArea?.toLowerCase().includes(search.toLowerCase()));
+
+  useEffect(() => {
+    if (!openId || autoOpened.current || records.length === 0) return;
+    if (records.some(r => r.id === openId)) {
+      autoOpened.current = true;
+      setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
+    }
+  }, [openId, records]);
 
   const openAdd = () => { setEditRecord(null); setForm(emptyForm); setAddOpen(true); };
   const openEdit = (r: any) => {
@@ -608,7 +636,7 @@ function CoshhTab({ farmId }: { farmId: number }) {
               {filtered.map((r: any, i: number) => {
                 const reviewOverdue = r.reviewDate && new Date(r.reviewDate) < new Date();
                 return (
-                  <tr key={r.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                  <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none", background: hlId === r.id ? "#fffbeb" : undefined, outline: hlId === r.id ? "2px solid #f59e0b" : undefined, outlineOffset: hlId === r.id ? -2 : undefined, transition: "background 0.5s" }}>
                     <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600 }}>{r.substanceName}</td>
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.manufacturer || "—"}</td>
                     <td style={{ padding: "0.625rem 0.875rem" }}>
@@ -764,12 +792,15 @@ const PAT_RESULT: Record<string, { label: string; colour: string }> = {
 
 const EMPTY_PAT = { itemName: "", location: "", testDate: "", testerName: "", testerCompany: "", certificateNumber: "", result: "pass", nextDueDate: "", notes: "" };
 
-function PatTestingTab({ farmId }: { farmId: number }) {
+function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<PatTest | null>(null);
   const [form, setForm] = useState(EMPTY_PAT);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [hlId, setHlId] = useState<number | null>(openId ?? null);
+  const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const autoOpened = useRef(false);
 
   const { data, isLoading } = useQuery<{ records: PatTest[] }>({
     queryKey: ["pat-tests", farmId],
@@ -801,6 +832,14 @@ function PatTestingTab({ farmId }: { farmId: number }) {
   const records = data?.records ?? [];
   const overdue = records.filter(r => r.nextDueDate && new Date(r.nextDueDate) < today).length;
 
+  useEffect(() => {
+    if (!openId || autoOpened.current || records.length === 0) return;
+    if (records.some((r: any) => r.id === openId)) {
+      autoOpened.current = true;
+      setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
+    }
+  }, [openId, records]);
+
   if (isLoading) return <div className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>;
 
   return (
@@ -826,7 +865,7 @@ function PatTestingTab({ farmId }: { farmId: number }) {
                 const due = r.nextDueDate ? new Date(r.nextDueDate) : null;
                 const isOverdue = due && due < today;
                 return (
-                  <tr key={r.id} className="hover:bg-gray-50">
+                  <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} className={`transition-colors${hlId === r.id ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : " hover:bg-gray-50"}`}>
                     <td className="px-4 py-3 font-medium">{r.itemName}</td>
                     <td className="px-4 py-3 text-gray-500">{r.location || "—"}</td>
                     <td className="px-4 py-3 text-gray-500">{r.testDate ? new Date(r.testDate).toLocaleDateString("en-GB") : "—"}</td>
@@ -916,12 +955,15 @@ const FIRE_TYPES: { value: string; label: string }[] = [
 const FIRE_TYPE_LABEL: Record<string, string> = { co2: "CO₂", dry_powder: "Dry Powder", water: "Water", foam: "Foam", wet_chemical: "Wet Chemical" };
 const EMPTY_FIRE = { location: "", type: "co2", capacityKg: "", serialNumber: "", lastServiceDate: "", engineerName: "", engineerCompany: "", nextServiceDue: "", notes: "" };
 
-function FireSafetyTab({ farmId }: { farmId: number }) {
+function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<FireExtinguisher | null>(null);
   const [form, setForm] = useState(EMPTY_FIRE);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [hlId, setHlId] = useState<number | null>(openId ?? null);
+  const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const autoOpened = useRef(false);
 
   const { data, isLoading } = useQuery<{ records: FireExtinguisher[] }>({
     queryKey: ["fire-extinguishers", farmId],
@@ -952,6 +994,14 @@ function FireSafetyTab({ farmId }: { farmId: number }) {
   const today = new Date();
   const records = data?.records ?? [];
   const overdue = records.filter(r => r.nextServiceDue && new Date(r.nextServiceDue) < today).length;
+
+  useEffect(() => {
+    if (!openId || autoOpened.current || records.length === 0) return;
+    if (records.some((r: any) => r.id === openId)) {
+      autoOpened.current = true;
+      setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
+    }
+  }, [openId, records]);
   const dueSoon = records.filter(r => { if (!r.nextServiceDue) return false; const d = new Date(r.nextServiceDue); const diff = Math.ceil((d.getTime() - today.getTime()) / 86400000); return diff >= 0 && diff <= 60; }).length;
 
   if (isLoading) return <div className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>;
@@ -982,7 +1032,7 @@ function FireSafetyTab({ farmId }: { farmId: number }) {
                 const diff = due ? Math.ceil((due.getTime() - today.getTime()) / 86400000) : null;
                 const isSoon = diff !== null && diff >= 0 && diff <= 60;
                 return (
-                  <tr key={r.id} className="hover:bg-gray-50">
+                  <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} className={`transition-colors${hlId === r.id ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : " hover:bg-gray-50"}`}>
                     <td className="px-4 py-3 font-medium">{r.location}</td>
                     <td className="px-4 py-3">{FIRE_TYPE_LABEL[r.type] ?? r.type}</td>
                     <td className="px-4 py-3 text-gray-500">{r.capacityKg ? `${r.capacityKg} kg` : "—"}</td>
@@ -1305,8 +1355,9 @@ function HsReportModal({ farmId, onClose }: { farmId: number; onClose: () => voi
 
 export default function RiskAssessmentsPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("risk");
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["risk","coshh","pat","fire"]; return t && valid.includes(t) ? t : "risk"; });
   const [reportOpen, setReportOpen] = useState(false);
+  const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
 
   return (
     <AppLayout>
@@ -1331,10 +1382,10 @@ export default function RiskAssessmentsPage() {
           <TabButton active={tab === "pat"} onClick={() => setTab("pat")}><Zap className="h-3.5 w-3.5 mr-1 inline-block" />PAT Testing</TabButton>
           <TabButton active={tab === "fire"} onClick={() => setTab("fire")}><Flame className="h-3.5 w-3.5 mr-1 inline-block" />Fire Safety</TabButton>
         </TabBar>
-        {farmId && tab === "risk" && <RiskAssessmentTab farmId={farmId} />}
-        {farmId && tab === "coshh" && <CoshhTab farmId={farmId} />}
-        {farmId && tab === "pat" && <PatTestingTab farmId={farmId} />}
-        {farmId && tab === "fire" && <FireSafetyTab farmId={farmId} />}
+        {farmId && tab === "risk" && <RiskAssessmentTab farmId={farmId} openId={openId} />}
+        {farmId && tab === "coshh" && <CoshhTab farmId={farmId} openId={openId} />}
+        {farmId && tab === "pat" && <PatTestingTab farmId={farmId} openId={openId} />}
+        {farmId && tab === "fire" && <FireSafetyTab farmId={farmId} openId={openId} />}
         {farmId && reportOpen && <HsReportModal farmId={farmId} onClose={() => setReportOpen(false)} />}
       </div>
     </AppLayout>

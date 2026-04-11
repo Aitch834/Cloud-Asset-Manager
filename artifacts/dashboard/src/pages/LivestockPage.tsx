@@ -4351,7 +4351,7 @@ function StrawInventorySection({ farmId }: { farmId: number }) {
 
 export default function LivestockPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires" | "straws">("herds");
+  const [tab, setTab] = useState<"herds" | "vet-plans" | "mortality" | "contractors" | "feed" | "water" | "animals" | "ai-repro" | "vet-rx" | "sires" | "straws">(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as any; const valid = ["herds","vet-plans","mortality","contractors","feed","water","animals","ai-repro","vet-rx","sires","straws"]; return valid.includes(t) ? t : "herds"; });
 
   if (!farmId) return <Redirect href="/select" />;
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -293,6 +293,10 @@ export default function InsurancePage() {
   const [editItem, setEditItem] = useState<InsuranceRecord | null>(null);
   const [viewItem, setViewItem] = useState<InsuranceRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
+  const autoOpened = useRef(false);
+  const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const [hlId, setHlId] = useState<number | null>(openId);
 
   const { data, isLoading } = useQuery<{ records: InsuranceRecord[] }>({
     queryKey: ["insurance", farmId],
@@ -301,6 +305,20 @@ export default function InsurancePage() {
   });
 
   const records = data?.records ?? [];
+
+  useEffect(() => {
+    if (!openId || autoOpened.current || records.length === 0) return;
+    const target = records.find(r => r.id === openId);
+    if (target) {
+      autoOpened.current = true;
+      setViewItem(target);
+      setTimeout(() => {
+        rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        const t = setTimeout(() => setHlId(null), 4000);
+        return () => clearTimeout(t);
+      }, 200);
+    }
+  }, [openId, records]);
   const onRefresh = () => qc.invalidateQueries({ queryKey: ["insurance", farmId] });
 
   const deleteMut = useMutation({
@@ -384,7 +402,7 @@ export default function InsurancePage() {
                   const status = expiryStatus(r.expiryDate);
                   const isCrit = policyIsCritical(r.policyType);
                   return (
-                    <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none", background: status === "expired" ? "#fff5f5" : "transparent" }}>
+                    <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none", background: hlId === r.id ? "#fffbeb" : status === "expired" ? "#fff5f5" : "transparent", outline: hlId === r.id ? "2px solid #f59e0b" : "none", outlineOffset: -2, transition: "background 0.5s, outline 0.5s" }}>
                       <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           {isCrit && <span style={{ width: 6, height: 6, borderRadius: "50%", background: status === "ok" ? "#22c55e" : status === "warning" ? "#eab308" : "#ef4444", flexShrink: 0 }} />}

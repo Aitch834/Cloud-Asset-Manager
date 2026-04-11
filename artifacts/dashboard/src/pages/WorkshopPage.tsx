@@ -346,7 +346,7 @@ function JobDocumentsSection({ farmId, jobId }: { farmId: number; jobId: number 
   );
 }
 
-function JobCardsTab({ farmId }: { farmId: number }) {
+function JobCardsTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<WorkshopJob["job"] | null>(null);
@@ -355,6 +355,9 @@ function JobCardsTab({ farmId }: { farmId: number }) {
   const [issuePartId, setIssuePartId] = useState("");
   const [issueQty, setIssueQty] = useState("");
   const [issueBy, setIssueBy] = useState("");
+  const [hlId, setHlId] = useState<number | null>(openId ?? null);
+  const cardRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const autoOpened = useRef(false);
 
   // Keep a ref to the editing job ID so the sync effect doesn't need editing in its deps
   const editingIdRef = useRef<number | null>(null);
@@ -439,6 +442,16 @@ function JobCardsTab({ farmId }: { farmId: number }) {
   const allJobs = data?.jobs ?? [];
   const filtered = statusFilter === "all" ? allJobs : allJobs.filter(j => j.job.status === statusFilter);
 
+  useEffect(() => {
+    if (!openId || autoOpened.current || allJobs.length === 0) return;
+    if (allJobs.some(j => j.job.id === openId)) {
+      autoOpened.current = true;
+      const jobData = allJobs.find(j => j.job.id === openId);
+      if (jobData) { setEditing(jobData.job); setForm(jobData.job); setOpen(true); }
+      setTimeout(() => { cardRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
+    }
+  }, [openId, allJobs]);
+
   if (isLoading) return <div className="py-12 text-center text-gray-400"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>;
 
   return (
@@ -461,7 +474,7 @@ function JobCardsTab({ farmId }: { farmId: number }) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map(({ job, equipmentName, assetNumber: an }) => (
-            <Card key={job.id} className="hover:shadow-md transition-shadow">
+            <Card key={job.id} ref={(el) => { if (el) cardRefs.current.set(job.id, el as HTMLElement); }} className={`transition-shadow${hlId === job.id ? " ring-2 ring-amber-400 bg-amber-50 shadow-md" : " hover:shadow-md"}`}>
               <CardHeader className="pb-2 pt-4 px-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -1875,7 +1888,8 @@ type Tab = "assets" | "jobs" | "schedule" | "overview" | "parts";
 
 export default function WorkshopPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("assets");
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["assets","jobs","schedule","overview","parts"]; return t && valid.includes(t) ? t : "assets"; });
+  const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
 
   if (!farmId) return <Redirect to="/select" />;
 
@@ -1897,7 +1911,7 @@ export default function WorkshopPage() {
 
         <div className="mt-6">
           {tab === "assets" && <AssetsTab farmId={farmId} />}
-          {tab === "jobs" && <JobCardsTab farmId={farmId} />}
+          {tab === "jobs" && <JobCardsTab farmId={farmId} openId={openId} />}
           {tab === "schedule" && <ServiceScheduleTab farmId={farmId} />}
           {tab === "overview" && <FleetOverviewTab farmId={farmId} />}
           {tab === "parts" && <PartsStoreTab farmId={farmId} />}

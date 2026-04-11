@@ -786,7 +786,7 @@ type Tab = "flocks" | "movements" | "fci" | "feed" | "vet" | "stockmanship" | "t
 
 export default function PigProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("flocks");
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["flocks","movements","fci","feed","vet","stockmanship","tail-biting","farrowing","red-tractor"]; return t && valid.includes(t) ? t : "flocks"; });
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Pig Production">

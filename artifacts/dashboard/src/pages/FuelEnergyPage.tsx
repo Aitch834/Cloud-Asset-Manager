@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -1041,7 +1041,11 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
 }
 
 export default function FuelEnergyPage() {
-  const [tab, setTab] = useState<Tab>("tanks");
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["tanks","deliveries","usage","inspections","grid-energy","solar","reports"]; return t && valid.includes(t) ? t : "tanks"; });
+  const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
+  const [hlInspId, setHlInspId] = useState<number | null>(openId);
+  const inspRowRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const autoInspOpened = useRef(false);
   const { farmId } = useAppStore();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -1284,6 +1288,14 @@ export default function FuelEnergyPage() {
   const stockChecks: Record<string, unknown>[] = stockChecksQ.data ?? [];
   const equipment: Record<string, unknown>[] = equipmentQ.data ?? [];
   const members: Record<string, unknown>[] = membersQ.data ?? [];
+
+  useEffect(() => {
+    if (!openId || autoInspOpened.current || inspections.length === 0) return;
+    if (inspections.some(r => Number(r.id) === openId)) {
+      autoInspOpened.current = true;
+      setTimeout(() => { inspRowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlInspId(null), 4000); return () => clearTimeout(t); }, 200);
+    }
+  }, [openId, inspections]);
 
   const totalStockL = tanks.reduce((s, t) => s + parseFloat(String(t.currentStockLitres ?? 0)), 0);
   const unbundedTanks = tanks.filter(t => !t.isBunded && !["lpg_bottles", "AdBlue"].includes(String(t.fuelType)));
@@ -1780,7 +1792,7 @@ export default function FuelEnergyPage() {
                 {inspections.map((ins) => {
                   const tank = tanks.find(t => t.id === ins.tankId);
                   return (
-                    <div key={String(ins.id)} className="bg-white rounded-xl border border-gray-200 p-5">
+                    <div key={String(ins.id)} ref={(el) => { if (el) inspRowRefs.current.set(Number(ins.id), el as HTMLElement); }} className={`rounded-xl border p-5 transition-colors${hlInspId === Number(ins.id) ? " bg-amber-50 border-amber-400 ring-2 ring-amber-400" : " bg-white border-gray-200"}`}>
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <p className="font-semibold text-gray-900">{fmtDate(String(ins.inspectionDate ?? ""))}</p>

@@ -1439,7 +1439,7 @@ type Tab = "activities" | "shop" | "hygiene" | "equine" | "renewable" | "shootin
 
 export default function DiversificationPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("activities");
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["activities","income","shop","hygiene","equine","renewable","shooting"]; return t && valid.includes(t) ? t : "activities"; });
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Farm Diversification">

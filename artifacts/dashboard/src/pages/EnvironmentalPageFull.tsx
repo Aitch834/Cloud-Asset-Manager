@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -1203,13 +1203,16 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
 }
 
 // ─── SFI Actions Tab ────────────────────────────────────────────────────────────
-function SFIActionsTab({ farmId }: { farmId: number }) {
+function SFIActionsTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
+  const [hlId, setHlId] = useState<number | null>(openId ?? null);
+  const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const autoOpened = useRef(false);
 
   const { data: agreements = [], isLoading } = useQuery({
     queryKey: ["sfi-agreements", farmId],
@@ -1233,6 +1236,14 @@ function SFIActionsTab({ farmId }: { farmId: number }) {
 
   const rows = agreements as Record<string, unknown>[];
 
+  useEffect(() => {
+    if (!openId || autoOpened.current || rows.length === 0) return;
+    if (rows.some(r => Number(r.id) === openId)) {
+      autoOpened.current = true;
+      setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
+    }
+  }, [openId, rows]);
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -1254,8 +1265,8 @@ function SFIActionsTab({ farmId }: { farmId: number }) {
                 <thead className="bg-black/5 border-b">
                   <tr>{["Agreement No.", "Start Date", "End Date", "Status", "Application Ref", "Annual Payment", ""].map(h => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>)}</tr>
                 </thead>
-                <tbody className="divide-y">{rows.map((r, i) => (
-                  <tr key={i} className="hover:bg-black/5">
+                <tbody className="divide-y">{rows.map((r) => (
+                  <tr key={Number(r.id)} ref={(el) => { if (el) rowRefs.current.set(Number(r.id), el as HTMLElement); }} className={`transition-colors${hlId === Number(r.id) ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : " hover:bg-black/5"}`}>
                     <td className="px-4 py-3 font-mono text-xs">{String(r.agreementNumber ?? "—")}</td>
                     <td className="px-4 py-3">{r.startDate ? new Date(r.startDate as string).toLocaleDateString("en-GB") : "—"}</td>
                     <td className="px-4 py-3">{r.endDate ? new Date(r.endDate as string).toLocaleDateString("en-GB") : "—"}</td>
@@ -1311,7 +1322,7 @@ function SFIActionsTab({ farmId }: { farmId: number }) {
 }
 
 // ─── Slurry & Manure Management Tab ─────────────────────────────────────────────
-function SlurryTab({ farmId }: { farmId: number }) {
+function SlurryTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: slurryMembersData, isLoading: slurryMembersLoading } = useFarmMembers(farmId);
@@ -1321,6 +1332,9 @@ function SlurryTab({ farmId }: { farmId: number }) {
   const [editingStore, setEditingStore] = useState<Record<string, unknown> | null>(null);
   const [storeForm, setStoreForm] = useState<Record<string, string>>({});
   const [spreadForm, setSpreadForm] = useState<Record<string, string>>({});
+  const [hlId, setHlId] = useState<number | null>(openId ?? null);
+  const storeRowRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const autoOpened = useRef(false);
 
   const slurryFieldsQ = useQuery({
     queryKey: ["fields", farmId],
@@ -1357,6 +1371,14 @@ function SlurryTab({ farmId }: { farmId: number }) {
   const stores = (storesQ.data ?? []) as Record<string, unknown>[];
   const spreadings = (spreadQ.data ?? []) as Record<string, unknown>[];
 
+  useEffect(() => {
+    if (!openId || autoOpened.current || stores.length === 0) return;
+    if (stores.some(r => Number(r.id) === openId)) {
+      autoOpened.current = true;
+      setTimeout(() => { storeRowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
+    }
+  }, [openId, stores]);
+
   return (
     <div className="space-y-6">
       {/* Stores */}
@@ -1374,8 +1396,8 @@ function SlurryTab({ farmId }: { farmId: number }) {
                 <thead className="bg-black/5 border-b">
                   <tr>{["Store Name", "Type", "Capacity (m³)", "Material", "Next Inspection", "Status", ""].map(h => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs">{h}</th>)}</tr>
                 </thead>
-                <tbody className="divide-y">{stores.map((r, i) => (
-                  <tr key={i} className="hover:bg-black/5">
+                <tbody className="divide-y">{stores.map((r) => (
+                  <tr key={Number(r.id)} ref={(el) => { if (el) storeRowRefs.current.set(Number(r.id), el as HTMLElement); }} className={`transition-colors${hlId === Number(r.id) ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : " hover:bg-black/5"}`}>
                     <td className="px-4 py-3 font-medium">{String(r.storeName ?? "—")}</td>
                     <td className="px-4 py-3">{String(r.storeType ?? "—")}</td>
                     <td className="px-4 py-3">{String(r.capacityM3 ?? "—")}</td>
@@ -1534,7 +1556,8 @@ function SlurryTab({ farmId }: { farmId: number }) {
 
 export default function EnvironmentalPageFull() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>("features");
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["features","schemes","assessments","events","sfi","slurry"]; return t && valid.includes(t) ? t : "features"; });
+  const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
 
   const schemesQ = useQuery({
     queryKey: ["agri-schemes", farmId],
@@ -1568,8 +1591,8 @@ export default function EnvironmentalPageFull() {
         {farmId && tab === "schemes" && <AgriEnvSchemesTab farmId={farmId} />}
         {farmId && tab === "assessments" && <AssessmentsTab farmId={farmId} />}
         {farmId && tab === "events" && <ManagementEventsTab farmId={farmId} features={featuresQ.data ?? []} schemes={schemesQ.data ?? []} />}
-        {farmId && tab === "sfi" && <SFIActionsTab farmId={farmId} />}
-        {farmId && tab === "slurry" && <SlurryTab farmId={farmId} />}
+        {farmId && tab === "sfi" && <SFIActionsTab farmId={farmId} openId={openId} />}
+        {farmId && tab === "slurry" && <SlurryTab farmId={farmId} openId={openId} />}
       </div>
     </AppLayout>
   );

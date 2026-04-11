@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -147,6 +147,10 @@ export default function GrantsPage() {
   const [viewRecord, setViewRecord] = useState<GrantRecord | null>(null);
   const [deleting, setDeleting] = useState<GrantRecord | null>(null);
   const [form, setForm] = useState({ ...BLANK_FORM });
+  const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
+  const [hlId, setHlId] = useState<number | null>(openId);
+  const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const autoOpened = useRef(false);
   const [fetfPickerOpen, setFetfPickerOpen] = useState(false);
   const [fetfSearch, setFetfSearch] = useState("");
   const [uploadingId, setUploadingId] = useState<number | null>(null);
@@ -163,6 +167,16 @@ export default function GrantsPage() {
   });
 
   const records = data?.records ?? [];
+
+  useEffect(() => {
+    if (!openId || autoOpened.current || records.length === 0) return;
+    const target = records.find(r => r.id === openId);
+    if (target) {
+      autoOpened.current = true;
+      setViewRecord(target);
+      setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
+    }
+  }, [openId, records]);
 
   const filtered = useMemo(() => {
     if (statusFilter === "all") return records;
@@ -409,9 +423,12 @@ export default function GrantsPage() {
                 </thead>
                 <tbody>
                   {filtered.map((r, idx) => (
-                    <tr key={r.id} style={{ borderBottom: idx < filtered.length - 1 ? "1px solid #f3f4f6" : "none", background: "white" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "#f9fafb")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "white")}>
+                    <tr key={r.id}
+                      ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }}
+                      style={{ borderBottom: idx < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}
+                      className={`transition-colors${hlId === r.id ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : ""}`}
+                      onMouseEnter={e => { if (hlId !== r.id) e.currentTarget.style.background = "#f9fafb"; }}
+                      onMouseLeave={e => { if (hlId !== r.id) e.currentTarget.style.background = ""; }}>
                       <td style={{ padding: "12px 16px" }}>
                         <div style={{ fontWeight: 600, color: "#111827" }}>{r.schemeName}</div>
                         {r.itemReferenceCode && (
