@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { Smartphone, BellRing, BellOff, AlertTriangle, Loader2, CheckCircle2, Lock } from "lucide-react";
 import { useAppStore } from "@/hooks/use-app-store";
-import { useGetFarmDashboard } from "@workspace/api-client-react/src/generated/api";
+import { useQuery } from "@tanstack/react-query";
 
 type SmsOptIn = "all" | "critical" | "none";
 
@@ -57,7 +57,13 @@ function SmsLevelButton({ value, current, icon: Icon, label, description, onChan
 export default function AccountSettings() {
   const { toast } = useToast();
   const { farmId } = useAppStore();
-  const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } as any });
+  const { data: dashboardData } = useQuery<{
+    activeSubscriptions: Array<{ moduleKey: string; moduleName: string; status: string }>;
+  }>({
+    queryKey: ["farm-dashboard", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dashboard`).then(r => r.json()),
+    enabled: !!farmId,
+  });
 
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [loading, setLoading] = useState(true);

@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAppStore } from "@/hooks/use-app-store";
-import { useGetFarmDashboard, useGetFarmActivity } from "@workspace/api-client-react/src/generated/api";
+import { useGetFarmActivity } from "@workspace/api-client-react/src/generated/api";
 import {
   Activity, AlertTriangle, CheckCircle2, Sprout, Tractor, Droplets, FileText,
   Leaf, ArrowRight, ShieldCheck, Landmark, CalendarDays, Package, GraduationCap,
@@ -65,10 +65,14 @@ function OverdueItemsPopover({
 export default function Dashboard() {
   const { farmId } = useAppStore();
 
-  if (!farmId) return <Redirect href="/select" />;
+  const { data: dashboard, isLoading } = useQuery({
+    queryKey: ["farm-dashboard", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dashboard`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const { data: activities } = useGetFarmActivity(farmId ?? 0);
 
-  const { data: dashboard, isLoading } = useGetFarmDashboard(farmId);
-  const { data: activities } = useGetFarmActivity(farmId);
+  if (!farmId) return <Redirect href="/select" />;
 
   if (isLoading || !dashboard) {
     return (

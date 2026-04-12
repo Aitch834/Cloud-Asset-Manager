@@ -2,14 +2,17 @@ import { ReactNode, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Menu } from "lucide-react";
 import { useAppStore } from "@/hooks/use-app-store";
-import { useListFarms } from "@workspace/api-client-react/src/generated/api";
+import { useQuery } from "@tanstack/react-query";
 import { NotificationPanel } from "@/components/NotificationPanel";
 
 export function AppLayout({ children, title }: { children: ReactNode, title?: string }) {
   const { farmId } = useAppStore();
-  const { data: farmsData } = useListFarms();
-  const currentFarm = farmsData?.farms?.find((f) => f.id === farmId);
-  const farmName = currentFarm?.name;
+  const { data: farmDetail } = useQuery<{ record: { id: number; name: string; cphNumber: string | null } }>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const farmName = farmDetail?.record?.name;
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (

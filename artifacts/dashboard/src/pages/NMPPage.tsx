@@ -3,7 +3,6 @@ import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
-import { useListFarms } from "@workspace/api-client-react/src/generated/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,8 +33,12 @@ export default function NMPPage() {
   const [deletePlanId, setDeletePlanId] = useState<number | null>(null);
   const [printPlan, setPrintPlan] = useState<any | null>(null);
   const [entryCountByPlan, setEntryCountByPlan] = useState<Record<number, number>>({});
-  const { data: farmsData } = useListFarms();
-  const currentFarm = farmsData?.farms?.find((f: any) => f.id === farmId);
+  const { data: farmDetailData } = useQuery<{ record: { id: number; name: string; cphNumber: string | null } }>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const currentFarm = farmDetailData?.record;
 
   const plansQ = useQuery({
     queryKey: ["nmp-plans", farmId],

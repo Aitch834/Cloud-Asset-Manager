@@ -16,13 +16,6 @@ import {
 import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  useListFarms,
-  useUpdateFarm,
-  getListFarmsQueryKey,
-  getGetFarmDashboardQueryKey,
-} from "@workspace/api-client-react/src/generated/api";
-import type { Farm } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Redirect } from "wouter";
 import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -518,10 +511,32 @@ export default function FarmSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: farmsData, isLoading } = useListFarms();
-  const { mutate: updateFarm, isPending: isSaving } = useUpdateFarm();
+  const { data: farmDetailData, isLoading } = useQuery<{ record: Record<string, unknown> & { id: number; name: string; cphNumber: string | null } }>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const currentFarm = farmDetailData?.record;
 
-  const currentFarm: Farm | undefined = farmsData?.farms?.find((f) => f.id === farmId);
+  const { mutate: updateFarm, isPending: isSaving } = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await fetch(`/api/farms/${farmId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to update farm");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["farm-detail", farmId] });
+      queryClient.invalidateQueries({ queryKey: ["farm-dashboard", farmId] });
+      toast({ title: "Farm updated", description: "Your changes have been saved." });
+    },
+    onError: () => {
+      toast({ title: "Failed to update farm", variant: "destructive" });
+    },
+  });
 
   const [formData, setFormData] = useState<FarmFormData | null>(null);
   const [loadedFarmId, setLoadedFarmId] = useState<number | null>(null);
@@ -640,46 +655,34 @@ export default function FarmSettings() {
     }
 
     updateFarm({
-      farmId: farmId,
-      data: {
-        name: formData.name.trim(),
-        cphNumber: formData.cphNumber.trim() || undefined,
-        address: formData.address.trim() || undefined,
-        postcode: formData.postcode.trim() || undefined,
-        gridReference: formData.gridReference.trim() || undefined,
-        latitude: formData.latitude.trim() || undefined,
-        longitude: formData.longitude.trim() || undefined,
-        what3words: formData.what3words.trim() || undefined,
-        emergencyContactName: formData.emergencyContactName.trim() || undefined,
-        emergencyContactRelationship: formData.emergencyContactRelationship.trim() || undefined,
-        emergencyContactPhone: formData.emergencyContactPhone.trim() || undefined,
-        emergencyContactEmail: formData.emergencyContactEmail.trim() || undefined,
-        totalAcreage: formData.totalAcreage ? parseInt(formData.totalAcreage, 10) : undefined,
-        ...formData.sectors,
-        redTractorId: formData.redTractorId.trim() || undefined,
-        sbiNumber: formData.sbiNumber.trim() || undefined,
-        totalHectares: formData.totalHectares.trim() || undefined,
-        farmManager: formData.farmManager.trim() || undefined,
-        holdingType: formData.holdingType || undefined,
-        assuranceBody: formData.assuranceBody.trim() || undefined,
-        isNvzDesignated: formData.isNvzDesignated,
-        country: formData.country || "england",
-        eaml2Email: formData.eaml2Email.trim() || undefined,
-        flockMark: formData.flockMark.trim() || undefined,
-        herdMark: formData.herdMark.trim() || undefined,
-        bcmsHoldingNumber: formData.bcmsHoldingNumber.trim() || undefined,
-        scotEidNumber: formData.scotEidNumber.trim() || undefined,
-        eidCymruNumber: formData.eidCymruNumber.trim() || undefined,
-      } as any,
-    }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListFarmsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetFarmDashboardQueryKey(farmId) });
-        toast({ title: "Farm updated", description: "Your changes have been saved." });
-      },
-      onError: () => {
-        toast({ title: "Failed to update farm", variant: "destructive" });
-      },
+      name: formData.name.trim(),
+      cphNumber: formData.cphNumber.trim() || undefined,
+      address: formData.address.trim() || undefined,
+      postcode: formData.postcode.trim() || undefined,
+      gridReference: formData.gridReference.trim() || undefined,
+      latitude: formData.latitude.trim() || undefined,
+      longitude: formData.longitude.trim() || undefined,
+      what3words: formData.what3words.trim() || undefined,
+      emergencyContactName: formData.emergencyContactName.trim() || undefined,
+      emergencyContactRelationship: formData.emergencyContactRelationship.trim() || undefined,
+      emergencyContactPhone: formData.emergencyContactPhone.trim() || undefined,
+      emergencyContactEmail: formData.emergencyContactEmail.trim() || undefined,
+      totalAcreage: formData.totalAcreage ? parseInt(formData.totalAcreage, 10) : undefined,
+      ...formData.sectors,
+      redTractorId: formData.redTractorId.trim() || undefined,
+      sbiNumber: formData.sbiNumber.trim() || undefined,
+      totalHectares: formData.totalHectares.trim() || undefined,
+      farmManager: formData.farmManager.trim() || undefined,
+      holdingType: formData.holdingType || undefined,
+      assuranceBody: formData.assuranceBody.trim() || undefined,
+      isNvzDesignated: formData.isNvzDesignated,
+      country: formData.country || "england",
+      eaml2Email: formData.eaml2Email.trim() || undefined,
+      flockMark: formData.flockMark.trim() || undefined,
+      herdMark: formData.herdMark.trim() || undefined,
+      bcmsHoldingNumber: formData.bcmsHoldingNumber.trim() || undefined,
+      scotEidNumber: formData.scotEidNumber.trim() || undefined,
+      eidCymruNumber: formData.eidCymruNumber.trim() || undefined,
     });
   };
 

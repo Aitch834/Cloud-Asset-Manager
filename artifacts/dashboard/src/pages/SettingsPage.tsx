@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAppStore } from "@/hooks/use-app-store";
-import { useGetFarmDashboard } from "@workspace/api-client-react/src/generated/api";
+import { useQuery } from "@tanstack/react-query";
 import { 
   Users, MapPin, Bell, CreditCard, ChevronRight, 
   CheckCircle2, ShieldCheck, Package, Share2
@@ -32,7 +32,11 @@ function SettingRow({ icon: Icon, label, description, href }: {
 
 export default function SettingsPage() {
   const { farmId } = useAppStore();
-  const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } as any });
+  const { data: dashboardData } = useQuery({
+    queryKey: ["farm-dashboard", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dashboard`).then(r => r.json()),
+    enabled: !!farmId,
+  });
   const activeModules = dashboardData?.activeSubscriptions ?? [];
   const farm = dashboardData?.farm as Record<string, unknown> | undefined;
 

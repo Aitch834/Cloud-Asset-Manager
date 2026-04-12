@@ -6,15 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { 
-  useGetMyTenants, 
-  useListFarms,
-  useCreateFarm,
-  getListFarmsQueryKey,
-} from "@workspace/api-client-react/src/generated/api";
-import { useQueryClient } from "@tanstack/react-query";
+import { useGetMyTenants } from "@workspace/api-client-react/src/generated/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
-import { Map, Building2, ArrowRight, Loader2, Plus, Settings } from "lucide-react";
+import { Map, Building2, ArrowRight, Loader2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const SECTORS = [
@@ -74,11 +69,24 @@ export default function SelectContext() {
   const [formData, setFormData] = useState<FarmFormData>(emptyFormData);
 
   const { data: tenantsData, isLoading: loadingTenants } = useGetMyTenants();
-  const { data: farmsData, isLoading: loadingFarms } = useListFarms({
-    query: { enabled: !!tenantSlug } as any
+
+  const { data: farmsData, isLoading: loadingFarms } = useQuery<{ farms: Array<{ id: number; name: string; totalAcreage?: number | null }> }>({
+    queryKey: ["farms-list", tenantSlug],
+    queryFn: () => fetch("/api/tenants/current/farms").then(r => r.json()),
+    enabled: !!tenantSlug,
   });
 
-  const { mutate: createFarm, isPending: isCreating } = useCreateFarm();
+  const { mutate: createFarm, isPending: isCreating } = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await fetch("/api/tenants/current/farms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to create farm");
+      return res.json() as Promise<{ farm: { id: number; name: string } }>;
+    },
+  });
 
   // If tenant and farm are already persisted from a previous visit, skip selection entirely.
   useEffect(() => {
@@ -124,18 +132,16 @@ export default function SelectContext() {
     }
 
     createFarm({
-      data: {
-        name: formData.name.trim(),
-        cphNumber: formData.cphNumber.trim() || undefined,
-        address: formData.address.trim() || undefined,
-        postcode: formData.postcode.trim() || undefined,
-        gridReference: formData.gridReference.trim() || undefined,
-        totalAcreage: formData.totalAcreage ? parseInt(formData.totalAcreage, 10) : undefined,
-        ...formData.sectors,
-      },
+      name: formData.name.trim(),
+      cphNumber: formData.cphNumber.trim() || undefined,
+      address: formData.address.trim() || undefined,
+      postcode: formData.postcode.trim() || undefined,
+      gridReference: formData.gridReference.trim() || undefined,
+      totalAcreage: formData.totalAcreage ? parseInt(formData.totalAcreage, 10) : undefined,
+      ...formData.sectors,
     }, {
       onSuccess: (data) => {
-        queryClient.invalidateQueries({ queryKey: getListFarmsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["farms-list", tenantSlug] });
         setShowCreateDialog(false);
         toast({ title: "Farm created", description: `${data.farm.name} has been added.` });
         handleSelectFarm(data.farm.id);

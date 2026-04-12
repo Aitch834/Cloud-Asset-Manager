@@ -53,7 +53,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
-import { useListFarms, useGetFarmDashboard } from "@workspace/api-client-react/src/generated/api";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useRef, useEffect } from "react";
 import { useUserRole, type FarmRole } from "@/hooks/use-user-role";
 
@@ -304,10 +304,24 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const { farmId, clearState } = useAppStore();
   const { signOut } = useClerk();
   const [, setLocation] = useLocation();
-  const { data: farmsData } = useListFarms({ query: { enabled: true } as any });
-  const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } as any });
-  const currentFarm = farmsData?.farms?.find(f => f.id === farmId);
   const { role: userRole } = useUserRole();
+
+  const { data: farmDetail } = useQuery<{ record: { id: number; name: string; cphNumber: string | null; redTractorId?: string | null } }>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const { data: dashboardData } = useQuery<{
+    farm: Record<string, unknown>;
+    activeSubscriptions: Array<{ moduleKey: string; moduleName: string; status: string }>;
+  }>({
+    queryKey: ["farm-dashboard", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dashboard`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const currentFarm = farmDetail?.record;
 
   const subscriptionsLoaded = !!dashboardData;
 
@@ -349,7 +363,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const innerProps = {
     onLogout: handleLogout,
     currentFarmName: currentFarm?.name,
-    currentFarmRedTractorId: (currentFarm as any)?.redTractorId,
+    currentFarmRedTractorId: currentFarm?.redTractorId ?? null,
     filteredCoreNav,
     filteredComplianceNav,
     filteredBiosecurityNav,
