@@ -58,6 +58,7 @@ const sections: Section[] = [
           "Task Assignment — assign any planner task to a named staff member directly from the Week Ahead view; the staff member receives an SMS notification instantly with the task title, due date, and any note you add; assignments are tracked with a pending / in progress / completed / cancelled status workflow",
           "Task Board — dedicated manager view of all open and completed task assignments across the farm; filter by staff member or status; expandable cards show the full assignment history including completion notes and timestamps",
           "Insurance Register — record Employers Liability, Public Liability, and all other farm policies with insurer, policy number, cover level, and expiry date; attach PDF or photo scans of certificates for instant on-screen access during inspections; automatic colour-coded alerts (amber at 60 days, red on expiry) for both legally required and Red Tractor-required policies",
+          "Compliance Documents Register — central register for all farm-level certificates, assurance documents, and compliance paperwork required by Red Tractor; record and store your Red Tractor Assurance Certificate, spray operator certificates (PA1/PA2/PA6), nutrient management plan, COSHH assessments, risk assessments, soil analysis reports, sprayer calibration certificate (NSTS), grain store inspection, farm insurance, employer's liability insurance, and pesticide purchase records; attach a digital copy (PDF, photo, or Word document) to each entry for instant on-screen access during an assessor visit; Red Tractor compliance checklist automatically ticks each required document type as you add it; expiry tracking with colour-coded alerts (amber within 90 days, red on expiry); filter by document category, type, or status",
         ],
       },
       {
@@ -401,18 +402,6 @@ const sections: Section[] = [
           "Agri-environment & subsidy income summary; year-on-year comparison across up to 5 seasons",
           "Asset register with straight-line depreciation",
           "Mobile capture — grain sales, livestock sales, milk statements and direct farm gate sales recorded offline and synced automatically",
-        ],
-      },
-      {
-        title: "Document Management",
-        icon: FileText,
-        color: "bg-gray-100 text-gray-700 border-gray-200",
-        badge: "module",
-        features: [
-          "PDF & photo storage",
-          "Record attachment",
-          "Thumbnail previews",
-          "Cloud backup",
         ],
       },
       {

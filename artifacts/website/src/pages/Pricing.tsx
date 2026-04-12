@@ -21,7 +21,6 @@ const MODULES = [
   { id: "environment-sustainability", name: "Environment & Sustainability", price: 16, note: "Combines Environmental Management and Carbon & Sustainability" },
   { id: "water-irrigation", name: "Water & Irrigation Management", price: 10 },
   { id: "finance-business", name: "Finance & Business", price: 32, note: "Combines Trade Contacts, Financial Records & Business Reports" },
-  { id: "document-management", name: "Document Management", price: 10 },
   { id: "weather-tracking", name: "Weather Tracking", price: 15 },
   { id: "platform-addons", name: "Platform Add-ons", price: 10, note: "Includes SMS Alerts & Advisor/Inspector Access" },
   { id: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", price: 30 },
