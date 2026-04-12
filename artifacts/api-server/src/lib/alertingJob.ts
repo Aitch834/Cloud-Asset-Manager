@@ -3,6 +3,7 @@ import { usersTable, userTenantsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
 import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull } from "drizzle-orm";
 import { sendSms } from "./sms";
+import { sendWeeklyDigestEmail, type WeeklyDigestItem } from "./mailer";
 
 const ESCALATION_DAYS = 7;
 
@@ -650,6 +651,111 @@ export async function createStockOutNotification(params: {
   await dispatchSmsForCriticalAlert(params.tenantId, title, message);
 }
 
+async function runWeeklyDigest() {
+  console.log("[ALERTS] Running weekly compliance digest...");
+  const today = new Date();
+  const in30Days = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  const farms = await db
+    .select({ id: farmsTable.id, name: farmsTable.name, tenantId: farmsTable.tenantId })
+    .from(farmsTable);
+
+  for (const farm of farms) {
+    const items: WeeklyDigestItem[] = [];
+
+    const expiringCerts = await db
+      .select({ certificateType: staffCertificatesTable.certificateType, expiryDate: staffCertificatesTable.expiryDate })
+      .from(staffCertificatesTable)
+      .where(
+        and(
+          eq(staffCertificatesTable.farmId, farm.id),
+          isNotNull(staffCertificatesTable.expiryDate),
+          gte(staffCertificatesTable.expiryDate, today),
+          lte(staffCertificatesTable.expiryDate, in30Days),
+        )
+      );
+    for (const cert of expiringCerts) {
+      const daysDiff = Math.ceil((cert.expiryDate!.getTime() - today.getTime()) / 86_400_000);
+      items.push({
+        category: "Staff Certificate Expiry",
+        label: cert.certificateType,
+        dueDate: cert.expiryDate!.toISOString().slice(0, 10),
+        severity: daysDiff <= 7 ? "critical" : "warning",
+      });
+    }
+
+    const dueReviews = await db
+      .select({ title: riskAssessmentsTable.title, reviewDate: riskAssessmentsTable.reviewDate })
+      .from(riskAssessmentsTable)
+      .where(
+        and(
+          eq(riskAssessmentsTable.farmId, farm.id),
+          isNotNull(riskAssessmentsTable.reviewDate),
+          lte(riskAssessmentsTable.reviewDate, in30Days),
+        )
+      );
+    for (const review of dueReviews) {
+      const isPast = review.reviewDate! < today;
+      items.push({
+        category: "Risk Assessment Review",
+        label: review.title,
+        dueDate: review.reviewDate!.toISOString().slice(0, 10),
+        severity: isPast ? "critical" : "warning",
+      });
+    }
+
+    const dueInspections = await db
+      .select({ inspectionType: inspectionRecordsTable.inspectionType, nextInspectionDue: inspectionRecordsTable.nextInspectionDue })
+      .from(inspectionRecordsTable)
+      .where(
+        and(
+          eq(inspectionRecordsTable.farmId, farm.id),
+          isNotNull(inspectionRecordsTable.nextInspectionDue),
+          lte(inspectionRecordsTable.nextInspectionDue, in30Days),
+        )
+      );
+    for (const inspection of dueInspections) {
+      const isPast = inspection.nextInspectionDue! < today;
+      items.push({
+        category: "Inspection Due",
+        label: inspection.inspectionType,
+        dueDate: inspection.nextInspectionDue!.toISOString().slice(0, 10),
+        severity: isPast ? "critical" : "warning",
+      });
+    }
+
+    if (items.length === 0) continue;
+
+    const managers = await db
+      .select({
+        email: usersTable.email,
+        firstName: usersTable.firstName,
+        lastName: usersTable.lastName,
+      })
+      .from(usersTable)
+      .innerJoin(userTenantsTable, eq(userTenantsTable.userId, usersTable.id))
+      .where(
+        and(
+          eq(userTenantsTable.tenantId, farm.tenantId),
+          eq(userTenantsTable.isActive, true),
+          isNotNull(usersTable.email),
+        )
+      );
+
+    for (const manager of managers) {
+      if (!manager.email) continue;
+      const name = [manager.firstName, manager.lastName].filter(Boolean).join(" ") || "Farm Manager";
+      await sendWeeklyDigestEmail({
+        to: manager.email,
+        toName: name,
+        farmName: farm.name,
+        items,
+      }).catch((err) => console.error(`[ALERTS] Digest email error for ${manager.email}:`, err));
+    }
+  }
+  console.log("[ALERTS] Weekly digest completed");
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
@@ -666,10 +772,27 @@ export async function runAlertingJob() {
   }
 }
 
+let lastDigestDay = -1;
+
+function maybeRunWeeklyDigest() {
+  const now = new Date();
+  const isMonday = now.getUTCDay() === 1;
+  const isDigestHour = now.getUTCHours() === 7;
+  const today = now.getUTCDate();
+
+  if (isMonday && isDigestHour && lastDigestDay !== today) {
+    lastDigestDay = today;
+    runWeeklyDigest().catch((err) => console.error("[ALERTS] Weekly digest error:", err));
+  }
+}
+
 export function startAlertingJob() {
   const INTERVAL_MS = 60 * 60 * 1000;
 
   runAlertingJob();
-  setInterval(runAlertingJob, INTERVAL_MS);
-  console.log("[ALERTS] Alerting job scheduled (runs every hour)");
+  setInterval(() => {
+    runAlertingJob();
+    maybeRunWeeklyDigest();
+  }, INTERVAL_MS);
+  console.log("[ALERTS] Alerting job scheduled (runs every hour; digest every Monday 07:00 UTC)");
 }

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, leadsTable } from "@workspace/db";
 import { CreateLeadBody } from "@workspace/api-zod";
+import { sendLeadConfirmationEmail } from "../lib/mailer";
 
 const router: IRouter = Router();
 
@@ -22,7 +23,17 @@ router.post("/leads", async (req, res): Promise<void> => {
       message: parsed.data.message ?? null,
     }).returning();
 
-    console.log(`[LEAD] New registration lead #${lead.id} from ${lead.email} - sendConfirmationEmail queued for ${lead.email}`);
+    console.log(`[LEAD] New registration lead #${lead.id} from ${lead.email}`);
+
+    sendLeadConfirmationEmail({
+      to: lead.email,
+      contactName: lead.contactName,
+      businessName: lead.businessName,
+      modulesInterested: lead.modulesInterested ?? [],
+    }).then((r) => {
+      if (r.sent) console.log(`[LEAD] Confirmation email sent to ${lead.email}`);
+      else console.warn(`[LEAD] Confirmation email not sent: ${r.reason}`);
+    }).catch((err) => console.error("[LEAD] Confirmation email error:", err));
 
     res.status(201).json({
       id: lead.id,

@@ -3,6 +3,7 @@ import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { getAuth } from "@clerk/express";
+import { sendWelcomeEmail } from "../lib/mailer";
 
 const router: IRouter = Router();
 
@@ -49,6 +50,12 @@ router.get("/api/account/profile", requireAuth, async (req: Request, res: Respon
         smsConsentAt: usersTable.smsConsentAt,
       });
     user = inserted;
+
+    if (inserted && email) {
+      sendWelcomeEmail({ to: email, firstName }).catch((err) =>
+        console.error("[MAILER] Welcome email failed:", err)
+      );
+    }
   }
 
   if (!user) { res.status(500).json({ error: "Could not create user profile" }); return; }

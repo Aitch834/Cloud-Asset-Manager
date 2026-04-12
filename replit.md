@@ -95,9 +95,11 @@ The platform supports 17 core compliance modules with monthly pricing, covering 
 - **API Codegen:** Orval
 - **Build Tool:** esbuild
 - **Payments:** Stripe
-- **Authentication:** Replit Auth (OpenID Connect with PKCE)
+- **Authentication:** Clerk (`@clerk/express` server, `@clerk/react` client; JWT-verified via `clerkMiddleware`; dev bypass via `VITE_DEV_BYPASS_AUTH=true`)
+- **Email:** Brevo SMTP (`smtp-relay.brevo.com`, via `nodemailer`; functions in `lib/mailer.ts`; requires `SMTP_PASS` secret)
+- **Email Inbox:** Titan IMAP (`imap.secureserver.net`, `hello@bdefarmtrac.co.uk`; requires `TITAN_IMAP_PASSWORD` secret)
 - **AI Integration:** OpenAI (gpt-5-mini)
-- **SMS Notifications:** Twilio
+- **SMS Notifications:** Twilio (3 env vars: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`)
 - **Mobile Development:** Expo SDK 54, expo-router, expo-auth-session, expo-location, expo-image-picker, expo-haptics, expo-crypto
 - **Mobile Storage:** SQLite, AsyncStorage, SecureStore
 - **Mapping:** react-native-maps

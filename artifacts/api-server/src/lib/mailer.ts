@@ -253,3 +253,123 @@ export async function sendSetupGuideEmail(opts: SetupGuideOptions): Promise<{ se
     return { sent: false, reason: String(err) };
   }
 }
+
+export async function sendWelcomeEmail(opts: {
+  to: string;
+  firstName: string | null;
+}): Promise<{ sent: boolean; reason?: string }> {
+  const greeting = opts.firstName ? `Hi ${opts.firstName},` : "Welcome aboard,";
+  const body = `
+    <p>${greeting}</p>
+    <p>Your <strong>BDE Farm Trac</strong> account is all set up. We're delighted to have you as part of our community of UK farmers achieving Red Tractor compliance.</p>
+    <p style="margin:24px 0;">
+      <a href="https://bdefarmtrac.co.uk/dashboard" style="display:inline-block;padding:12px 28px;background:#1a6b3a;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">Open Your Dashboard →</a>
+    </p>
+    <p><strong>What to do next:</strong></p>
+    <ul style="padding-left:20px;line-height:2;">
+      <li>Complete your farm setup using the on-screen wizard</li>
+      <li>Add your first farm records (fields, livestock, spray applications)</li>
+      <li>Invite your farm manager or agronomist to collaborate</li>
+      <li>Set up SMS alerts so you never miss a compliance deadline</li>
+    </ul>
+    <p>If you have any questions, just reply to this email — our team is based in the UK and responds within one business day.</p>
+    <p>Kind regards,<br>The BDE Farm Trac Team<br><small style="color:#6b7280;">Barnett Davies Enterprises Ltd</small></p>
+  `;
+  return sendAdminEmail({
+    to: opts.to,
+    subject: "Welcome to BDE Farm Trac 🌱",
+    body,
+  });
+}
+
+export async function sendLeadConfirmationEmail(opts: {
+  to: string;
+  contactName: string;
+  businessName: string;
+  modulesInterested: string[];
+}): Promise<{ sent: boolean; reason?: string }> {
+  const firstName = opts.contactName.split(" ")[0] || opts.contactName;
+  const moduleList = opts.modulesInterested.length > 0
+    ? `<ul style="padding-left:20px;line-height:2;">${opts.modulesInterested.map((m) => `<li>${m}</li>`).join("")}</ul>`
+    : "";
+
+  const body = `
+    <p>Hi ${firstName},</p>
+    <p>Thank you for registering your interest in <strong>BDE Farm Trac</strong> for <em>${opts.businessName}</em>. We've received your details and a member of our team will be in touch within <strong>one business day</strong>.</p>
+    ${moduleList ? `<p>You expressed interest in the following modules:</p>${moduleList}` : ""}
+    <p>In the meantime, you can explore our platform on the website to see what's included:</p>
+    <p style="margin:24px 0;">
+      <a href="https://bdefarmtrac.co.uk/features" style="display:inline-block;padding:12px 28px;background:#1a6b3a;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">View Features →</a>
+    </p>
+    <p>Kind regards,<br>The BDE Farm Trac Team<br><small style="color:#6b7280;">Barnett Davies Enterprises Ltd · hello@bdefarmtrac.co.uk</small></p>
+  `;
+  return sendAdminEmail({
+    to: opts.to,
+    toName: opts.contactName,
+    subject: `Thanks for your interest in BDE Farm Trac, ${firstName}`,
+    body,
+    replyTo: "hello@bdefarmtrac.co.uk",
+  });
+}
+
+export interface WeeklyDigestItem {
+  category: string;
+  label: string;
+  dueDate: string;
+  severity: "critical" | "warning";
+}
+
+export async function sendWeeklyDigestEmail(opts: {
+  to: string;
+  toName: string;
+  farmName: string;
+  items: WeeklyDigestItem[];
+}): Promise<{ sent: boolean; reason?: string }> {
+  const firstName = opts.toName.split(" ")[0] || opts.toName;
+  const criticalCount = opts.items.filter((i) => i.severity === "critical").length;
+
+  const rows = opts.items
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+    .map((item) => `
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;">${item.category}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#111827;font-weight:500;">${item.label}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;">
+          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;
+            background:${item.severity === "critical" ? "#fee2e2" : "#fef9c3"};
+            color:${item.severity === "critical" ? "#991b1b" : "#92400e"};">
+            ${item.dueDate}
+          </span>
+        </td>
+      </tr>
+    `).join("");
+
+  const body = `
+    <p>Hi ${firstName},</p>
+    <p>Here is your weekly compliance summary for <strong>${opts.farmName}</strong>.
+    ${criticalCount > 0 ? `<br><strong style="color:#991b1b;">${criticalCount} item${criticalCount > 1 ? "s" : ""} require immediate attention.</strong>` : ""}</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;margin:20px 0;">
+      <thead>
+        <tr style="background:#f9fafb;">
+          <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:bold;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Category</th>
+          <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:bold;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Item</th>
+          <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:bold;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Due</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+
+    <p style="margin:24px 0;">
+      <a href="https://bdefarmtrac.co.uk/dashboard" style="display:inline-block;padding:12px 28px;background:#1a6b3a;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">Open Dashboard →</a>
+    </p>
+    <p style="font-size:12px;color:#9ca3af;">You are receiving this because you are listed as a manager for ${opts.farmName}. To unsubscribe, update your alert preferences in Account Settings.</p>
+  `;
+
+  return sendAdminEmail({
+    to: opts.to,
+    toName: opts.toName,
+    subject: `Weekly Compliance Summary — ${opts.farmName}`,
+    body,
+  });
+}
