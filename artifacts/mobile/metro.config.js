@@ -17,13 +17,16 @@ config.watchFolders = [
   path.join(workspaceRoot, "node_modules"),   // pnpm workspace node_modules
 ];
 
-// Also block Vite internals and other artifact directories from the resolver
-// in case Metro discovers them through symlinks.
+// Block other artifact directories, Vite internals, AND pnpm temp directories
+// (pnpm creates _tmp_NNNN directories during installs that may not exist at watch time)
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const wr = escape(workspaceRoot);
 
 config.resolver.blockList = [
   new RegExp(`${wr}/artifacts/(?!mobile)[^/]+/.*`),
+  // Block pnpm's volatile temp directories (e.g. @clerk/shared_tmp_4068)
+  /node_modules\/\.pnpm\/.*_tmp_\d+/,
+  /node_modules\/@[^/]+\/[^/]+_tmp_\d+/,
 ];
 
 module.exports = config;

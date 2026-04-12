@@ -3985,6 +3985,193 @@ router.delete("/farms/:farmId/financial-transactions/:recordId", requireAuth, re
   res.json({ success: true });
 });
 
+// ─── Xero CSV Export (GET — used by the dashboard UI) ──────────────────────
+// Exports the full union of manual + auto-generated transactions as a Xero-
+// formatted CSV.  Query params: startDate, endDate (ISO strings, optional),
+// format (ignored — always xero-csv).
+router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const startParam = req.query.startDate as string | undefined;
+  const endParam   = req.query.endDate   as string | undefined;
+  const startDate  = startParam ? new Date(startParam) : null;
+  const endDate    = endParam   ? new Date(endParam)   : null;
+
+  // ── Fetch all transaction sources in parallel (same as GET /financial-transactions) ──
+  const [manual, grainSales, deadweightSales, martSales, milkStmts, feedDelivs, fuelDelivs] = await Promise.all([
+    db.select({
+      id: financialTransactionsTable.id,
+      transactionType: financialTransactionsTable.transactionType,
+      category: financialTransactionsTable.category,
+      description: financialTransactionsTable.description,
+      amountPence: financialTransactionsTable.amountPence,
+      transactionDate: financialTransactionsTable.transactionDate,
+      reference: financialTransactionsTable.reference,
+      vendorCustomer: financialTransactionsTable.vendorCustomer,
+      vatAmountPence: financialTransactionsTable.vatAmountPence,
+      vatRate: financialTransactionsTable.vatRate,
+    }).from(financialTransactionsTable).where(eq(financialTransactionsTable.farmId, farmId)),
+    db.select().from(grainSalesTable).where(and(eq(grainSalesTable.farmId, farmId), isNotNull(grainSalesTable.grossValuePence))),
+    db.select().from(livestockDeadweightSalesTable).where(and(eq(livestockDeadweightSalesTable.farmId, farmId), isNotNull(livestockDeadweightSalesTable.grossValuePence))),
+    db.select().from(livestockMartSalesTable).where(and(eq(livestockMartSalesTable.farmId, farmId), isNotNull(livestockMartSalesTable.grossValuePence))),
+    db.select().from(milkStatementsTable).where(and(eq(milkStatementsTable.farmId, farmId), isNotNull(milkStatementsTable.grossValuePence))),
+    db.select().from(feedDeliveriesTable).where(and(eq(feedDeliveriesTable.farmId, farmId), isNotNull(feedDeliveriesTable.costPence))),
+    db.select().from(fuelDeliveriesTable).where(and(eq(fuelDeliveriesTable.farmId, farmId), isNotNull(fuelDeliveriesTable.totalCostPence))),
+  ]);
+
+  type FlatTx = {
+    transactionType: string;
+    category: string | null;
+    description: string | null;
+    amountPence: number | null;
+    transactionDate: string | null;
+    reference: string | null;
+    vendorCustomer: string | null;
+    vatAmountPence: number | null;
+    vatRate: string | null;
+  };
+
+  const all: FlatTx[] = [
+    ...manual.map(r => ({
+      transactionType: r.transactionType ?? "expense",
+      category: r.category,
+      description: r.description ?? r.vendorCustomer,
+      amountPence: r.amountPence,
+      transactionDate: r.transactionDate,
+      reference: r.reference,
+      vendorCustomer: r.vendorCustomer,
+      vatAmountPence: r.vatAmountPence,
+      vatRate: r.vatRate,
+    })),
+    ...grainSales.map(r => ({
+      transactionType: "income",
+      category: "Crop Sales",
+      description: `${r.commodity} grain sale${r.variety ? ` (${r.variety})` : ""} — ${r.tonnage}t @ ${r.buyer}`,
+      amountPence: r.netValuePence ?? r.grossValuePence,
+      transactionDate: r.saleDate,
+      reference: r.invoiceNumber ?? r.merchantRef ?? null,
+      vendorCustomer: r.buyer,
+      vatAmountPence: null,
+      vatRate: null,
+    })),
+    ...deadweightSales.map(r => ({
+      transactionType: "income",
+      category: "Livestock Sales",
+      description: `${r.species} deadweight — ${r.headCount} head @ ${r.processor}`,
+      amountPence: r.netPaymentPence ?? r.grossValuePence,
+      transactionDate: r.killDate,
+      reference: r.killSheetRef ?? null,
+      vendorCustomer: r.processor,
+      vatAmountPence: null,
+      vatRate: null,
+    })),
+    ...martSales.map(r => {
+      const deductions = (r.commissionPence ?? 0) + (r.levyPence ?? 0) + (r.transportCostPence ?? 0) + (r.otherCostsPence ?? 0);
+      return {
+        transactionType: "income",
+        category: "Livestock Sales",
+        description: `${r.species} mart sale — ${r.headCount} head @ ${r.martName}`,
+        amountPence: r.netPaymentPence ?? (r.grossValuePence != null ? r.grossValuePence - deductions : r.grossValuePence),
+        transactionDate: r.saleDate,
+        reference: r.auctioneerRef ?? null,
+        vendorCustomer: r.martName,
+        vatAmountPence: null,
+        vatRate: null,
+      };
+    }),
+    ...milkStmts.map(r => ({
+      transactionType: "income",
+      category: "Milk Sales",
+      description: `Milk statement — ${r.statementMonth} — ${r.litresSupplied ?? "—"}L @ ${r.buyer}`,
+      amountPence: r.netPaymentPence ?? r.grossValuePence,
+      // paymentDate is a real column; fall back to first day of statementMonth (e.g. "2025-03" → 2025-03-01)
+      transactionDate: r.paymentDate ? r.paymentDate.toISOString() : (r.statementMonth ? `${r.statementMonth}-01` : null),
+      reference: r.statementRef ?? null,
+      vendorCustomer: r.buyer,
+      vatAmountPence: null,
+      vatRate: null,
+    })),
+    ...feedDelivs.map(r => ({
+      transactionType: "expense",
+      category: "Feed",
+      description: `Feed delivery — ${r.feedType}${r.supplierName ? ` from ${r.supplierName}` : ""}`,
+      amountPence: r.costPence,
+      transactionDate: r.deliveryDate,
+      reference: r.invoiceReference ?? r.deliveryNoteNumber ?? null,
+      vendorCustomer: r.supplierName ?? null,
+      vatAmountPence: null,
+      vatRate: null,
+    })),
+    ...fuelDelivs.map(r => ({
+      transactionType: "expense",
+      category: "Fuel",
+      description: `Fuel delivery — ${r.fuelType}${r.supplierName ? ` from ${r.supplierName}` : ""}`,
+      amountPence: r.totalCostPence,
+      transactionDate: r.deliveryDate,
+      reference: r.invoiceReference ?? r.deliveryNoteNumber ?? null,
+      vendorCustomer: r.supplierName ?? null,
+      vatAmountPence: null,
+      vatRate: null,
+    })),
+  ];
+
+  // Apply date filter (only when valid dates provided)
+  const isValidDate = (d: Date | null): d is Date => d !== null && !isNaN(d.getTime());
+  const filtered = all.filter(t => {
+    if (!t.transactionDate) return true;
+    const d = new Date(t.transactionDate);
+    if (isValidDate(startDate) && d < startDate) return false;
+    if (isValidDate(endDate)   && d > endDate)   return false;
+    return true;
+  });
+
+  // Sort newest first
+  filtered.sort((a, b) => {
+    const da = a.transactionDate ? new Date(a.transactionDate).getTime() : 0;
+    const db2 = b.transactionDate ? new Date(b.transactionDate).getTime() : 0;
+    return db2 - da;
+  });
+
+  const csvEscape = (val: string | number | null | undefined): string => {
+    if (val == null) return "";
+    const s = String(val);
+    if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+
+  const dateLabel = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
+
+  // Xero convention: income = positive, expense = negative
+  const xeroAmount = (t: FlatTx): string => {
+    const raw = (t.amountPence ?? 0) / 100;
+    const signed = t.transactionType === "expense" ? -Math.abs(raw) : Math.abs(raw);
+    return signed.toFixed(2);
+  };
+
+  const headers = ["*Date", "*Amount", "*AccountCode", "Description", "Reference", "TaxType", "TaxAmount"];
+  const rows = filtered.map(t => [
+    dateLabel(t.transactionDate),
+    xeroAmount(t),
+    mapCategoryToXeroAccount(t.category || "general"),
+    t.description ?? t.vendorCustomer ?? "",
+    t.reference ?? "",
+    mapVatRateToXeroTax(t.vatRate),
+    t.vatAmountPence ? (t.vatAmountPence / 100).toFixed(2) : "",
+  ].map(csvEscape).join(","));
+
+  const csvContent = [headers.join(","), ...rows].join("\n");
+  const filenameSuffix = (isValidDate(startDate) && isValidDate(endDate))
+    ? `${startDate.toISOString().slice(0, 10)}-to-${endDate.toISOString().slice(0, 10)}`
+    : new Date().toISOString().slice(0, 10);
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="farm-xero-export-${filenameSuffix}.csv"`);
+  res.send(csvContent);
+});
+
+// ─── Legacy financial-exports POST (kept for backwards compat) ──────────────
 router.post("/farms/:farmId/financial-exports", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -13982,6 +14169,12 @@ router.delete("/farms/:farmId/accident-book/:recordId/photos/:photoId", requireA
   await db.delete(accidentBookPhotosTable).where(and(eq(accidentBookPhotosTable.id, photoId), eq(accidentBookPhotosTable.farmId, farmId)));
   res.json({ success: true });
 });
+
+// Helper: parse and validate farmId from route params (used by newer routes below)
+function getFarmId(req: Request): number | null {
+  const id = parseInt(req.params.farmId);
+  return (isNaN(id) || id <= 0) ? null : id;
+}
 
 // --- Soil Moisture Readings ---
 router.get("/farms/:farmId/soil-moisture-readings", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {

@@ -121,18 +121,26 @@ router.post("/billing/checkout", requireAuth, requireTenant, requireClientAdmin,
 });
 
 router.get("/billing/subscriptions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmIdParam = req.query.farmId ? parseInt(req.query.farmId as string, 10) : null;
+
+  const conditions = [eq(subscriptionsTable.tenantId, req.tenantId!)];
+  if (farmIdParam && !isNaN(farmIdParam)) {
+    conditions.push(eq(subscriptionsTable.farmId, farmIdParam));
+  }
+
   const subs = await db
     .select({
       id: subscriptionsTable.id,
       farmId: subscriptionsTable.farmId,
       moduleId: subscriptionsTable.moduleId,
       moduleName: modulesTable.name,
+      moduleKey: modulesTable.key,
       status: subscriptionsTable.status,
       currentPeriodEnd: subscriptionsTable.currentPeriodEnd,
     })
     .from(subscriptionsTable)
     .innerJoin(modulesTable, eq(subscriptionsTable.moduleId, modulesTable.id))
-    .where(eq(subscriptionsTable.tenantId, req.tenantId!));
+    .where(and(...conditions));
 
   res.json({ subscriptions: subs });
 });
