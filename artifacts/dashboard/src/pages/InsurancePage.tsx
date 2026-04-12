@@ -8,7 +8,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
-import { Plus, AlertTriangle, ShieldCheck, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, Info, Eye } from "lucide-react";
+import { Plus, AlertTriangle, ShieldCheck, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, Info, Eye, Printer } from "lucide-react";
+import { printProReport } from "@/lib/print-report";
 
 const POLICY_TYPES = [
   { value: "employers_liability", label: "Employers Liability", critical: true, legalNote: "Legally required under the Employers' Liability (Compulsory Insurance) Act 1969" },
@@ -367,6 +368,12 @@ export default function InsurancePage() {
   const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const [hlId, setHlId] = useState<number | null>(openId);
 
+  const { data: farmData } = useQuery<{ record: { id: number; name: string; cphNumber: string | null } }>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
   const { data, isLoading } = useQuery<{ records: InsuranceRecord[] }>({
     queryKey: ["insurance", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/insurance`).then(r => r.json()),
@@ -399,6 +406,70 @@ export default function InsurancePage() {
   const missingCritical = (["employers_liability", "public_liability"] as PolicyTypeValue[]).filter(pt =>
     !records.some(r => r.policyType === pt && expiryStatus(r.expiryDate) !== "expired")
   );
+
+  const handlePrint = () => {
+    const fName = farmData?.record?.name ?? "Farm";
+    const cph = farmData?.record?.cphNumber ?? undefined;
+
+    const statusLabel = (r: InsuranceRecord) => {
+      const s = expiryStatus(r.expiryDate);
+      if (s === "expired") return '<span style="background:#fee2e2;color:#b91c1c;padding:1px 5px;border-radius:3px;font-size:6.5px;font-weight:700;">EXPIRED</span>';
+      if (s === "warning") return '<span style="background:#fef9c3;color:#854d0e;padding:1px 5px;border-radius:3px;font-size:6.5px;font-weight:700;">EXPIRING SOON</span>';
+      if (s === "ok") return '<span style="background:#dcfce7;color:#166534;padding:1px 5px;border-radius:3px;font-size:6.5px;font-weight:700;">ACTIVE</span>';
+      return "—";
+    };
+
+    const tableHtml = `
+      <table>
+        <thead>
+          <tr>
+            <th>Policy Type</th>
+            <th>Insurer</th>
+            <th>Policy No.</th>
+            <th>Policyholder</th>
+            <th>Cover Level</th>
+            <th>Annual Premium</th>
+            <th>Broker</th>
+            <th>Start Date</th>
+            <th>Expiry Date</th>
+            <th>Renewal Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${records.map(r => `
+            <tr>
+              <td><strong>${policyLabel(r.policyType)}</strong>${policyIsCritical(r.policyType) ? ' <span style="color:#dc2626;font-size:6px;">★ Critical</span>' : ""}</td>
+              <td>${r.insurer ?? "—"}</td>
+              <td style="font-family:monospace;">${r.policyNumber ?? "—"}</td>
+              <td>${r.policyholderName ?? "—"}</td>
+              <td>${formatCover(r.coverLevelPence)}</td>
+              <td>${r.annualPremiumPence ? "£" + (r.annualPremiumPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 }) : "—"}</td>
+              <td>${r.broker ?? "—"}</td>
+              <td>${r.startDate ? new Date(r.startDate).toLocaleDateString("en-GB") : "—"}</td>
+              <td>${r.expiryDate ? new Date(r.expiryDate).toLocaleDateString("en-GB") : "—"}</td>
+              <td>${r.renewalDate ? new Date(r.renewalDate).toLocaleDateString("en-GB") : "—"}</td>
+              <td>${statusLabel(r)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+      ${records.length === 0 ? '<p style="color:#6b7280;font-size:8px;margin-top:12px;">No insurance policies recorded.</p>' : ""}
+    `;
+
+    printProReport({
+      title: "Farm Insurance Register",
+      subtitle: "Red Tractor & Legal Compliance — All Active Policies",
+      farmName: fName,
+      cphNumber: cph,
+      recordCount: records.length,
+      recordLabel: "policy",
+      tableHtml,
+      footerNote: "★ Employers Liability (legally required) and Public Liability (Red Tractor: min £5m) are critical policies. " +
+        "Attach certificate scans to each record for instant access during assessor visits. Retain for 3 years.",
+      landscape: true,
+    });
+  };
 
   return (
     <AppLayout title="Insurance Register">
@@ -440,9 +511,14 @@ export default function InsurancePage() {
               {records.length} {records.length === 1 ? "policy" : "policies"} on file — attach certificate scans for instant access during inspections
             </p>
           </div>
-          <Button onClick={() => setAddOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Plus style={{ width: 15, height: 15 }} /> Add Policy
-          </Button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button variant="outline" onClick={handlePrint} disabled={records.length === 0} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Printer style={{ width: 14, height: 14 }} /> Print Register
+            </Button>
+            <Button onClick={() => setAddOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Plus style={{ width: 15, height: 15 }} /> Add Policy
+            </Button>
+          </div>
         </div>
 
         {/* Table */}

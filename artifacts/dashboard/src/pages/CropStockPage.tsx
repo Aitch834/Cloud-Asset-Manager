@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Wheat, Plus, ArrowDown, ArrowUp, ArrowLeftRight, Pencil, Trash2, History, Database } from "lucide-react";
+import { Wheat, Plus, ArrowDown, ArrowUp, ArrowLeftRight, Pencil, Trash2, History, Database, Printer } from "lucide-react";
+import { openPrintWindow, buildProReport } from "@/lib/print-report";
 
 type Tab = "stock" | "movements";
 
@@ -388,6 +389,12 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
   const [levelForm, setLevelForm] = useState<any>(emptyLevel);
   const [harvestForm, setHarvestForm] = useState<any>(emptyHarvest);
 
+  const { data: farmData } = useQuery<{ record: { id: number; name: string; cphNumber: string | null } }>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
   // Bins
   const binsQ = useQuery({
     queryKey: ["grain-storage-bins", farmId],
@@ -498,6 +505,65 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
     (levelExistingParcel.commodity !== levelForm.commodity ||
      (levelExistingParcel.variety ?? "") !== (levelForm.variety ?? ""));
 
+  const handlePrintStock = () => {
+    const fName = farmData?.record?.name ?? "Farm";
+    const cph = farmData?.record?.cphNumber ?? undefined;
+    const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
+    const binLabel = (binId: number | null | undefined) => {
+      if (!binId) return "Unassigned / Field Heap";
+      return bins.find((b: any) => b.id === binId)?.binName ?? `Bin #${binId}`;
+    };
+
+    const tableHtml = `
+      <div class="section-head">Current Stock Levels — as at ${today}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Bin / Store</th>
+            <th>Commodity</th>
+            <th>Variety</th>
+            <th>Crop Year</th>
+            <th style="text-align:right;">Quantity (t)</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${records.map((r: any) => `
+            <tr>
+              <td>${binLabel(r.binId)}</td>
+              <td><strong>${r.commodity ?? "—"}</strong></td>
+              <td>${r.variety ?? "—"}</td>
+              <td>${r.cropYear ?? "—"}</td>
+              <td style="text-align:right;font-weight:700;">${parseFloat(r.quantityTonnes ?? "0").toFixed(3)}</td>
+              <td style="color:#6b7280;">${r.notes ?? ""}</td>
+            </tr>
+          `).join("")}
+          <tr style="background:#f0fdf4;font-weight:700;">
+            <td colspan="4" style="text-align:right;color:#166534;">Total In Store</td>
+            <td style="text-align:right;color:#166534;">${totalTonnes.toFixed(3)} t</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      ${records.length === 0 ? '<p style="color:#6b7280;font-size:8px;margin-top:12px;">No stock levels recorded.</p>' : ""}
+    `;
+
+    const html = buildProReport({
+      title: "Crop Stock Register",
+      subtitle: "Grain & Crop Storage Inventory",
+      farmName: fName,
+      cphNumber: cph,
+      recordCount: records.length,
+      recordLabel: "lot",
+      tableHtml,
+      footerNote: "Red Tractor requires a clear audit trail of all grain lots — commodity, variety, quantity, and location. " +
+        "Each bin should hold a single lot (one commodity/variety/harvest year). Retain all records for 3 years.",
+      landscape: true,
+    });
+    openPrintWindow(html);
+  };
+
   return (
     <div>
       {/* ── Summary strip ─────────────────────────────────────────── */}
@@ -527,6 +593,9 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
           </div>
         ))}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <Button size="sm" variant="outline" onClick={handlePrintStock} disabled={records.length === 0} title="Print stock register">
+            <Printer size={13} className="mr-1" />Print Register
+          </Button>
           <Button size="sm" variant="outline" onClick={() => { setHarvestBinId(null); setHarvestForm(emptyHarvest); setHarvestOpen(true); }}>
             <ArrowDown size={13} className="mr-1" style={{ color: "#16a34a" }} />Record Harvest In
           </Button>
@@ -771,6 +840,12 @@ function MovementsTab({ farmId }: { farmId: number }) {
     select: d => d.records ?? [],
   });
 
+  const { data: farmData } = useQuery<{ record: { id: number; name: string; cphNumber: string | null } }>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
   const binsQ = useQuery({
     queryKey: ["grain-storage-bins", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/grain-storage-bins`).then(r => r.json()),
@@ -789,11 +864,75 @@ function MovementsTab({ farmId }: { farmId: number }) {
   const records: any[] = q.data ?? [];
   const movTypeLabel = (t: string) => MOVEMENT_TYPES.find(m => m.value === t)?.label ?? t;
 
+  const handlePrintMovements = () => {
+    const fName = farmData?.record?.name ?? "Farm";
+    const cph = farmData?.record?.cphNumber ?? undefined;
+
+    const sorted = [...records].sort((a, b) => new Date(b.movedAt).getTime() - new Date(a.movedAt).getTime());
+
+    const dirBadge = (dir: string) => dir === "in"
+      ? '<span style="background:#dcfce7;color:#166534;padding:1px 5px;border-radius:3px;font-size:6px;font-weight:700;">IN</span>'
+      : '<span style="background:#fee2e2;color:#991b1b;padding:1px 5px;border-radius:3px;font-size:6px;font-weight:700;">OUT</span>';
+
+    const tableHtml = `
+      <table>
+        <thead>
+          <tr>
+            <th>Date / Time</th>
+            <th>Movement Type</th>
+            <th>Direction</th>
+            <th>Commodity</th>
+            <th>Variety</th>
+            <th>Bin / Store</th>
+            <th style="text-align:right;">Quantity (t)</th>
+            <th>Performed By</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sorted.map((m: any) => `
+            <tr>
+              <td style="white-space:nowrap;">${m.movedAt ? new Date(m.movedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+              <td><strong>${movTypeLabel(m.movementType)}</strong></td>
+              <td>${dirBadge(m.direction)}</td>
+              <td>${m.commodity ?? "—"}</td>
+              <td>${m.variety ?? "—"}</td>
+              <td>${binName(m.binId)}</td>
+              <td style="text-align:right;font-weight:700;">${parseFloat(m.quantityTonnes ?? "0").toFixed(3)}</td>
+              <td>${m.performedBy ?? "—"}</td>
+              <td style="color:#6b7280;">${m.notes ?? ""}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+      ${sorted.length === 0 ? '<p style="color:#6b7280;font-size:8px;margin-top:12px;">No movements recorded.</p>' : ""}
+    `;
+
+    const html = buildProReport({
+      title: "Crop Stock — Movement Audit Log",
+      subtitle: "Immutable record of all grain stock changes",
+      farmName: fName,
+      cphNumber: cph,
+      recordCount: sorted.length,
+      recordLabel: "movement",
+      tableHtml,
+      footerNote: "This is an immutable audit log. All entries are permanent records of grain movements. " +
+        "Red Tractor requires full traceability from harvest through storage to dispatch. Retain for 3 years.",
+      landscape: true,
+    });
+    openPrintWindow(html);
+  };
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Full immutable audit log of all crop stock changes — harvests, dispatches, transfers, and adjustments.</p>
-        <Button size="sm" variant="outline" onClick={() => setAdjOpen(true)}><Plus size={14} className="mr-1" />Manual Adjustment</Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button size="sm" variant="outline" onClick={handlePrintMovements} disabled={records.length === 0} title="Print movement audit log">
+            <Printer size={14} className="mr-1" />Print Log
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setAdjOpen(true)}><Plus size={14} className="mr-1" />Manual Adjustment</Button>
+        </div>
       </div>
 
       {records.length === 0 ? (
