@@ -1348,3 +1348,36 @@ export interface MilkStatementRecord {
   createdAt: string;
   synced: boolean;
 }
+
+export interface GrainStoreMovement {
+  id: string;
+  farmId: string;
+  movementType: "transfer" | "drying_loss" | "adjustment";
+  movementDate: string;
+  sourceStore: string;
+  destinationStore: string;
+  cropType: string;
+  weightTonnes: string;
+  reason: string;
+  recordedBy: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface ServiceJobRecord {
+  id: string;
+  farmId: string;
+  jobDate: string;
+  customerName: string;
+  jobType: string;
+  hoursWorked: string;
+  equipmentUsed: string;
+  rateType: "per_hour" | "per_acre" | "fixed" | "tbc";
+  rateAmount: string;
+  fieldOrLocation: string;
+  notes: string;
+  recordedBy: string;
+  createdAt: string;
+  synced: boolean;
+}

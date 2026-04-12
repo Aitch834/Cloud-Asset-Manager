@@ -165,6 +165,15 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["field-crop-management"],
   },
   {
+    id: "service-job",
+    title: "Log Service Job",
+    description: "Record a contracting or service job completed for another farm — customer, job type, hours, equipment, rate and sign-off",
+    icon: "tool",
+    color: "#059669",
+    bgColor: "#d1fae5",
+    route: "/service-job",
+  },
+  {
     id: "seed-drilling",
     title: "Seed Drilling Record",
     description: "Record crop drilling — field, crop variety, seed lot, seed rate, treatment and area drilled",
@@ -610,6 +619,16 @@ const recordOptions: RecordOption[] = [
     color: "#f59e0b",
     bgColor: "#fef9c3",
     route: "/grain-temperature",
+    moduleKeys: ["field-crop-management"],
+  },
+  {
+    id: "storage-movement",
+    title: "Grain Store Movement",
+    description: "Log an inter-store transfer, drying loss, or stock adjustment — syncs to the Storage Locations balance on the dashboard",
+    icon: "arrow-right-circle",
+    color: "#0284c7",
+    bgColor: "#e0f2fe",
+    route: "/storage-movement",
     moduleKeys: ["field-crop-management"],
   },
   {
