@@ -5189,7 +5189,7 @@ router.get("/farms/:farmId/task-assignments", requireAuth, requireTenant, async 
 
 router.get("/farms/:farmId/task-assignments/mine", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const userId = req.user?.id;
+  const userId = req.userId;
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
   const [member] = await db.select({ id: farmMembersTable.id }).from(farmMembersTable)
     .where(and(eq(farmMembersTable.farmId, farmId), eq(farmMembersTable.linkedUserId, userId)));
@@ -5202,7 +5202,7 @@ router.get("/farms/:farmId/task-assignments/mine", requireAuth, requireTenant, a
 
 router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const userId = req.user?.id ?? "unknown";
+  const userId = req.userId ?? "unknown";
   const tenantId = farmId;
   const { assignedToMemberId, title, description, dueDate, module: mod, href, assignmentNote, taskType, taskSourceId } = req.body;
   if (!assignedToMemberId || !title) { res.status(400).json({ error: "assignedToMemberId and title are required" }); return; }
@@ -5259,7 +5259,7 @@ router.get("/farms/:farmId/task-assignments/:id/history", requireAuth, requireTe
 
 router.patch("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const userId = req.user?.id ?? "unknown";
+  const userId = req.userId ?? "unknown";
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -9857,7 +9857,7 @@ router.get("/farms/:farmId/advisors", requireAuth, requireTenant, async (req: Re
 router.post("/farms/:farmId/advisors", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const userId = req.user?.id;
+  const userId = req.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
   const token = generateAccessToken();
   const [record] = await db.insert(farmAdvisorsTable).values({
@@ -9909,7 +9909,7 @@ router.get("/farms/:farmId/inspection-sessions", requireAuth, requireTenant, asy
 router.post("/farms/:farmId/inspection-sessions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const userId = req.user?.id;
+  const userId = req.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
   const token = generateAccessToken();
   const [record] = await db.insert(farmInspectionSessionsTable).values({
@@ -13221,7 +13221,7 @@ router.delete("/farms/:farmId/members/:memberId", requireAuth, requireTenant, as
 router.post("/farms/:farmId/members/:memberId/invite", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const userId = req.user?.id;
+  const userId = req.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
   const tenantId = (req as any).tenantId as number;
   const memberId = parseInt(req.params.memberId);
@@ -13708,7 +13708,7 @@ router.get("/farms/:farmId/feed-batch-trace", requireAuth, requireTenant, requir
 router.get("/farms/:farmId/my-access", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const userId = req.user?.id;
+  const userId = req.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
 
   const [userRow] = await db.select({ firstName: usersTable.firstName, lastName: usersTable.lastName })

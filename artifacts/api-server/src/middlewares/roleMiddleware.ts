@@ -1,6 +1,15 @@
 import { type Request, type Response, type NextFunction } from "express";
+import { getAuth } from "@clerk/express";
 import { db, permissionsTable, rolesTable, modulesTable } from "@workspace/db";
 import { eq, and, or, isNull } from "drizzle-orm";
+
+declare global {
+  namespace Express {
+    interface Request {
+      userId?: string;
+    }
+  }
+}
 
 type PermissionLevel = "read" | "write" | "delete" | "approve";
 
@@ -11,10 +20,21 @@ export function requireAuth(
   res: Response,
   next: NextFunction,
 ): void {
-  if (!req.isAuthenticated()) {
+  // Dev bypass and admin portal middlewares set req.userId directly
+  if (req.userId) {
+    next();
+    return;
+  }
+
+  // Clerk JWT verification
+  const auth = getAuth(req);
+  const userId = auth?.sessionClaims?.userId as string | undefined || auth?.userId;
+  if (!userId) {
     res.status(401).json({ error: "Authentication required" });
     return;
   }
+
+  req.userId = userId;
   next();
 }
 

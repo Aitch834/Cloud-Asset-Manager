@@ -36,7 +36,7 @@ router.get("/tenants/mine", requireAuth, async (req: Request, res: Response): Pr
     })
     .from(userTenantsTable)
     .innerJoin(tenantsTable, eq(userTenantsTable.tenantId, tenantsTable.id))
-    .where(and(eq(userTenantsTable.userId, req.user!.id), eq(userTenantsTable.isActive, true)));
+    .where(and(eq(userTenantsTable.userId, req.userId!), eq(userTenantsTable.isActive, true)));
 
   res.json({ tenants: userTenantRows });
 });
@@ -71,7 +71,7 @@ router.post("/tenants", requireAuth, async (req: Request, res: Response): Promis
   const [tenant] = await db.insert(tenantsTable).values({ name, slug, contactEmail, contactPhone, address }).returning();
 
   await db.insert(userTenantsTable).values({
-    userId: req.user!.id,
+    userId: req.userId!,
     tenantId: tenant.id,
     roleId,
     isSuperAdmin: false,
@@ -175,7 +175,7 @@ router.post("/tenants/current/invitations", requireAuth, requireTenant, requireC
     email,
     roleId,
     token,
-    invitedBy: req.user!.id,
+    invitedBy: req.userId!,
     expiresAt,
   }).returning();
 

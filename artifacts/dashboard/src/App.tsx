@@ -1,13 +1,15 @@
-import React from "react";
-import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React, { useEffect, useRef } from "react";
+import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ClerkProvider, SignIn, SignUp, useClerk, useAuth } from "@clerk/react";
 
 import "@/lib/fetch-patch";
 
 import Login from "@/pages/Login";
 import SelectContext from "@/pages/SelectContext";
+import OnboardingPage from "@/pages/OnboardingPage";
 import Dashboard from "@/pages/Dashboard";
 import FieldsPage from "@/pages/Fields";
 import CropTrialsPage from "@/pages/CropTrialsPage";
@@ -78,6 +80,17 @@ import TradeHistory from "@/pages/TradeHistory";
 import OrganicPage from "@/pages/OrganicPage";
 import CompliancePage from "@/pages/CompliancePage";
 
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+// NOTE: in dev this env var will be empty, in prod it will be automatically set
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function stripBase(path: string): string {
+  return basePath && path.startsWith(basePath)
+    ? path.slice(basePath.length) || "/"
+    : path;
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -86,6 +99,85 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function ClerkQueryClientCacheInvalidator() {
+  const { addListener } = useClerk();
+  const qc = useQueryClient();
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const unsubscribe = addListener(({ user }) => {
+      const userId = user?.id ?? null;
+      if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) {
+        qc.clear();
+      }
+      prevUserIdRef.current = userId;
+    });
+    return unsubscribe;
+  }, [addListener, qc]);
+  return null;
+}
+
+function SignInPage() {
+  // To update login providers, app branding, or OAuth settings use the Auth
+  // pane in the workspace toolbar. More information can be found in the Replit docs.
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <SignIn
+        routing="path"
+        path={`${basePath}/sign-in`}
+        signUpUrl={`${basePath}/sign-up`}
+        fallbackRedirectUrl={`${basePath}/select`}
+      />
+    </div>
+  );
+}
+
+function SignUpPage() {
+  // To update login providers, app branding, or OAuth settings use the Auth
+  // pane in the workspace toolbar. More information can be found in the Replit docs.
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <SignUp
+        routing="path"
+        path={`${basePath}/sign-up`}
+        signInUrl={`${basePath}/sign-in`}
+        fallbackRedirectUrl={`${basePath}/onboard`}
+      />
+    </div>
+  );
+}
+
+function HomeRedirect() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      setLocation("/select");
+    }
+  }, [isLoaded, isSignedIn, setLocation]);
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (isSignedIn) return null;
+  return <Login />;
+}
+
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { isSignedIn, isLoaded } = useAuth();
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      setLocation("/");
+    }
+  }, [isLoaded, isSignedIn, setLocation]);
+  if (!isLoaded) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  if (!isSignedIn) return null;
+  return <>{children}</>;
+}
 
 
 function SoilPage() {
@@ -171,97 +263,215 @@ function RouteErrorBoundary({ children }: { children: React.ReactNode }) {
   );
 }
 
+function ProtectedContent() {
+  return (
+    <AuthGate>
+      <Switch>
+        <Route path="/select" component={SelectContext} />
+        <Route path="/onboard" component={OnboardingPage} />
+        <Route path="/dashboard" component={Dashboard} />
+        <Route path="/week-ahead" component={WeekAheadPage} />
+        <Route path="/task-board" component={TaskBoardPage} />
+        <Route path="/fields" component={FieldsPage} />
+        <Route path="/crop-trials" component={CropTrialsPage} />
+        <Route path="/harvest" component={HarvestPage} />
+        <Route path="/storage-locations" component={StorageLocationsPage} />
+        <Route path="/equipment" component={EquipmentPage} />
+        <Route path="/sprays" component={SprayPage} />
+        <Route path="/nmp" component={NMPPage} />
+        <Route path="/nvz" component={NVZPage} />
+        <Route path="/soil" component={SoilPage} />
+        <Route path="/inspections" component={InspectionsPage} />
+        <Route path="/risks" component={RisksPage} />
+        <Route path="/waste" component={WastePage} />
+        <Route path="/fly-tipping" component={FlyTippingPageWrapper} />
+        <Route path="/encampments" component={EncampmentPage} />
+        <Route path="/accident-book" component={AccidentBookPage} />
+        <Route path="/visitors" component={VisitorsPage} />
+        <Route path="/pest-control" component={PestControlPage} />
+        <Route path="/cleaning" component={CleaningPage} />
+        <Route path="/coshh" component={CoshhPage} />
+        <Route path="/farm-locations" component={FarmLocationsPage} />
+        <Route path="/farm-map" component={FarmMapPage} />
+        <Route path="/livestock" component={LivestockPage} />
+        <Route path="/movements" component={MovementsPage} />
+        <Route path="/medicine" component={MedicinePage} />
+        <Route path="/training" component={TrainingPage} />
+        <Route path="/stock" component={StockPage} />
+        <Route path="/financial" component={FinancialPage} />
+        <Route path="/sales-trading" component={SalesTradingPage} />
+        <Route path="/trade-history" component={TradeHistory} />
+        <Route path="/business-reports" component={BusinessReportsPage} />
+        <Route path="/field-operations" component={FieldOperationsPage} />
+        <Route path="/field-inspections" component={FieldInspectionsPage} />
+        <Route path="/environmental" component={EnvironmentalPage} />
+        <Route path="/haulage" component={HaulagePage} />
+        <Route path="/crop-stock" component={CropStockPage} />
+        <Route path="/documents" component={DocumentsPageCustom} />
+        <Route path="/weather" component={WeatherPage} />
+        <Route path="/help" component={HelpPage} />
+        <Route path="/support" component={SupportPage} />
+        <Route path="/harvest-dashboard" component={HarvestDashboard} />
+        <Route path="/livestock-health" component={LivestockHealthDashboard} />
+        <Route path="/herd-health-register" component={HerdHealthRegisterPage} />
+        <Route path="/nvz-dashboard" component={NVZDashboard} />
+        <Route path="/soil-dashboard" component={SoilDashboard} />
+        <Route path="/fleet-dashboard" component={FleetDashboard} />
+        <Route path="/staff" component={StaffPage} />
+        <Route path="/settings/access" component={AdvisorsAccessPage} />
+        <Route path="/settings/farm" component={FarmSettingsPage} />
+        <Route path="/settings" component={SettingsPage} />
+        <Route path="/account" component={AccountSettings} />
+        <Route path="/dairy" component={DairyPage} />
+        <Route path="/workshop" component={WorkshopPage} />
+        <Route path="/biofuel" component={BiofuelPage} />
+        <Route path="/pig-production" component={PigProductionPage} />
+        <Route path="/poultry-production" component={PoultryProductionPage} />
+        <Route path="/horticulture" component={HorticulturePage} />
+        <Route path="/carbon" component={CarbonPage} />
+        <Route path="/diversification" component={DiversificationPage} />
+        <Route path="/water-irrigation" component={WaterIrrigationPage} />
+        <Route path="/insurance" component={InsurancePage} />
+        <Route path="/farm-services" component={FarmServicesPage} />
+        <Route path="/grants" component={GrantsPage} />
+        <Route path="/fuel-energy" component={FuelEnergyPage} />
+        <Route path="/feed" component={FeedManagementPage} />
+        <Route path="/organic" component={OrganicPage} />
+        <Route path="/compliance" component={CompliancePage} />
+        <Route component={NotFound} />
+      </Switch>
+    </AuthGate>
+  );
+}
+
 function Router() {
   return (
     <RouteErrorBoundary>
-    <Switch>
-      <Route path="/" component={Login} />
-      <Route path="/select" component={SelectContext} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/week-ahead" component={WeekAheadPage} />
-      <Route path="/task-board" component={TaskBoardPage} />
-      <Route path="/fields" component={FieldsPage} />
-      <Route path="/crop-trials" component={CropTrialsPage} />
-      <Route path="/harvest" component={HarvestPage} />
-      <Route path="/storage-locations" component={StorageLocationsPage} />
-      <Route path="/equipment" component={EquipmentPage} />
-      <Route path="/sprays" component={SprayPage} />
-      <Route path="/nmp" component={NMPPage} />
-      <Route path="/nvz" component={NVZPage} />
-      <Route path="/soil" component={SoilPage} />
-      <Route path="/inspections" component={InspectionsPage} />
-      <Route path="/risks" component={RisksPage} />
-      <Route path="/waste" component={WastePage} />
-      <Route path="/fly-tipping" component={FlyTippingPageWrapper} />
-      <Route path="/encampments" component={EncampmentPage} />
-      <Route path="/accident-book" component={AccidentBookPage} />
-      <Route path="/visitors" component={VisitorsPage} />
-      <Route path="/pest-control" component={PestControlPage} />
-      <Route path="/cleaning" component={CleaningPage} />
-      <Route path="/coshh" component={CoshhPage} />
-      <Route path="/farm-locations" component={FarmLocationsPage} />
-      <Route path="/farm-map" component={FarmMapPage} />
-      <Route path="/livestock" component={LivestockPage} />
-      <Route path="/movements" component={MovementsPage} />
-      <Route path="/medicine" component={MedicinePage} />
-      <Route path="/training" component={TrainingPage} />
-      <Route path="/stock" component={StockPage} />
-      <Route path="/financial" component={FinancialPage} />
-      <Route path="/sales-trading" component={SalesTradingPage} />
-      <Route path="/trade-history" component={TradeHistory} />
-      <Route path="/business-reports" component={BusinessReportsPage} />
-      <Route path="/field-operations" component={FieldOperationsPage} />
-      <Route path="/field-inspections" component={FieldInspectionsPage} />
-      <Route path="/environmental" component={EnvironmentalPage} />
-      <Route path="/haulage" component={HaulagePage} />
-      <Route path="/crop-stock" component={CropStockPage} />
-      <Route path="/documents" component={DocumentsPageCustom} />
-      <Route path="/weather" component={WeatherPage} />
-      <Route path="/help" component={HelpPage} />
-      <Route path="/support" component={SupportPage} />
-      <Route path="/harvest-dashboard" component={HarvestDashboard} />
-      <Route path="/livestock-health" component={LivestockHealthDashboard} />
-      <Route path="/herd-health-register" component={HerdHealthRegisterPage} />
-      <Route path="/nvz-dashboard" component={NVZDashboard} />
-      <Route path="/soil-dashboard" component={SoilDashboard} />
-      <Route path="/fleet-dashboard" component={FleetDashboard} />
-      <Route path="/staff" component={StaffPage} />
-      <Route path="/settings/access" component={AdvisorsAccessPage} />
-      <Route path="/settings/farm" component={FarmSettingsPage} />
-      <Route path="/settings" component={SettingsPage} />
-      <Route path="/account" component={AccountSettings} />
-      <Route path="/dairy" component={DairyPage} />
-      <Route path="/workshop" component={WorkshopPage} />
-      <Route path="/biofuel" component={BiofuelPage} />
-      <Route path="/pig-production" component={PigProductionPage} />
-      <Route path="/poultry-production" component={PoultryProductionPage} />
-      <Route path="/horticulture" component={HorticulturePage} />
-      <Route path="/carbon" component={CarbonPage} />
-      <Route path="/diversification" component={DiversificationPage} />
-      <Route path="/water-irrigation" component={WaterIrrigationPage} />
-      <Route path="/insurance" component={InsurancePage} />
-      <Route path="/farm-services" component={FarmServicesPage} />
-      <Route path="/grants" component={GrantsPage} />
-      <Route path="/fuel-energy" component={FuelEnergyPage} />
-      <Route path="/feed" component={FeedManagementPage} />
-      <Route path="/organic" component={OrganicPage} />
-      <Route path="/compliance" component={CompliancePage} />
-      <Route path="/inspect/:token" component={InspectionViewPage} />
-      <Route component={NotFound} />
-    </Switch>
+      <Switch>
+        <Route path="/" component={HomeRedirect} />
+        <Route path="/sign-in/*?" component={SignInPage} />
+        <Route path="/sign-up/*?" component={SignUpPage} />
+        <Route path="/inspect/:token" component={InspectionViewPage} />
+        <Route component={ProtectedContent} />
+      </Switch>
     </RouteErrorBoundary>
+  );
+}
+
+function DevBypassContent() {
+  return (
+    <Switch>
+      <Route path="/" component={() => <Redirect to="/select" />} />
+      <Route path="/sign-in/*?" component={() => <Redirect to="/select" />} />
+      <Route path="/sign-up/*?" component={() => <Redirect to="/select" />} />
+      <Route path="/inspect/:token" component={InspectionViewPage} />
+      <Route>
+        <RouteErrorBoundary>
+          <Switch>
+              <Route path="/select" component={SelectContext} />
+              <Route path="/onboard" component={OnboardingPage} />
+              <Route path="/dashboard" component={Dashboard} />
+              <Route path="/week-ahead" component={WeekAheadPage} />
+              <Route path="/task-board" component={TaskBoardPage} />
+              <Route path="/fields" component={FieldsPage} />
+              <Route path="/crop-trials" component={CropTrialsPage} />
+              <Route path="/harvest" component={HarvestPage} />
+              <Route path="/storage-locations" component={StorageLocationsPage} />
+              <Route path="/equipment" component={EquipmentPage} />
+              <Route path="/sprays" component={SprayPage} />
+              <Route path="/nmp" component={NMPPage} />
+              <Route path="/nvz" component={NVZPage} />
+              <Route path="/soil" component={SoilPage} />
+              <Route path="/inspections" component={InspectionsPage} />
+              <Route path="/risks" component={RisksPage} />
+              <Route path="/waste" component={WastePage} />
+              <Route path="/fly-tipping" component={FlyTippingPageWrapper} />
+              <Route path="/encampments" component={EncampmentPage} />
+              <Route path="/accident-book" component={AccidentBookPage} />
+              <Route path="/visitors" component={VisitorsPage} />
+              <Route path="/pest-control" component={PestControlPage} />
+              <Route path="/cleaning" component={CleaningPage} />
+              <Route path="/coshh" component={CoshhPage} />
+              <Route path="/farm-locations" component={FarmLocationsPage} />
+              <Route path="/farm-map" component={FarmMapPage} />
+              <Route path="/livestock" component={LivestockPage} />
+              <Route path="/movements" component={MovementsPage} />
+              <Route path="/medicine" component={MedicinePage} />
+              <Route path="/training" component={TrainingPage} />
+              <Route path="/stock" component={StockPage} />
+              <Route path="/financial" component={FinancialPage} />
+              <Route path="/sales-trading" component={SalesTradingPage} />
+              <Route path="/trade-history" component={TradeHistory} />
+              <Route path="/business-reports" component={BusinessReportsPage} />
+              <Route path="/field-operations" component={FieldOperationsPage} />
+              <Route path="/field-inspections" component={FieldInspectionsPage} />
+              <Route path="/environmental" component={EnvironmentalPage} />
+              <Route path="/haulage" component={HaulagePage} />
+              <Route path="/crop-stock" component={CropStockPage} />
+              <Route path="/documents" component={DocumentsPageCustom} />
+              <Route path="/weather" component={WeatherPage} />
+              <Route path="/help" component={HelpPage} />
+              <Route path="/support" component={SupportPage} />
+              <Route path="/harvest-dashboard" component={HarvestDashboard} />
+              <Route path="/livestock-health" component={LivestockHealthDashboard} />
+              <Route path="/herd-health-register" component={HerdHealthRegisterPage} />
+              <Route path="/nvz-dashboard" component={NVZDashboard} />
+              <Route path="/soil-dashboard" component={SoilDashboard} />
+              <Route path="/fleet-dashboard" component={FleetDashboard} />
+              <Route path="/staff" component={StaffPage} />
+              <Route path="/settings/access" component={AdvisorsAccessPage} />
+              <Route path="/settings/farm" component={FarmSettingsPage} />
+              <Route path="/settings" component={SettingsPage} />
+              <Route path="/account" component={AccountSettings} />
+              <Route path="/dairy" component={DairyPage} />
+              <Route path="/workshop" component={WorkshopPage} />
+              <Route path="/biofuel" component={BiofuelPage} />
+              <Route path="/pig-production" component={PigProductionPage} />
+              <Route path="/poultry-production" component={PoultryProductionPage} />
+              <Route path="/horticulture" component={HorticulturePage} />
+              <Route path="/carbon" component={CarbonPage} />
+              <Route path="/diversification" component={DiversificationPage} />
+              <Route path="/water-irrigation" component={WaterIrrigationPage} />
+              <Route path="/insurance" component={InsurancePage} />
+              <Route path="/farm-services" component={FarmServicesPage} />
+              <Route path="/grants" component={GrantsPage} />
+              <Route path="/fuel-energy" component={FuelEnergyPage} />
+              <Route path="/feed" component={FeedManagementPage} />
+              <Route path="/organic" component={OrganicPage} />
+              <Route path="/compliance" component={CompliancePage} />
+              <Route component={NotFound} />
+            </Switch>
+          </RouteErrorBoundary>
+        </Route>
+      </Switch>
+  );
+}
+
+function ClerkProviderWrapper() {
+  const [, setLocation] = useLocation();
+  const isDevBypass = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
+  return (
+    <ClerkProvider
+      publishableKey={clerkPubKey}
+      proxyUrl={clerkProxyUrl}
+      routerPush={(to) => setLocation(stripBase(to))}
+      routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
+    >
+      <QueryClientProvider client={queryClient}>
+        <ClerkQueryClientCacheInvalidator />
+        {isDevBypass ? <DevBypassContent /> : <Router />}
+        <Toaster />
+      </QueryClientProvider>
+    </ClerkProvider>
   );
 }
 
 function App() {
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </QueryClientProvider>
+      <WouterRouter base={basePath}>
+        <ClerkProviderWrapper />
+      </WouterRouter>
     </ErrorBoundary>
   );
 }

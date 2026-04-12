@@ -11,7 +11,7 @@ const router: IRouter = Router();
 async function checkPlatformAdmin(req: Request, res: Response): Promise<boolean> {
   if (req.isSuperAdmin) return true;
 
-  if (!req.user) {
+  if (!req.userId) {
     res.status(401).json({ error: "Authentication required" });
     return false;
   }
@@ -21,7 +21,7 @@ async function checkPlatformAdmin(req: Request, res: Response): Promise<boolean>
     .from(userTenantsTable)
     .where(
       and(
-        eq(userTenantsTable.userId, req.user.id),
+        eq(userTenantsTable.userId, req.userId),
         eq(userTenantsTable.isSuperAdmin, true),
         eq(userTenantsTable.isActive, true),
       ),
@@ -209,7 +209,7 @@ router.post("/admin/support-tickets/:ticketId/reply", requireAuth, async (req: R
   const [reply] = await db.insert(supportTicketMessagesTable).values({
     ticketId,
     senderType: "admin",
-    senderId: req.user?.id || "system",
+    senderId: req.userId || "system",
     message: message.trim(),
   }).returning();
 

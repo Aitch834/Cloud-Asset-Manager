@@ -1,9 +1,9 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser";
 import path from "path";
 import { fileURLToPath } from "url";
-import { authMiddleware } from "./middlewares/authMiddleware";
+import { clerkMiddleware } from "@clerk/express";
+import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
 import { tenantMiddleware } from "./middlewares/tenantMiddleware";
 import { devBypassMiddleware } from "./middlewares/devBypassMiddleware";
 import { adminPortalMiddleware } from "./middlewares/adminPortalMiddleware";
@@ -11,8 +11,10 @@ import router from "./routes";
 
 const app: Express = express();
 
+// Clerk proxy must be mounted before body parsers (streams raw bytes)
+app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+
 app.use(cors({ credentials: true, origin: true }));
-app.use(cookieParser());
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.use("/api/help-images", express.static(path.join(__dirname, "../public/help-images"), {
@@ -28,9 +30,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   express.json()(req, res, next);
 });
 app.use(express.urlencoded({ extended: true }));
+
 app.use(adminPortalMiddleware);
 app.use(devBypassMiddleware);
-app.use(authMiddleware);
+app.use(clerkMiddleware());
 app.use(tenantMiddleware);
 
 app.use("/api", router);

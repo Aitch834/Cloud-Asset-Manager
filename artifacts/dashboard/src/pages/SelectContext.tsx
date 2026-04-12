@@ -87,6 +87,13 @@ export default function SelectContext() {
     }
   }, [tenantSlug, farmId, setLocation]);
 
+  // New user with no tenants → go to onboarding wizard
+  useEffect(() => {
+    if (tenantsData?.tenants && tenantsData.tenants.length === 0) {
+      setLocation('/onboard');
+    }
+  }, [tenantsData, setLocation]);
+
   useEffect(() => {
     if (tenantsData?.tenants && tenantsData.tenants.length === 1 && !tenantSlug) {
       setTenantSlug(tenantsData.tenants[0].tenantSlug);

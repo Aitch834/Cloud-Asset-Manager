@@ -21,7 +21,7 @@ export async function tenantMiddleware(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  if (!req.user) {
+  if (!req.userId) {
     next();
     return;
   }
@@ -69,7 +69,7 @@ export async function tenantMiddleware(
     .from(userTenantsTable)
     .where(
       and(
-        eq(userTenantsTable.userId, req.user.id),
+        eq(userTenantsTable.userId, req.userId),
         eq(userTenantsTable.tenantId, tenant.id),
         eq(userTenantsTable.isActive, true),
       ),
@@ -85,7 +85,7 @@ export async function tenantMiddleware(
       .from(userTenantsTable)
       .where(
         and(
-          eq(userTenantsTable.userId, req.user.id),
+          eq(userTenantsTable.userId, req.userId),
           eq(userTenantsTable.isSuperAdmin, true),
           eq(userTenantsTable.isActive, true),
         ),
@@ -114,7 +114,7 @@ export async function tenantMiddleware(
       req.roleId = targetMembership.roleId;
       req.isSuperAdmin = false;
       req.isImpersonating = true;
-      req.originalUserId = req.user.id;
+      req.originalUserId = req.userId;
       next();
       return;
     }

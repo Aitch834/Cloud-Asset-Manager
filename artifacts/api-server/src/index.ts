@@ -12,9 +12,7 @@ interface EnvSpec {
 const ENV_SPEC: EnvSpec[] = [
   { key: "PORT",                   description: "HTTP port the server listens on",                required: true  },
   { key: "DATABASE_URL",           description: "PostgreSQL connection string",                   required: true  },
-  { key: "REPL_ID",                description: "Replit environment identifier (auth callback)",  required: true  },
-  { key: "ISSUER_URL",             description: "Replit OIDC issuer URL for authentication",      required: false },
-  { key: "SESSION_SECRET",         description: "Secret used to sign session cookies",            required: false },
+  { key: "CLERK_SECRET_KEY",       description: "Clerk secret key — authentication",             required: true  },
   { key: "STRIPE_SECRET_KEY",      description: "Stripe API secret key — enables billing",        required: false },
   { key: "STRIPE_WEBHOOK_SECRET",  description: "Stripe webhook signing secret",                  required: false },
   { key: "DEV_BYPASS_TOKEN",       description: "Dev-only token that bypasses auth (test mode)",  required: false },

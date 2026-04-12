@@ -16,6 +16,11 @@ function getStripe(): Stripe {
 
 const router: IRouter = Router();
 
+router.get("/billing/modules", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const modules = await db.select().from(modulesTable).where(eq(modulesTable.isActive, true));
+  res.json({ modules });
+});
+
 router.post("/billing/checkout", requireAuth, requireTenant, requireClientAdmin, async (req: Request, res: Response): Promise<void> => {
   const { farmId, moduleIds } = req.body as { farmId: number; moduleIds: number[] };
 

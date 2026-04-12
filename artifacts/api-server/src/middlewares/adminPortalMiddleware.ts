@@ -19,18 +19,7 @@ export function adminPortalMiddleware(
     return;
   }
 
-  req.user = {
-    id: "bde-platform-admin",
-    email: "admin@bdefarmtrac.com",
-    firstName: "BDE",
-    lastName: "Admin",
-    profileImageUrl: null,
-  };
-
-  req.isAuthenticated = function (this: Request) {
-    return true;
-  } as Request["isAuthenticated"];
-
+  req.userId = "bde-platform-admin";
   req.isSuperAdmin = true;
 
   next();

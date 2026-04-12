@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useClerk } from "@clerk/react";
 import { 
   LayoutDashboard, 
   Sprout, 
@@ -301,6 +302,8 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
 
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const { farmId, clearState } = useAppStore();
+  const { signOut } = useClerk();
+  const [, setLocation] = useLocation();
   const { data: farmsData } = useListFarms({ query: { enabled: true } as any });
   const { data: dashboardData } = useGetFarmDashboard(farmId ?? 0, { query: { enabled: !!farmId } as any });
   const currentFarm = farmsData?.farms?.find(f => f.id === farmId);
@@ -338,7 +341,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   const handleLogout = () => {
     clearState();
-    window.location.href = "/api/logout";
+    signOut(() => setLocation("/"));
   };
 
   const sidebarBaseClasses = "flex flex-col w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen";

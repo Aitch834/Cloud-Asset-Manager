@@ -30,18 +30,7 @@ export function devBypassMiddleware(
     return;
   }
 
-  req.user = {
-    id: "dev-bypass-user",
-    email: "dev@bdefarmtrac.local",
-    firstName: "Developer",
-    lastName: "Mode",
-    profileImageUrl: null,
-  };
-
-  req.isAuthenticated = function (this: Request) {
-    return true;
-  } as Request["isAuthenticated"];
-
+  req.userId = "dev-bypass-user";
   req.isBypassMode = true;
 
   next();

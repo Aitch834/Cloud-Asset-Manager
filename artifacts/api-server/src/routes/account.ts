@@ -2,16 +2,17 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
+import { getAuth } from "@clerk/express";
 
 const router: IRouter = Router();
 
 const UK_PHONE_RE = /^\+44[0-9]{9,10}$/;
 
 router.get("/api/account/profile", requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user?.id;
+  const userId = req.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
 
-  const [user] = await db
+  let [user] = await db
     .select({
       id: usersTable.id,
       email: usersTable.email,
@@ -25,12 +26,37 @@ router.get("/api/account/profile", requireAuth, async (req: Request, res: Respon
     .where(eq(usersTable.id, userId))
     .limit(1);
 
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (!user) {
+    // First sign-in via Clerk — seed a minimal profile row.
+    // Pull display name from Clerk session claims if available.
+    const clerkAuth = getAuth(req);
+    const claims = clerkAuth?.sessionClaims as Record<string, unknown> | undefined;
+    const email = (claims?.email ?? claims?.primary_email ?? null) as string | null;
+    const firstName = (claims?.given_name ?? claims?.first_name ?? null) as string | null;
+    const lastName = (claims?.family_name ?? claims?.last_name ?? null) as string | null;
+
+    const [inserted] = await db
+      .insert(usersTable)
+      .values({ id: userId, email, firstName, lastName })
+      .onConflictDoNothing()
+      .returning({
+        id: usersTable.id,
+        email: usersTable.email,
+        firstName: usersTable.firstName,
+        lastName: usersTable.lastName,
+        phoneNumber: usersTable.phoneNumber,
+        smsOptIn: usersTable.smsOptIn,
+        smsConsentAt: usersTable.smsConsentAt,
+      });
+    user = inserted;
+  }
+
+  if (!user) { res.status(500).json({ error: "Could not create user profile" }); return; }
   res.json(user);
 });
 
 router.put("/api/account/profile", requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const userId = req.user?.id;
+  const userId = req.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
 
   const { phoneNumber, smsOptIn } = req.body as { phoneNumber?: string; smsOptIn?: string };
