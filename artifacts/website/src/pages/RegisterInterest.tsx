@@ -41,6 +41,8 @@ const MODULES = [
   { id: "poultry-production", label: "Poultry Production" },
   { id: "crop-trials", label: "Crop Trials" },
   { id: "farm-diversification", label: "Farm Diversification" },
+  { id: "grain-crop-storage", label: "Grain & Crop Storage (stock movements, merchant charges, record linking)" },
+  { id: "farm-services-contracting", label: "Farm Services & Contracting (contracting jobs, equipment hire)" },
 ];
 
 const HEARD_VIA = [

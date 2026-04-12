@@ -29,6 +29,8 @@ const MODULES = [
   { id: "poultry-production", name: "Poultry Production", price: 25 },
   { id: "horticulture", name: "Horticulture & Fresh Produce", price: 20 },
   { id: "farm-diversification", name: "Farm Diversification", price: 15 },
+  { id: "grain-crop-storage", name: "Grain & Crop Storage", price: 18, note: "Storage location register, stock movements (intake/dispatch/transfer/drying loss), merchant storage charges, and record drill-down linking to haulage, sales and harvest records" },
+  { id: "farm-services-contracting", name: "Farm Services & Contracting", price: 15, note: "Farm-as-service-provider: contracting jobs, equipment hire, customer directory, revenue summary, and insurance cross-reference" },
 ];
 
 interface Farm {

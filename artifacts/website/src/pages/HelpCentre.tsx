@@ -5,6 +5,7 @@ import {
   Search, ChevronDown, ChevronUp, BookOpen, Sprout, ShieldCheck, FlaskConical,
   Tractor, PawPrint, ClipboardCheck, LifeBuoy, Phone, Mail,
   LeafyGreen, Leaf, AlertTriangle, LineChart, CloudRain, Landmark, Store, Fuel, Package,
+  Warehouse, Wrench,
 } from "lucide-react";
 
 interface FaqItem {
@@ -148,6 +149,28 @@ const FAQ: FaqCategory[] = [
       { q: "How do I record a biofuel crop delivery?", a: "Go to the Biofuel / RTFO page and open the Deliveries tab. Click New Delivery and fill in the date, buyer (selected from your Registered Buyers list), field or fields supplying the crop, quantity, vehicle or haulier details, and the sustainability declaration reference your buyer issues you. This creates a permanent, audit-ready record of every consignment your buyer can reference in their RTFO return." },
       { q: "What GHG data does BDE Farm Trac supply for biofuel compliance?", a: "The Biofuel / RTFO overview page automatically counts the number of NVZ fertiliser applications and spray applications recorded in your other modules for RTFO-eligible fields. Your ISCC auditor or biofuel buyer uses these figures to calculate a field-level GHG footprint that must accompany the sustainability declaration. You do not need to enter data twice — it is drawn directly from your existing NVZ and Sprays records." },
       { q: "What happens to historic sustainability declarations if I stop working with a buyer?", a: "You can deactivate a buyer in the RTFO Buyers register rather than deleting them. The buyer is marked Inactive and no longer appears in the dropdown when logging new deliveries — but every historical delivery and sustainability declaration linked to them is preserved in full on your record. Reactivate them at any time if the relationship resumes." },
+    ],
+  },
+  {
+    title: "Grain & Crop Storage",
+    icon: Warehouse,
+    color: "bg-amber-50 text-amber-700 border-amber-100",
+    items: [
+      { q: "What storage location types does BDE Farm Trac support?", a: "You can register any of the following location types: grain store, silo, general storage, ambient warehouse, cold store, chemical store, fertiliser store, and merchant or elevator position (for grain held off-farm with a merchant). Each location holds the commodity, variety, maximum capacity, and GPS coordinates. You can create as many locations as you need across your holding." },
+      { q: "What types of stock movements can I record?", a: "BDE Farm Trac covers all the movement types that arise in grain and crop storage: Intake (crop coming into the store from harvest or delivery), Dispatch (crop leaving the store for sale or transfer), Transfer In and Transfer Out (internal movements between two locations on the same farm), Sample Withdrawal (a sample taken and not returned — treated as a stock reduction), Drying Loss (moisture-driven weight reduction), and Manual Adjustment (a catch-all for stock corrections where direction is free to set as in or out)." },
+      { q: "How does the stock balance work?", a: "The balance is calculated in real time from all movements recorded against a location. Three summary cards show Total In, Total Out, and the current Balance (In minus Out) in tonnes, to three decimal places. If you apply the year filter, the summary cards update to show only the movements within the selected year — useful for calculating a crop-year's net position or reconciling against a merchant statement." },
+      { q: "Can I link a stock movement to a haulage record, grain sale, or harvest record?", a: "Yes. Every stock movement has an optional 'Link to existing record' section in its dialog. Select the record type (Haulage Record, Grain Sale, or Harvest Record) and then pick the specific record from a dropdown. The movement table shows a clickable reference chip for any linked movement — clicking it opens a details panel showing the full record: weighbridge ticket number, date, tonnage, buyer, field, crop, grade, and more. This creates a complete chain of custody from harvest through store to sale, all navigable within a single screen." },
+      { q: "What are merchant storage charges?", a: "If you store grain off-farm with a merchant or elevator, they will periodically charge you for storage, drying, cleaning, and handling. The Merchant Storage Charges tab (shown on merchant-type locations) lets you log each charge with a date, charge type, description, quantity (tonnes stored), rate, and total amount. The table includes a year filter so you can see charges for a specific crop year, and a total footer shows the sum for the selected period — making it straightforward to cross-check against your merchant statements." },
+    ],
+  },
+  {
+    title: "Farm Services & Contracting",
+    icon: Wrench,
+    color: "bg-cyan-50 text-cyan-700 border-cyan-100",
+    items: [
+      { q: "What is the Farm Services & Contracting module for?", a: "Many farms earn income by providing services to neighbouring farms and landowners — combine harvesting, drilling, baling, spraying, hedge cutting, or hiring out machinery. The Farm Services & Contracting module lets you record all of these activities in one place: define your service types, maintain a customer directory, log every job with dates and values, track equipment hire, and view a revenue summary by service type and customer. It is designed for farms that act as a service provider in addition to their own production activities." },
+      { q: "Does BDE Farm Trac keep records of customers I no longer work with?", a: "Yes. The Farm Services customer directory uses the same soft-delete principle as the rest of BDE Farm Trac — no record is ever permanently deleted. If a customer relationship ends, you mark the customer as inactive. They disappear from active dropdowns so they cannot be selected for new jobs, but every historic job record linked to them remains fully accessible and intact on your account. You can reactivate them at any time if the relationship resumes." },
+      { q: "How does the insurance cross-reference work?", a: "When you log a farm service job or book equipment hire, BDE Farm Trac checks the job date against the expiry dates of the insurance policies registered in your Insurance Register (specifically Public Liability and Employer Liability). If a job falls outside a policy period, a warning is flagged so you can review your cover before the work begins. This helps ensure you are not carrying out commercial contracting activities while underinsured." },
     ],
   },
   {

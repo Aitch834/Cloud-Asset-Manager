@@ -4,7 +4,8 @@ import {
   ClipboardCheck, Map, Tractor, FileText, LineChart,
   CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
   Droplets, AlertTriangle, Leaf, Fuel, Zap,
-  Ham, Bird, Flower2, Store, Waves, Landmark, WheatIcon
+  Ham, Bird, Flower2, Store, Waves, Landmark, WheatIcon,
+  Warehouse, Wrench,
 } from "lucide-react";
 
 type Badge = "required" | "module" | "included";
@@ -437,6 +438,42 @@ const sections: Section[] = [
           "Time-limited inspection sessions — generate a secure, expiring link for Red Tractor certification body assessors to view your records during an audit visit",
           "21-module scope selector — share only what you choose; advisors and inspectors cannot access any module not explicitly granted",
           "Full access log with timestamp and accessor name for every advisor or inspector login",
+        ],
+      },
+    ],
+  },
+  {
+    title: "Sales & Trading",
+    description: "Complete grain and crop storage management, forward-to-store traceability, and farm contracting records — all linked to your compliance trail.",
+    modules: [
+      {
+        title: "Grain & Crop Storage",
+        icon: Warehouse,
+        color: "bg-amber-50 text-amber-700 border-amber-100",
+        badge: "module",
+        features: [
+          "Storage location register — create grain stores, silos, general stores, ambient warehouses, cold stores, chemical stores, fertiliser stores, and merchant / elevator positions in a single register; each location carries type, commodity, variety, maximum capacity, and GPS coordinates",
+          "Stock movements — record every intake, dispatch, on-farm transfer (in and out), sample withdrawal, drying loss, and manual adjustment against any storage location; quantity captured in tonnes to 3 decimal places for accurate tonnage accounting",
+          "Running balance — total In, total Out, and current Balance summary cards update in real time as movements are added or removed; visible at a glance without any manual calculation",
+          "Year filter — movements can be filtered to any crop year or viewed across all years; available years are derived automatically from your data and default to the current year",
+          "Record drill-down linking — every stock movement can be linked directly to a source haulage record, grain sale, or harvest record; the movement table shows a clickable reference chip for any linked record, and opening it displays the full details of the linked document (ticket number, date, tonnage, buyer, field, crop, grade and more) without leaving the page",
+          "Merchant storage charges — log periodic storage, drying, cleaning, and handling charges from merchant-held grain positions; year filter, month-by-month table, and total footer with period-aware sum",
+          "Full CRUD with soft-delete protection — movements and charges can be edited or deleted; location records themselves are never hard-deleted, preserving all stock movement history for audit purposes",
+          "QR code label — each storage location can display a unique QR code label for rapid mobile scanning and stock-take identification",
+        ],
+      },
+      {
+        title: "Farm Services & Contracting",
+        icon: Wrench,
+        color: "bg-cyan-50 text-cyan-700 border-cyan-100",
+        badge: "module",
+        features: [
+          "Service register — define the contracting and hire services your farm offers: combine harvesting, straw baling, ploughing, drilling, spraying, silage, hedge cutting, equipment hire, and any other custom service type",
+          "Customer directory — maintain a directory of the farms, estates, and landowners you provide services to; records are soft-deleted (inactive flag) so all historic job records are retained permanently when a customer relationship ends",
+          "Service jobs & bookings — log every job with customer, service type, scheduled date, completed date, area or hours, rate and total value; status workflow tracks booked, in-progress, and completed jobs",
+          "Equipment hire log — track hire-out of individual machines with customer, start and end dates, agreed daily or hourly rate, and total hire value; return condition noted for future reference",
+          "Revenue summary — view total contracting income by service type and customer, filterable by date range; supports gross margin analysis alongside your own farm input costs",
+          "Insurance cross-reference — farm services activities are linked to the insurance register so your public liability and employer liability cover is flagged when jobs are booked outside the policy period",
         ],
       },
     ],
