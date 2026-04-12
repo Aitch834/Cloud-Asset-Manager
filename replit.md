@@ -16,7 +16,8 @@ The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 
 **API Server (`artifacts/api-server`):**
 - Built with Express 5, supporting a multi-tenant architecture.
-- Handles user authentication via Replit Auth (OpenID Connect with PKCE).
+- **Authentication: Clerk** (`@clerk/express`) — JWT verified via `clerkMiddleware`, `requireAuth` uses `getAuth(req)`, sets `req.userId`. Old Replit Auth (openid-client, cookieParser, authMiddleware) fully removed.
+- `GET /api/billing/modules` returns `{ id, moduleKey, name, description, monthlyPricePence, isCore }` — `isCore` derived from key set (currently `red-tractor-compliance`).
 - Manages tenant context, roles, and module-based permissions.
 - Provides routes for various farm-specific modules, authentication, and administration.
 
@@ -29,9 +30,12 @@ The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 
 **Dashboard (`artifacts/dashboard`):**
 - React + Vite application using `wouter` for routing and TanStack React Query for data fetching.
+- **Authentication: Clerk** (`@clerk/react`) — `ClerkProvider` always wraps the app; `VITE_DEV_BYPASS_AUTH=true` switches routing to `DevBypassContent` (no auth guards). `/sign-in` and `/sign-up` routes use Clerk's `<SignIn>`/`<SignUp>` components. `AuthGate` protects all app routes.
+- **Onboarding wizard** (`/onboard`): 4-step flow — Business Details → Farm Details → Module Selection → Payment. `SelectContext` auto-redirects new users with 0 tenants to `/onboard`.
 - Zustand manages and persists tenant/farm selection.
 - Implements a fetch-patch interceptor for `x-tenant-slug` header.
 - Features quick access cards, activity feed, and a compliance health panel.
+- **Module gating**: Sidebar filters nav items based on `activeModuleKeys` from `GET /api/farms/:id/dashboard` subscriptions. Items with no matching subscription are hidden.
 
 **Mobile App (`artifacts/mobile`):**
 - Expo React Native app (SDK 54) with `expo-router` for routing.

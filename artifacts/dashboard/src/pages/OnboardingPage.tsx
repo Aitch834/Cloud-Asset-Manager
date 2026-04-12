@@ -228,8 +228,9 @@ export default function OnboardingPage() {
         toast({ title: err.error ?? "Checkout failed", variant: "destructive" });
         return;
       }
-      const data = await res.json() as { url?: string };
-      if (data.url) window.location.href = data.url;
+      const data = await res.json() as { checkoutUrl?: string; url?: string };
+      const redirectUrl = data.checkoutUrl ?? data.url;
+      if (redirectUrl) window.location.href = redirectUrl;
       else setLocation("/select");
     } catch {
       toast({ title: "Something went wrong.", variant: "destructive" });

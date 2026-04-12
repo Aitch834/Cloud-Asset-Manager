@@ -16,8 +16,18 @@ function getStripe(): Stripe {
 
 const router: IRouter = Router();
 
+const CORE_MODULE_KEYS = new Set(["red-tractor-compliance"]);
+
 router.get("/billing/modules", requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const modules = await db.select().from(modulesTable).where(eq(modulesTable.isActive, true));
+  const rows = await db.select().from(modulesTable).where(eq(modulesTable.isActive, true));
+  const modules = rows.map((m) => ({
+    id: m.id,
+    moduleKey: m.key,
+    name: m.name,
+    description: m.description,
+    monthlyPricePence: m.monthlyPricePence,
+    isCore: CORE_MODULE_KEYS.has(m.key),
+  }));
   res.json({ modules });
 });
 
