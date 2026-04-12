@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -10,7 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Trash2, FileText, AlertTriangle, CheckCircle, Clock, CheckSquare, Square } from "lucide-react";
+import {
+  Plus, Search, Trash2, FileText, AlertTriangle, CheckCircle, Clock,
+  CheckSquare, Square, Upload, Loader2, X, Paperclip, Eye, File,
+} from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
 
 const DOC_CATEGORIES: { category: string; types: string[] }[] = [
   {
@@ -103,9 +107,7 @@ const DOC_CATEGORIES: { category: string; types: string[] }[] = [
   },
   {
     category: "Other",
-    types: [
-      "Other",
-    ],
+    types: ["Other"],
   },
 ];
 
@@ -189,6 +191,20 @@ function DocTypeBadge({ type }: { type: string }) {
   return <Badge style={{ background: c.bg, color: c.color, border: "none", fontSize: "0.7rem", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", display: "block", whiteSpace: "nowrap" }} title={type}>{short}</Badge>;
 }
 
+function fileIcon(mimeType: string | null | undefined) {
+  if (!mimeType) return <File size={13} style={{ color: "#6b7280" }} />;
+  if (mimeType.startsWith("image/")) return <File size={13} style={{ color: "#0891b2" }} />;
+  if (mimeType === "application/pdf") return <File size={13} style={{ color: "#dc2626" }} />;
+  return <File size={13} style={{ color: "#7c3aed" }} />;
+}
+
+function fileSizeLabel(bytes: number | null | undefined) {
+  if (!bytes) return null;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function DocumentsPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
@@ -201,21 +217,91 @@ export default function DocumentsPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [showChecklist, setShowChecklist] = useState(true);
 
-  const emptyForm = { title: "", documentType: "", referenceNumber: "", issuedBy: "", issueDate: "", expiryDate: "", uploadedBy: "", notes: "" };
+  const emptyForm = {
+    title: "", documentType: "", referenceNumber: "", issuedBy: "",
+    issueDate: "", expiryDate: "", uploadedBy: "", notes: "",
+    filePath: "", mimeType: "", fileSize: 0,
+  };
   const [form, setForm] = useState<any>(emptyForm);
 
-  const docsQ = useQuery({ queryKey: ["documents", farmId], queryFn: () => fetch(`/api/farms/${farmId}/documents`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFileName, setPendingFileName] = useState<string | null>(null);
+  const [pendingFileSize, setPendingFileSize] = useState<number | null>(null);
+  const [pendingFileMime, setPendingFileMime] = useState<string | null>(null);
+
+  const { uploadFile, isUploading, progress } = useUpload({
+    onSuccess: (response) => {
+      setForm((f: any) => ({
+        ...f,
+        filePath: response.objectPath,
+        mimeType: pendingFileMime ?? "",
+        fileSize: pendingFileSize ?? 0,
+      }));
+    },
+    onError: () => {
+      toast({ title: "File upload failed", description: "The file could not be uploaded. Please try again.", variant: "destructive" });
+      setPendingFileName(null);
+    },
+  });
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPendingFileName(file.name);
+    setPendingFileSize(file.size);
+    setPendingFileMime(file.type || "application/octet-stream");
+    await uploadFile(file);
+    if (e.target) e.target.value = "";
+  }, [uploadFile]);
+
+  const clearFile = useCallback(() => {
+    setPendingFileName(null);
+    setPendingFileSize(null);
+    setPendingFileMime(null);
+    setForm((f: any) => ({ ...f, filePath: "", mimeType: "", fileSize: 0 }));
+  }, []);
+
+  const closeAddDialog = useCallback((open: boolean) => {
+    setAddOpen(open);
+    if (!open) {
+      setForm(emptyForm);
+      setPendingFileName(null);
+      setPendingFileSize(null);
+      setPendingFileMime(null);
+    }
+  }, []);
+
+  const docsQ = useQuery({
+    queryKey: ["documents", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/documents`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
   const docs: any[] = docsQ.data ?? [];
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/documents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Document recorded" }); qc.invalidateQueries({ queryKey: ["documents", farmId] }); setAddOpen(false); setForm(emptyForm); },
+    mutationFn: (body: any) =>
+      fetch(`/api/farms/${farmId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      toast({ title: "Document recorded" });
+      qc.invalidateQueries({ queryKey: ["documents", farmId] });
+      closeAddDialog(false);
+    },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/documents/${id}`, { method: "DELETE" }),
-    onSuccess: () => { toast({ title: "Document deleted" }); qc.invalidateQueries({ queryKey: ["documents", farmId] }); setDeleteId(null); },
+    mutationFn: (id: number) =>
+      fetch(`/api/farms/${farmId}/documents/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Document deleted" });
+      qc.invalidateQueries({ queryKey: ["documents", farmId] });
+      setDeleteId(null);
+    },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
@@ -235,7 +321,12 @@ export default function DocumentsPage() {
       }
       if (search) {
         const q = search.toLowerCase();
-        return d.title?.toLowerCase().includes(q) || d.issuedBy?.toLowerCase().includes(q) || d.referenceNumber?.toLowerCase().includes(q) || d.documentType?.toLowerCase().includes(q);
+        return (
+          d.title?.toLowerCase().includes(q) ||
+          d.issuedBy?.toLowerCase().includes(q) ||
+          d.referenceNumber?.toLowerCase().includes(q) ||
+          d.documentType?.toLowerCase().includes(q)
+        );
       }
       return true;
     });
@@ -252,7 +343,6 @@ export default function DocumentsPage() {
 
   const onDocTypeSelect = (v: string) => {
     setForm((f: any) => ({ ...f, documentType: v }));
-    const body = DOC_CATEGORIES.find(c => c.types.includes(v));
     const defaultIssuers: Record<string, string> = {
       "Red Tractor Assurance Certificate": "Red Tractor Assurance",
       "Spray Operator Certificate (PA1)": "BASIS Registration Ltd",
@@ -261,8 +351,20 @@ export default function DocumentsPage() {
       "Sprayer Calibration Certificate (NSTS)": "NSTS Tester",
       "Farm Insurance Certificate": "",
     };
-    if (defaultIssuers[v] !== undefined) setForm((f: any) => ({ ...f, documentType: v, issuedBy: f.issuedBy || defaultIssuers[v] }));
+    if (defaultIssuers[v] !== undefined) {
+      setForm((f: any) => ({ ...f, documentType: v, issuedBy: f.issuedBy || defaultIssuers[v] }));
+    }
   };
+
+  const handleSave = () => {
+    const body: any = { ...form };
+    if (!body.filePath) { delete body.filePath; delete body.mimeType; delete body.fileSize; }
+    if (!body.issueDate) delete body.issueDate;
+    if (!body.expiryDate) delete body.expiryDate;
+    createMut.mutate(body);
+  };
+
+  const canSave = !!form.title && !isUploading && !createMut.isPending;
 
   return (
     <AppLayout title="Documents">
@@ -325,7 +427,12 @@ export default function DocumentsPage() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
             <StatCard icon={<FileText size={18} color="#1d4ed8" />} label="Total Documents" value={docs.length} bg="#eff6ff" iconBg="#dbeafe" />
-            <StatCard icon={<CheckCircle size={18} color="#166534" />} label="Valid / No Expiry" value={docs.filter(d => { const s = getExpiryStatus(d.expiryDate); return s === "valid" || s === "none"; }).length} bg="#f0fdf4" iconBg="#dcfce7" />
+            <StatCard
+              icon={<CheckCircle size={18} color="#166534" />}
+              label="Valid / No Expiry"
+              value={docs.filter(d => { const s = getExpiryStatus(d.expiryDate); return s === "valid" || s === "none"; }).length}
+              bg="#f0fdf4" iconBg="#dcfce7"
+            />
             <StatCard
               icon={<AlertTriangle size={18} color="#991b1b" />}
               label="Expired or Expiring"
@@ -367,26 +474,38 @@ export default function DocumentsPage() {
               <SelectItem value="valid">Valid</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Document</Button>
+          <Button size="sm" onClick={() => { setForm(emptyForm); setAddOpen(true); }}>
+            <Plus size={14} className="mr-1" />Add Document
+          </Button>
         </div>
 
         {docsQ.isLoading ? (
           <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
         ) : filtered.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "4rem 1rem", textAlign: "center" }}>
-            <div style={{ background: "#f3f4f6", borderRadius: "50%", padding: "1rem", marginBottom: "1rem" }}><FileText size={28} color="#9ca3af" /></div>
-            <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>{docs.length === 0 ? "No documents on record" : "No documents match your filters"}</p>
-            <p style={{ fontSize: "0.875rem", color: "#9ca3af", maxWidth: 400, marginBottom: "1.25rem" }}>
-              {docs.length === 0 ? "Record your farm's key documents — assurance certificates, spray operator certificates, FACTS qualifications, calibration records and more." : "Try changing your search or filters."}
+            <div style={{ background: "#f3f4f6", borderRadius: "50%", padding: "1rem", marginBottom: "1rem" }}>
+              <FileText size={28} color="#9ca3af" />
+            </div>
+            <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>
+              {docs.length === 0 ? "No documents on record" : "No documents match your filters"}
             </p>
-            {docs.length === 0 && <Button size="sm" onClick={() => setAddOpen(true)}><Plus size={14} className="mr-1" />Add First Document</Button>}
+            <p style={{ fontSize: "0.875rem", color: "#9ca3af", maxWidth: 400, marginBottom: "1.25rem" }}>
+              {docs.length === 0
+                ? "Record your farm's key documents — assurance certificates, spray operator certificates, FACTS qualifications, calibration records and more."
+                : "Try changing your search or filters."}
+            </p>
+            {docs.length === 0 && (
+              <Button size="sm" onClick={() => setAddOpen(true)}>
+                <Plus size={14} className="mr-1" />Add First Document
+              </Button>
+            )}
           </div>
         ) : (
           <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  {["Title", "Type", "Reference No.", "Issued By", "Issue Date", "Expiry", "Status", "Logged By", ""].map((h, i) => (
+                  {["Title", "Type", "Reference No.", "Issued By", "Issue Date", "Expiry", "Status", "Logged By", "File", ""].map((h, i) => (
                     <th key={i} style={{ padding: "0.625rem 0.75rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -394,16 +513,25 @@ export default function DocumentsPage() {
               <tbody>
                 {filtered.map((doc: any, i: number) => {
                   const status = getExpiryStatus(doc.expiryDate);
+                  const viewUrl = doc.filePath ? `/api/storage${doc.filePath}` : null;
                   return (
                     <tr key={doc.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
                       <td style={{ padding: "0.5rem 0.75rem", fontWeight: 500, maxWidth: 220 }}>
                         <div>
                           <div>{doc.title}</div>
-                          {doc.notes && <div style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 2 }}>{doc.notes.substring(0, 60)}{doc.notes.length > 60 ? "…" : ""}</div>}
+                          {doc.notes && (
+                            <div style={{ fontSize: "0.72rem", color: "#9ca3af", marginTop: 2 }}>
+                              {doc.notes.substring(0, 60)}{doc.notes.length > 60 ? "…" : ""}
+                            </div>
+                          )}
                         </div>
                       </td>
-                      <td style={{ padding: "0.625rem 0.75rem" }}>{doc.documentType ? <DocTypeBadge type={doc.documentType} /> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
-                      <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", fontFamily: doc.referenceNumber ? "monospace" : "inherit" }}>{doc.referenceNumber || "—"}</td>
+                      <td style={{ padding: "0.625rem 0.75rem" }}>
+                        {doc.documentType ? <DocTypeBadge type={doc.documentType} /> : <span style={{ color: "#d1d5db" }}>—</span>}
+                      </td>
+                      <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", fontFamily: doc.referenceNumber ? "monospace" : "inherit" }}>
+                        {doc.referenceNumber || "—"}
+                      </td>
                       <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{doc.issuedBy || "—"}</td>
                       <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(doc.issueDate) || "—"}</td>
                       <td style={{ padding: "0.625rem 0.75rem", whiteSpace: "nowrap" }}>
@@ -415,8 +543,37 @@ export default function DocumentsPage() {
                       </td>
                       <td style={{ padding: "0.625rem 0.75rem" }}><ExpiryBadge status={status} /></td>
                       <td style={{ padding: "0.625rem 0.75rem", color: "#6b7280" }}>{doc.uploadedBy || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>
+                        {viewUrl ? (
+                          <a
+                            href={viewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`View${doc.fileSize ? ` · ${fileSizeLabel(doc.fileSize)}` : ""}`}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 4,
+                              padding: "3px 8px", borderRadius: 5,
+                              background: "#eff6ff", color: "#1d4ed8",
+                              fontSize: "0.75rem", fontWeight: 500,
+                              textDecoration: "none", border: "1px solid #bfdbfe",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            <Eye size={11} />
+                            View
+                          </a>
+                        ) : (
+                          <span style={{ color: "#d1d5db", fontSize: "0.75rem" }}>—</span>
+                        )}
+                      </td>
                       <td style={{ padding: "0.5rem" }}>
-                        <button onClick={() => setDeleteId(doc.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                        <button
+                          onClick={() => setDeleteId(doc.id)}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -426,13 +583,18 @@ export default function DocumentsPage() {
           </div>
         )}
 
-        <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) setForm(emptyForm); }}>
-          <DialogContent style={{ maxWidth: 560 }}>
+        {/* ── Add Document Dialog ─────────────────────────────── */}
+        <Dialog open={addOpen} onOpenChange={closeAddDialog}>
+          <DialogContent style={{ maxWidth: 580 }}>
             <DialogHeader><DialogTitle>Add Document Record</DialogTitle></DialogHeader>
             <div className="space-y-3 py-2">
               <div>
                 <Label>Document Title <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Input placeholder="e.g. Red Tractor Combinable Crops Certificate 2025" value={form.title} onChange={e => setForm((f: any) => ({ ...f, title: e.target.value }))} />
+                <Input
+                  placeholder="e.g. Red Tractor Combinable Crops Certificate 2025"
+                  value={form.title}
+                  onChange={e => setForm((f: any) => ({ ...f, title: e.target.value }))}
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -442,7 +604,9 @@ export default function DocumentsPage() {
                     <SelectContent>
                       {DOC_CATEGORIES.map(cat => (
                         <React.Fragment key={cat.category}>
-                          <div style={{ padding: "4px 8px 2px", fontSize: "0.7rem", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>{cat.category}</div>
+                          <div style={{ padding: "4px 8px 2px", fontSize: "0.7rem", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                            {cat.category}
+                          </div>
                           {cat.types.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                         </React.Fragment>
                       ))}
@@ -451,33 +615,137 @@ export default function DocumentsPage() {
                 </div>
                 <div>
                   <Label>Reference / Certificate No.</Label>
-                  <Input placeholder="e.g. RT-2025-001234" value={form.referenceNumber} onChange={e => setForm((f: any) => ({ ...f, referenceNumber: e.target.value }))} style={{ fontFamily: "monospace" }} />
+                  <Input
+                    placeholder="e.g. RT-2025-001234"
+                    value={form.referenceNumber}
+                    onChange={e => setForm((f: any) => ({ ...f, referenceNumber: e.target.value }))}
+                    style={{ fontFamily: "monospace" }}
+                  />
                 </div>
               </div>
               <div>
                 <Label>Issued By</Label>
-                <Input placeholder="e.g. Red Tractor Assurance, BASIS Registration Ltd" value={form.issuedBy} onChange={e => setForm((f: any) => ({ ...f, issuedBy: e.target.value }))} />
+                <Input
+                  placeholder="e.g. Red Tractor Assurance, BASIS Registration Ltd"
+                  value={form.issuedBy}
+                  onChange={e => setForm((f: any) => ({ ...f, issuedBy: e.target.value }))}
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Issue Date</Label><Input type="date" value={form.issueDate} onChange={e => setForm((f: any) => ({ ...f, issueDate: e.target.value }))} /></div>
-                <div><Label>Expiry Date</Label><Input type="date" value={form.expiryDate} onChange={e => setForm((f: any) => ({ ...f, expiryDate: e.target.value }))} /></div>
+                <div>
+                  <Label>Issue Date</Label>
+                  <Input type="date" value={form.issueDate} onChange={e => setForm((f: any) => ({ ...f, issueDate: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Expiry Date</Label>
+                  <Input type="date" value={form.expiryDate} onChange={e => setForm((f: any) => ({ ...f, expiryDate: e.target.value }))} />
+                </div>
               </div>
               <div>
                 <Label>Logged By</Label>
-                <Input placeholder="Name of person adding this record" value={form.uploadedBy} onChange={e => setForm((f: any) => ({ ...f, uploadedBy: e.target.value }))} />
+                <Input
+                  placeholder="Name of person adding this record"
+                  value={form.uploadedBy}
+                  onChange={e => setForm((f: any) => ({ ...f, uploadedBy: e.target.value }))}
+                />
               </div>
               <div>
                 <Label>Notes</Label>
-                <Textarea placeholder="Location of physical copy, renewal reminders, etc." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} />
+                <Textarea
+                  placeholder="Location of physical copy, renewal reminders, etc."
+                  value={form.notes}
+                  onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+
+              {/* ── File Attachment ── */}
+              <div>
+                <Label style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+                  <Paperclip size={13} />
+                  Attach a Copy <span style={{ fontWeight: 400, color: "#9ca3af", fontSize: "0.75rem" }}>(optional — PDF, image, or Word document)</span>
+                </Label>
+
+                {!pendingFileName && !form.filePath ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      width: "100%", padding: "0.75rem 1rem",
+                      border: "1.5px dashed #d1d5db", borderRadius: 8,
+                      background: "#f9fafb", cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      color: "#6b7280", fontSize: "0.875rem",
+                      transition: "border-color 0.15s, background 0.15s",
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#3b82f6"; (e.currentTarget as HTMLButtonElement).style.background = "#eff6ff"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#d1d5db"; (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; }}
+                  >
+                    <Upload size={15} />
+                    Click to attach a file
+                  </button>
+                ) : isUploading ? (
+                  <div style={{ border: "1px solid #bfdbfe", borderRadius: 8, background: "#eff6ff", padding: "0.75rem 1rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <Loader2 size={14} style={{ color: "#2563eb", animation: "spin 1s linear infinite" }} />
+                      <span style={{ fontSize: "0.8125rem", color: "#1d4ed8", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pendingFileName}</span>
+                    </div>
+                    <div style={{ height: 4, background: "#dbeafe", borderRadius: 2, overflow: "hidden" }}>
+                      <div style={{ height: "100%", background: "#2563eb", width: `${progress}%`, borderRadius: 2, transition: "width 0.3s" }} />
+                    </div>
+                    <p style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 4 }}>Uploading… {progress}%</p>
+                  </div>
+                ) : form.filePath ? (
+                  <div style={{ border: "1px solid #bbf7d0", borderRadius: 8, background: "#f0fdf4", padding: "0.625rem 1rem", display: "flex", alignItems: "center", gap: 8 }}>
+                    {fileIcon(form.mimeType)}
+                    <div style={{ flex: 1, overflow: "hidden" }}>
+                      <p style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#166534", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {pendingFileName ?? "File attached"}
+                      </p>
+                      {form.fileSize > 0 && (
+                        <p style={{ fontSize: "0.7rem", color: "#4ade80" }}>{fileSizeLabel(form.fileSize)} — ready to save</p>
+                      )}
+                    </div>
+                    <a
+                      href={`/api/storage${form.filePath}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Preview in new tab"
+                      style={{ color: "#16a34a", display: "flex" }}
+                    >
+                      <Eye size={14} />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={clearFile}
+                      title="Remove file"
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", display: "flex", padding: 2 }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : null}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.csv"
+                  style={{ display: "none" }}
+                  onChange={handleFileChange}
+                />
               </div>
             </div>
+
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-              <Button onClick={() => createMut.mutate(form)} disabled={!form.title || createMut.isPending}>Save Document</Button>
+              <Button variant="outline" onClick={() => closeAddDialog(false)}>Cancel</Button>
+              <Button onClick={handleSave} disabled={!canSave}>
+                {createMut.isPending ? <><Loader2 size={14} className="mr-1 animate-spin" />Saving…</> : isUploading ? <><Loader2 size={14} className="mr-1 animate-spin" />Uploading…</> : "Save Document"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
+        {/* ── Delete Confirm Dialog ───────────────────────────── */}
         <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
           <DialogContent style={{ maxWidth: 400 }}>
             <DialogHeader><DialogTitle>Delete Document Record</DialogTitle></DialogHeader>
