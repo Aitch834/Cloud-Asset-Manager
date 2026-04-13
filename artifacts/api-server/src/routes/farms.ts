@@ -7009,10 +7009,15 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <h4>Adding an Extinguisher Record</h4>
 <ol>
 <li>In <strong>Health, Safety &amp; Risk</strong>, click the <strong>Fire Safety</strong> tab and select <strong>Add Extinguisher</strong>.</li>
-<li>Enter the location (e.g. "Main workshop entrance — left of roller door"), the type, and the capacity in kg.</li>
-<li>Record the serial number from the extinguisher label, the last service date, and the engineer and company who carried out the service.</li>
+<li>Select the <strong>Building / Area</strong> from the dropdown — this is populated from your Farm Buildings &amp; Areas register. If your farm's buildings are not yet registered there, a free-text location field is displayed instead. Once buildings are added, all extinguishers can be linked to them by editing each record.</li>
+<li>If a building is selected, enter the <strong>Position within building</strong> — a short description such as "near roller door", "left of main entrance", or "by welding bay". This narrows down the exact position so an engineer can locate the extinguisher without needing a site plan.</li>
+<li>Choose the extinguisher type, capacity in kg, and serial number from the label.</li>
+<li>Record the last service date and the engineer name and company who carried out the work.</li>
 <li>Set the <em>Next Service Due</em> date. The system will warn you 60 days in advance and mark it as overdue if the date passes without an update.</li>
 </ol>
+
+<h4>Filtering by Location</h4>
+<p>Once at least one extinguisher is linked to a building, a <strong>Filter by location</strong> dropdown appears above the register. Select a building to show only the extinguishers in that area — exactly the list you need to hand to an engineer before their annual testing visit. The count in brackets next to each building name shows how many extinguishers are registered there.</p>
 
 <h3>Red Tractor Context</h3>
 <p>During an inspection, assessors may ask to physically view extinguishers and check service labels. Having the digital register available with engineer name, service date, and certificate number demonstrates that you have a managed, documented approach to fire safety — not just extinguishers that happen to be on the wall.</p>`,
@@ -11069,14 +11074,41 @@ router.delete("/farms/:farmId/workshop/pat-tests/:id", requireAuth, requireTenan
 router.get("/farms/:farmId/workshop/fire-extinguishers", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(workshopFireExtinguishersTable).where(eq(workshopFireExtinguishersTable.farmId, farmId)).orderBy(workshopFireExtinguishersTable.nextServiceDue);
+  const records = await db
+    .select({
+      id: workshopFireExtinguishersTable.id,
+      farmId: workshopFireExtinguishersTable.farmId,
+      location: workshopFireExtinguishersTable.location,
+      buildingId: workshopFireExtinguishersTable.buildingId,
+      subLocation: workshopFireExtinguishersTable.subLocation,
+      buildingName: farmLocationsTable.name,
+      type: workshopFireExtinguishersTable.type,
+      capacityKg: workshopFireExtinguishersTable.capacityKg,
+      serialNumber: workshopFireExtinguishersTable.serialNumber,
+      lastServiceDate: workshopFireExtinguishersTable.lastServiceDate,
+      engineerName: workshopFireExtinguishersTable.engineerName,
+      engineerCompany: workshopFireExtinguishersTable.engineerCompany,
+      nextServiceDue: workshopFireExtinguishersTable.nextServiceDue,
+      notes: workshopFireExtinguishersTable.notes,
+      createdAt: workshopFireExtinguishersTable.createdAt,
+    })
+    .from(workshopFireExtinguishersTable)
+    .leftJoin(farmLocationsTable, eq(workshopFireExtinguishersTable.buildingId, farmLocationsTable.id))
+    .where(eq(workshopFireExtinguishersTable.farmId, farmId))
+    .orderBy(farmLocationsTable.name, workshopFireExtinguishersTable.nextServiceDue);
   res.json({ records });
 });
 
 router.post("/farms/:farmId/workshop/fire-extinguishers", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(workshopFireExtinguishersTable).values({ ...req.body, farmId }).returning();
+  const { buildingId, subLocation, location, ...rest } = req.body;
+  let resolvedLocation = location ?? "";
+  if (buildingId) {
+    const [bld] = await db.select({ name: farmLocationsTable.name }).from(farmLocationsTable).where(eq(farmLocationsTable.id, buildingId));
+    if (bld) resolvedLocation = bld.name;
+  }
+  const [record] = await db.insert(workshopFireExtinguishersTable).values({ ...rest, farmId, location: resolvedLocation, buildingId: buildingId ?? null, subLocation: subLocation ?? null }).returning();
   res.status(201).json({ record });
 });
 
@@ -11085,7 +11117,13 @@ router.put("/farms/:farmId/workshop/fire-extinguishers/:id", requireAuth, requir
   if (!farmId) return;
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(workshopFireExtinguishersTable).set(req.body).where(and(eq(workshopFireExtinguishersTable.id, id), eq(workshopFireExtinguishersTable.farmId, farmId))).returning();
+  const { buildingId, subLocation, location, ...rest } = req.body;
+  let resolvedLocation = location ?? "";
+  if (buildingId) {
+    const [bld] = await db.select({ name: farmLocationsTable.name }).from(farmLocationsTable).where(eq(farmLocationsTable.id, buildingId));
+    if (bld) resolvedLocation = bld.name;
+  }
+  const [record] = await db.update(workshopFireExtinguishersTable).set({ ...rest, location: resolvedLocation, buildingId: buildingId ?? null, subLocation: subLocation ?? null }).where(and(eq(workshopFireExtinguishersTable.id, id), eq(workshopFireExtinguishersTable.farmId, farmId))).returning();
   res.json({ record });
 });
 

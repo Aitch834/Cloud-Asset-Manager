@@ -938,11 +938,15 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
 // ─── Fire Safety tab ───────────────────────────────────────────────────────────
 
 interface FireExtinguisher {
-  id: number; farmId: number; location: string; type: string;
+  id: number; farmId: number; location: string;
+  buildingId: number | null; subLocation: string | null; buildingName: string | null;
+  type: string;
   capacityKg: string | null; serialNumber: string | null;
   lastServiceDate: string | null; engineerName: string | null;
   engineerCompany: string | null; nextServiceDue: string | null; notes: string | null; createdAt: string;
 }
+
+interface FarmLoc { id: number; name: string; locationType: string; isActive: boolean; }
 
 const FIRE_TYPES: { value: string; label: string }[] = [
   { value: "co2",          label: "CO₂ (Red/Black) — electrical fires" },
@@ -953,7 +957,7 @@ const FIRE_TYPES: { value: string; label: string }[] = [
 ];
 
 const FIRE_TYPE_LABEL: Record<string, string> = { co2: "CO₂", dry_powder: "Dry Powder", water: "Water", foam: "Foam", wet_chemical: "Wet Chemical" };
-const EMPTY_FIRE = { location: "", type: "co2", capacityKg: "", serialNumber: "", lastServiceDate: "", engineerName: "", engineerCompany: "", nextServiceDue: "", notes: "" };
+const EMPTY_FIRE = { buildingId: "" as string, subLocation: "", location: "", type: "co2", capacityKg: "", serialNumber: "", lastServiceDate: "", engineerName: "", engineerCompany: "", nextServiceDue: "", notes: "" };
 
 function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const qc = useQueryClient();
@@ -962,6 +966,7 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
   const [form, setForm] = useState(EMPTY_FIRE);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
+  const [buildingFilter, setBuildingFilter] = useState<string>("__all__");
   const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
 
@@ -970,13 +975,19 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
     queryFn: () => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`, { credentials: "include" }).then(r => r.json()),
   });
 
+  const { data: locData } = useQuery<FarmLoc[]>({
+    queryKey: ["farm-locations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/farm-locations`, { credentials: "include" }).then(r => r.json()),
+  });
+  const farmLocations = (locData ?? []).filter(l => l.isActive);
+
   const createMut = useMutation({
-    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setShowForm(false); setForm(EMPTY_FIRE); },
   });
 
   const updateMut = useMutation({
-    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/fire-extinguishers/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["fire-extinguishers", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_FIRE); },
   });
 
@@ -987,43 +998,76 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
 
   function openEdit(r: FireExtinguisher) {
     setEditing(r);
-    setForm({ location: r.location, type: r.type, capacityKg: r.capacityKg ?? "", serialNumber: r.serialNumber ?? "", lastServiceDate: r.lastServiceDate ? r.lastServiceDate.slice(0, 10) : "", engineerName: r.engineerName ?? "", engineerCompany: r.engineerCompany ?? "", nextServiceDue: r.nextServiceDue ? r.nextServiceDue.slice(0, 10) : "", notes: r.notes ?? "" });
+    setForm({ buildingId: r.buildingId ? String(r.buildingId) : "", subLocation: r.subLocation ?? "", location: r.location, type: r.type, capacityKg: r.capacityKg ?? "", serialNumber: r.serialNumber ?? "", lastServiceDate: r.lastServiceDate ? r.lastServiceDate.slice(0, 10) : "", engineerName: r.engineerName ?? "", engineerCompany: r.engineerCompany ?? "", nextServiceDue: r.nextServiceDue ? r.nextServiceDue.slice(0, 10) : "", notes: r.notes ?? "" });
     setShowForm(true);
   }
 
   const today = new Date();
-  const records = data?.records ?? [];
-  const overdue = records.filter(r => r.nextServiceDue && new Date(r.nextServiceDue) < today).length;
+  const allRecords = data?.records ?? [];
+
+  const records = buildingFilter === "__all__"
+    ? allRecords
+    : buildingFilter === "__none__"
+      ? allRecords.filter(r => !r.buildingId)
+      : allRecords.filter(r => r.buildingId === parseInt(buildingFilter));
+
+  const overdue = allRecords.filter(r => r.nextServiceDue && new Date(r.nextServiceDue) < today).length;
+  const dueSoon = allRecords.filter(r => { if (!r.nextServiceDue) return false; const d = new Date(r.nextServiceDue); const diff = Math.ceil((d.getTime() - today.getTime()) / 86400000); return diff >= 0 && diff <= 60; }).length;
 
   useEffect(() => {
-    if (!openId || autoOpened.current || records.length === 0) return;
-    if (records.some((r: any) => r.id === openId)) {
+    if (!openId || autoOpened.current || allRecords.length === 0) return;
+    if (allRecords.some((r: any) => r.id === openId)) {
       autoOpened.current = true;
       setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
     }
-  }, [openId, records]);
-  const dueSoon = records.filter(r => { if (!r.nextServiceDue) return false; const d = new Date(r.nextServiceDue); const diff = Math.ceil((d.getTime() - today.getTime()) / 86400000); return diff >= 0 && diff <= 60; }).length;
+  }, [openId, allRecords]);
+
+  const usingBuildingPicker = !!form.buildingId;
 
   if (isLoading) return <div className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <p className="text-sm text-gray-500">Register all fire extinguishers on the holding. Required under the Regulatory Reform (Fire Safety) Order 2005. Extinguishers must be serviced annually by a competent person.</p>
           {overdue > 0 && <p className="text-xs text-red-600 font-medium mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {overdue} extinguisher{overdue !== 1 ? "s" : ""} overdue for service</p>}
           {overdue === 0 && dueSoon > 0 && <p className="text-xs text-amber-600 font-medium mt-1 flex items-center gap-1"><Clock className="h-3 w-3" /> {dueSoon} extinguisher{dueSoon !== 1 ? "s" : ""} due for service within 60 days</p>}
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_FIRE); setShowForm(true); }} className="gap-1"><Plus className="h-4 w-4" />Add Extinguisher</Button>
+        <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_FIRE); setShowForm(true); }} className="gap-1 shrink-0"><Plus className="h-4 w-4" />Add Extinguisher</Button>
       </div>
 
-      {records.length === 0 ? (
+      {allRecords.length > 0 && farmLocations.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 whitespace-nowrap">Filter by location:</span>
+          <Select value={buildingFilter} onValueChange={setBuildingFilter}>
+            <SelectTrigger className="h-8 text-xs w-56"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All locations ({allRecords.length})</SelectItem>
+              {farmLocations
+                .filter(l => allRecords.some(r => r.buildingId === l.id))
+                .map(l => (
+                  <SelectItem key={l.id} value={String(l.id)}>
+                    {l.name} ({allRecords.filter(r => r.buildingId === l.id).length})
+                  </SelectItem>
+                ))}
+              {allRecords.some(r => !r.buildingId) && (
+                <SelectItem value="__none__">No building linked ({allRecords.filter(r => !r.buildingId).length})</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {allRecords.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-gray-400 text-sm">No extinguishers registered yet. Add each extinguisher on the holding to track annual service dates.</CardContent></Card>
+      ) : records.length === 0 ? (
+        <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No extinguishers at this location.</CardContent></Card>
       ) : (
         <div className="overflow-x-auto rounded-lg border bg-white">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 border-b text-xs uppercase tracking-wide text-gray-500">
-              <tr>{["Location", "Type", "Capacity", "Serial No.", "Last Service", "Engineer", "Next Service Due", ""].map(h => <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>)}</tr>
+              <tr>{["Building / Location", "Position", "Type", "Capacity", "Serial No.", "Last Service", "Engineer", "Next Service Due", ""].map(h => <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y">
               {records.map(r => {
@@ -1031,9 +1075,11 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
                 const isOverdue = due && due < today;
                 const diff = due ? Math.ceil((due.getTime() - today.getTime()) / 86400000) : null;
                 const isSoon = diff !== null && diff >= 0 && diff <= 60;
+                const displayBuilding = r.buildingName ?? r.location;
                 return (
                   <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} className={`transition-colors${hlId === r.id ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : " hover:bg-gray-50"}`}>
-                    <td className="px-4 py-3 font-medium">{r.location}</td>
+                    <td className="px-4 py-3 font-medium">{displayBuilding}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{r.subLocation || "—"}</td>
                     <td className="px-4 py-3">{FIRE_TYPE_LABEL[r.type] ?? r.type}</td>
                     <td className="px-4 py-3 text-gray-500">{r.capacityKg ? `${r.capacityKg} kg` : "—"}</td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.serialNumber || "—"}</td>
@@ -1062,7 +1108,41 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
             <DialogHeader><DialogTitle>{editing ? "Edit Extinguisher" : "Add Fire Extinguisher"}</DialogTitle></DialogHeader>
             <form onSubmit={e => { e.preventDefault(); editing ? updateMut.mutate(form) : createMut.mutate(form); }} className="space-y-4 mt-2">
               <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2"><Label>Location *</Label><Input required value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop entrance, Grain store" /></div>
+
+                {farmLocations.length > 0 ? (
+                  <>
+                    <div className="col-span-2">
+                      <Label>Building / Area *</Label>
+                      <Select value={form.buildingId || "__none__"} onValueChange={v => setForm(f => ({ ...f, buildingId: v === "__none__" ? "" : v, location: "" }))}>
+                        <SelectTrigger><SelectValue placeholder="Select a farm building or area…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Manual entry (no building registered) —</SelectItem>
+                          {farmLocations.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-gray-400 mt-1">Select from your Farm Buildings &amp; Areas register, or choose manual entry.</p>
+                    </div>
+                    {usingBuildingPicker ? (
+                      <div className="col-span-2">
+                        <Label>Position within building</Label>
+                        <Input value={form.subLocation} onChange={e => setForm(f => ({ ...f, subLocation: e.target.value }))} placeholder="e.g. Near roller door, Left of main entrance, By welding bay" />
+                        <p className="text-xs text-gray-400 mt-1">Describe the exact position so an engineer can locate it without a plan.</p>
+                      </div>
+                    ) : (
+                      <div className="col-span-2">
+                        <Label>Location *</Label>
+                        <Input required={!usingBuildingPicker} value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop entrance, Grain store office" />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="col-span-2">
+                    <Label>Location *</Label>
+                    <Input required value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop entrance, Grain store" />
+                    <p className="text-xs text-gray-400 mt-1">Add buildings in Farm Buildings &amp; Areas to enable the structured building picker here.</p>
+                  </div>
+                )}
+
                 <div className="col-span-2">
                   <Label>Extinguisher Type</Label>
                   <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>

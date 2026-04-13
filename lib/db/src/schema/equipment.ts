@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, boolean, numeric, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { suppliersTable, stockItemsTable } from "./stock-suppliers";
+import { farmLocationsTable } from "./farm-locations";
 import { storageLocationsTable } from "./fields-crops";
 
 export const equipmentTable = pgTable("equipment", {
@@ -116,6 +117,8 @@ export const workshopFireExtinguishersTable = pgTable("workshop_fire_extinguishe
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   location: text("location").notNull(),
+  buildingId: integer("building_id").references(() => farmLocationsTable.id, { onDelete: "set null" }),
+  subLocation: text("sub_location"),
   type: text("type").notNull(),
   capacityKg: text("capacity_kg"),
   serialNumber: text("serial_number"),
