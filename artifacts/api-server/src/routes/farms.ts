@@ -1221,6 +1221,20 @@ router.delete("/farms/:farmId/nmp-plans/:planId/field-entries/:entryId", require
   res.json({ success: true });
 });
 
+router.put("/farms/:farmId/nmp-plans/:planId/field-entries/:entryId", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const planId = parseInt(req.params.planId);
+  const entryId = parseInt(req.params.entryId);
+  const { fieldId, cropType, nitrogenKgHa, phosphorusKgHa, potassiumKgHa, organicManureType, organicManureRate, applicationMethod, timingNotes } = req.body;
+  const [updated] = await db.update(nmpFieldEntriesTable)
+    .set({ fieldId: fieldId ? parseInt(fieldId) : undefined, cropType, nitrogenKgHa, phosphorusKgHa, potassiumKgHa, organicManureType, organicManureRate, applicationMethod, timingNotes })
+    .where(and(eq(nmpFieldEntriesTable.id, entryId), eq(nmpFieldEntriesTable.planId, planId)))
+    .returning();
+  if (!updated) { res.status(404).json({ error: "Entry not found" }); return; }
+  res.json({ entry: updated });
+});
+
 // ─── Field-specific NMP entries (all years) ─────────
 router.get("/farms/:farmId/fields/:fieldId/nmp-entries", requireAuth, requireTenant, requireModuleByKey("sprays-inputs", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);

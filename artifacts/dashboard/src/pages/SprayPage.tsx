@@ -49,6 +49,7 @@ export default function SprayPage() {
   const products: any[] = productsQ.data ?? [];
   const fields: any[] = fieldsQ.data ?? [];
   const currentFarm = farmQ.data?.record ?? null;
+  const initialFieldSearch = new URLSearchParams(window.location.search).get("field") ?? "";
 
   return (
     <AppLayout title="Spray Records">
@@ -65,7 +66,7 @@ export default function SprayPage() {
           <TabButton active={tab === "products"} onClick={() => setTab("products")}>Product Register</TabButton>
           <TabButton active={tab === "print"} onClick={() => setTab("print")}>Print / Export</TabButton>
         </TabBar>
-        {tab === "applications" && <ApplicationsTab applications={applications} products={products} fields={fields} farmId={farmId} loading={applicationsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-applications", farmId] })} toast={toast} />}
+        {tab === "applications" && <ApplicationsTab applications={applications} products={products} fields={fields} farmId={farmId} loading={applicationsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-applications", farmId] })} toast={toast} initialSearch={initialFieldSearch} />}
         {tab === "dayview" && <SprayDayViewTab applications={applications} loading={applicationsQ.isLoading} />}
         {tab === "products" && <ProductsTab products={products} farmId={farmId} loading={productsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-products", farmId] })} toast={toast} />}
         {tab === "print" && <PrintTab applications={applications} farm={currentFarm} />}
@@ -83,7 +84,7 @@ function StatCard({ icon, label, value, bg, iconBg }: any) {
   );
 }
 
-function ApplicationsTab({ applications, products, fields, farmId, loading, onRefresh, toast }: any) {
+function ApplicationsTab({ applications, products, fields, farmId, loading, onRefresh, toast, initialSearch }: any) {
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
   const activeMembers: any[] = (membersData?.members ?? []).filter((m: any) => m.isActive);
 
@@ -108,7 +109,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   });
   const allSuppliers: any[] = suppliersQ.data ?? [];
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState<string>(initialSearch ?? "");
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any>(null);

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "wouter";
 import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, ChevronDown, ChevronRight, Leaf, Printer, Info, ArrowRight } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronRight, Leaf, Printer, Info, ArrowRight, Pencil, ExternalLink } from "lucide-react";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -73,6 +74,9 @@ export default function NMPPage() {
   const emptyEntry = { fieldId: "", cropType: "", nitrogenKgHa: "", phosphorusKgHa: "", potassiumKgHa: "", organicManureType: "", organicManureRate: "", applicationMethod: "", timingNotes: "" };
   const [entryForm, setEntryForm] = useState<any>(emptyEntry);
 
+  const [editEntry, setEditEntry] = useState<any | null>(null);
+  const [editEntryForm, setEditEntryForm] = useState<any>(emptyEntry);
+
   const createPlanMut = useMutation({
     mutationFn: (body: any) => fetch(`/api/farms/${farmId}/nmp-plans`, {
       method: "POST",
@@ -130,6 +134,21 @@ export default function NMPPage() {
       qc.invalidateQueries({ queryKey: ["nmp-entries", farmId, expandedPlanId] });
     },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const updateEntryMut = useMutation({
+    mutationFn: ({ entryId, planId, body }: { entryId: number; planId: number; body: any }) =>
+      fetch(`/api/farms/${farmId}/nmp-plans/${planId}/field-entries/${entryId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      toast({ title: "Field entry updated" });
+      qc.invalidateQueries({ queryKey: ["nmp-entries", farmId, expandedPlanId] });
+      setEditEntry(null);
+    },
+    onError: () => toast({ title: "Failed to update entry", variant: "destructive" }),
   });
 
   return (
@@ -297,17 +316,42 @@ export default function NMPPage() {
                                     <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280" }}>
                                       {e.applicationMethod || "—"}
                                     </td>
-                                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    <td style={{ padding: "0.5rem 0.75rem", color: "#6b7280", minWidth: 160, maxWidth: 260 }}>
                                       {e.timingNotes || "—"}
                                     </td>
-                                    <td style={{ padding: "0.375rem" }}>
-                                      <button
-                                        onClick={() => deleteEntryMut.mutate({ entryId: e.id })}
-                                        style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}
-                                        title="Remove field entry"
-                                      >
-                                        <Trash2 size={13} />
-                                      </button>
+                                    <td style={{ padding: "0.375rem", whiteSpace: "nowrap" }}>
+                                      <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+                                        <button
+                                          onClick={() => {
+                                            setEditEntry({ ...e, planId: expandedPlanId });
+                                            setEditEntryForm({
+                                              fieldId: e.fieldId ? String(e.fieldId) : "",
+                                              cropType: e.cropType ?? "",
+                                              nitrogenKgHa: e.nitrogenKgHa ?? "",
+                                              phosphorusKgHa: e.phosphorusKgHa ?? "",
+                                              potassiumKgHa: e.potassiumKgHa ?? "",
+                                              organicManureType: e.organicManureType ?? "",
+                                              organicManureRate: e.organicManureRate ?? "",
+                                              applicationMethod: e.applicationMethod ?? "",
+                                              timingNotes: e.timingNotes ?? "",
+                                            });
+                                          }}
+                                          style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}
+                                          title="Edit field entry"
+                                        >
+                                          <Pencil size={13} />
+                                        </button>
+                                        <Link href={`/sprays?field=${encodeURIComponent(e.fieldName ?? e.fieldId ?? "")}`} style={{ display: "flex", alignItems: "center", color: "#9ca3af", padding: 4 }} title="View spray applications for this field">
+                                          <ExternalLink size={13} />
+                                        </Link>
+                                        <button
+                                          onClick={() => deleteEntryMut.mutate({ entryId: e.id })}
+                                          style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }}
+                                          title="Remove field entry"
+                                        >
+                                          <Trash2 size={13} />
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}
@@ -515,6 +559,98 @@ export default function NMPPage() {
                 disabled={deletePlanMut.isPending}
               >
                 Delete Plan
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Edit Field Entry dialog ── */}
+        <Dialog open={!!editEntry} onOpenChange={o => { if (!o) setEditEntry(null); }}>
+          <DialogContent style={{ maxWidth: 540 }}>
+            <DialogHeader>
+              <DialogTitle>Edit Field Nutrient Budget</DialogTitle>
+            </DialogHeader>
+            <div style={{ fontSize: "0.82rem", color: "#6b7280", marginBottom: 4 }}>
+              Update the planned nutrient applications for <strong>{editEntry?.fieldName || "this field"}</strong>.
+            </div>
+            <div className="space-y-3 py-1">
+              <div>
+                <Label>Field</Label>
+                <Select value={editEntryForm.fieldId} onValueChange={v => setEditEntryForm((f: any) => ({ ...f, fieldId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select a field..." /></SelectTrigger>
+                  <SelectContent>
+                    {fields.map((f: any) => (
+                      <SelectItem key={f.id} value={String(f.id)}>
+                        {f.name}{f.fieldReference ? ` — ${f.fieldReference}` : ""}{f.areaHa ? ` (${f.areaHa} ha)` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Crop / Enterprise</Label>
+                <Input placeholder="e.g. Winter Wheat, Oil Seed Rape" value={editEntryForm.cropType} onChange={e => setEditEntryForm((f: any) => ({ ...f, cropType: e.target.value }))} />
+              </div>
+              <div style={{ background: "#f9fafb", borderRadius: 8, padding: "0.625rem 0.875rem", fontSize: "0.8rem", color: "#374151" }}>
+                <strong>Planned nutrient applications</strong> — kg/ha targets
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label>Nitrogen N (kg/ha)</Label>
+                  <Input type="number" step="0.1" placeholder="0" value={editEntryForm.nitrogenKgHa} onChange={e => setEditEntryForm((f: any) => ({ ...f, nitrogenKgHa: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Phosphorus P (kg/ha)</Label>
+                  <Input type="number" step="0.1" placeholder="0" value={editEntryForm.phosphorusKgHa} onChange={e => setEditEntryForm((f: any) => ({ ...f, phosphorusKgHa: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Potassium K (kg/ha)</Label>
+                  <Input type="number" step="0.1" placeholder="0" value={editEntryForm.potassiumKgHa} onChange={e => setEditEntryForm((f: any) => ({ ...f, potassiumKgHa: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Organic Manure Type</Label>
+                  <Select value={editEntryForm.organicManureType || "__none__"} onValueChange={v => setEditEntryForm((f: any) => ({ ...f, organicManureType: v === "__none__" ? "" : v }))}>
+                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None</SelectItem>
+                      {MANURE_TYPES.filter(m => m !== "None").map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Manure Rate (t/ha or m³/ha)</Label>
+                  <Input type="number" step="0.1" placeholder="e.g. 25" value={editEntryForm.organicManureRate} onChange={e => setEditEntryForm((f: any) => ({ ...f, organicManureRate: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <Label>Application Method</Label>
+                <Select value={editEntryForm.applicationMethod || "__none__"} onValueChange={v => setEditEntryForm((f: any) => ({ ...f, applicationMethod: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select method..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Select —</SelectItem>
+                    {APP_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Timing Notes</Label>
+                <Textarea
+                  placeholder="e.g. Apply pre-drilling September, avoid waterlogged conditions"
+                  value={editEntryForm.timingNotes}
+                  onChange={e => setEditEntryForm((f: any) => ({ ...f, timingNotes: e.target.value }))}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter className="mt-2">
+              <Button variant="outline" onClick={() => setEditEntry(null)}>Cancel</Button>
+              <Button
+                onClick={() => updateEntryMut.mutate({ entryId: editEntry.id, planId: editEntry.planId, body: editEntryForm })}
+                disabled={!editEntryForm.fieldId || updateEntryMut.isPending}
+              >
+                {updateEntryMut.isPending ? "Saving…" : "Save Changes"}
               </Button>
             </DialogFooter>
           </DialogContent>
