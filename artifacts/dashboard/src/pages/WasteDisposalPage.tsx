@@ -24,6 +24,9 @@ interface WasteRecord {
   weightTonnes: string | null;
   disposalMethod: string;
   disposalDate: string;
+  sourceDescription: string | null;
+  collectionBuildingId: number | null;
+  collectionBuildingName: string | null;
   carrierId: number | null;
   carrierName: string | null;
   carrierLicence: string | null;
@@ -35,6 +38,8 @@ interface WasteRecord {
   notes: string | null;
   createdAt: string;
 }
+
+interface FarmLoc { id: number; name: string; locationType: string | null; isActive: boolean; }
 
 interface Supplier {
   id: number;
@@ -119,6 +124,7 @@ export default function WasteDisposalPage() {
 
   const emptyForm: any = {
     wasteType: "", ewcCode: "", quantity: "", disposalMethod: "", disposalDate: "",
+    sourceDescription: "", collectionBuildingId: "",
     carrierId: "", carrierName: "", carrierLicence: "", carrierRegistrationType: "",
     destinationSite: "", wasteTransferNote: "", receiptPhotoPath: null, notes: "",
   };
@@ -196,6 +202,14 @@ export default function WasteDisposalPage() {
     select: (d: any) => (d.records ?? []) as Supplier[],
   });
 
+  const farmLocsQ = useQuery({
+    queryKey: ["farm-locations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/farm-locations`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => (Array.isArray(d) ? d : []) as FarmLoc[],
+  });
+  const farmLocations = (farmLocsQ.data ?? []).filter((l: FarmLoc) => l.isActive);
+
   const wasteCarriers: Supplier[] = (suppliersQ.data ?? []).filter(
     (s: Supplier) => s.category === "Waste Carrier" || s.category === "Waste Carrier / Environmental"
   );
@@ -222,6 +236,8 @@ export default function WasteDisposalPage() {
         ...body,
         disposalDate: body.disposalDate ? new Date(body.disposalDate).toISOString() : undefined,
         carrierId: body.carrierId ? Number(body.carrierId) : null,
+        collectionBuildingId: body.collectionBuildingId ? Number(body.collectionBuildingId) : null,
+        sourceDescription: body.sourceDescription || null,
       };
       if (editRecord) return fetch(`/api/farms/${farmId}/waste/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       return fetch(`/api/farms/${farmId}/waste`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -269,7 +285,9 @@ export default function WasteDisposalPage() {
       !search ||
       r.wasteType?.toLowerCase().includes(search.toLowerCase()) ||
       r.carrierName?.toLowerCase().includes(search.toLowerCase()) ||
-      r.destinationSite?.toLowerCase().includes(search.toLowerCase())
+      r.destinationSite?.toLowerCase().includes(search.toLowerCase()) ||
+      r.sourceDescription?.toLowerCase().includes(search.toLowerCase()) ||
+      r.collectionBuildingName?.toLowerCase().includes(search.toLowerCase())
     )
   );
 
@@ -291,7 +309,7 @@ export default function WasteDisposalPage() {
   };
   const openEdit = (r: WasteRecord) => {
     setEditRecord(r);
-    setForm({ ...r, disposalDate: r.disposalDate?.slice(0, 10) ?? "" });
+    setForm({ ...r, disposalDate: r.disposalDate?.slice(0, 10) ?? "", collectionBuildingId: r.collectionBuildingId ? String(r.collectionBuildingId) : "", sourceDescription: r.sourceDescription ?? "" });
     setCarrierMode(r.carrierId ? "registered" : "manual");
     setSelectedFile(null);
     setCarrierQuery(r.carrierName ?? "");
@@ -421,7 +439,18 @@ export default function WasteDisposalPage() {
                 {filtered.map((r: WasteRecord, i: number) => (
                   <tr key={r.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.disposalDate)}</td>
-                    <td style={{ padding: "0.625rem 0.875rem", fontWeight: 500, maxWidth: 200 }}>{r.wasteType || "—"}</td>
+                    <td style={{ padding: "0.625rem 0.875rem", fontWeight: 500, maxWidth: 200 }}>
+                      {r.wasteType || "—"}
+                      {r.collectionBuildingName && (
+                        <div style={{ fontSize: "0.7rem", color: "#6b7280", marginTop: 2, display: "flex", alignItems: "center", gap: 3 }}>
+                          <Truck size={10} />
+                          {r.collectionBuildingName}
+                        </div>
+                      )}
+                      {r.sourceDescription && !r.collectionBuildingName && (
+                        <div style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 2 }}>{r.sourceDescription}</div>
+                      )}
+                    </td>
                     <td style={{ padding: "0.625rem 0.875rem" }}>
                       {r.ewcCode ? (
                         <Badge style={{ background: r.ewcCode.includes("*") ? "#fee2e2" : "#f3f4f6", color: r.ewcCode.includes("*") ? "#991b1b" : "#374151", border: "none", fontFamily: "monospace", fontSize: "0.72rem" }}>
@@ -495,6 +524,12 @@ export default function WasteDisposalPage() {
                       <F label="EWC Code" value={r.ewcCode} />
                       <F label="Weight (tonnes)" value={r.weightTonnes != null ? String(r.weightTonnes) : null} />
                     </div>
+                    {(r.sourceDescription || r.collectionBuildingName) && (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                        <F label="Source / Origin" value={r.sourceDescription} />
+                        <F label="Collection Point" value={r.collectionBuildingName} />
+                      </div>
+                    )}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                       <F label="Carrier" value={r.carrierName} />
                       <F label="Carrier Licence" value={r.carrierLicence} />
@@ -553,6 +588,42 @@ export default function WasteDisposalPage() {
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>{DISPOSAL_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                 </Select>
+              </div>
+
+              {/* Location fields */}
+              <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "0.75rem" }}>
+                <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>Origin &amp; Collection Location</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Source / Origin</Label>
+                    <Input
+                      value={form.sourceDescription}
+                      onChange={e => setForm((f: any) => ({ ...f, sourceDescription: e.target.value }))}
+                      placeholder="e.g. Main workshop oil drain, Cattle shed sharps bin"
+                    />
+                    <p style={{ fontSize: "0.68rem", color: "#9ca3af", marginTop: 3 }}>Where on the holding this waste was generated</p>
+                  </div>
+                  <div>
+                    <Label>Collection / Transfer Point</Label>
+                    {farmLocations.length > 0 ? (
+                      <>
+                        <Select value={form.collectionBuildingId || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, collectionBuildingId: v === "__none__" ? "" : v }))}>
+                          <SelectTrigger><SelectValue placeholder="Select building or area…" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— Not specified —</SelectItem>
+                            {farmLocations.map((l: FarmLoc) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <p style={{ fontSize: "0.68rem", color: "#9ca3af", marginTop: 3 }}>Where the carrier collects from on the holding</p>
+                      </>
+                    ) : (
+                      <>
+                        <Input disabled placeholder="Add buildings in Farm Buildings & Areas to use this picker" style={{ background: "#f9fafb", fontSize: "0.8rem" }} />
+                        <p style={{ fontSize: "0.68rem", color: "#9ca3af", marginTop: 3 }}>Register farm buildings to enable this picker</p>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Duty of Care — Carrier Details */}

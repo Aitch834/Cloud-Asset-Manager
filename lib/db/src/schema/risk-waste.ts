@@ -3,6 +3,7 @@ import { farmsTable } from "./core";
 import { suppliersTable } from "./stock-suppliers";
 import { fieldsTable } from "./fields-crops";
 import { farmInsuranceTable } from "./insurance";
+import { farmLocationsTable } from "./farm-locations";
 
 export const flyTippingIncidentsTable = pgTable("fly_tipping_incidents", {
   id: serial("id").primaryKey(),
@@ -81,6 +82,8 @@ export const wasteDisposalRecordsTable = pgTable("waste_disposal_records", {
   quantity: text("quantity"),
   disposalMethod: text("disposal_method").notNull(),
   disposalDate: timestamp("disposal_date", { withTimezone: true }).notNull(),
+  sourceDescription: text("source_description"),
+  collectionBuildingId: integer("collection_building_id").references(() => farmLocationsTable.id, { onDelete: "set null" }),
   carrierId: integer("carrier_id").references(() => suppliersTable.id),
   carrierName: text("carrier_name"),
   carrierLicence: text("carrier_licence"),

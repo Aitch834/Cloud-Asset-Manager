@@ -2716,14 +2716,40 @@ router.put("/farms/:farmId/coshh/:recordId", requireAuth, requireTenant, require
 router.get("/farms/:farmId/waste", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(wasteDisposalRecordsTable).where(eq(wasteDisposalRecordsTable.farmId, farmId)).orderBy(desc(wasteDisposalRecordsTable.disposalDate));
+  const records = await db
+    .select({
+      id: wasteDisposalRecordsTable.id,
+      farmId: wasteDisposalRecordsTable.farmId,
+      wasteType: wasteDisposalRecordsTable.wasteType,
+      quantity: wasteDisposalRecordsTable.quantity,
+      disposalMethod: wasteDisposalRecordsTable.disposalMethod,
+      disposalDate: wasteDisposalRecordsTable.disposalDate,
+      sourceDescription: wasteDisposalRecordsTable.sourceDescription,
+      collectionBuildingId: wasteDisposalRecordsTable.collectionBuildingId,
+      collectionBuildingName: farmLocationsTable.name,
+      carrierId: wasteDisposalRecordsTable.carrierId,
+      carrierName: wasteDisposalRecordsTable.carrierName,
+      carrierLicence: wasteDisposalRecordsTable.carrierLicence,
+      carrierRegistrationType: wasteDisposalRecordsTable.carrierRegistrationType,
+      ewcCode: wasteDisposalRecordsTable.ewcCode,
+      destinationSite: wasteDisposalRecordsTable.destinationSite,
+      wasteTransferNote: wasteDisposalRecordsTable.wasteTransferNote,
+      receiptPhotoPath: wasteDisposalRecordsTable.receiptPhotoPath,
+      notes: wasteDisposalRecordsTable.notes,
+      createdAt: wasteDisposalRecordsTable.createdAt,
+    })
+    .from(wasteDisposalRecordsTable)
+    .leftJoin(farmLocationsTable, eq(wasteDisposalRecordsTable.collectionBuildingId, farmLocationsTable.id))
+    .where(eq(wasteDisposalRecordsTable.farmId, farmId))
+    .orderBy(desc(wasteDisposalRecordsTable.disposalDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/waste", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(wasteDisposalRecordsTable).values({ ...req.body, farmId }).returning();
+  const { sourceDescription, collectionBuildingId, ...rest } = req.body;
+  const [record] = await db.insert(wasteDisposalRecordsTable).values({ ...rest, farmId, sourceDescription: sourceDescription ?? null, collectionBuildingId: collectionBuildingId ?? null }).returning();
   res.status(201).json({ record });
 });
 
@@ -4673,7 +4699,8 @@ router.put("/farms/:farmId/waste/:recordId", requireAuth, requireTenant, require
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(wasteDisposalRecordsTable).set(req.body).where(and(eq(wasteDisposalRecordsTable.id, recordId), eq(wasteDisposalRecordsTable.farmId, farmId))).returning();
+  const { sourceDescription, collectionBuildingId, ...rest } = req.body;
+  const [record] = await db.update(wasteDisposalRecordsTable).set({ ...rest, sourceDescription: sourceDescription ?? null, collectionBuildingId: collectionBuildingId ?? null }).where(and(eq(wasteDisposalRecordsTable.id, recordId), eq(wasteDisposalRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
