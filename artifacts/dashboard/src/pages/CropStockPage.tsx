@@ -833,6 +833,10 @@ function MovementsTab({ farmId }: { farmId: number }) {
   const emptyAdj = { binId: null as number | null, commodity: "", variety: "", movementType: "adjustment", direction: "in", quantityTonnes: "", performedBy: "", notes: "" };
   const [adjForm, setAdjForm] = useState<any>(emptyAdj);
 
+  const [filterCropYear, setFilterCropYear] = useState<string>("__all__");
+  const [filterFrom, setFilterFrom] = useState<string>("");
+  const [filterTo, setFilterTo] = useState<string>("");
+
   const q = useQuery({
     queryKey: ["crop-stock-movements", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/crop-stock-movements`).then(r => r.json()),
@@ -864,11 +868,36 @@ function MovementsTab({ farmId }: { farmId: number }) {
   const records: any[] = q.data ?? [];
   const movTypeLabel = (t: string) => MOVEMENT_TYPES.find(m => m.value === t)?.label ?? t;
 
+  const cropYears = useMemo(() => {
+    const seen = new Set<string>();
+    records.forEach(r => { if (r.movedAt) seen.add(deriveCropYear(r.movedAt)); });
+    return Array.from(seen).sort().reverse();
+  }, [records]);
+
+  const filtered = useMemo(() => {
+    let result = [...records].sort((a, b) => new Date(b.movedAt).getTime() - new Date(a.movedAt).getTime());
+    if (filterCropYear !== "__all__") {
+      result = result.filter(r => deriveCropYear(r.movedAt) === filterCropYear);
+    }
+    if (filterFrom) {
+      const from = new Date(filterFrom).getTime();
+      result = result.filter(r => r.movedAt && new Date(r.movedAt).getTime() >= from);
+    }
+    if (filterTo) {
+      const to = new Date(filterTo);
+      to.setHours(23, 59, 59, 999);
+      result = result.filter(r => r.movedAt && new Date(r.movedAt).getTime() <= to.getTime());
+    }
+    return result;
+  }, [records, filterCropYear, filterFrom, filterTo]);
+
+  const hasFilter = filterCropYear !== "__all__" || !!filterFrom || !!filterTo;
+
   const handlePrintMovements = () => {
     const fName = farmData?.record?.name ?? "Farm";
     const cph = farmData?.record?.cphNumber ?? undefined;
 
-    const sorted = [...records].sort((a, b) => new Date(b.movedAt).getTime() - new Date(a.movedAt).getTime());
+    const sorted = [...filtered];
 
     const dirBadge = (dir: string) => dir === "in"
       ? '<span style="background:#dcfce7;color:#166534;padding:1px 5px;border-radius:3px;font-size:6px;font-weight:700;">IN</span>'
@@ -908,9 +937,15 @@ function MovementsTab({ farmId }: { farmId: number }) {
       ${sorted.length === 0 ? '<p style="color:#6b7280;font-size:8px;margin-top:12px;">No movements recorded.</p>' : ""}
     `;
 
+    const filterDesc = filterCropYear !== "__all__"
+      ? `Crop year ${filterCropYear}`
+      : filterFrom || filterTo
+        ? [filterFrom && `From ${new Date(filterFrom).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`, filterTo && `To ${new Date(filterTo).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`].filter(Boolean).join(" — ")
+        : "All movements";
+
     const html = buildProReport({
       title: "Crop Stock — Movement Audit Log",
-      subtitle: "Immutable record of all grain stock changes",
+      subtitle: `Immutable record of all grain stock changes — ${filterDesc}`,
       farmName: fName,
       cphNumber: cph,
       recordCount: sorted.length,
@@ -925,14 +960,54 @@ function MovementsTab({ farmId }: { farmId: number }) {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Full immutable audit log of all crop stock changes — harvests, dispatches, transfers, and adjustments.</p>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Button size="sm" variant="outline" onClick={handlePrintMovements} disabled={records.length === 0} title="Print movement audit log">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12, gap: 12, flexWrap: "wrap" }}>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280", flex: "1 1 auto" }}>Full immutable audit log of all crop stock changes — harvests, dispatches, transfers, and adjustments.</p>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          <Button size="sm" variant="outline" onClick={handlePrintMovements} disabled={filtered.length === 0} title="Print movement audit log">
             <Printer size={14} className="mr-1" />Print Log
           </Button>
           <Button size="sm" variant="outline" onClick={() => setAdjOpen(true)}><Plus size={14} className="mr-1" />Manual Adjustment</Button>
         </div>
+      </div>
+
+      {/* ── Filter bar ── */}
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 14, padding: "10px 12px", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8 }}>
+        <div>
+          <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 600, color: "#6b7280", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.05em" }}>Crop Year</label>
+          <Select value={filterCropYear} onValueChange={v => { setFilterCropYear(v); setFilterFrom(""); setFilterTo(""); }}>
+            <SelectTrigger style={{ width: 120, height: 32, fontSize: "0.8rem" }}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All years</SelectItem>
+              {cropYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 600, color: "#6b7280", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.05em" }}>From</label>
+          <input
+            type="date"
+            value={filterFrom}
+            onChange={e => { setFilterFrom(e.target.value); setFilterCropYear("__all__"); }}
+            style={{ height: 32, padding: "0 8px", fontSize: "0.8rem", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151" }}
+          />
+        </div>
+        <div>
+          <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 600, color: "#6b7280", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.05em" }}>To</label>
+          <input
+            type="date"
+            value={filterTo}
+            onChange={e => { setFilterTo(e.target.value); setFilterCropYear("__all__"); }}
+            style={{ height: 32, padding: "0 8px", fontSize: "0.8rem", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151" }}
+          />
+        </div>
+        {hasFilter && (
+          <Button size="sm" variant="ghost" style={{ height: 32, alignSelf: "flex-end" }} onClick={() => { setFilterCropYear("__all__"); setFilterFrom(""); setFilterTo(""); }}>
+            Clear
+          </Button>
+        )}
+        <span style={{ alignSelf: "flex-end", marginLeft: "auto", fontSize: "0.75rem", color: "#9ca3af", paddingBottom: 6 }}>
+          {filtered.length} of {records.length} movement{records.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
       {records.length === 0 ? (
@@ -940,6 +1015,12 @@ function MovementsTab({ farmId }: { farmId: number }) {
           <ArrowLeftRight size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
           <p style={{ fontWeight: 600, color: "#374151" }}>No movements recorded yet</p>
           <p style={{ fontSize: "0.875rem" }}>Movements are created automatically when dispatches and transfers are confirmed.</p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <ArrowLeftRight size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>No movements match your filter</p>
+          <p style={{ fontSize: "0.875rem" }}>Try adjusting or clearing the date filter above.</p>
         </div>
       ) : (
         <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflowX: "auto" }}>
@@ -952,8 +1033,8 @@ function MovementsTab({ farmId }: { farmId: number }) {
               </tr>
             </thead>
             <tbody>
-              {records.map((r: any, i: number) => (
-                <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+              {filtered.map((r: any, i: number) => (
+                <tr key={r.id} style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.movedAt)}</td>
                   <td style={{ padding: "0.625rem 0.875rem" }}>
                     <Badge style={{ fontSize: "0.7rem", background: r.direction === "in" ? "#dcfce7" : "#fee2e2", color: r.direction === "in" ? "#166534" : "#991b1b", border: "none" }}>
