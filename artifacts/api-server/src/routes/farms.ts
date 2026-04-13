@@ -10985,12 +10985,21 @@ router.delete("/farms/:farmId/workshop/jobs/:id", requireAuth, requireTenant, re
 
 router.get("/farms/:farmId/workshop/schedule", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = parseInt(req.params.farmId);
-  const services = await db
+  const allLogs = await db
     .select({ log: equipmentMaintenanceLogsTable, equipmentName: equipmentTable.name, assetNumber: equipmentTable.assetNumber, equipmentType: equipmentTable.type })
     .from(equipmentMaintenanceLogsTable)
     .innerJoin(equipmentTable, eq(equipmentMaintenanceLogsTable.equipmentId, equipmentTable.id))
     .where(and(eq(equipmentTable.farmId, farmId), isNotNull(equipmentMaintenanceLogsTable.nextDueDate)))
-    .orderBy(equipmentMaintenanceLogsTable.nextDueDate);
+    .orderBy(desc(equipmentMaintenanceLogsTable.performedDate));
+  // Keep only the most recent log per (equipmentId, maintenanceType) — ensures a
+  // completed service replaces the previous overdue entry for the same task
+  const seen = new Set<string>();
+  const services = allLogs.filter(({ log }) => {
+    const key = `${log.equipmentId}::${log.maintenanceType}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => new Date(a.log.nextDueDate!).getTime() - new Date(b.log.nextDueDate!).getTime());
   res.json({ services });
 });
 

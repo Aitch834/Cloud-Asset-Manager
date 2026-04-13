@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
+import { useToast } from "@/hooks/use-toast";
 import { Redirect, Link } from "wouter";
 import { cn } from "@/lib/utils";
 
@@ -730,12 +731,27 @@ interface ServiceEntry {
 }
 
 function ServiceScheduleTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const { data, isLoading } = useQuery<{ services: ServiceEntry[] }>({
     queryKey: ["workshop-schedule", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/workshop/schedule`), { credentials: "include" }).then(r => r.json()),
   });
 
-  if (isLoading) return <div className="py-12 text-center text-gray-400"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>;
+  const [viewEntry, setViewEntry] = useState<ServiceEntry | null>(null);
+  const [logEntry, setLogEntry] = useState<ServiceEntry | null>(null);
+  const [logForm, setLogForm] = useState({ performedDate: new Date().toISOString().slice(0, 10), performedBy: "", nextDueDate: "", description: "", partsUsed: "", costPence: "", notes: "" });
+
+  const logMut = useMutation({
+    mutationFn: ({ equipmentId, body }: { equipmentId: number; body: Record<string, unknown> }) =>
+      fetch(api(`farms/${farmId}/equipment/${equipmentId}/maintenance`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workshop-schedule", farmId] });
+      setLogEntry(null);
+      toast({ title: "Service logged", description: "The schedule will update to reflect the new service date." });
+    },
+    onError: () => toast({ title: "Error", description: "Could not save service record.", variant: "destructive" }),
+  });
 
   const today = new Date();
   const services = data?.services ?? [];
@@ -748,17 +764,52 @@ function ServiceScheduleTab({ farmId }: { farmId: number }) {
     return { label: `Due ${d.toLocaleDateString("en-GB")}`, colour: "bg-green-100 text-green-700", icon: <CheckCircle2 className="h-4 w-4 text-green-500" /> };
   }
 
+  function openLogService(entry: ServiceEntry) {
+    setLogEntry(entry);
+    setLogForm({ performedDate: new Date().toISOString().slice(0, 10), performedBy: entry.log.performedBy ?? "", nextDueDate: "", description: entry.log.description ?? "", partsUsed: "", costPence: "", notes: "" });
+  }
+
+  function submitLog() {
+    if (!logEntry) return;
+    logMut.mutate({
+      equipmentId: logEntry.log.equipmentId,
+      body: {
+        maintenanceType: logEntry.log.maintenanceType,
+        performedDate: logForm.performedDate,
+        performedBy: logForm.performedBy || null,
+        nextDueDate: logForm.nextDueDate || null,
+        description: logForm.description || null,
+        partsUsed: logForm.partsUsed || null,
+        costPence: logForm.costPence ? Math.round(parseFloat(logForm.costPence) * 100) : null,
+        notes: logForm.notes || null,
+      },
+    });
+  }
+
+  if (isLoading) return <div className="py-12 text-center text-gray-400"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>;
+
   if (services.length === 0) {
     return <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No upcoming service dates found. Add a "Next Due Date" to maintenance records on the <Link href="/equipment" className="text-primary underline underline-offset-2 hover:opacity-75">Equipment page</Link> to populate this schedule.</CardContent></Card>;
   }
 
+  const overdueCount = services.filter(s => new Date(s.log.nextDueDate!).getTime() < today.getTime()).length;
+  const dueSoonCount = services.filter(s => { const d = new Date(s.log.nextDueDate!); const diff = Math.ceil((d.getTime() - today.getTime()) / 86400000); return diff >= 0 && diff <= 14; }).length;
+
   return (
     <div className="space-y-3">
-      <p className="text-sm text-gray-500">Upcoming and overdue service items across all registered equipment. Add maintenance records with a "Next Due Date" on the <Link href="/equipment" className="text-primary underline underline-offset-2 hover:opacity-75">Equipment page</Link>.</p>
-      {services.map(({ log, equipmentName, assetNumber: an, equipmentType }) => {
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <p className="text-sm text-gray-500">One entry per service type per asset — completing a service removes the old overdue entry. Log new records on the <Link href="/equipment" className="text-primary underline underline-offset-2 hover:opacity-75">Equipment page</Link> or use <strong>Log Service Done</strong> below.</p>
+        <div className="flex items-center gap-2 text-xs flex-shrink-0">
+          {overdueCount > 0 && <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-red-100 text-red-700 font-medium"><AlertTriangle className="h-3 w-3" />{overdueCount} overdue</span>}
+          {dueSoonCount > 0 && <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 font-medium"><Clock className="h-3 w-3" />{dueSoonCount} due soon</span>}
+        </div>
+      </div>
+
+      {services.map((entry) => {
+        const { log, equipmentName, assetNumber: an, equipmentType } = entry;
         const due = dueStatus(log.nextDueDate!);
         return (
-          <Card key={log.id} className="hover:shadow-sm transition-shadow">
+          <Card key={log.id} className="hover:shadow-sm transition-shadow cursor-pointer" onClick={() => setViewEntry(entry)}>
             <CardContent className="px-4 py-3">
               <div className="flex items-start gap-3">
                 <div className="pt-0.5">{due.icon}</div>
@@ -769,13 +820,97 @@ function ServiceScheduleTab({ farmId }: { farmId: number }) {
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">{an ? `${an} — ` : ""}{equipmentName} <span className="text-gray-400">({equipmentType})</span></p>
                   <p className="text-xs text-gray-400 mt-1">Last done: {new Date(log.performedDate).toLocaleDateString("en-GB")}{log.performedBy ? ` by ${log.performedBy}` : ""}</p>
-                  {log.description && <p className="text-xs text-gray-500 mt-1">{log.description}</p>}
+                  {log.description && <p className="text-xs text-gray-500 mt-1 italic">{log.description}</p>}
                 </div>
+                <Button size="sm" variant="outline" className="flex-shrink-0 text-xs h-7 px-2" onClick={(e) => { e.stopPropagation(); openLogService(entry); }}>
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-green-600" />Log Service Done
+                </Button>
               </div>
             </CardContent>
           </Card>
         );
       })}
+
+      {/* Detail view dialog */}
+      <Dialog open={!!viewEntry} onOpenChange={() => setViewEntry(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Maintenance Record Detail</DialogTitle></DialogHeader>
+          {viewEntry && (
+            <div className="space-y-3 text-sm py-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div><p className="text-xs text-gray-400 uppercase font-medium mb-0.5">Asset</p><p className="font-medium">{viewEntry.assetNumber ? `${viewEntry.assetNumber} — ` : ""}{viewEntry.equipmentName}</p></div>
+                <div><p className="text-xs text-gray-400 uppercase font-medium mb-0.5">Type</p><p>{viewEntry.equipmentType}</p></div>
+                <div><p className="text-xs text-gray-400 uppercase font-medium mb-0.5">Service Type</p><p className="font-medium">{viewEntry.log.maintenanceType}</p></div>
+                <div><p className="text-xs text-gray-400 uppercase font-medium mb-0.5">Last Performed</p><p>{new Date(viewEntry.log.performedDate).toLocaleDateString("en-GB")}</p></div>
+                {viewEntry.log.performedBy && <div><p className="text-xs text-gray-400 uppercase font-medium mb-0.5">Performed By</p><p>{viewEntry.log.performedBy}</p></div>}
+                <div><p className="text-xs text-gray-400 uppercase font-medium mb-0.5">Next Due</p><p className={new Date(viewEntry.log.nextDueDate!) < today ? "text-red-600 font-semibold" : ""}>{new Date(viewEntry.log.nextDueDate!).toLocaleDateString("en-GB")}</p></div>
+                {viewEntry.log.costPence != null && <div><p className="text-xs text-gray-400 uppercase font-medium mb-0.5">Last Cost</p><p>£{(viewEntry.log.costPence / 100).toFixed(2)}</p></div>}
+                {viewEntry.log.partsUsed && <div className="col-span-2"><p className="text-xs text-gray-400 uppercase font-medium mb-0.5">Parts Used</p><p>{viewEntry.log.partsUsed}</p></div>}
+              </div>
+              {viewEntry.log.description && <div><p className="text-xs text-gray-400 uppercase font-medium mb-0.5">Description</p><p className="text-gray-700">{viewEntry.log.description}</p></div>}
+              {viewEntry.log.notes && <div><p className="text-xs text-gray-400 uppercase font-medium mb-0.5">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewEntry.log.notes}</p></div>}
+              {!viewEntry.log.description && !viewEntry.log.notes && <p className="text-xs text-gray-400 italic">No description or notes recorded on the last service. These can be added when logging maintenance on the Equipment page.</p>}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { if (viewEntry) openLogService(viewEntry); setViewEntry(null); }}>
+              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5 text-green-600" />Log Service Done
+            </Button>
+            <Button variant="ghost" onClick={() => setViewEntry(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Log Service Done dialog */}
+      <Dialog open={!!logEntry} onOpenChange={() => setLogEntry(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Log Service Done</DialogTitle>
+            {logEntry && <p className="text-sm text-gray-500 mt-1">{logEntry.log.maintenanceType} — {logEntry.equipmentName}{logEntry.assetNumber ? ` (${logEntry.assetNumber})` : ""}</p>}
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Date Performed <span className="text-red-500">*</span></Label>
+                <Input type="date" value={logForm.performedDate} onChange={e => setLogForm(f => ({ ...f, performedDate: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Performed By</Label>
+                <Input placeholder="Name or contractor" value={logForm.performedBy} onChange={e => setLogForm(f => ({ ...f, performedBy: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Next Due Date</Label>
+                <Input type="date" value={logForm.nextDueDate} onChange={e => setLogForm(f => ({ ...f, nextDueDate: e.target.value }))} />
+                <p className="text-xs text-gray-400">Set this to keep the item on the schedule going forward.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Cost (£)</Label>
+                <Input type="number" step="0.01" min="0" placeholder="0.00" value={logForm.costPence ? (parseFloat(logForm.costPence) / 100).toFixed(2) : ""} onChange={e => setLogForm(f => ({ ...f, costPence: e.target.value ? String(Math.round(parseFloat(e.target.value) * 100)) : "" }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Input placeholder="Brief description of work done" value={logForm.description} onChange={e => setLogForm(f => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Parts Used</Label>
+              <Input placeholder="e.g. Oil filter, 10W-40 5L" value={logForm.partsUsed} onChange={e => setLogForm(f => ({ ...f, partsUsed: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notes</Label>
+              <textarea className="w-full border border-input rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring" rows={2} placeholder="Any observations, issues noted, or follow-up required…" value={logForm.notes} onChange={e => setLogForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLogEntry(null)}>Cancel</Button>
+            <Button onClick={submitLog} disabled={!logForm.performedDate || logMut.isPending}>
+              {logMut.isPending ? "Saving…" : "Save Service Record"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
