@@ -25,6 +25,12 @@ export const equipmentTable = pgTable("equipment", {
   notes: text("notes"),
   photos: text("photos"),
   isActive: boolean("is_active").notNull().default(true),
+  disposalMethod: text("disposal_method"),
+  disposalDate: timestamp("disposal_date", { withTimezone: true }),
+  disposalPricePence: integer("disposal_price_pence"),
+  disposalBuyerOrContractor: text("disposal_buyer_or_contractor"),
+  wasteTransferNoteRef: text("waste_transfer_note_ref"),
+  disposalNotes: text("disposal_notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

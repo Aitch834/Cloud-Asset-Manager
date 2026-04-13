@@ -1724,6 +1724,49 @@ router.delete("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, 
   res.json({ success: true });
 });
 
+router.post("/farms/:farmId/equipment/:recordId/dispose", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const valid = await validateEquipmentOwnership(recordId, farmId);
+  if (!valid) { res.status(404).json({ error: "Equipment not found" }); return; }
+  const { disposalMethod, disposalDate, disposalPricePence, disposalBuyerOrContractor, wasteTransferNoteRef, disposalNotes } = req.body;
+  if (!disposalMethod) { res.status(400).json({ error: "disposalMethod is required" }); return; }
+  if (!disposalDate) { res.status(400).json({ error: "disposalDate is required" }); return; }
+  await db.update(equipmentTable).set({
+    status: "disposed",
+    isActive: false,
+    disposalMethod,
+    disposalDate: new Date(disposalDate),
+    disposalPricePence: disposalPricePence ? Number(disposalPricePence) : null,
+    disposalBuyerOrContractor: disposalBuyerOrContractor || null,
+    wasteTransferNoteRef: wasteTransferNoteRef || null,
+    disposalNotes: disposalNotes || null,
+  }).where(and(eq(equipmentTable.id, recordId), eq(equipmentTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.delete("/farms/:farmId/equipment/:recordId/dispose", requireAuth, requireTenant, requireModuleByKey("equipment-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const valid = await validateEquipmentOwnership(recordId, farmId);
+  if (!valid) { res.status(404).json({ error: "Equipment not found" }); return; }
+  await db.update(equipmentTable).set({
+    status: "active",
+    isActive: true,
+    disposalMethod: null,
+    disposalDate: null,
+    disposalPricePence: null,
+    disposalBuyerOrContractor: null,
+    wasteTransferNoteRef: null,
+    disposalNotes: null,
+  }).where(and(eq(equipmentTable.id, recordId), eq(equipmentTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 async function validateEquipmentOwnership(equipmentId: number, farmId: number): Promise<boolean> {
   const [eq_record] = await db.select({ id: equipmentTable.id }).from(equipmentTable).where(and(eq(equipmentTable.id, equipmentId), eq(equipmentTable.farmId, farmId))).limit(1);
   return !!eq_record;

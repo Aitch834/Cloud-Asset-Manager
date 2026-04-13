@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useEquipment, useAddEquipment } from "@/hooks/use-equipment";
-import { Plus, Search, Tractor, Calendar, Camera, X, Pencil, Loader2, Printer, Trash2, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown } from "lucide-react";
+import { Plus, Search, Tractor, Camera, X, Pencil, Loader2, Printer, Trash2, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown, PackageX, RotateCcw, Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,7 +38,31 @@ interface EquipmentRecord {
   nextServiceDue?: string;
   nextMotDue?: string;
   isActive?: boolean;
+  disposalMethod?: string | null;
+  disposalDate?: string | null;
+  disposalPricePence?: number | null;
+  disposalBuyerOrContractor?: string | null;
+  wasteTransferNoteRef?: string | null;
+  disposalNotes?: string | null;
 }
+
+const DISPOSAL_METHODS = [
+  { value: "sold",         label: "Sold",                  color: "#1d4ed8", bg: "#dbeafe" },
+  { value: "scrapped",     label: "Scrapped",              color: "#7c3aed", bg: "#ede9fe" },
+  { value: "part_exchange",label: "Part Exchange",         color: "#0891b2", bg: "#cffafe" },
+  { value: "stolen",       label: "Stolen / Lost",         color: "#dc2626", bg: "#fee2e2" },
+  { value: "transferred",  label: "Transferred to Another Holding", color: "#b45309", bg: "#fef3c7" },
+  { value: "other",        label: "Other",                 color: "#4b5563", bg: "#f3f4f6" },
+];
+
+const EMPTY_DISPOSE_FORM = {
+  disposalMethod: "sold",
+  disposalDate: new Date().toISOString().slice(0, 10),
+  disposalPrice: "",
+  disposalBuyerOrContractor: "",
+  wasteTransferNoteRef: "",
+  disposalNotes: "",
+};
 
 interface EquipmentFormData {
   name: string;
@@ -387,6 +411,9 @@ export default function EquipmentPage() {
   const [editingLog, setEditingLog] = useState<MaintenanceLog | null>(null);
   const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
   const [serviceFormOpen, setServiceFormOpen] = useState(false);
+  const [showDisposed, setShowDisposed] = useState(false);
+  const [disposeItem, setDisposeItem] = useState<EquipmentRecord | null>(null);
+  const [disposeForm, setDisposeForm] = useState(EMPTY_DISPOSE_FORM);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data, isLoading } = useEquipment(farmId ?? 0);
@@ -422,6 +449,39 @@ export default function EquipmentPage() {
     onError: () => {
       toast({ title: "Failed to update equipment", variant: "destructive" });
     },
+  });
+
+  const disposeMutation = useMutation({
+    mutationFn: async ({ id, body }: { id: number; body: Record<string, unknown> }) => {
+      const res = await fetch(`/api/farms/${farmId}/equipment/${id}/dispose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Failed to record disposal");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey(farmId ?? 0) });
+      setDisposeItem(null);
+      setDisposeForm(EMPTY_DISPOSE_FORM);
+      toast({ title: "Disposal recorded", description: "The item has been marked as disposed and removed from your active fleet." });
+    },
+    onError: () => toast({ title: "Failed to record disposal", variant: "destructive" }),
+  });
+
+  const undoDisposeMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/farms/${farmId}/equipment/${id}/dispose`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to undo disposal");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getListEquipmentQueryKey(farmId ?? 0) });
+      setManagingItem(null);
+      toast({ title: "Disposal reversed", description: "The item has been restored to your active fleet." });
+    },
+    onError: () => toast({ title: "Failed to undo disposal", variant: "destructive" }),
   });
 
   const maintQ = useQuery<{ records: MaintenanceLog[] }>({
@@ -542,26 +602,50 @@ export default function EquipmentPage() {
     });
   };
 
-  const equipment = (data?.records ?? []) as unknown as EquipmentRecord[];
+  const allEquipment = (data?.records ?? []) as unknown as EquipmentRecord[];
+  const equipment = showDisposed ? allEquipment : allEquipment.filter(e => e.status !== "disposed");
+  const disposedCount = allEquipment.filter(e => e.status === "disposed").length;
   const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  function disposalLabel(method: string | null | undefined) {
+    return DISPOSAL_METHODS.find(m => m.value === method)?.label ?? method ?? "Disposed";
+  }
+  function disposalMeta(method: string | null | undefined) {
+    return DISPOSAL_METHODS.find(m => m.value === method) ?? { color: "#4b5563", bg: "#f3f4f6", label: "Disposed" };
+  }
+
+  function submitDispose() {
+    if (!disposeItem) return;
+    disposeMutation.mutate({
+      id: disposeItem.id,
+      body: {
+        disposalMethod: disposeForm.disposalMethod,
+        disposalDate: disposeForm.disposalDate,
+        disposalPricePence: disposeForm.disposalPrice ? Math.round(parseFloat(disposeForm.disposalPrice) * 100) : null,
+        disposalBuyerOrContractor: disposeForm.disposalBuyerOrContractor || null,
+        wasteTransferNoteRef: disposeForm.wasteTransferNoteRef || null,
+        disposalNotes: disposeForm.disposalNotes || null,
+      },
+    });
+  }
 
   const handleEquipmentPrint = () => {
     const tableHtml = `<table><thead><tr>
       <th>Name</th><th>Type</th><th>Make / Model</th><th>Serial / Reg</th><th>Year</th><th>Status</th><th>Next Calibration</th>
-    </tr></thead><tbody>${equipment.map(item => `<tr>
+    </tr></thead><tbody>${allEquipment.map(item => `<tr>
       <td><strong>${item.name || "Asset #" + item.id}</strong></td>
       <td>${item.type || "—"}</td>
       <td>${[item.make, item.model].filter(Boolean).join(" ") || "—"}</td>
       <td style="font-family:monospace">${item.serialNumber || item.registrationNumber || "—"}</td>
       <td>${item.yearOfManufacture || "—"}</td>
-      <td>${item.isActive !== false ? "Active" : "Inactive"}</td>
+      <td>${item.status === "disposed" ? `Disposed — ${disposalLabel(item.disposalMethod)}${item.disposalDate ? " (" + new Date(item.disposalDate).toLocaleDateString("en-GB") + ")" : ""}` : "Active"}</td>
       <td>${item.nextCalibrationDue ? new Date(item.nextCalibrationDue).toLocaleDateString("en-GB") : "—"}</td>
     </tr>`).join("")}</tbody></table>`;
     printProReport({
       title: "Machinery & Equipment Register",
       farmName: farm?.name,
       cphNumber: farm?.cphNumber ?? undefined,
-      recordCount: equipment.length,
+      recordCount: allEquipment.length,
       recordLabel: "item",
       tableHtml,
       landscape: false,
@@ -591,7 +675,13 @@ export default function EquipmentPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setPrintOpen(true)} disabled={equipment.length === 0}>
+          {disposedCount > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setShowDisposed(s => !s)}>
+              {showDisposed ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+              {showDisposed ? "Hide Disposed" : `Show Disposed (${disposedCount})`}
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => setPrintOpen(true)} disabled={allEquipment.length === 0}>
             <Printer className="w-4 h-4 mr-2" /> Print Register
           </Button>
 
@@ -678,22 +768,28 @@ export default function EquipmentPage() {
             {isLoading ? (
               <tr><td colSpan={6} className="px-6 py-12 text-center text-foreground/50">Loading equipment...</td></tr>
             ) : equipment.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-foreground/50">No equipment registered.</td></tr>
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-foreground/50">
+                {showDisposed && disposedCount > 0 ? "All equipment is disposed." : "No equipment registered."}
+              </td></tr>
             ) : equipment.map(item => {
+              const isDisposed = item.status === "disposed";
+              const dispMeta = isDisposed ? disposalMeta(item.disposalMethod) : null;
               const motSt = dueStatus(item.nextMotDue);
               const svcSt = dueStatus(item.nextServiceDue);
               return (
-              <tr key={item.id} className="hover:bg-black/5 transition-colors">
+              <tr key={item.id} className={`hover:bg-black/5 transition-colors ${isDisposed ? "opacity-60" : ""}`}>
                 <td className="px-6 py-4 font-medium">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg overflow-hidden bg-orange-50 flex-shrink-0 flex items-center justify-center">
                       {parsePhotos(item.photos)[0]
                         ? <img src={parsePhotos(item.photos)[0]} alt={item.name} className="w-full h-full object-cover" />
-                        : <Tractor className="w-5 h-5 text-orange-600" />
+                        : isDisposed
+                          ? <PackageX className="w-5 h-5 text-gray-400" />
+                          : <Tractor className="w-5 h-5 text-orange-600" />
                       }
                     </div>
                     <div>
-                      <p>{item.name || `Asset #${item.id}`}</p>
+                      <p className={isDisposed ? "line-through text-foreground/50" : ""}>{item.name || `Asset #${item.id}`}</p>
                       {(item.make || item.model) && (
                         <p className="text-xs text-foreground/50">{[item.make, item.model].filter(Boolean).join(" ")}</p>
                       )}
@@ -702,24 +798,51 @@ export default function EquipmentPage() {
                 </td>
                 <td className="px-6 py-4 text-foreground/70">{item.serialNumber || item.registrationNumber || '—'}</td>
                 <td className="px-6 py-4">
-                  <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${item.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                    {item.isActive !== false ? 'Active' : 'Inactive'}
-                  </span>
+                  {isDisposed && dispMeta ? (
+                    <div>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 10px", borderRadius: 20, fontSize: "0.75rem", fontWeight: 700, background: dispMeta.bg, color: dispMeta.color }}>
+                        <PackageX size={11} /> {dispMeta.label}
+                      </span>
+                      {item.disposalDate && (
+                        <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 2 }}>{fmt(item.disposalDate)}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">Active</span>
+                  )}
                 </td>
                 <td className="px-6 py-4">
-                  {item.nextMotDue
+                  {isDisposed ? <span className="text-xs text-foreground/30">—</span> : item.nextMotDue
                     ? <span style={{ fontSize: "0.75rem", fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: motSt.bg, color: motSt.color }}>{motSt.label}</span>
                     : <span className="text-xs text-foreground/40">—</span>}
                 </td>
                 <td className="px-6 py-4">
-                  {item.nextServiceDue
+                  {isDisposed ? <span className="text-xs text-foreground/30">—</span> : item.nextServiceDue
                     ? <span style={{ fontSize: "0.75rem", fontWeight: 600, padding: "2px 8px", borderRadius: 6, background: svcSt.bg, color: svcSt.color }}>{svcSt.label}</span>
                     : <span className="text-xs text-foreground/40">—</span>}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <Button variant="ghost" size="sm" onClick={() => openManage(item)}>
-                    <Pencil className="w-4 h-4 mr-1.5" /> Manage
-                  </Button>
+                  {isDisposed ? (
+                    <Button variant="ghost" size="sm" onClick={() => openManage(item)}>
+                      <Eye className="w-4 h-4 mr-1.5" /> View
+                    </Button>
+                  ) : (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          Actions <ChevronDown className="w-3.5 h-3.5 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openManage(item)}>
+                          <Pencil className="w-3.5 h-3.5 mr-2" /> Manage / Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setDisposeItem(item); setDisposeForm(EMPTY_DISPOSE_FORM); }} className="text-red-600">
+                          <PackageX className="w-3.5 h-3.5 mr-2" /> Record Disposal
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </td>
               </tr>
               );
@@ -743,6 +866,33 @@ export default function EquipmentPage() {
           {/* ── DETAILS TAB ── */}
           {managingItem && manageTab === "details" && (
             <form onSubmit={handleEditSubmit(onEdit)} className="space-y-4 mt-2">
+              {managingItem.status === "disposed" && (
+                <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <PackageX size={16} style={{ color: "#dc2626", flexShrink: 0 }} />
+                    <span style={{ fontWeight: 700, color: "#991b1b", fontSize: "0.875rem" }}>This item has been disposed</span>
+                    <span style={{ marginLeft: "auto", padding: "2px 10px", borderRadius: 20, fontSize: "0.75rem", fontWeight: 700, ...(() => { const m = disposalMeta(managingItem.disposalMethod); return { background: m.bg, color: m.color }; })() }}>
+                      {disposalLabel(managingItem.disposalMethod)}
+                    </span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "4px 16px", fontSize: "0.8125rem", color: "#374151" }}>
+                    {managingItem.disposalDate && <div><span style={{ color: "#6b7280" }}>Date: </span>{fmt(managingItem.disposalDate)}</div>}
+                    {managingItem.disposalPricePence != null && <div><span style={{ color: "#6b7280" }}>Price: </span>£{(managingItem.disposalPricePence / 100).toFixed(2)}</div>}
+                    {managingItem.disposalBuyerOrContractor && <div className="col-span-2"><span style={{ color: "#6b7280" }}>Buyer / Contractor: </span>{managingItem.disposalBuyerOrContractor}</div>}
+                    {managingItem.wasteTransferNoteRef && <div className="col-span-2"><span style={{ color: "#6b7280" }}>Waste Transfer Note Ref: </span><span style={{ fontFamily: "monospace" }}>{managingItem.wasteTransferNoteRef}</span></div>}
+                    {managingItem.disposalNotes && <div className="col-span-2"><span style={{ color: "#6b7280" }}>Notes: </span>{managingItem.disposalNotes}</div>}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => undoDisposeMutation.mutate(managingItem.id)}
+                    disabled={undoDisposeMutation.isPending}
+                    style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", padding: "4px 12px", borderRadius: 6, border: "1px solid #fca5a5", background: "#fff", color: "#dc2626", cursor: "pointer" }}
+                  >
+                    {undoDisposeMutation.isPending ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <RotateCcw size={13} />}
+                    Undo Disposal — Restore to Active Fleet
+                  </button>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <Label>Name / Description</Label>
@@ -938,6 +1088,120 @@ export default function EquipmentPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── RECORD DISPOSAL DIALOG ── */}
+      {disposeItem && (
+        <Dialog open onOpenChange={(o) => { if (!o) { setDisposeItem(null); setDisposeForm(EMPTY_DISPOSE_FORM); } }}>
+          <DialogContent style={{ maxWidth: "36rem" }}>
+            <DialogHeader>
+              <DialogTitle style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <PackageX size={18} style={{ color: "#dc2626" }} /> Record Disposal — {disposeItem.name}
+              </DialogTitle>
+              <p style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: 4 }}>
+                This will remove the item from your active fleet and record the disposal in the asset register audit trail.
+              </p>
+            </DialogHeader>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingTop: 4 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <Label>Disposal Method <span style={{ color: "#ef4444" }}>*</span></Label>
+                  <select
+                    value={disposeForm.disposalMethod}
+                    onChange={e => setDisposeForm(f => ({ ...f, disposalMethod: e.target.value }))}
+                    className="mt-1 w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {DISPOSAL_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <Label>Date of Disposal <span style={{ color: "#ef4444" }}>*</span></Label>
+                  <Input
+                    type="date"
+                    className="mt-1"
+                    value={disposeForm.disposalDate}
+                    onChange={e => setDisposeForm(f => ({ ...f, disposalDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <Label>
+                    {disposeForm.disposalMethod === "sold" ? "Sale Price (£)" :
+                     disposeForm.disposalMethod === "scrapped" ? "Scrap Value (£, if any)" :
+                     disposeForm.disposalMethod === "part_exchange" ? "Part Exchange Value (£)" :
+                     "Disposal Price (£, if applicable)"}
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="mt-1"
+                    placeholder="0.00"
+                    value={disposeForm.disposalPrice}
+                    onChange={e => setDisposeForm(f => ({ ...f, disposalPrice: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label>
+                    {disposeForm.disposalMethod === "sold" ? "Buyer Name" :
+                     disposeForm.disposalMethod === "scrapped" ? "Scrap Contractor" :
+                     disposeForm.disposalMethod === "transferred" ? "Destination Holding" :
+                     "Buyer / Contractor / Details"}
+                  </Label>
+                  <Input
+                    className="mt-1"
+                    placeholder={disposeForm.disposalMethod === "sold" ? "e.g. Smith's Farm" : disposeForm.disposalMethod === "scrapped" ? "e.g. Jones Metal Recycling Ltd" : ""}
+                    value={disposeForm.disposalBuyerOrContractor}
+                    onChange={e => setDisposeForm(f => ({ ...f, disposalBuyerOrContractor: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {(disposeForm.disposalMethod === "scrapped" || disposeForm.disposalMethod === "other") && (
+                <div>
+                  <Label>Waste Transfer Note Reference</Label>
+                  <Input
+                    className="mt-1"
+                    placeholder="e.g. WTN-2025-0142"
+                    value={disposeForm.wasteTransferNoteRef}
+                    onChange={e => setDisposeForm(f => ({ ...f, wasteTransferNoteRef: e.target.value }))}
+                  />
+                  <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>Required when scrapping metal or disposing of waste through a licensed carrier.</p>
+                </div>
+              )}
+
+              <div>
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  className="mt-1"
+                  placeholder="Any additional details about the disposal…"
+                  value={disposeForm.disposalNotes}
+                  onChange={e => setDisposeForm(f => ({ ...f, disposalNotes: e.target.value }))}
+                  rows={3}
+                />
+              </div>
+
+              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 14px", fontSize: "0.8125rem", color: "#92400e" }}>
+                <strong>Note:</strong> Disposal records are permanent for audit purposes. The item will remain visible in the register (marked as disposed) and can be filtered out from the active fleet view.
+              </div>
+            </div>
+
+            <DialogFooter style={{ marginTop: 8 }}>
+              <Button variant="outline" onClick={() => { setDisposeItem(null); setDisposeForm(EMPTY_DISPOSE_FORM); }}>Cancel</Button>
+              <Button
+                onClick={submitDispose}
+                disabled={disposeMutation.isPending || !disposeForm.disposalDate}
+                style={{ background: "#dc2626", color: "#fff" }}
+              >
+                {disposeMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <PackageX className="w-4 h-4 mr-2" />}
+                Confirm Disposal
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* ── PRINT DIALOG ── */}
       {printOpen && (
         <Dialog open onOpenChange={(o) => { if (!o) setPrintOpen(false); }}>
@@ -962,7 +1226,7 @@ export default function EquipmentPage() {
                 <div className="text-right text-xs text-foreground/50">
                   <p className="font-semibold text-foreground text-sm">Machinery &amp; Equipment Register</p>
                   <p>Printed: {printedDate}</p>
-                  <p>{equipment.length} item{equipment.length !== 1 ? "s" : ""}</p>
+                  <p>{allEquipment.filter(e => e.status !== "disposed").length} active item{allEquipment.filter(e => e.status !== "disposed").length !== 1 ? "s" : ""}{disposedCount > 0 ? ` · ${disposedCount} disposed` : ""}</p>
                 </div>
               </div>
 
@@ -980,14 +1244,18 @@ export default function EquipmentPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {equipment.map((item, i) => (
+                    {allEquipment.map((item, i) => (
                       <tr key={item.id} className={i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}>
                         <td className="border border-border/60 px-3 py-2">{item.name || `Asset #${item.id}`}</td>
                         <td className="border border-border/60 px-3 py-2">{item.type || "-"}</td>
                         <td className="border border-border/60 px-3 py-2">{[item.make, item.model].filter(Boolean).join(" ") || "-"}</td>
                         <td className="border border-border/60 px-3 py-2 font-mono">{item.serialNumber || item.registrationNumber || "-"}</td>
                         <td className="border border-border/60 px-3 py-2">{item.yearOfManufacture || "-"}</td>
-                        <td className="border border-border/60 px-3 py-2">{item.isActive !== false ? "Active" : "Inactive"}</td>
+                        <td className="border border-border/60 px-3 py-2">
+                          {item.status === "disposed"
+                            ? <span style={{ color: "#6b7280" }}>Disposed — {disposalLabel(item.disposalMethod)}{item.disposalDate ? ` (${fmt(item.disposalDate)})` : ""}</span>
+                            : <span style={{ color: "#166534", fontWeight: 600 }}>Active</span>}
+                        </td>
                         <td className="border border-border/60 px-3 py-2">
                           {item.nextCalibrationDue ? new Date(item.nextCalibrationDue).toLocaleDateString("en-GB") : "-"}
                         </td>
