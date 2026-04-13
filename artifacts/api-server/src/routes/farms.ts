@@ -6985,12 +6985,16 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <ol>
 <li>Go to <strong>Health, Safety &amp; Risk</strong> in the sidebar and click the <strong>PAT Testing</strong> tab.</li>
 <li>Click <strong>Log PAT Test</strong>.</li>
-<li>Enter the item or appliance name (e.g. "Angle Grinder — Makita 9558HN"), the location in the workshop, and the test date.</li>
+<li>Enter the item or appliance name (e.g. "Angle Grinder — Makita 9558HN").</li>
+<li>If your farm buildings are registered in <strong>Farm Buildings &amp; Areas</strong>, select the <strong>Building / Area</strong> where the appliance is kept. Then enter the <strong>Workstation / Position</strong> — a short description such as "left workbench", "tool rack", or "under the desk" — so a PAT tester can find the item without a floor plan. If no buildings are registered yet, a free-text location field is displayed instead.</li>
 <li>Set the result: <em>Pass</em>, <em>Fail</em>, or <em>Advisory</em>. A <em>Fail</em> means the appliance must be taken out of service immediately. An <em>Advisory</em> means it can continue in use but remedial action is recommended.</li>
 <li>Enter the tester's name, company, and certificate number.</li>
 <li>Set the <em>Next Test Due</em> date. The system will mark this record as overdue once that date passes.</li>
 </ol>
 <p>Failed appliances should be labelled "DO NOT USE" and either repaired or disposed of before being returned to service. Record any remedial action in the Notes field.</p>
+
+<h4>Filtering by Location</h4>
+<p>Once at least one record is linked to a building, a <strong>Filter by location</strong> dropdown appears above the register. Select a building to show only the appliances kept there — exactly the list to hand a PAT tester before their visit so they can work through each area systematically rather than hunting around the whole site.</p>
 
 <h3>Fire Extinguisher Register</h3>
 <p>All fire extinguishers must be serviced annually by a competent person and discharge-tested at intervals specified by the manufacturer (typically every 5 years for CO₂ and every 5 years for dry powder). Red Tractor assessors will ask to see evidence that extinguishers on the holding are maintained and appropriately sited.</p>
@@ -11041,14 +11045,39 @@ router.get("/farms/:farmId/workshop/schedule", requireAuth, requireTenant, requi
 router.get("/farms/:farmId/workshop/pat-tests", requireAuth, requireTenant, requireModuleByKey("risk-waste", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(workshopPatTestsTable).where(eq(workshopPatTestsTable.farmId, farmId)).orderBy(desc(workshopPatTestsTable.testDate));
+  const records = await db
+    .select({
+      id: workshopPatTestsTable.id,
+      farmId: workshopPatTestsTable.farmId,
+      itemName: workshopPatTestsTable.itemName,
+      equipmentId: workshopPatTestsTable.equipmentId,
+      location: workshopPatTestsTable.location,
+      buildingId: workshopPatTestsTable.buildingId,
+      subLocation: workshopPatTestsTable.subLocation,
+      buildingName: farmLocationsTable.name,
+      testDate: workshopPatTestsTable.testDate,
+      testerName: workshopPatTestsTable.testerName,
+      testerCompany: workshopPatTestsTable.testerCompany,
+      certificateNumber: workshopPatTestsTable.certificateNumber,
+      result: workshopPatTestsTable.result,
+      nextDueDate: workshopPatTestsTable.nextDueDate,
+      notes: workshopPatTestsTable.notes,
+      documentPath: workshopPatTestsTable.documentPath,
+      documentName: workshopPatTestsTable.documentName,
+      createdAt: workshopPatTestsTable.createdAt,
+    })
+    .from(workshopPatTestsTable)
+    .leftJoin(farmLocationsTable, eq(workshopPatTestsTable.buildingId, farmLocationsTable.id))
+    .where(eq(workshopPatTestsTable.farmId, farmId))
+    .orderBy(farmLocationsTable.name, desc(workshopPatTestsTable.testDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/workshop/pat-tests", requireAuth, requireTenant, requireModuleByKey("risk-waste", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(workshopPatTestsTable).values({ ...req.body, farmId }).returning();
+  const { buildingId, subLocation, ...rest } = req.body;
+  const [record] = await db.insert(workshopPatTestsTable).values({ ...rest, farmId, buildingId: buildingId ?? null, subLocation: subLocation ?? null }).returning();
   res.status(201).json({ record });
 });
 
@@ -11057,7 +11086,8 @@ router.put("/farms/:farmId/workshop/pat-tests/:id", requireAuth, requireTenant, 
   if (!farmId) return;
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(workshopPatTestsTable).set(req.body).where(and(eq(workshopPatTestsTable.id, id), eq(workshopPatTestsTable.farmId, farmId))).returning();
+  const { buildingId, subLocation, ...rest } = req.body;
+  const [record] = await db.update(workshopPatTestsTable).set({ ...rest, buildingId: buildingId ?? null, subLocation: subLocation ?? null }).where(and(eq(workshopPatTestsTable.id, id), eq(workshopPatTestsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 

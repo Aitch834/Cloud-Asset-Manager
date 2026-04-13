@@ -101,6 +101,8 @@ export const workshopPatTestsTable = pgTable("workshop_pat_tests", {
   itemName: text("item_name").notNull(),
   equipmentId: integer("equipment_id").references(() => equipmentTable.id),
   location: text("location"),
+  buildingId: integer("building_id").references(() => farmLocationsTable.id, { onDelete: "set null" }),
+  subLocation: text("sub_location"),
   testDate: timestamp("test_date", { withTimezone: true }),
   testerName: text("tester_name"),
   testerCompany: text("tester_company"),

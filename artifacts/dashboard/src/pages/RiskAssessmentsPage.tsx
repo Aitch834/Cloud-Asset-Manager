@@ -778,7 +778,9 @@ function DocCell({ endpoint, queryKey, documentPath, documentName }: {
 // ─── PAT Testing tab ───────────────────────────────────────────────────────────
 
 interface PatTest {
-  id: number; farmId: number; itemName: string; location: string | null; testDate: string;
+  id: number; farmId: number; itemName: string; location: string | null;
+  buildingId: number | null; subLocation: string | null; buildingName: string | null;
+  testDate: string;
   testerName: string | null; testerCompany: string | null; certificateNumber: string | null;
   result: string; nextDueDate: string | null; notes: string | null;
   documentPath: string | null; documentName: string | null; createdAt: string;
@@ -790,7 +792,7 @@ const PAT_RESULT: Record<string, { label: string; colour: string }> = {
   advisory: { label: "Advisory", colour: "bg-amber-100 text-amber-700" },
 };
 
-const EMPTY_PAT = { itemName: "", location: "", testDate: "", testerName: "", testerCompany: "", certificateNumber: "", result: "pass", nextDueDate: "", notes: "" };
+const EMPTY_PAT = { buildingId: "" as string, subLocation: "", itemName: "", location: "", testDate: "", testerName: "", testerCompany: "", certificateNumber: "", result: "pass", nextDueDate: "", notes: "" };
 
 function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
   const qc = useQueryClient();
@@ -799,6 +801,7 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
   const [form, setForm] = useState(EMPTY_PAT);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
+  const [buildingFilter, setBuildingFilter] = useState<string>("__all__");
   const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
 
@@ -807,13 +810,19 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
     queryFn: () => fetch(`/api/farms/${farmId}/workshop/pat-tests`, { credentials: "include" }).then(r => r.json()),
   });
 
+  const { data: locData } = useQuery<FarmLoc[]>({
+    queryKey: ["farm-locations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/farm-locations`, { credentials: "include" }).then(r => r.json()),
+  });
+  const farmLocations = (locData ?? []).filter(l => l.isActive);
+
   const createMut = useMutation({
-    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/pat-tests`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/pat-tests`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-tests", farmId] }); setShowForm(false); setForm(EMPTY_PAT); },
   });
 
   const updateMut = useMutation({
-    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/pat-tests/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: typeof form) => fetch(`/api/farms/${farmId}/workshop/pat-tests/${editing!.id}`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, buildingId: body.buildingId ? parseInt(body.buildingId) : null }) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pat-tests", farmId] }); setShowForm(false); setEditing(null); setForm(EMPTY_PAT); },
   });
 
@@ -824,36 +833,69 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
 
   function openEdit(r: PatTest) {
     setEditing(r);
-    setForm({ itemName: r.itemName, location: r.location ?? "", testDate: r.testDate ? r.testDate.slice(0, 10) : "", testerName: r.testerName ?? "", testerCompany: r.testerCompany ?? "", certificateNumber: r.certificateNumber ?? "", result: r.result, nextDueDate: r.nextDueDate ? r.nextDueDate.slice(0, 10) : "", notes: r.notes ?? "" });
+    setForm({ buildingId: r.buildingId ? String(r.buildingId) : "", subLocation: r.subLocation ?? "", itemName: r.itemName, location: r.location ?? "", testDate: r.testDate ? r.testDate.slice(0, 10) : "", testerName: r.testerName ?? "", testerCompany: r.testerCompany ?? "", certificateNumber: r.certificateNumber ?? "", result: r.result, nextDueDate: r.nextDueDate ? r.nextDueDate.slice(0, 10) : "", notes: r.notes ?? "" });
     setShowForm(true);
   }
 
   const today = new Date();
-  const records = data?.records ?? [];
-  const overdue = records.filter(r => r.nextDueDate && new Date(r.nextDueDate) < today).length;
+  const allRecords = data?.records ?? [];
+
+  const records = buildingFilter === "__all__"
+    ? allRecords
+    : buildingFilter === "__none__"
+      ? allRecords.filter(r => !r.buildingId)
+      : allRecords.filter(r => r.buildingId === parseInt(buildingFilter));
+
+  const overdue = allRecords.filter(r => r.nextDueDate && new Date(r.nextDueDate) < today).length;
 
   useEffect(() => {
-    if (!openId || autoOpened.current || records.length === 0) return;
-    if (records.some((r: any) => r.id === openId)) {
+    if (!openId || autoOpened.current || allRecords.length === 0) return;
+    if (allRecords.some((r: any) => r.id === openId)) {
       autoOpened.current = true;
       setTimeout(() => { rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" }); const t = setTimeout(() => setHlId(null), 4000); return () => clearTimeout(t); }, 200);
     }
-  }, [openId, records]);
+  }, [openId, allRecords]);
+
+  const usingBuildingPicker = !!form.buildingId;
 
   if (isLoading) return <div className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <p className="text-sm text-gray-500">Track Portable Appliance Testing for all electrical equipment on the holding. Required under the Electricity at Work Regulations 1989 and Health & Safety at Work Act 1974.</p>
           {overdue > 0 && <p className="text-xs text-red-600 font-medium mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {overdue} item{overdue !== 1 ? "s" : ""} overdue for testing</p>}
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_PAT); setShowForm(true); }} className="gap-1"><Plus className="h-4 w-4" />Log PAT Test</Button>
+        <Button size="sm" onClick={() => { setEditing(null); setForm(EMPTY_PAT); setShowForm(true); }} className="gap-1 shrink-0"><Plus className="h-4 w-4" />Log PAT Test</Button>
       </div>
 
-      {records.length === 0 ? (
+      {allRecords.length > 0 && farmLocations.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 whitespace-nowrap">Filter by location:</span>
+          <Select value={buildingFilter} onValueChange={setBuildingFilter}>
+            <SelectTrigger className="h-8 text-xs w-56"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All locations ({allRecords.length})</SelectItem>
+              {farmLocations
+                .filter(l => allRecords.some(r => r.buildingId === l.id))
+                .map(l => (
+                  <SelectItem key={l.id} value={String(l.id)}>
+                    {l.name} ({allRecords.filter(r => r.buildingId === l.id).length})
+                  </SelectItem>
+                ))}
+              {allRecords.some(r => !r.buildingId) && (
+                <SelectItem value="__none__">No building linked ({allRecords.filter(r => !r.buildingId).length})</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {allRecords.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-gray-400 text-sm">No PAT test records yet. Log the first test to start tracking compliance.</CardContent></Card>
+      ) : records.length === 0 ? (
+        <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No PAT records at this location.</CardContent></Card>
       ) : (
         <div className="overflow-x-auto rounded-lg border bg-white">
           <table className="min-w-full text-sm">
@@ -864,10 +906,13 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
               {records.map(r => {
                 const due = r.nextDueDate ? new Date(r.nextDueDate) : null;
                 const isOverdue = due && due < today;
+                const displayLocation = r.buildingName
+                  ? r.subLocation ? `${r.buildingName} — ${r.subLocation}` : r.buildingName
+                  : r.location || null;
                 return (
                   <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} className={`transition-colors${hlId === r.id ? " bg-amber-50 outline outline-2 outline-amber-400 -outline-offset-2" : " hover:bg-gray-50"}`}>
                     <td className="px-4 py-3 font-medium">{r.itemName}</td>
-                    <td className="px-4 py-3 text-gray-500">{r.location || "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{displayLocation || "—"}</td>
                     <td className="px-4 py-3 text-gray-500">{r.testDate ? new Date(r.testDate).toLocaleDateString("en-GB") : "—"}</td>
                     <td className="px-4 py-3 text-gray-500">{[r.testerName, r.testerCompany].filter(Boolean).join(", ") || "—"}</td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.certificateNumber || "—"}</td>
@@ -897,8 +942,41 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
             <form onSubmit={e => { e.preventDefault(); editing ? updateMut.mutate(form) : createMut.mutate(form); }} className="space-y-4 mt-2">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2"><Label>Item / Appliance Name *</Label><Input required value={form.itemName} onChange={e => setForm(f => ({ ...f, itemName: e.target.value }))} placeholder="e.g. Angle Grinder, Extension Lead, Welder" /></div>
-                <div><Label>Location</Label><Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop, Store room" /></div>
-                <div>
+
+                {farmLocations.length > 0 ? (
+                  <>
+                    <div className="col-span-2">
+                      <Label>Building / Area</Label>
+                      <Select value={form.buildingId || "__none__"} onValueChange={v => setForm(f => ({ ...f, buildingId: v === "__none__" ? "" : v, location: "" }))}>
+                        <SelectTrigger><SelectValue placeholder="Select a farm building or area…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Manual entry (no building registered) —</SelectItem>
+                          {farmLocations.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {usingBuildingPicker ? (
+                      <div className="col-span-2">
+                        <Label>Workstation / Position</Label>
+                        <Input value={form.subLocation} onChange={e => setForm(f => ({ ...f, subLocation: e.target.value }))} placeholder="e.g. Left workbench, Tool rack, Under the desk" />
+                        <p className="text-xs text-gray-400 mt-1">Exact position within the building — helps PAT testers locate the item without a floor plan.</p>
+                      </div>
+                    ) : (
+                      <div className="col-span-2">
+                        <Label>Location</Label>
+                        <Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop, Store room" />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="col-span-2">
+                    <Label>Location</Label>
+                    <Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop, Store room" />
+                    <p className="text-xs text-gray-400 mt-1">Add buildings in Farm Buildings &amp; Areas to enable the structured building picker here.</p>
+                  </div>
+                )}
+
+                <div className="col-span-2">
                   <Label>Result</Label>
                   <Select value={form.result} onValueChange={v => setForm(f => ({ ...f, result: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
