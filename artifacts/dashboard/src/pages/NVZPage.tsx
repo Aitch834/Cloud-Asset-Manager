@@ -220,6 +220,7 @@ export default function NVZPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = useState<"summary" | "log" | "risk-assessments">("summary");
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<NvzApplication | null>(null);
   const [viewRecord, setViewRecord] = useState<NvzApplication | null>(null);
@@ -288,26 +289,54 @@ export default function NVZPage() {
     onSuccess: () => { toast({ title: "Risk assessment deleted" }); qc.invalidateQueries({ queryKey: ["nvz-risk-assessments", farmId] }); setRaDeleteId(null); },
   });
 
-  const summary: FieldSummary[] = summaryQ.data?.summary ?? [];
   const applications: NvzApplication[] = appsQ.data?.records ?? [];
   const fields: Field[] = fieldsQ.data?.records ?? [];
   const riskAssessments: any[] = riskAssessmentsQ.data?.records ?? [];
 
+  const availableYears = useMemo(() => {
+    const years = new Set<number>([new Date().getFullYear()]);
+    applications.forEach(a => { if (a.applicationDate) years.add(new Date(a.applicationDate).getFullYear()); });
+    return Array.from(years).sort().reverse();
+  }, [applications]);
+
+  const yearApps = useMemo(() =>
+    applications.filter(a => a.applicationDate && new Date(a.applicationDate).getFullYear() === selectedYear),
+    [applications, selectedYear]);
+
+  const yearSummary = useMemo((): FieldSummary[] => {
+    const organicTypes = ["slurry", "fy", "poultry-manure", "organic-n", "digestate", "compost"];
+    return fields.map(f => {
+      const fa = yearApps.filter(a => a.fieldId === f.id);
+      const areaHa = parseFloat(String(f.areaHectares ?? "1")) || 1;
+      const totalNKg = fa.reduce((s, a) => s + parseFloat(a.totalNitrogenKg ?? "0"), 0);
+      const organicNKg = fa.filter(a => organicTypes.includes(a.productType)).reduce((s, a) => s + parseFloat(a.totalNitrogenKg ?? "0"), 0);
+      return {
+        fieldId: f.id, fieldName: f.name, areaHectares: f.areaHectares,
+        isNvz: f.isNvz, nvzLandType: f.nvzLandType,
+        totalNKg: parseFloat(totalNKg.toFixed(2)),
+        organicNKg: parseFloat(organicNKg.toFixed(2)),
+        totalNKgHa: parseFloat((totalNKg / areaHa).toFixed(2)),
+        organicNKgHa: parseFloat((organicNKg / areaHa).toFixed(2)),
+        applicationCount: fa.length,
+      };
+    });
+  }, [fields, yearApps]);
+
   const filteredApps = useMemo(() => {
-    if (!search.trim()) return applications;
+    if (!search.trim()) return yearApps;
     const q = search.toLowerCase();
-    return applications.filter(
+    return yearApps.filter(
       (a) =>
         (a.fieldName ?? "").toLowerCase().includes(q) ||
         a.productName.toLowerCase().includes(q) ||
         a.productType.toLowerCase().includes(q)
     );
-  }, [applications, search]);
+  }, [yearApps, search]);
 
-  const nvzFields = summary.filter((f) => f.isNvz);
+  const nvzFields = yearSummary.filter((f) => f.isNvz);
   const nvzFieldCount = nvzFields.length;
-  const alertFields = summary.filter((f) => f.totalNKgHa > TOTAL_N_LIMIT || f.organicNKgHa > ORGANIC_N_LIMIT).length;
-  const warnFields = summary.filter(
+  const alertFields = yearSummary.filter((f) => f.totalNKgHa > TOTAL_N_LIMIT || f.organicNKgHa > ORGANIC_N_LIMIT).length;
+  const warnFields = yearSummary.filter(
     (f) => (!f.totalNKgHa || f.totalNKgHa <= TOTAL_N_LIMIT) &&
       (!f.organicNKgHa || f.organicNKgHa <= ORGANIC_N_LIMIT) &&
       (f.totalNKgHa > TOTAL_N_LIMIT * 0.85 || f.organicNKgHa > ORGANIC_N_LIMIT * 0.85)
@@ -440,8 +469,8 @@ export default function NVZPage() {
             <div className="text-xs text-foreground/50 mt-0.5">NVZ fields</div>
           </div>
           <div className="border border-border rounded-xl p-3 bg-card">
-            <div className="text-2xl font-bold text-foreground">{applications.length}</div>
-            <div className="text-xs text-foreground/50 mt-0.5">Applications logged</div>
+            <div className="text-2xl font-bold text-foreground">{yearApps.length}</div>
+            <div className="text-xs text-foreground/50 mt-0.5">Applications in {selectedYear}</div>
           </div>
           <div className={`border rounded-xl p-3 ${alertFields > 0 ? "border-red-200 bg-red-50" : "border-border bg-card"}`}>
             <div className={`text-2xl font-bold ${alertFields > 0 ? "text-red-600" : "text-foreground"}`}>{alertFields}</div>
@@ -453,19 +482,32 @@ export default function NVZPage() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-border pb-0">
-          <TabButton active={tab === "summary"} onClick={() => setTab("summary")}>NVZ Summary</TabButton>
-          <TabButton active={tab === "log"} onClick={() => setTab("log")}>Application Log</TabButton>
-          <TabButton active={tab === "risk-assessments"} onClick={() => setTab("risk-assessments")}>Risk Assessments {riskAssessments.length > 0 && `(${riskAssessments.length})`}</TabButton>
+        {/* Year selector + Tabs */}
+        <div className="flex items-center justify-between gap-3 border-b border-border pb-0">
+          <div className="flex gap-1">
+            <TabButton active={tab === "summary"} onClick={() => setTab("summary")}>NVZ Summary</TabButton>
+            <TabButton active={tab === "log"} onClick={() => setTab("log")}>Application Log</TabButton>
+            <TabButton active={tab === "risk-assessments"} onClick={() => setTab("risk-assessments")}>Risk Assessments {riskAssessments.length > 0 && `(${riskAssessments.length})`}</TabButton>
+          </div>
+          {tab !== "risk-assessments" && (
+            <div className="flex items-center gap-2 pb-1">
+              <span className="text-xs text-foreground/50 font-medium">Year:</span>
+              <Select value={String(selectedYear)} onValueChange={v => setSelectedYear(Number(v))}>
+                <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {availableYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         {/* ── SUMMARY TAB ── */}
         {tab === "summary" && (
           <div className="space-y-3">
-            {summaryQ.isLoading ? (
+            {fieldsQ.isLoading || appsQ.isLoading ? (
               <p className="text-sm text-foreground/40 text-center py-10">Loading field data…</p>
-            ) : summary.length === 0 ? (
+            ) : yearSummary.length === 0 ? (
               <div className="border border-border rounded-xl p-10 text-center text-foreground/40">
                 <Leaf className="w-8 h-8 mx-auto mb-3 opacity-30" />
                 <p className="font-medium">No active fields found</p>
@@ -476,11 +518,17 @@ export default function NVZPage() {
                 {alertFields > 0 && (
                   <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
                     <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span><strong>{alertFields} field{alertFields > 1 ? "s" : ""}</strong> ha{alertFields > 1 ? "ve" : "s"} exceeded NVZ nitrogen limits in the last 12 months. Review applications immediately.</span>
+                    <span><strong>{alertFields} field{alertFields > 1 ? "s" : ""}</strong> ha{alertFields > 1 ? "ve" : "s"} exceeded NVZ nitrogen limits in {selectedYear}. Review applications immediately.</span>
+                  </div>
+                )}
+                {yearApps.length === 0 && (
+                  <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
+                    <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>No applications recorded in {selectedYear}. All fields show zero nitrogen totals for this year. Use the year selector to view other years, or log applications in the Application Log tab.</span>
                   </div>
                 )}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {summary.map((fs) => (
+                  {yearSummary.map((fs) => (
                     <NvzFieldCard key={fs.fieldId} fs={fs} onEdit={(f) => { setNvzEditField(f); setNvzEditForm({ isNvz: f.isNvz, nvzLandType: f.nvzLandType ?? "" }); }} />
                   ))}
                 </div>
@@ -534,7 +582,7 @@ export default function NVZPage() {
                   </thead>
                   <tbody>
                     {filteredApps.map((a, idx) => {
-                      const fieldLandType = summary.find((f) => f.fieldId === a.fieldId)?.nvzLandType;
+                      const fieldLandType = yearSummary.find((f) => f.fieldId === a.fieldId)?.nvzLandType ?? fields.find(f => f.id === a.fieldId)?.nvzLandType;
                       const cp = checkDateClosedPeriod(a.productType, fieldLandType, new Date(a.applicationDate));
                       const isOrganic = ORGANIC_TYPES.has(a.productType);
                       return (
