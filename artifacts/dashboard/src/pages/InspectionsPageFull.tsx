@@ -440,6 +440,7 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
   // ── State ──
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const highlightCaRef = useRef<HTMLDivElement | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [ncAddOpen, setNcAddOpen] = useState(false);
   const [ncEdit, setNcEdit] = useState<any | null>(null);
   const [ncDeleteId, setNcDeleteId] = useState<number | null>(null);
@@ -534,6 +535,29 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
     return cas.some((ca: any) => ca.status !== "verified" && ca.status !== "closed" && ca.dueDate && new Date(ca.dueDate) < new Date());
   }).length;
 
+  // ── Archive filter ──
+  // "Resolved this year" = the latest updatedAt across the NC and its CAs falls in the current calendar year.
+  const thisYear = new Date().getFullYear();
+  const resolvedAt = (nc: any): number => {
+    const ts = [
+      nc.updatedAt ? new Date(nc.updatedAt).getTime() : 0,
+      ...(nc.correctiveActions ?? []).map((ca: any) => ca.updatedAt ? new Date(ca.updatedAt).getTime() : 0),
+    ];
+    return Math.max(...ts);
+  };
+  const isArchived = (nc: any) => computeNcStatus(nc) === "resolved" && new Date(resolvedAt(nc)).getFullYear() < thisYear;
+
+  const archivedCount = issues.filter(isArchived).length;
+
+  // If the deep-linked CA is inside an archived issue, force-show the archive
+  const deepLinkIsArchived = openCaId
+    ? issues.some(nc => isArchived(nc) && (nc.correctiveActions ?? []).some((ca: any) => ca.id === openCaId))
+    : false;
+
+  const displayedIssues = (showArchived || deepLinkIsArchived)
+    ? issues
+    : issues.filter(nc => !isArchived(nc));
+
   const ncFormOpen = ncAddOpen || !!ncEdit;
   const caFormOpen = !!caAddForNc || !!caEdit;
 
@@ -581,9 +605,17 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
           <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>No issues recorded</p>
           <p style={{ fontSize: "0.875rem" }}>Non-conformances raised during inspections are tracked here, along with their corrective actions and resolution status.</p>
         </div>
+      ) : displayedIssues.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <CheckCircle2 size={28} style={{ margin: "0 auto 10px", opacity: 0.4 }} />
+          <p style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>All clear — no open issues</p>
+          <p style={{ fontSize: "0.875rem" }}>
+            {archivedCount > 0 ? `${archivedCount} resolved ${archivedCount === 1 ? "issue" : "issues"} from prior years are in the archive.` : "No issues have been logged yet."}
+          </p>
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {issues.map((nc: any) => {
+          {displayedIssues.map((nc: any) => {
             const computed = computeNcStatus(nc);
             const step = pipelineStep(computed);
             const isExpanded = expanded.has(nc.id);
@@ -679,6 +711,32 @@ function IssuesRegisterTab({ farmId, openCaId }: { farmId: number; openCaId?: nu
               </div>
             );
           })}
+
+          {/* ── Archive toggle footer (inside list) ── */}
+          {archivedCount > 0 && (
+            <div style={{ textAlign: "center", paddingTop: 4 }}>
+              <button
+                onClick={() => setShowArchived(v => !v)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8125rem", color: "#6b7280", display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 6 }}
+              >
+                {showArchived
+                  ? <><ChevronUp size={13} /> Hide {archivedCount} archived {archivedCount === 1 ? "issue" : "issues"} from prior years</>
+                  : <><ChevronDown size={13} /> Show {archivedCount} archived {archivedCount === 1 ? "issue" : "issues"} from prior years</>}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Archive toggle when ALL issues are archived (empty state has its own text) ── */}
+      {!q.isLoading && issues.length > 0 && displayedIssues.length === 0 && archivedCount > 0 && (
+        <div style={{ textAlign: "center", marginTop: 12 }}>
+          <button
+            onClick={() => setShowArchived(true)}
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8125rem", color: "#6b7280", display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 6 }}
+          >
+            <ChevronDown size={13} /> Show {archivedCount} archived {archivedCount === 1 ? "issue" : "issues"} from prior years
+          </button>
         </div>
       )}
 
