@@ -18,6 +18,40 @@ import {
 
 type Tab = "biosecurity" | "contingency" | "disease" | "recalls";
 
+function parseAltSuppliers(raw: unknown): Array<{ name: string; phone?: string; notes?: string }> | null {
+  if (!raw) return null;
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "object" && parsed[0] !== null) return parsed;
+  } catch { /* fall through */ }
+  return null;
+}
+
+function parseEmergencyContacts(raw: unknown): Array<{ name: string; role?: string; phone?: string }> | null {
+  if (!raw) return null;
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "object" && parsed[0] !== null) return parsed;
+  } catch { /* fall through */ }
+  return null;
+}
+
+function altSuppliersToText(raw: unknown): string {
+  const parsed = parseAltSuppliers(raw);
+  if (parsed) {
+    return parsed.map(s => [s.name, s.phone ? `Phone: ${s.phone}` : "", s.notes ? `Notes: ${s.notes}` : ""].filter(Boolean).join("\n")).join("\n\n");
+  }
+  return raw ? String(raw) : "";
+}
+
+function emergencyContactsToText(raw: unknown): string {
+  const parsed = parseEmergencyContacts(raw);
+  if (parsed) {
+    return parsed.map(c => [c.name, c.role ? `Role: ${c.role}` : "", c.phone ? `Phone: ${c.phone}` : ""].filter(Boolean).join("\n")).join("\n\n");
+  }
+  return raw ? String(raw) : "";
+}
+
 const SPECIES = ["cattle", "sheep", "pigs", "poultry", "horses", "goats", "mixed", "other"];
 
 const INCIDENT_TYPES = [
@@ -280,9 +314,13 @@ export default function CompliancePage() {
   }
   function startEditContingency() {
     const p = contingency ?? {};
-    setContingencyForm(Object.fromEntries(
-      Object.entries(p).map(([k, v]) => [k, v === null || v === undefined ? "" : String(v)])
-    ));
+    const form: Record<string, string> = {};
+    for (const [k, v] of Object.entries(p)) {
+      if (k === "alternativeSuppliers") { form[k] = altSuppliersToText(v); }
+      else if (k === "emergencyContacts") { form[k] = emergencyContactsToText(v); }
+      else { form[k] = v === null || v === undefined ? "" : String(v); }
+    }
+    setContingencyForm(form);
     setEditingContingency(true);
   }
 
@@ -599,12 +637,27 @@ export default function CompliancePage() {
                           </div>
                         </div>
                       )}
-                      {contingency.alternativeSuppliers && (
-                        <div>
-                          <p className="text-xs text-gray-500 font-medium mt-2">Alternative Suppliers</p>
-                          <p className="text-sm whitespace-pre-wrap">{String(contingency.alternativeSuppliers)}</p>
-                        </div>
-                      )}
+                      {contingency.alternativeSuppliers && (() => {
+                        const altParsed = parseAltSuppliers(contingency.alternativeSuppliers);
+                        return (
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium mt-2">Alternative Suppliers</p>
+                            {altParsed ? (
+                              <div className="flex flex-col gap-1.5 mt-1">
+                                {altParsed.map((s, i) => (
+                                  <div key={i} className="rounded-md bg-white border border-blue-100 px-3 py-2">
+                                    <p className="text-sm font-medium text-gray-800">{s.name}</p>
+                                    {s.phone && <span className="flex items-center gap-1 text-xs text-gray-600 mt-0.5"><Phone className="w-3 h-3" />{s.phone}</span>}
+                                    {s.notes && <p className="text-xs text-gray-500 mt-0.5">{s.notes}</p>}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm whitespace-pre-wrap mt-1">{String(contingency.alternativeSuppliers)}</p>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                   <PlanSection title="1. Trigger Conditions" value={String(contingency.triggerConditions ?? "")} />
@@ -613,7 +666,26 @@ export default function CompliancePage() {
                   <PlanSection title="4. Communication Plan" value={String(contingency.communicationPlan ?? "")} />
                   <PlanSection title="5. Record Keeping During Incident" value={String(contingency.recordKeepingDuringIncident ?? "")} />
                   <PlanSection title="6. Recovery & Return to Normal" value={String(contingency.recoveryActions ?? "")} />
-                  {contingency.emergencyContacts && <PlanSection title="Emergency Contacts" value={String(contingency.emergencyContacts)} />}
+                  {contingency.emergencyContacts && (() => {
+                    const ecParsed = parseEmergencyContacts(contingency.emergencyContacts);
+                    if (ecParsed) {
+                      return (
+                        <div className="mb-4">
+                          <h4 className="text-sm font-semibold text-gray-700 mb-2">Emergency Contacts</h4>
+                          <div className="flex flex-col gap-1.5">
+                            {ecParsed.map((c, i) => (
+                              <div key={i} className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                                <p className="text-sm font-medium text-gray-800">{c.name}</p>
+                                {c.role && <p className="text-xs text-gray-500">{c.role}</p>}
+                                {c.phone && <span className="flex items-center gap-1 text-xs text-gray-600 mt-0.5"><Phone className="w-3 h-3" />{c.phone}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return <PlanSection title="Emergency Contacts" value={String(contingency.emergencyContacts)} />;
+                  })()}
                 </>
               )}
             </div>
