@@ -29,7 +29,12 @@ if (!basePath) {
 export default defineConfig({
   base: basePath,
   plugins: [
-    react(),
+    react({
+      include: [
+        path.resolve(import.meta.dirname, "src") + "/**/*.{tsx,ts,jsx,js}",
+        path.resolve(import.meta.dirname, "index.html"),
+      ],
+    }),
     tailwindcss(),
     runtimeErrorOverlay(),
     ...(process.env.NODE_ENV !== "production" &&

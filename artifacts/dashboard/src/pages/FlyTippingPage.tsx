@@ -11,8 +11,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertTriangle, Plus, MapPin, Printer, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, Plus, MapPin, Printer, ChevronDown, ChevronUp, Camera } from "lucide-react";
 import { PhotoPanel } from "./fly-tipping/PhotoPanel";
+
+function parseWasteTypes(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [String(parsed)];
+  } catch {
+    return raw.split(",").map(s => s.trim()).filter(Boolean);
+  }
+}
 
 const WASTE_TYPES = [
   "Household waste (bags / loose)",
@@ -79,7 +89,7 @@ function viewField(label: string, value?: string | null | boolean) {
 }
 
 function viewDialogContent(inc: Incident) {
-  const types: string[] = inc.wasteTypes ? JSON.parse(inc.wasteTypes) : [];
+  const types: string[] = parseWasteTypes(inc.wasteTypes);
   const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -139,7 +149,6 @@ const EMPTY: Omit<Incident, "id" | "farmId" | "photos"> = {
 export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-
   const { data: farmData } = useQuery<{ record: { id: number; name: string; cphNumber: string | null } }>({
     queryKey: ["farm-detail", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
@@ -173,7 +182,7 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
 
   function openEdit(r: Incident) {
     setEditItem(r);
-    const types = r.wasteTypes ? JSON.parse(r.wasteTypes) : [];
+    const types = parseWasteTypes(r.wasteTypes);
     setSelectedWasteTypes(types);
     setForm({
       discoveredAt: r.discoveredAt?.slice(0, 10) ?? "",
@@ -220,7 +229,6 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
       if (vars.action === "delete") { toast({ title: "Incident deleted" }); setDeleteId(null); }
     },
   });
-
   function handleSave() {
     const body = { ...form, wasteTypes: form.wasteTypes };
     if (editItem) mut.mutate({ action: "update", id: editItem.id, body });
@@ -241,7 +249,7 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
 
   function handlePrint() {
     const rows = filtered.map(i => {
-      const types = i.wasteTypes ? (JSON.parse(i.wasteTypes) as string[]).join(", ") : "—";
+      const types = parseWasteTypes(i.wasteTypes).join(", ") || "—";
       const reports = [
         i.policeReported ? `Police${i.policeRefNumber ? ` (${i.policeRefNumber})` : ""}` : "",
         i.councilReported ? `Council${i.councilRefNumber ? ` (${i.councilRefNumber})` : ""}` : "",
@@ -365,7 +373,7 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
                   </thead>
                   <tbody>
                     {filtered.map((inc, i) => {
-                      const types: string[] = inc.wasteTypes ? JSON.parse(inc.wasteTypes) : [];
+                      const types: string[] = parseWasteTypes(inc.wasteTypes);
                       const reports = [inc.policeReported && "Police", inc.councilReported && "Council", inc.eaReported && "Env. Agency"].filter(Boolean);
                       return (
                         <React.Fragment key={inc.id}>

@@ -51,6 +51,8 @@ The monorepo uses `pnpm workspaces` with Node.js 24 and TypeScript 5.9.
 **Test Dashboard (`artifacts/test-dashboard`):**
 - A login-free development and testing version of the dashboard, sharing the same React source.
 - Uses environment variables for authentication bypass and mock admin access.
+- Vite config restricts React plugin `include` to test-dashboard's own `src/` dir to avoid React Refresh transforms on cross-workspace `@fs/` files from dashboard.
+- **Key lesson**: React 19 wraps ANY render-time error (JSON.parse, ReferenceError, etc.) as misleading "Invalid hook call" with `{}` error objects. Always add detailed error logging to ErrorBoundary when debugging such errors.
 
 **Production Readiness:**
 - API server performs an environment variable audit.
