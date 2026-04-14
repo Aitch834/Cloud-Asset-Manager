@@ -456,7 +456,7 @@ function ClerkProviderWrapper() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
-        <ClerkQueryClientCacheInvalidator />
+        {!isDevBypass && <ClerkQueryClientCacheInvalidator />}
         {isDevBypass ? <DevBypassContent /> : <Router />}
         <Toaster />
       </QueryClientProvider>

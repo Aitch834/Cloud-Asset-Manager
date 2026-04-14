@@ -278,23 +278,24 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
     });
   }
 
-  const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`/api/farms/${farmId}/fly-tipping`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Incident recorded" }); qc.invalidateQueries({ queryKey: ["fly-tipping", farmId] }); setAddOpen(false); },
-  });
-  const updateMut = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: any }) => fetch(`/api/farms/${farmId}/fly-tipping/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { toast({ title: "Incident updated" }); qc.invalidateQueries({ queryKey: ["fly-tipping", farmId] }); setAddOpen(false); setEditItem(null); },
-  });
-  const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/fly-tipping/${id}`, { method: "DELETE" }),
-    onSuccess: () => { toast({ title: "Incident deleted" }); qc.invalidateQueries({ queryKey: ["fly-tipping", farmId] }); setDeleteId(null); },
+  const mut = useMutation({
+    mutationFn: async (vars: { action: "create"; body: any } | { action: "update"; id: number; body: any } | { action: "delete"; id: number }) => {
+      if (vars.action === "create") return fetch(`/api/farms/${farmId}/fly-tipping`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(vars.body) }).then(r => r.json());
+      if (vars.action === "update") return fetch(`/api/farms/${farmId}/fly-tipping/${vars.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(vars.body) }).then(r => r.json());
+      return fetch(`/api/farms/${farmId}/fly-tipping/${vars.id}`, { method: "DELETE" });
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["fly-tipping", farmId] });
+      if (vars.action === "create") { toast({ title: "Incident recorded" }); setAddOpen(false); }
+      if (vars.action === "update") { toast({ title: "Incident updated" }); setAddOpen(false); setEditItem(null); }
+      if (vars.action === "delete") { toast({ title: "Incident deleted" }); setDeleteId(null); }
+    },
   });
 
   function handleSave() {
     const body = { ...form, wasteTypes: form.wasteTypes };
-    if (editItem) updateMut.mutate({ id: editItem.id, body });
-    else createMut.mutate(body);
+    if (editItem) mut.mutate({ action: "update", id: editItem.id, body });
+    else mut.mutate({ action: "create", body });
   }
 
   const filtered = (statusFilter === "all" ? incidents : incidents.filter(i => i.clearanceStatus === statusFilter))
@@ -707,7 +708,7 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
               <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>This will permanently remove this fly-tipping incident and all associated photos. This action cannot be undone.</p>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
-                <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => deleteMut.mutate(deleteId!)}>Delete</Button>
+                <Button style={{ background: "#dc2626", color: "#fff" }} onClick={() => mut.mutate({ action: "delete", id: deleteId! })}>Delete</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

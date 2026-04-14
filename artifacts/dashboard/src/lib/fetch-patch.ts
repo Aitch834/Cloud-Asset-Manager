@@ -6,29 +6,37 @@
 
 const originalFetch = window.fetch;
 
+function isLocalRequest(resource: RequestInfo | URL): boolean {
+  try {
+    const url = typeof resource === "string" ? new URL(resource, window.location.origin) : resource instanceof Request ? new URL(resource.url) : resource;
+    return url.origin === window.location.origin;
+  } catch {
+    return true;
+  }
+}
+
 window.fetch = async (...args) => {
   const [resource, config] = args;
+
+  if (!isLocalRequest(resource)) {
+    return originalFetch(resource, config);
+  }
   
-  // Clone config to avoid mutating the original reference
   const newConfig: RequestInit = { ...config };
   
-  // Initialize Headers object safely
   newConfig.headers = new Headers(config?.headers || {});
   
-  // Retrieve the selected tenant slug from local storage
   const tenantSlug = localStorage.getItem('farmtrac_tenantSlug');
   
   if (tenantSlug) {
     (newConfig.headers as Headers).set('x-tenant-slug', tenantSlug);
   }
   
-  // Inject dev bypass header when running in test-dashboard mode
   const bypassToken = import.meta.env.VITE_DEV_BYPASS_TOKEN;
   if (bypassToken) {
     (newConfig.headers as Headers).set('x-dev-bypass', bypassToken);
   }
 
-  // Always include credentials for cookie-based Replit Auth
   newConfig.credentials = 'include';
   
   return originalFetch(resource, newConfig);
