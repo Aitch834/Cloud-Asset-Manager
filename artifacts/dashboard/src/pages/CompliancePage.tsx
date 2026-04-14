@@ -214,8 +214,18 @@ function SpeciesStockCard({
           <div className="w-full rounded-full h-2 overflow-hidden" style={{ background: "rgba(255,255,255,0.5)" }}>
             <div className="h-2 rounded-full transition-all" style={{ width: `${barPct}%`, background: barColor }} />
           </div>
-          {isCritical && <p className="text-xs mt-1" style={{ color: textColor }}>Critically low — order urgently and activate your contingency plan.</p>}
-          {isWarning && <p className="text-xs mt-1" style={{ color: textColor }}>Stock is below your {minDays}-day minimum. Consider placing an order now.</p>}
+          {isCritical && (
+            <p className="text-xs mt-1" style={{ color: textColor }}>
+              Critically low — order urgently and activate your contingency plan.{" "}
+              <a href="/dashboard/feed" className="underline font-medium" style={{ color: textColor }}>Log a delivery in Feed Management →</a>
+            </p>
+          )}
+          {isWarning && (
+            <p className="text-xs mt-1" style={{ color: textColor }}>
+              Stock is below your {minDays}-day minimum. Consider placing an order now.{" "}
+              <a href="/dashboard/feed" className="underline font-medium" style={{ color: textColor }}>Log a delivery in Feed Management →</a>
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -872,8 +882,18 @@ export default function CompliancePage() {
                                       <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
                                         <div className="h-2.5 rounded-full transition-all" style={{ width: `${barPct}%`, background: barColor }} />
                                       </div>
-                                      {isCritical && <p className="text-xs mt-1.5" style={{ color: textColor }}>Feed stock is critically low — order urgently and activate your contingency plan.</p>}
-                                      {isWarning && <p className="text-xs mt-1.5" style={{ color: textColor }}>Stock is below your {minDays}-day minimum reserve. Consider placing an order now.</p>}
+                                      {isCritical && (
+                                        <p className="text-xs mt-1.5" style={{ color: textColor }}>
+                                          Feed stock is critically low — order urgently and activate your contingency plan.{" "}
+                                          <a href="/dashboard/feed" className="underline font-medium" style={{ color: textColor }}>Log a delivery in Feed Management →</a>
+                                        </p>
+                                      )}
+                                      {isWarning && (
+                                        <p className="text-xs mt-1.5" style={{ color: textColor }}>
+                                          Stock is below your {minDays}-day minimum reserve. Consider placing an order now.{" "}
+                                          <a href="/dashboard/feed" className="underline font-medium" style={{ color: textColor }}>Log a delivery in Feed Management →</a>
+                                        </p>
+                                      )}
                                       {isOk && <p className="text-xs mt-1.5 text-green-700">Stock is above your {minDays}-day minimum reserve. No action required.</p>}
                                     </div>
                                   )}
