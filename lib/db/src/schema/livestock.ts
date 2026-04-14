@@ -115,9 +115,11 @@ export const livestockWaterRecordsTable = pgTable("livestock_water_records", {
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   herdId: integer("herd_id").references(() => herdFlockRegisterTable.id),
   waterSource: text("water_source").notNull(),
+  sourceDescription: text("source_description"),
   testDate: timestamp("test_date", { withTimezone: true }),
   testResult: text("test_result"),
   testPass: boolean("test_pass"),
+  labSupplierId: integer("lab_supplier_id").references(() => suppliersTable.id),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

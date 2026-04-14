@@ -1883,6 +1883,23 @@ router.delete("/farms/:farmId/herds/:recordId", requireAuth, requireTenant, requ
   res.json({ success: true });
 });
 
+// ─── Herd Animal Counts ───────────────────────────
+router.get("/farms/:farmId/animal-counts-by-herd", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db
+    .select({
+      herdId: livestockAnimalsTable.herdId,
+      total: sql<number>`count(*)::int`,
+      male: sql<number>`count(*) filter (where ${livestockAnimalsTable.sex} ilike 'male' or ${livestockAnimalsTable.sex} = 'm')::int`,
+      female: sql<number>`count(*) filter (where ${livestockAnimalsTable.sex} ilike 'female' or ${livestockAnimalsTable.sex} = 'f')::int`,
+    })
+    .from(livestockAnimalsTable)
+    .where(and(eq(livestockAnimalsTable.farmId, farmId), sql`${livestockAnimalsTable.status} != 'dead' and ${livestockAnimalsTable.status} != 'sold'`, isNotNull(livestockAnimalsTable.herdId)))
+    .groupBy(livestockAnimalsTable.herdId);
+  res.json({ counts: rows });
+});
+
 // ─── Livestock Animals ─────────────────────────────
 router.get("/farms/:farmId/animals", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);

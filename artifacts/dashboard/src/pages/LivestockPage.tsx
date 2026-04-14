@@ -17,6 +17,7 @@ import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { printProReport, openPrintWindow } from "@/lib/print-report";
+import { LabSelector } from "@/components/ui/LabSelector";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 
@@ -150,9 +151,11 @@ interface WaterRecord {
   farmId: number;
   herdId: number | null;
   waterSource: string;
+  sourceDescription: string | null;
   testDate: string | null;
   testResult: string | null;
   testPass: boolean | null;
+  labSupplierId: number | null;
   notes: string | null;
   createdAt: string;
 }
@@ -614,6 +617,20 @@ function HerdsSection({ farmId }: { farmId: number }) {
     },
   });
 
+  const { data: countsData } = useQuery({
+    queryKey: ["animal-counts-by-herd", farmId],
+    queryFn: async () => {
+      const res = await fetch(`/api/farms/${farmId}/animal-counts-by-herd`);
+      if (!res.ok) return { counts: [] };
+      return res.json() as Promise<{ counts: { herdId: number | null; total: number; male: number; female: number }[] }>;
+    },
+  });
+
+  const countByHerd: Record<number, { total: number; male: number; female: number }> = {};
+  for (const c of countsData?.counts ?? []) {
+    if (c.herdId != null) countByHerd[c.herdId] = { total: c.total, male: c.male, female: c.female };
+  }
+
   const createMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
       const res = await fetch(baseUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -798,17 +815,30 @@ function HerdsSection({ farmId }: { farmId: number }) {
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Name</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Species</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Breed</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Head Count</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Herd No.</th>
                   <th className="text-left p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Doc</th>
                   <th className="text-right p-4 text-xs uppercase tracking-wider font-bold text-foreground/50">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(h => (
+                {filtered.map(h => {
+                  const cnt = countByHerd[h.id];
+                  return (
                   <tr key={h.id} className="border-b border-border/50 hover:bg-black/[0.02] transition-colors">
                     <td className="p-4 text-sm font-medium">{h.name}</td>
                     <td className="p-4 text-sm capitalize text-foreground/70">{h.type || "—"}</td>
                     <td className="p-4 text-sm text-foreground/70">{h.breed || "—"}</td>
+                    <td className="p-4 text-sm text-foreground/70">
+                      {cnt ? (
+                        <span>
+                          <span className="font-semibold text-foreground">{cnt.total}</span>
+                          {(cnt.male > 0 || cnt.female > 0) && (
+                            <span className="ml-1 text-xs text-muted-foreground">♂{cnt.male} / ♀{cnt.female}</span>
+                          )}
+                        </span>
+                      ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                    </td>
                     <td className="p-4 text-sm font-mono text-foreground/70">{h.herdNumber || "—"}</td>
                     <td className="p-4 text-sm">
                       {h.registrationDocumentUrl
@@ -823,7 +853,7 @@ function HerdsSection({ farmId }: { farmId: number }) {
                       </div>
                     </td>
                   </tr>
-                ))}
+                ); })}
               </tbody>
             </table>
           )}
@@ -2090,7 +2120,7 @@ const WATER_SOURCE_LABELS: Record<string, string> = {
 };
 
 const EMPTY_WATER = {
-  waterSource: "", testDate: new Date().toISOString().slice(0, 10),
+  waterSource: "", sourceDescription: "", testDate: new Date().toISOString().slice(0, 10),
   testResult: "", testPass: "true", notes: "",
 };
 
@@ -2297,16 +2327,18 @@ function WaterSection({ farmId }: { farmId: number }) {
   const [form, setForm] = useState(EMPTY_WATER);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [certRecord, setCertRecord] = useState<WaterRecord | null>(null);
+  const [waterLabId, setWaterLabId] = useState<number | null>(null);
+  const [waterLabName, setWaterLabName] = useState<string | null>(null);
 
   function setField(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
   const createMut = useMutation({
-    mutationFn: (body: typeof EMPTY_WATER) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, testPass: body.testPass === "true" }) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-records", farmId] }); setShowForm(false); setForm(EMPTY_WATER); },
+    mutationFn: (body: typeof EMPTY_WATER & { labSupplierId?: number | null }) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, testPass: body.testPass === "true" }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-records", farmId] }); setShowForm(false); setForm(EMPTY_WATER); setWaterLabId(null); setWaterLabName(null); },
   });
   const updateMut = useMutation({
-    mutationFn: (body: typeof EMPTY_WATER & { id: number }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, testPass: body.testPass === "true" }) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-records", farmId] }); setEditing(null); setShowForm(false); setForm(EMPTY_WATER); },
+    mutationFn: (body: typeof EMPTY_WATER & { id: number; labSupplierId?: number | null }) => fetch(`${base}/${body.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, testPass: body.testPass === "true" }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-records", farmId] }); setEditing(null); setShowForm(false); setForm(EMPTY_WATER); setWaterLabId(null); setWaterLabName(null); },
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => fetch(`${base}/${id}`, { method: "DELETE" }).then(r => r.json()),
@@ -2316,16 +2348,20 @@ function WaterSection({ farmId }: { farmId: number }) {
   function openEdit(r: WaterRecord) {
     setEditing(r);
     setForm({
-      waterSource: r.waterSource, testDate: r.testDate?.slice(0, 10) ?? "",
+      waterSource: r.waterSource, sourceDescription: r.sourceDescription ?? "",
+      testDate: r.testDate?.slice(0, 10) ?? "",
       testResult: r.testResult ?? "", testPass: r.testPass === false ? "false" : "true", notes: r.notes ?? "",
     });
+    setWaterLabId(r.labSupplierId ?? null);
+    setWaterLabName(null);
     setShowForm(true);
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (editing) updateMut.mutate({ ...form, id: editing.id });
-    else createMut.mutate(form);
+    const payload = { ...form, labSupplierId: waterLabId ?? undefined };
+    if (editing) updateMut.mutate({ ...payload, id: editing.id });
+    else createMut.mutate(payload);
   }
 
   const filtered = records.filter(r =>
@@ -2367,6 +2403,7 @@ function WaterSection({ farmId }: { farmId: number }) {
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Test Date</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Water Source</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Location / Description</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Result</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Outcome</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Notes</th>
@@ -2378,6 +2415,7 @@ function WaterSection({ farmId }: { farmId: number }) {
                 <tr key={r.id} className="hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono text-xs">{formatDate(r.testDate)}</td>
                   <td className="px-4 py-3 font-medium">{WATER_SOURCE_LABELS[r.waterSource] ?? r.waterSource}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground max-w-[160px] truncate">{r.sourceDescription || "—"}</td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{r.testResult || "—"}</td>
                   <td className="px-4 py-3">
                     {r.testPass === null ? <span className="text-muted-foreground text-xs">—</span>
@@ -2426,6 +2464,26 @@ function WaterSection({ farmId }: { farmId: number }) {
                   </Select>
                 </div>
                 <div><Label>Test Date</Label><Input type="date" value={form.testDate} onChange={e => setField("testDate", e.target.value)} /></div>
+              </div>
+              <div>
+                <Label>Source Location / Description</Label>
+                <Input value={form.sourceDescription} onChange={e => setField("sourceDescription", e.target.value)}
+                  placeholder={
+                    form.waterSource === "borehole" ? "Name, depth (m), grid reference" :
+                    form.waterSource === "stream" ? "River / stream name and location" :
+                    form.waterSource === "reservoir" ? "Reservoir name and location" :
+                    form.waterSource === "bowser" ? "Vehicle registration and supplier" :
+                    form.waterSource === "mains" ? "Meter/supply point reference (optional)" :
+                    "Specific location or description of this source"
+                  }
+                />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div>
+                  <Label>Testing Laboratory</Label>
+                  <LabSelector farmId={farmId} value={waterLabId ?? undefined} labName={waterLabName ?? undefined}
+                    onChange={(id, name) => { setWaterLabId(id ?? null); setWaterLabName(name ?? null); }} />
+                </div>
                 <div><Label>Test Result / Lab Reference</Label><Input value={form.testResult} onChange={e => setField("testResult", e.target.value)} placeholder="e.g. Pass — E. coli &lt;1 CFU/100ml" /></div>
                 <div><Label>Overall Outcome</Label>
                   <Select value={form.testPass} onValueChange={v => setField("testPass", v)}>
