@@ -54,7 +54,10 @@ export default defineConfig({
       // Force all React ecosystem packages to resolve from this package's root,
       // preventing duplicate React instances when dashboard source files are loaded
       "react": path.resolve(import.meta.dirname, "node_modules/react"),
+      "react/jsx-runtime": path.resolve(import.meta.dirname, "node_modules/react/jsx-runtime"),
+      "react/jsx-dev-runtime": path.resolve(import.meta.dirname, "node_modules/react/jsx-dev-runtime"),
       "react-dom": path.resolve(import.meta.dirname, "node_modules/react-dom"),
+      "react-dom/client": path.resolve(import.meta.dirname, "node_modules/react-dom/client"),
       "@tanstack/react-query": path.resolve(import.meta.dirname, "node_modules/@tanstack/react-query"),
       "react-hook-form": path.resolve(import.meta.dirname, "node_modules/react-hook-form"),
       "wouter": path.resolve(import.meta.dirname, "node_modules/wouter"),
@@ -70,7 +73,10 @@ export default defineConfig({
     },
     dedupe: [
       "react",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
       "react-dom",
+      "react-dom/client",
       "@tanstack/react-query",
       "react-hook-form",
       "wouter",
@@ -80,7 +86,10 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       "react",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
       "react-dom",
+      "react-dom/client",
       "@tanstack/react-query",
       "react-hook-form",
       "wouter",
