@@ -58,6 +58,15 @@ export default defineConfig({
       "@tanstack/react-query": path.resolve(import.meta.dirname, "node_modules/@tanstack/react-query"),
       "react-hook-form": path.resolve(import.meta.dirname, "node_modules/react-hook-form"),
       "wouter": path.resolve(import.meta.dirname, "node_modules/wouter"),
+      // Zustand: alias each sub-path to its ESM file so Vite can pre-bundle it
+      // without needing zustand in test-dashboard's node_modules. All sub-paths
+      // must be covered because esm/index.mjs imports 'zustand/vanilla' etc.
+      "zustand/vanilla": path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand/esm/vanilla.mjs"),
+      "zustand/react": path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand/esm/react.mjs"),
+      "zustand/middleware": path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand/esm/middleware.mjs"),
+      "zustand/traditional": path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand/esm/traditional.mjs"),
+      "zustand/shallow": path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand/esm/shallow.mjs"),
+      "zustand": path.resolve(import.meta.dirname, "../dashboard/node_modules/zustand/esm/index.mjs"),
     },
     dedupe: [
       "react",
@@ -65,6 +74,7 @@ export default defineConfig({
       "@tanstack/react-query",
       "react-hook-form",
       "wouter",
+      "zustand",
     ],
   },
   optimizeDeps: {
@@ -74,6 +84,8 @@ export default defineConfig({
       "@tanstack/react-query",
       "react-hook-form",
       "wouter",
+      "zustand",
+      "zustand/middleware",
     ],
   },
   root: path.resolve(import.meta.dirname),
