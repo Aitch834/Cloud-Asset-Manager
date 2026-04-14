@@ -181,9 +181,27 @@ function InspectionsTab({ farmId, openInspId }: { farmId: number; openInspId?: n
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
+  const [showOlder, setShowOlder] = useState(false);
+
   const openEdit = (r: any) => { setForm({ inspectionDate: r.inspectionDate?.slice(0, 10) ?? "", inspectorName: r.inspectorName ?? "", inspectionBody: r.inspectionBody ?? "", inspectionType: r.inspectionType ?? "", overallResult: r.overallResult ?? "", summary: r.summary ?? "", nextInspectionDue: r.nextInspectionDue?.slice(0, 10) ?? "", notes: r.notes ?? "" }); setEditRecord(r); };
   const records: any[] = q.data ?? [];
   const formOpen = addOpen || !!editRecord;
+
+  // ── Rolling 2-year window ──
+  // Default: current year + previous year. Older inspections go behind "Show older".
+  const thisYear = new Date().getFullYear();
+  const cutoffYear = thisYear - 1; // show thisYear and thisYear-1 by default
+  const olderRecords = records.filter(r => {
+    const yr = r.inspectionDate ? new Date(r.inspectionDate).getFullYear() : thisYear;
+    return yr < cutoffYear;
+  });
+  const olderCount = olderRecords.length;
+  // If the deep-linked inspection is older, force-expand
+  const deepLinkIsOlder = openInspId ? olderRecords.some(r => r.id === openInspId) : false;
+  const displayedRecords = (showOlder || deepLinkIsOlder) ? records : records.filter(r => {
+    const yr = r.inspectionDate ? new Date(r.inspectionDate).getFullYear() : thisYear;
+    return yr >= cutoffYear;
+  });
 
   return (
     <div>
@@ -197,43 +215,66 @@ function InspectionsTab({ farmId, openInspId }: { farmId: number; openInspId?: n
           <p style={{ fontSize: "0.875rem" }}>Log Red Tractor, internal, and regulatory inspections here.</p>
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-            <thead>
-              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Date", "Type", "Inspector", "Body", "Result", "Next Due", "Report", ""].map(h => (
-                  <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((r: any, i: number) => (
-                <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{fmt(r.inspectionDate)}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", fontWeight: 500 }}>{r.inspectionType || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.inspectorName || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.inspectionBody || "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem" }}>{r.overallResult ? <StatusBadge status={r.overallResult} /> : "—"}</td>
-                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{fmt(r.nextInspectionDue)}</td>
-                  <td style={{ padding: "0.25rem 0.5rem" }}>
-                    <DocCell
-                      endpoint={`/api/farms/${farmId}/inspections/${r.id}`}
-                      queryKey={["inspections", farmId]}
-                      documentPath={r.documentPath ?? null}
-                      documentName={r.documentName ?? null}
-                    />
-                  </td>
-                  <td style={{ padding: "0.5rem" }}>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
-                      <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
-                    </div>
-                  </td>
+        <>
+          <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+              <thead>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  {["Date", "Type", "Inspector", "Body", "Result", "Next Due", "Report", ""].map(h => (
+                    <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {displayedRecords.map((r: any, i: number) => {
+                  const yr = r.inspectionDate ? new Date(r.inspectionDate).getFullYear() : thisYear;
+                  const isOlder = yr < cutoffYear;
+                  return (
+                    <tr key={r.id} style={{ borderBottom: i < displayedRecords.length - 1 ? "1px solid #f3f4f6" : "none", background: isOlder ? "#fafafa" : "#fff", opacity: isOlder ? 0.85 : 1 }}>
+                      <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>
+                        {fmt(r.inspectionDate)}
+                        {isOlder && <span style={{ marginLeft: 6, fontSize: "0.65rem", background: "#f3f4f6", color: "#9ca3af", borderRadius: 3, padding: "1px 5px" }}>archived</span>}
+                      </td>
+                      <td style={{ padding: "0.625rem 0.875rem", fontWeight: 500 }}>{r.inspectionType || "—"}</td>
+                      <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.inspectorName || "—"}</td>
+                      <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.inspectionBody || "—"}</td>
+                      <td style={{ padding: "0.625rem 0.875rem" }}>{r.overallResult ? <StatusBadge status={r.overallResult} /> : "—"}</td>
+                      <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{fmt(r.nextInspectionDue)}</td>
+                      <td style={{ padding: "0.25rem 0.5rem" }}>
+                        <DocCell
+                          endpoint={`/api/farms/${farmId}/inspections/${r.id}`}
+                          queryKey={["inspections", farmId]}
+                          documentPath={r.documentPath ?? null}
+                          documentName={r.documentName ?? null}
+                        />
+                      </td>
+                      <td style={{ padding: "0.5rem" }}>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
+                          <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── Older inspections toggle ── */}
+          {olderCount > 0 && (
+            <div style={{ textAlign: "center", paddingTop: 8 }}>
+              <button
+                onClick={() => setShowOlder(v => !v)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8125rem", color: "#6b7280", display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 6 }}
+              >
+                {showOlder
+                  ? <><ChevronUp size={13} /> Hide {olderCount} older {olderCount === 1 ? "inspection" : "inspections"} (before {cutoffYear})</>
+                  : <><ChevronDown size={13} /> Show {olderCount} older {olderCount === 1 ? "inspection" : "inspections"} (before {cutoffYear})</>}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {viewRecord && (
