@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { useAppStore } from "@/hooks/use-app-store";
 import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -197,7 +198,8 @@ function WastePage() {
 }
 
 function FlyTippingPageWrapper() {
-  return <FlyTippingPage />;
+  const { farmId } = useAppStore();
+  return <FlyTippingPage farmId={farmId} />;
 }
 
 function VisitorsPage() {

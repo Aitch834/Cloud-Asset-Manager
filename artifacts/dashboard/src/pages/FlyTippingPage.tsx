@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useToast } from "@/hooks/use-toast";
-import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -208,8 +207,7 @@ const EMPTY: Omit<Incident, "id" | "farmId" | "photos"> = {
   notes: null,
 };
 
-export default function FlyTippingPage() {
-  const { farmId } = useAppStore();
+export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
   const qc = useQueryClient();
   const { toast } = useToast();
 
