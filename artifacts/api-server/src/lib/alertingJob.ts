@@ -1,6 +1,7 @@
 import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable } from "@workspace/db";
 import { usersTable, userTenantsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
+import { feedContingencyPlansTable, feedStockLevelsTable } from "@workspace/db/schema";
 import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull } from "drizzle-orm";
 import { sendSms } from "./sms";
 import { sendWeeklyDigestEmail, type WeeklyDigestItem } from "./mailer";
@@ -756,6 +757,75 @@ async function runWeeklyDigest() {
   console.log("[ALERTS] Weekly digest completed");
 }
 
+async function checkFeedStockLevels() {
+  const plans = await db
+    .select({
+      id: feedContingencyPlansTable.id,
+      farmId: feedContingencyPlansTable.farmId,
+      minimumStockDaysTarget: feedContingencyPlansTable.minimumStockDaysTarget,
+      dailyConsumptionKg: feedContingencyPlansTable.dailyConsumptionKg,
+      alertThresholdKg: feedContingencyPlansTable.alertThresholdKg,
+    })
+    .from(feedContingencyPlansTable);
+
+  for (const plan of plans) {
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId, name: farmsTable.name })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, plan.farmId))
+      .limit(1);
+    if (!farm) continue;
+
+    const stockRows = await db
+      .select({ currentStockKg: feedStockLevelsTable.currentStockKg })
+      .from(feedStockLevelsTable)
+      .where(eq(feedStockLevelsTable.farmId, plan.farmId));
+
+    const totalKg = stockRows.reduce((sum, r) => sum + parseFloat(r.currentStockKg ?? "0"), 0);
+
+    const dailyKg = plan.dailyConsumptionKg ? parseFloat(plan.dailyConsumptionKg) : null;
+    const minDays = plan.minimumStockDaysTarget ?? null;
+    const threshKg = plan.alertThresholdKg ? parseFloat(plan.alertThresholdKg) : null;
+
+    const weekNum = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+
+    // Check days-remaining against minimum stock days target
+    if (dailyKg && dailyKg > 0 && minDays) {
+      const daysRemaining = Math.floor(totalKg / dailyKg);
+      if (daysRemaining < minDays) {
+        const isCritical = daysRemaining < Math.floor(minDays / 2);
+        await upsertNotification({
+          tenantId: farm.tenantId,
+          farmId: plan.farmId,
+          type: "feed_stock_low",
+          severity: isCritical ? "critical" : "warning",
+          title: isCritical
+            ? `Feed Stock Critical — ${daysRemaining} Day${daysRemaining !== 1 ? "s" : ""} Remaining`
+            : `Feed Stock Below Target — ${daysRemaining} Day${daysRemaining !== 1 ? "s" : ""} Remaining`,
+          message: `${farm.name}: total feed stock is ${Math.round(totalKg).toLocaleString()} kg — approximately ${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} at current usage (${dailyKg} kg/day). Your contingency plan requires a minimum ${minDays}-day reserve. ${isCritical ? "Order feed urgently and activate your contingency plan." : "Consider placing a feed order to restore stock above the minimum reserve."}`,
+          relatedModule: "feed-management",
+          dedupeKey: `feed-stock-low-farm${plan.farmId}-week${weekNum}`,
+        });
+      }
+    }
+
+    // Check absolute kg threshold
+    if (threshKg && totalKg < threshKg) {
+      const weekNumKg = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+      await upsertNotification({
+        tenantId: farm.tenantId,
+        farmId: plan.farmId,
+        type: "feed_stock_low",
+        severity: "warning",
+        title: `Feed Stock Below Alert Threshold`,
+        message: `${farm.name}: total feed stock (${Math.round(totalKg).toLocaleString()} kg) has dropped below your alert threshold of ${Math.round(threshKg).toLocaleString()} kg. Check your feed management records and place an order if needed.`,
+        relatedModule: "feed-management",
+        dedupeKey: `feed-stock-threshold-farm${plan.farmId}-week${weekNumKg}`,
+      });
+    }
+  }
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
@@ -766,6 +836,7 @@ export async function runAlertingJob() {
     await checkOverdueRiskReviews();
     await checkOverduePestControl();
     await checkOverdueCleaningSchedules();
+    await checkFeedStockLevels();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {
     console.error("[ALERTS] Alerting job error:", err);

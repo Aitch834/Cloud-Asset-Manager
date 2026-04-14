@@ -1147,6 +1147,8 @@ async function seedFeedCompliance(farmId: number) {
     await db.insert(feedContingencyPlansTable).values({
       farmId,
       minimumStockDaysTarget: 14,
+      dailyConsumptionKg: "180",
+      alertThresholdKg: "2520",
       primarySupplierName: "Harbro Ltd",
       primarySupplierPhone: "01476 591188",
       primarySupplierEmail: "m.chalmers@harbro.co.uk",

@@ -190,6 +190,11 @@ export default function CompliancePage() {
     queryFn: () => fetch(`/api/farms/${farmId}/feed-deliveries`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
+  const feedStockQ = useQuery<{ records: Array<{ currentStockKg: string }> }>({
+    queryKey: ["feed-stock-levels", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/feed-stock`).then(r => r.json()),
+    enabled: !!farmId && tab === "contingency",
+  });
 
   function invalidate() {
     qc.invalidateQueries({ queryKey: ["biosecurity-plan", farmId] });
@@ -509,6 +514,7 @@ export default function CompliancePage() {
             <div className="flex flex-wrap gap-2 mb-4">
               <ReviewBadge date={String(contingency.nextReviewDate ?? "")} />
               {contingency.minimumStockDaysTarget && <Badge className="text-xs" style={{ background: "#dbeafe", color: "#1e40af", border: "none" }}>Minimum stock target: {String(contingency.minimumStockDaysTarget)} days</Badge>}
+              {contingency.dailyConsumptionKg && <Badge className="text-xs" style={{ background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0" }}>Daily usage: {String(contingency.dailyConsumptionKg)} kg/day</Badge>}
               {contingency.planAuthor && <span className="text-xs text-gray-500">Author: {String(contingency.planAuthor)}</span>}
               {contingency.lastReviewedDate && <span className="text-xs text-gray-500">Last reviewed: {fmtDate(String(contingency.lastReviewedDate))}</span>}
             </div>
@@ -519,16 +525,21 @@ export default function CompliancePage() {
               {/* Stock targets */}
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                 <h4 className="text-sm font-semibold text-blue-800 mb-3">Stock Resilience Targets</h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <Label>Minimum stock days target</Label>
                     <Input type="number" value={contingencyForm.minimumStockDaysTarget ?? ""} onChange={e => setContingencyForm(f => ({ ...f, minimumStockDaysTarget: e.target.value }))} placeholder="e.g. 14 (two weeks)" min="1" />
-                    <p className="text-xs text-gray-400 mt-1">The minimum number of days' feed you aim to hold on farm at all times.</p>
+                    <p className="text-xs text-gray-400 mt-1">Minimum days' feed to hold on farm at all times.</p>
+                  </div>
+                  <div>
+                    <Label>Daily consumption (kg/day)</Label>
+                    <Input type="number" value={contingencyForm.dailyConsumptionKg ?? ""} onChange={e => setContingencyForm(f => ({ ...f, dailyConsumptionKg: e.target.value }))} placeholder="e.g. 180" min="0" step="1" />
+                    <p className="text-xs text-gray-400 mt-1">Total feed used across all livestock groups per day.</p>
                   </div>
                   <div>
                     <Label>Alert threshold (kg)</Label>
                     <Input type="number" value={contingencyForm.alertThresholdKg ?? ""} onChange={e => setContingencyForm(f => ({ ...f, alertThresholdKg: e.target.value }))} placeholder="Total kg across all bins" min="0" />
-                    <p className="text-xs text-gray-400 mt-1">Total farm stock level at which the contingency plan is activated.</p>
+                    <p className="text-xs text-gray-400 mt-1">Total stock level at which the contingency plan is activated.</p>
                   </div>
                 </div>
               </div>
@@ -623,6 +634,72 @@ export default function CompliancePage() {
                 </div>
               ) : (
                 <>
+                  {/* Live feed stock meter */}
+                  {(() => {
+                    const stocks = feedStockQ.data?.records ?? [];
+                    const totalKg = stocks.reduce((s, r) => s + parseFloat(r.currentStockKg ?? "0"), 0);
+                    const dailyKg = contingency.dailyConsumptionKg ? parseFloat(String(contingency.dailyConsumptionKg)) : null;
+                    const minDays = contingency.minimumStockDaysTarget ? Number(contingency.minimumStockDaysTarget) : null;
+                    const daysRemaining = dailyKg && dailyKg > 0 ? Math.floor(totalKg / dailyKg) : null;
+                    const isCritical = daysRemaining !== null && minDays !== null && daysRemaining < Math.floor(minDays / 2);
+                    const isWarning = daysRemaining !== null && minDays !== null && daysRemaining < minDays && !isCritical;
+                    const isOk = daysRemaining !== null && minDays !== null && daysRemaining >= minDays;
+                    const barPct = daysRemaining !== null && minDays !== null
+                      ? Math.min(100, Math.round((daysRemaining / (minDays * 1.5)) * 100))
+                      : null;
+                    const barColor = isCritical ? "#ef4444" : isWarning ? "#f59e0b" : "#22c55e";
+                    const bg = isCritical ? "#fff5f5" : isWarning ? "#fffbeb" : "#f0fdf4";
+                    const border = isCritical ? "#fca5a5" : isWarning ? "#fde68a" : "#bbf7d0";
+                    const textColor = isCritical ? "#b91c1c" : isWarning ? "#92400e" : "#166534";
+                    if (stocks.length === 0 && !feedStockQ.isLoading) return null;
+                    return (
+                      <div className="rounded-lg p-4 mb-5" style={{ background: bg, border: `1px solid ${border}` }}>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-semibold" style={{ color: textColor }}>Current Feed Stock Status</h4>
+                          {daysRemaining !== null && (
+                            <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: barColor, color: "#fff" }}>
+                              {isCritical ? "CRITICAL" : isWarning ? "BELOW TARGET" : "OK"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 text-center mb-3">
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">Total stock on farm</p>
+                            <p className="text-lg font-bold text-gray-800">{Math.round(totalKg).toLocaleString()} kg</p>
+                          </div>
+                          {daysRemaining !== null ? (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-0.5">Days of feed remaining</p>
+                              <p className="text-2xl font-bold" style={{ color: barColor }}>{daysRemaining}</p>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-0.5">Days remaining</p>
+                              <p className="text-sm text-gray-400 mt-1">Set daily usage rate to calculate</p>
+                            </div>
+                          )}
+                          {minDays !== null ? (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-0.5">Minimum target</p>
+                              <p className="text-lg font-bold text-gray-800">{minDays} days</p>
+                            </div>
+                          ) : <div />}
+                        </div>
+                        {barPct !== null && (
+                          <div>
+                            <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                              <div className="h-2.5 rounded-full transition-all" style={{ width: `${barPct}%`, background: barColor }} />
+                            </div>
+                            {isCritical && <p className="text-xs mt-1.5" style={{ color: textColor }}>Feed stock is critically low — order urgently and activate your contingency plan.</p>}
+                            {isWarning && <p className="text-xs mt-1.5" style={{ color: textColor }}>Stock is below your {minDays}-day minimum reserve. Consider placing an order now.</p>}
+                            {isOk && <p className="text-xs mt-1.5 text-green-700">Stock is above your {minDays}-day minimum reserve. No action required.</p>}
+                          </div>
+                        )}
+                        <p className="text-xs text-gray-400 mt-2">Based on live feed stock records. Update your bin levels in Feed Management to keep this accurate.</p>
+                      </div>
+                    );
+                  })()}
+
                   {/* Quick-glance supplier contacts */}
                   {(contingency.primarySupplierName || contingency.alternativeSuppliers) && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-5">

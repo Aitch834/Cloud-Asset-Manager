@@ -8,6 +8,7 @@ export const feedContingencyPlansTable = pgTable("feed_contingency_plans", {
   // Supply resilience targets
   minimumStockDaysTarget: integer("minimum_stock_days_target"),
   alertThresholdKg: numeric("alert_threshold_kg", { precision: 10, scale: 2 }),
+  dailyConsumptionKg: numeric("daily_consumption_kg", { precision: 10, scale: 2 }),
 
   // Supplier contacts (JSON arrays stored as text)
   primarySupplierName: text("primary_supplier_name"),
