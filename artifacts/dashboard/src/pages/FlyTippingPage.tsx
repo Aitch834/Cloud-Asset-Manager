@@ -141,6 +141,51 @@ function PhotoPanel({ incidentId, farmId, photos }: { incidentId: number; farmId
   );
 }
 
+function viewField(label: string, value?: string | null | boolean) {
+  return (
+    <div>
+      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value === true ? "Yes" : value === false ? "No" : (value as string) || "—"}</div>
+    </div>
+  );
+}
+
+function viewDialogContent(inc: Incident) {
+  const types: string[] = inc.wasteTypes ? JSON.parse(inc.wasteTypes) : [];
+  const fmtD = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      {inc.isHazardous && (
+        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "6px 12px", color: "#dc2626", fontWeight: 700, fontSize: "0.875rem" }}>⚠ HAZARDOUS WASTE</div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        {viewField("Date Discovered", fmtD(inc.discoveredAt))}
+        {viewField("Clearance Status", inc.clearanceStatus?.replace(/-/g, " "))}
+      </div>
+      {viewField("Location", inc.locationDescription)}
+      {inc.accessPoint && viewField("Access Point", inc.accessPoint)}
+      <div>
+        <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Waste Types</div>
+        <div style={{ fontSize: "0.875rem", color: types.length ? "#111827" : "#d1d5db" }}>{types.length ? types.join(", ") : "—"}</div>
+      </div>
+      {inc.estimatedQuantity && viewField("Estimated Quantity", inc.estimatedQuantity)}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+        {viewField("Police Reported", inc.policeReported ? `Yes${inc.policeRefNumber ? ` — ${inc.policeRefNumber}` : ""}` : "No")}
+        {viewField("Council Reported", inc.councilReported ? `Yes${inc.councilRefNumber ? ` — ${inc.councilRefNumber}` : ""}` : "No")}
+        {viewField("EA Reported", inc.eaReported ? `Yes${inc.eaRefNumber ? ` — ${inc.eaRefNumber}` : ""}` : "No")}
+      </div>
+      {inc.clearanceContractor && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          {viewField("Clearance Contractor", inc.clearanceContractor)}
+          {viewField("Clearance Date", fmtD(inc.clearanceDate))}
+        </div>
+      )}
+      {inc.wasteTransferNoteRef && viewField("Waste Transfer Note Ref", inc.wasteTransferNoteRef)}
+      {inc.notes && viewField("Notes", inc.notes)}
+    </div>
+  );
+}
+
 const EMPTY: Omit<Incident, "id" | "farmId" | "photos"> = {
   discoveredAt: new Date().toISOString().slice(0, 10),
   locationDescription: "",
@@ -466,43 +511,7 @@ export default function FlyTippingPage() {
               <DialogHeader>
                 <DialogTitle>Fly-Tipping Incident</DialogTitle>
               </DialogHeader>
-              {(() => {
-                const inc = viewItem;
-                const types: string[] = inc.wasteTypes ? JSON.parse(inc.wasteTypes) : [];
-                const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB") : "—";
-                const F = ({ label, value }: { label: string; value?: string | null | boolean }) => (
-                  <div>
-                    <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
-                    <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value === true ? "Yes" : value === false ? "No" : (value as string) || "—"}</div>
-                  </div>
-                );
-                return (
-                  <div style={{ display: "grid", gap: 14 }}>
-                    {inc.isHazardous && (
-                      <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "6px 12px", color: "#dc2626", fontWeight: 700, fontSize: "0.875rem" }}>⚠ HAZARDOUS WASTE</div>
-                    )}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                      <F label="Date Discovered" value={fmt(inc.discoveredAt)} />
-                      <F label="Clearance Status" value={inc.clearanceStatus?.replace(/-/g, " ")} />
-                    </div>
-                    <F label="Location" value={inc.locationDescription} />
-                    {inc.accessPoint && <F label="Access Point" value={inc.accessPoint} />}
-                    <div>
-                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Waste Types</div>
-                      <div style={{ fontSize: "0.875rem", color: types.length ? "#111827" : "#d1d5db" }}>{types.length ? types.join(", ") : "—"}</div>
-                    </div>
-                    {inc.estimatedQuantity && <F label="Estimated Quantity" value={inc.estimatedQuantity} />}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                      <F label="Police Reported" value={inc.policeReported ? `Yes${inc.policeRefNumber ? ` — ${inc.policeRefNumber}` : ""}` : "No"} />
-                      <F label="Council Reported" value={inc.councilReported ? `Yes${inc.councilRefNumber ? ` — ${inc.councilRefNumber}` : ""}` : "No"} />
-                      <F label="EA Reported" value={inc.eaReported ? `Yes${inc.eaRefNumber ? ` — ${inc.eaRefNumber}` : ""}` : "No"} />
-                    </div>
-                    {inc.clearanceContractor && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}><F label="Clearance Contractor" value={inc.clearanceContractor} /><F label="Clearance Date" value={fmt(inc.clearanceDate)} /></div>}
-                    {inc.wasteTransferNoteRef && <F label="Waste Transfer Note Ref" value={inc.wasteTransferNoteRef} />}
-                    {inc.notes && <F label="Notes" value={inc.notes} />}
-                  </div>
-                );
-              })()}
+              {viewDialogContent(viewItem)}
               <DialogFooter className="mt-4">
                 <Button variant="outline" onClick={() => setViewItem(null)}>Close</Button>
                 <Button onClick={() => { const r = viewItem; setViewItem(null); openEdit(r); }}>Edit Incident</Button>
