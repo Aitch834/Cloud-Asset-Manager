@@ -32,6 +32,27 @@ export const feedDeliveriesTable = pgTable("feed_deliveries", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const feedPurchaseOrdersTable = pgTable("feed_purchase_orders", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id, { onDelete: "cascade" }),
+  poNumber: text("po_number").notNull(),
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
+  supplierName: text("supplier_name"),
+  productName: text("product_name").notNull(),
+  feedType: text("feed_type"),
+  speciesIntended: text("species_intended"),
+  quantityKg: numeric("quantity_kg", { precision: 10, scale: 2 }).notNull(),
+  feedStockItemId: integer("feed_stock_item_id"),
+  orderDate: date("order_date").notNull(),
+  expectedDeliveryDate: date("expected_delivery_date"),
+  actualDeliveryDate: date("actual_delivery_date"),
+  status: text("status").notNull().default("sent"),
+  orderedBy: text("ordered_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const feedStockLevelsTable = pgTable("feed_stock_levels", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

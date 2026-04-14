@@ -17,7 +17,7 @@ import {
   GitBranch, Search, ChevronDown, ChevronRight, ArrowDown, ArrowUp, ShoppingCart
 } from "lucide-react";
 
-type Tab = "deliveries" | "stock" | "trace";
+type Tab = "deliveries" | "stock" | "trace" | "orders";
 type StockFilter = "all" | "low" | "out" | "awaiting";
 
 const FEED_TYPES = [
@@ -108,7 +108,7 @@ function StockBar({ current, reorder, capacity }: { current: number; reorder: nu
 }
 
 export default function FeedManagementPage() {
-  const [tab, setTab] = useState<Tab>("stock");
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["stock", "deliveries", "trace", "orders"]; return t && valid.includes(t) ? t : "stock"; });
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const { farmId } = useAppStore();
   const { toast } = useToast();
@@ -134,6 +134,11 @@ export default function FeedManagementPage() {
     queryFn: () => fetch(`/api/farms/${farmId}/purchase-orders`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
+  const feedFpoQ = useQuery({
+    queryKey: ["feed-purchase-orders", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/feed-purchase-orders`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
   const membersQ = useQuery({
     queryKey: ["members", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()).then(d => d.members ?? []),
@@ -144,7 +149,76 @@ export default function FeedManagementPage() {
     qc.invalidateQueries({ queryKey: ["feed-deliveries", farmId] });
     qc.invalidateQueries({ queryKey: ["feed-stock", farmId] });
     qc.invalidateQueries({ queryKey: ["purchase-orders", farmId] });
+    qc.invalidateQueries({ queryKey: ["feed-purchase-orders", farmId] });
+    qc.invalidateQueries({ queryKey: ["feed-stock-targets", farmId] });
   };
+
+  // ── Feed Purchase Order (FPO) state
+  const [showFpoDialog, setShowFpoDialog] = useState(false);
+  const [editFpo, setEditFpo] = useState<Record<string, unknown> | null>(null);
+  const [fpoForm, setFpoForm] = useState<Record<string, string>>({});
+  const [fpoFilter, setFpoFilter] = useState<"active" | "all">("active");
+  const [receiveId, setReceiveId] = useState<number | null>(null);
+  const [receiveDate, setReceiveDate] = useState(new Date().toISOString().substring(0, 10));
+
+  function openFpoAdd() {
+    setEditFpo(null);
+    setFpoForm({
+      supplierName: "",
+      productName: "",
+      feedType: "compound_pellets",
+      speciesIntended: "__none__",
+      quantityKg: "",
+      orderDate: new Date().toISOString().substring(0, 10),
+      expectedDeliveryDate: "",
+      status: "sent",
+      orderedBy: "",
+      notes: "",
+    });
+    setShowFpoDialog(true);
+  }
+  function openFpoEdit(fpo: Record<string, unknown>) {
+    setEditFpo(fpo);
+    setFpoForm({
+      supplierName: String(fpo.supplierName ?? ""),
+      productName: String(fpo.productName ?? ""),
+      feedType: String(fpo.feedType ?? "compound_pellets"),
+      speciesIntended: String(fpo.speciesIntended ?? "__none__"),
+      quantityKg: String(fpo.quantityKg ?? ""),
+      orderDate: fpo.orderDate ? String(fpo.orderDate).substring(0, 10) : "",
+      expectedDeliveryDate: fpo.expectedDeliveryDate ? String(fpo.expectedDeliveryDate).substring(0, 10) : "",
+      status: String(fpo.status ?? "sent"),
+      orderedBy: String(fpo.orderedBy ?? ""),
+      notes: String(fpo.notes ?? ""),
+    });
+    setShowFpoDialog(true);
+  }
+
+  const fpoMut = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const url = editFpo
+        ? `/api/farms/${farmId}/feed-purchase-orders/${editFpo.id}`
+        : `/api/farms/${farmId}/feed-purchase-orders`;
+      const res = await fetch(url, { method: editFpo ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error("Failed to save");
+      return res.json();
+    },
+    onSuccess: () => { invalidate(); setShowFpoDialog(false); toast({ title: editFpo ? "Order updated" : "Feed order raised" }); },
+    onError: () => toast({ title: "Error saving order", variant: "destructive" }),
+  });
+  const deleteFpoMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/feed-purchase-orders/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { invalidate(); toast({ title: "Order removed" }); },
+  });
+  const receiveFpoMut = useMutation({
+    mutationFn: ({ id, date }: { id: number; date: string }) =>
+      fetch(`/api/farms/${farmId}/feed-purchase-orders/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "received", actualDeliveryDate: date }),
+      }).then(r => r.json()),
+    onSuccess: () => { invalidate(); setReceiveId(null); toast({ title: "Order marked as received — remember to log the delivery receipt in the Delivery Records tab." }); },
+  });
 
   const [traceBinId, setTraceBinId] = useState<number | null>(null);
   const traceQ = useQuery({
@@ -372,6 +446,14 @@ export default function FeedManagementPage() {
   const filteredStock = stockFilter === "all" ? stockWithStatus
     : stockWithStatus.filter(s => s._status === stockFilter);
 
+  // Feed Purchase Orders
+  const fpos: Record<string, unknown>[] = feedFpoQ.data ?? [];
+  const today = new Date().toISOString().substring(0, 10);
+  const INACTIVE_FPO_STATUSES = ["received", "cancelled"];
+  const activeFpos = fpos.filter(o => !INACTIVE_FPO_STATUSES.includes(String(o.status)));
+  const overdueFpos = activeFpos.filter(o => o.expectedDeliveryDate && String(o.expectedDeliveryDate).substring(0, 10) < today);
+  const filteredFpos = fpoFilter === "active" ? activeFpos : fpos;
+
   // Group by location
   const locations = Array.from(new Set(filteredStock.map(s => String(s.storageLocation || "")))).sort();
   const stockByLocation: Record<string, typeof stockWithStatus> = {};
@@ -447,6 +529,16 @@ export default function FeedManagementPage() {
           <TabButton active={tab === "stock"} onClick={() => setTab("stock")}>Feed Bins ({stock.length})</TabButton>
           <TabButton active={tab === "deliveries"} onClick={() => setTab("deliveries")}>Delivery Records / GRN ({deliveries.length})</TabButton>
           <TabButton active={tab === "trace"} onClick={() => setTab("trace")}><GitBranch className="w-3.5 h-3.5 mr-1 inline" />Batch Trace</TabButton>
+          <TabButton active={tab === "orders"} onClick={() => setTab("orders")}>
+            <ShoppingCart className="w-3.5 h-3.5 mr-1 inline" />
+            Feed Orders
+            {overdueFpos.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 min-w-[1.25rem]">{overdueFpos.length}</span>
+            )}
+            {overdueFpos.length === 0 && activeFpos.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-amber-500 text-white text-xs font-bold px-1.5 py-0.5 min-w-[1.25rem]">{activeFpos.length}</span>
+            )}
+          </TabButton>
         </TabBar>
 
         {/* ── STOCK TAB ── */}
@@ -1110,6 +1202,106 @@ export default function FeedManagementPage() {
         </div>
       )}
 
+      {/* ── ORDERS TAB ── */}
+      {tab === "orders" && (
+        <div>
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Feed Orders Register</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Track feed orders raised with suppliers. When delivery arrives, mark as received and log a delivery receipt.</p>
+            </div>
+            <Button size="sm" onClick={openFpoAdd}><Plus className="w-3.5 h-3.5 mr-1" />Raise Feed Order</Button>
+          </div>
+
+          {activeFpos.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1">
+                <Clock className="w-3 h-3" />{activeFpos.length} active order{activeFpos.length !== 1 ? "s" : ""}
+              </div>
+              {overdueFpos.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-2.5 py-1">
+                  <AlertCircle className="w-3 h-3" />{overdueFpos.length} overdue — chase supplier
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2 mb-4">
+            <button onClick={() => setFpoFilter("active")} className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${fpoFilter === "active" ? "bg-green-700 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              Active ({activeFpos.length})
+            </button>
+            <button onClick={() => setFpoFilter("all")} className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${fpoFilter === "all" ? "bg-green-700 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              All ({fpos.length})
+            </button>
+          </div>
+
+          {filteredFpos.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <ShoppingCart className="w-10 h-10 mx-auto mb-3 opacity-20" />
+              <p className="font-medium text-gray-500">{fpoFilter === "active" ? "No active feed orders" : "No feed orders on record"}</p>
+              <p className="text-sm mt-1 mb-4">Raise a feed order when purchasing feed from a supplier.</p>
+              <Button size="sm" onClick={openFpoAdd}><Plus className="w-3.5 h-3.5 mr-1" />Raise Feed Order</Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredFpos.map(fpo => {
+                const isOverdue = !INACTIVE_FPO_STATUSES.includes(String(fpo.status)) && fpo.expectedDeliveryDate && String(fpo.expectedDeliveryDate).substring(0, 10) < today;
+                const isReceived = fpo.status === "received";
+                const isCancelled = fpo.status === "cancelled";
+                return (
+                  <div key={String(fpo.id)} className={`rounded-lg border p-4 ${isOverdue ? "border-red-300 bg-red-50" : isReceived ? "border-green-200 bg-green-50/60" : isCancelled ? "border-gray-200 bg-gray-50/60" : "border-amber-200 bg-white"}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {isOverdue && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                          {isReceived && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
+                          <span className="font-mono text-sm font-semibold text-gray-800">{String(fpo.poNumber)}</span>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isReceived ? "bg-green-100 text-green-700" : fpo.status === "confirmed" ? "bg-blue-100 text-blue-700" : fpo.status === "sent" ? "bg-amber-100 text-amber-700" : fpo.status === "draft" ? "bg-gray-100 text-gray-600" : isCancelled ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-600"}`}>
+                            {String(fpo.status).charAt(0).toUpperCase() + String(fpo.status).slice(1)}
+                          </span>
+                          {isOverdue && (
+                            <span className="text-xs text-red-600 font-medium">Overdue since {fmtDate(String(fpo.expectedDeliveryDate))}</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-800 mt-0.5">
+                          {fpo.supplierName ? <><span className="font-medium">{String(fpo.supplierName)}</span> — </> : null}
+                          {String(fpo.productName)}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {fmtKg(fpo.quantityKg)}
+                          {fpo.speciesIntended && fpo.speciesIntended !== "__none__" && <span> · For {String(fpo.speciesIntended).charAt(0).toUpperCase() + String(fpo.speciesIntended).slice(1)}</span>}
+                          {fpo.feedType && <span> · {FEED_TYPES.find(t => t.value === fpo.feedType)?.label ?? String(fpo.feedType)}</span>}
+                          {fpo.expectedDeliveryDate && !isOverdue && !isReceived && <span> · Expected {fmtDate(String(fpo.expectedDeliveryDate))}</span>}
+                          {fpo.actualDeliveryDate && <span> · Delivered {fmtDate(String(fpo.actualDeliveryDate))}</span>}
+                          {fpo.orderedBy && <span> · Raised by {String(fpo.orderedBy)}</span>}
+                        </p>
+                        {fpo.notes && <p className="text-xs text-gray-400 mt-1 italic truncate max-w-md">{String(fpo.notes)}</p>}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {!isReceived && !isCancelled && (
+                          <button
+                            className="text-xs font-medium px-2.5 py-1 rounded border border-green-300 text-green-700 bg-white hover:bg-green-50 flex items-center gap-1 transition-colors"
+                            onClick={() => { setReceiveId(Number(fpo.id)); setReceiveDate(new Date().toISOString().substring(0, 10)); }}
+                          >
+                            <CheckCircle2 className="w-3 h-3" />Received
+                          </button>
+                        )}
+                        <button className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-600 bg-white hover:bg-gray-50 flex items-center gap-1 transition-colors" onClick={() => openFpoEdit(fpo)}>
+                          <Edit2 className="w-3 h-3" />Edit
+                        </button>
+                        <button className="text-xs px-2 py-1 rounded border border-red-200 text-red-600 bg-white hover:bg-red-50 flex items-center transition-colors" onClick={() => { if (confirm("Remove this feed order?")) deleteFpoMut.mutate(Number(fpo.id)); }}>
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── BIN TRACE DIALOG ── */}
       {traceBinId !== null && (
         <Dialog open onOpenChange={o => { if (!o) setTraceBinId(null); }}>
@@ -1321,6 +1513,146 @@ export default function FeedManagementPage() {
               }}
             >
               {reorderMut.isPending ? "Saving…" : "Confirm Reorder Raised"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
+      {/* ── FEED ORDER DIALOG ── */}
+      <Dialog open={showFpoDialog} onOpenChange={v => !v && setShowFpoDialog(false)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editFpo ? "Edit Feed Order" : "Raise Feed Order"}</DialogTitle>
+            <DialogDescription>{editFpo ? `Edit details for ${editFpo.poNumber}` : "Record a feed purchase order raised with a supplier."}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block">Supplier Name</Label>
+                <Input value={fpoForm.supplierName ?? ""} onChange={e => setFpoForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="e.g. J&H Feeds Ltd" />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">Product Name *</Label>
+                <Input value={fpoForm.productName ?? ""} onChange={e => setFpoForm(f => ({ ...f, productName: e.target.value }))} placeholder="e.g. Sheep Nut 16%" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block">Feed Type</Label>
+                <Select value={fpoForm.feedType ?? "compound_pellets"} onValueChange={v => setFpoForm(f => ({ ...f, feedType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {FEED_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">Species Intended</Label>
+                <Select value={fpoForm.speciesIntended ?? "__none__"} onValueChange={v => setFpoForm(f => ({ ...f, speciesIntended: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Any / not specified" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Not specified</SelectItem>
+                    <SelectItem value="cattle">Cattle</SelectItem>
+                    <SelectItem value="sheep">Sheep</SelectItem>
+                    <SelectItem value="pigs">Pigs</SelectItem>
+                    <SelectItem value="poultry">Poultry</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Quantity (kg) *</Label>
+              <Input type="number" value={fpoForm.quantityKg ?? ""} onChange={e => setFpoForm(f => ({ ...f, quantityKg: e.target.value }))} placeholder="e.g. 1000" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block">Order Date *</Label>
+                <Input type="date" value={fpoForm.orderDate ?? ""} onChange={e => setFpoForm(f => ({ ...f, orderDate: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">Expected Delivery</Label>
+                <Input type="date" value={fpoForm.expectedDeliveryDate ?? ""} onChange={e => setFpoForm(f => ({ ...f, expectedDeliveryDate: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block">Status</Label>
+                <Select value={fpoForm.status ?? "sent"} onValueChange={v => setFpoForm(f => ({ ...f, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="sent">Sent to Supplier</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="received">Received</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">Raised By</Label>
+                <Input value={fpoForm.orderedBy ?? ""} onChange={e => setFpoForm(f => ({ ...f, orderedBy: e.target.value }))} placeholder="Staff member name" />
+              </div>
+            </div>
+            {fpoForm.status === "received" && (
+              <div>
+                <Label className="text-xs mb-1 block">Actual Delivery Date</Label>
+                <Input type="date" value={fpoForm.actualDeliveryDate ?? ""} onChange={e => setFpoForm(f => ({ ...f, actualDeliveryDate: e.target.value }))} />
+              </div>
+            )}
+            <div>
+              <Label className="text-xs mb-1 block">Notes</Label>
+              <Textarea value={fpoForm.notes ?? ""} onChange={e => setFpoForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any notes about this order…" rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFpoDialog(false)}>Cancel</Button>
+            <Button
+              disabled={!fpoForm.productName?.trim() || !fpoForm.quantityKg || !fpoForm.orderDate || fpoMut.isPending}
+              onClick={() => {
+                const data: Record<string, unknown> = {
+                  supplierName: fpoForm.supplierName || null,
+                  productName: fpoForm.productName,
+                  feedType: fpoForm.feedType || null,
+                  speciesIntended: fpoForm.speciesIntended === "__none__" ? null : fpoForm.speciesIntended || null,
+                  quantityKg: fpoForm.quantityKg,
+                  orderDate: fpoForm.orderDate,
+                  expectedDeliveryDate: fpoForm.expectedDeliveryDate || null,
+                  actualDeliveryDate: fpoForm.actualDeliveryDate || null,
+                  status: fpoForm.status || "sent",
+                  orderedBy: fpoForm.orderedBy || null,
+                  notes: fpoForm.notes || null,
+                };
+                fpoMut.mutate(data);
+              }}
+            >
+              {fpoMut.isPending ? "Saving…" : editFpo ? "Save Changes" : "Raise Order"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── MARK AS RECEIVED DIALOG ── */}
+      <Dialog open={receiveId !== null} onOpenChange={v => !v && setReceiveId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Mark Order as Received</DialogTitle>
+            <DialogDescription>Confirm the actual delivery date. Then log a delivery receipt in the Delivery Records tab.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs mb-1 block">Actual Delivery Date</Label>
+              <Input type="date" value={receiveDate} onChange={e => setReceiveDate(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReceiveId(null)}>Cancel</Button>
+            <Button
+              disabled={!receiveDate || receiveFpoMut.isPending}
+              onClick={() => { if (receiveId !== null) receiveFpoMut.mutate({ id: receiveId, date: receiveDate }); }}
+            >
+              {receiveFpoMut.isPending ? "Saving…" : "Mark Received"}
             </Button>
           </DialogFooter>
         </DialogContent>

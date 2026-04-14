@@ -210,6 +210,7 @@ import {
   feedDeliveriesTable,
   feedStockLevelsTable,
   feedStockTargetsTable,
+  feedPurchaseOrdersTable,
   gridEnergyMetersTable,
   gridEnergyReadingsTable,
   soilMoistureReadingsTable,
@@ -14047,6 +14048,44 @@ router.delete("/farms/:farmId/feed-stock-targets/:recordId", requireAuth, requir
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(feedStockTargetsTable).where(and(eq(feedStockTargetsTable.id, recordId), eq(feedStockTargetsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Feed Purchase Orders ─────────────────────────────────
+
+router.get("/farms/:farmId/feed-purchase-orders", requireAuth, requireTenant, requireModuleByKey("feed-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(feedPurchaseOrdersTable).where(eq(feedPurchaseOrdersTable.farmId, farmId)).orderBy(desc(feedPurchaseOrdersTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/feed-purchase-orders", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const year = new Date().getFullYear();
+  const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(feedPurchaseOrdersTable).where(eq(feedPurchaseOrdersTable.farmId, farmId));
+  const seq = (Number(countRow?.count ?? 0) + 1).toString().padStart(4, "0");
+  const poNumber = `FPO-${year}-${seq}`;
+  const [record] = await db.insert(feedPurchaseOrdersTable).values({ ...req.body, farmId, poNumber }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/feed-purchase-orders/:recordId", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(feedPurchaseOrdersTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(feedPurchaseOrdersTable.id, recordId), eq(feedPurchaseOrdersTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/feed-purchase-orders/:recordId", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(feedPurchaseOrdersTable).where(and(eq(feedPurchaseOrdersTable.id, recordId), eq(feedPurchaseOrdersTable.farmId, farmId)));
   res.json({ success: true });
 });
 

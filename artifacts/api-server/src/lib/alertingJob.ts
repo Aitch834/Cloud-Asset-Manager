@@ -1,7 +1,7 @@
 import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable } from "@workspace/db";
 import { usersTable, userTenantsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
-import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable } from "@workspace/db/schema";
+import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable, feedPurchaseOrdersTable } from "@workspace/db/schema";
 import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull } from "drizzle-orm";
 import { sendSms } from "./sms";
 import { sendWeeklyDigestEmail, type WeeklyDigestItem } from "./mailer";
@@ -880,6 +880,50 @@ async function checkFeedStockLevels() {
   }
 }
 
+async function checkOverdueFeedOrders() {
+  const today = new Date().toISOString().substring(0, 10);
+  const overdueOrders = await db
+    .select({
+      id: feedPurchaseOrdersTable.id,
+      farmId: feedPurchaseOrdersTable.farmId,
+      poNumber: feedPurchaseOrdersTable.poNumber,
+      productName: feedPurchaseOrdersTable.productName,
+      speciesIntended: feedPurchaseOrdersTable.speciesIntended,
+      supplierName: feedPurchaseOrdersTable.supplierName,
+      expectedDeliveryDate: feedPurchaseOrdersTable.expectedDeliveryDate,
+    })
+    .from(feedPurchaseOrdersTable)
+    .where(
+      and(
+        lt(feedPurchaseOrdersTable.expectedDeliveryDate, today),
+        sql`${feedPurchaseOrdersTable.status} NOT IN ('received', 'cancelled')`,
+        isNotNull(feedPurchaseOrdersTable.expectedDeliveryDate),
+      )
+    );
+
+  for (const order of overdueOrders) {
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId, name: farmsTable.name })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, order.farmId))
+      .limit(1);
+    if (!farm) continue;
+
+    const speciesPart = order.speciesIntended ? ` (for ${order.speciesIntended})` : "";
+    const supplierPart = order.supplierName ? ` from ${order.supplierName}` : "";
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: order.farmId,
+      type: "feed_order_overdue",
+      severity: "warning",
+      title: `Feed Order Overdue: ${order.poNumber}`,
+      message: `${farm.name}: feed order ${order.poNumber} for ${order.productName}${speciesPart}${supplierPart} was expected on ${order.expectedDeliveryDate} but has not been received. Chase the supplier and update the order status when the delivery arrives.`,
+      relatedModule: "feed-management",
+      dedupeKey: `feed-order-overdue-${order.id}-${order.expectedDeliveryDate}`,
+    });
+  }
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
@@ -891,6 +935,7 @@ export async function runAlertingJob() {
     await checkOverduePestControl();
     await checkOverdueCleaningSchedules();
     await checkFeedStockLevels();
+    await checkOverdueFeedOrders();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {
     console.error("[ALERTS] Alerting job error:", err);

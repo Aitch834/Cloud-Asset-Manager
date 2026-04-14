@@ -139,11 +139,13 @@ const SPECIES_OPTIONS = [
 function SpeciesStockCard({
   target,
   stockRows,
+  pendingFpoCount,
   onEdit,
   onDelete,
 }: {
   target: Record<string, unknown>;
   stockRows: Array<{ currentStockKg: string; speciesIntended: string | null }>;
+  pendingFpoCount?: number;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -217,13 +219,19 @@ function SpeciesStockCard({
           {isCritical && (
             <p className="text-xs mt-1" style={{ color: textColor }}>
               Critically low — order urgently and activate your contingency plan.{" "}
-              <a href="/dashboard/feed" className="underline font-medium" style={{ color: textColor }}>Log a delivery in Feed Management →</a>
+              {pendingFpoCount && pendingFpoCount > 0
+                ? <a href="/dashboard/feed?tab=orders" className="underline font-medium" style={{ color: textColor }}>{pendingFpoCount} order{pendingFpoCount !== 1 ? "s" : ""} pending →</a>
+                : <a href="/dashboard/feed?tab=orders" className="underline font-medium" style={{ color: textColor }}>Raise a feed order →</a>
+              }
             </p>
           )}
           {isWarning && (
             <p className="text-xs mt-1" style={{ color: textColor }}>
               Stock is below your {minDays}-day minimum. Consider placing an order now.{" "}
-              <a href="/dashboard/feed" className="underline font-medium" style={{ color: textColor }}>Log a delivery in Feed Management →</a>
+              {pendingFpoCount && pendingFpoCount > 0
+                ? <a href="/dashboard/feed?tab=orders" className="underline font-medium" style={{ color: textColor }}>{pendingFpoCount} order{pendingFpoCount !== 1 ? "s" : ""} pending →</a>
+                : <a href="/dashboard/feed?tab=orders" className="underline font-medium" style={{ color: textColor }}>Raise a feed order →</a>
+              }
             </p>
           )}
         </div>
@@ -312,6 +320,11 @@ export default function CompliancePage() {
     queryFn: () => fetch(`/api/farms/${farmId}/feed-stock-targets`).then(r => r.json()),
     enabled: !!farmId && tab === "contingency",
   });
+  const feedFpoQ = useQuery<Record<string, unknown>[]>({
+    queryKey: ["feed-purchase-orders-compliance", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/feed-purchase-orders`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId && tab === "contingency",
+  });
 
   function invalidate() {
     qc.invalidateQueries({ queryKey: ["biosecurity-plan", farmId] });
@@ -342,6 +355,12 @@ export default function CompliancePage() {
   const diseases: Record<string, unknown>[] = diseaseQ.data?.records ?? [];
   const recalls: Record<string, unknown>[] = recallsQ.data?.records ?? [];
   const speciesTargets: Record<string, unknown>[] = feedStockTargetsQ.data?.records ?? [];
+  const allFpos: Record<string, unknown>[] = feedFpoQ.data ?? [];
+  const activeFpos = allFpos.filter(o => !["received", "cancelled"].includes(String(o.status)));
+  function fpoCountForSpecies(species: string) {
+    if (species === "all") return activeFpos.length;
+    return activeFpos.filter(o => String(o.speciesIntended ?? "") === species).length;
+  }
 
   const allSuppliers: Record<string, unknown>[] = (suppliersQ.data ?? []).filter((s: Record<string, unknown>) => s.isActive !== false);
   const vetRecords: Record<string, unknown>[] = vetPlansQ.data ?? [];
@@ -804,6 +823,7 @@ export default function CompliancePage() {
                                 key={String(t.id)}
                                 target={t}
                                 stockRows={stocks}
+                                pendingFpoCount={fpoCountForSpecies(String(t.species ?? ""))}
                                 onEdit={() => {
                                   setEditTarget(t);
                                   setTargetForm({
