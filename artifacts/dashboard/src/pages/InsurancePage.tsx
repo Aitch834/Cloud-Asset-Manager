@@ -363,6 +363,7 @@ export default function InsurancePage() {
   const [editItem, setEditItem] = useState<InsuranceRecord | null>(null);
   const [viewItem, setViewItem] = useState<InsuranceRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [showOlder, setShowOlder] = useState(false);
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
   const autoOpened = useRef(false);
   const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
@@ -382,11 +383,21 @@ export default function InsurancePage() {
 
   const records = data?.records ?? [];
 
+  const twoYearsCutoff = new Date();
+  twoYearsCutoff.setFullYear(twoYearsCutoff.getFullYear() - 2);
+
+  const olderRecords = records.filter(r => r.expiryDate && new Date(r.expiryDate) < twoYearsCutoff);
+  const visibleRecords = showOlder
+    ? records
+    : records.filter(r => !r.expiryDate || new Date(r.expiryDate) >= twoYearsCutoff);
+  const hiddenCount = olderRecords.length;
+
   useEffect(() => {
     if (!openId || autoOpened.current || records.length === 0) return;
     const target = records.find(r => r.id === openId);
     if (target) {
       autoOpened.current = true;
+      if (olderRecords.some(r => r.id === openId)) setShowOlder(true);
       setViewItem(target);
       setTimeout(() => {
         rowRefs.current.get(openId)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -508,7 +519,7 @@ export default function InsurancePage() {
           <div>
             <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#111827", margin: 0 }}>Farm Insurance Register</h2>
             <p style={{ fontSize: "0.8rem", color: "#6b7280", margin: "2px 0 0" }}>
-              {records.length} {records.length === 1 ? "policy" : "policies"} on file — attach certificate scans for instant access during inspections
+              {visibleRecords.length} {visibleRecords.length === 1 ? "policy" : "policies"} shown{hiddenCount > 0 && !showOlder ? ` — ${hiddenCount} older record${hiddenCount === 1 ? "" : "s"} hidden` : ""} — attach certificate scans for instant access during inspections
             </p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -533,54 +544,66 @@ export default function InsurancePage() {
             <p style={{ fontSize: "0.83rem", color: "#6b7280", margin: 0 }}>Add your Employers Liability and Public Liability policies first — these are checked by Red Tractor assessors</p>
           </div>
         ) : (
-          <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
-              <thead>
-                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  {["Policy Type", "Insurer", "Policy No.", "Policyholder", "Cover", "Start", "Expiry", "Certificate", ""].map(h => (
-                    <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "0.73rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#6b7280", whiteSpace: "nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r, i) => {
-                  const status = expiryStatus(r.expiryDate);
-                  const isCrit = policyIsCritical(r.policyType);
-                  return (
-                    <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none", background: hlId === r.id ? "#fffbeb" : status === "expired" ? "#fff5f5" : "transparent", outline: hlId === r.id ? "2px solid #f59e0b" : "none", outlineOffset: -2, transition: "background 0.5s, outline 0.5s" }}>
-                      <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          {isCrit && <span style={{ width: 6, height: 6, borderRadius: "50%", background: status === "ok" ? "#22c55e" : status === "warning" ? "#eab308" : "#ef4444", flexShrink: 0 }} />}
-                          <span style={{ fontWeight: 600, color: "#111827" }}>{policyLabel(r.policyType)}</span>
-                        </div>
-                        {isCrit && <span style={{ fontSize: "0.68rem", color: "#9ca3af", display: "block" }}>Required</span>}
-                      </td>
-                      <td style={{ padding: "11px 14px", color: "#374151" }}>{r.insurer ?? <span style={{ color: "#d1d5db" }}>—</span>}</td>
-                      <td style={{ padding: "11px 14px", fontFamily: "monospace", color: "#374151", fontSize: "0.82rem" }}>{r.policyNumber ?? <span style={{ color: "#d1d5db", fontFamily: "inherit" }}>—</span>}</td>
-                      <td style={{ padding: "11px 14px", color: "#374151" }}>{r.policyholderName ?? <span style={{ color: "#d1d5db" }}>—</span>}</td>
-                      <td style={{ padding: "11px 14px", color: "#374151", whiteSpace: "nowrap" }}>{formatCover(r.coverLevelPence)}</td>
-                      <td style={{ padding: "11px 14px", color: "#6b7280", whiteSpace: "nowrap" }}>{r.startDate ? new Date(r.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
-                      <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}><ExpiryBadge dateStr={r.expiryDate} /></td>
-                      <td style={{ padding: "11px 14px" }}><DocCell record={r} farmId={farmId!} onRefresh={onRefresh} /></td>
-                      <td style={{ padding: "11px 14px" }}>
-                        <div style={{ display: "flex", gap: 4 }}>
-                          <button onClick={() => setViewItem(r)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="View">
-                            <Eye style={{ width: 14, height: 14 }} />
-                          </button>
-                          <button onClick={() => setEditItem(r)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="Edit">
-                            <Pencil style={{ width: 14, height: 14 }} />
-                          </button>
-                          <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="Delete">
-                            <Trash2 style={{ width: 14, height: 14 }} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                <thead>
+                  <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                    {["Policy Type", "Insurer", "Policy No.", "Policyholder", "Cover", "Start", "Expiry", "Certificate", ""].map(h => (
+                      <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "0.73rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#6b7280", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRecords.map((r, i) => {
+                    const status = expiryStatus(r.expiryDate);
+                    const isCrit = policyIsCritical(r.policyType);
+                    return (
+                      <tr key={r.id} ref={(el) => { if (el) rowRefs.current.set(r.id, el as HTMLElement); }} style={{ borderBottom: i < visibleRecords.length - 1 ? "1px solid #f3f4f6" : "none", background: hlId === r.id ? "#fffbeb" : status === "expired" ? "#fff5f5" : "transparent", outline: hlId === r.id ? "2px solid #f59e0b" : "none", outlineOffset: -2, transition: "background 0.5s, outline 0.5s" }}>
+                        <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            {isCrit && <span style={{ width: 6, height: 6, borderRadius: "50%", background: status === "ok" ? "#22c55e" : status === "warning" ? "#eab308" : "#ef4444", flexShrink: 0 }} />}
+                            <span style={{ fontWeight: 600, color: "#111827" }}>{policyLabel(r.policyType)}</span>
+                          </div>
+                          {isCrit && <span style={{ fontSize: "0.68rem", color: "#9ca3af", display: "block" }}>Required</span>}
+                        </td>
+                        <td style={{ padding: "11px 14px", color: "#374151" }}>{r.insurer ?? <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                        <td style={{ padding: "11px 14px", fontFamily: "monospace", color: "#374151", fontSize: "0.82rem" }}>{r.policyNumber ?? <span style={{ color: "#d1d5db", fontFamily: "inherit" }}>—</span>}</td>
+                        <td style={{ padding: "11px 14px", color: "#374151" }}>{r.policyholderName ?? <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                        <td style={{ padding: "11px 14px", color: "#374151", whiteSpace: "nowrap" }}>{formatCover(r.coverLevelPence)}</td>
+                        <td style={{ padding: "11px 14px", color: "#6b7280", whiteSpace: "nowrap" }}>{r.startDate ? new Date(r.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
+                        <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}><ExpiryBadge dateStr={r.expiryDate} /></td>
+                        <td style={{ padding: "11px 14px" }}><DocCell record={r} farmId={farmId!} onRefresh={onRefresh} /></td>
+                        <td style={{ padding: "11px 14px" }}>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            <button onClick={() => setViewItem(r)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="View">
+                              <Eye style={{ width: 14, height: 14 }} />
+                            </button>
+                            <button onClick={() => setEditItem(r)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="Edit">
+                              <Pencil style={{ width: 14, height: 14 }} />
+                            </button>
+                            <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", borderRadius: 4 }} title="Delete">
+                              <Trash2 style={{ width: 14, height: 14 }} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {hiddenCount > 0 && (
+              <div style={{ textAlign: "center" }}>
+                <button
+                  onClick={() => setShowOlder(v => !v)}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem", color: "#6b7280", padding: "6px 12px", borderRadius: 6, textDecoration: "underline" }}
+                >
+                  {showOlder ? `Hide older records` : `Show ${hiddenCount} older record${hiddenCount === 1 ? "" : "s"} (expired more than 2 years ago)`}
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {/* Info note */}
