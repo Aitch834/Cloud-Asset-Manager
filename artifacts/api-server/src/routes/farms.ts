@@ -209,6 +209,7 @@ import {
   fuelStorageInspectionsTable,
   feedDeliveriesTable,
   feedStockLevelsTable,
+  feedStockTargetsTable,
   gridEnergyMetersTable,
   gridEnergyReadingsTable,
   soilMoistureReadingsTable,
@@ -14012,6 +14013,40 @@ router.delete("/farms/:farmId/feed-stock/:recordId", requireAuth, requireTenant,
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(feedStockLevelsTable).where(and(eq(feedStockLevelsTable.id, recordId), eq(feedStockLevelsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Feed Stock Species Targets ──────────────────────────
+
+router.get("/farms/:farmId/feed-stock-targets", requireAuth, requireTenant, requireModuleByKey("feed-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(feedStockTargetsTable).where(eq(feedStockTargetsTable.farmId, farmId)).orderBy(feedStockTargetsTable.species);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/feed-stock-targets", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const [record] = await db.insert(feedStockTargetsTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/feed-stock-targets/:recordId", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(feedStockTargetsTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(feedStockTargetsTable.id, recordId), eq(feedStockTargetsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/feed-stock-targets/:recordId", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(feedStockTargetsTable).where(and(eq(feedStockTargetsTable.id, recordId), eq(feedStockTargetsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

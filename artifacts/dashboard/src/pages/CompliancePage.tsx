@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import {
   ShieldCheck, AlertTriangle, Package, Edit2, Printer,
-  Plus, Trash2, Phone, Mail, Save, Info, Bug,
+  Plus, Trash2, Phone, Mail, Save, Info, Bug, Target,
 } from "lucide-react";
 
 type Tab = "biosecurity" | "contingency" | "disease" | "recalls";
@@ -125,6 +125,103 @@ function ReviewBadge({ date }: { date?: string | null }) {
   return <Badge className="text-xs" style={{ background: "#dcfce7", color: "#166534", border: "none" }}>Review up to date</Badge>;
 }
 
+const SPECIES_OPTIONS = [
+  { value: "cattle", label: "Cattle" },
+  { value: "sheep", label: "Sheep" },
+  { value: "pigs", label: "Pigs" },
+  { value: "poultry", label: "Poultry" },
+  { value: "horses", label: "Horses / Equine" },
+  { value: "goats", label: "Goats" },
+  { value: "mixed", label: "Mixed species" },
+  { value: "all", label: "All species (total farm)" },
+];
+
+function SpeciesStockCard({
+  target,
+  stockRows,
+  onEdit,
+  onDelete,
+}: {
+  target: Record<string, unknown>;
+  stockRows: Array<{ currentStockKg: string; speciesIntended: string | null }>;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
+  const species = String(target.species ?? "");
+  const label = target.label ? String(target.label) : (SPECIES_OPTIONS.find(o => o.value === species)?.label ?? species);
+  const dailyKg = parseFloat(String(target.dailyConsumptionKg ?? "0"));
+  const minDays = Number(target.minimumStockDaysTarget ?? 0);
+  const threshKg = target.alertThresholdKg ? parseFloat(String(target.alertThresholdKg)) : null;
+  const relevant = species === "all" ? stockRows : stockRows.filter(r => r.speciesIntended === species);
+  const totalKg = relevant.reduce((sum, r) => sum + parseFloat(r.currentStockKg ?? "0"), 0);
+  const daysRemaining = dailyKg > 0 ? Math.floor(totalKg / dailyKg) : null;
+  const isCritical = daysRemaining !== null && minDays > 0 && daysRemaining < Math.floor(minDays / 2);
+  const isWarning = daysRemaining !== null && minDays > 0 && daysRemaining < minDays && !isCritical;
+  const barPct = daysRemaining !== null && minDays > 0
+    ? Math.min(100, Math.round((daysRemaining / (minDays * 2)) * 100))
+    : daysRemaining !== null ? 100 : null;
+  const barColor = isCritical ? "#ef4444" : isWarning ? "#f59e0b" : "#22c55e";
+  const bg = isCritical ? "#fff5f5" : isWarning ? "#fffbeb" : "#f0fdf4";
+  const border = isCritical ? "#fca5a5" : isWarning ? "#fde68a" : "#bbf7d0";
+  const textColor = isCritical ? "#b91c1c" : isWarning ? "#92400e" : "#166534";
+  return (
+    <div className="rounded-lg p-4" style={{ background: bg, border: `1px solid ${border}` }}>
+      <div className="flex items-start justify-between mb-2">
+        <div>
+          <h5 className="text-sm font-semibold text-gray-800">{label}</h5>
+          {String(target.label ?? "") && <p className="text-xs text-gray-500 capitalize">{species} feed stocks</p>}
+        </div>
+        <div className="flex items-center gap-1">
+          {daysRemaining !== null && (
+            <span className="text-xs font-bold px-2 py-0.5 rounded mr-1" style={{ background: barColor, color: "#fff" }}>
+              {isCritical ? "CRITICAL" : isWarning ? "BELOW TARGET" : "OK"}
+            </span>
+          )}
+          {onEdit && (
+            <button onClick={onEdit} className="text-gray-400 hover:text-gray-600 p-1 rounded" title="Edit target">
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={onDelete} className="text-gray-400 hover:text-red-500 p-1 rounded" title="Remove target">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-3 text-center mb-2.5">
+        <div>
+          <p className="text-xs text-gray-500 mb-0.5">Stock on farm</p>
+          <p className="text-base font-bold text-gray-800">{Math.round(totalKg).toLocaleString()} kg</p>
+          {threshKg !== null && totalKg < threshKg && (
+            <p className="text-xs mt-0.5" style={{ color: "#b91c1c" }}>Below {Math.round(threshKg).toLocaleString()} kg alert</p>
+          )}
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 mb-0.5">Days remaining</p>
+          {daysRemaining !== null
+            ? <p className="text-xl font-bold" style={{ color: barColor }}>{daysRemaining}</p>
+            : <p className="text-xs text-gray-400 mt-1.5">Set daily usage</p>}
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 mb-0.5">Min. target</p>
+          <p className="text-base font-bold text-gray-800">{minDays > 0 ? `${minDays} days` : "—"}</p>
+          {dailyKg > 0 && <p className="text-xs text-gray-500">{dailyKg} kg/day</p>}
+        </div>
+      </div>
+      {barPct !== null && (
+        <div>
+          <div className="w-full rounded-full h-2 overflow-hidden" style={{ background: "rgba(255,255,255,0.5)" }}>
+            <div className="h-2 rounded-full transition-all" style={{ width: `${barPct}%`, background: barColor }} />
+          </div>
+          {isCritical && <p className="text-xs mt-1" style={{ color: textColor }}>Critically low — order urgently and activate your contingency plan.</p>}
+          {isWarning && <p className="text-xs mt-1" style={{ color: textColor }}>Stock is below your {minDays}-day minimum. Consider placing an order now.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CompliancePage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
@@ -148,6 +245,11 @@ export default function CompliancePage() {
   const [showRecallDialog, setShowRecallDialog] = useState(false);
   const [editRecall, setEditRecall] = useState<Record<string, unknown> | null>(null);
   const [recallForm, setRecallForm] = useState<Record<string, string>>({});
+
+  // ── Species stock target state
+  const [showTargetDialog, setShowTargetDialog] = useState(false);
+  const [editTarget, setEditTarget] = useState<Record<string, unknown> | null>(null);
+  const [targetForm, setTargetForm] = useState<Record<string, string>>({});
 
   // ── Data queries
   const bioQ = useQuery({
@@ -190,9 +292,14 @@ export default function CompliancePage() {
     queryFn: () => fetch(`/api/farms/${farmId}/feed-deliveries`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId,
   });
-  const feedStockQ = useQuery<{ records: Array<{ currentStockKg: string }> }>({
+  const feedStockQ = useQuery<{ records: Array<{ currentStockKg: string; speciesIntended: string | null }> }>({
     queryKey: ["feed-stock-levels", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/feed-stock`).then(r => r.json()),
+    enabled: !!farmId && tab === "contingency",
+  });
+  const feedStockTargetsQ = useQuery<{ records: Record<string, unknown>[] }>({
+    queryKey: ["feed-stock-targets", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/feed-stock-targets`).then(r => r.json()),
     enabled: !!farmId && tab === "contingency",
   });
 
@@ -201,12 +308,30 @@ export default function CompliancePage() {
     qc.invalidateQueries({ queryKey: ["feed-contingency-plan", farmId] });
     qc.invalidateQueries({ queryKey: ["disease-incidents", farmId] });
     qc.invalidateQueries({ queryKey: ["feed-recalls", farmId] });
+    qc.invalidateQueries({ queryKey: ["feed-stock-targets", farmId] });
   }
+
+  const addTargetM = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      fetch(`/api/farms/${farmId}/feed-stock-targets`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-stock-targets", farmId] }); toast({ title: "Species target added" }); },
+  });
+  const updateTargetM = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      fetch(`/api/farms/${farmId}/feed-stock-targets/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-stock-targets", farmId] }); toast({ title: "Target updated" }); },
+  });
+  const deleteTargetM = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/farms/${farmId}/feed-stock-targets/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-stock-targets", farmId] }); toast({ title: "Target removed" }); },
+  });
 
   const bio = bioQ.data?.plan ?? null;
   const contingency = contingencyQ.data?.plan ?? null;
   const diseases: Record<string, unknown>[] = diseaseQ.data?.records ?? [];
   const recalls: Record<string, unknown>[] = recallsQ.data?.records ?? [];
+  const speciesTargets: Record<string, unknown>[] = feedStockTargetsQ.data?.records ?? [];
 
   const allSuppliers: Record<string, unknown>[] = (suppliersQ.data ?? []).filter((s: Record<string, unknown>) => s.isActive !== false);
   const vetRecords: Record<string, unknown>[] = vetPlansQ.data ?? [];
@@ -634,68 +759,131 @@ export default function CompliancePage() {
                 </div>
               ) : (
                 <>
-                  {/* Live feed stock meter */}
+                  {/* Live feed stock monitoring */}
                   {(() => {
                     const stocks = feedStockQ.data?.records ?? [];
-                    const totalKg = stocks.reduce((s, r) => s + parseFloat(r.currentStockKg ?? "0"), 0);
-                    const dailyKg = contingency.dailyConsumptionKg ? parseFloat(String(contingency.dailyConsumptionKg)) : null;
-                    const minDays = contingency.minimumStockDaysTarget ? Number(contingency.minimumStockDaysTarget) : null;
-                    const daysRemaining = dailyKg && dailyKg > 0 ? Math.floor(totalKg / dailyKg) : null;
-                    const isCritical = daysRemaining !== null && minDays !== null && daysRemaining < Math.floor(minDays / 2);
-                    const isWarning = daysRemaining !== null && minDays !== null && daysRemaining < minDays && !isCritical;
-                    const isOk = daysRemaining !== null && minDays !== null && daysRemaining >= minDays;
-                    const barPct = daysRemaining !== null && minDays !== null
-                      ? Math.min(100, Math.round((daysRemaining / (minDays * 1.5)) * 100))
-                      : null;
-                    const barColor = isCritical ? "#ef4444" : isWarning ? "#f59e0b" : "#22c55e";
-                    const bg = isCritical ? "#fff5f5" : isWarning ? "#fffbeb" : "#f0fdf4";
-                    const border = isCritical ? "#fca5a5" : isWarning ? "#fde68a" : "#bbf7d0";
-                    const textColor = isCritical ? "#b91c1c" : isWarning ? "#92400e" : "#166534";
-                    if (stocks.length === 0 && !feedStockQ.isLoading) return null;
+                    const hasStocks = stocks.length > 0;
+                    if (!hasStocks && !feedStockQ.isLoading && speciesTargets.length === 0) return null;
                     return (
-                      <div className="rounded-lg p-4 mb-5" style={{ background: bg, border: `1px solid ${border}` }}>
+                      <div className="mb-5">
+                        {/* Section header */}
                         <div className="flex items-center justify-between mb-2">
-                          <h4 className="text-sm font-semibold" style={{ color: textColor }}>Current Feed Stock Status</h4>
-                          {daysRemaining !== null && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: barColor, color: "#fff" }}>
-                              {isCritical ? "CRITICAL" : isWarning ? "BELOW TARGET" : "OK"}
-                            </span>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-3 gap-4 text-center mb-3">
-                          <div>
-                            <p className="text-xs text-gray-500 mb-0.5">Total stock on farm</p>
-                            <p className="text-lg font-bold text-gray-800">{Math.round(totalKg).toLocaleString()} kg</p>
+                          <div className="flex items-center gap-1.5">
+                            <Target className="w-4 h-4 text-gray-500" />
+                            <h4 className="text-sm font-semibold text-gray-700">
+                              {speciesTargets.length > 0 ? "Per-Species Stock Monitoring" : "Current Feed Stock Status"}
+                            </h4>
                           </div>
-                          {daysRemaining !== null ? (
-                            <div>
-                              <p className="text-xs text-gray-500 mb-0.5">Days of feed remaining</p>
-                              <p className="text-2xl font-bold" style={{ color: barColor }}>{daysRemaining}</p>
-                            </div>
-                          ) : (
-                            <div>
-                              <p className="text-xs text-gray-500 mb-0.5">Days remaining</p>
-                              <p className="text-sm text-gray-400 mt-1">Set daily usage rate to calculate</p>
-                            </div>
-                          )}
-                          {minDays !== null ? (
-                            <div>
-                              <p className="text-xs text-gray-500 mb-0.5">Minimum target</p>
-                              <p className="text-lg font-bold text-gray-800">{minDays} days</p>
-                            </div>
-                          ) : <div />}
+                          <button
+                            onClick={() => {
+                              setEditTarget(null);
+                              setTargetForm({ species: "cattle", dailyConsumptionKg: "", minimumStockDaysTarget: "", alertThresholdKg: "", label: "", notes: "" });
+                              setShowTargetDialog(true);
+                            }}
+                            className="flex items-center gap-1 text-xs text-green-800 hover:text-green-900 font-medium border border-green-200 rounded px-2 py-1 hover:bg-green-50 print:hidden"
+                          >
+                            <Plus className="w-3 h-3" />Add species target
+                          </button>
                         </div>
-                        {barPct !== null && (
-                          <div>
-                            <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                              <div className="h-2.5 rounded-full transition-all" style={{ width: `${barPct}%`, background: barColor }} />
-                            </div>
-                            {isCritical && <p className="text-xs mt-1.5" style={{ color: textColor }}>Feed stock is critically low — order urgently and activate your contingency plan.</p>}
-                            {isWarning && <p className="text-xs mt-1.5" style={{ color: textColor }}>Stock is below your {minDays}-day minimum reserve. Consider placing an order now.</p>}
-                            {isOk && <p className="text-xs mt-1.5 text-green-700">Stock is above your {minDays}-day minimum reserve. No action required.</p>}
+
+                        {/* Species cards (when targets configured) */}
+                        {speciesTargets.length > 0 ? (
+                          <div className="flex flex-col gap-3">
+                            {speciesTargets.map(t => (
+                              <SpeciesStockCard
+                                key={String(t.id)}
+                                target={t}
+                                stockRows={stocks}
+                                onEdit={() => {
+                                  setEditTarget(t);
+                                  setTargetForm({
+                                    species: String(t.species ?? "cattle"),
+                                    label: String(t.label ?? ""),
+                                    dailyConsumptionKg: String(t.dailyConsumptionKg ?? ""),
+                                    minimumStockDaysTarget: String(t.minimumStockDaysTarget ?? ""),
+                                    alertThresholdKg: String(t.alertThresholdKg ?? ""),
+                                    notes: String(t.notes ?? ""),
+                                  });
+                                  setShowTargetDialog(true);
+                                }}
+                                onDelete={() => {
+                                  if (confirm(`Remove ${t.label ?? t.species} monitoring target?`)) {
+                                    deleteTargetM.mutate(Number(t.id));
+                                  }
+                                }}
+                              />
+                            ))}
+                            <p className="text-xs text-gray-400">Based on live bin stock records. Only bins assigned to each species in Feed Management are counted.</p>
                           </div>
+                        ) : (
+                          /* Aggregate meter fallback (no species targets) */
+                          (() => {
+                            const totalKg = stocks.reduce((s, r) => s + parseFloat(r.currentStockKg ?? "0"), 0);
+                            const dailyKg = contingency.dailyConsumptionKg ? parseFloat(String(contingency.dailyConsumptionKg)) : null;
+                            const minDays = contingency.minimumStockDaysTarget ? Number(contingency.minimumStockDaysTarget) : null;
+                            const daysRemaining = dailyKg && dailyKg > 0 ? Math.floor(totalKg / dailyKg) : null;
+                            const isCritical = daysRemaining !== null && minDays !== null && daysRemaining < Math.floor(minDays / 2);
+                            const isWarning = daysRemaining !== null && minDays !== null && daysRemaining < minDays && !isCritical;
+                            const isOk = daysRemaining !== null && minDays !== null && daysRemaining >= minDays;
+                            const barPct = daysRemaining !== null && minDays !== null
+                              ? Math.min(100, Math.round((daysRemaining / (minDays * 1.5)) * 100))
+                              : null;
+                            const barColor = isCritical ? "#ef4444" : isWarning ? "#f59e0b" : "#22c55e";
+                            const bg = isCritical ? "#fff5f5" : isWarning ? "#fffbeb" : "#f0fdf4";
+                            const border = isCritical ? "#fca5a5" : isWarning ? "#fde68a" : "#bbf7d0";
+                            const textColor = isCritical ? "#b91c1c" : isWarning ? "#92400e" : "#166534";
+                            if (!hasStocks && !feedStockQ.isLoading) return null;
+                            return (
+                              <div>
+                                <div className="rounded-lg p-4" style={{ background: bg, border: `1px solid ${border}` }}>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h5 className="text-sm font-semibold" style={{ color: textColor }}>All Species (Combined)</h5>
+                                    {daysRemaining !== null && (
+                                      <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: barColor, color: "#fff" }}>
+                                        {isCritical ? "CRITICAL" : isWarning ? "BELOW TARGET" : "OK"}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-4 text-center mb-3">
+                                    <div>
+                                      <p className="text-xs text-gray-500 mb-0.5">Total stock on farm</p>
+                                      <p className="text-lg font-bold text-gray-800">{Math.round(totalKg).toLocaleString()} kg</p>
+                                    </div>
+                                    {daysRemaining !== null ? (
+                                      <div>
+                                        <p className="text-xs text-gray-500 mb-0.5">Days of feed remaining</p>
+                                        <p className="text-2xl font-bold" style={{ color: barColor }}>{daysRemaining}</p>
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        <p className="text-xs text-gray-500 mb-0.5">Days remaining</p>
+                                        <p className="text-sm text-gray-400 mt-1">Set daily usage rate to calculate</p>
+                                      </div>
+                                    )}
+                                    {minDays !== null ? (
+                                      <div>
+                                        <p className="text-xs text-gray-500 mb-0.5">Minimum target</p>
+                                        <p className="text-lg font-bold text-gray-800">{minDays} days</p>
+                                      </div>
+                                    ) : <div />}
+                                  </div>
+                                  {barPct !== null && (
+                                    <div>
+                                      <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                                        <div className="h-2.5 rounded-full transition-all" style={{ width: `${barPct}%`, background: barColor }} />
+                                      </div>
+                                      {isCritical && <p className="text-xs mt-1.5" style={{ color: textColor }}>Feed stock is critically low — order urgently and activate your contingency plan.</p>}
+                                      {isWarning && <p className="text-xs mt-1.5" style={{ color: textColor }}>Stock is below your {minDays}-day minimum reserve. Consider placing an order now.</p>}
+                                      {isOk && <p className="text-xs mt-1.5 text-green-700">Stock is above your {minDays}-day minimum reserve. No action required.</p>}
+                                    </div>
+                                  )}
+                                  <p className="text-xs text-gray-400 mt-2">Based on live feed stock records. Update your bin levels in Feed Management to keep this accurate.</p>
+                                </div>
+                                <p className="text-xs text-gray-400 mt-2">Tip: use "Add species target" above to track cattle, sheep and other species separately with individual minimum stock targets.</p>
+                              </div>
+                            );
+                          })()
                         )}
-                        <p className="text-xs text-gray-400 mt-2">Based on live feed stock records. Update your bin levels in Feed Management to keep this accurate.</p>
                       </div>
                     );
                   })()}
@@ -1286,6 +1474,74 @@ export default function CompliancePage() {
               data.reportedToVet = recallForm.reportedToVet === "true";
               recallMut.mutate(data);
             }}>{editRecall ? "Save Changes" : "Raise Incident"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Species stock target dialog */}
+      <Dialog open={showTargetDialog} onOpenChange={setShowTargetDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editTarget ? "Edit Species Target" : "Add Species Monitoring Target"}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-2">
+            <div>
+              <Label>Species</Label>
+              <Select value={targetForm.species ?? "cattle"} onValueChange={v => setTargetForm(f => ({ ...f, species: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SPECIES_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Display label <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Input className="mt-1" value={targetForm.label ?? ""} onChange={e => setTargetForm(f => ({ ...f, label: e.target.value }))} placeholder={`e.g. Beef Cattle, Dairy Herd, Ewes & Lambs`} />
+              <p className="text-xs text-gray-400 mt-0.5">Shown on the monitoring card instead of the species name.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Daily consumption (kg/day)</Label>
+                <Input className="mt-1" type="number" min="0" step="0.1" value={targetForm.dailyConsumptionKg ?? ""} onChange={e => setTargetForm(f => ({ ...f, dailyConsumptionKg: e.target.value }))} placeholder="e.g. 180" />
+              </div>
+              <div>
+                <Label>Minimum stock target (days)</Label>
+                <Input className="mt-1" type="number" min="1" step="1" value={targetForm.minimumStockDaysTarget ?? ""} onChange={e => setTargetForm(f => ({ ...f, minimumStockDaysTarget: e.target.value }))} placeholder="e.g. 14" />
+              </div>
+            </div>
+            <div>
+              <Label>Alert threshold (kg) <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Input className="mt-1" type="number" min="0" step="1" value={targetForm.alertThresholdKg ?? ""} onChange={e => setTargetForm(f => ({ ...f, alertThresholdKg: e.target.value }))} placeholder="e.g. 2520" />
+              <p className="text-xs text-gray-400 mt-0.5">Triggers an additional alert if stock falls below this kg value, regardless of days remaining.</p>
+            </div>
+            <div>
+              <Label>Notes <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Textarea className="mt-1" rows={2} value={targetForm.notes ?? ""} onChange={e => setTargetForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g. Includes finisher nuts, soya blend and molasses — order threshold is 2 pallets" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTargetDialog(false)}>Cancel</Button>
+            <Button
+              className="bg-green-800 hover:bg-green-900 text-white"
+              disabled={!targetForm.species || !targetForm.dailyConsumptionKg || !targetForm.minimumStockDaysTarget}
+              onClick={() => {
+                const body: Record<string, unknown> = {
+                  species: targetForm.species,
+                  label: targetForm.label || null,
+                  dailyConsumptionKg: targetForm.dailyConsumptionKg,
+                  minimumStockDaysTarget: parseInt(targetForm.minimumStockDaysTarget),
+                  alertThresholdKg: targetForm.alertThresholdKg || null,
+                  notes: targetForm.notes || null,
+                };
+                if (editTarget) {
+                  updateTargetM.mutate({ id: Number(editTarget.id), body }, { onSuccess: () => setShowTargetDialog(false) });
+                } else {
+                  addTargetM.mutate(body, { onSuccess: () => setShowTargetDialog(false) });
+                }
+              }}
+            >
+              {editTarget ? "Save Changes" : "Add Target"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -39,6 +39,19 @@ export const feedContingencyPlansTable = pgTable("feed_contingency_plans", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+export const feedStockTargetsTable = pgTable("feed_stock_targets", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id, { onDelete: "cascade" }),
+  species: text("species").notNull(), // "cattle", "sheep", "pigs", "poultry", "horses", "goats", "mixed", "all"
+  label: text("label"), // optional display name e.g. "Dairy Herd", "Beef Finishers"
+  dailyConsumptionKg: numeric("daily_consumption_kg", { precision: 10, scale: 2 }).notNull(),
+  minimumStockDaysTarget: integer("minimum_stock_days_target").notNull(),
+  alertThresholdKg: numeric("alert_threshold_kg", { precision: 10, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const feedRecallIncidentsTable = pgTable("feed_recall_incidents", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
