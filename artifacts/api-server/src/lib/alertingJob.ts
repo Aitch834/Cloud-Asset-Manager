@@ -2,6 +2,7 @@ import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconforma
 import { usersTable, userTenantsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
 import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable, feedPurchaseOrdersTable } from "@workspace/db/schema";
+import { vetHealthPlanActionsTable, vetHealthPlansTable } from "@workspace/db/schema";
 import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull } from "drizzle-orm";
 import { sendSms } from "./sms";
 import { sendWeeklyDigestEmail, type WeeklyDigestItem } from "./mailer";
@@ -924,6 +925,44 @@ async function checkOverdueFeedOrders() {
   }
 }
 
+async function checkOverdueVetPlanActions() {
+  const today = new Date();
+  const overdueActions = await db
+    .select({
+      actionId: vetHealthPlanActionsTable.id,
+      farmId: vetHealthPlanActionsTable.farmId,
+      description: vetHealthPlanActionsTable.description,
+      category: vetHealthPlanActionsTable.category,
+      nextDueDate: vetHealthPlanActionsTable.nextDueDate,
+      planYear: vetHealthPlansTable.planYear,
+      vetName: vetHealthPlansTable.vetName,
+    })
+    .from(vetHealthPlanActionsTable)
+    .innerJoin(vetHealthPlansTable, eq(vetHealthPlanActionsTable.planId, vetHealthPlansTable.id))
+    .where(and(
+      eq(vetHealthPlanActionsTable.isActive, true),
+      lt(vetHealthPlanActionsTable.nextDueDate, today),
+    ));
+
+  const farms = await db.select({ id: farmsTable.id, name: farmsTable.name }).from(farmsTable);
+  const farmMap = Object.fromEntries(farms.map(f => [f.id, f]));
+
+  for (const a of overdueActions) {
+    const farm = farmMap[a.farmId];
+    if (!farm) continue;
+    const dueStr = a.nextDueDate ? new Date(a.nextDueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "unknown date";
+    await upsertNotification({
+      tenantId: a.farmId,
+      farmId: a.farmId,
+      type: "warning",
+      title: `Overdue Health Plan Action — ${a.description.slice(0, 60)}${a.description.length > 60 ? "…" : ""}`,
+      message: `${farm.name}: an action from the ${a.planYear} vet health plan (${a.vetName}) was due ${dueStr} but has not been marked complete. Open Livestock → Vet Health Plans → Action Points to record completion or update the due date.`,
+      relatedModule: "livestock-management",
+      dedupeKey: `vhp-action-overdue-${a.actionId}-${a.nextDueDate?.toISOString().slice(0, 10) ?? "nodate"}`,
+    });
+  }
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
@@ -936,6 +975,7 @@ export async function runAlertingJob() {
     await checkOverdueCleaningSchedules();
     await checkFeedStockLevels();
     await checkOverdueFeedOrders();
+    await checkOverdueVetPlanActions();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {
     console.error("[ALERTS] Alerting job error:", err);

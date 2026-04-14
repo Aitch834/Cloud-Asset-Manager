@@ -185,6 +185,33 @@ export const vetHealthPlansTable = pgTable("vet_health_plans", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+export const vetHealthPlanActionsTable = pgTable("vet_health_plan_actions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  planId: integer("plan_id").notNull().references(() => vetHealthPlansTable.id),
+  description: text("description").notNull(),
+  category: text("category").notNull().default("other"),
+  frequency: text("frequency").notNull().default("annual"),
+  nextDueDate: timestamp("next_due_date", { withTimezone: true }),
+  assignedTo: text("assigned_to"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const vetHealthPlanActionCompletionsTable = pgTable("vet_health_plan_action_completions", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  actionId: integer("action_id").notNull().references(() => vetHealthPlanActionsTable.id),
+  completedDate: timestamp("completed_date", { withTimezone: true }).notNull(),
+  completedBy: text("completed_by"),
+  notes: text("notes"),
+  attachmentUrl: text("attachment_url"),
+  attachmentName: text("attachment_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const dairyMilkRecordsTable = pgTable("dairy_milk_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),

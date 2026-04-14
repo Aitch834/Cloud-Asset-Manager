@@ -53,6 +53,8 @@ import {
   fallenStockContractorsTable,
   livestockDailyChecksTable,
   vetHealthPlansTable,
+  vetHealthPlanActionsTable,
+  vetHealthPlanActionCompletionsTable,
   dairyMilkRecordsTable,
   dairyMastitisRecordsTable,
   dairyCalvingRecordsTable,
@@ -9437,6 +9439,120 @@ router.delete("/farms/:farmId/vet-health-plans/:recordId", requireAuth, requireT
   const recordId = Number(req.params.recordId);
   await db.delete(vetHealthPlansTable).where(and(eq(vetHealthPlansTable.id, recordId), eq(vetHealthPlansTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Vet Health Plan Action Points ───────────────
+router.get("/farms/:farmId/vet-health-plans/:planId/actions", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const planId = Number(req.params.planId);
+  const actions = await db.select().from(vetHealthPlanActionsTable)
+    .where(and(eq(vetHealthPlanActionsTable.farmId, farmId), eq(vetHealthPlanActionsTable.planId, planId), eq(vetHealthPlanActionsTable.isActive, true)))
+    .orderBy(asc(vetHealthPlanActionsTable.createdAt));
+  // Attach latest completion to each action
+  const actionIds = actions.map(a => a.id);
+  const completions = actionIds.length > 0
+    ? await db.select().from(vetHealthPlanActionCompletionsTable)
+        .where(and(eq(vetHealthPlanActionCompletionsTable.farmId, farmId), inArray(vetHealthPlanActionCompletionsTable.actionId, actionIds)))
+        .orderBy(desc(vetHealthPlanActionCompletionsTable.completedDate))
+    : [];
+  const latestByAction: Record<number, typeof completions[0]> = {};
+  const countByAction: Record<number, number> = {};
+  for (const c of completions) {
+    if (!latestByAction[c.actionId]) latestByAction[c.actionId] = c;
+    countByAction[c.actionId] = (countByAction[c.actionId] ?? 0) + 1;
+  }
+  const result = actions.map(a => ({ ...a, latestCompletion: latestByAction[a.id] ?? null, completionCount: countByAction[a.id] ?? 0 }));
+  res.json({ actions: result });
+});
+
+router.post("/farms/:farmId/vet-health-plans/:planId/actions", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const planId = Number(req.params.planId);
+  const { nextDueDate, ...rest } = req.body;
+  const [action] = await db.insert(vetHealthPlanActionsTable).values({
+    ...rest, farmId, planId,
+    nextDueDate: nextDueDate ? new Date(nextDueDate) : null,
+  }).returning();
+  res.json({ action });
+});
+
+router.put("/farms/:farmId/vet-health-plan-actions/:actionId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const actionId = Number(req.params.actionId);
+  const { nextDueDate, ...rest } = req.body;
+  const [action] = await db.update(vetHealthPlanActionsTable).set({
+    ...rest,
+    nextDueDate: nextDueDate ? new Date(nextDueDate) : null,
+    updatedAt: new Date(),
+  }).where(and(eq(vetHealthPlanActionsTable.id, actionId), eq(vetHealthPlanActionsTable.farmId, farmId))).returning();
+  res.json({ action });
+});
+
+router.delete("/farms/:farmId/vet-health-plan-actions/:actionId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const actionId = Number(req.params.actionId);
+  await db.update(vetHealthPlanActionsTable).set({ isActive: false }).where(and(eq(vetHealthPlanActionsTable.id, actionId), eq(vetHealthPlanActionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Vet Health Plan Action Completions ──────────
+router.get("/farms/:farmId/vet-health-plan-actions/:actionId/completions", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const actionId = Number(req.params.actionId);
+  const completions = await db.select().from(vetHealthPlanActionCompletionsTable)
+    .where(and(eq(vetHealthPlanActionCompletionsTable.farmId, farmId), eq(vetHealthPlanActionCompletionsTable.actionId, actionId)))
+    .orderBy(desc(vetHealthPlanActionCompletionsTable.completedDate));
+  res.json({ completions });
+});
+
+router.post("/farms/:farmId/vet-health-plan-actions/:actionId/completions", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const actionId = Number(req.params.actionId);
+  const { completedDate, ...rest } = req.body;
+  const [completion] = await db.insert(vetHealthPlanActionCompletionsTable).values({
+    ...rest, farmId, actionId,
+    completedDate: new Date(completedDate),
+  }).returning();
+  res.json({ completion });
+});
+
+router.delete("/farms/:farmId/vet-health-plan-action-completions/:completionId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const completionId = Number(req.params.completionId);
+  await db.delete(vetHealthPlanActionCompletionsTable).where(and(eq(vetHealthPlanActionCompletionsTable.id, completionId), eq(vetHealthPlanActionCompletionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Evidence report for a plan (all actions + completions for printing)
+router.get("/farms/:farmId/vet-health-plans/:planId/evidence-report", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const planId = Number(req.params.planId);
+  const [plan] = await db.select().from(vetHealthPlansTable).where(and(eq(vetHealthPlansTable.id, planId), eq(vetHealthPlansTable.farmId, farmId)));
+  if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
+  const actions = await db.select().from(vetHealthPlanActionsTable)
+    .where(and(eq(vetHealthPlanActionsTable.farmId, farmId), eq(vetHealthPlanActionsTable.planId, planId), eq(vetHealthPlanActionsTable.isActive, true)))
+    .orderBy(asc(vetHealthPlanActionsTable.createdAt));
+  const actionIds = actions.map(a => a.id);
+  const completions = actionIds.length > 0
+    ? await db.select().from(vetHealthPlanActionCompletionsTable)
+        .where(and(eq(vetHealthPlanActionCompletionsTable.farmId, farmId), inArray(vetHealthPlanActionCompletionsTable.actionId, actionIds)))
+        .orderBy(desc(vetHealthPlanActionCompletionsTable.completedDate))
+    : [];
+  const completionsByAction: Record<number, typeof completions> = {};
+  for (const c of completions) {
+    if (!completionsByAction[c.actionId]) completionsByAction[c.actionId] = [];
+    completionsByAction[c.actionId].push(c);
+  }
+  const actionsWithCompletions = actions.map(a => ({ ...a, completions: completionsByAction[a.id] ?? [] }));
+  res.json({ plan, actions: actionsWithCompletions });
 });
 
 router.get("/farms/:farmId/seed-drilling", requireAuth, requireTenant, requireModuleByKey("crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
