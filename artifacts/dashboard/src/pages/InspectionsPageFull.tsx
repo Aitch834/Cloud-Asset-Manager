@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Eye, Paperclip, File as FileIcon, Loader2, ExternalLink, ChevronDown, ChevronRight, Printer } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle2, ClipboardList, Wrench, Award, Pencil, Eye, Paperclip, File as FileIcon, Loader2, ExternalLink, ChevronDown, ChevronRight, Printer, RefreshCw } from "lucide-react";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -831,21 +831,144 @@ const CERT_SECTORS = [
   "Other",
 ];
 
-function CertStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { bg: string; color: string }> = {
-    active: { bg: "#dcfce7", color: "#166534" },
-    expired: { bg: "#fee2e2", color: "#991b1b" },
-    suspended: { bg: "#fef3c7", color: "#92400e" },
-    surrendered: { bg: "#f3f4f6", color: "#6b7280" },
-    pending: { bg: "#eff6ff", color: "#1e40af" },
+function computeCertStatus(cert: { status: string; expiryDate?: string | null }): string {
+  const stored = cert.status ?? "active";
+  if (["suspended", "surrendered", "superseded", "withdrawn"].includes(stored)) return stored;
+  if (cert.expiryDate) {
+    const exp = new Date(cert.expiryDate);
+    const now = new Date();
+    if (exp < now) return "expired";
+    const soon = new Date(now);
+    soon.setDate(soon.getDate() + 60);
+    if (exp < soon) return "expiring_soon";
+  }
+  if (stored === "pending") return "pending";
+  return "active";
+}
+
+function CertStatusBadge({ status, expiryDate }: { status: string; expiryDate?: string | null }) {
+  const cs = computeCertStatus({ status, expiryDate });
+  const map: Record<string, { bg: string; color: string; label: string }> = {
+    active:        { bg: "#dcfce7", color: "#166534", label: "Active" },
+    expiring_soon: { bg: "#fef3c7", color: "#92400e", label: "Expiring Soon" },
+    expired:       { bg: "#fee2e2", color: "#991b1b", label: "Expired" },
+    suspended:     { bg: "#fef3c7", color: "#92400e", label: "Suspended" },
+    surrendered:   { bg: "#f3f4f6", color: "#6b7280", label: "Surrendered" },
+    superseded:    { bg: "#f3f4f6", color: "#9ca3af", label: "Superseded" },
+    pending:       { bg: "#eff6ff", color: "#1e40af", label: "Pending" },
   };
-  const s = map[status] ?? { bg: "#f3f4f6", color: "#374151" };
+  const s = map[cs] ?? { bg: "#f3f4f6", color: "#374151", label: cs };
   return (
-    <Badge style={{ background: s.bg, color: s.color, border: "none", textTransform: "capitalize", fontSize: "0.75rem" }}>
-      {status}
+    <Badge style={{ background: s.bg, color: s.color, border: "none", fontSize: "0.75rem" }}>
+      {s.label}
     </Badge>
   );
 }
+
+function ContinuityTimeline({ certs }: { certs: any[] }) {
+  const certsWithDates = certs.filter(c => c.issueDate || c.expiryDate);
+  if (certsWithDates.length === 0) return null;
+
+  const today = new Date();
+  const fiveYearsAgo = new Date(today); fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+  const twoYearsAhead = new Date(today); twoYearsAhead.setFullYear(twoYearsAhead.getFullYear() + 2);
+
+  let winStart = fiveYearsAgo.getTime();
+  let winEnd = twoYearsAhead.getTime();
+  certsWithDates.forEach(c => {
+    if (c.issueDate) winStart = Math.min(winStart, new Date(c.issueDate).getTime());
+    if (c.expiryDate) winEnd = Math.max(winEnd, new Date(c.expiryDate).getTime());
+  });
+  const winDuration = winEnd - winStart;
+  if (winDuration <= 0) return null;
+
+  const toPct = (ts: number) => Math.max(0, Math.min(100, ((ts - winStart) / winDuration) * 100));
+  const todayPct = toPct(today.getTime());
+
+  const groupMap = new Map<string, any[]>();
+  certsWithDates.forEach(c => {
+    const key = [c.certificationBody, c.sectors || c.scheme].filter(Boolean).join(" — ") || "Unknown";
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key)!.push(c);
+  });
+  groupMap.forEach(g => g.sort((a, b) => new Date(a.issueDate || 0).getTime() - new Date(b.issueDate || 0).getTime()));
+
+  const ticks: { pct: number; label: string }[] = [];
+  const startYear = new Date(winStart).getFullYear();
+  const endYear = new Date(winEnd).getFullYear() + 1;
+  for (let y = startYear; y <= endYear; y++) {
+    const pct = toPct(new Date(y, 0, 1).getTime());
+    if (pct >= 0 && pct <= 100) ticks.push({ pct, label: String(y) });
+  }
+
+  const ss: Record<string, { bg: string }> = {
+    active:        { bg: "#16a34a" },
+    expiring_soon: { bg: "#d97706" },
+    expired:       { bg: "#dc2626" },
+    suspended:     { bg: "#d97706" },
+    surrendered:   { bg: "#6b7280" },
+    superseded:    { bg: "#9ca3af" },
+    pending:       { bg: "#2563eb" },
+  };
+
+  return (
+    <div style={{ marginBottom: 20, border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+      <div style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", padding: "8px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+        <Award size={13} color="#166534" />
+        <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151" }}>Certification Continuity</span>
+        <span style={{ fontSize: "0.72rem", color: "#9ca3af" }}>Gaps = periods without active coverage</span>
+      </div>
+      <div style={{ padding: "14px 16px 10px" }}>
+        {Array.from(groupMap.entries()).map(([scheme, schemeCerts]) => (
+          <div key={scheme} style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 10, marginBottom: 10, alignItems: "center" }}>
+            <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "#374151", lineHeight: 1.35, paddingRight: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={scheme}>{scheme}</div>
+            <div style={{ position: "relative", height: 26, background: "#f3f4f6", borderRadius: 4 }}>
+              <div style={{ position: "absolute", left: `${todayPct}%`, top: 0, bottom: 0, width: 2, background: "#374151", opacity: 0.45, zIndex: 3 }} />
+              {schemeCerts.map(cert => {
+                const cs = computeCertStatus(cert);
+                const st = cert.issueDate ? toPct(new Date(cert.issueDate).getTime()) : 0;
+                const en = cert.expiryDate ? toPct(new Date(cert.expiryDate).getTime()) : todayPct;
+                const w = Math.max(0.4, en - st);
+                const bg = (ss[cs] ?? { bg: "#9ca3af" }).bg;
+                return (
+                  <div key={cert.id} title={`${cert.certificationBody}${cert.certNumber ? ` · ${cert.certNumber}` : ""} · ${fmt(cert.issueDate)} → ${fmt(cert.expiryDate)} · ${cs.replace(/_/g," ")}`}
+                    style={{ position: "absolute", left: `${st}%`, width: `${w}%`, top: 3, bottom: 3, background: bg, borderRadius: 3, zIndex: 1, cursor: "help", overflow: "hidden", display: "flex", alignItems: "center", paddingLeft: 4 }}>
+                    {w > 8 && cert.certNumber && (
+                      <span style={{ fontSize: "0.6rem", color: "#fff", fontWeight: 700, whiteSpace: "nowrap" }}>{cert.certNumber}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 10, marginTop: 2 }}>
+          <div />
+          <div style={{ position: "relative", height: 18 }}>
+            {ticks.map(tick => (
+              <div key={tick.label} style={{ position: "absolute", left: `${tick.pct}%`, transform: "translateX(-50%)", fontSize: "0.63rem", color: "#9ca3af", whiteSpace: "nowrap" }}>{tick.label}</div>
+            ))}
+            <div style={{ position: "absolute", left: `${todayPct}%`, transform: "translateX(-50%)", fontSize: "0.63rem", color: "#374151", fontWeight: 700, whiteSpace: "nowrap" }}>Today</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap", paddingLeft: 210 }}>
+          {[["active","Active"],["expiring_soon","Expiring Soon"],["expired","Expired"],["superseded","Superseded"],["pending","Pending"]].map(([cs, label]) => (
+            <div key={cs} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: (ss[cs] ?? { bg: "#9ca3af" }).bg }} />
+              <span style={{ fontSize: "0.65rem", color: "#6b7280" }}>{label}</span>
+            </div>
+          ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ width: 2, height: 10, background: "#374151", opacity: 0.45 }} />
+            <span style={{ fontSize: "0.65rem", color: "#6b7280" }}>Today</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type CertFilter = "all" | "active" | "expiring_soon" | "expired" | "other";
 
 function AssuranceCertsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
@@ -854,6 +977,8 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [renewingFrom, setRenewingFrom] = useState<number | null>(null);
+  const [filterTab, setFilterTab] = useState<CertFilter>("all");
   const emptyForm = { certificationBody: "", scheme: "", certNumber: "", sectors: "", assessorName: "", assessorMembershipNo: "", issueDate: "", expiryDate: "", status: "active", nextVisitDue: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const certificationBodies = useLookupStrings("certification_bodies", CERT_BODIES);
@@ -866,19 +991,29 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["assurance-certs", farmId] });
+  const closeForm = () => { setAddOpen(false); setEditRecord(null); setRenewingFrom(null); setForm(emptyForm); };
 
   const saveMut = useMutation({
-    mutationFn: (body: any) => {
+    mutationFn: async (body: any) => {
       const payload = {
         ...body,
         issueDate: body.issueDate ? new Date(body.issueDate).toISOString() : null,
         expiryDate: body.expiryDate ? new Date(body.expiryDate).toISOString() : null,
         nextVisitDue: body.nextVisitDue ? new Date(body.nextVisitDue).toISOString() : null,
       };
-      if (editRecord) return fetch(`/api/farms/${farmId}/assurance-certs/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      return fetch(`/api/farms/${farmId}/assurance-certs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (editRecord) {
+        return fetch(`/api/farms/${farmId}/assurance-certs/${editRecord.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      }
+      const res = await fetch(`/api/farms/${farmId}/assurance-certs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (renewingFrom) {
+        await fetch(`/api/farms/${farmId}/assurance-certs/${renewingFrom}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "superseded" }) });
+      }
+      return res;
     },
-    onSuccess: () => { toast({ title: editRecord ? "Certificate updated" : "Certificate saved" }); invalidate(); setAddOpen(false); setEditRecord(null); setForm(emptyForm); },
+    onSuccess: () => {
+      toast({ title: renewingFrom ? "Certificate renewed — previous marked as superseded" : editRecord ? "Certificate updated" : "Certificate saved" });
+      invalidate(); closeForm();
+    },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
@@ -889,35 +1024,99 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
   });
 
   const records: any[] = q.data ?? [];
-  const activeCount = records.filter(r => r.status === "active").length;
 
-  const openAdd = () => { setEditRecord(null); setForm(emptyForm); setAddOpen(true); };
+  const activeCt = records.filter(r => computeCertStatus(r) === "active").length;
+  const expiringSoonCt = records.filter(r => computeCertStatus(r) === "expiring_soon").length;
+  const expiredCt = records.filter(r => computeCertStatus(r) === "expired").length;
+  const otherCt = records.filter(r => ["suspended", "surrendered", "superseded", "pending"].includes(computeCertStatus(r))).length;
+
+  const filteredRecords = filterTab === "all" ? records : records.filter(r => {
+    const cs = computeCertStatus(r);
+    if (filterTab === "active") return cs === "active";
+    if (filterTab === "expiring_soon") return cs === "expiring_soon";
+    if (filterTab === "expired") return cs === "expired";
+    if (filterTab === "other") return ["suspended", "surrendered", "superseded", "pending"].includes(cs);
+    return true;
+  });
+
+  const openAdd = () => { setEditRecord(null); setRenewingFrom(null); setForm(emptyForm); setAddOpen(true); };
   const openEdit = (r: any) => {
-    setEditRecord(r);
+    setEditRecord(r); setRenewingFrom(null);
     setForm({ ...r, issueDate: r.issueDate?.slice(0, 10) ?? "", expiryDate: r.expiryDate?.slice(0, 10) ?? "", nextVisitDue: r.nextVisitDue?.slice(0, 10) ?? "" });
     setAddOpen(true);
   };
+  const openRenew = (r: any) => {
+    setRenewingFrom(r.id); setEditRecord(null);
+    setForm({ ...emptyForm, certificationBody: r.certificationBody, scheme: r.scheme || "", sectors: r.sectors || "", assessorName: r.assessorName || "", assessorMembershipNo: r.assessorMembershipNo || "" });
+    setAddOpen(true);
+  };
+
+  const FILTER_TABS: { key: CertFilter; label: string; count: number }[] = [
+    { key: "all",          label: "All",           count: records.length },
+    { key: "active",       label: "Active",        count: activeCt },
+    { key: "expiring_soon",label: "Expiring Soon", count: expiringSoonCt },
+    { key: "expired",      label: "Expired",       count: expiredCt },
+    { key: "other",        label: "Other",         count: otherCt },
+  ];
 
   return (
     <div>
+      {/* ── Header: status pills + Add button ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          {activeCount > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {activeCt > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "4px 10px" }}>
               <Award size={13} color="#16a34a" />
-              <span style={{ fontSize: "0.8rem", color: "#166534", fontWeight: 600 }}>{activeCount} active certificate{activeCount !== 1 ? "s" : ""}</span>
+              <span style={{ fontSize: "0.8rem", color: "#166534", fontWeight: 600 }}>{activeCt} active certificate{activeCt !== 1 ? "s" : ""}</span>
+            </div>
+          )}
+          {expiringSoonCt > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "4px 10px" }}>
+              <AlertTriangle size={13} color="#d97706" />
+              <span style={{ fontSize: "0.8rem", color: "#92400e", fontWeight: 600 }}>{expiringSoonCt} expiring within 60 days</span>
+            </div>
+          )}
+          {expiredCt > 0 && activeCt === 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "4px 10px" }}>
+              <AlertTriangle size={13} color="#dc2626" />
+              <span style={{ fontSize: "0.8rem", color: "#991b1b", fontWeight: 600 }}>{expiredCt} expired — renewal required</span>
             </div>
           )}
         </div>
         <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Add Certificate</Button>
       </div>
 
-      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading...</p> : records.length === 0 ? (
+      {/* ── Continuity Timeline ── */}
+      {records.length > 0 && <ContinuityTimeline certs={records} />}
+
+      {/* ── Filter tabs ── */}
+      {records.length > 0 && (
+        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e5e7eb", marginBottom: 12 }}>
+          {FILTER_TABS.filter(t => t.count > 0 || t.key === "all").map(tab => {
+            const isAlert = (tab.key === "expired" && expiredCt > 0) || (tab.key === "expiring_soon" && expiringSoonCt > 0);
+            return (
+              <button key={tab.key} onClick={() => setFilterTab(tab.key)}
+                style={{ border: "none", background: "none", padding: "8px 14px", fontSize: "0.8125rem", fontWeight: filterTab === tab.key ? 600 : 400,
+                  color: filterTab === tab.key ? (isAlert ? "#991b1b" : "#166534") : isAlert ? "#b91c1c" : "#6b7280",
+                  borderBottom: filterTab === tab.key ? `2px solid ${isAlert ? "#dc2626" : "#166534"}` : "2px solid transparent",
+                  cursor: "pointer", whiteSpace: "nowrap", marginBottom: -1 }}>
+                {tab.label}{tab.count > 0 ? ` (${tab.count})` : ""}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {q.isLoading ? (
+        <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
+      ) : records.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
           <Award size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
           <p style={{ fontWeight: 600, color: "#374151" }}>No assurance certificates recorded</p>
           <p style={{ fontSize: "0.875rem" }}>Track Red Tractor, LEAF Marque, Organic and other farm assurance certificates here.</p>
         </div>
+      ) : filteredRecords.length === 0 ? (
+        <p style={{ textAlign: "center", padding: "2rem", color: "#9ca3af", fontSize: "0.875rem" }}>No certificates match this filter.</p>
       ) : (
         <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
@@ -929,10 +1128,13 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
               </tr>
             </thead>
             <tbody>
-              {records.map((r: any, i: number) => {
-                const isExpired = r.expiryDate && new Date(r.expiryDate) < new Date();
+              {filteredRecords.map((r: any, i: number) => {
+                const cs = computeCertStatus(r);
+                const isExpired = cs === "expired";
+                const isExpiringSoon = cs === "expiring_soon";
+                const rowBg = isExpired ? "#fff5f5" : isExpiringSoon ? "#fffdf0" : "#fff";
                 return (
-                  <tr key={r.id} style={{ borderBottom: i < records.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                  <tr key={r.id} style={{ borderBottom: i < filteredRecords.length - 1 ? "1px solid #f3f4f6" : "none", background: rowBg }}>
                     <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600 }}>{r.certificationBody}</td>
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{r.sectors || r.scheme || "—"}</td>
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontFamily: r.certNumber ? "monospace" : "inherit" }}>{r.certNumber || "—"}</td>
@@ -940,12 +1142,12 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", fontFamily: r.assessorMembershipNo ? "monospace" : "inherit" }}>{r.assessorMembershipNo || "—"}</td>
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.issueDate)}</td>
                     <td style={{ padding: "0.625rem 0.875rem", whiteSpace: "nowrap" }}>
-                      <span style={{ color: isExpired ? "#991b1b" : "#166534", fontWeight: isExpired ? 600 : 400 }}>
-                        {isExpired && "⚠ "}{fmt(r.expiryDate)}
+                      <span style={{ color: isExpired ? "#991b1b" : isExpiringSoon ? "#92400e" : "#166534", fontWeight: (isExpired || isExpiringSoon) ? 600 : 400 }}>
+                        {isExpired && "⚠ "}{isExpiringSoon && "⚡ "}{fmt(r.expiryDate)}
                       </span>
                     </td>
                     <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmt(r.nextVisitDue)}</td>
-                    <td style={{ padding: "0.625rem 0.875rem" }}><CertStatusBadge status={r.status} /></td>
+                    <td style={{ padding: "0.625rem 0.875rem" }}><CertStatusBadge status={r.status} expiryDate={r.expiryDate} /></td>
                     <td style={{ padding: "0.25rem 0.5rem" }}>
                       <DocCell
                         endpoint={`/api/farms/${farmId}/assurance-certs/${r.id}`}
@@ -956,8 +1158,12 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
                       />
                     </td>
                     <td style={{ padding: "0.5rem" }}>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
+                      <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+                        <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View details"><Eye size={13} /></button>
+                        <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
+                        {(isExpired || isExpiringSoon) && (
+                          <button onClick={() => openRenew(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#16a34a", padding: 4 }} title="Renew certificate"><RefreshCw size={13} /></button>
+                        )}
                         <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                       </div>
                     </td>
@@ -969,42 +1175,48 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
+      {/* ── View dialog ── */}
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
           <DialogContent style={{ maxWidth: 560 }}>
             <DialogHeader><DialogTitle>Assurance Certificate</DialogTitle></DialogHeader>
             {(() => {
               const r = viewRecord;
-              const fmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-              const now = new Date();
-              const isExpired = r.expiryDate && new Date(r.expiryDate) < now;
-              const F = ({ label, value }: { label: string; value?: string | null }) => (
-                <div><div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
-                <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div></div>
+              const cs = computeCertStatus(r);
+              const isExp = cs === "expired";
+              const vfmt = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+              const VF = ({ label, value }: { label: string; value?: string | null }) => (
+                <div>
+                  <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: "0.875rem", color: value ? "#111827" : "#d1d5db" }}>{value || "—"}</div>
+                </div>
               );
               return (
                 <div style={{ display: "grid", gap: 14 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <F label="Certification Body" value={r.certificationBody} />
-                    <F label="Scheme / Sector" value={r.sectors || r.scheme} />
+                    <VF label="Certification Body" value={r.certificationBody} />
+                    <VF label="Scheme / Sector" value={r.sectors || r.scheme} />
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <F label="Certificate Number" value={r.certNumber} />
-                    <F label="Status" value={r.status} />
+                    <VF label="Certificate Number" value={r.certNumber} />
+                    <div>
+                      <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Effective Status</div>
+                      <CertStatusBadge status={r.status} expiryDate={r.expiryDate} />
+                    </div>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <F label="Assessor Name" value={r.assessorName} />
-                    <F label="Assessor Membership No." value={r.assessorMembershipNo} />
+                    <VF label="Assessor Name" value={r.assessorName} />
+                    <VF label="Assessor Membership No." value={r.assessorMembershipNo} />
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                    <F label="Issue Date" value={fmt(r.issueDate)} />
+                    <VF label="Issue Date" value={vfmt(r.issueDate)} />
                     <div>
                       <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 2 }}>Expiry Date</div>
-                      <div style={{ fontSize: "0.875rem", fontWeight: isExpired ? 600 : 400, color: isExpired ? "#991b1b" : "#111827" }}>{isExpired ? "⚠ " : ""}{fmt(r.expiryDate)}</div>
+                      <div style={{ fontSize: "0.875rem", fontWeight: isExp ? 600 : 400, color: isExp ? "#991b1b" : "#111827" }}>{isExp ? "⚠ " : ""}{vfmt(r.expiryDate)}</div>
                     </div>
-                    <F label="Next Visit Due" value={fmt(r.nextVisitDue)} />
+                    <VF label="Next Visit Due" value={vfmt(r.nextVisitDue)} />
                   </div>
-                  {r.notes && <F label="Notes" value={r.notes} />}
+                  {r.notes && <VF label="Notes" value={r.notes} />}
                   <div>
                     <div style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af", marginBottom: 4 }}>Certificate Document</div>
                     {r.documentPath ? (
@@ -1020,68 +1232,86 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
             })()}
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
-              <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit Certificate</Button>
+              {viewRecord && (computeCertStatus(viewRecord) === "expired" || computeCertStatus(viewRecord) === "expiring_soon") && (
+                <Button variant="outline" style={{ color: "#16a34a", borderColor: "#bbf7d0" }} onClick={() => { const rec = viewRecord; setViewRecord(null); openRenew(rec); }}>
+                  <RefreshCw size={13} className="mr-1.5" />Renew
+                </Button>
+              )}
+              <Button onClick={() => { const rec = viewRecord; setViewRecord(null); openEdit(rec); }}>Edit Certificate</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditRecord(null); setForm(emptyForm); } }}>
+      {/* ── Add / Edit / Renew dialog ── */}
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) closeForm(); }}>
         <DialogContent style={{ maxWidth: 560 }}>
-          <DialogHeader><DialogTitle>{editRecord ? "Edit Certificate" : "Add Assurance Certificate"}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{renewingFrom ? "Renew Certificate" : editRecord ? "Edit Certificate" : "Add Assurance Certificate"}</DialogTitle>
+            {renewingFrom && (
+              <p style={{ fontSize: "0.8125rem", color: "#6b7280", marginTop: 4 }}>
+                Fill in the new certificate details. The previous certificate will be marked as <strong>Superseded</strong> automatically.
+              </p>
+            )}
+          </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Certification Body <span style={{ color: "#ef4444" }}>*</span></Label>
                 <Select value={form.certificationBody} onValueChange={v => setForm((f: any) => ({ ...f, certificationBody: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>{certificationBodies.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
                 <Label>Scheme / Sector</Label>
-                <Select value={form.sectors} onValueChange={v => setForm((f: any) => ({ ...f, sectors: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>{CERT_SECTORS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                <Select value={form.sectors || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, sectors: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {CERT_SECTORS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Certificate Number</Label><Input placeholder="e.g. RT-CC-2025-001234" value={form.certNumber} onChange={e => setForm((f: any) => ({ ...f, certNumber: e.target.value }))} /></div>
+              <div><Label>Certificate Number</Label><Input className="mt-1" placeholder="e.g. RT-CC-2026-001234" value={form.certNumber} onChange={e => setForm((f: any) => ({ ...f, certNumber: e.target.value }))} /></div>
               <div>
-                <Label>Status</Label>
+                <Label>Stored Status</Label>
                 <Select value={form.status} onValueChange={v => setForm((f: any) => ({ ...f, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="suspended">Suspended</SelectItem>
                     <SelectItem value="expired">Expired</SelectItem>
                     <SelectItem value="surrendered">Surrendered</SelectItem>
+                    <SelectItem value="superseded">Superseded</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Assessor Name</Label><Input placeholder="Name of auditor / assessor" value={form.assessorName} onChange={e => setForm((f: any) => ({ ...f, assessorName: e.target.value }))} /></div>
-              <div><Label>Assessor Membership No.</Label><Input placeholder="e.g. FACTS / CRoPS / BASIS no." value={form.assessorMembershipNo} onChange={e => setForm((f: any) => ({ ...f, assessorMembershipNo: e.target.value }))} /></div>
+              <div><Label>Assessor Name</Label><Input className="mt-1" placeholder="Name of auditor / assessor" value={form.assessorName} onChange={e => setForm((f: any) => ({ ...f, assessorName: e.target.value }))} /></div>
+              <div><Label>Assessor Membership No.</Label><Input className="mt-1" placeholder="e.g. FACTS / BASIS no." value={form.assessorMembershipNo} onChange={e => setForm((f: any) => ({ ...f, assessorMembershipNo: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Issue Date</Label><Input type="date" value={form.issueDate} onChange={e => setForm((f: any) => ({ ...f, issueDate: e.target.value }))} /></div>
-              <div><Label>Expiry Date</Label><Input type="date" value={form.expiryDate} onChange={e => setForm((f: any) => ({ ...f, expiryDate: e.target.value }))} /></div>
+              <div><Label>Issue Date</Label><Input className="mt-1" type="date" value={form.issueDate} onChange={e => setForm((f: any) => ({ ...f, issueDate: e.target.value }))} /></div>
+              <div><Label>Expiry Date</Label><Input className="mt-1" type="date" value={form.expiryDate} onChange={e => setForm((f: any) => ({ ...f, expiryDate: e.target.value }))} /></div>
             </div>
-            <div><Label>Next Visit Due</Label><Input type="date" value={form.nextVisitDue} onChange={e => setForm((f: any) => ({ ...f, nextVisitDue: e.target.value }))} /></div>
-            <div><Label>Notes</Label><Textarea placeholder="Location of certificate, renewal actions, etc." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            <div><Label>Next Visit Due</Label><Input className="mt-1" type="date" value={form.nextVisitDue} onChange={e => setForm((f: any) => ({ ...f, nextVisitDue: e.target.value }))} /></div>
+            <div><Label>Notes</Label><Textarea className="mt-1" placeholder="Location of certificate, renewal actions, etc." value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddOpen(false); setEditRecord(null); setForm(emptyForm); }}>Cancel</Button>
+            <Button variant="outline" onClick={closeForm}>Cancel</Button>
             <Button onClick={() => saveMut.mutate(form)} disabled={!form.certificationBody || saveMut.isPending}>
-              {saveMut.isPending ? "Saving…" : editRecord ? "Save Changes" : "Add Certificate"}
+              {saveMut.isPending ? "Saving…" : renewingFrom ? "Save Renewal" : editRecord ? "Save Changes" : "Add Certificate"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* ── Delete dialog ── */}
       <Dialog open={deleteId !== null} onOpenChange={o => { if (!o) setDeleteId(null); }}>
         <DialogContent style={{ maxWidth: 400 }}>
           <DialogHeader><DialogTitle>Delete Certificate</DialogTitle></DialogHeader>
@@ -1236,7 +1466,7 @@ function ComplianceReportModal({ farmId, onClose }: { farmId: number; onClose: (
       return (sevOrder[a.severity] ?? 3) - (sevOrder[b.severity] ?? 3);
     });
 
-  const activeCerts = allCerts.filter(c => c.status === "active" || c.status === "pending");
+  const activeCerts = allCerts.filter(c => { const cs = computeCertStatus(c); return cs === "active" || cs === "expiring_soon" || cs === "pending"; });
   const isLoading = farmQ.isLoading || inspQ.isLoading || issuesQ.isLoading || certsQ.isLoading;
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
 
@@ -1357,7 +1587,7 @@ function ComplianceReportModal({ farmId, onClose }: { farmId: number; onClose: (
                       c.certificationBody || "—",
                       c.sectors || "—",
                       c.certNumber || "—",
-                      <span style={{ textTransform: "capitalize" }}>{c.status || "—"}</span>,
+                      <span style={{ textTransform: "capitalize", fontWeight: computeCertStatus(c) === "expiring_soon" ? 600 : 400, color: computeCertStatus(c) === "expiring_soon" ? "#92400e" : "inherit" }}>{computeCertStatus(c).replace(/_/g, " ")}</span>,
                       fmtDate(c.issueDate),
                       fmtDate(c.expiryDate),
                       fmtDate(c.nextVisitDue),
