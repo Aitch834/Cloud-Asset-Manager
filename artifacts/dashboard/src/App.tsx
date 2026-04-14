@@ -55,7 +55,7 @@ import AdvisorsAccessPage from "@/pages/AdvisorsAccessPage";
 import InspectionViewPage from "@/pages/InspectionViewPage";
 import RiskAssessmentsPage from "@/pages/RiskAssessmentsPage";
 import WasteDisposalPage from "@/pages/WasteDisposalPage";
-import FlyTippingPage from "@/pages/FlyTippingPage";
+const FlyTippingPage = React.lazy(() => import("@/pages/FlyTippingPage"));
 import EncampmentPage from "@/pages/EncampmentPage";
 import AccidentBookPage from "@/pages/AccidentBookPage";
 import FarmLocationsPage from "@/pages/FarmLocationsPage";
@@ -199,7 +199,11 @@ function WastePage() {
 
 function FlyTippingPageWrapper() {
   const { farmId } = useAppStore();
-  return <FlyTippingPage farmId={farmId} />;
+  return (
+    <React.Suspense fallback={<div style={{ padding: 40, color: "#9ca3af" }}>Loading…</div>}>
+      <FlyTippingPage farmId={farmId} />
+    </React.Suspense>
+  );
 }
 
 function VisitorsPage() {
