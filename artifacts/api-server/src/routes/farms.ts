@@ -239,6 +239,10 @@ import {
   feedContingencyPlansTable,
   feedRecallIncidentsTable,
   diseaseIncidentLogTable,
+  vetVisitsTable,
+  vetVisitMedicinesTable,
+  vetInvoicesTable,
+  vetInvoiceLinesTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
@@ -15947,5 +15951,106 @@ router.get("/farms/:farmId/service-invoices/:id/lines", requireAuth, requireTena
   res.json({ records });
 });
 
+// ═══════════════════════════════════════════════════════════
+// VET LEDGER — Visits, Visit Medicines, Invoices, Invoice Lines
+// ═══════════════════════════════════════════════════════════
+
+// ── Vet Visits ──────────────────────────────────────────────
+router.get("/farms/:farmId/vet-visits", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const visits = await db.select().from(vetVisitsTable).where(eq(vetVisitsTable.farmId, farmId)).orderBy(desc(vetVisitsTable.visitDate));
+  const visitIds = visits.map(v => v.id);
+  const medicines = visitIds.length > 0 ? await db.select().from(vetVisitMedicinesTable).where(inArray(vetVisitMedicinesTable.visitId, visitIds)) : [];
+  const records = visits.map(v => ({ ...v, medicines: medicines.filter(m => m.visitId === v.id) }));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/vet-visits", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { medicines: medicinesBody, ...visitBody } = req.body;
+  const [visit] = await db.insert(vetVisitsTable).values({ ...visitBody, farmId }).returning();
+  if (Array.isArray(medicinesBody) && medicinesBody.length > 0) {
+    await db.insert(vetVisitMedicinesTable).values(medicinesBody.map((m: Record<string, unknown>) => ({ ...m, visitId: visit.id })));
+  }
+  const medicines = await db.select().from(vetVisitMedicinesTable).where(eq(vetVisitMedicinesTable.visitId, visit.id));
+  res.json({ ...visit, medicines });
+});
+
+router.put("/farms/:farmId/vet-visits/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { medicines: medicinesBody, ...visitBody } = req.body;
+  const [visit] = await db.update(vetVisitsTable).set({ ...visitBody, updatedAt: new Date() }).where(and(eq(vetVisitsTable.id, id), eq(vetVisitsTable.farmId, farmId))).returning();
+  if (!visit) { res.status(404).json({ error: "Not found" }); return; }
+  if (Array.isArray(medicinesBody)) {
+    await db.delete(vetVisitMedicinesTable).where(eq(vetVisitMedicinesTable.visitId, id));
+    if (medicinesBody.length > 0) {
+      await db.insert(vetVisitMedicinesTable).values(medicinesBody.map((m: Record<string, unknown>) => ({ ...m, visitId: id })));
+    }
+  }
+  const medicines = await db.select().from(vetVisitMedicinesTable).where(eq(vetVisitMedicinesTable.visitId, id));
+  res.json({ ...visit, medicines });
+});
+
+router.delete("/farms/:farmId/vet-visits/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(vetVisitsTable).where(and(eq(vetVisitsTable.id, id), eq(vetVisitsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ── Vet Invoices ─────────────────────────────────────────────
+router.get("/farms/:farmId/vet-invoices", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const invoices = await db.select().from(vetInvoicesTable).where(eq(vetInvoicesTable.farmId, farmId)).orderBy(desc(vetInvoicesTable.invoiceDate));
+  const invoiceIds = invoices.map(i => i.id);
+  const lines = invoiceIds.length > 0 ? await db.select().from(vetInvoiceLinesTable).where(inArray(vetInvoiceLinesTable.invoiceId, invoiceIds)) : [];
+  const records = invoices.map(inv => ({ ...inv, lines: lines.filter(l => l.invoiceId === inv.id) }));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/vet-invoices", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { lines: linesBody, ...invoiceBody } = req.body;
+  const [invoice] = await db.insert(vetInvoicesTable).values({ ...invoiceBody, farmId }).returning();
+  if (Array.isArray(linesBody) && linesBody.length > 0) {
+    await db.insert(vetInvoiceLinesTable).values(linesBody.map((l: Record<string, unknown>) => ({ ...l, invoiceId: invoice.id })));
+  }
+  const lines = await db.select().from(vetInvoiceLinesTable).where(eq(vetInvoiceLinesTable.invoiceId, invoice.id));
+  const matched = lines.filter(l => l.isMatched).length;
+  const reconStatus = lines.length === 0 ? "unreconciled" : matched === lines.length ? "reconciled" : matched > 0 ? "partial" : "unreconciled";
+  if (reconStatus !== invoice.reconciliationStatus) {
+    await db.update(vetInvoicesTable).set({ reconciliationStatus: reconStatus }).where(eq(vetInvoicesTable.id, invoice.id));
+  }
+  res.json({ ...invoice, reconciliationStatus: reconStatus, lines });
+});
+
+router.put("/farms/:farmId/vet-invoices/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { lines: linesBody, ...invoiceBody } = req.body;
+  const [invoice] = await db.update(vetInvoicesTable).set({ ...invoiceBody, updatedAt: new Date() }).where(and(eq(vetInvoicesTable.id, id), eq(vetInvoicesTable.farmId, farmId))).returning();
+  if (!invoice) { res.status(404).json({ error: "Not found" }); return; }
+  if (Array.isArray(linesBody)) {
+    await db.delete(vetInvoiceLinesTable).where(eq(vetInvoiceLinesTable.invoiceId, id));
+    if (linesBody.length > 0) {
+      await db.insert(vetInvoiceLinesTable).values(linesBody.map((l: Record<string, unknown>) => ({ ...l, invoiceId: id })));
+    }
+  }
+  const lines = await db.select().from(vetInvoiceLinesTable).where(eq(vetInvoiceLinesTable.invoiceId, id));
+  const matched = lines.filter(l => l.isMatched).length;
+  const reconStatus = lines.length === 0 ? "unreconciled" : matched === lines.length ? "reconciled" : matched > 0 ? "partial" : "unreconciled";
+  await db.update(vetInvoicesTable).set({ reconciliationStatus: reconStatus }).where(eq(vetInvoicesTable.id, id));
+  res.json({ ...invoice, reconciliationStatus: reconStatus, lines });
+});
+
+router.delete("/farms/:farmId/vet-invoices/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(vetInvoicesTable).where(and(eq(vetInvoicesTable.id, id), eq(vetInvoicesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 export default router;
+
 

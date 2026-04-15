@@ -80,6 +80,7 @@ import SalesTradingPage from "@/pages/SalesTradingPage";
 import TradeHistory from "@/pages/TradeHistory";
 import OrganicPage from "@/pages/OrganicPage";
 import CompliancePage from "@/pages/CompliancePage";
+import VetLedgerPage from "@/pages/VetLedgerPage";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 // NOTE: in dev this env var will be empty, in prod it will be automatically set
@@ -320,6 +321,7 @@ function ProtectedContent() {
         <Route path="/harvest-dashboard" component={HarvestDashboard} />
         <Route path="/livestock-health" component={LivestockHealthDashboard} />
         <Route path="/herd-health-register" component={HerdHealthRegisterPage} />
+        <Route path="/vet-ledger" component={VetLedgerPage} />
         <Route path="/nvz-dashboard" component={NVZDashboard} />
         <Route path="/soil-dashboard" component={SoilDashboard} />
         <Route path="/fleet-dashboard" component={FleetDashboard} />
@@ -419,6 +421,7 @@ function DevBypassContent() {
         <Route path="/harvest-dashboard" component={HarvestDashboard} />
         <Route path="/livestock-health" component={LivestockHealthDashboard} />
         <Route path="/herd-health-register" component={HerdHealthRegisterPage} />
+        <Route path="/vet-ledger" component={VetLedgerPage} />
         <Route path="/nvz-dashboard" component={NVZDashboard} />
         <Route path="/soil-dashboard" component={SoilDashboard} />
         <Route path="/fleet-dashboard" component={FleetDashboard} />

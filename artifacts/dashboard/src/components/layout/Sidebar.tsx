@@ -50,6 +50,7 @@ import {
   TrendingUp,
   ClipboardList,
   Layers,
+  Stethoscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -116,6 +117,7 @@ const livestockNav: NavItem[] = [
   { name: "Health Dashboard", href: "/livestock-health", icon: BarChart3, moduleKeys: ["livestock-management"], requiresLivestock: true },
   { name: "Dairy Records", href: "/dairy", icon: Milk, moduleKeys: ["dairy-management"], requiresLivestock: true },
   { name: "Feed Management", href: "/feed", icon: Package, moduleKeys: ["feed-management"] },
+  { name: "Vet Ledger", href: "/vet-ledger", icon: Stethoscope, moduleKeys: ["livestock-management"], requiresLivestock: true },
 ];
 
 const biofuelNav: NavItem[] = [

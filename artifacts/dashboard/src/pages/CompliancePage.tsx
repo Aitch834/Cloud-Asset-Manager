@@ -621,7 +621,7 @@ export default function CompliancePage() {
   const allSuppliers: Record<string, unknown>[] = (suppliersQ.data ?? []).filter((s: Record<string, unknown>) => s.isActive !== false);
   const vetRecords: Record<string, unknown>[] = vetPlansQ.data ?? [];
   const knownVetNames: string[] = [...new Set(vetRecords.map((v) => String(v.vetName ?? "")).filter(Boolean))];
-  const knownHerdNames: string[] = [...new Set(((herdsQ.data ?? []) as Record<string, unknown>[]).map(h => String(h.name ?? "")).filter(s => s.length > 0))];
+  const knownHerdNames: string[] = [...new Set(((herdsQ.data ?? []) as Record<string, unknown>[]).map(h => String(h.herdName ?? h.name ?? "")).filter(s => s.length > 0))];
   const knownFeedProducts: string[] = [...new Set(((deliveriesQ.data ?? []) as Record<string, unknown>[]).map(d => String(d.productName ?? "")).filter(s => s.length > 0))];
   const allAnimals = ((animalsQ.data ?? []) as Record<string, unknown>[]).filter(a => String(a.status ?? "active") !== "deceased") as Array<{ id: number; tagNumber?: string | null; earTagNumber?: string | null; species: string; breed?: string | null; sex?: string | null }>;
   const knownMedicineNames: string[] = [...new Set(((medicinesQ.data ?? []) as Record<string, unknown>[]).map(m => String(m.medicineName ?? "")).filter(s => s.length > 0))];
