@@ -63,14 +63,15 @@ interface LocationType {
 }
 
 const LOCATION_TYPES: LocationType[] = [
-  { value: "livestock_building", label: "Livestock Building", icon: "home", colour: "#3b82f6" },
-  { value: "crop_store", label: "Crop & Feed Store", icon: "package", colour: "#ca8a04" },
-  { value: "equipment_store", label: "Equipment & Workshop", icon: "tool", colour: "#ea580c" },
-  { value: "chemical_store", label: "Chemical & Fuel Store", icon: "alert-triangle", colour: "#dc2626" },
-  { value: "outdoor_area", label: "Outdoor Area / Yard", icon: "map-pin", colour: "#16a34a" },
-  { value: "welfare_facility", label: "Welfare Facility", icon: "heart", colour: "#9333ea" },
-  { value: "office", label: "Office / Building", icon: "briefcase", colour: "#475569" },
-  { value: "other", label: "Other", icon: "more-horizontal", colour: "#6b7280" },
+  { value: "livestock_building", label: "Livestock Building",     icon: "home",           colour: "#3b82f6" },
+  { value: "grain_store",        label: "Crop & Feed Store",      icon: "package",        colour: "#ca8a04" },
+  { value: "workshop",           label: "Equipment & Workshop",   icon: "tool",           colour: "#ea580c" },
+  { value: "chemical_store",     label: "Chemical & Fuel Store",  icon: "alert-triangle", colour: "#dc2626" },
+  { value: "yard",               label: "Outdoor Area / Yard",    icon: "map-pin",        colour: "#16a34a" },
+  { value: "field",              label: "Field",                  icon: "map-pin",        colour: "#65a30d" },
+  { value: "welfare_facility",   label: "Welfare Facility",       icon: "heart",          colour: "#9333ea" },
+  { value: "office",             label: "Office / Building",      icon: "briefcase",      colour: "#475569" },
+  { value: "other",              label: "Other",                  icon: "more-horizontal", colour: "#6b7280" },
 ];
 
 // ─── Screen ───────────────────────────────────────────────────────────

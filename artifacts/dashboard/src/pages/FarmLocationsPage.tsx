@@ -29,14 +29,15 @@ interface FarmLocation {
 }
 
 const LOCATION_TYPES = [
-  { value: "livestock_building", label: "Livestock Building", icon: Building2, colour: "bg-blue-100 text-blue-800" },
-  { value: "crop_store", label: "Crop & Feed Store", icon: Warehouse, colour: "bg-yellow-100 text-yellow-800" },
-  { value: "equipment_store", label: "Equipment & Workshop", icon: Tractor, colour: "bg-orange-100 text-orange-800" },
-  { value: "chemical_store", label: "Chemical & Fuel Store", icon: FlaskConical, colour: "bg-red-100 text-red-800" },
-  { value: "outdoor_area", label: "Outdoor Area / Yard", icon: TreePine, colour: "bg-green-100 text-green-800" },
-  { value: "welfare_facility", label: "Welfare Facility", icon: Users, colour: "bg-purple-100 text-purple-800" },
-  { value: "office", label: "Office / Farm Building", icon: LayoutGrid, colour: "bg-slate-100 text-slate-700" },
-  { value: "other", label: "Other", icon: MapPin, colour: "bg-gray-100 text-gray-700" },
+  { value: "livestock_building", label: "Livestock Building",       icon: Building2,    colour: "bg-blue-100 text-blue-800" },
+  { value: "grain_store",        label: "Crop & Feed Store",        icon: Warehouse,    colour: "bg-yellow-100 text-yellow-800" },
+  { value: "workshop",           label: "Equipment & Workshop",     icon: Tractor,      colour: "bg-orange-100 text-orange-800" },
+  { value: "chemical_store",     label: "Chemical & Fuel Store",    icon: FlaskConical, colour: "bg-red-100 text-red-800" },
+  { value: "yard",               label: "Outdoor Area / Yard",      icon: TreePine,     colour: "bg-green-100 text-green-800" },
+  { value: "field",              label: "Field",                    icon: TreePine,     colour: "bg-lime-100 text-lime-800" },
+  { value: "welfare_facility",   label: "Welfare Facility",         icon: Users,        colour: "bg-purple-100 text-purple-800" },
+  { value: "office",             label: "Office / Farm Building",   icon: LayoutGrid,   colour: "bg-slate-100 text-slate-700" },
+  { value: "other",              label: "Other",                    icon: MapPin,       colour: "bg-gray-100 text-gray-700" },
 ];
 
 const typeMap = Object.fromEntries(LOCATION_TYPES.map(t => [t.value, t]));

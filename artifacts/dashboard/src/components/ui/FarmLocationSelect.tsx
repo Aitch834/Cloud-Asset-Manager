@@ -9,21 +9,23 @@ interface FarmLocation {
 
 const TYPE_LABELS: Record<string, string> = {
   livestock_building: "Livestock Buildings",
-  crop_store: "Crop & Feed Stores",
-  equipment_store: "Equipment & Workshop",
-  chemical_store: "Chemical & Fuel Stores",
-  outdoor_area: "Outdoor Areas & Yards",
-  welfare_facility: "Welfare Facilities",
-  office: "Offices & Farm Buildings",
-  other: "Other",
+  grain_store:        "Crop & Feed Stores",
+  workshop:           "Equipment & Workshop",
+  chemical_store:     "Chemical & Fuel Stores",
+  yard:               "Outdoor Areas & Yards",
+  field:              "Fields",
+  welfare_facility:   "Welfare Facilities",
+  office:             "Offices & Farm Buildings",
+  other:              "Other",
 };
 
 const TYPE_ORDER = [
   "livestock_building",
-  "crop_store",
-  "equipment_store",
+  "grain_store",
+  "workshop",
   "chemical_store",
-  "outdoor_area",
+  "yard",
+  "field",
   "welfare_facility",
   "office",
   "other",

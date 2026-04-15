@@ -24,14 +24,15 @@ interface FarmLocation {
 }
 
 const LOCATION_TYPES = [
-  { value: "livestock_building", label: "Livestock Building", icon: Building2, colour: "bg-blue-100 text-blue-800", markerColour: "#3b82f6" },
-  { value: "crop_store", label: "Crop & Feed Store", icon: Warehouse, colour: "bg-yellow-100 text-yellow-800", markerColour: "#eab308" },
-  { value: "equipment_store", label: "Equipment & Workshop", icon: Tractor, colour: "bg-orange-100 text-orange-800", markerColour: "#f97316" },
-  { value: "chemical_store", label: "Chemical & Fuel Store", icon: FlaskConical, colour: "bg-red-100 text-red-800", markerColour: "#ef4444" },
-  { value: "outdoor_area", label: "Outdoor Area / Yard", icon: TreePine, colour: "bg-green-100 text-green-800", markerColour: "#22c55e" },
-  { value: "welfare_facility", label: "Welfare Facility", icon: Users, colour: "bg-purple-100 text-purple-800", markerColour: "#a855f7" },
-  { value: "office", label: "Office / Farm Building", icon: LayoutGrid, colour: "bg-slate-100 text-slate-700", markerColour: "#64748b" },
-  { value: "other", label: "Other", icon: MapPin, colour: "bg-gray-100 text-gray-700", markerColour: "#9ca3af" },
+  { value: "livestock_building", label: "Livestock Building",     icon: Building2,    colour: "bg-blue-100 text-blue-800",   markerColour: "#3b82f6" },
+  { value: "grain_store",        label: "Crop & Feed Store",      icon: Warehouse,    colour: "bg-yellow-100 text-yellow-800", markerColour: "#eab308" },
+  { value: "workshop",           label: "Equipment & Workshop",   icon: Tractor,      colour: "bg-orange-100 text-orange-800", markerColour: "#f97316" },
+  { value: "chemical_store",     label: "Chemical & Fuel Store",  icon: FlaskConical, colour: "bg-red-100 text-red-800",     markerColour: "#ef4444" },
+  { value: "yard",               label: "Outdoor Area / Yard",    icon: TreePine,     colour: "bg-green-100 text-green-800", markerColour: "#22c55e" },
+  { value: "field",              label: "Field",                  icon: TreePine,     colour: "bg-lime-100 text-lime-800",   markerColour: "#84cc16" },
+  { value: "welfare_facility",   label: "Welfare Facility",       icon: Users,        colour: "bg-purple-100 text-purple-800", markerColour: "#a855f7" },
+  { value: "office",             label: "Office / Farm Building", icon: LayoutGrid,   colour: "bg-slate-100 text-slate-700", markerColour: "#64748b" },
+  { value: "other",              label: "Other",                  icon: MapPin,       colour: "bg-gray-100 text-gray-700",   markerColour: "#9ca3af" },
 ];
 
 const typeMap = Object.fromEntries(LOCATION_TYPES.map(t => [t.value, t]));
