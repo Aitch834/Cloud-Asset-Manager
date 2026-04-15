@@ -154,7 +154,7 @@ function AssetsTab({ farmId }: { farmId: number }) {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...equip, assetNumber: an }),
+        body: JSON.stringify({ assetNumber: an }),
       });
       return an;
     },
