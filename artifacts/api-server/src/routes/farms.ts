@@ -15976,28 +15976,45 @@ router.get("/farms/:farmId/service-invoices/:id/lines", requireAuth, requireTena
 // ── Helper: auto-mirror vet visit medicines into livestock_medicine_records ─────
 async function syncVetMedicinesToRegister(
   farmId: number,
-  visit: { id: number; visitDate: string; vetName: string; reasonForVisit: string },
+  visit: { id: number; visitDate: string; vetName: string; reasonForVisit: string; herdIds: string | null; animalIds: string | null },
   insertedMeds: { id: number; medicineName: string; batchNumber: string | null; quantityUsed: string | null; unit: string | null; withdrawalPeriodDays: number | null; vetDispensed: boolean; notes: string | null }[]
 ): Promise<void> {
   if (!insertedMeds.length) return;
   const administeredDate = new Date(visit.visitDate + "T12:00:00Z");
+
+  // Parse herd / animal IDs from the visit-level selectors
+  let herdIds: number[] = [];
+  let animalIds: number[] = [];
+  try { herdIds = (JSON.parse(visit.herdIds ?? "[]") as unknown[]).map(Number).filter(n => !isNaN(n)); } catch { /* ignore */ }
+  try { animalIds = (JSON.parse(visit.animalIds ?? "[]") as unknown[]).map(Number).filter(n => !isNaN(n)); } catch { /* ignore */ }
+
   for (const m of insertedMeds) {
     const withdrawalEndDate = m.withdrawalPeriodDays
       ? new Date(administeredDate.getTime() + m.withdrawalPeriodDays * 86400000)
       : null;
-    await db.insert(livestockMedicineRecordsTable).values({
-      farmId,
-      medicineName: m.medicineName,
-      batchNumber: m.batchNumber ?? undefined,
-      administeredDate,
-      withdrawalPeriodDays: m.withdrawalPeriodDays ?? undefined,
-      withdrawalEndDate: withdrawalEndDate ?? undefined,
-      vetName: visit.vetName,
-      reason: visit.reasonForVisit,
-      notes: m.notes ? `${m.notes} [Via Vet Ledger visit #${visit.id}]` : `Via Vet Ledger visit #${visit.id}`,
-      source: "vet_ledger",
-      vetVisitMedicineId: m.id,
-    });
+    const noteBase = m.notes ? `${m.notes} [Via Vet Ledger visit #${visit.id}]` : `Via Vet Ledger visit #${visit.id}`;
+
+    const base = {
+      farmId, medicineName: m.medicineName, batchNumber: m.batchNumber ?? undefined,
+      administeredDate, withdrawalPeriodDays: m.withdrawalPeriodDays ?? undefined,
+      withdrawalEndDate: withdrawalEndDate ?? undefined, vetName: visit.vetName,
+      reason: visit.reasonForVisit, source: "vet_ledger", vetVisitMedicineId: m.id,
+    };
+
+    if (herdIds.length > 0) {
+      // One medicine-register entry per herd (capped at 10 to prevent explosion)
+      for (const herdId of herdIds.slice(0, 10)) {
+        await db.insert(livestockMedicineRecordsTable).values({ ...base, notes: noteBase, herdId, treatmentScope: "group" });
+      }
+    } else if (animalIds.length > 0) {
+      // One entry per individual animal (capped at 20)
+      for (const animalId of animalIds.slice(0, 20)) {
+        await db.insert(livestockMedicineRecordsTable).values({ ...base, notes: noteBase, animalId, treatmentScope: "individual" });
+      }
+    } else {
+      // Visit has no animal/herd selection — create one unlinked record
+      await db.insert(livestockMedicineRecordsTable).values({ ...base, notes: noteBase });
+    }
   }
 }
 
