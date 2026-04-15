@@ -70,17 +70,19 @@ function blankMed(): Med { return { medicineName: "", batchNumber: "", quantityU
 function blankLine(): InvoiceLine { return { lineType: "consultation", description: "", quantity: "1", unitPriceGbp: "", lineTotalGbp: "", visitId: "", isMatched: false, matchNote: "" }; }
 
 // ── AnimalMultiPicker ─────────────────────────────────────────────────────────
-type AnimalRecord = { id: number; tagNumber?: string | null; earTagNumber?: string | null; species: string; breed?: string | null };
+type AnimalRecord = { id: number; tagNumber?: string | null; earTagNumber?: string | null; species: string; breed?: string | null; herdId?: number | null };
 
-function AnimalMultiPicker({ animals, selected, onChange, filterSpecies }: {
+function AnimalMultiPicker({ animals, selected, onChange, filterSpecies, filterHerdIds }: {
   animals: AnimalRecord[];
   selected: number[];
   onChange: (ids: number[]) => void;
   filterSpecies?: string;
+  filterHerdIds?: number[];
 }) {
   const [q, setQ] = React.useState("");
   const filtered = animals
     .filter(a => !filterSpecies || a.species === filterSpecies)
+    .filter(a => !filterHerdIds?.length || (a.herdId != null && filterHerdIds.includes(a.herdId)))
     .filter(a => {
       if (!q.trim()) return true;
       const tag = String(a.tagNumber ?? a.earTagNumber ?? "").toLowerCase();
@@ -216,7 +218,7 @@ export default function VetLedgerPage() {
     },
     enabled: !!farmId,
   });
-  const allAnimals: AnimalRecord[] = ((animalsQ.data?.records ?? []) as AnimalRecord[]).filter(a => String((a as Record<string, unknown>).status ?? "active") !== "deceased");
+  const allAnimals: AnimalRecord[] = ((animalsQ.data?.records ?? []) as (AnimalRecord & { status?: string })[]).filter(a => String(a.status ?? "active") !== "deceased");
 
   // ── Visit Dialog State ────────────────────────────────────
   const [showVisitDialog, setShowVisitDialog] = useState(false);
@@ -617,12 +619,16 @@ export default function VetLedgerPage() {
             <div>
               <Label className="text-xs block mb-1">
                 Individual animals seen / treated
-                <span className="ml-1 font-normal text-gray-500">(from your Animal Register — tag numbers)</span>
+                {visitHerdIds.length > 0
+                  ? <span className="ml-1 font-normal text-gray-500">— showing animals in selected herd{visitHerdIds.length !== 1 ? "s" : ""} only</span>
+                  : <span className="ml-1 font-normal text-gray-500">— select a herd above to narrow this list</span>
+                }
               </Label>
               <AnimalMultiPicker
                 animals={allAnimals}
                 selected={visitAnimalIds}
                 onChange={setVisitAnimalIds}
+                filterHerdIds={visitHerdIds.length > 0 ? visitHerdIds : undefined}
               />
               {visitAnimalIds.length > 0 && visitHerdIds.length === 0 && (
                 <p className="text-xs text-blue-700 mt-1">
@@ -631,7 +637,7 @@ export default function VetLedgerPage() {
               )}
               {visitAnimalIds.length > 0 && visitHerdIds.length > 0 && (
                 <p className="text-xs text-amber-700 mt-1">
-                  Both herds and individual animals are selected — medicine records will be linked to the herds (herd selection takes priority).
+                  Both herds and individual animals are selected — medicine records will be linked to the herds. Use individual animals only if a specific subset was treated.
                 </p>
               )}
             </div>
