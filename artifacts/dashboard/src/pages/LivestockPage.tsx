@@ -3086,7 +3086,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 interface AnimalProfile {
   animal: Animal;
   herd: { id: number; name: string; type: string; herdNumber: string | null } | null;
-  medicines: Array<{ id: number; medicineName: string; administeredDate: string; dosage: string | null; administrationRoute: string | null; administeredBy: string | null; vetName: string | null; withdrawalEndDate: string | null; withdrawalPeriodDays: number | null; reason: string | null; notes: string | null }>;
+  medicines: Array<{ id: number; medicineName: string; administeredDate: string; dosage: string | null; administrationRoute: string | null; administeredBy: string | null; vetName: string | null; withdrawalEndDate: string | null; withdrawalPeriodDays: number | null; reason: string | null; notes: string | null; batchNumber: string | null; medicineRef: string | null; treatmentScope: string | null; _source: "individual" | "herd_treatment" }>;
   movements: Array<{ id: number; movementType: string; movementDate: string; fromLocation: string | null; toLocation: string | null; licenceNumber: string | null; bcmsSubmissionRef: string | null; reason: string | null; notes: string | null }>;
   calvings: Array<{ id: number; calvingDate: string; calvingEaseScore: number | null; numberOfCalves: number; calfOutcome: string | null; calfSex: string | null; calfEarTag: string | null; sireBreed: string | null; cowComplications: string | null; assistanceRequired: boolean; vetAttended: boolean; bcmsPassportApplied: boolean; notes: string | null }>;
   mastitis: Array<{ id: number; onsetDate: string; quartersAffected: string | null; clinicalGrade: string | null; treatmentProduct: string | null; outcome: string | null; vetConsulted: boolean; notes: string | null }>;
@@ -3314,31 +3314,49 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
               <div style={{ textAlign: "center", padding: "40px 0", color: "#9ca3af" }}>
                 <Stethoscope size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
                 <p>No medicine records linked to this animal.</p>
-                <p style={{ fontSize: "0.78rem" }}>Records appear here when a medicine is administered directly to this animal via the Medicine Records tab.</p>
+                <p style={{ fontSize: "0.78rem" }}>Records appear here when a medicine is administered to this animal individually, or when a group / whole-herd treatment is recorded for the herd this animal belongs to.</p>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {data.medicines.map(m => (
-                  <div key={m.id} style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 14px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div>
-                        <p style={{ margin: 0, fontWeight: 600, fontSize: "0.9rem", color: "#111827" }}>{m.medicineName}</p>
-                        <p style={{ margin: "2px 0 0", fontSize: "0.75rem", color: "#6b7280" }}>{formatDate(m.administeredDate)}{m.administeredBy ? ` · ${m.administeredBy}` : ""}{m.vetName ? ` · ${m.vetName}` : ""}</p>
+                {data.medicines.map(m => {
+                  const isHerdTreatment = m._source === "herd_treatment";
+                  const withdrawalActive = m.withdrawalEndDate && new Date(m.withdrawalEndDate) > new Date();
+                  return (
+                    <div key={m.id} style={{ background: isHerdTreatment ? "#f0fdf4" : "#f9fafb", border: `1px solid ${isHerdTreatment ? "#bbf7d0" : "#e5e7eb"}`, borderRadius: 8, padding: "10px 14px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontWeight: 600, fontSize: "0.9rem", color: "#111827" }}>{m.medicineName}</p>
+                          <p style={{ margin: "2px 0 0", fontSize: "0.75rem", color: "#6b7280" }}>
+                            {formatDate(m.administeredDate)}{m.administeredBy ? ` · ${m.administeredBy}` : ""}{m.vetName ? ` · ${m.vetName}` : ""}
+                          </p>
+                        </div>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center", flexShrink: 0 }}>
+                          {isHerdTreatment && (
+                            <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#166534", background: "#dcfce7", border: "1px solid #86efac", padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap" }}>
+                              {m.treatmentScope === "group" ? "GROUP TREATMENT" : "HERD TREATMENT"}
+                            </span>
+                          )}
+                          {withdrawalActive && (
+                            <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#854d0e", background: "#fef9c3", border: "1px solid #fde047", padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap" }}>WITHDRAWAL ACTIVE</span>
+                          )}
+                        </div>
                       </div>
-                      {m.withdrawalEndDate && new Date(m.withdrawalEndDate) > new Date() && (
-                        <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#854d0e", background: "#fef9c3", border: "1px solid #fde047", padding: "2px 6px", borderRadius: 4 }}>WITHDRAWAL ACTIVE</span>
+                      {(m.dosage || m.administrationRoute || m.reason) && (
+                        <p style={{ margin: "6px 0 0", fontSize: "0.78rem", color: "#374151" }}>
+                          {[m.dosage && `Dosage: ${m.dosage}`, m.administrationRoute && `Route: ${m.administrationRoute}`, m.reason && `Reason: ${m.reason}`].filter(Boolean).join("  ·  ")}
+                        </p>
+                      )}
+                      {(m.batchNumber || m.medicineRef) && (
+                        <p style={{ margin: "4px 0 0", fontSize: "0.72rem", color: "#6b7280", fontFamily: "monospace" }}>
+                          {m.batchNumber && `Batch: ${m.batchNumber}`}{m.batchNumber && m.medicineRef && "  ·  "}{m.medicineRef && `Ref: ${m.medicineRef}`}
+                        </p>
+                      )}
+                      {m.withdrawalEndDate && (
+                        <p style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "#854d0e" }}>Withdrawal ends: {formatDate(m.withdrawalEndDate)} ({m.withdrawalPeriodDays} days)</p>
                       )}
                     </div>
-                    {(m.dosage || m.administrationRoute || m.reason) && (
-                      <p style={{ margin: "6px 0 0", fontSize: "0.78rem", color: "#374151" }}>
-                        {[m.dosage && `Dosage: ${m.dosage}`, m.administrationRoute && `Route: ${m.administrationRoute}`, m.reason && `Reason: ${m.reason}`].filter(Boolean).join("  ·  ")}
-                      </p>
-                    )}
-                    {m.withdrawalEndDate && (
-                      <p style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "#854d0e" }}>Withdrawal ends: {formatDate(m.withdrawalEndDate)} ({m.withdrawalPeriodDays} days)</p>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )
           ) : tab === "movements" ? (

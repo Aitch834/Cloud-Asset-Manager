@@ -604,9 +604,9 @@ async function seedMedicineRecords(farmId: number) {
   if (animals.length < 2) return;
 
   await db.insert(livestockMedicineRecordsTable).values([
-    { farmId, animalId: animals[0]!.id, medicineName: "Baytril 100 mg/ml (Enrofloxacin)", batchNumber: "BAY-2025-4412", withdrawalPeriodDays: 14, withdrawalEndDate: d(`${yr}-02-15`), dosage: "5ml IM", administeredDate: d(`${yr}-02-01`), reason: "Bovine Respiratory Disease (BRD)", administeredBy: "James Barnett", vetName: "James Mortimer MRCVS", notes: "Full recovery 5 days post-treatment." },
-    { farmId, animalId: animals[1]!.id, medicineName: "Metacam 20mg/ml (Meloxicam)", batchNumber: "MET-2025-8811", withdrawalPeriodDays: 15, withdrawalEndDate: d(`${yr}-02-23`), dosage: "22ml SC", administeredDate: d(`${yr}-02-08`), reason: "NSAID — post-dehorning pain relief", administeredBy: "Tom Bradley", vetName: "James Mortimer MRCVS" },
-    { farmId, animalId: animals[0]!.id, medicineName: "Bovilis BVD (IBR/BVD vaccine)", batchNumber: "BBD-2025-0441", withdrawalPeriodDays: 0, dosage: "2ml IM", administeredDate: d(`${yr}-01-15`), reason: "Annual BVD/IBR vaccination programme", administeredBy: "James Barnett", notes: "Whole herd vaccination completed." },
+    { farmId, treatmentScope: "individual", animalId: animals[0]!.id, medicineName: "Baytril 100 mg/ml (Enrofloxacin)", batchNumber: "BAY-2025-4412", withdrawalPeriodDays: 14, withdrawalEndDate: d(`${yr}-02-15`), dosage: "5ml IM", administeredDate: d(`${yr}-02-01`), reason: "Bovine Respiratory Disease (BRD)", administeredBy: "James Barnett", vetName: "James Mortimer MRCVS", notes: "Full recovery 5 days post-treatment." },
+    { farmId, treatmentScope: "individual", animalId: animals[1]!.id, medicineName: "Metacam 20mg/ml (Meloxicam)", batchNumber: "MET-2025-8811", withdrawalPeriodDays: 15, withdrawalEndDate: d(`${yr}-02-23`), dosage: "22ml SC", administeredDate: d(`${yr}-02-08`), reason: "NSAID — post-dehorning pain relief", administeredBy: "Tom Bradley", vetName: "James Mortimer MRCVS" },
+    { farmId, treatmentScope: "individual", animalId: animals[0]!.id, medicineName: "Bovilis BVD (IBR/BVD vaccine)", batchNumber: "BBD-2025-0441", withdrawalPeriodDays: 0, dosage: "2ml IM", administeredDate: d(`${yr}-01-15`), reason: "Annual BVD/IBR vaccination programme", administeredBy: "James Barnett", notes: "Whole herd vaccination completed." },
   ]);
 
   await db.insert(herdHealthEventsTable).values([

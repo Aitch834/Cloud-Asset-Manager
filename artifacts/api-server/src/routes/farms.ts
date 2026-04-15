@@ -244,7 +244,7 @@ import {
   vetInvoicesTable,
   vetInvoiceLinesTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
@@ -1967,13 +1967,17 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
     db.select().from(livestockMedicineRecordsTable)
       .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), eq(livestockMedicineRecordsTable.animalId, recordId)))
       .orderBy(desc(livestockMedicineRecordsTable.administeredDate)),
-    // Indirect: group/whole-herd treatments for this animal's herd
+    // Indirect: group/whole-herd treatments for this animal's herd.
+    // Also includes legacy records where treatment_scope is NULL (treated as whole_herd).
     animal.herdId
       ? db.select().from(livestockMedicineRecordsTable)
           .where(and(
             eq(livestockMedicineRecordsTable.farmId, farmId),
             eq(livestockMedicineRecordsTable.herdId, animal.herdId),
-            inArray(livestockMedicineRecordsTable.treatmentScope, ["group", "whole_herd"]),
+            or(
+              inArray(livestockMedicineRecordsTable.treatmentScope, ["group", "whole_herd"]),
+              isNull(livestockMedicineRecordsTable.treatmentScope),
+            ),
           ))
           .orderBy(desc(livestockMedicineRecordsTable.administeredDate))
       : Promise.resolve([]),
@@ -1997,7 +2001,8 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
   const animalEarTag = (animal.earTagNumber ?? "").toLowerCase();
   const animalTagNumber = (animal.tagNumber ?? "").toLowerCase();
   const filteredHerdMedicines = herdMedicines.filter(m => {
-    if (m.treatmentScope === "whole_herd") return true;
+    // NULL treatment_scope = legacy record predating the scope column; treat as whole_herd
+    if (m.treatmentScope === "whole_herd" || m.treatmentScope === null) return true;
     if (m.treatmentScope === "group") {
       if (!m.treatedAnimalTags) return false; // no verified tags — cannot link
       const verifiedTags = m.treatedAnimalTags.split(",").map((t: string) => t.trim().toLowerCase());
