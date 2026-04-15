@@ -69,6 +69,73 @@ type InvoiceLine = { id?: number; lineType: string; description: string; quantit
 function blankMed(): Med { return { medicineName: "", batchNumber: "", quantityUsed: "", unit: "ml", withdrawalPeriodDays: "", vetDispensed: true, notes: "" }; }
 function blankLine(): InvoiceLine { return { lineType: "consultation", description: "", quantity: "1", unitPriceGbp: "", lineTotalGbp: "", visitId: "", isMatched: false, matchNote: "" }; }
 
+// ── AnimalMultiPicker ─────────────────────────────────────────────────────────
+type AnimalRecord = { id: number; tagNumber?: string | null; earTagNumber?: string | null; species: string; breed?: string | null };
+
+function AnimalMultiPicker({ animals, selected, onChange, filterSpecies }: {
+  animals: AnimalRecord[];
+  selected: number[];
+  onChange: (ids: number[]) => void;
+  filterSpecies?: string;
+}) {
+  const [q, setQ] = React.useState("");
+  const filtered = animals
+    .filter(a => !filterSpecies || a.species === filterSpecies)
+    .filter(a => {
+      if (!q.trim()) return true;
+      const tag = String(a.tagNumber ?? a.earTagNumber ?? "").toLowerCase();
+      return tag.includes(q.toLowerCase());
+    });
+
+  if (animals.length === 0) return (
+    <p className="text-xs text-gray-400 italic">No animals in the Individual Animal Register. Add them in Livestock → Animals first.</p>
+  );
+
+  function toggle(id: number) {
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+  }
+
+  return (
+    <div className="border rounded-md p-2 bg-white">
+      <input
+        value={q} onChange={e => setQ(e.target.value)}
+        placeholder="Search by tag number…"
+        className="w-full text-xs border-0 bg-transparent outline-none placeholder:text-gray-400 mb-2 pb-1 border-b border-gray-100"
+      />
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {selected.map(id => {
+            const a = animals.find(x => x.id === id);
+            if (!a) return null;
+            const tag = String(a.tagNumber ?? a.earTagNumber ?? `ID ${a.id}`);
+            return (
+              <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                {tag}
+                <button type="button" onClick={() => toggle(id)} className="text-green-600 hover:text-red-600">×</button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+      <div className="max-h-36 overflow-y-auto flex flex-col gap-0.5">
+        {filtered.length === 0 && <p className="text-xs text-gray-400 italic py-1">No animals match.</p>}
+        {filtered.map(a => {
+          const tag = String(a.tagNumber ?? a.earTagNumber ?? `ID ${a.id}`);
+          const isSelected = selected.includes(a.id);
+          return (
+            <button key={a.id} type="button" onClick={() => toggle(a.id)}
+              className={`text-left w-full px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors ${isSelected ? "bg-green-100 text-green-800 font-medium" : "hover:bg-gray-50 text-gray-700"}`}>
+              <span className={`w-3 h-3 rounded-full border-2 shrink-0 ${isSelected ? "bg-green-600 border-green-600" : "border-gray-300"}`} />
+              <span className="font-mono">{tag}</span>
+              <span className="text-gray-400 capitalize">{a.species}{a.breed ? ` · ${a.breed}` : ""}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function VetLedgerPage() {
@@ -139,12 +206,25 @@ export default function VetLedgerPage() {
       .filter(Boolean)
   )];
 
+  // Individual animals — for per-animal medicine linkage
+  const animalsQ = useQuery({
+    queryKey: ["animals", farmId],
+    queryFn: async () => {
+      const res = await fetch(`/api/farms/${farmId}/animals`);
+      if (!res.ok) return { records: [] };
+      return res.json() as Promise<{ records: AnimalRecord[] }>;
+    },
+    enabled: !!farmId,
+  });
+  const allAnimals: AnimalRecord[] = ((animalsQ.data?.records ?? []) as AnimalRecord[]).filter(a => String((a as Record<string, unknown>).status ?? "active") !== "deceased");
+
   // ── Visit Dialog State ────────────────────────────────────
   const [showVisitDialog, setShowVisitDialog] = useState(false);
   const [editVisit, setEditVisit] = useState<Record<string, unknown> | null>(null);
   const [visitForm, setVisitForm] = useState<Record<string, string>>({});
   const [visitMeds, setVisitMeds] = useState<Med[]>([]);
   const [visitHerdIds, setVisitHerdIds] = useState<number[]>([]);
+  const [visitAnimalIds, setVisitAnimalIds] = useState<number[]>([]);
 
   // ── Visit View State ──────────────────────────────────────
   const [showViewVisitDialog, setShowViewVisitDialog] = useState(false);
@@ -207,6 +287,7 @@ export default function VetLedgerPage() {
       }
       setVisitForm(form);
       try { setVisitHerdIds(JSON.parse(String(v.herdIds ?? "[]"))); } catch { setVisitHerdIds([]); }
+      try { setVisitAnimalIds(JSON.parse(String(v.animalIds ?? "[]"))); } catch { setVisitAnimalIds([]); }
       const meds = (v.medicines as Med[] | null) ?? [];
       setVisitMeds(meds.map(m => ({
         medicineName: String(m.medicineName ?? ""),
@@ -220,6 +301,7 @@ export default function VetLedgerPage() {
     } else {
       setVisitForm({ visitDate: new Date().toISOString().slice(0, 10) });
       setVisitHerdIds([]);
+      setVisitAnimalIds([]);
       setVisitMeds([]);
     }
     setShowVisitDialog(true);
@@ -261,6 +343,7 @@ export default function VetLedgerPage() {
     visitMut.mutate({
       ...visitForm,
       herdIds: JSON.stringify(visitHerdIds),
+      animalIds: JSON.stringify(visitAnimalIds),
       medicines: visitMeds.filter(m => m.medicineName.trim()),
     });
   }
@@ -530,6 +613,29 @@ export default function VetLedgerPage() {
               </div>
             )}
 
+            {/* Individual animals seen / treated */}
+            <div>
+              <Label className="text-xs block mb-1">
+                Individual animals seen / treated
+                <span className="ml-1 font-normal text-gray-500">(from your Animal Register — tag numbers)</span>
+              </Label>
+              <AnimalMultiPicker
+                animals={allAnimals}
+                selected={visitAnimalIds}
+                onChange={setVisitAnimalIds}
+              />
+              {visitAnimalIds.length > 0 && visitHerdIds.length === 0 && (
+                <p className="text-xs text-blue-700 mt-1">
+                  Medicine records will be linked to these {visitAnimalIds.length} individual animal{visitAnimalIds.length !== 1 ? "s" : ""}.
+                </p>
+              )}
+              {visitAnimalIds.length > 0 && visitHerdIds.length > 0 && (
+                <p className="text-xs text-amber-700 mt-1">
+                  Both herds and individual animals are selected — medicine records will be linked to the herds (herd selection takes priority).
+                </p>
+              )}
+            </div>
+
             {/* Clinical details */}
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
@@ -651,7 +757,7 @@ export default function VetLedgerPage() {
               Vet Visit — {viewVisit ? fmtDate(String(viewVisit.visitDate ?? "")) : ""}
             </DialogTitle>
           </DialogHeader>
-          <VetVisitViewBody visit={viewVisit} visits={visits} />
+          <VetVisitViewBody visit={viewVisit} visits={visits} herds={herds} allAnimals={allAnimals} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowViewVisitDialog(false)}>Close</Button>
             <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => { setShowViewVisitDialog(false); openVisitEdit(viewVisit!); }}>
@@ -835,10 +941,29 @@ export default function VetLedgerPage() {
 
 // ── VetVisitViewBody — top-level component (React Fast Refresh safe) ───────────
 
-function VetVisitViewBody({ visit, visits }: { visit: Record<string, unknown> | null; visits: Record<string, unknown>[] }) {
+function VetVisitViewBody({ visit, visits, herds, allAnimals }: {
+  visit: Record<string, unknown> | null;
+  visits: Record<string, unknown>[];
+  herds?: Record<string, unknown>[];
+  allAnimals?: AnimalRecord[];
+}) {
   if (!visit) return null;
   const v = visit;
   const meds = (v.medicines as Med[] | null) ?? [];
+
+  let herdIds: number[] = [];
+  let animalIds: number[] = [];
+  try { herdIds = JSON.parse(String(v.herdIds ?? "[]")) as number[]; } catch { /* ignore */ }
+  try { animalIds = JSON.parse(String(v.animalIds ?? "[]")) as number[]; } catch { /* ignore */ }
+
+  const herdNames = herdIds.map(id => {
+    const h = (herds ?? []).find(h => Number(h.id) === id);
+    return h ? String(h.herdName ?? h.name ?? `Herd ${id}`) : `Herd ${id}`;
+  });
+  const animalTags = animalIds.map(id => {
+    const a = (allAnimals ?? []).find(a => a.id === id);
+    return a ? String(a.tagNumber ?? a.earTagNumber ?? `#${id}`) : `#${id}`;
+  });
 
   return (
     <div className="py-1 space-y-3">
@@ -848,6 +973,27 @@ function VetVisitViewBody({ visit, visits }: { visit: Record<string, unknown> | 
         {v.timeOnFarmMinutes && <div><span className="text-xs font-medium text-gray-500">Time on farm</span><p className="text-gray-900">{String(v.timeOnFarmMinutes)} min</p></div>}
         {v.estimatedTotalGbp && <div><span className="text-xs font-medium text-gray-500">Est. cost</span><p className="text-gray-900">£{Number(v.estimatedTotalGbp).toFixed(2)}</p></div>}
       </div>
+
+      {(herdNames.length > 0 || animalTags.length > 0) && (
+        <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+          {herdNames.length > 0 && (
+            <div className="mb-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Herds / flocks seen</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {herdNames.map((n, i) => <span key={i} className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800 font-medium">{n}</span>)}
+              </div>
+            </div>
+          )}
+          {animalTags.length > 0 && (
+            <div>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Individual animals treated</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {animalTags.map((t, i) => <span key={i} className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800 font-mono">{t}</span>)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Reason for visit</p>
