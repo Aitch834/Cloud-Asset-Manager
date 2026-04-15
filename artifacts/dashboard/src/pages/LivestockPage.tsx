@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { useAppStore } from "@/hooks/use-app-store";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -3505,8 +3505,13 @@ function AnimalsSection({ farmId }: { farmId: number }) {
     queryKey: ["herds", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()),
   });
+  const { data: farmData } = useQuery<{ record: { name: string } }>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+  });
   const animals = animalsData?.records ?? [];
   const herds = herdsData?.records ?? [];
+  const farmName = farmData?.record?.name ?? "BDE Farm";
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("active");
@@ -3520,6 +3525,7 @@ function AnimalsSection({ farmId }: { farmId: number }) {
   const [viewAnimal, setViewAnimal] = useState<Animal | null>(null);
   const [profileAnimal, setProfileAnimal] = useState<Animal | null>(null);
   const [isSavingAnimalCode, setIsSavingAnimalCode] = useState(false);
+  const qrPrintRef = useRef<HTMLDivElement>(null);
 
   function setField(k: string, v: string) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -3738,6 +3744,9 @@ function AnimalsSection({ farmId }: { farmId: number }) {
       {qrAnimal && (() => {
         const autoCode = `ANM-${String(qrAnimal.id).padStart(4, "0")}`;
         const displayCode = qrAnimal.animalCode || null;
+        const tagLabel = qrAnimal.earTagNumber || qrAnimal.tagNumber || `Animal #${qrAnimal.id}`;
+        const qrValue = displayCode ? `BDE:F${farmId}:${displayCode}` : `BDE:F${farmId}:${autoCode}`;
+        const LCSS = `@page{size:62mm 90mm;margin:0}body{font-family:'Segoe UI',Arial,sans-serif;padding:10px 12px;text-align:center;background:#fff;margin:0}.brand{font-size:9px;color:#0f766e;font-weight:700;letter-spacing:.06em}.farm{font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px}svg{display:block;margin:0 auto}.code{font-family:monospace;font-size:17px;font-weight:700;color:#0f766e;margin-top:7px;letter-spacing:.1em}.iname{font-size:11px;font-weight:600;color:#374151;margin-top:3px}.hint{font-size:8px;color:#d1d5db;margin-top:4px}`;
         const saveAnimalCode = async (code: string) => {
           setIsSavingAnimalCode(true);
           try {
@@ -3746,34 +3755,47 @@ function AnimalsSection({ farmId }: { farmId: number }) {
             setQrAnimal(prev => prev ? { ...prev, animalCode: code } : null);
           } finally { setIsSavingAnimalCode(false); }
         };
+        function handleQrPrint() {
+          const win = window.open("", "_blank");
+          if (!win || !qrPrintRef.current) return;
+          win.document.write(`<html><head><title>Animal Label</title><style>${LCSS}</style></head><body>${qrPrintRef.current.innerHTML}</body></html>`);
+          win.document.close(); win.focus(); win.print(); win.close();
+        }
         return (
           <Dialog open onOpenChange={o => { if (!o) setQrAnimal(null); }}>
             <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2"><QrCode className="w-4 h-4 text-teal-600" /> Animal QR Label</DialogTitle>
               </DialogHeader>
-              <div className="flex flex-col items-center gap-4 py-2">
-                <p className="text-xs text-muted-foreground font-medium">{qrAnimal.earTagNumber || qrAnimal.tagNumber || `Animal #${qrAnimal.id}`}</p>
-                {displayCode ? (
-                  <>
-                    <span className="font-mono text-lg font-bold tracking-widest text-teal-700">{displayCode}</span>
-                    <QRCodeSVG value={displayCode} size={180} bgColor="#ffffff" fgColor="#0f766e" level="M" />
-                    <p className="text-xs text-muted-foreground text-center">Attach this label to the animal's record folder or paddock sign so field workers can scan it.</p>
-                    <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2"><Printer className="w-3.5 h-3.5" /> Print Label</Button>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-center w-[180px] h-[180px] border-2 border-dashed border-muted-foreground/30 rounded-lg">
-                      <QrCode className="w-16 h-16 text-muted-foreground/30" />
-                    </div>
-                    <p className="text-sm text-muted-foreground text-center">No QR code yet. Assign code <strong className="font-mono">{autoCode}</strong> to this animal.</p>
-                    <Button onClick={() => saveAnimalCode(autoCode)} disabled={isSavingAnimalCode} className="gap-2">
-                      {isSavingAnimalCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
-                      Generate QR Code
-                    </Button>
-                  </>
-                )}
-              </div>
+              {displayCode ? (
+                <>
+                  <div className="flex flex-col items-center gap-1.5 border rounded-xl bg-white px-5 py-3 shadow-sm" ref={qrPrintRef}>
+                    <p className="text-[11px] font-bold text-teal-700 tracking-widest mt-1">🌿 BDE Farm Trac</p>
+                    <hr className="w-full border-gray-200" />
+                    <p className="text-sm font-bold text-gray-900 uppercase tracking-wider">{farmName}</p>
+                    <QRCodeSVG value={qrValue} size={180} bgColor="#ffffff" fgColor="#0f766e" level="M" />
+                    <p className="font-mono text-xl font-bold tracking-widest text-teal-700 mt-1">{displayCode}</p>
+                    <p className="text-sm font-semibold text-gray-700">{tagLabel}</p>
+                    {qrAnimal.species && <p className="text-xs text-gray-400">{qrAnimal.species}{qrAnimal.breed ? ` · ${qrAnimal.breed}` : ""}</p>}
+                    <p className="text-[10px] text-gray-300 mb-1">Scan to view animal record</p>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" size="sm" onClick={() => setQrAnimal(null)}>Close</Button>
+                    <Button size="sm" onClick={handleQrPrint} className="gap-2"><Printer className="w-3.5 h-3.5" /> Print Label</Button>
+                  </DialogFooter>
+                </>
+              ) : (
+                <div className="flex flex-col items-center gap-4 py-2">
+                  <div className="flex items-center justify-center w-[180px] h-[180px] border-2 border-dashed border-muted-foreground/30 rounded-lg">
+                    <QrCode className="w-16 h-16 text-muted-foreground/30" />
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center">No QR code yet. Assign code <strong className="font-mono">{autoCode}</strong> to this animal.</p>
+                  <Button onClick={() => saveAnimalCode(autoCode)} disabled={isSavingAnimalCode} className="gap-2">
+                    {isSavingAnimalCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+                    Generate QR Code
+                  </Button>
+                </div>
+              )}
             </DialogContent>
           </Dialog>
         );

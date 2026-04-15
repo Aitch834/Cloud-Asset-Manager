@@ -56,18 +56,33 @@ function StatusBadge({ value, map }: { value: string; map: Record<string, { labe
 
 // ─── QR Label dialog ───────────────────────────────────────────────────────────
 
-function QRDialog({ equip, onClose }: { equip: { id: number; assetNumber?: string | null; name: string; make?: string | null; model?: string | null }; onClose: () => void }) {
+const LABEL_CSS = `
+  @page{size:62mm 90mm;margin:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;padding:10px 12px;text-align:center;background:#fff;margin:0}
+  .brand{font-size:9px;color:#0f766e;font-weight:700;letter-spacing:.06em;margin-bottom:3px}
+  .divider{border:none;border-top:1px solid #e5e7eb;margin:4px 0}
+  .farm{font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px}
+  svg{display:block;margin:0 auto}
+  .code{font-family:monospace;font-size:17px;font-weight:700;color:#0f766e;margin-top:7px;letter-spacing:.1em}
+  .iname{font-size:11px;font-weight:600;color:#374151;margin-top:3px}
+  .desc{font-size:9px;color:#9ca3af;margin-top:2px}
+  .hint{font-size:8px;color:#d1d5db;margin-top:4px}
+`;
+
+function QRDialog({ equip, farmId, farmName, onClose }: {
+  equip: { id: number; assetNumber?: string | null; name: string; make?: string | null; model?: string | null };
+  farmId: number;
+  farmName: string;
+  onClose: () => void;
+}) {
   const an = assetNumber(equip);
+  const qrValue = `BDE:F${farmId}:${an}`;
   const printRef = useRef<HTMLDivElement>(null);
 
   function handlePrint() {
     const win = window.open("", "_blank");
     if (!win || !printRef.current) return;
-    win.document.write(`<html><head><title>Asset Label — ${an}</title>
-      <style>body{font-family:sans-serif;padding:24px;text-align:center}
-        h2{font-size:18px;margin:8px 0}p{font-size:13px;color:#555;margin:4px 0}
-        svg{display:block;margin:0 auto}</style></head>
-      <body>${printRef.current.innerHTML}</body></html>`);
+    win.document.write(`<html><head><title>Asset Label — ${an}</title><style>${LABEL_CSS}</style></head><body>${printRef.current.innerHTML}</body></html>`);
     win.document.close();
     win.focus();
     win.print();
@@ -78,11 +93,15 @@ function QRDialog({ equip, onClose }: { equip: { id: number; assetNumber?: strin
     <Dialog open onOpenChange={onClose}>
       <DialogContent style={{ maxWidth: "22rem" }}>
         <DialogHeader><DialogTitle>Asset QR Label</DialogTitle></DialogHeader>
-        <div className="flex flex-col items-center gap-3 py-2" ref={printRef}>
-          <QRCodeSVG value={an} size={200} />
-          <p className="text-2xl font-bold tracking-widest">{an}</p>
-          <p className="text-sm text-gray-600 font-medium">{equip.name}</p>
-          {(equip.make || equip.model) && <p className="text-xs text-gray-400">{[equip.make, equip.model].filter(Boolean).join(" ")}</p>}
+        <div className="flex flex-col items-center gap-1.5 py-2 border rounded-xl bg-white px-5 shadow-sm" ref={printRef}>
+          <p className="brand text-[11px] font-bold text-teal-700 tracking-widest mt-1">🌿 BDE Farm Trac</p>
+          <hr className="divider w-full border-gray-200" />
+          <p className="farm text-sm font-bold text-gray-900 uppercase tracking-wider">{farmName}</p>
+          <QRCodeSVG value={qrValue} size={180} bgColor="#ffffff" fgColor="#0f766e" level="M" />
+          <p className="code font-mono text-xl font-bold tracking-widest text-teal-700 mt-1">{an}</p>
+          <p className="iname text-sm font-semibold text-gray-700">{equip.name}</p>
+          {(equip.make || equip.model) && <p className="desc text-xs text-gray-400">{[equip.make, equip.model].filter(Boolean).join(" · ")}</p>}
+          <p className="hint text-[10px] text-gray-300 mb-1">Scan to view equipment record</p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Close</Button>
@@ -117,6 +136,12 @@ function AssetsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [qrEquip, setQrEquip] = useState<Equipment | null>(null);
 
+  const { data: farmData } = useQuery<{ record: { name: string } }>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}`), { credentials: "include" }).then(r => r.json()),
+  });
+  const farmName = farmData?.record?.name ?? "BDE Farm";
+
   const { data, isLoading } = useQuery<{ records: Equipment[] }>({
     queryKey: ["equipment", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/equipment`), { credentials: "include" }).then(r => r.json()),
@@ -142,7 +167,7 @@ function AssetsTab({ farmId }: { farmId: number }) {
 
   return (
     <div>
-      {qrEquip && <QRDialog equip={qrEquip} onClose={() => setQrEquip(null)} />}
+      {qrEquip && <QRDialog equip={qrEquip} farmId={farmId} farmName={farmName} onClose={() => setQrEquip(null)} />}
       {equipment.length === 0 ? (
         <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No equipment registered. Add equipment on the Equipment page first.</CardContent></Card>
       ) : (

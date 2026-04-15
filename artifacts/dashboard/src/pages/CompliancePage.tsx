@@ -1716,9 +1716,9 @@ export default function CompliancePage() {
                     <Label>Vet name</Label>
                     {knownVetNames.length > 0 ? (
                       <Select
-                        value={diseaseForm.vetName && knownVetNames.includes(diseaseForm.vetName) ? diseaseForm.vetName : (diseaseForm.vetName ? "__other__" : "__none__")}
+                        value={"vetName" in diseaseForm && diseaseForm.vetName && knownVetNames.includes(diseaseForm.vetName) ? diseaseForm.vetName : ("vetName" in diseaseForm ? "__other__" : "__none__")}
                         onValueChange={v => {
-                          if (v === "__none__") setDiseaseForm(f => ({ ...f, vetName: "" }));
+                          if (v === "__none__") setDiseaseForm(f => { const nf = { ...f }; delete nf.vetName; return nf; });
                           else if (v === "__other__") setDiseaseForm(f => ({ ...f, vetName: "" }));
                           else setDiseaseForm(f => ({ ...f, vetName: v }));
                         }}
@@ -1733,7 +1733,7 @@ export default function CompliancePage() {
                     ) : (
                       <Input value={diseaseForm.vetName ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetName: e.target.value }))} placeholder="Vet name" />
                     )}
-                    {(knownVetNames.length > 0 && diseaseForm.vetName !== undefined && !knownVetNames.includes(diseaseForm.vetName)) && (
+                    {"vetName" in diseaseForm && !knownVetNames.includes(diseaseForm.vetName ?? "") && (
                       <Input className="mt-1" value={diseaseForm.vetName ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetName: e.target.value }))} placeholder="Type vet name" />
                     )}
                   </div>

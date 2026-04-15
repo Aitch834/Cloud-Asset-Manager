@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Warehouse, Plus, Pencil, Trash2, CheckCircle, XCircle, MapPin, QrCode,
@@ -1574,12 +1574,20 @@ export default function StorageLocationsPage() {
   const [qrLocation, setQrLocation] = useState<StorageLocation | null>(null);
   const [isSavingStorageCode, setIsSavingStorageCode] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const qrPrintRef = useRef<HTMLDivElement>(null);
 
   const locationsQ = useQuery({
     queryKey: ["storage-locations", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/storage-locations`, { credentials: "include" }).then((r) => r.json()),
     enabled: !!farmId,
   });
+
+  const { data: farmData } = useQuery<{ record: { name: string } }>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const farmName = farmData?.record?.name ?? "BDE Farm";
 
   const locations: StorageLocation[] = locationsQ.data?.records ?? [];
 
@@ -1835,6 +1843,8 @@ export default function StorageLocationsPage() {
         {qrLocation && (() => {
           const autoCode = `STG-${String(qrLocation.id).padStart(4, "0")}`;
           const displayCode = qrLocation.storageCode || null;
+          const qrValue = displayCode ? `BDE:F${farmId}:${displayCode}` : `BDE:F${farmId}:${autoCode}`;
+          const LCSS = `@page{size:62mm 90mm;margin:0}body{font-family:'Segoe UI',Arial,sans-serif;padding:10px 12px;text-align:center;background:#fff;margin:0}.brand{font-size:9px;color:#0f766e;font-weight:700;letter-spacing:.06em}.farm{font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px}svg{display:block;margin:0 auto}.code{font-family:monospace;font-size:17px;font-weight:700;color:#0f766e;margin-top:7px;letter-spacing:.1em}.iname{font-size:11px;font-weight:600;color:#374151;margin-top:3px}.hint{font-size:8px;color:#d1d5db;margin-top:4px}`;
           const saveStorageCode = async (code: string) => {
             setIsSavingStorageCode(true);
             try {
@@ -1846,34 +1856,46 @@ export default function StorageLocationsPage() {
               setQrLocation((prev) => prev ? { ...prev, storageCode: code } : null);
             } finally { setIsSavingStorageCode(false); }
           };
+          function handleQrPrint() {
+            const win = window.open("", "_blank");
+            if (!win || !qrPrintRef.current) return;
+            win.document.write(`<html><head><title>Storage Label</title><style>${LCSS}</style></head><body>${qrPrintRef.current.innerHTML}</body></html>`);
+            win.document.close(); win.focus(); win.print(); win.close();
+          }
           return (
             <Dialog open onOpenChange={(o) => { if (!o) setQrLocation(null); }}>
               <DialogContent style={{ maxWidth: "22rem" }} aria-describedby={undefined}>
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2"><QrCode className="w-4 h-4 text-teal-600" /> Storage Location QR Label</DialogTitle>
                 </DialogHeader>
-                <div className="flex flex-col items-center gap-4 py-2">
-                  <p className="text-xs text-muted-foreground font-medium">{qrLocation.name}</p>
-                  {displayCode ? (
-                    <>
-                      <span className="font-mono text-lg font-bold tracking-widest text-teal-700">{displayCode}</span>
-                      <QRCodeSVG value={displayCode} size={180} bgColor="#ffffff" fgColor="#0f766e" level="M" />
-                      <p className="text-xs text-muted-foreground text-center">Fix to the store entrance so field workers can scan on arrival to log deliveries and stock movements.</p>
-                      <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2"><Printer className="w-3.5 h-3.5" /> Print Label</Button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-center justify-center w-[180px] h-[180px] border-2 border-dashed border-muted-foreground/30 rounded-lg">
-                        <QrCode className="w-16 h-16 text-muted-foreground/30" />
-                      </div>
-                      <p className="text-sm text-muted-foreground text-center">No QR code yet. Assign code <strong className="font-mono">{autoCode}</strong> to this location.</p>
-                      <Button onClick={() => saveStorageCode(autoCode)} disabled={isSavingStorageCode} className="gap-2">
-                        {isSavingStorageCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
-                        Generate QR Code
-                      </Button>
-                    </>
-                  )}
-                </div>
+                {displayCode ? (
+                  <>
+                    <div className="flex flex-col items-center gap-1.5 border rounded-xl bg-white px-5 py-3 shadow-sm" ref={qrPrintRef}>
+                      <p className="text-[11px] font-bold text-teal-700 tracking-widest mt-1">🌿 BDE Farm Trac</p>
+                      <hr className="w-full border-gray-200" />
+                      <p className="text-sm font-bold text-gray-900 uppercase tracking-wider">{farmName}</p>
+                      <QRCodeSVG value={qrValue} size={180} bgColor="#ffffff" fgColor="#0f766e" level="M" />
+                      <p className="font-mono text-xl font-bold tracking-widest text-teal-700 mt-1">{displayCode}</p>
+                      <p className="text-sm font-semibold text-gray-700">{qrLocation.name}</p>
+                      <p className="text-[10px] text-gray-300 mb-1">Scan to log deliveries &amp; movements</p>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" size="sm" onClick={() => setQrLocation(null)}>Close</Button>
+                      <Button size="sm" onClick={handleQrPrint} className="gap-2"><Printer className="w-3.5 h-3.5" /> Print Label</Button>
+                    </DialogFooter>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-4 py-2">
+                    <div className="flex items-center justify-center w-[180px] h-[180px] border-2 border-dashed border-muted-foreground/30 rounded-lg">
+                      <QrCode className="w-16 h-16 text-muted-foreground/30" />
+                    </div>
+                    <p className="text-sm text-muted-foreground text-center">No QR code yet. Assign code <strong className="font-mono">{autoCode}</strong> to this location.</p>
+                    <Button onClick={() => saveStorageCode(autoCode)} disabled={isSavingStorageCode} className="gap-2">
+                      {isSavingStorageCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+                      Generate QR Code
+                    </Button>
+                  </div>
+                )}
               </DialogContent>
             </Dialog>
           );
