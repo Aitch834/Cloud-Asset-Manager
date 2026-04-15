@@ -70,6 +70,8 @@ export const feedRecallIncidentsTable = pgTable("feed_recall_incidents", {
   // Reason for concern
   concernType: text("concern_type"), // "contamination", "mislabelling", "supplier_recall", "disease_link", "regulatory_advice", "other"
   reasonForConcern: text("reason_for_concern").notNull(),
+  recallNoticeRef: text("recall_notice_ref"),      // supplier's official recall notice / reference number
+  recallDocumentUrl: text("recall_document_url"),  // URL/path to the recall letter or document
 
   // Impact assessment
   feedWithdrawn: boolean("feed_withdrawn").notNull().default(false),

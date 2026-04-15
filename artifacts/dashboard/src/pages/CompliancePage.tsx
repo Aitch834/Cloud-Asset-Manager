@@ -1413,16 +1413,24 @@ export default function CompliancePage() {
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span className="font-semibold text-gray-900">{String(r.productName ?? "Feed incident")}</span>
                         <StatusBadge status={String(r.status ?? "open")} />
+                        {r.concernType === "supplier_recall" ? <Badge className="text-xs" style={{ background: "#fef3c7", color: "#92400e", border: "none" }}>Supplier recall</Badge> : null}
                         {r.feedWithdrawn === true || r.feedWithdrawn === "true" ? <Badge className="text-xs" style={{ background: "#fee2e2", color: "#991b1b", border: "none" }}>Feed withdrawn</Badge> : null}
                         {r.reportedToAuthority === true || r.reportedToAuthority === "true" ? <Badge className="text-xs" style={{ background: "#f3e8ff", color: "#6b21a8", border: "none" }}>Authority notified</Badge> : null}
+                        {r.reportedToVet === true || r.reportedToVet === "true" ? <Badge className="text-xs" style={{ background: "#dbeafe", color: "#1e40af", border: "none" }}>Vet notified</Badge> : null}
                       </div>
                       <p className="text-xs text-gray-500 mb-1">
                         Raised: {fmtDate(String(r.raisedDate))}
                         {r.feedBatchRef ? ` — Batch: ${String(r.feedBatchRef)}` : ""}
                         {r.supplierName ? ` — Supplier: ${String(r.supplierName)}` : ""}
+                        {r.recallNoticeRef ? ` — Notice ref: ${String(r.recallNoticeRef)}` : ""}
                       </p>
                       <p className="text-sm text-gray-700 line-clamp-2">{String(r.reasonForConcern ?? "")}</p>
                       {!!r.estimatedAnimalsAffected && <p className="text-xs text-gray-500 mt-1">Est. animals affected: {String(r.estimatedAnimalsAffected)}</p>}
+                      {!!r.recallDocumentUrl && (
+                        <a href={String(r.recallDocumentUrl)} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-block">
+                          View recall notice →
+                        </a>
+                      )}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <Button size="sm" variant="ghost" onClick={() => openRecallEdit(r)} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
@@ -1862,65 +1870,160 @@ export default function CompliancePage() {
             {/* Actions */}
             <div><Label>Actions taken</Label><Textarea rows={3} value={recallForm.actionsTaken ?? ""} onChange={e => setRecallForm(f => ({ ...f, actionsTaken: e.target.value }))} placeholder="What was done with the affected feed? Who was contacted? What replacement was sourced?" /></div>
 
-            {/* Notifications */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-xs font-semibold text-blue-800 mb-2">Notifications</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <Label>Supplier notified?</Label>
-                  <Select value={recallForm.reportedToSupplier ?? "false"} onValueChange={v => setRecallForm(f => ({ ...f, reportedToSupplier: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="false">No</SelectItem>
-                      <SelectItem value="true">Yes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {recallForm.reportedToSupplier === "true" && <>
-                  <div><Label>Date notified</Label><Input type="date" value={recallForm.supplierNotifiedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, supplierNotifiedDate: e.target.value }))} /></div>
-                  <div><Label>Supplier reference</Label><Input value={recallForm.supplierReference ?? ""} onChange={e => setRecallForm(f => ({ ...f, supplierReference: e.target.value }))} /></div>
-                </>}
-                <div>
-                  <Label>Authority notified?</Label>
-                  <Select value={recallForm.reportedToAuthority ?? "false"} onValueChange={v => setRecallForm(f => ({ ...f, reportedToAuthority: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="false">No</SelectItem>
-                      <SelectItem value="true">Yes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {recallForm.reportedToAuthority === "true" && <>
+            {/* Recall notice document (supplier-issued recalls) */}
+            {recallForm.concernType === "supplier_recall" && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-amber-800 mb-1">Supplier Recall Notice</p>
+                <p className="text-xs text-amber-700 mb-3">
+                  Suppliers typically issue a formal written recall or withdrawal notice. Record the reference from that letter and link to the document below.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label>Authority</Label>
-                    <Select value={recallForm.authorityName ?? "__none__"} onValueChange={v => setRecallForm(f => ({ ...f, authorityName: v === "__none__" ? "" : v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <Label>Recall notice reference</Label>
+                    <Input
+                      value={recallForm.recallNoticeRef ?? ""}
+                      onChange={e => setRecallForm(f => ({ ...f, recallNoticeRef: e.target.value }))}
+                      placeholder="e.g. SUP-2024-RC-1042"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">The reference number printed on the supplier's recall letter.</p>
+                  </div>
+                  <div>
+                    <Label>Recall notice document URL</Label>
+                    <Input
+                      value={recallForm.recallDocumentUrl ?? ""}
+                      onChange={e => setRecallForm(f => ({ ...f, recallDocumentUrl: e.target.value }))}
+                      placeholder="Paste a link to the recall letter (email, shared drive…)"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Paste a link to the scanned letter or forwarded email if available.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Notifications — each party in its own section */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-3">
+              <p className="text-xs font-semibold text-blue-800">Notifications</p>
+
+              {/* Supplier notification — hidden when supplier initiated the recall */}
+              {recallForm.concernType !== "supplier_recall" ? (
+                <div className="bg-white border border-blue-100 rounded-lg p-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-xs font-medium text-gray-700 w-32 shrink-0">Supplier notified?</span>
+                    <div className="w-28 shrink-0">
+                      <Select value={recallForm.reportedToSupplier ?? "false"} onValueChange={v => setRecallForm(f => ({ ...f, reportedToSupplier: v }))}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="false">No</SelectItem>
+                          <SelectItem value="true">Yes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {recallForm.reportedToSupplier === "true" && <>
+                      <div className="flex-1 min-w-[120px]">
+                        <Label className="text-xs">Date notified</Label>
+                        <Input type="date" className="h-8 text-sm" value={recallForm.supplierNotifiedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, supplierNotifiedDate: e.target.value }))} />
+                      </div>
+                      <div className="flex-1 min-w-[140px]">
+                        <Label className="text-xs">Supplier reference</Label>
+                        <Input className="h-8 text-sm" value={recallForm.supplierReference ?? ""} onChange={e => setRecallForm(f => ({ ...f, supplierReference: e.target.value }))} placeholder="Their ref / ticket number" />
+                      </div>
+                    </>}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-100 rounded-lg p-2.5">
+                  <p className="text-xs text-amber-700">
+                    <span className="font-medium">Supplier-initiated recall</span> — the supplier has already notified you. Record their reference number and document above.
+                  </p>
+                </div>
+              )}
+
+              {/* Authority notification */}
+              <div className="bg-white border border-blue-100 rounded-lg p-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-xs font-medium text-gray-700 w-32 shrink-0">Authority notified?</span>
+                  <div className="w-28 shrink-0">
+                    <Select value={recallForm.reportedToAuthority ?? "false"} onValueChange={v => setRecallForm(f => ({ ...f, reportedToAuthority: v }))}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="APHA">APHA</SelectItem>
-                        <SelectItem value="Trading Standards">Trading Standards</SelectItem>
-                        <SelectItem value="FSA">Food Standards Agency (FSA)</SelectItem>
-                        <SelectItem value="DEFRA">DEFRA</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
+                        <SelectItem value="false">No</SelectItem>
+                        <SelectItem value="true">Yes</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div><Label>Authority reference</Label><Input value={recallForm.authorityReference ?? ""} onChange={e => setRecallForm(f => ({ ...f, authorityReference: e.target.value }))} /></div>
-                  <div><Label>Date notified</Label><Input type="date" value={recallForm.authorityNotifiedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, authorityNotifiedDate: e.target.value }))} /></div>
-                </>}
-                <div>
-                  <Label>Vet notified?</Label>
-                  <Select value={recallForm.reportedToVet ?? "false"} onValueChange={v => setRecallForm(f => ({ ...f, reportedToVet: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="false">No</SelectItem>
-                      <SelectItem value="true">Yes</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {recallForm.reportedToAuthority === "true" && <>
+                    <div className="w-44 shrink-0">
+                      <Label className="text-xs">Authority</Label>
+                      <Select value={recallForm.authorityName ?? "__none__"} onValueChange={v => setRecallForm(f => ({ ...f, authorityName: v === "__none__" ? "" : v }))}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="APHA">APHA</SelectItem>
+                          <SelectItem value="Trading Standards">Trading Standards</SelectItem>
+                          <SelectItem value="FSA">Food Standards Agency (FSA)</SelectItem>
+                          <SelectItem value="DEFRA">DEFRA</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex-1 min-w-[120px]">
+                      <Label className="text-xs">Date notified</Label>
+                      <Input type="date" className="h-8 text-sm" value={recallForm.authorityNotifiedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, authorityNotifiedDate: e.target.value }))} />
+                    </div>
+                    <div className="flex-1 min-w-[140px]">
+                      <Label className="text-xs">Authority reference</Label>
+                      <Input className="h-8 text-sm" value={recallForm.authorityReference ?? ""} onChange={e => setRecallForm(f => ({ ...f, authorityReference: e.target.value }))} />
+                    </div>
+                  </>}
                 </div>
-                {recallForm.reportedToVet === "true" && <>
-                  <div><Label>Vet name</Label><Input value={recallForm.vetName ?? ""} onChange={e => setRecallForm(f => ({ ...f, vetName: e.target.value }))} /></div>
-                  <div><Label>Date notified</Label><Input type="date" value={recallForm.vetNotifiedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, vetNotifiedDate: e.target.value }))} /></div>
-                </>}
+              </div>
+
+              {/* Vet notification — vet name from lookup */}
+              <div className="bg-white border border-blue-100 rounded-lg p-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-xs font-medium text-gray-700 w-32 shrink-0">Vet notified?</span>
+                  <div className="w-28 shrink-0">
+                    <Select value={recallForm.reportedToVet ?? "false"} onValueChange={v => setRecallForm(f => ({ ...f, reportedToVet: v }))}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="false">No</SelectItem>
+                        <SelectItem value="true">Yes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {recallForm.reportedToVet === "true" && <>
+                    <div className="flex-1 min-w-[160px]">
+                      <Label className="text-xs">Vet name</Label>
+                      {knownVetNames.length > 0 ? (
+                        <>
+                          <Select
+                            value={recallForm.vetName && knownVetNames.includes(recallForm.vetName) ? recallForm.vetName : (recallForm.vetName ? "__other__" : "__none__")}
+                            onValueChange={v => {
+                              if (v === "__none__") setRecallForm(f => ({ ...f, vetName: "" }));
+                              else if (v === "__other__") setRecallForm(f => ({ ...f, vetName: "" }));
+                              else setRecallForm(f => ({ ...f, vetName: v }));
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select vet…" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">— Select vet —</SelectItem>
+                              {knownVetNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                              <SelectItem value="__other__">Other / type manually</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {recallForm.vetName !== undefined && !knownVetNames.includes(recallForm.vetName) && (
+                            <Input className="mt-1 h-8 text-sm" value={recallForm.vetName ?? ""} onChange={e => setRecallForm(f => ({ ...f, vetName: e.target.value }))} placeholder="Type vet name" />
+                          )}
+                        </>
+                      ) : (
+                        <Input className="h-8 text-sm" value={recallForm.vetName ?? ""} onChange={e => setRecallForm(f => ({ ...f, vetName: e.target.value }))} placeholder="Vet name" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-[120px]">
+                      <Label className="text-xs">Date notified</Label>
+                      <Input type="date" className="h-8 text-sm" value={recallForm.vetNotifiedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, vetNotifiedDate: e.target.value }))} />
+                    </div>
+                  </>}
+                </div>
               </div>
             </div>
 
