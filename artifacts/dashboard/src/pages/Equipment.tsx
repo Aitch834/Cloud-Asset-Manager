@@ -74,7 +74,14 @@ interface EquipmentFormData {
   yearOfManufacture: string;
   location: string;
   notes: string;
+  status: string;
 }
+
+const OPERATIONAL_STATUSES = [
+  { value: "active",     label: "Operational" },
+  { value: "broken",     label: "Broken Down" },
+  { value: "in-service", label: "In Service (Scheduled Maintenance)" },
+];
 
 interface MaintenanceLog {
   id: number;
@@ -587,19 +594,19 @@ export default function EquipmentPage() {
       yearOfManufacture: item.yearOfManufacture ? String(item.yearOfManufacture) : "",
       location: item.location ?? "",
       notes: item.notes ?? "",
+      status: item.status === "disposed" ? "active" : (item.status ?? "active"),
     });
   };
 
   const onEdit = (formValues: EquipmentFormData) => {
     if (!managingItem) return;
-    updateMutation.mutate({
-      id: managingItem.id,
-      body: {
-        ...formValues,
-        yearOfManufacture: formValues.yearOfManufacture ? parseInt(formValues.yearOfManufacture, 10) : undefined,
-        photos: JSON.stringify(editPhotos),
-      },
-    });
+    const body: Record<string, unknown> = {
+      ...formValues,
+      yearOfManufacture: formValues.yearOfManufacture ? parseInt(formValues.yearOfManufacture, 10) : undefined,
+      photos: JSON.stringify(editPhotos),
+    };
+    if (managingItem.status === "disposed") delete body.status;
+    updateMutation.mutate({ id: managingItem.id, body });
   };
 
   const allEquipment = (data?.records ?? []) as unknown as EquipmentRecord[];
@@ -926,6 +933,19 @@ export default function EquipmentPage() {
                   <Label>Location / Storage</Label>
                   <Input {...regEdit("location")} className="mt-1" />
                 </div>
+                {managingItem.status !== "disposed" && (
+                  <div className="col-span-2">
+                    <Label>Operational Status</Label>
+                    <select
+                      {...regEdit("status")}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      {OPERATIONAL_STATUSES.map(s => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="col-span-2">
                   <Label>Notes</Label>
                   <textarea {...regEdit("notes")} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y" />

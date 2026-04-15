@@ -127,8 +127,7 @@ function entityStatus(type: EntityType, data: Record<string, unknown>): { label:
     active:       { label: "Operational",  colour: "#16a34a" },
     broken:       { label: "Broken Down",  colour: "#dc2626" },
     "in-service": { label: "In Service",   colour: "#d97706" },
-    retired:      { label: "Retired",      colour: "#6b7280" },
-    sold:         { label: "Sold",         colour: "#6b7280" },
+    disposed:     { label: "Disposed",     colour: "#6b7280" },
   };
   const STATUS_ANI: Record<string, { label: string; colour: string }> = {
     active:      { label: "Active",     colour: "#16a34a" },

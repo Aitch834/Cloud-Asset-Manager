@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Package, ArrowDownToLine, ArrowUpFromLine, History, TriangleAlert, Search, X, FileText, Download, Upload, ChevronRight, Info } from "lucide-react";
+import { Plus, QrCode, Printer, Wrench, AlertTriangle, Clock, CheckCircle2, XCircle, Loader2, Pencil, Trash2, ChevronDown, Package, ArrowDownToLine, ArrowUpFromLine, History, TriangleAlert, Search, X, FileText, Download, Upload, ChevronRight, Info, Eye, EyeOff } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,9 +45,25 @@ const EQUIP_STATUS: Record<string, { label: string; colour: string }> = {
   active:        { label: "Operational",    colour: "bg-green-100 text-green-700" },
   broken:        { label: "Broken Down",    colour: "bg-red-100 text-red-700" },
   "in-service":  { label: "In Service",     colour: "bg-amber-100 text-amber-700" },
-  retired:       { label: "Retired",        colour: "bg-gray-100 text-gray-500" },
-  sold:          { label: "Sold",           colour: "bg-gray-100 text-gray-500" },
+  disposed:      { label: "Disposed",       colour: "bg-gray-100 text-gray-500" },
 };
+
+const DISPOSAL_METHOD_LABELS: Record<string, string> = {
+  sold:         "Sold",
+  scrapped:     "Scrapped",
+  part_exchange:"Part Exchange",
+  stolen:       "Stolen / Lost",
+  transferred:  "Transferred",
+  other:        "Disposed",
+};
+
+function EquipStatusCell({ eq }: { eq: Equipment }) {
+  if (eq.status === "disposed") {
+    const label = DISPOSAL_METHOD_LABELS[eq.disposalMethod ?? ""] ?? "Disposed";
+    return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500">{label}</span>;
+  }
+  return <StatusBadge value={eq.status} map={EQUIP_STATUS} />;
+}
 
 function StatusBadge({ value, map }: { value: string; map: Record<string, { label: string; colour: string }> }) {
   const s = map[value] ?? { label: value, colour: "bg-gray-100 text-gray-600" };
@@ -130,11 +146,15 @@ interface Equipment {
   status: string;
   location: string | null;
   isActive: boolean;
+  disposalMethod: string | null;
+  disposalDate: string | null;
+  disposalBuyerOrContractor: string | null;
 }
 
 function AssetsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [qrEquip, setQrEquip] = useState<Equipment | null>(null);
+  const [showDisposed, setShowDisposed] = useState(false);
 
   const { data: farmData } = useQuery<{ record: { name: string } }>({
     queryKey: ["farm", farmId],
@@ -163,60 +183,74 @@ function AssetsTab({ farmId }: { farmId: number }) {
 
   if (isLoading) return <div className="py-12 text-center text-gray-400"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>;
 
-  const equipment = data?.records ?? [];
+  const allEquipment = data?.records ?? [];
+  const disposedCount = allEquipment.filter(e => e.status === "disposed").length;
+  const equipment = showDisposed ? allEquipment : allEquipment.filter(e => e.status !== "disposed");
 
   return (
     <div>
       {qrEquip && <QRDialog equip={qrEquip} farmId={farmId} farmName={farmName} onClose={() => setQrEquip(null)} />}
-      {equipment.length === 0 ? (
+      {allEquipment.length === 0 ? (
         <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No equipment registered. Add equipment on the Equipment page first.</CardContent></Card>
       ) : (
-        <div className="overflow-x-auto rounded-lg border bg-white">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="px-4 py-3 text-left">Asset No.</th>
-                <th className="px-4 py-3 text-left">Name</th>
-                <th className="px-4 py-3 text-left">Type</th>
-                <th className="px-4 py-3 text-left">Make / Model</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Hours</th>
-                <th className="px-4 py-3 text-left">Location</th>
-                <th className="px-4 py-3 text-left">QR</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {equipment.map(eq => (
-                <tr key={eq.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    {eq.assetNumber ? (
-                      <span className="font-mono font-semibold text-primary">{eq.assetNumber}</span>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-sm text-gray-400 tabular-nums">{assetNumber(eq)}</span>
-                        <Button size="sm" variant="outline" className="h-5 text-[10px] px-1.5 border-dashed"
-                          onClick={() => assignNumber.mutate(eq)} disabled={assignNumber.isPending}
-                          title="Save this asset number permanently">
-                          Save
-                        </Button>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-medium">{eq.name}</td>
-                  <td className="px-4 py-3 text-gray-500">{eq.type}</td>
-                  <td className="px-4 py-3 text-gray-500">{[eq.make, eq.model].filter(Boolean).join(" ") || "—"}</td>
-                  <td className="px-4 py-3"><StatusBadge value={eq.status} map={EQUIP_STATUS} /></td>
-                  <td className="px-4 py-3 text-gray-500">{eq.currentHours != null ? `${eq.currentHours} hrs` : "—"}</td>
-                  <td className="px-4 py-3 text-gray-500">{eq.location || "—"}</td>
-                  <td className="px-4 py-3">
-                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setQrEquip(eq)}>
-                      <QrCode className="h-4 w-4" />
-                    </Button>
-                  </td>
+        <div className="space-y-3">
+          {disposedCount > 0 && (
+            <div className="flex items-center justify-end">
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={() => setShowDisposed(v => !v)}>
+                {showDisposed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {showDisposed ? "Hide disposed assets" : `Show ${disposedCount} disposed asset${disposedCount !== 1 ? "s" : ""}`}
+              </Button>
+            </div>
+          )}
+          <div className="overflow-x-auto rounded-lg border bg-white">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-4 py-3 text-left">Asset No.</th>
+                  <th className="px-4 py-3 text-left">Name</th>
+                  <th className="px-4 py-3 text-left">Type</th>
+                  <th className="px-4 py-3 text-left">Make / Model</th>
+                  <th className="px-4 py-3 text-left">Status</th>
+                  <th className="px-4 py-3 text-left">Hours</th>
+                  <th className="px-4 py-3 text-left">Location</th>
+                  <th className="px-4 py-3 text-left">QR</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y">
+                {equipment.map(eq => (
+                  <tr key={eq.id} className={cn("hover:bg-gray-50", eq.status === "disposed" && "opacity-60")}>
+                    <td className="px-4 py-3">
+                      {eq.assetNumber ? (
+                        <span className="font-mono font-semibold text-primary">{eq.assetNumber}</span>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-sm text-gray-400 tabular-nums">{assetNumber(eq)}</span>
+                          {eq.status !== "disposed" && (
+                            <Button size="sm" variant="outline" className="h-5 text-[10px] px-1.5 border-dashed"
+                              onClick={() => assignNumber.mutate(eq)} disabled={assignNumber.isPending}
+                              title="Save this asset number permanently">
+                              Save
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-medium">{eq.name}</td>
+                    <td className="px-4 py-3 text-gray-500">{eq.type}</td>
+                    <td className="px-4 py-3 text-gray-500">{[eq.make, eq.model].filter(Boolean).join(" ") || "—"}</td>
+                    <td className="px-4 py-3"><EquipStatusCell eq={eq} /></td>
+                    <td className="px-4 py-3 text-gray-500">{eq.currentHours != null ? `${eq.currentHours} hrs` : "—"}</td>
+                    <td className="px-4 py-3 text-gray-500">{eq.location || "—"}</td>
+                    <td className="px-4 py-3">
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setQrEquip(eq)}>
+                        <QrCode className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -956,7 +990,8 @@ function FleetOverviewTab({ farmId, onNavigate }: { farmId: number; onNavigate: 
     queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs`), { credentials: "include" }).then(r => r.json()),
   });
 
-  const equipment = equipData?.records ?? [];
+  const allEquip = equipData?.records ?? [];
+  const equipment = allEquip.filter(e => e.status !== "disposed");
   const jobs = jobData?.jobs ?? [];
 
   const byStatus = equipment.reduce((acc, eq) => { acc[eq.status] = (acc[eq.status] || 0) + 1; return acc; }, {} as Record<string, number>);
