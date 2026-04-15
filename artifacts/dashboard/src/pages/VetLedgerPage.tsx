@@ -15,6 +15,7 @@ import {
   CheckCircle2, Clock, AlertCircle, X, ExternalLink,
   ChevronRight, Package,
 } from "lucide-react";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -294,7 +295,8 @@ export default function VetLedgerPage() {
   const unreconciled = invoices.filter(i => i.reconciliationStatus !== "reconciled").length;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <AppLayout title="Vet Ledger">
+    <div className="max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-3">
@@ -809,6 +811,7 @@ export default function VetLedgerPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </AppLayout>
   );
 }
 
