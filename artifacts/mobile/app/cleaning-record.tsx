@@ -22,6 +22,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiCoshh } from "@/lib/hooks/useApiCoshh";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { CleaningRecord } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
@@ -55,7 +56,8 @@ export default function CleaningRecordScreen() {
 
   const [area, setArea] = useState("");
   const [cleaningType, setCleaningType] = useState("");
-  const [productsUsed, setProductsUsed] = useState("");
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [customProductInput, setCustomProductInput] = useState("");
   const [dilutionRate, setDilutionRate] = useState("");
   const [contactTime, setContactTime] = useState("");
   const [cleanedBy, setCleanedBy] = useState(user?.name || "");
@@ -63,6 +65,30 @@ export default function CleaningRecordScreen() {
   const [nextDueDate, setNextDueDate] = useState("");
   const [verifiedBy, setVerifiedBy] = useState("");
   const [notes, setNotes] = useState("");
+
+  const { records: coshhRecords } = useApiCoshh(currentFarm?.id ? String(currentFarm.id) : undefined);
+  const coshhSubstances = coshhRecords.map(r => r.substanceName).filter(Boolean);
+
+  function toggleProduct(name: string) {
+    Haptics.selectionAsync();
+    setSelectedProducts(prev =>
+      prev.includes(name) ? prev.filter(p => p !== name) : [...prev, name]
+    );
+  }
+
+  function addCustomProduct() {
+    const val = customProductInput.trim();
+    if (!val) return;
+    if (!selectedProducts.includes(val)) {
+      setSelectedProducts(prev => [...prev, val]);
+    }
+    setCustomProductInput("");
+  }
+
+  function removeProduct(name: string) {
+    Haptics.selectionAsync();
+    setSelectedProducts(prev => prev.filter(p => p !== name));
+  }
 
   const handleSave = async () => {
     if (!area.trim() || !cleaningType) {
@@ -95,7 +121,7 @@ export default function CleaningRecordScreen() {
       farmId: currentFarm?.id || "",
       area: area.trim(),
       cleaningType,
-      productsUsed: productsUsed.trim(),
+      productsUsed: selectedProducts.join(", "),
       dilutionRate: dilutionRate.trim(),
       contactTime: contactTime.trim(),
       cleanedBy: cleanedBy.trim(),
@@ -145,10 +171,10 @@ export default function CleaningRecordScreen() {
               return (
                 <Pressable
                   key={a}
-                  style={[styles.chip, selected && { backgroundColor: "#e0f2fe", borderColor: "#0891b2" }]}
+                  style={[styles.chip, selected && styles.chipSelected]}
                   onPress={() => { Haptics.selectionAsync(); setArea(a); }}
                 >
-                  <Text style={[styles.chipText, selected && { color: "#0891b2", fontFamily: fonts.semiBold }]}>{a}</Text>
+                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{a}</Text>
                 </Pressable>
               );
             })}
@@ -171,11 +197,11 @@ export default function CleaningRecordScreen() {
               return (
                 <Pressable
                   key={ct.key}
-                  style={[styles.chip, selected && { backgroundColor: "#e0f2fe", borderColor: "#0891b2" }]}
+                  style={[styles.chip, selected && styles.chipSelected]}
                   onPress={() => { Haptics.selectionAsync(); setCleaningType(ct.key); }}
                 >
                   <Feather name={ct.icon} size={12} color={selected ? "#0891b2" : colors.textSecondary} />
-                  <Text style={[styles.chipText, selected && { color: "#0891b2", fontFamily: fonts.semiBold }]}>{ct.label}</Text>
+                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{ct.label}</Text>
                 </Pressable>
               );
             })}
@@ -184,15 +210,70 @@ export default function CleaningRecordScreen() {
           {/* Products & Method */}
           <View style={styles.sectionLabel}>
             <Feather name="droplet" size={14} color={colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Products & Method</Text>
+            <Text style={styles.sectionTitle}>Products Used</Text>
           </View>
-          <Input
-            placeholder="Product(s) used, e.g. Virkon S, Citric acid"
-            value={productsUsed}
-            onChangeText={setProductsUsed}
-            style={{ marginBottom: spacing.sm }}
-          />
+
+          {/* Selected product chips */}
+          {selectedProducts.length > 0 && (
+            <View style={styles.selectedProductsRow}>
+              {selectedProducts.map(p => (
+                <Pressable
+                  key={p}
+                  style={styles.productChipSelected}
+                  onPress={() => removeProduct(p)}
+                >
+                  <Text style={styles.productChipSelectedText}>{p}</Text>
+                  <Feather name="x" size={11} color="#0e7490" />
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {/* COSHH register chips */}
+          {coshhSubstances.length > 0 && (
+            <>
+              <Text style={styles.fieldLabel}>From COSHH register — tap to add:</Text>
+              <View style={styles.chipGrid}>
+                {coshhSubstances.map(name => {
+                  const selected = selectedProducts.includes(name);
+                  return (
+                    <Pressable
+                      key={name}
+                      style={[styles.chip, selected && styles.chipSelected]}
+                      onPress={() => toggleProduct(name)}
+                    >
+                      {selected && <Feather name="check" size={11} color="#0891b2" />}
+                      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          )}
+
+          {/* Custom product input */}
+          <Text style={[styles.fieldLabel, { marginTop: coshhSubstances.length > 0 ? spacing.xs : 0 }]}>
+            {coshhSubstances.length > 0 ? "Or add unlisted product:" : "Product(s) used:"}
+          </Text>
           <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Input
+                placeholder={coshhSubstances.length > 0 ? "Type product name…" : "e.g. Virkon S, Citric acid"}
+                value={customProductInput}
+                onChangeText={setCustomProductInput}
+                onSubmitEditing={addCustomProduct}
+                returnKeyType="done"
+              />
+            </View>
+            {customProductInput.trim().length > 0 && (
+              <Pressable style={styles.addButton} onPress={addCustomProduct}>
+                <Feather name="plus" size={18} color="#fff" />
+              </Pressable>
+            )}
+          </View>
+
+          {/* Dilution & Contact */}
+          <View style={[styles.row, { marginTop: spacing.sm }]}>
             <View style={styles.halfInput}>
               <Text style={styles.fieldLabel}>Dilution rate</Text>
               <Input
@@ -325,15 +406,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  chipText: {
-    fontFamily: fonts.medium,
-    fontSize: fontSize.sm,
-    color: colors.text,
+  chipSelected: { backgroundColor: "#e0f2fe", borderColor: "#0891b2" },
+  chipText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
+  chipTextSelected: { color: "#0891b2", fontFamily: fonts.semiBold },
+  selectedProductsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  productChipSelected: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: "#cffafe",
+    borderWidth: 1,
+    borderColor: "#67e8f9",
+  },
+  productChipSelectedText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    color: "#0e7490",
   },
   row: {
     flexDirection: "row",
     gap: spacing.sm,
     marginBottom: spacing.sm,
+    alignItems: "flex-end",
   },
   halfInput: { flex: 1 },
   fieldLabel: {
@@ -341,5 +443,14 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     marginBottom: spacing.xs,
+  },
+  addButton: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: "#0891b2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
   },
 });
