@@ -240,6 +240,112 @@ function SpeciesStockCard({
   );
 }
 
+function HerdMultiPicker({
+  herdNames,
+  selected,
+  onChange,
+}: {
+  herdNames: string[];
+  selected: string[];
+  onChange: (v: string[]) => void;
+}) {
+  if (herdNames.length === 0) return <p className="text-xs text-gray-400 italic">No herds/flocks on record — add them in the Livestock module first.</p>;
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="max-h-36 overflow-y-auto divide-y divide-gray-100">
+        {herdNames.map(name => {
+          const checked = selected.includes(name);
+          return (
+            <label key={name} className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 text-sm ${checked ? "bg-green-50" : ""}`}>
+              <input
+                type="checkbox"
+                className="accent-green-700"
+                checked={checked}
+                onChange={() => onChange(checked ? selected.filter(h => h !== name) : [...selected, name])}
+              />
+              <span>{name}</span>
+            </label>
+          );
+        })}
+      </div>
+      {selected.length > 0 && (
+        <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-100 flex flex-wrap gap-1">
+          {selected.map(h => (
+            <span key={h} className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-800 rounded-full px-2 py-0.5">
+              {h}
+              <button type="button" onClick={() => onChange(selected.filter(x => x !== h))} className="text-green-600 hover:text-green-900 ml-0.5">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnimalMultiPicker({
+  animals,
+  selected,
+  onChange,
+  filterSpecies,
+  placeholder,
+}: {
+  animals: Array<{ id: number; tagNumber?: string | null; earTagNumber?: string | null; species: string; breed?: string | null; sex?: string | null; herdName?: string | null }>;
+  selected: number[];
+  onChange: (v: number[]) => void;
+  filterSpecies?: string;
+  placeholder?: string;
+}) {
+  const [search, setSearch] = React.useState("");
+  const filtered = animals.filter(a => {
+    if (filterSpecies && filterSpecies !== "__none__" && a.species !== filterSpecies) return false;
+    const tag = a.earTagNumber ?? a.tagNumber ?? String(a.id);
+    return tag.toLowerCase().includes(search.toLowerCase());
+  });
+
+  if (animals.length === 0) return <p className="text-xs text-gray-400 italic">{placeholder ?? "No animals registered in the Individual Animal Register."}</p>;
+
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="px-2 py-1.5 border-b border-gray-100 bg-gray-50">
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by tag number…"
+          className="w-full text-xs border-0 bg-transparent outline-none placeholder:text-gray-400"
+        />
+      </div>
+      <div className="max-h-44 overflow-y-auto divide-y divide-gray-100">
+        {filtered.length === 0 ? (
+          <p className="text-xs text-gray-400 italic px-3 py-2">No matching animals</p>
+        ) : filtered.map(a => {
+          const tag = a.earTagNumber ?? a.tagNumber ?? `#${a.id}`;
+          const desc = [a.species, a.breed, a.sex].filter(Boolean).join(" · ");
+          const checked = selected.includes(a.id);
+          return (
+            <label key={a.id} className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 ${checked ? "bg-green-50" : ""}`}>
+              <input
+                type="checkbox"
+                className="accent-green-700"
+                checked={checked}
+                onChange={() => onChange(checked ? selected.filter(id => id !== a.id) : [...selected, a.id])}
+              />
+              <span className="text-sm font-mono font-medium">{tag}</span>
+              {desc && <span className="text-xs text-gray-500">{desc}</span>}
+            </label>
+          );
+        })}
+      </div>
+      {selected.length > 0 && (
+        <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+          <span className="text-xs text-gray-600 font-medium">{selected.length} animal{selected.length !== 1 ? "s" : ""} selected</span>
+          <button type="button" className="text-xs text-red-600 hover:text-red-800" onClick={() => onChange([])}>Clear</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CompliancePage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
@@ -258,6 +364,10 @@ export default function CompliancePage() {
   const [showDiseaseDialog, setShowDiseaseDialog] = useState(false);
   const [editDisease, setEditDisease] = useState<Record<string, unknown> | null>(null);
   const [diseaseForm, setDiseaseForm] = useState<Record<string, string>>({});
+  const [diseaseHerds, setDiseaseHerds] = useState<string[]>([]);
+  const [diseaseAffectedIds, setDiseaseAffectedIds] = useState<number[]>([]);
+  const [diseaseMortalityIds, setDiseaseMortalityIds] = useState<number[]>([]);
+  const [showAllDiseases, setShowAllDiseases] = useState(false);
 
   // ── Feed recall state
   const [showRecallDialog, setShowRecallDialog] = useState(false);
@@ -330,6 +440,16 @@ export default function CompliancePage() {
     queryFn: () => fetch(`/api/farms/${farmId}/feed-purchase-orders`).then(r => r.json()).then(d => d.records ?? []),
     enabled: !!farmId && tab === "contingency",
   });
+  const animalsQ = useQuery<Record<string, unknown>[]>({
+    queryKey: ["animals-compliance", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/animals`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId && tab === "disease",
+  });
+  const medicinesQ = useQuery<Record<string, unknown>[]>({
+    queryKey: ["medicine-records-compliance", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/medicine-records`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId && tab === "disease",
+  });
 
   function invalidate() {
     qc.invalidateQueries({ queryKey: ["biosecurity-plan", farmId] });
@@ -371,8 +491,16 @@ export default function CompliancePage() {
   const allSuppliers: Record<string, unknown>[] = (suppliersQ.data ?? []).filter((s: Record<string, unknown>) => s.isActive !== false);
   const vetRecords: Record<string, unknown>[] = vetPlansQ.data ?? [];
   const knownVetNames: string[] = [...new Set(vetRecords.map((v) => String(v.vetName ?? "")).filter(Boolean))];
-  const knownHerdNames: string[] = [...new Set((herdsQ.data ?? []).map((h: Record<string, unknown>) => String(h.name ?? "")).filter(Boolean))];
-  const knownFeedProducts: string[] = [...new Set((deliveriesQ.data ?? []).map((d: Record<string, unknown>) => String(d.productName ?? "")).filter(Boolean))];
+  const knownHerdNames: string[] = [...new Set(((herdsQ.data ?? []) as Record<string, unknown>[]).map(h => String(h.name ?? "")).filter(s => s.length > 0))];
+  const knownFeedProducts: string[] = [...new Set(((deliveriesQ.data ?? []) as Record<string, unknown>[]).map(d => String(d.productName ?? "")).filter(s => s.length > 0))];
+  const allAnimals = ((animalsQ.data ?? []) as Record<string, unknown>[]).filter(a => String(a.status ?? "active") !== "deceased") as Array<{ id: number; tagNumber?: string | null; earTagNumber?: string | null; species: string; breed?: string | null; sex?: string | null }>;
+  const knownMedicineNames: string[] = [...new Set(((medicinesQ.data ?? []) as Record<string, unknown>[]).map(m => String(m.medicineName ?? "")).filter(s => s.length > 0))];
+
+  const twoYearsAgo = new Date();
+  twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+  const recentDiseases = diseases.filter(d => new Date(String(d.incidentDate)) >= twoYearsAgo);
+  const olderDiseases = diseases.filter(d => new Date(String(d.incidentDate)) < twoYearsAgo);
+  const visibleDiseases = showAllDiseases ? diseases : recentDiseases;
 
   // ── Mutations: biosecurity plan
   const bioMut = useMutation({
@@ -432,22 +560,48 @@ export default function CompliancePage() {
     onSuccess: () => { invalidate(); toast({ title: "Recall record deleted" }); },
   });
 
+  function parseJsonIds(raw: unknown): number[] {
+    if (!raw) return [];
+    try {
+      const arr = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (Array.isArray(arr)) return arr.map(Number).filter(n => !isNaN(n) && n > 0);
+    } catch { /* ignore */ }
+    return [];
+  }
+
+  function parseJsonStrings(raw: unknown): string[] {
+    if (!raw) return [];
+    try {
+      const arr = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (Array.isArray(arr)) return arr.map(String).filter(Boolean);
+    } catch { /* ignore */ }
+    const s = String(raw ?? "").trim();
+    return s ? s.split(/,\s*/).filter(Boolean) : [];
+  }
+
   // ── Helpers: open dialogs
   function openDiseaseAdd() {
     setEditDisease(null);
     setDiseaseForm({ incidentType: "disease_suspicion", status: "open", incidentDate: new Date().toISOString().substring(0, 10) });
+    setDiseaseHerds([]);
+    setDiseaseAffectedIds([]);
+    setDiseaseMortalityIds([]);
     setShowDiseaseDialog(true);
   }
   function openDiseaseEdit(r: Record<string, unknown>) {
     setEditDisease(r);
     const form: Record<string, string> = {};
     for (const [k, v] of Object.entries(r)) {
+      if (k === "affectedHerds" || k === "affectedAnimalIds" || k === "mortalityAnimalIds") continue;
       if (v !== null && v !== undefined) {
         if (typeof v === "boolean") form[k] = v ? "true" : "false";
-        else form[k] = String(v).substring(0, 10) === String(v).substring(0, 10) && /^\d{4}-\d{2}-\d{2}T/.test(String(v)) ? String(v).substring(0, 10) : String(v);
+        else form[k] = /^\d{4}-\d{2}-\d{2}T/.test(String(v)) ? String(v).substring(0, 10) : String(v);
       }
     }
     setDiseaseForm(form);
+    setDiseaseHerds(parseJsonStrings(r.affectedHerds));
+    setDiseaseAffectedIds(parseJsonIds(r.affectedAnimalIds));
+    setDiseaseMortalityIds(parseJsonIds(r.mortalityAnimalIds));
     setShowDiseaseDialog(true);
   }
 
@@ -1184,29 +1338,50 @@ export default function CompliancePage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {diseases.map((r) => (
-                <div key={String(r.id)} className={`rounded-xl border p-4 ${r.isNotifiableDisease ? "bg-red-50 border-red-200" : r.status === "open" ? "bg-orange-50 border-orange-200" : "bg-white border-gray-200"}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="font-semibold text-gray-900">{INCIDENT_TYPES.find(t => t.value === r.incidentType)?.label ?? String(r.incidentType)}</span>
-                        <StatusBadge status={String(r.status ?? "open")} />
-                        {r.isNotifiableDisease === true || r.isNotifiableDisease === "true" ? <NotifiableBadge /> : null}
-                        {r.vetCalled === true || r.vetCalled === "true" ? <Badge className="text-xs" style={{ background: "#dbeafe", color: "#1e40af", border: "none" }}>Vet called</Badge> : null}
-                        {r.reportedToAPHA === true || r.reportedToAPHA === "true" ? <Badge className="text-xs" style={{ background: "#f3e8ff", color: "#6b21a8", border: "none" }}>APHA reported</Badge> : null}
+              {!showAllDiseases && olderDiseases.length > 0 && (
+                <div className="text-center py-2">
+                  <button onClick={() => setShowAllDiseases(true)} className="text-xs text-green-800 hover:text-green-900 underline font-medium">
+                    Show {olderDiseases.length} older record{olderDiseases.length !== 1 ? "s" : ""} (before {twoYearsAgo.toLocaleDateString("en-GB", { month: "long", year: "numeric" })})
+                  </button>
+                </div>
+              )}
+              {visibleDiseases.map((r) => {
+                const mortalityIds = (() => { try { const v = r.mortalityAnimalIds; if (!v) return []; const arr = typeof v === "string" ? JSON.parse(v) : v; return Array.isArray(arr) ? arr : []; } catch { return []; } })();
+                const affectedIds = (() => { try { const v = r.affectedAnimalIds; if (!v) return []; const arr = typeof v === "string" ? JSON.parse(v) : v; return Array.isArray(arr) ? arr : []; } catch { return []; } })();
+                return (
+                  <div key={String(r.id)} className={`rounded-xl border p-4 ${r.isNotifiableDisease ? "bg-red-50 border-red-200" : r.status === "open" ? "bg-orange-50 border-orange-200" : "bg-white border-gray-200"}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className="font-semibold text-gray-900">{INCIDENT_TYPES.find(t => t.value === r.incidentType)?.label ?? String(r.incidentType)}</span>
+                          <StatusBadge status={String(r.status ?? "open")} />
+                          {r.isNotifiableDisease === true || r.isNotifiableDisease === "true" ? <NotifiableBadge /> : null}
+                          {r.vetCalled === true || r.vetCalled === "true" ? <Badge className="text-xs" style={{ background: "#dbeafe", color: "#1e40af", border: "none" }}>Vet called</Badge> : null}
+                          {r.reportedToAPHA === true || r.reportedToAPHA === "true" ? <Badge className="text-xs" style={{ background: "#f3e8ff", color: "#6b21a8", border: "none" }}>APHA reported</Badge> : null}
+                          {mortalityIds.length > 0 && <Badge className="text-xs" style={{ background: "#fee2e2", color: "#991b1b", border: "none" }}>{mortalityIds.length} deceased</Badge>}
+                        </div>
+                        <p className="text-xs text-gray-500 mb-1">
+                          {fmtDate(String(r.incidentDate))} — {r.species ? `${String(r.species)}, ` : ""}
+                          {affectedIds.length > 0 ? `${affectedIds.length} animal${affectedIds.length !== 1 ? "s" : ""} (tagged)` : r.animalCount ? `${String(r.animalCount)} animals` : ""}
+                        </p>
+                        <p className="text-sm text-gray-700 line-clamp-2">{String(r.symptomsObserved ?? "")}</p>
+                        {!!r.confirmedDiagnosis && <p className="text-xs text-gray-500 mt-1">Confirmed: <span className="font-medium">{String(r.confirmedDiagnosis)}</span></p>}
+                        {!!r.notifiableDiseaseType && <p className="text-xs text-red-700 mt-1 font-medium">Disease type: {String(r.notifiableDiseaseType)}</p>}
+                        {!!r.treatmentGiven && <p className="text-xs text-gray-500 mt-1">Treatment: <span className="font-medium">{String(r.treatmentGiven)}</span></p>}
                       </div>
-                      <p className="text-xs text-gray-500 mb-1">{fmtDate(String(r.incidentDate))} — {r.species ? `${String(r.species)}, ` : ""}{r.animalCount ? `${String(r.animalCount)} animals` : ""}</p>
-                      <p className="text-sm text-gray-700 line-clamp-2">{String(r.symptomsObserved ?? "")}</p>
-                      {r.confirmedDiagnosis && <p className="text-xs text-gray-500 mt-1">Confirmed: <span className="font-medium">{String(r.confirmedDiagnosis)}</span></p>}
-                      {r.notifiableDiseaseType && <p className="text-xs text-red-700 mt-1 font-medium">Disease type: {String(r.notifiableDiseaseType)}</p>}
-                    </div>
-                    <div className="flex gap-1 shrink-0">
-                      <Button size="sm" variant="ghost" onClick={() => openDiseaseEdit(r)} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => delDiseaseMut.mutate(Number(r.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
+                      <div className="flex gap-1 shrink-0">
+                        <Button size="sm" variant="ghost" onClick={() => openDiseaseEdit(r)} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => delDiseaseMut.mutate(Number(r.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
+                      </div>
                     </div>
                   </div>
+                );
+              })}
+              {showAllDiseases && olderDiseases.length > 0 && (
+                <div className="text-center py-2">
+                  <button onClick={() => setShowAllDiseases(false)} className="text-xs text-gray-500 hover:text-gray-700 underline">Show last 2 years only</button>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
@@ -1247,7 +1422,7 @@ export default function CompliancePage() {
                         {r.supplierName ? ` — Supplier: ${String(r.supplierName)}` : ""}
                       </p>
                       <p className="text-sm text-gray-700 line-clamp-2">{String(r.reasonForConcern ?? "")}</p>
-                      {r.estimatedAnimalsAffected && <p className="text-xs text-gray-500 mt-1">Est. animals affected: {String(r.estimatedAnimalsAffected)}</p>}
+                      {!!r.estimatedAnimalsAffected && <p className="text-xs text-gray-500 mt-1">Est. animals affected: {String(r.estimatedAnimalsAffected)}</p>}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <Button size="sm" variant="ghost" onClick={() => openRecallEdit(r)} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
@@ -1268,6 +1443,8 @@ export default function CompliancePage() {
             <DialogTitle>{editDisease ? "Edit Incident Record" : "Log Disease / Health Incident"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 py-1">
+
+            {/* Row 1: Date / Type / Status */}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Incident date *</Label>
@@ -1293,6 +1470,7 @@ export default function CompliancePage() {
               </div>
             </div>
 
+            {/* Row 2: Species / Count / Reported by */}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Species</Label>
@@ -1304,22 +1482,39 @@ export default function CompliancePage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Animals affected</Label><Input type="number" value={diseaseForm.animalCount ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, animalCount: e.target.value }))} /></div>
+              <div>
+                <Label>No. animals affected</Label>
+                <Input type="number" value={diseaseForm.animalCount ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, animalCount: e.target.value }))} placeholder="Approximate if unknown" />
+              </div>
               <div><Label>Reported by</Label><Input value={diseaseForm.reportedBy ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, reportedBy: e.target.value }))} /></div>
             </div>
 
+            {/* Herds / groups — multi-select lookup */}
             <div>
-              <Label>Herds / groups affected</Label>
-              <Input
-                list="disease-herds-list"
-                value={diseaseForm.affectedHerds ?? ""}
-                onChange={e => setDiseaseForm(f => ({ ...f, affectedHerds: e.target.value }))}
-                placeholder="e.g. Dairy herd, Young cattle building"
-              />
-              <datalist id="disease-herds-list">{knownHerdNames.map(n => <option key={n} value={n} />)}</datalist>
+              <Label className="block mb-1">Herds / groups affected</Label>
+              <HerdMultiPicker herdNames={knownHerdNames} selected={diseaseHerds} onChange={setDiseaseHerds} />
             </div>
+
+            {/* Individual animals affected — tag picker */}
+            <div>
+              <Label className="block mb-1">
+                Individual animals affected
+                <span className="ml-1 text-xs font-normal text-gray-500">(select from Individual Animal Register)</span>
+              </Label>
+              <AnimalMultiPicker
+                animals={allAnimals}
+                selected={diseaseAffectedIds}
+                onChange={setDiseaseAffectedIds}
+                filterSpecies={diseaseForm.species && diseaseForm.species !== "" ? diseaseForm.species : undefined}
+                placeholder="No animals in the Individual Animal Register — add them in the Livestock module first."
+              />
+            </div>
+
+            {/* Symptoms / diagnosis */}
             <div><Label>Symptoms observed *</Label><Textarea rows={3} value={diseaseForm.symptomsObserved ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, symptomsObserved: e.target.value }))} placeholder="Describe what was seen — be specific about clinical signs, onset, severity, and affected body systems" /></div>
             <div className="grid grid-cols-2 gap-3">
+              <div><Label>Onset date</Label><Input type="date" value={diseaseForm.onsetDate ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, onsetDate: e.target.value }))} /></div>
+              <div></div>
               <div><Label>Suspected diagnosis</Label><Input value={diseaseForm.suspectedDiagnosis ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, suspectedDiagnosis: e.target.value }))} /></div>
               <div><Label>Confirmed diagnosis</Label><Input value={diseaseForm.confirmedDiagnosis ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, confirmedDiagnosis: e.target.value }))} /></div>
             </div>
@@ -1352,10 +1547,10 @@ export default function CompliancePage() {
               )}
             </div>
 
-            {/* Vet */}
+            {/* Vet response — fixed layout */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-xs font-semibold text-blue-800 mb-2">Veterinary Response</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-[120px_1fr_140px] gap-3 items-end">
                 <div>
                   <Label>Vet called?</Label>
                   <Select value={diseaseForm.vetCalled ?? "false"} onValueChange={v => setDiseaseForm(f => ({ ...f, vetCalled: v }))}>
@@ -1366,25 +1561,69 @@ export default function CompliancePage() {
                     </SelectContent>
                   </Select>
                 </div>
-                {diseaseForm.vetCalled === "true" && <>
+                {diseaseForm.vetCalled === "true" ? <>
                   <div>
                     <Label>Vet name</Label>
-                    <Input
-                      list="disease-vet-list"
-                      value={diseaseForm.vetName ?? ""}
-                      onChange={e => setDiseaseForm(f => ({ ...f, vetName: e.target.value }))}
-                      placeholder="Select or type vet name"
-                    />
-                    <datalist id="disease-vet-list">{knownVetNames.map(n => <option key={n} value={n} />)}</datalist>
+                    {knownVetNames.length > 0 ? (
+                      <Select
+                        value={diseaseForm.vetName && knownVetNames.includes(diseaseForm.vetName) ? diseaseForm.vetName : (diseaseForm.vetName ? "__other__" : "__none__")}
+                        onValueChange={v => {
+                          if (v === "__none__") setDiseaseForm(f => ({ ...f, vetName: "" }));
+                          else if (v === "__other__") setDiseaseForm(f => ({ ...f, vetName: "" }));
+                          else setDiseaseForm(f => ({ ...f, vetName: v }));
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select vet…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Select vet —</SelectItem>
+                          {knownVetNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                          <SelectItem value="__other__">Other / type manually</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input value={diseaseForm.vetName ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetName: e.target.value }))} placeholder="Vet name" />
+                    )}
+                    {(knownVetNames.length > 0 && diseaseForm.vetName !== undefined && !knownVetNames.includes(diseaseForm.vetName)) && (
+                      <Input className="mt-1" value={diseaseForm.vetName ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetName: e.target.value }))} placeholder="Type vet name" />
+                    )}
                   </div>
-                  <div><Label>Date called</Label><Input type="date" value={diseaseForm.vetCallDate ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetCallDate: e.target.value }))} /></div>
-                  <div><Label>Vet visit date</Label><Input type="date" value={diseaseForm.vetVisitDate ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetVisitDate: e.target.value }))} /></div>
-                  <div className="col-span-2"><Label>Vet advice</Label><Input value={diseaseForm.vetAdvice ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetAdvice: e.target.value }))} /></div>
-                  <div><Label>Prescription ref</Label><Input value={diseaseForm.prescriptionRef ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, prescriptionRef: e.target.value }))} /></div>
-                </>}
+                  <div>
+                    <Label>Date called</Label>
+                    <Input type="date" value={diseaseForm.vetCallDate ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetCallDate: e.target.value }))} />
+                  </div>
+                </> : <div className="col-span-2" />}
               </div>
               {diseaseForm.vetCalled === "true" && (
-                <div className="mt-2"><Label>Treatment given</Label><Textarea rows={2} value={diseaseForm.treatmentGiven ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, treatmentGiven: e.target.value }))} /></div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <Label>Vet visit date</Label>
+                    <Input type="date" value={diseaseForm.vetVisitDate ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetVisitDate: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label>Prescription ref</Label>
+                    <Input value={diseaseForm.prescriptionRef ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, prescriptionRef: e.target.value }))} />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Vet advice / notes</Label>
+                    <Input value={diseaseForm.vetAdvice ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, vetAdvice: e.target.value }))} />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>
+                      Treatment given
+                      {knownMedicineNames.length > 0 && <span className="ml-1 text-xs font-normal text-gray-500">(select from medicine records or type)</span>}
+                    </Label>
+                    <Input
+                      list="disease-medicine-list"
+                      value={diseaseForm.treatmentGiven ?? ""}
+                      onChange={e => setDiseaseForm(f => ({ ...f, treatmentGiven: e.target.value }))}
+                      placeholder="e.g. Oxytetracycline 200mg/ml, 3-day course"
+                    />
+                    {knownMedicineNames.length > 0 && (
+                      <datalist id="disease-medicine-list">{knownMedicineNames.map(n => <option key={n} value={n} />)}</datalist>
+                    )}
+                    <p className="text-xs text-gray-400 mt-1">For full withdrawal period and dose tracking, also record in Livestock → Medicine Records.</p>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -1441,20 +1680,50 @@ export default function CompliancePage() {
               </>}
             </div>
 
-            {/* Resolution */}
+            {/* Outcome / resolution */}
             {diseaseForm.status === "resolved" && (
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Resolved date</Label><Input type="date" value={diseaseForm.resolvedDate ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, resolvedDate: e.target.value }))} /></div>
-                <div><Label>Mortalities</Label><Input type="number" value={diseaseForm.mortalityCount ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, mortalityCount: e.target.value }))} /></div>
                 <div className="col-span-2"><Label>Outcome summary</Label><Textarea rows={2} value={diseaseForm.outcomeSummary ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, outcomeSummary: e.target.value }))} /></div>
                 <div className="col-span-2"><Label>Lesson learned</Label><Textarea rows={2} value={diseaseForm.lessonLearned ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, lessonLearned: e.target.value }))} /></div>
               </div>
             )}
+
+            {/* Mortalities — specific animal picker */}
+            <div>
+              <Label className="block mb-1">
+                Mortalities
+                <span className="ml-1 text-xs font-normal text-gray-500">
+                  {diseaseMortalityIds.length > 0
+                    ? `— ${diseaseMortalityIds.length} animal${diseaseMortalityIds.length !== 1 ? "s" : ""} selected`
+                    : "— select specific animals from the register, or enter a count below"}
+                </span>
+              </Label>
+              <AnimalMultiPicker
+                animals={allAnimals}
+                selected={diseaseMortalityIds}
+                onChange={setDiseaseMortalityIds}
+                filterSpecies={diseaseForm.species && diseaseForm.species !== "" ? diseaseForm.species : undefined}
+                placeholder="No animals in the Individual Animal Register — add them in Livestock first."
+              />
+              {diseaseMortalityIds.length > 0 && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-1.5 mt-2">
+                  These animals will be marked as <strong>deceased</strong> in the Individual Animal Register when you save.
+                </p>
+              )}
+              {diseaseMortalityIds.length === 0 && (
+                <div className="mt-2">
+                  <Label className="text-xs text-gray-500">Or enter total mortality count (if animals not in register)</Label>
+                  <Input type="number" className="mt-1 max-w-[120px]" value={diseaseForm.mortalityCount ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, mortalityCount: e.target.value }))} placeholder="0" />
+                </div>
+              )}
+            </div>
+
             <div><Label>Notes</Label><Textarea rows={2} value={diseaseForm.notes ?? ""} onChange={e => setDiseaseForm(f => ({ ...f, notes: e.target.value }))} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDiseaseDialog(false)}>Cancel</Button>
-            <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => {
+            <Button className="bg-green-800 hover:bg-green-900 text-white" disabled={diseaseMut.isPending} onClick={() => {
               if (!diseaseForm.symptomsObserved?.trim()) {
                 toast({ title: "Symptoms observed is required", variant: "destructive" });
                 return;
@@ -1467,6 +1736,10 @@ export default function CompliancePage() {
               data.isNotifiableDisease = diseaseForm.isNotifiableDisease === "true";
               data.cleaningDisinfectionCarriedOut = diseaseForm.cleaningDisinfectionCarriedOut === "true";
               data.officialMovementOrderIssued = diseaseForm.officialMovementOrderIssued === "true";
+              data.affectedHerds = JSON.stringify(diseaseHerds);
+              data.affectedAnimalIds = JSON.stringify(diseaseAffectedIds);
+              data.mortalityAnimalIds = JSON.stringify(diseaseMortalityIds);
+              if (diseaseMortalityIds.length > 0) data.mortalityCount = diseaseMortalityIds.length;
               diseaseMut.mutate(data);
             }}>{editDisease ? "Save Changes" : "Log Incident"}</Button>
           </DialogFooter>

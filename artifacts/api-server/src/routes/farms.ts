@@ -15389,6 +15389,26 @@ router.delete("/farms/:farmId/feed-recalls/:id", requireAuth, requireTenant, req
   res.json({ success: true });
 });
 
+// ─── Disease Incident Log helpers ────────────────────────────────────────────
+function parseMortalityIds(raw: unknown): number[] {
+  if (!raw) return [];
+  try {
+    const arr = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (Array.isArray(arr)) return arr.map(Number).filter(n => !isNaN(n) && n > 0);
+  } catch { /* ignore */ }
+  return [];
+}
+
+async function markAnimalsDeceased(farmId: number, animalIds: number[]): Promise<void> {
+  if (animalIds.length === 0) return;
+  for (const animalId of animalIds) {
+    await db
+      .update(livestockAnimalsTable)
+      .set({ status: "deceased" })
+      .where(and(eq(livestockAnimalsTable.id, animalId), eq(livestockAnimalsTable.farmId, farmId)));
+  }
+}
+
 // ─── Disease Incident Log ─────────────────────────────────────────────────────
 router.get("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requireModuleByKey("biosecurity", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -15400,6 +15420,10 @@ router.post("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requ
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(diseaseIncidentLogTable).values({ ...req.body, farmId }).returning();
+  const mortalityIds = parseMortalityIds(req.body.mortalityAnimalIds);
+  if (mortalityIds.length > 0) {
+    await markAnimalsDeceased(farmId, mortalityIds);
+  }
   res.status(201).json({ record });
 });
 router.put("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -15407,6 +15431,10 @@ router.put("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, r
   if (!farmId) return;
   const [record] = await db.update(diseaseIncidentLogTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(diseaseIncidentLogTable.id, parseInt(req.params.id)), eq(diseaseIncidentLogTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  const mortalityIds = parseMortalityIds(req.body.mortalityAnimalIds);
+  if (mortalityIds.length > 0) {
+    await markAnimalsDeceased(farmId, mortalityIds);
+  }
   res.json({ record });
 });
 router.delete("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {

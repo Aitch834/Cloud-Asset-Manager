@@ -162,6 +162,8 @@ export const diseaseIncidentLogTable = pgTable("disease_incident_log", {
   resolvedDate: date("resolved_date"),
   outcomeSummary: text("outcome_summary"),
   mortalityCount: integer("mortality_count"),
+  mortalityAnimalIds: text("mortality_animal_ids"),  // JSON: [animalId, ...] — links to livestock_animals
+  affectedAnimalIds: text("affected_animal_ids"),    // JSON: [animalId, ...] — links to livestock_animals
   lessonLearned: text("lesson_learned"),
 
   notes: text("notes"),
