@@ -100,6 +100,13 @@ export const feedRecallIncidentsTable = pgTable("feed_recall_incidents", {
   vetName: text("vet_name"),
   vetNotifiedDate: date("vet_notified_date"),
 
+  // Credit note
+  creditNoteRequired: boolean("credit_note_required").notNull().default(false),
+  creditNoteRef: text("credit_note_ref"),
+  creditNoteValueGbp: numeric("credit_note_value_gbp", { precision: 10, scale: 2 }),
+  creditNoteReceivedDate: date("credit_note_received_date"),
+  creditNoteStatus: text("credit_note_status"), // "pending", "received", "applied", "disputed", "not_required"
+
   // Resolution
   status: text("status").notNull().default("open"),  // "open", "monitoring", "resolved"
   resolvedDate: date("resolved_date"),

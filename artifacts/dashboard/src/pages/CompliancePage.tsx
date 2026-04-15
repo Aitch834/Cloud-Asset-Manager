@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   ShieldCheck, AlertTriangle, Package, Edit2, Printer,
   Plus, Trash2, Phone, Mail, Save, Info, Bug, Target,
+  Eye, Receipt, ExternalLink,
 } from "lucide-react";
 
 type Tab = "biosecurity" | "contingency" | "disease" | "recalls";
@@ -101,6 +102,133 @@ function StatusBadge({ status }: { status: string }) {
 
 function NotifiableBadge() {
   return <Badge className="text-xs" style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" }}>⚠ Notifiable Disease</Badge>;
+}
+
+function ViewRow({ label, value }: { label: string; value?: string | null | React.ReactNode }) {
+  if (!value && value !== 0) return null;
+  return (
+    <div className="grid grid-cols-[160px_1fr] gap-2 py-1 border-b border-gray-100 last:border-0">
+      <span className="text-xs font-medium text-gray-500 pt-0.5">{label}</span>
+      <span className="text-sm text-gray-900">{value}</span>
+    </div>
+  );
+}
+
+function ViewSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-gray-200 overflow-hidden mb-3">
+      <div className="bg-gray-50 px-3 py-1.5 border-b border-gray-200">
+        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{title}</span>
+      </div>
+      <div className="px-3 py-1">{children}</div>
+    </div>
+  );
+}
+
+const CN_STATUS_LABEL: Record<string, string> = { pending: "Pending", received: "Received", applied: "Applied to account", disputed: "Disputed" };
+
+function RecallViewBody({ recall, deliveries }: { recall: Record<string, unknown> | null; deliveries: Record<string, unknown>[] }) {
+  if (!recall) return null;
+  const r = recall;
+  const concernLabel = CONCERN_TYPES.find(t => t.value === r.concernType)?.label ?? String(r.concernType ?? "");
+  const matchedDelivery = r.feedBatchRef
+    ? deliveries.find(d => String(d.batchNumber ?? "").toLowerCase() === String(r.feedBatchRef).toLowerCase())
+    : undefined;
+  const cnRequired = r.creditNoteRequired === true || r.creditNoteRequired === "true";
+  const cnStatus = String(r.creditNoteStatus ?? "pending");
+  const cnBadgeBg = cnStatus === "received" || cnStatus === "applied" ? "#dcfce7" : cnStatus === "disputed" ? "#fee2e2" : "#fef3c7";
+  const cnBadgeColor = cnStatus === "received" || cnStatus === "applied" ? "#166534" : cnStatus === "disputed" ? "#991b1b" : "#92400e";
+  return (
+    <div className="py-1 space-y-0">
+      {/* Status badges */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <StatusBadge status={String(r.status ?? "open")} />
+        <Badge className="text-xs" style={{ background: "#f3f4f6", color: "#374151", border: "1px solid #e5e7eb" }}>{concernLabel}</Badge>
+        {(r.feedWithdrawn === true || r.feedWithdrawn === "true") && <Badge className="text-xs" style={{ background: "#fee2e2", color: "#991b1b", border: "none" }}>Feed withdrawn</Badge>}
+        {(r.reportedToAuthority === true || r.reportedToAuthority === "true") && <Badge className="text-xs" style={{ background: "#fee2e2", color: "#991b1b", border: "none" }}>Authority notified</Badge>}
+        {cnRequired && <Badge className="text-xs" style={{ background: cnBadgeBg, color: cnBadgeColor, border: "none" }}>Credit note: {CN_STATUS_LABEL[cnStatus] ?? cnStatus}</Badge>}
+      </div>
+      <ViewSection title="Feed Identification">
+        <ViewRow label="Product name" value={String(r.productName ?? "") || null} />
+        <ViewRow label="Supplier" value={String(r.supplierName ?? "") || null} />
+        <ViewRow label="Batch / lot ref" value={String(r.feedBatchRef ?? "") || null} />
+        <ViewRow label="Delivery note ref" value={String(r.deliveryNoteRef ?? "") || null} />
+        <ViewRow label="Feed type" value={String(r.feedType ?? "") || null} />
+        <ViewRow label="Quantity affected" value={r.quantityKgAffected ? `${Number(r.quantityKgAffected).toLocaleString()} kg` : null} />
+        <ViewRow label="Date raised" value={fmtDate(String(r.raisedDate ?? ""))} />
+        <ViewRow label="Raised by" value={String(r.raisedBy ?? "") || null} />
+        {matchedDelivery && (
+          <div className="grid grid-cols-[160px_1fr] gap-2 py-1 border-b border-gray-100">
+            <span className="text-xs font-medium text-gray-500 pt-0.5">Matched delivery</span>
+            <span className="text-sm text-green-700 font-medium">
+              {fmtDate(String(matchedDelivery.deliveryDate ?? ""))} — {String(matchedDelivery.productName ?? "")}
+              {matchedDelivery.quantityKg ? ` (${Number(matchedDelivery.quantityKg).toLocaleString()} kg)` : ""}
+              {matchedDelivery.supplierName ? ` from ${String(matchedDelivery.supplierName)}` : ""}
+            </span>
+          </div>
+        )}
+      </ViewSection>
+      {r.concernType === "supplier_recall" && (r.recallNoticeRef || r.recallDocumentUrl) && (
+        <ViewSection title="Supplier Recall Notice">
+          <ViewRow label="Notice reference" value={String(r.recallNoticeRef ?? "") || null} />
+          {!!r.recallDocumentUrl && (
+            <div className="grid grid-cols-[160px_1fr] gap-2 py-1 border-b border-gray-100 last:border-0">
+              <span className="text-xs font-medium text-gray-500 pt-0.5">Document</span>
+              <a href={String(r.recallDocumentUrl)} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1">
+                Open document <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+        </ViewSection>
+      )}
+      <ViewSection title="Reason for Concern">
+        <p className="text-sm text-gray-900 whitespace-pre-wrap py-1">{String(r.reasonForConcern ?? "")}</p>
+      </ViewSection>
+      <ViewSection title="Impact Assessment">
+        <ViewRow label="Feed withdrawn" value={r.feedWithdrawn === true || r.feedWithdrawn === "true" ? `Yes — ${fmtDate(String(r.withdrawalDate ?? ""))}` : "No"} />
+        <ViewRow label="Est. animals affected" value={r.estimatedAnimalsAffected ? String(r.estimatedAnimalsAffected) : null} />
+        <ViewRow label="Herds affected" value={String(r.affectedHerds ?? "") || null} />
+        <ViewRow label="Animal health impact" value={r.animalHealthImpactObserved === true || r.animalHealthImpactObserved === "true" ? "Yes" : "No"} />
+        {(r.animalHealthImpactObserved === true || r.animalHealthImpactObserved === "true") && !!r.healthImpactDescription && (
+          <ViewRow label="Health impact detail" value={String(r.healthImpactDescription)} />
+        )}
+      </ViewSection>
+      {!!r.actionsTaken && (
+        <ViewSection title="Actions Taken">
+          <p className="text-sm text-gray-900 whitespace-pre-wrap py-1">{String(r.actionsTaken)}</p>
+          <ViewRow label="Disposal method" value={String(r.feedDisposalMethod ?? "") || null} />
+          <ViewRow label="Replacement feed" value={String(r.replacementFeedSource ?? "") || null} />
+        </ViewSection>
+      )}
+      <ViewSection title="Notifications">
+        {r.concernType === "supplier_recall"
+          ? <ViewRow label="Supplier" value="Supplier-initiated recall — they notified us" />
+          : <ViewRow label="Supplier notified" value={r.reportedToSupplier === true || r.reportedToSupplier === "true" ? `Yes — ${fmtDate(String(r.supplierNotifiedDate ?? ""))}${r.supplierReference ? ` (ref: ${String(r.supplierReference)})` : ""}` : "No"} />
+        }
+        <ViewRow label="Authority notified" value={r.reportedToAuthority === true || r.reportedToAuthority === "true" ? `${String(r.authorityName ?? "")} — ${fmtDate(String(r.authorityNotifiedDate ?? ""))}${r.authorityReference ? ` (ref: ${String(r.authorityReference)})` : ""}`.trim() || "Yes" : "No"} />
+        <ViewRow label="Vet notified" value={r.reportedToVet === true || r.reportedToVet === "true" ? `Yes — ${String(r.vetName ?? "")} on ${fmtDate(String(r.vetNotifiedDate ?? ""))}` : "No"} />
+      </ViewSection>
+      {cnRequired && (
+        <ViewSection title="Credit Note">
+          <ViewRow label="Status" value={CN_STATUS_LABEL[cnStatus] ?? cnStatus} />
+          <ViewRow label="Reference" value={String(r.creditNoteRef ?? "") || null} />
+          <ViewRow label="Value" value={r.creditNoteValueGbp ? `£${Number(r.creditNoteValueGbp).toFixed(2)}` : null} />
+          <ViewRow label="Date received" value={r.creditNoteReceivedDate ? fmtDate(String(r.creditNoteReceivedDate)) : null} />
+        </ViewSection>
+      )}
+      {(r.status === "resolved" || !!r.resolutionSummary) && (
+        <ViewSection title="Resolution">
+          <ViewRow label="Resolved date" value={r.resolvedDate ? fmtDate(String(r.resolvedDate)) : null} />
+          <ViewRow label="Summary" value={String(r.resolutionSummary ?? "") || null} />
+        </ViewSection>
+      )}
+      {!!r.notes && (
+        <ViewSection title="Notes">
+          <p className="text-sm text-gray-900 whitespace-pre-wrap py-1">{String(r.notes)}</p>
+        </ViewSection>
+      )}
+    </div>
+  );
 }
 
 function PlanSection({ title, value, onEdit }: { title: string; value?: string | null; onEdit?: () => void }) {
@@ -373,6 +501,8 @@ export default function CompliancePage() {
   const [showRecallDialog, setShowRecallDialog] = useState(false);
   const [editRecall, setEditRecall] = useState<Record<string, unknown> | null>(null);
   const [recallForm, setRecallForm] = useState<Record<string, string>>({});
+  const [showViewRecallDialog, setShowViewRecallDialog] = useState(false);
+  const [viewRecall, setViewRecall] = useState<Record<string, unknown> | null>(null);
 
   // ── Species stock target state
   const [showTargetDialog, setShowTargetDialog] = useState(false);
@@ -1427,14 +1557,26 @@ export default function CompliancePage() {
                       <p className="text-sm text-gray-700 line-clamp-2">{String(r.reasonForConcern ?? "")}</p>
                       {!!r.estimatedAnimalsAffected && <p className="text-xs text-gray-500 mt-1">Est. animals affected: {String(r.estimatedAnimalsAffected)}</p>}
                       {!!r.recallDocumentUrl && (
-                        <a href={String(r.recallDocumentUrl)} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-block">
-                          View recall notice →
+                        <a href={String(r.recallDocumentUrl)} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-flex items-center gap-1">
+                          View recall notice <ExternalLink className="w-3 h-3" />
                         </a>
+                      )}
+                      {(r.creditNoteRequired === true || r.creditNoteRequired === "true") && (
+                        <p className="text-xs mt-1">
+                          <span className="font-medium text-gray-700">Credit note: </span>
+                          {r.creditNoteStatus === "received" || r.creditNoteStatus === "applied"
+                            ? <span className="text-green-700">{r.creditNoteStatus === "applied" ? "Applied" : "Received"}{r.creditNoteRef ? ` — ${String(r.creditNoteRef)}` : ""}{r.creditNoteValueGbp ? ` (£${Number(r.creditNoteValueGbp).toFixed(2)})` : ""}</span>
+                            : r.creditNoteStatus === "disputed"
+                              ? <span className="text-red-700">Disputed{r.creditNoteRef ? ` — ${String(r.creditNoteRef)}` : ""}</span>
+                              : <span className="text-amber-700">Pending{r.creditNoteRef ? ` — ${String(r.creditNoteRef)}` : ""}</span>
+                          }
+                        </p>
                       )}
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <Button size="sm" variant="ghost" onClick={() => openRecallEdit(r)} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => delRecallMut.mutate(Number(r.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
+                      <Button size="sm" variant="ghost" title="View" onClick={() => { setViewRecall(r); setShowViewRecallDialog(true); }} className="h-7 px-2 text-gray-600"><Eye className="w-3 h-3" /></Button>
+                      <Button size="sm" variant="ghost" title="Edit" onClick={() => openRecallEdit(r)} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
+                      <Button size="sm" variant="ghost" title="Delete" onClick={() => delRecallMut.mutate(Number(r.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
                     </div>
                   </div>
                 </div>
@@ -2027,6 +2169,55 @@ export default function CompliancePage() {
               </div>
             </div>
 
+            {/* Credit Note */}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Receipt className="w-4 h-4 text-green-700" />
+                <p className="text-xs font-semibold text-green-800">Credit Note</p>
+              </div>
+              <p className="text-xs text-green-700 mb-3">
+                Where feed is returned or disposed of due to a recall, you may be entitled to a credit note from the supplier for the affected stock.
+              </p>
+              <div className="flex items-end gap-3 flex-wrap">
+                <div className="w-44 shrink-0">
+                  <Label className="text-xs">Credit note required?</Label>
+                  <Select value={recallForm.creditNoteRequired ?? "false"} onValueChange={v => setRecallForm(f => ({ ...f, creditNoteRequired: v }))}>
+                    <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="false">No / Not applicable</SelectItem>
+                      <SelectItem value="true">Yes — expected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {recallForm.creditNoteRequired === "true" && <>
+                  <div className="w-36 shrink-0">
+                    <Label className="text-xs">Status</Label>
+                    <Select value={recallForm.creditNoteStatus ?? "pending"} onValueChange={v => setRecallForm(f => ({ ...f, creditNoteStatus: v }))}>
+                      <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="received">Received</SelectItem>
+                        <SelectItem value="applied">Applied to account</SelectItem>
+                        <SelectItem value="disputed">Disputed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1 min-w-[140px]">
+                    <Label className="text-xs">Credit note reference</Label>
+                    <Input className="h-8 text-sm mt-1" value={recallForm.creditNoteRef ?? ""} onChange={e => setRecallForm(f => ({ ...f, creditNoteRef: e.target.value }))} placeholder="e.g. CN-2024-0893" />
+                  </div>
+                  <div className="w-28 shrink-0">
+                    <Label className="text-xs">Value (£)</Label>
+                    <Input type="number" step="0.01" className="h-8 text-sm mt-1" value={recallForm.creditNoteValueGbp ?? ""} onChange={e => setRecallForm(f => ({ ...f, creditNoteValueGbp: e.target.value }))} placeholder="0.00" />
+                  </div>
+                  <div className="w-36 shrink-0">
+                    <Label className="text-xs">Date received</Label>
+                    <Input type="date" className="h-8 text-sm mt-1" value={recallForm.creditNoteReceivedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, creditNoteReceivedDate: e.target.value }))} />
+                  </div>
+                </>}
+              </div>
+            </div>
+
             {/* Resolution */}
             {recallForm.status === "resolved" && (
               <div className="grid grid-cols-2 gap-3">
@@ -2049,8 +2240,31 @@ export default function CompliancePage() {
               data.reportedToSupplier = recallForm.reportedToSupplier === "true";
               data.reportedToAuthority = recallForm.reportedToAuthority === "true";
               data.reportedToVet = recallForm.reportedToVet === "true";
+              data.creditNoteRequired = recallForm.creditNoteRequired === "true";
               recallMut.mutate(data);
             }}>{editRecall ? "Save Changes" : "Raise Incident"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ FEED RECALL VIEW DIALOG (read-only) ════════════════════════════ */}
+      <Dialog open={showViewRecallDialog} onOpenChange={setShowViewRecallDialog}>
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-4 h-4 text-gray-500" />
+              Feed Recall — {viewRecall ? String(viewRecall.productName ?? "Incident") : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <RecallViewBody
+            recall={viewRecall}
+            deliveries={(deliveriesQ.data ?? []) as Record<string, unknown>[]}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowViewRecallDialog(false)}>Close</Button>
+            <Button className="bg-green-800 hover:bg-green-900 text-white" onClick={() => { setShowViewRecallDialog(false); openRecallEdit(viewRecall!); }}>
+              <Edit2 className="w-3 h-3 mr-1" /> Edit Record
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
