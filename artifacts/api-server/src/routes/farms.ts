@@ -10466,6 +10466,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     hortiWaterTestRows,
     taskAssignmentRows, fuelDiscrepancyRows,
     feedStockStatusRows,
+    vetFollowUpRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -10676,6 +10677,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: feedStockLevelsTable.id, productName: feedStockLevelsTable.productName, feedType: feedStockLevelsTable.feedType, storageLocation: feedStockLevelsTable.storageLocation, currentStockKg: feedStockLevelsTable.currentStockKg, reorderThresholdKg: feedStockLevelsTable.reorderThresholdKg, awaitingDelivery: feedStockLevelsTable.awaitingDelivery, expectedDeliveryDate: feedStockLevelsTable.expectedDeliveryDate, supplierName: feedStockLevelsTable.supplierName })
       .from(feedStockLevelsTable)
       .where(eq(feedStockLevelsTable.farmId, farmId)),
+
+    // ── Vet visit follow-up actions due ──
+    db.select({ id: vetVisitsTable.id, vetName: vetVisitsTable.vetName, vetPractice: vetVisitsTable.vetPractice, followUpActions: vetVisitsTable.followUpActions, followUpDueDate: vetVisitsTable.followUpDueDate })
+      .from(vetVisitsTable)
+      .where(and(eq(vetVisitsTable.farmId, farmId), isNotNull(vetVisitsTable.followUpDueDate), gte(vetVisitsTable.followUpDueDate, overdueStart.toISOString().split("T")[0]), lt(vetVisitsTable.followUpDueDate, rangeEnd.toISOString().split("T")[0]))),
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -10899,6 +10905,12 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     if (!r.dueDate) continue;
     const colour = r.status === "in_progress" ? "amber" : "emerald";
     tasks.push({ id: `assign-${r.id}`, type: "task_assignment", title: r.title, description: `Assigned to ${r.staffName || "a staff member"} — ${r.status === "in_progress" ? "in progress" : "pending"}`, dueDate: typeof r.dueDate === "string" ? new Date(r.dueDate + "T00:00:00Z").toISOString() : (r.dueDate as Date).toISOString(), module: r.module || "Tasks", href: r.href || "/task-board", colour, assignedToMemberId: r.assignedToMemberId });
+  }
+
+  for (const r of vetFollowUpRows) {
+    if (!r.followUpDueDate) continue;
+    const practice = r.vetPractice ? ` (${String(r.vetPractice)})` : "";
+    tasks.push({ id: `vetfu-${r.id}`, type: "vet_follow_up", title: `Vet Follow-Up Due — ${String(r.vetName ?? "")}${practice}`, description: String(r.followUpActions ?? "Follow-up action required from vet visit"), dueDate: toISO(r.followUpDueDate)!, module: "Livestock", href: `/vet-ledger?open=${r.id}`, colour: "green" });
   }
 
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
@@ -15961,6 +15973,34 @@ router.get("/farms/:farmId/service-invoices/:id/lines", requireAuth, requireTena
 // ═══════════════════════════════════════════════════════════
 
 // ── Vet Visits ──────────────────────────────────────────────
+// ── Helper: auto-mirror vet visit medicines into livestock_medicine_records ─────
+async function syncVetMedicinesToRegister(
+  farmId: number,
+  visit: { id: number; visitDate: string; vetName: string; reasonForVisit: string },
+  insertedMeds: { id: number; medicineName: string; batchNumber: string | null; quantityUsed: string | null; unit: string | null; withdrawalPeriodDays: number | null; vetDispensed: boolean; notes: string | null }[]
+): Promise<void> {
+  if (!insertedMeds.length) return;
+  const administeredDate = new Date(visit.visitDate + "T12:00:00Z");
+  for (const m of insertedMeds) {
+    const withdrawalEndDate = m.withdrawalPeriodDays
+      ? new Date(administeredDate.getTime() + m.withdrawalPeriodDays * 86400000)
+      : null;
+    await db.insert(livestockMedicineRecordsTable).values({
+      farmId,
+      medicineName: m.medicineName,
+      batchNumber: m.batchNumber ?? undefined,
+      administeredDate,
+      withdrawalPeriodDays: m.withdrawalPeriodDays ?? undefined,
+      withdrawalEndDate: withdrawalEndDate ?? undefined,
+      vetName: visit.vetName,
+      reason: visit.reasonForVisit,
+      notes: m.notes ? `${m.notes} [Via Vet Ledger visit #${visit.id}]` : `Via Vet Ledger visit #${visit.id}`,
+      source: "vet_ledger",
+      vetVisitMedicineId: m.id,
+    });
+  }
+}
+
 router.get("/farms/:farmId/vet-visits", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const visits = await db.select().from(vetVisitsTable).where(eq(vetVisitsTable.farmId, farmId)).orderBy(desc(vetVisitsTable.visitDate));
@@ -15975,7 +16015,9 @@ router.post("/farms/:farmId/vet-visits", requireAuth, requireTenant, requireModu
   const { medicines: medicinesBody, ...visitBody } = req.body;
   const [visit] = await db.insert(vetVisitsTable).values({ ...visitBody, farmId }).returning();
   if (Array.isArray(medicinesBody) && medicinesBody.length > 0) {
-    await db.insert(vetVisitMedicinesTable).values(medicinesBody.map((m: Record<string, unknown>) => ({ ...m, visitId: visit.id })));
+    const insertedMeds = await db.insert(vetVisitMedicinesTable).values(medicinesBody.map((m: Record<string, unknown>) => ({ ...m, visitId: visit.id }))).returning();
+    // Auto-mirror each medicine into livestock_medicine_records for Red Tractor compliance
+    await syncVetMedicinesToRegister(farmId, visit, insertedMeds);
   }
   const medicines = await db.select().from(vetVisitMedicinesTable).where(eq(vetVisitMedicinesTable.visitId, visit.id));
   res.json({ ...visit, medicines });
@@ -15988,9 +16030,16 @@ router.put("/farms/:farmId/vet-visits/:id", requireAuth, requireTenant, requireM
   const [visit] = await db.update(vetVisitsTable).set({ ...visitBody, updatedAt: new Date() }).where(and(eq(vetVisitsTable.id, id), eq(vetVisitsTable.farmId, farmId))).returning();
   if (!visit) { res.status(404).json({ error: "Not found" }); return; }
   if (Array.isArray(medicinesBody)) {
+    // Remove old vet-ledger-sourced medicine register entries for this visit before re-creating
+    const oldMeds = await db.select({ id: vetVisitMedicinesTable.id }).from(vetVisitMedicinesTable).where(eq(vetVisitMedicinesTable.visitId, id));
+    const oldMedIds = oldMeds.map(m => m.id);
+    if (oldMedIds.length > 0) {
+      await db.delete(livestockMedicineRecordsTable).where(and(eq(livestockMedicineRecordsTable.farmId, farmId), inArray(livestockMedicineRecordsTable.vetVisitMedicineId, oldMedIds)));
+    }
     await db.delete(vetVisitMedicinesTable).where(eq(vetVisitMedicinesTable.visitId, id));
     if (medicinesBody.length > 0) {
-      await db.insert(vetVisitMedicinesTable).values(medicinesBody.map((m: Record<string, unknown>) => ({ ...m, visitId: id })));
+      const insertedMeds = await db.insert(vetVisitMedicinesTable).values(medicinesBody.map((m: Record<string, unknown>) => ({ ...m, visitId: id }))).returning();
+      await syncVetMedicinesToRegister(farmId, visit, insertedMeds);
     }
   }
   const medicines = await db.select().from(vetVisitMedicinesTable).where(eq(vetVisitMedicinesTable.visitId, id));
@@ -16000,6 +16049,12 @@ router.put("/farms/:farmId/vet-visits/:id", requireAuth, requireTenant, requireM
 router.delete("/farms/:farmId/vet-visits/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  // Remove auto-created medicine register entries before deleting the visit
+  const meds = await db.select({ id: vetVisitMedicinesTable.id }).from(vetVisitMedicinesTable).where(eq(vetVisitMedicinesTable.visitId, id));
+  const medIds = meds.map(m => m.id);
+  if (medIds.length > 0) {
+    await db.delete(livestockMedicineRecordsTable).where(and(eq(livestockMedicineRecordsTable.farmId, farmId), inArray(livestockMedicineRecordsTable.vetVisitMedicineId, medIds)));
+  }
   await db.delete(vetVisitsTable).where(and(eq(vetVisitsTable.id, id), eq(vetVisitsTable.farmId, farmId)));
   res.json({ success: true });
 });

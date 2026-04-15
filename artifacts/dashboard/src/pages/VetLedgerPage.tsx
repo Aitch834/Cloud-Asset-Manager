@@ -122,6 +122,23 @@ export default function VetLedgerPage() {
   const knownVets: string[] = [...new Set([...visits.map(v => String(v.vetName ?? "")), ...invoices.map(i => String(i.vetName ?? ""))].filter(Boolean))];
   const knownPractices: string[] = [...new Set([...visits.map(v => String(v.vetPractice ?? "")), ...invoices.map(i => String(i.vetPractice ?? ""))].filter(Boolean))];
 
+  // Medicine register — for autocomplete on vet visit medicine entries
+  const medicineNamesQ = useQuery({
+    queryKey: ["medicine-names-lookup", farmId],
+    queryFn: async () => {
+      const res = await fetch(`/api/farms/${farmId}/medicine-records`);
+      if (!res.ok) return { records: [] };
+      return res.json() as Promise<{ records: { medicineName: string; source?: string }[] }>;
+    },
+    enabled: !!farmId,
+  });
+  const knownMedicineNames: string[] = [...new Set(
+    (medicineNamesQ.data?.records ?? [])
+      .filter(r => r.source !== "vet_ledger")
+      .map(r => r.medicineName)
+      .filter(Boolean)
+  )];
+
   // ── Visit Dialog State ────────────────────────────────────
   const [showVisitDialog, setShowVisitDialog] = useState(false);
   const [editVisit, setEditVisit] = useState<Record<string, unknown> | null>(null);
@@ -481,6 +498,7 @@ export default function VetLedgerPage() {
                 <Label className="text-xs">Vet practice</Label>
                 <Input className="h-8 text-sm mt-1" list="vl-practices" value={visitForm.vetPractice ?? ""} onChange={e => setVisitForm(f => ({ ...f, vetPractice: e.target.value }))} placeholder="e.g. Westgate Vets" />
                 <datalist id="vl-practices">{knownPractices.map(p => <option key={p} value={p} />)}</datalist>
+                <datalist id="vl-medicine-names">{knownMedicineNames.map(n => <option key={n} value={n} />)}</datalist>
               </div>
             </div>
 
@@ -567,14 +585,14 @@ export default function VetLedgerPage() {
                   <Plus className="w-3 h-3 mr-1" /> Add
                 </Button>
               </div>
-              <p className="text-xs text-blue-700 mb-2">Record each medicine given on this visit. Vet-dispensed medicines should be added to your Medicine Register with the batch number for traceability.</p>
+              <p className="text-xs text-blue-700 mb-2">Record each medicine given on this visit. These are automatically added to your Medicine Register for Red Tractor traceability — no need to enter them twice.</p>
               {visitMeds.length === 0 && <p className="text-xs text-blue-600 italic">No medicines recorded for this visit.</p>}
               {visitMeds.map((med, idx) => (
                 <div key={idx} className="border border-blue-200 rounded-lg p-2 mb-2 bg-white">
                   <div className="flex items-end gap-2 flex-wrap">
                     <div className="flex-1 min-w-[140px]">
                       <Label className="text-xs">Medicine name</Label>
-                      <Input className="h-7 text-xs mt-0.5" value={med.medicineName} onChange={e => setVisitMeds(ms => ms.map((m, i) => i === idx ? { ...m, medicineName: e.target.value } : m))} placeholder="e.g. Norocillin LA" />
+                      <Input className="h-7 text-xs mt-0.5" list="vl-medicine-names" value={med.medicineName} onChange={e => setVisitMeds(ms => ms.map((m, i) => i === idx ? { ...m, medicineName: e.target.value } : m))} placeholder="e.g. Norocillin LA" />
                     </div>
                     <div className="w-28 shrink-0">
                       <Label className="text-xs">Batch number</Label>

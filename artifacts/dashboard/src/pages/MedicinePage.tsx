@@ -93,6 +93,8 @@ interface MedicineRecord {
   treatmentScope: string | null;
   treatedAnimalTags: string | null;
   treatedAnimalCount: number | null;
+  source: string | null;
+  vetVisitMedicineId: number | null;
   createdAt: string;
 }
 interface Farm { id: number; name: string; address: string | null; postcode: string | null; cphNumber: string | null; redTractorId: string | null; }
@@ -314,6 +316,11 @@ function RecordCard({ record, herds, animals, onEdit, onDelete, onView }: {
             )}
             <StatusBadge record={record} />
             <TreatmentScopeBadge record={record} herds={herds} animals={animals} />
+            {record.source === "vet_ledger" && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                Via Vet Ledger
+              </span>
+            )}
             {status === "in_withdrawal" && (
               <span className="text-xs text-amber-700 font-medium">Withdrawal ends {formatDate(record.withdrawalEndDate)}</span>
             )}
