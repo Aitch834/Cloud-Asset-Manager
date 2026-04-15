@@ -376,12 +376,12 @@ function JobDocumentsSection({ farmId, jobId }: { farmId: number; jobId: number 
   );
 }
 
-function JobCardsTab({ farmId, openId }: { farmId: number; openId?: number | null }) {
+function JobCardsTab({ farmId, openId, initialStatus }: { farmId: number; openId?: number | null; initialStatus?: string }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<WorkshopJob["job"] | null>(null);
   const [form, setForm] = useState<Partial<WorkshopJob["job"]>>(EMPTY_JOB);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatus ?? "all");
   const [issuePartId, setIssuePartId] = useState("");
   const [issueQty, setIssueQty] = useState("");
   const [issueBy, setIssueBy] = useState("");
@@ -946,7 +946,7 @@ function ServiceScheduleTab({ farmId }: { farmId: number }) {
 
 // ─── Fleet Overview tab ────────────────────────────────────────────────────────
 
-function FleetOverviewTab({ farmId, onNavigate }: { farmId: number; onNavigate: (tab: Tab) => void }) {
+function FleetOverviewTab({ farmId, onNavigate }: { farmId: number; onNavigate: (tab: Tab, status?: string) => void }) {
   const { data: equipData } = useQuery<{ records: Equipment[] }>({
     queryKey: ["equipment", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/equipment`), { credentials: "include" }).then(r => r.json()),
@@ -1007,11 +1007,11 @@ function FleetOverviewTab({ farmId, onNavigate }: { farmId: number; onNavigate: 
 
       <div>
         <h3 className="text-sm font-semibold text-gray-700 mb-1">Active Workshop Jobs</h3>
-        <p className="text-xs text-gray-400 mb-3">Click a card to view those job cards</p>
+        <p className="text-xs text-gray-400 mb-3">Click a card to jump straight to that job list</p>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <StatCard title="Open Jobs" value={openJobs} colour="text-blue-600" onClick={() => onNavigate("jobs")} />
-          <StatCard title="In Progress" value={inProgressJobs} colour="text-amber-600" onClick={() => onNavigate("jobs")} />
-          <StatCard title="Awaiting Parts" value={awaitingParts} colour="text-purple-600" onClick={() => onNavigate("jobs")} />
+          <StatCard title="Open Jobs" value={openJobs} colour="text-blue-600" onClick={() => onNavigate("jobs", "open")} />
+          <StatCard title="In Progress" value={inProgressJobs} colour="text-amber-600" onClick={() => onNavigate("jobs", "in-progress")} />
+          <StatCard title="Awaiting Parts" value={awaitingParts} colour="text-purple-600" onClick={() => onNavigate("jobs", "awaiting-parts")} />
         </div>
       </div>
 
@@ -2093,6 +2093,16 @@ export default function WorkshopPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["assets","jobs","schedule","overview","parts"]; return t && valid.includes(t) ? t : "assets"; });
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
+  const [jobNavStatus, setJobNavStatus] = useState<string>("all");
+  const [jobNavKey, setJobNavKey] = useState(0);
+
+  function navigateTo(dest: Tab, status?: string) {
+    if (dest === "jobs") {
+      setJobNavStatus(status ?? "all");
+      setJobNavKey(k => k + 1);
+    }
+    setTab(dest);
+  }
 
   if (!farmId) return <Redirect to="/select" />;
 
@@ -2106,7 +2116,7 @@ export default function WorkshopPage() {
 
         <TabBar>
           <TabButton active={tab === "assets"} onClick={() => setTab("assets")}><Wrench className="h-3.5 w-3.5 mr-1 inline-block" />Assets & QR Codes</TabButton>
-          <TabButton active={tab === "jobs"} onClick={() => setTab("jobs")}>Job Cards</TabButton>
+          <TabButton active={tab === "jobs"} onClick={() => { setJobNavStatus("all"); setTab("jobs"); }}>Job Cards</TabButton>
           <TabButton active={tab === "schedule"} onClick={() => setTab("schedule")}>Service Schedule</TabButton>
           <TabButton active={tab === "overview"} onClick={() => setTab("overview")}>Fleet Overview</TabButton>
           <TabButton active={tab === "parts"} onClick={() => setTab("parts")}><Package className="h-3.5 w-3.5 mr-1 inline-block" />Parts Store</TabButton>
@@ -2114,9 +2124,9 @@ export default function WorkshopPage() {
 
         <div className="mt-6">
           {tab === "assets" && <AssetsTab farmId={farmId} />}
-          {tab === "jobs" && <JobCardsTab farmId={farmId} openId={openId} />}
+          {tab === "jobs" && <JobCardsTab key={jobNavKey} farmId={farmId} openId={openId} initialStatus={jobNavStatus} />}
           {tab === "schedule" && <ServiceScheduleTab farmId={farmId} />}
-          {tab === "overview" && <FleetOverviewTab farmId={farmId} onNavigate={setTab} />}
+          {tab === "overview" && <FleetOverviewTab farmId={farmId} onNavigate={navigateTo} />}
           {tab === "parts" && <PartsStoreTab farmId={farmId} />}
         </div>
       </div>
