@@ -1907,11 +1907,11 @@ export default function CompliancePage() {
               {/* Supplier notification — hidden when supplier initiated the recall */}
               {recallForm.concernType !== "supplier_recall" ? (
                 <div className="bg-white border border-blue-100 rounded-lg p-3">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-xs font-medium text-gray-700 w-32 shrink-0">Supplier notified?</span>
-                    <div className="w-28 shrink-0">
+                  <div className="flex items-end gap-3 flex-wrap">
+                    <div className="w-36 shrink-0">
+                      <Label className="text-xs">Supplier notified?</Label>
                       <Select value={recallForm.reportedToSupplier ?? "false"} onValueChange={v => setRecallForm(f => ({ ...f, reportedToSupplier: v }))}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="false">No</SelectItem>
                           <SelectItem value="true">Yes</SelectItem>
@@ -1919,13 +1919,13 @@ export default function CompliancePage() {
                       </Select>
                     </div>
                     {recallForm.reportedToSupplier === "true" && <>
-                      <div className="flex-1 min-w-[120px]">
+                      <div className="flex-1 min-w-[130px]">
                         <Label className="text-xs">Date notified</Label>
-                        <Input type="date" className="h-8 text-sm" value={recallForm.supplierNotifiedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, supplierNotifiedDate: e.target.value }))} />
+                        <Input type="date" className="h-8 text-sm mt-1" value={recallForm.supplierNotifiedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, supplierNotifiedDate: e.target.value }))} />
                       </div>
-                      <div className="flex-1 min-w-[140px]">
+                      <div className="flex-1 min-w-[150px]">
                         <Label className="text-xs">Supplier reference</Label>
-                        <Input className="h-8 text-sm" value={recallForm.supplierReference ?? ""} onChange={e => setRecallForm(f => ({ ...f, supplierReference: e.target.value }))} placeholder="Their ref / ticket number" />
+                        <Input className="h-8 text-sm mt-1" value={recallForm.supplierReference ?? ""} onChange={e => setRecallForm(f => ({ ...f, supplierReference: e.target.value }))} placeholder="Their ref / ticket number" />
                       </div>
                     </>}
                   </div>
@@ -1940,11 +1940,11 @@ export default function CompliancePage() {
 
               {/* Authority notification */}
               <div className="bg-white border border-blue-100 rounded-lg p-3">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="text-xs font-medium text-gray-700 w-32 shrink-0">Authority notified?</span>
-                  <div className="w-28 shrink-0">
+                <div className="flex items-end gap-3 flex-wrap">
+                  <div className="w-36 shrink-0">
+                    <Label className="text-xs">Authority notified?</Label>
                     <Select value={recallForm.reportedToAuthority ?? "false"} onValueChange={v => setRecallForm(f => ({ ...f, reportedToAuthority: v }))}>
-                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="false">No</SelectItem>
                         <SelectItem value="true">Yes</SelectItem>
@@ -1952,10 +1952,10 @@ export default function CompliancePage() {
                     </Select>
                   </div>
                   {recallForm.reportedToAuthority === "true" && <>
-                    <div className="w-44 shrink-0">
+                    <div className="w-48 shrink-0">
                       <Label className="text-xs">Authority</Label>
                       <Select value={recallForm.authorityName ?? "__none__"} onValueChange={v => setRecallForm(f => ({ ...f, authorityName: v === "__none__" ? "" : v }))}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select…" /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-sm mt-1"><SelectValue placeholder="Select…" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="APHA">APHA</SelectItem>
                           <SelectItem value="Trading Standards">Trading Standards</SelectItem>
@@ -1965,13 +1965,13 @@ export default function CompliancePage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex-1 min-w-[120px]">
+                    <div className="flex-1 min-w-[130px]">
                       <Label className="text-xs">Date notified</Label>
-                      <Input type="date" className="h-8 text-sm" value={recallForm.authorityNotifiedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, authorityNotifiedDate: e.target.value }))} />
+                      <Input type="date" className="h-8 text-sm mt-1" value={recallForm.authorityNotifiedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, authorityNotifiedDate: e.target.value }))} />
                     </div>
                     <div className="flex-1 min-w-[140px]">
                       <Label className="text-xs">Authority reference</Label>
-                      <Input className="h-8 text-sm" value={recallForm.authorityReference ?? ""} onChange={e => setRecallForm(f => ({ ...f, authorityReference: e.target.value }))} />
+                      <Input className="h-8 text-sm mt-1" value={recallForm.authorityReference ?? ""} onChange={e => setRecallForm(f => ({ ...f, authorityReference: e.target.value }))} />
                     </div>
                   </>}
                 </div>
@@ -1979,11 +1979,11 @@ export default function CompliancePage() {
 
               {/* Vet notification — vet name from lookup */}
               <div className="bg-white border border-blue-100 rounded-lg p-3">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="text-xs font-medium text-gray-700 w-32 shrink-0">Vet notified?</span>
-                  <div className="w-28 shrink-0">
+                <div className="flex items-end gap-3 flex-wrap">
+                  <div className="w-36 shrink-0">
+                    <Label className="text-xs">Vet notified?</Label>
                     <Select value={recallForm.reportedToVet ?? "false"} onValueChange={v => setRecallForm(f => ({ ...f, reportedToVet: v }))}>
-                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-8 text-sm mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="false">No</SelectItem>
                         <SelectItem value="true">Yes</SelectItem>
@@ -2003,7 +2003,7 @@ export default function CompliancePage() {
                               else setRecallForm(f => ({ ...f, vetName: v }));
                             }}
                           >
-                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select vet…" /></SelectTrigger>
+                            <SelectTrigger className="h-8 text-sm mt-1"><SelectValue placeholder="Select vet…" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__none__">— Select vet —</SelectItem>
                               {knownVetNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
@@ -2015,12 +2015,12 @@ export default function CompliancePage() {
                           )}
                         </>
                       ) : (
-                        <Input className="h-8 text-sm" value={recallForm.vetName ?? ""} onChange={e => setRecallForm(f => ({ ...f, vetName: e.target.value }))} placeholder="Vet name" />
+                        <Input className="h-8 text-sm mt-1" value={recallForm.vetName ?? ""} onChange={e => setRecallForm(f => ({ ...f, vetName: e.target.value }))} placeholder="Vet name" />
                       )}
                     </div>
-                    <div className="flex-1 min-w-[120px]">
+                    <div className="flex-1 min-w-[130px]">
                       <Label className="text-xs">Date notified</Label>
-                      <Input type="date" className="h-8 text-sm" value={recallForm.vetNotifiedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, vetNotifiedDate: e.target.value }))} />
+                      <Input type="date" className="h-8 text-sm mt-1" value={recallForm.vetNotifiedDate ?? ""} onChange={e => setRecallForm(f => ({ ...f, vetNotifiedDate: e.target.value }))} />
                     </div>
                   </>}
                 </div>
