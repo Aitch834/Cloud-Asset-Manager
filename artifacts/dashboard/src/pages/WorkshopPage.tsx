@@ -970,13 +970,14 @@ function FleetOverviewTab({ farmId, onNavigate }: { farmId: number; onNavigate: 
   const totalPartsCost = jobs.reduce((sum, j) => sum + (j.job.partsCostPence || 0), 0);
 
   function StatCard({ title, value, sub, colour, onClick }: { title: string; value: number | string; sub?: string; colour: string; onClick?: () => void }) {
+    const clickable = !!onClick && value !== 0;
     return (
-      <Card className={onClick ? "cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40" : ""} onClick={onClick}>
+      <Card className={clickable ? "cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40" : ""} onClick={clickable ? onClick : undefined}>
         <CardContent className="p-4">
           <p className="text-xs text-gray-500 mb-1">{title}</p>
           <p className={cn("text-3xl font-bold", colour)}>{value}</p>
           {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
-          {onClick && <p className="text-[10px] text-primary/70 mt-1.5">Click to view →</p>}
+          {clickable && <p className="text-[10px] text-primary/70 mt-1.5">Click to view →</p>}
         </CardContent>
       </Card>
     );
