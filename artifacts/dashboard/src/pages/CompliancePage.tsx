@@ -270,6 +270,11 @@ export default function CompliancePage() {
   const [targetForm, setTargetForm] = useState<Record<string, string>>({});
 
   // ── Data queries
+  const farmQ = useQuery({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
   const bioQ = useQuery({
     queryKey: ["biosecurity-plan", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/biosecurity-plan`).then(r => r.json()),
@@ -350,6 +355,7 @@ export default function CompliancePage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["feed-stock-targets", farmId] }); toast({ title: "Target removed" }); },
   });
 
+  const farmDetail = farmQ.data?.record ?? farmQ.data?.farm ?? null;
   const bio = bioQ.data?.plan ?? null;
   const contingency = contingencyQ.data?.plan ?? null;
   const diseases: Record<string, unknown>[] = diseaseQ.data?.records ?? [];
@@ -486,6 +492,160 @@ export default function CompliancePage() {
   // ── Print
   function printPlan() { window.print(); }
 
+  function printDeclarationForm() {
+    const fd = farmDetail as Record<string, unknown> | null;
+    const farmName  = fd ? String(fd.name  ?? "") : "";
+    const farmAddr  = fd ? String(fd.address  ?? "") : "";
+    const farmPost  = fd ? String(fd.postcode  ?? "") : "";
+    const farmCph   = fd ? String(fd.cphNumber ?? "") : "";
+    const b = bio as Record<string, unknown> | null;
+    const restrictedAreas   = b ? String(b.restrictedAreas   ?? "") : "";
+    const visitorProcedures = b ? String(b.visitorProcedures ?? "") : "";
+    const footwearHygiene   = b ? String(b.footwearHygieneProcedures ?? "") : "";
+    const vetName  = b ? String(b.farmVetName  ?? "") : "";
+    const vetPhone = b ? String(b.farmVetPhone ?? "") : "";
+    const aphaPhone = b ? String(b.aphaPhone ?? "03000 200 301") : "03000 200 301";
+
+    function ruleLines(text: string, fallback: string): string {
+      if (!text.trim()) return `<li>${fallback}</li>`;
+      return text.split(/\n+/).filter(Boolean).slice(0, 5).map(l => `<li>${l.trim()}</li>`).join("");
+    }
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Visitor Biosecurity Declaration — ${farmName}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 11pt; color: #111; background: #fff; }
+  @page { size: A4; margin: 14mm 14mm 14mm 14mm; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1a5c2e; padding-bottom: 8px; margin-bottom: 10px; }
+  .header-left h1 { font-size: 18pt; font-weight: 800; color: #1a5c2e; line-height: 1.1; }
+  .header-left p  { font-size: 9pt; color: #444; margin-top: 2px; }
+  .header-right   { text-align: right; font-size: 9pt; color: #444; }
+  .header-right strong { display: block; font-size: 11pt; color: #1a5c2e; }
+
+  .warning-banner { background: #fff3cd; border: 1.5px solid #f0ad4e; border-radius: 5px; padding: 6px 10px; font-size: 9pt; font-weight: 700; color: #7c5800; margin-bottom: 10px; }
+  .warning-banner span { font-weight: 400; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .box { border: 1.5px solid #c8d8c8; border-radius: 5px; padding: 8px 10px; }
+  .box h2 { font-size: 10pt; font-weight: 700; color: #1a5c2e; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .box ul { padding-left: 16px; }
+  .box ul li { font-size: 9pt; color: #222; margin-bottom: 3px; line-height: 1.35; }
+
+  .declaration-box { border: 2px solid #1a5c2e; border-radius: 5px; padding: 8px 12px; margin-bottom: 10px; }
+  .declaration-box h2 { font-size: 10pt; font-weight: 700; color: #1a5c2e; text-transform: uppercase; margin-bottom: 6px; }
+  .declaration-box ol { padding-left: 18px; }
+  .declaration-box ol li { font-size: 9.5pt; margin-bottom: 4px; line-height: 1.35; }
+
+  .table-section h2 { font-size: 10pt; font-weight: 700; color: #1a5c2e; text-transform: uppercase; margin-bottom: 5px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #1a5c2e; color: #fff; font-size: 8.5pt; font-weight: 700; padding: 5px 4px; text-align: left; white-space: nowrap; }
+  td { border: 1px solid #bbb; font-size: 8.5pt; padding: 0; height: 24px; }
+  td.writeable { min-width: 0; }
+  tr:nth-child(even) td { background: #f6faf6; }
+
+  .footer { margin-top: 8px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 8pt; color: #666; border-top: 1px solid #ccc; padding-top: 5px; }
+  .emergency { font-size: 8.5pt; }
+  .emergency strong { color: #c00; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>Visitor &amp; Contractor<br>Biosecurity Declaration</h1>
+    <p>${farmName}${farmAddr ? " · " + farmAddr : ""}${farmPost ? ", " + farmPost : ""}</p>
+  </div>
+  <div class="header-right">
+    ${farmCph ? `<strong>CPH: ${farmCph}</strong>` : ""}
+    <div>Form version: ${new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</div>
+    <div>Red Tractor Assured</div>
+  </div>
+</div>
+
+<div class="warning-banner">
+  &#9888; ALL visitors and contractors must read these rules and sign below before entering the farm.
+  <span>Failure to comply may require you to leave the premises.</span>
+</div>
+
+<div class="two-col">
+  <div class="box">
+    <h2>&#128683; Restricted Areas</h2>
+    <ul>
+      ${ruleLines(restrictedAreas, "Only proceed to areas you have been authorised to enter.")}
+      <li>Do not enter livestock buildings unless accompanied by farm staff.</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h2>&#9755; Before You Enter</h2>
+    <ul>
+      ${ruleLines(visitorProcedures, "Report to the farmhouse or office before going anywhere on the farm.")}
+      ${ruleLines(footwearHygiene, "Clean and disinfect all footwear using the facilities provided.")}
+    </ul>
+  </div>
+</div>
+
+<div class="declaration-box">
+  <h2>&#9989; Declaration — Please read carefully before signing</h2>
+  <ol>
+    <li>I have <strong>not been in contact with livestock</strong> or visited a farm, livestock market, abattoir, or agricultural show in a <strong>foreign country in the past 7 days</strong>.</li>
+    <li>I have <strong>not been in contact with pigs</strong> (or pig premises) in the past 48 hours, unless I have cleaned and disinfected all clothing and footwear used at that time.</li>
+    <li>I have <strong>cleaned and disinfected my footwear</strong> before entering or I will use the foot dip / overshoes provided.</li>
+    <li>I will follow all farm biosecurity rules as explained to me and <strong>will not deviate from agreed routes</strong> on this farm.</li>
+    <li>I will <strong>report immediately</strong> any sign of disease, injury, dead animals, or unusual odour to the farm contact named below.</li>
+    <li>I understand that <strong>food, drink, and smoking</strong> are not permitted in livestock buildings or feed stores.</li>
+    <li>I confirm that I have read and understood this declaration and agree to abide by it.</li>
+  </ol>
+</div>
+
+<div class="table-section">
+  <h2>&#9998; Visitor / Contractor Sign-In Register</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:16%">Full Name</th>
+        <th style="width:16%">Company / Organisation</th>
+        <th style="width:14%">Reason for Visit</th>
+        <th style="width:10%">Vehicle Reg</th>
+        <th style="width:9%">Date</th>
+        <th style="width:6%">Time In</th>
+        <th style="width:6%">Time Out</th>
+        <th style="width:12%">Mobile Number</th>
+        <th style="width:11%">Signature</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${Array.from({ length: 9 }).map(() => "<tr>" + "<td class='writeable'></td>".repeat(9) + "</tr>").join("")}
+    </tbody>
+  </table>
+</div>
+
+<div class="footer">
+  <div class="emergency">
+    <strong>Emergency contacts:</strong>&nbsp;
+    Farm contact: <strong>${vetName || "See farm office"}</strong>${vetPhone ? " — " + vetPhone : ""}&nbsp;&nbsp;|&nbsp;&nbsp;
+    APHA (disease suspicion): <strong>${aphaPhone}</strong>&nbsp;&nbsp;|&nbsp;&nbsp;
+    Emergency services: <strong>999</strong>
+  </div>
+  <div>Please leave this form with the farm contact when you depart.</div>
+</div>
+
+</body>
+</html>`;
+
+    const w = window.open("", "_blank");
+    if (!w) { alert("Please allow pop-ups to print the declaration form."); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 400);
+  }
+
   return (
     <AppLayout title="Compliance & Contingency Plans">
       <p className="text-sm text-gray-500 mb-4">
@@ -509,6 +669,7 @@ export default function CompliancePage() {
               <p className="text-xs text-gray-500">Required by Red Tractor for all livestock sectors. Review annually and after any significant change to farm operations.</p>
             </div>
             <div className="flex gap-2">
+              {!editingBio && <Button variant="outline" size="sm" onClick={printDeclarationForm}><Printer className="w-3.5 h-3.5 mr-1" />Visitor Declaration Form</Button>}
               {!editingBio && <Button variant="outline" size="sm" onClick={printPlan}><Printer className="w-3.5 h-3.5 mr-1" />Print Plan</Button>}
               {!editingBio && <Button className="bg-green-800 hover:bg-green-900 text-white" size="sm" onClick={startEditBio}><Edit2 className="w-3.5 h-3.5 mr-1" />{bio ? "Edit Plan" : "Create Plan"}</Button>}
               {editingBio && <Button variant="outline" size="sm" onClick={() => setEditingBio(false)}>Cancel</Button>}
