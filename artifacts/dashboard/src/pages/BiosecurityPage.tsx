@@ -14,7 +14,7 @@ import { Redirect, Link } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, Users, Bug, ShieldCheck, Eye,
   CheckCircle2, XCircle, AlertTriangle, Calendar, Printer, FileText,
-  Camera, File, ChevronDown, ChevronUp, Pen,
+  Camera, File, ChevronDown, ChevronUp, Pen, X,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -852,12 +852,23 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
   const [editing, setEditing] = useState<CleaningRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_CLEANING>(EMPTY_CLEANING);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [customProduct, setCustomProduct] = useState("");
 
   const { data, isLoading } = useQuery<{ records: CleaningRecord[] }>({
     queryKey: ["cleaning", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/cleaning`).then(r => r.json()),
   });
+  const { data: coshhData } = useQuery<{ records: Array<{ id: number; substanceName: string }> }>({
+    queryKey: ["coshh", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/coshh`).then(r => r.json()),
+  });
   const records: CleaningRecord[] = data?.records ?? [];
+  const coshhSubstances: string[] = (coshhData?.records ?? []).map(r => r.substanceName).filter(Boolean);
+  const knownStaff: string[] = [...new Set([
+    ...records.map(r => r.cleanedBy).filter(Boolean) as string[],
+    ...records.map(r => r.verifiedBy).filter(Boolean) as string[],
+  ])];
   const filtered = records.filter(r =>
     isInCropYear(r.cleanedDate, cropYear)
     && (!search
@@ -866,15 +877,20 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
       || r.productsUsed?.toLowerCase().includes(search.toLowerCase()))
   );
 
+  function resetCleaningDialog() {
+    setFormOpen(false); setEditing(null); setForm(EMPTY_CLEANING);
+    setSelectedProducts([]); setCustomProduct("");
+  }
+
   const createM = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       fetch(`/api/farms/${farmId}/cleaning`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_CLEANING); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning", farmId] }); resetCleaningDialog(); },
   });
   const updateM = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
       fetch(`/api/farms/${farmId}/cleaning/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning", farmId] }); setFormOpen(false); setEditing(null); setForm(EMPTY_CLEANING); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cleaning", farmId] }); resetCleaningDialog(); },
   });
   const deleteM = useMutation({
     mutationFn: (id: number) => fetch(`/api/farms/${farmId}/cleaning/${id}`, { method: "DELETE" }),
@@ -884,11 +900,14 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
   function openEdit(c: CleaningRecord) {
     setEditing(c);
     setForm({ area: c.area, cleaningType: c.cleaningType, productsUsed: c.productsUsed ?? "", dilutionRate: c.dilutionRate ?? "", contactTime: c.contactTime ?? "", cleanedBy: c.cleanedBy ?? "", cleanedDate: c.cleanedDate?.slice(0, 10) ?? "", nextDueDate: c.nextDueDate?.slice(0, 10) ?? "", verifiedBy: c.verifiedBy ?? "", notes: c.notes ?? "" });
+    setSelectedProducts(c.productsUsed ? c.productsUsed.split(",").map(s => s.trim()).filter(Boolean) : []);
+    setCustomProduct("");
     setFormOpen(true);
   }
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const body = { ...form, cleanedDate: form.cleanedDate ? new Date(form.cleanedDate).toISOString() : null, nextDueDate: form.nextDueDate ? new Date(form.nextDueDate).toISOString() : null };
+    const productsUsed = selectedProducts.join(", ");
+    const body = { ...form, productsUsed, cleanedDate: form.cleanedDate ? new Date(form.cleanedDate).toISOString() : null, nextDueDate: form.nextDueDate ? new Date(form.nextDueDate).toISOString() : null };
     if (editing) { updateM.mutate({ id: editing.id, body }); } else { createM.mutate(body); }
   }
   const isSubmitting = createM.isPending || updateM.isPending;
@@ -904,7 +923,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
         <Button variant="outline" onClick={() => printCleaningRegister(filtered, farmName, cropYearLabel(cropYear))} className="gap-2 shrink-0" disabled={filtered.length === 0}>
           <Printer className="w-4 h-4" /> Print Register
         </Button>
-        <Button onClick={() => { setEditing(null); setForm(EMPTY_CLEANING); setFormOpen(true); }} className="gap-2 shrink-0">
+        <Button onClick={() => { resetCleaningDialog(); setFormOpen(true); }} className="gap-2 shrink-0">
           <Plus className="w-4 h-4" /> Add Record
         </Button>
       </div>
@@ -961,7 +980,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
         </Card>
       )}
 
-      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_CLEANING); } }}>
+      <Dialog open={formOpen} onOpenChange={(o) => { if (!o) resetCleaningDialog(); }}>
         <DialogContent style={{ maxWidth: "52rem" }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -989,11 +1008,54 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaned By</label>
-                <Input placeholder="Name or contractor" value={form.cleanedBy} onChange={e => setForm(f => ({ ...f, cleanedBy: e.target.value }))} />
+                <Input
+                  list="cleaning-staff-list"
+                  placeholder="Name or contractor"
+                  value={form.cleanedBy}
+                  onChange={e => setForm(f => ({ ...f, cleanedBy: e.target.value }))}
+                />
+                <datalist id="cleaning-staff-list">{knownStaff.map(n => <option key={n} value={n} />)}</datalist>
               </div>
               <div className="col-span-2">
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Products Used</label>
-                <Input placeholder="e.g. Virkon S 1%, Stalosan F" value={form.productsUsed} onChange={e => setForm(f => ({ ...f, productsUsed: e.target.value }))} />
+                <div className="flex flex-wrap gap-1.5 min-h-[2rem] mb-2">
+                  {selectedProducts.map(p => (
+                    <span key={p} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                      {p}
+                      <button type="button" onClick={() => setSelectedProducts(pp => pp.filter(x => x !== p))} className="ml-0.5 hover:text-red-500 transition-colors">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {selectedProducts.length === 0 && <span className="text-sm text-foreground/40 italic self-center">No products selected yet</span>}
+                </div>
+                <div className="flex gap-2">
+                  <select
+                    value=""
+                    onChange={e => { const v = e.target.value; if (v) setSelectedProducts(pp => pp.includes(v) ? pp : [...pp, v]); }}
+                    className="flex-1 h-10 rounded-xl border-2 border-border bg-transparent px-3 py-1.5 text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  >
+                    <option value="">+ Add from COSHH register…</option>
+                    {coshhSubstances.filter(s => !selectedProducts.includes(s)).map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    placeholder="Or type unlisted product name…"
+                    value={customProduct}
+                    onChange={e => setCustomProduct(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); const v = customProduct.trim(); if (v) { setSelectedProducts(pp => pp.includes(v) ? pp : [...pp, v]); setCustomProduct(""); } } }}
+                    className="flex-1 text-sm h-10"
+                  />
+                  <Button
+                    type="button" variant="outline" className="h-10 px-3 shrink-0"
+                    disabled={!customProduct.trim()}
+                    onClick={() => { const v = customProduct.trim(); if (v) { setSelectedProducts(pp => pp.includes(v) ? pp : [...pp, v]); setCustomProduct(""); } }}
+                  >Add</Button>
+                </div>
+                {coshhSubstances.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1.5">No COSHH substances on register yet — type products manually above.</p>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Dilution Rate</label>
@@ -1009,7 +1071,13 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Verified By</label>
-                <Input placeholder="Supervisor / farm manager" value={form.verifiedBy} onChange={e => setForm(f => ({ ...f, verifiedBy: e.target.value }))} />
+                <Input
+                  list="verified-staff-list"
+                  placeholder="Supervisor / farm manager"
+                  value={form.verifiedBy}
+                  onChange={e => setForm(f => ({ ...f, verifiedBy: e.target.value }))}
+                />
+                <datalist id="verified-staff-list">{knownStaff.map(n => <option key={n} value={n} />)}</datalist>
               </div>
             </div>
             <div>
@@ -1017,7 +1085,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
               <Input placeholder="Additional notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setFormOpen(false); setEditing(null); setForm(EMPTY_CLEANING); }}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={resetCleaningDialog}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 {editing ? "Update Record" : "Save Record"}
