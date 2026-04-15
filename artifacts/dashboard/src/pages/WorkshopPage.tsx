@@ -192,10 +192,14 @@ function AssetsTab({ farmId }: { farmId: number }) {
                     {eq.assetNumber ? (
                       <span className="font-mono font-semibold text-primary">{eq.assetNumber}</span>
                     ) : (
-                      <Button size="sm" variant="outline" className="h-6 text-xs px-2"
-                        onClick={() => assignNumber.mutate(eq)} disabled={assignNumber.isPending}>
-                        Generate
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-sm text-gray-400 tabular-nums">{assetNumber(eq)}</span>
+                        <Button size="sm" variant="outline" className="h-5 text-[10px] px-1.5 border-dashed"
+                          onClick={() => assignNumber.mutate(eq)} disabled={assignNumber.isPending}
+                          title="Save this asset number permanently">
+                          Save
+                        </Button>
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3 font-medium">{eq.name}</td>
@@ -942,7 +946,7 @@ function ServiceScheduleTab({ farmId }: { farmId: number }) {
 
 // ─── Fleet Overview tab ────────────────────────────────────────────────────────
 
-function FleetOverviewTab({ farmId }: { farmId: number }) {
+function FleetOverviewTab({ farmId, onNavigate }: { farmId: number; onNavigate: (tab: Tab) => void }) {
   const { data: equipData } = useQuery<{ records: Equipment[] }>({
     queryKey: ["equipment", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/equipment`), { credentials: "include" }).then(r => r.json()),
@@ -965,46 +969,85 @@ function FleetOverviewTab({ farmId }: { farmId: number }) {
   const totalLabourCost = jobs.reduce((sum, j) => sum + (j.job.labourCostPence || 0), 0);
   const totalPartsCost = jobs.reduce((sum, j) => sum + (j.job.partsCostPence || 0), 0);
 
-  function StatCard({ title, value, sub, colour }: { title: string; value: number | string; sub?: string; colour: string }) {
+  function StatCard({ title, value, sub, colour, onClick }: { title: string; value: number | string; sub?: string; colour: string; onClick?: () => void }) {
     return (
-      <Card>
+      <Card className={onClick ? "cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40" : ""} onClick={onClick}>
         <CardContent className="p-4">
           <p className="text-xs text-gray-500 mb-1">{title}</p>
           <p className={cn("text-3xl font-bold", colour)}>{value}</p>
           {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+          {onClick && <p className="text-[10px] text-primary/70 mt-1.5">Click to view →</p>}
         </CardContent>
       </Card>
     );
   }
 
+  // Costs grouped by year (most recent first)
+  const costsByYear = jobs.reduce((acc, j) => {
+    const yr = new Date(j.job.openedAt).getFullYear();
+    if (!acc[yr]) acc[yr] = { labour: 0, parts: 0 };
+    acc[yr].labour += j.job.labourCostPence || 0;
+    acc[yr].parts += j.job.partsCostPence || 0;
+    return acc;
+  }, {} as Record<number, { labour: number; parts: number }>);
+  const costYears = Object.keys(costsByYear).map(Number).sort((a, b) => b - a);
+
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Fleet Status</h3>
+        <h3 className="text-sm font-semibold text-gray-700 mb-1">Fleet Status</h3>
+        <p className="text-xs text-gray-400 mb-3">Click a card to view those assets</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard title="Total Assets" value={equipment.length} colour="text-gray-900" />
-          <StatCard title="Operational" value={byStatus["active"] || 0} colour="text-green-600" sub={`${Math.round(((byStatus["active"] || 0) / Math.max(equipment.length, 1)) * 100)}% availability`} />
-          <StatCard title="Broken Down" value={byStatus["broken"] || 0} colour="text-red-600" />
-          <StatCard title="In Service" value={byStatus["in-service"] || 0} colour="text-amber-600" />
+          <StatCard title="Total Assets" value={equipment.length} colour="text-gray-900" onClick={() => onNavigate("assets")} />
+          <StatCard title="Operational" value={byStatus["active"] || 0} colour="text-green-600" sub={`${Math.round(((byStatus["active"] || 0) / Math.max(equipment.length, 1)) * 100)}% availability`} onClick={() => onNavigate("assets")} />
+          <StatCard title="Broken Down" value={byStatus["broken"] || 0} colour="text-red-600" onClick={() => onNavigate("assets")} />
+          <StatCard title="In Service" value={byStatus["in-service"] || 0} colour="text-amber-600" onClick={() => onNavigate("assets")} />
         </div>
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Active Workshop Jobs</h3>
+        <h3 className="text-sm font-semibold text-gray-700 mb-1">Active Workshop Jobs</h3>
+        <p className="text-xs text-gray-400 mb-3">Click a card to view those job cards</p>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <StatCard title="Open Jobs" value={openJobs} colour="text-blue-600" />
-          <StatCard title="In Progress" value={inProgressJobs} colour="text-amber-600" />
-          <StatCard title="Awaiting Parts" value={awaitingParts} colour="text-purple-600" />
+          <StatCard title="Open Jobs" value={openJobs} colour="text-blue-600" onClick={() => onNavigate("jobs")} />
+          <StatCard title="In Progress" value={inProgressJobs} colour="text-amber-600" onClick={() => onNavigate("jobs")} />
+          <StatCard title="Awaiting Parts" value={awaitingParts} colour="text-purple-600" onClick={() => onNavigate("jobs")} />
         </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Total Workshop Costs (all time)</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex justify-between text-sm"><span className="text-gray-500">Labour</span><span className="font-medium">£{(totalLabourCost / 100).toFixed(2)}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-gray-500">Parts</span><span className="font-medium">£{(totalPartsCost / 100).toFixed(2)}</span></div>
-            <div className="flex justify-between text-sm font-semibold border-t pt-2"><span>Total</span><span>£{((totalLabourCost + totalPartsCost) / 100).toFixed(2)}</span></div>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Workshop Costs by Year</CardTitle></CardHeader>
+          <CardContent>
+            {costYears.length === 0 ? (
+              <p className="text-sm text-gray-400">No cost data recorded yet.</p>
+            ) : (
+              <div className="divide-y">
+                {costYears.map(yr => {
+                  const { labour, parts } = costsByYear[yr];
+                  const total = labour + parts;
+                  return (
+                    <div key={yr} className="py-2 first:pt-0 last:pb-0">
+                      <p className="text-xs font-semibold text-gray-600 mb-1">{yr}</p>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div><span className="text-gray-400">Labour</span><p className="font-medium">£{(labour / 100).toFixed(2)}</p></div>
+                        <div><span className="text-gray-400">Parts</span><p className="font-medium">£{(parts / 100).toFixed(2)}</p></div>
+                        <div><span className="text-gray-400">Total</span><p className="font-semibold text-gray-800">£{(total / 100).toFixed(2)}</p></div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {costYears.length > 1 && (
+                  <div className="py-2 last:pb-0">
+                    <div className="grid grid-cols-3 gap-2 text-xs border-t pt-2 mt-0">
+                      <div><span className="text-gray-400">All Labour</span><p className="font-semibold">£{(totalLabourCost / 100).toFixed(2)}</p></div>
+                      <div><span className="text-gray-400">All Parts</span><p className="font-semibold">£{(totalPartsCost / 100).toFixed(2)}</p></div>
+                      <div><span className="text-gray-400">All Time</span><p className="font-bold text-primary">£{((totalLabourCost + totalPartsCost) / 100).toFixed(2)}</p></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -2073,7 +2116,7 @@ export default function WorkshopPage() {
           {tab === "assets" && <AssetsTab farmId={farmId} />}
           {tab === "jobs" && <JobCardsTab farmId={farmId} openId={openId} />}
           {tab === "schedule" && <ServiceScheduleTab farmId={farmId} />}
-          {tab === "overview" && <FleetOverviewTab farmId={farmId} />}
+          {tab === "overview" && <FleetOverviewTab farmId={farmId} onNavigate={setTab} />}
           {tab === "parts" && <PartsStoreTab farmId={farmId} />}
         </div>
       </div>
