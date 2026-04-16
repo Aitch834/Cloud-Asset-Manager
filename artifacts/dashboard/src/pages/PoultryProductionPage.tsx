@@ -121,8 +121,104 @@ const PRODUCTION_SYSTEMS = [
   "Label Rouge",
 ];
 
+type DensityInfo = {
+  schemeUnit: "birds/m²" | "kg/m²";
+  schemeLimit: number;
+  typicalLiveWeightKg?: number;
+  source: string;
+};
+
+function getStockingDensityInfo(species: string, productionSystem: string): DensityInfo | null {
+  const s = species.toLowerCase();
+  const p = productionSystem.toLowerCase();
+  if (s.includes("layer") || s.includes("laying")) {
+    if (p.includes("organic")) return { schemeUnit: "birds/m²", schemeLimit: 6, source: "Organic (Soil Association / OF&G)" };
+    return { schemeUnit: "birds/m²", schemeLimit: 9, source: "Red Tractor / Barn / Free Range standard" };
+  }
+  if (s.includes("broiler") || s.includes("meat chicken")) {
+    let lim = 33; let src = "Red Tractor standard";
+    if (p.includes("organic")) { lim = 21; src = "Organic standard"; }
+    else if (p.includes("free range")) { lim = 25; src = "Free Range standard"; }
+    else if (p.includes("rspca") || p.includes("higher welfare")) { lim = 30; src = "RSPCA Assured / Higher Welfare standard"; }
+    return { schemeUnit: "kg/m²", schemeLimit: lim, typicalLiveWeightKg: 2.2, source: src };
+  }
+  if (s.includes("turkey")) {
+    const lim = p.includes("rspca") ? 40 : 50;
+    return { schemeUnit: "kg/m²", schemeLimit: lim, typicalLiveWeightKg: 12, source: p.includes("rspca") ? "RSPCA Assured" : "Red Tractor Turkey standard" };
+  }
+  if (s.includes("duck")) {
+    return { schemeUnit: "kg/m²", schemeLimit: 25, typicalLiveWeightKg: 3, source: "Duck production standard" };
+  }
+  return null;
+}
+
+function StockingDensityPanel({ floorAreaM2, capacity, species, productionSystem }: {
+  floorAreaM2: number | null; capacity: number | null; species: string; productionSystem: string;
+}) {
+  if (!floorAreaM2 || floorAreaM2 <= 0) return null;
+  const info = getStockingDensityInfo(species, productionSystem);
+  const birdsPerM2 = capacity ? capacity / floorAreaM2 : null;
+
+  let statusEl: React.ReactNode = null;
+  if (info && birdsPerM2 !== null) {
+    let withinLimit: boolean;
+    if (info.schemeUnit === "birds/m²") {
+      withinLimit = birdsPerM2 <= info.schemeLimit;
+    } else {
+      const kgPerM2 = birdsPerM2 * (info.typicalLiveWeightKg ?? 2.2);
+      withinLimit = kgPerM2 <= info.schemeLimit;
+    }
+    statusEl = withinLimit
+      ? <span className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5">✓ Within scheme limit</span>
+      : <span className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">⚠ May exceed scheme limit</span>;
+  }
+
+  return (
+    <div className="col-span-2 rounded-lg border bg-muted/40 px-4 py-3 space-y-1.5 text-sm">
+      <div className="flex items-center justify-between">
+        <span className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Stocking Density</span>
+        {statusEl}
+      </div>
+      <div className="grid grid-cols-3 gap-3 text-xs">
+        <div>
+          <p className="text-muted-foreground">Floor Area</p>
+          <p className="font-semibold">{floorAreaM2.toFixed(0)} m²</p>
+        </div>
+        {birdsPerM2 !== null && (
+          <div>
+            <p className="text-muted-foreground">Calculated Density</p>
+            <p className="font-semibold">{birdsPerM2.toFixed(1)} birds/m²</p>
+          </div>
+        )}
+        {info && (
+          <div>
+            <p className="text-muted-foreground">Scheme Limit</p>
+            {info.schemeUnit === "birds/m²" ? (
+              <p className="font-semibold">{info.schemeLimit} birds/m²</p>
+            ) : (
+              <p className="font-semibold">
+                {info.schemeLimit} kg/m²
+                {info.typicalLiveWeightKg && (
+                  <span className="font-normal text-muted-foreground ml-1">
+                    (≈{(info.schemeLimit / info.typicalLiveWeightKg).toFixed(1)} birds/m² at {info.typicalLiveWeightKg} kg)
+                  </span>
+                )}
+              </p>
+            )}
+            <p className="text-muted-foreground mt-0.5">{info.source}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function HousesTab({ farmId }: { farmId: number }) {
   const { data: houses, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-houses", "poultry-houses");
+  const lengthM = parseFloat(String(form.lengthM ?? "")) || null;
+  const widthM = parseFloat(String(form.widthM ?? "")) || null;
+  const floorAreaM2 = (lengthM && widthM) ? lengthM * widthM : null;
+  const capacity = parseInt(String(form.approvedCapacity ?? "")) || null;
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -134,11 +230,12 @@ function HousesTab({ farmId }: { farmId: number }) {
         { key: "species", label: "Species" },
         { key: "houseType", label: "House Type" },
         { key: "productionSystem", label: "Production System" },
-        { key: "approvedCapacity", label: "Capacity" },
-        { key: "ventilationType", label: "Ventilation" },
+        { key: "approvedCapacity", label: "Capacity (birds)" },
+        { key: "floorArea", label: "Floor Area", fmt: r => (r.lengthM && r.widthM) ? `${(Number(r.lengthM) * Number(r.widthM)).toFixed(0)} m²` : "—" },
+        { key: "density", label: "Density (birds/m²)", fmt: r => (r.lengthM && r.widthM && r.approvedCapacity) ? (Number(r.approvedCapacity) / (Number(r.lengthM) * Number(r.widthM))).toFixed(1) : "—" },
       ]} rows={houses as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "40rem" }}>
+        <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit House" : "Add Poultry House"}</DialogTitle>
           </DialogHeader>
@@ -169,6 +266,22 @@ function HousesTab({ farmId }: { farmId: number }) {
                 <SelectContent>{PRODUCTION_SYSTEMS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <div>
+              <Label>House Length (m)</Label>
+              <p className="text-xs text-muted-foreground mb-1">Internal floor length</p>
+              <Input type="number" step="0.1" min="0" value={String(form.lengthM ?? "")} onChange={e => setForm(f => ({ ...f, lengthM: e.target.value }))} placeholder="e.g. 120" />
+            </div>
+            <div>
+              <Label>House Width (m)</Label>
+              <p className="text-xs text-muted-foreground mb-1">Internal floor width</p>
+              <Input type="number" step="0.1" min="0" value={String(form.widthM ?? "")} onChange={e => setForm(f => ({ ...f, widthM: e.target.value }))} placeholder="e.g. 12" />
+            </div>
+            <StockingDensityPanel
+              floorAreaM2={floorAreaM2}
+              capacity={capacity}
+              species={String(form.species ?? "")}
+              productionSystem={String(form.productionSystem ?? "")}
+            />
             <div><Label>Ventilation Type</Label><Input value={String(form.ventilationType ?? "")} onChange={e => setForm(f => ({ ...f, ventilationType: e.target.value }))} placeholder="e.g. Tunnel, Cross-flow, Natural" /></div>
             <div><Label>Water System</Label><Input value={String(form.waterSystem ?? "")} onChange={e => setForm(f => ({ ...f, waterSystem: e.target.value }))} placeholder="e.g. Nipple drinkers, Bell drinkers" /></div>
           </div>
