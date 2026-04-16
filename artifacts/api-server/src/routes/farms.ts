@@ -12246,7 +12246,36 @@ router.delete("/farms/:farmId/poultry-daily-mortality/:id", requireAuth, require
 
 router.get("/farms/:farmId/poultry-treatments", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(poultryTreatmentsTable).where(eq(poultryTreatmentsTable.farmId, farmId)).orderBy(desc(poultryTreatmentsTable.treatmentDate));
+  const rows = await db.select({
+    id: poultryTreatmentsTable.id,
+    farmId: poultryTreatmentsTable.farmId,
+    flockId: poultryTreatmentsTable.flockId,
+    treatmentDate: poultryTreatmentsTable.treatmentDate,
+    numberOfBirdsTreated: poultryTreatmentsTable.numberOfBirdsTreated,
+    productName: poultryTreatmentsTable.productName,
+    activeIngredient: poultryTreatmentsTable.activeIngredient,
+    condition: poultryTreatmentsTable.condition,
+    routeOfAdministration: poultryTreatmentsTable.routeOfAdministration,
+    doseRate: poultryTreatmentsTable.doseRate,
+    durationDays: poultryTreatmentsTable.durationDays,
+    batchNumber: poultryTreatmentsTable.batchNumber,
+    expiryDate: poultryTreatmentsTable.expiryDate,
+    administeredBy: poultryTreatmentsTable.administeredBy,
+    prescribingVetName: poultryTreatmentsTable.prescribingVetName,
+    prescribingVetPractice: poultryTreatmentsTable.prescribingVetPractice,
+    prescriptionObtained: poultryTreatmentsTable.prescriptionObtained,
+    withdrawalPeriodDays: poultryTreatmentsTable.withdrawalPeriodDays,
+    withdrawalClearDate: poultryTreatmentsTable.withdrawalClearDate,
+    notes: poultryTreatmentsTable.notes,
+    createdAt: poultryTreatmentsTable.createdAt,
+    flockNumber: poultryFlocksTable.flockNumber,
+    flockSpecies: poultryFlocksTable.species,
+    houseName: poultryHousesTable.houseName,
+  }).from(poultryTreatmentsTable)
+    .leftJoin(poultryFlocksTable, eq(poultryTreatmentsTable.flockId, poultryFlocksTable.id))
+    .leftJoin(poultryHousesTable, eq(poultryFlocksTable.houseId, poultryHousesTable.id))
+    .where(eq(poultryTreatmentsTable.farmId, farmId))
+    .orderBy(desc(poultryTreatmentsTable.treatmentDate));
   res.json(rows);
 });
 router.post("/farms/:farmId/poultry-treatments", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
