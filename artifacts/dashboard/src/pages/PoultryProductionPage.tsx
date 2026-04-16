@@ -164,30 +164,57 @@ function FlocksTab({ farmId }: { farmId: number }) {
   );
 }
 
+function useFlocks(farmId: number) {
+  const { data: rawFlocks = [] } = useQuery({ queryKey: ["poultry-flocks", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-flocks`), { credentials: "include" }).then(r => r.json()) });
+  return (rawFlocks as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName }));
+}
+
+function FlockSelect({ flocks, value, onChange }: { flocks: Record<string, unknown>[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <Select value={value || "__none__"} onValueChange={v => onChange(v === "__none__" ? "" : v)}>
+      <SelectTrigger><SelectValue placeholder="Select flock" /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__none__">— Select flock —</SelectItem>
+        {flocks.map(f => (
+          <SelectItem key={String(f.id)} value={String(f.id)}>
+            {String(f.flockNumber ?? f.id)}{f.houseName ? ` — ${f.houseName}` : ""}{f.species ? ` (${f.species})` : ""}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function fmtFlock(r: Record<string, unknown>): string {
+  if (r.flockNumber) return String(r.flockNumber) + (r.houseName ? ` · ${r.houseName}` : "");
+  return r.flockId ? String(r.flockId) : "—";
+}
+
 function MortalityTab({ farmId }: { farmId: number }) {
-  const { data: flocks = [] } = useQuery({ queryKey: ["poultry-flocks-raw", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-flocks`), { credentials: "include" }).then(r => r.json()) });
-  const allFlocks = (flocks as { flock: Record<string, unknown> }[]).map(r => r.flock);
+  const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-daily-mortality", "poultry-mortality");
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Daily Mortality Records</h3><Button size="sm" onClick={() => openAdd({ mortalityCount: "0", culledCount: "0" })}><Plus className="w-4 h-4 mr-1" />Log Mortality</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "recordDate", label: "Date", fmt: r => fmtDate(r.recordDate) }, { key: "flockId", label: "Flock" }, { key: "mortalityCount", label: "Deaths" }, { key: "culledCount", label: "Culled" }, { key: "mortalityPercentage", label: "% Running" }, { key: "mainCause", label: "Main Cause" }]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
+        { key: "recordDate", label: "Date", fmt: r => fmtDate(r.recordDate) },
+        { key: "flockNumber", label: "Flock", fmt: fmtFlock },
+        { key: "mortalityCount", label: "Deaths" },
+        { key: "culledCount", label: "Culled" },
+        { key: "mortalityPercentage", label: "% Running" },
+        { key: "mainCause", label: "Main Cause" },
+      ]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader><DialogTitle>Daily Mortality</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Date *</Label><Input type="date" value={String(form.recordDate ?? "")} onChange={e => setForm(f => ({ ...f, recordDate: e.target.value }))} /></div>
-            <div><Label>Flock *</Label>
-              <Select value={String(form.flockId ?? "")} onValueChange={v => setForm(f => ({ ...f, flockId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select flock" /></SelectTrigger>
-                <SelectContent>{allFlocks.map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.flockNumber)}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
+            <div><Label>Flock *</Label><FlockSelect flocks={flocks} value={String(form.flockId ?? "")} onChange={v => setForm(f => ({ ...f, flockId: v }))} /></div>
             {[["mortalityCount", "Deaths *"], ["culledCount", "Culled *"], ["runningTotalMortality", "Running Total"], ["mortalityPercentage", "Mortality %"]].map(([k, l]) => <div key={k}><Label>{l}</Label><Input type="number" step="0.01" value={String(form[k] ?? "")} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} /></div>)}
             <div className="col-span-2"><Label>Main Cause</Label><Input value={String(form.mainCause ?? "")} onChange={e => setForm(f => ({ ...f, mainCause: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -367,15 +394,36 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
 }
 
 function CleanoutsTab({ farmId }: { farmId: number }) {
+  const flocks = useFlocks(farmId);
+  const { data: rawHouses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
+  const houses = rawHouses as Record<string, unknown>[];
   const { data: records, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-house-cleanouts", "poultry-cleanouts");
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">House Cleanout & Disinfection Records</h3><Button size="sm" onClick={() => openAdd({ swabsTaken: false })}><Plus className="w-4 h-4 mr-1" />Add Cleanout</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "cleanoutStartDate", label: "Start Date", fmt: r => fmtDate(r.cleanoutStartDate) }, { key: "cleanoutEndDate", label: "End Date", fmt: r => fmtDate(r.cleanoutEndDate) }, { key: "disinfectantUsed", label: "Disinfectant" }, { key: "contactTimeMins", label: "Contact (mins)" }, { key: "swabResults", label: "Swab Results" }, { key: "completedBy", label: "Completed By" }]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
+        { key: "cleanoutStartDate", label: "Start Date", fmt: r => fmtDate(r.cleanoutStartDate) },
+        { key: "houseName", label: "House", fmt: r => r.houseName ? String(r.houseName) : fmt(r.houseId) },
+        { key: "flockNumber", label: "Flock", fmt: r => r.flockNumber ? String(r.flockNumber) : "—" },
+        { key: "cleanoutEndDate", label: "End Date", fmt: r => fmtDate(r.cleanoutEndDate) },
+        { key: "disinfectantUsed", label: "Disinfectant" },
+        { key: "contactTimeMins", label: "Contact (mins)" },
+        { key: "completedBy", label: "Completed By" },
+      ]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>House Cleanout Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
+            <div><Label>House *</Label>
+              <Select value={String(form.houseId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, houseId: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select house" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select house —</SelectItem>
+                  {houses.map(h => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.houseName ?? h.id)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Flock (outgoing)</Label><FlockSelect flocks={flocks} value={String(form.flockId ?? "")} onChange={v => setForm(f => ({ ...f, flockId: v }))} /></div>
             <div><Label>Cleanout Start *</Label><Input type="date" value={String(form.cleanoutStartDate ?? "")} onChange={e => setForm(f => ({ ...f, cleanoutStartDate: e.target.value }))} /></div>
             <div><Label>Cleanout End</Label><Input type="date" value={String(form.cleanoutEndDate ?? "")} onChange={e => setForm(f => ({ ...f, cleanoutEndDate: e.target.value }))} /></div>
             <div><Label>Disinfectant Used</Label><Input value={String(form.disinfectantUsed ?? "")} onChange={e => setForm(f => ({ ...f, disinfectantUsed: e.target.value }))} /></div>
@@ -386,7 +434,7 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
             <div className="flex items-center gap-2 mt-5"><Checkbox id="swabs" checked={Boolean(form.swabsTaken)} onCheckedChange={v => setForm(f => ({ ...f, swabsTaken: Boolean(v) }))} /><Label htmlFor="swabs">Swabs taken?</Label></div>
             <div className="col-span-2"><Label>Swab Results</Label><Input value={String(form.swabResults ?? "")} onChange={e => setForm(f => ({ ...f, swabResults: e.target.value }))} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, houseId: form.houseId ? Number(form.houseId) : null, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -394,17 +442,27 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
 }
 
 function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
+  const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-environmental-logs", "poultry-env-logs");
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Environmental Monitoring Logs</h3><Button size="sm" onClick={() => openAdd({ alarmActivated: false })}><Plus className="w-4 h-4 mr-1" />Log Reading</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "logDate", label: "Date", fmt: r => fmtDate(r.logDate) }, { key: "logTime", label: "Time" }, { key: "temperatureMin", label: "Min °C" }, { key: "temperatureMax", label: "Max °C" }, { key: "humidity", label: "Humidity %" }, { key: "ammoniaPpm", label: "Ammonia ppm" }, { key: "stockingDensity", label: "kg/m²" }]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
+        { key: "logDate", label: "Date", fmt: r => fmtDate(r.logDate) },
+        { key: "flockNumber", label: "Flock", fmt: fmtFlock },
+        { key: "temperatureMin", label: "Min °C" },
+        { key: "temperatureMax", label: "Max °C" },
+        { key: "humidity", label: "Humidity %" },
+        { key: "ammoniaPpm", label: "Ammonia ppm" },
+        { key: "stockingDensity", label: "kg/m²" },
+      ]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Environmental Log</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-3">
             <div><Label>Date *</Label><Input type="date" value={String(form.logDate ?? "")} onChange={e => setForm(f => ({ ...f, logDate: e.target.value }))} /></div>
             <div><Label>Time</Label><Input type="time" value={String(form.logTime ?? "")} onChange={e => setForm(f => ({ ...f, logTime: e.target.value }))} /></div>
+            <div><Label>Flock *</Label><FlockSelect flocks={flocks} value={String(form.flockId ?? "")} onChange={v => setForm(f => ({ ...f, flockId: v }))} /></div>
             <div><Label>Min Temp (°C)</Label><Input type="number" step="0.1" value={String(form.temperatureMin ?? "")} onChange={e => setForm(f => ({ ...f, temperatureMin: e.target.value }))} /></div>
             <div><Label>Max Temp (°C)</Label><Input type="number" step="0.1" value={String(form.temperatureMax ?? "")} onChange={e => setForm(f => ({ ...f, temperatureMax: e.target.value }))} /></div>
             <div><Label>Humidity (%)</Label><Input type="number" step="0.1" value={String(form.humidity ?? "")} onChange={e => setForm(f => ({ ...f, humidity: e.target.value }))} /></div>
@@ -415,7 +473,7 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
             <div className="flex items-center gap-2 mt-5 col-span-3"><Checkbox id="alarm" checked={Boolean(form.alarmActivated)} onCheckedChange={v => setForm(f => ({ ...f, alarmActivated: Boolean(v) }))} /><Label htmlFor="alarm">Alarm activated?</Label></div>
             <div className="col-span-3"><Label>Alarm Details</Label><Input value={String(form.alarmDetails ?? "")} onChange={e => setForm(f => ({ ...f, alarmDetails: e.target.value }))} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -423,16 +481,25 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
 }
 
 function FciTab({ farmId }: { farmId: number }) {
+  const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-fci-documents", "poultry-fci");
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Food Chain Information (FCI) Documents</h3><Button size="sm" onClick={() => openAdd({ withdrawalPeriodClear: true, signedByFarmer: true, anyDiseaseOrCondition: false, medicationsLast7Days: false })}><Plus className="w-4 h-4 mr-1" />Add FCI Doc</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "documentDate", label: "Date", fmt: r => fmtDate(r.documentDate) }, { key: "destinationAbattoir", label: "Abattoir" }, { key: "numberOfBirds", label: "Birds" }, { key: "catchingContractor", label: "Catching Contractor" }, { key: "withdrawalPeriodClear", label: "Withdrawal Clear", fmt: r => r.withdrawalPeriodClear ? "Yes" : "No" }]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
+        { key: "documentDate", label: "Date", fmt: r => fmtDate(r.documentDate) },
+        { key: "flockNumber", label: "Flock", fmt: fmtFlock },
+        { key: "destinationAbattoir", label: "Abattoir" },
+        { key: "numberOfBirds", label: "Birds" },
+        { key: "catchingContractor", label: "Catching Contractor" },
+        { key: "withdrawalPeriodClear", label: "Withdrawal Clear", fmt: r => r.withdrawalPeriodClear ? "✓ Yes" : "No" },
+      ]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>Poultry FCI Document</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Document Date *</Label><Input type="date" value={String(form.documentDate ?? "")} onChange={e => setForm(f => ({ ...f, documentDate: e.target.value }))} /></div>
+            <div><Label>Flock *</Label><FlockSelect flocks={flocks} value={String(form.flockId ?? "")} onChange={v => setForm(f => ({ ...f, flockId: v }))} /></div>
             <div><Label>Catching Date</Label><Input type="date" value={String(form.catchingDate ?? "")} onChange={e => setForm(f => ({ ...f, catchingDate: e.target.value }))} /></div>
             <div><Label>Destination Abattoir</Label><Input value={String(form.destinationAbattoir ?? "")} onChange={e => setForm(f => ({ ...f, destinationAbattoir: e.target.value }))} /></div>
             <div><Label>Number of Birds *</Label><Input type="number" value={String(form.numberOfBirds ?? "")} onChange={e => setForm(f => ({ ...f, numberOfBirds: e.target.value }))} /></div>
@@ -444,7 +511,7 @@ function FciTab({ farmId }: { farmId: number }) {
               ))}
             </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -452,6 +519,7 @@ function FciTab({ farmId }: { farmId: number }) {
 }
 
 function BroilerWelfareTab({ farmId }: { farmId: number }) {
+  const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-broiler-welfare", "poultry-broiler-welfare");
   return (
     <div className="space-y-4">
@@ -465,11 +533,10 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
         cols={[
           { key: "assessmentDate", label: "Date", fmt: r => fmtDate(r.assessmentDate) },
+          { key: "flockNumber", label: "Flock", fmt: fmtFlock },
           { key: "assessedBy", label: "Assessed By" },
           { key: "ageAtAssessmentDays", label: "Bird Age (days)" },
-          { key: "sampleSize", label: "Sample Size" },
           { key: "footpadDermatitisScore", label: "FPD Score" },
-          { key: "footpadDermatitisPercent", label: "FPD %" },
           { key: "hockBurnScore", label: "Hock Burn Score" },
           { key: "gaitScore", label: "Gait Score" },
           { key: "overallOutcome", label: "Outcome" },
@@ -482,6 +549,7 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Broiler Welfare Indicators Assessment</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-3 max-h-[70vh] overflow-y-auto pr-1">
             <div><Label>Assessment Date *</Label><Input type="date" value={String(form.assessmentDate ?? "")} onChange={e => setForm(f => ({ ...f, assessmentDate: e.target.value }))} /></div>
+            <div><Label>Flock *</Label><FlockSelect flocks={flocks} value={String(form.flockId ?? "")} onChange={v => setForm(f => ({ ...f, flockId: v }))} /></div>
             <div><Label>Assessed By *</Label><Input value={String(form.assessedBy ?? "")} onChange={e => setForm(f => ({ ...f, assessedBy: e.target.value }))} /></div>
             <div><Label>Bird Age (days)</Label><Input type="number" value={String(form.ageAtAssessmentDays ?? "")} onChange={e => setForm(f => ({ ...f, ageAtAssessmentDays: e.target.value }))} /></div>
             <div><Label>Sample Size (birds)</Label><Input type="number" value={String(form.sampleSize ?? "")} onChange={e => setForm(f => ({ ...f, sampleSize: e.target.value }))} /></div>
@@ -527,7 +595,7 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
             <div className="col-span-3"><Label>Actions Taken</Label><Textarea value={String(form.actionsTaken ?? "")} onChange={e => setForm(f => ({ ...f, actionsTaken: e.target.value }))} rows={2} placeholder="e.g. Increased litter depth, adjusted drinker height, improved ventilation" /></div>
             <div className="col-span-3"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save Assessment</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save Assessment</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -535,6 +603,7 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
 }
 
 function ThinningRecordsTab({ farmId }: { farmId: number }) {
+  const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-thinning-records", "poultry-thinning");
   return (
     <div className="space-y-4">
@@ -548,11 +617,11 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
         cols={[
           { key: "thinningDate", label: "Date", fmt: r => fmtDate(r.thinningDate) },
+          { key: "flockNumber", label: "Flock", fmt: fmtFlock },
           { key: "thinningNumber", label: "Thinning No." },
           { key: "birdsRemoved", label: "Birds Removed" },
           { key: "averageLiveWeightKg", label: "Avg Live Wt (kg)" },
           { key: "destinationAbattoir", label: "Abattoir" },
-          { key: "catchingContractorName", label: "Catching Contractor" },
           { key: "doasAtLoading", label: "DOAs at Loading" },
         ]}
         rows={records as Record<string, unknown>[]}
@@ -563,6 +632,7 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>Thinning Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Thinning Date *</Label><Input type="date" value={String(form.thinningDate ?? "")} onChange={e => setForm(f => ({ ...f, thinningDate: e.target.value }))} /></div>
+            <div><Label>Flock *</Label><FlockSelect flocks={flocks} value={String(form.flockId ?? "")} onChange={v => setForm(f => ({ ...f, flockId: v }))} /></div>
             <div>
               <Label>Thinning Number *</Label>
               <Select value={String(form.thinningNumber ?? "1")} onValueChange={v => setForm(f => ({ ...f, thinningNumber: v }))}>
@@ -582,9 +652,18 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
             <div><Label>Catching Conditions</Label><Input value={String(form.catchingConditions ?? "")} onChange={e => setForm(f => ({ ...f, catchingConditions: e.target.value }))} placeholder="e.g. Good, dark, calm" /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save Record</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save Record</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function BioBoolField({ label, field, form, setForm }: { label: string; field: string; form: Record<string, unknown>; setForm: React.Dispatch<React.SetStateAction<Record<string, unknown>>> }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Checkbox id={`bio-${field}`} checked={Boolean(form[field])} onCheckedChange={v => setForm(f => ({ ...f, [field]: Boolean(v) }))} />
+      <Label htmlFor={`bio-${field}`} className="text-sm">{label}</Label>
     </div>
   );
 }
@@ -593,18 +672,22 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
-  const [form, setForm] = useState<Record<string, string | boolean>>({});
-  const { data: houses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
+  const [form, setForm] = useState<Record<string, unknown>>({});
+  const flocks = useFlocks(farmId);
+  const { data: rawHouses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
+  const houses = rawHouses as Record<string, unknown>[];
   const { data: records = [], isLoading } = useQuery({ queryKey: ["poultry-biosecurity", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-biosecurity-checklists`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/poultry-biosecurity-checklists/${editing.id}`) : api(`farms/${farmId}/poultry-biosecurity-checklists`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["poultry-biosecurity", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => {
+      const payload = { ...b };
+      if (payload.houseId) payload.houseId = Number(payload.houseId); else payload.houseId = null;
+      if (payload.previousFlockId && payload.previousFlockId !== "__none__") payload.previousFlockId = Number(payload.previousFlockId); else payload.previousFlockId = null;
+      if (payload.downtimeDays) payload.downtimeDays = Number(payload.downtimeDays); else payload.downtimeDays = null;
+      return fetch(editing ? api(`farms/${farmId}/poultry-biosecurity-checklists/${editing.id}`) : api(`farms/${farmId}/poultry-biosecurity-checklists`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(payload) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["poultry-biosecurity", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/poultry-biosecurity-checklists/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["poultry-biosecurity", farmId] }) });
-
-  const BoolField = ({ label, field }: { label: string; field: string }) => (
-    <div className="flex items-center gap-2">
-      <Checkbox id={field} checked={Boolean(form[field])} onCheckedChange={v => setForm(f => ({ ...f, [field]: Boolean(v) }))} />
-      <Label htmlFor={field} className="text-sm">{label}</Label>
-    </div>
-  );
 
   return (
     <div className="space-y-4">
@@ -613,57 +696,77 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-sm">Biosecurity Checklist — Downtime & Cleanout</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Record end-of-flock biosecurity procedures for each house cleanout to demonstrate Red Tractor and RSPCA Assured compliance. All items must be completed before restocking.</p>
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ checklistDate: new Date().toISOString().slice(0, 10) }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Checklist</Button>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ cleanoutStartDate: new Date().toISOString().slice(0, 10), overallComplianceStatus: "in-progress", vehicleRestrictions: true }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Checklist</Button>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
         cols={[
-          { key: "checklistDate", label: "Date", fmt: r => fmtDate(r.checklistDate) },
-          { key: "houseId", label: "House", fmt: r => { const h = (houses as Record<string, unknown>[]).find(x => String(x.id) === String(r.houseId)); return h ? String(h.houseName ?? h.id) : fmt(r.houseId); } },
-          { key: "previousFlock", label: "Previous Flock" },
-          { key: "depopulationDate", label: "Depopulation", fmt: r => fmtDate(r.depopulationDate) },
-          { key: "cleanoutCompletionDate", label: "Cleanout Complete", fmt: r => fmtDate(r.cleanoutCompletionDate) },
+          { key: "cleanoutStartDate", label: "Cleanout Start", fmt: r => fmtDate(r.cleanoutStartDate) },
+          { key: "houseName", label: "House", fmt: r => r.houseName ? String(r.houseName) : fmt(r.houseId) },
+          { key: "cleanoutEndDate", label: "Cleanout End", fmt: r => fmtDate(r.cleanoutEndDate) },
           { key: "downtimeDays", label: "Downtime (days)" },
-          { key: "allItemsCompleted", label: "All Items Complete", fmt: r => r.allItemsCompleted ? "✓ Yes" : "No" },
+          { key: "overallComplianceStatus", label: "Status" },
           { key: "completedBy", label: "Completed By" },
         ]}
         rows={records as Record<string, unknown>[]}
-        onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
+        onEdit={r => { setEditing(r); setForm({ ...r, houseId: r.houseId ? String(r.houseId) : "__none__", previousFlockId: r.previousFlockId ? String(r.previousFlockId) : "__none__" }); setOpen(true); }}
         onDelete={r => del.mutate(r.id as number)}
       />}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "52rem" }}>
+        <DialogContent style={{ maxWidth: "52rem" }} className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Biosecurity Checklist</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-3">
-            <div><Label>Checklist Date *</Label><Input type="date" value={String(form.checklistDate ?? "")} onChange={e => setForm(f => ({ ...f, checklistDate: e.target.value }))} /></div>
+            <div><Label>Cleanout Start Date *</Label><Input type="date" value={String(form.cleanoutStartDate ?? "")} onChange={e => setForm(f => ({ ...f, cleanoutStartDate: e.target.value }))} /></div>
             <div><Label>Poultry House *</Label>
-              <Select value={String(form.houseId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, houseId: v === "__none__" ? "" : v }))}>
+              <Select value={String(form.houseId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, houseId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select house" /></SelectTrigger>
-                <SelectContent><SelectItem value="__none__">— Select —</SelectItem>{(houses as Record<string, unknown>[]).map(h => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.houseName ?? h.id)}</SelectItem>)}</SelectContent>
+                <SelectContent><SelectItem value="__none__">— Select house —</SelectItem>{houses.map(h => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.houseName ?? h.id)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Previous Flock ID / Batch</Label><Input value={String(form.previousFlock ?? "")} onChange={e => setForm(f => ({ ...f, previousFlock: e.target.value }))} /></div>
-            <div><Label>Depopulation Date</Label><Input type="date" value={String(form.depopulationDate ?? "")} onChange={e => setForm(f => ({ ...f, depopulationDate: e.target.value }))} /></div>
-            <div><Label>Cleanout Completion Date</Label><Input type="date" value={String(form.cleanoutCompletionDate ?? "")} onChange={e => setForm(f => ({ ...f, cleanoutCompletionDate: e.target.value }))} /></div>
-            <div><Label>Downtime Days</Label><Input type="number" value={String(form.downtimeDays ?? "")} onChange={e => setForm(f => ({ ...f, downtimeDays: e.target.value }))} /></div>
+            <div><Label>Previous Flock</Label>
+              <Select value={String(form.previousFlockId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, previousFlockId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— None —</SelectItem>
+                  {flocks.map(fl => <SelectItem key={String(fl.id)} value={String(fl.id)}>{String(fl.flockNumber ?? fl.id)}{fl.houseName ? ` — ${fl.houseName}` : ""}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Cleanout End Date</Label><Input type="date" value={String(form.cleanoutEndDate ?? "")} onChange={e => setForm(f => ({ ...f, cleanoutEndDate: e.target.value }))} /></div>
+            <div><Label>Downtime Days</Label><Input type="number" min="0" value={String(form.downtimeDays ?? "")} onChange={e => setForm(f => ({ ...f, downtimeDays: e.target.value }))} /></div>
+            <div><Label>Overall Status</Label>
+              <Select value={String(form.overallComplianceStatus ?? "in-progress")} onValueChange={v => setForm(f => ({ ...f, overallComplianceStatus: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{["in-progress", "complete", "non-compliant"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
           </div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mt-2 mb-1">Biosecurity Items</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mt-3 mb-1">Biosecurity Checklist Items</p>
           <div className="grid grid-cols-2 gap-2">
-            <BoolField label="All dead birds removed and disposed of correctly" field="deadBirdsRemovedDisposed" />
-            <BoolField label="Litter / manure fully removed from house" field="litterManureRemoved" />
-            <BoolField label="All equipment removed and cleaned" field="equipmentCleanedRemoved" />
-            <BoolField label="House washed out (wet clean)" field="houseWashedOut" />
-            <BoolField label="Disinfection applied (approved disinfectant)" field="disinfectionApplied" />
-            <BoolField label="Disinfectant product logged on spray records" field="disinfectantProductLogged" />
-            <BoolField label="Rodent baiting checked / refreshed" field="rodentBaitingChecked" />
-            <BoolField label="Pest control records up to date" field="pestControlRecordsUpdated" />
-            <BoolField label="Footbaths at entrances replenished" field="footbathsReplenished" />
-            <BoolField label="Entry biosecurity signage in place" field="biosecuritySignageInPlace" />
-            <BoolField label="Downtime period met (minimum requirement)" field="downtimeMet" />
-            <BoolField label="Veterinary sign-off / pre-placement visit completed" field="vetSignOffCompleted" />
+            <BioBoolField label="Catching / depopulation complete" field="catchingComplete" form={form} setForm={setForm} />
+            <BioBoolField label="Litter / manure fully removed" field="litterRemoved" form={form} setForm={setForm} />
+            <BioBoolField label="Dry clean complete (swept out)" field="dryCleanComplete" form={form} setForm={setForm} />
+            <BioBoolField label="House washed out (wet clean)" field="washComplete" form={form} setForm={setForm} />
+            <BioBoolField label="Disinfection complete" field="disinfectionComplete" form={form} setForm={setForm} />
+            <BioBoolField label="Disinfectant is an approved product" field="disinfectantApproved" form={form} setForm={setForm} />
+            <BioBoolField label="Fumigation complete" field="fumigationComplete" form={form} setForm={setForm} />
+            <BioBoolField label="Vermin / pest control complete" field="verminControlComplete" form={form} setForm={setForm} />
+            <BioBoolField label="Water system flushed" field="waterSystemFlushComplete" form={form} setForm={setForm} />
+            <BioBoolField label="Water system disinfected" field="waterSystemDisinfected" form={form} setForm={setForm} />
+            <BioBoolField label="Feed system cleaned" field="feedSystemCleaned" form={form} setForm={setForm} />
+            <BioBoolField label="Ventilation checked" field="ventilationChecked" form={form} setForm={setForm} />
+            <BioBoolField label="Heating checked" field="heatingChecked" form={form} setForm={setForm} />
+            <BioBoolField label="Footbaths installed at entrances" field="footbathsInstalled" form={form} setForm={setForm} />
+            <BioBoolField label="Vehicle restrictions in place" field="vehicleRestrictions" form={form} setForm={setForm} />
+            <BioBoolField label="Visitor log in place" field="visitorLogInPlace" form={form} setForm={setForm} />
+            <BioBoolField label="Independent audit completed" field="independentAuditCompleted" form={form} setForm={setForm} />
           </div>
-          <div className="grid grid-cols-2 gap-3 mt-2">
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <div><Label>Disinfectant Used</Label><Input value={String(form.disinfectantUsed ?? "")} onChange={e => setForm(f => ({ ...f, disinfectantUsed: e.target.value }))} /></div>
+            <div><Label>Dilution Rate</Label><Input placeholder="e.g. 1:200" value={String(form.disinfectantDilutionRate ?? "")} onChange={e => setForm(f => ({ ...f, disinfectantDilutionRate: e.target.value }))} /></div>
+            <div><Label>Litter Disposal Method</Label><Input placeholder="e.g. Composted on-farm" value={String(form.litterDisposalMethod ?? "")} onChange={e => setForm(f => ({ ...f, litterDisposalMethod: e.target.value }))} /></div>
+            <div><Label>Audit Body</Label><Input placeholder="e.g. Red Tractor, RSPCA" value={String(form.auditBody ?? "")} onChange={e => setForm(f => ({ ...f, auditBody: e.target.value }))} /></div>
             <div><Label>Completed By</Label><Input value={String(form.completedBy ?? "")} onChange={e => setForm(f => ({ ...f, completedBy: e.target.value }))} /></div>
-            <BoolField label="All items completed?" field="allItemsCompleted" />
+            <div><Label>Scheme / Certification</Label><Input placeholder="e.g. Red Tractor Broilers" value={String(form.schemeCertificationScheme ?? "")} onChange={e => setForm(f => ({ ...f, schemeCertificationScheme: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Notes / Deficiencies</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>

@@ -12223,7 +12223,17 @@ router.delete("/farms/:farmId/poultry-flocks/:id", requireAuth, requireTenant, r
 
 router.get("/farms/:farmId/poultry-daily-mortality", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(poultryDailyMortalityTable).where(eq(poultryDailyMortalityTable.farmId, farmId)).orderBy(desc(poultryDailyMortalityTable.recordDate));
+  const rows = await db.select({
+    id: poultryDailyMortalityTable.id, farmId: poultryDailyMortalityTable.farmId, flockId: poultryDailyMortalityTable.flockId,
+    recordDate: poultryDailyMortalityTable.recordDate, mortalityCount: poultryDailyMortalityTable.mortalityCount,
+    culledCount: poultryDailyMortalityTable.culledCount, runningTotalMortality: poultryDailyMortalityTable.runningTotalMortality,
+    mortalityPercentage: poultryDailyMortalityTable.mortalityPercentage, mainCause: poultryDailyMortalityTable.mainCause,
+    notes: poultryDailyMortalityTable.notes, createdAt: poultryDailyMortalityTable.createdAt,
+    flockNumber: poultryFlocksTable.flockNumber, houseName: poultryHousesTable.houseName,
+  }).from(poultryDailyMortalityTable)
+    .leftJoin(poultryFlocksTable, eq(poultryDailyMortalityTable.flockId, poultryFlocksTable.id))
+    .leftJoin(poultryHousesTable, eq(poultryFlocksTable.houseId, poultryHousesTable.id))
+    .where(eq(poultryDailyMortalityTable.farmId, farmId)).orderBy(desc(poultryDailyMortalityTable.recordDate));
   res.json(rows);
 });
 router.post("/farms/:farmId/poultry-daily-mortality", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -12298,7 +12308,20 @@ router.delete("/farms/:farmId/poultry-treatments/:id", requireAuth, requireTenan
 
 router.get("/farms/:farmId/poultry-house-cleanouts", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(poultryHouseCleanoutsTable).where(eq(poultryHouseCleanoutsTable.farmId, farmId)).orderBy(desc(poultryHouseCleanoutsTable.cleanoutStartDate));
+  const rows = await db.select({
+    id: poultryHouseCleanoutsTable.id, farmId: poultryHouseCleanoutsTable.farmId, houseId: poultryHouseCleanoutsTable.houseId,
+    flockId: poultryHouseCleanoutsTable.flockId, cleanoutStartDate: poultryHouseCleanoutsTable.cleanoutStartDate,
+    cleanoutEndDate: poultryHouseCleanoutsTable.cleanoutEndDate, litterRemovalDate: poultryHouseCleanoutsTable.litterRemovalDate,
+    disinfectantUsed: poultryHouseCleanoutsTable.disinfectantUsed, disinfectantSupplier: poultryHouseCleanoutsTable.disinfectantSupplier,
+    disinfectantApprovalNumber: poultryHouseCleanoutsTable.disinfectantApprovalNumber, applicationMethod: poultryHouseCleanoutsTable.applicationMethod,
+    contactTimeMins: poultryHouseCleanoutsTable.contactTimeMins, swabsTaken: poultryHouseCleanoutsTable.swabsTaken,
+    swabResults: poultryHouseCleanoutsTable.swabResults, standingTimeDays: poultryHouseCleanoutsTable.standingTimeDays,
+    completedBy: poultryHouseCleanoutsTable.completedBy, notes: poultryHouseCleanoutsTable.notes, createdAt: poultryHouseCleanoutsTable.createdAt,
+    houseName: poultryHousesTable.houseName, flockNumber: poultryFlocksTable.flockNumber,
+  }).from(poultryHouseCleanoutsTable)
+    .leftJoin(poultryHousesTable, eq(poultryHouseCleanoutsTable.houseId, poultryHousesTable.id))
+    .leftJoin(poultryFlocksTable, eq(poultryHouseCleanoutsTable.flockId, poultryFlocksTable.id))
+    .where(eq(poultryHouseCleanoutsTable.farmId, farmId)).orderBy(desc(poultryHouseCleanoutsTable.cleanoutStartDate));
   res.json(rows);
 });
 router.post("/farms/:farmId/poultry-house-cleanouts", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -12321,7 +12344,20 @@ router.delete("/farms/:farmId/poultry-house-cleanouts/:id", requireAuth, require
 
 router.get("/farms/:farmId/poultry-environmental-logs", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(poultryEnvironmentalLogsTable).where(eq(poultryEnvironmentalLogsTable.farmId, farmId)).orderBy(desc(poultryEnvironmentalLogsTable.logDate));
+  const rows = await db.select({
+    id: poultryEnvironmentalLogsTable.id, farmId: poultryEnvironmentalLogsTable.farmId, flockId: poultryEnvironmentalLogsTable.flockId,
+    logDate: poultryEnvironmentalLogsTable.logDate, logTime: poultryEnvironmentalLogsTable.logTime,
+    temperatureMin: poultryEnvironmentalLogsTable.temperatureMin, temperatureMax: poultryEnvironmentalLogsTable.temperatureMax,
+    humidity: poultryEnvironmentalLogsTable.humidity, co2Ppm: poultryEnvironmentalLogsTable.co2Ppm,
+    ammoniaPpm: poultryEnvironmentalLogsTable.ammoniaPpm, ventilationRate: poultryEnvironmentalLogsTable.ventilationRate,
+    lightingHours: poultryEnvironmentalLogsTable.lightingHours, stockingDensity: poultryEnvironmentalLogsTable.stockingDensity,
+    alarmActivated: poultryEnvironmentalLogsTable.alarmActivated, alarmDetails: poultryEnvironmentalLogsTable.alarmDetails,
+    notes: poultryEnvironmentalLogsTable.notes, createdAt: poultryEnvironmentalLogsTable.createdAt,
+    flockNumber: poultryFlocksTable.flockNumber, houseName: poultryHousesTable.houseName,
+  }).from(poultryEnvironmentalLogsTable)
+    .leftJoin(poultryFlocksTable, eq(poultryEnvironmentalLogsTable.flockId, poultryFlocksTable.id))
+    .leftJoin(poultryHousesTable, eq(poultryFlocksTable.houseId, poultryHousesTable.id))
+    .where(eq(poultryEnvironmentalLogsTable.farmId, farmId)).orderBy(desc(poultryEnvironmentalLogsTable.logDate));
   res.json(rows);
 });
 router.post("/farms/:farmId/poultry-environmental-logs", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -12344,7 +12380,20 @@ router.delete("/farms/:farmId/poultry-environmental-logs/:id", requireAuth, requ
 
 router.get("/farms/:farmId/poultry-fci-documents", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(poultryFciDocumentsTable).where(eq(poultryFciDocumentsTable.farmId, farmId)).orderBy(desc(poultryFciDocumentsTable.documentDate));
+  const rows = await db.select({
+    id: poultryFciDocumentsTable.id, farmId: poultryFciDocumentsTable.farmId, flockId: poultryFciDocumentsTable.flockId,
+    documentDate: poultryFciDocumentsTable.documentDate, catchingDate: poultryFciDocumentsTable.catchingDate,
+    destinationAbattoir: poultryFciDocumentsTable.destinationAbattoir, numberOfBirds: poultryFciDocumentsTable.numberOfBirds,
+    catchingContractor: poultryFciDocumentsTable.catchingContractor, anyDiseaseOrCondition: poultryFciDocumentsTable.anyDiseaseOrCondition,
+    diseaseDetails: poultryFciDocumentsTable.diseaseDetails, medicationsLast7Days: poultryFciDocumentsTable.medicationsLast7Days,
+    medicationDetails: poultryFciDocumentsTable.medicationDetails, withdrawalPeriodClear: poultryFciDocumentsTable.withdrawalPeriodClear,
+    lastFeedWithdrawalHours: poultryFciDocumentsTable.lastFeedWithdrawalHours, signedByFarmer: poultryFciDocumentsTable.signedByFarmer,
+    notes: poultryFciDocumentsTable.notes, createdAt: poultryFciDocumentsTable.createdAt,
+    flockNumber: poultryFlocksTable.flockNumber, houseName: poultryHousesTable.houseName,
+  }).from(poultryFciDocumentsTable)
+    .leftJoin(poultryFlocksTable, eq(poultryFciDocumentsTable.flockId, poultryFlocksTable.id))
+    .leftJoin(poultryHousesTable, eq(poultryFlocksTable.houseId, poultryHousesTable.id))
+    .where(eq(poultryFciDocumentsTable.farmId, farmId)).orderBy(desc(poultryFciDocumentsTable.documentDate));
   res.json(rows);
 });
 router.post("/farms/:farmId/poultry-fci-documents", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -12367,7 +12416,21 @@ router.delete("/farms/:farmId/poultry-fci-documents/:id", requireAuth, requireTe
 
 router.get("/farms/:farmId/poultry-broiler-welfare", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(poultryBroilerWelfareTable).where(eq(poultryBroilerWelfareTable.farmId, farmId)).orderBy(desc(poultryBroilerWelfareTable.assessmentDate));
+  const rows = await db.select({
+    id: poultryBroilerWelfareTable.id, farmId: poultryBroilerWelfareTable.farmId, flockId: poultryBroilerWelfareTable.flockId,
+    assessmentDate: poultryBroilerWelfareTable.assessmentDate, assessedBy: poultryBroilerWelfareTable.assessedBy,
+    ageAtAssessmentDays: poultryBroilerWelfareTable.ageAtAssessmentDays, sampleSize: poultryBroilerWelfareTable.sampleSize,
+    footpadDermatitisScore: poultryBroilerWelfareTable.footpadDermatitisScore, footpadDermatitisPercent: poultryBroilerWelfareTable.footpadDermatitisPercent,
+    hockBurnScore: poultryBroilerWelfareTable.hockBurnScore, hockBurnPercent: poultryBroilerWelfareTable.hockBurnPercent,
+    gaitScore: poultryBroilerWelfareTable.gaitScore, breastBlisterPercent: poultryBroilerWelfareTable.breastBlisterPercent,
+    plumageScore: poultryBroilerWelfareTable.plumageScore, soiledPlumagePercent: poultryBroilerWelfareTable.soiledPlumagePercent,
+    overallOutcome: poultryBroilerWelfareTable.overallOutcome, actionsTaken: poultryBroilerWelfareTable.actionsTaken,
+    notes: poultryBroilerWelfareTable.notes, createdAt: poultryBroilerWelfareTable.createdAt,
+    flockNumber: poultryFlocksTable.flockNumber, houseName: poultryHousesTable.houseName,
+  }).from(poultryBroilerWelfareTable)
+    .leftJoin(poultryFlocksTable, eq(poultryBroilerWelfareTable.flockId, poultryFlocksTable.id))
+    .leftJoin(poultryHousesTable, eq(poultryFlocksTable.houseId, poultryHousesTable.id))
+    .where(eq(poultryBroilerWelfareTable.farmId, farmId)).orderBy(desc(poultryBroilerWelfareTable.assessmentDate));
   res.json(rows);
 });
 router.post("/farms/:farmId/poultry-broiler-welfare", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -12390,7 +12453,20 @@ router.delete("/farms/:farmId/poultry-broiler-welfare/:id", requireAuth, require
 
 router.get("/farms/:farmId/poultry-thinning-records", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(poultryThinningRecordsTable).where(eq(poultryThinningRecordsTable.farmId, farmId)).orderBy(desc(poultryThinningRecordsTable.thinningDate));
+  const rows = await db.select({
+    id: poultryThinningRecordsTable.id, farmId: poultryThinningRecordsTable.farmId, flockId: poultryThinningRecordsTable.flockId,
+    thinningDate: poultryThinningRecordsTable.thinningDate, thinningNumber: poultryThinningRecordsTable.thinningNumber,
+    birdsRemoved: poultryThinningRecordsTable.birdsRemoved, targetLiveWeightKg: poultryThinningRecordsTable.targetLiveWeightKg,
+    averageLiveWeightKg: poultryThinningRecordsTable.averageLiveWeightKg, destinationAbattoir: poultryThinningRecordsTable.destinationAbattoir,
+    catchingContractorName: poultryThinningRecordsTable.catchingContractorName, catchingStartTime: poultryThinningRecordsTable.catchingStartTime,
+    catchingEndTime: poultryThinningRecordsTable.catchingEndTime, doasAtLoading: poultryThinningRecordsTable.doasAtLoading,
+    transportVehicleReg: poultryThinningRecordsTable.transportVehicleReg, catchingConditions: poultryThinningRecordsTable.catchingConditions,
+    notes: poultryThinningRecordsTable.notes, createdAt: poultryThinningRecordsTable.createdAt,
+    flockNumber: poultryFlocksTable.flockNumber, houseName: poultryHousesTable.houseName,
+  }).from(poultryThinningRecordsTable)
+    .leftJoin(poultryFlocksTable, eq(poultryThinningRecordsTable.flockId, poultryFlocksTable.id))
+    .leftJoin(poultryHousesTable, eq(poultryFlocksTable.houseId, poultryHousesTable.id))
+    .where(eq(poultryThinningRecordsTable.farmId, farmId)).orderBy(desc(poultryThinningRecordsTable.thinningDate));
   res.json(rows);
 });
 router.post("/farms/:farmId/poultry-thinning-records", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -15035,7 +15111,28 @@ router.post("/farms/:farmId/haulage/:recordId/confirm-delivery", requireAuth, re
 // --- Poultry Biosecurity Checklists ---
 router.get("/farms/:farmId/poultry-biosecurity-checklists", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const records = await db.select().from(poultryBiosecurityChecklistTable).where(eq(poultryBiosecurityChecklistTable.farmId, farmId)).orderBy(desc(poultryBiosecurityChecklistTable.cleanoutStartDate));
+  const records = await db.select({
+    id: poultryBiosecurityChecklistTable.id, farmId: poultryBiosecurityChecklistTable.farmId,
+    houseId: poultryBiosecurityChecklistTable.houseId, previousFlockId: poultryBiosecurityChecklistTable.previousFlockId,
+    cleanoutStartDate: poultryBiosecurityChecklistTable.cleanoutStartDate, cleanoutEndDate: poultryBiosecurityChecklistTable.cleanoutEndDate,
+    downtimeDays: poultryBiosecurityChecklistTable.downtimeDays, catchingComplete: poultryBiosecurityChecklistTable.catchingComplete,
+    litterRemoved: poultryBiosecurityChecklistTable.litterRemoved, litterDisposalMethod: poultryBiosecurityChecklistTable.litterDisposalMethod,
+    dryCleanComplete: poultryBiosecurityChecklistTable.dryCleanComplete, washComplete: poultryBiosecurityChecklistTable.washComplete,
+    disinfectionComplete: poultryBiosecurityChecklistTable.disinfectionComplete, disinfectantUsed: poultryBiosecurityChecklistTable.disinfectantUsed,
+    disinfectantApproved: poultryBiosecurityChecklistTable.disinfectantApproved, disinfectantDilutionRate: poultryBiosecurityChecklistTable.disinfectantDilutionRate,
+    fumigationComplete: poultryBiosecurityChecklistTable.fumigationComplete, fumigationProduct: poultryBiosecurityChecklistTable.fumigationProduct,
+    verminControlComplete: poultryBiosecurityChecklistTable.verminControlComplete, verminControlDetails: poultryBiosecurityChecklistTable.verminControlDetails,
+    waterSystemFlushComplete: poultryBiosecurityChecklistTable.waterSystemFlushComplete, waterSystemDisinfected: poultryBiosecurityChecklistTable.waterSystemDisinfected,
+    feedSystemCleaned: poultryBiosecurityChecklistTable.feedSystemCleaned, ventilationChecked: poultryBiosecurityChecklistTable.ventilationChecked,
+    heatingChecked: poultryBiosecurityChecklistTable.heatingChecked, footbathsInstalled: poultryBiosecurityChecklistTable.footbathsInstalled,
+    vehicleRestrictions: poultryBiosecurityChecklistTable.vehicleRestrictions, visitorLogInPlace: poultryBiosecurityChecklistTable.visitorLogInPlace,
+    independentAuditCompleted: poultryBiosecurityChecklistTable.independentAuditCompleted, auditBody: poultryBiosecurityChecklistTable.auditBody,
+    overallComplianceStatus: poultryBiosecurityChecklistTable.overallComplianceStatus, schemeCertificationScheme: poultryBiosecurityChecklistTable.schemeCertificationScheme,
+    completedBy: poultryBiosecurityChecklistTable.completedBy, notes: poultryBiosecurityChecklistTable.notes, createdAt: poultryBiosecurityChecklistTable.createdAt,
+    houseName: poultryHousesTable.houseName,
+  }).from(poultryBiosecurityChecklistTable)
+    .leftJoin(poultryHousesTable, eq(poultryBiosecurityChecklistTable.houseId, poultryHousesTable.id))
+    .where(eq(poultryBiosecurityChecklistTable.farmId, farmId)).orderBy(desc(poultryBiosecurityChecklistTable.cleanoutStartDate));
   res.json({ records });
 });
 router.post("/farms/:farmId/poultry-biosecurity-checklists", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
