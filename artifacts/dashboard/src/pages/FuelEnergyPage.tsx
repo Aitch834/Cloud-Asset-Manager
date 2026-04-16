@@ -19,6 +19,7 @@ import {
   Sun, PoundSterling, Files, Upload, MapPin
 } from "lucide-react";
 import { SelectGroup, SelectLabel } from "@/components/ui/select";
+import { ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ComposedChart, Area } from "recharts";
 import { useUpload } from "@workspace/object-storage-web";
 
 function getCropYear(date: Date): { label: string; start: Date; end: Date } {
@@ -602,8 +603,9 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const base = `/api/farms/${farmId}`;
-  type SolarSubTab = "installations" | "generation" | "payments";
+  type SolarSubTab = "installations" | "generation" | "payments" | "analytics";
   const [subTab, setSubTab] = useState<SolarSubTab>("installations");
+  const [analyticInstallId, setAnalyticInstallId] = useState<string>("__all__");
 
   const EMPTY_INSTALL = { installationName: "", technologyType: "solar_pv", installedCapacityKw: "", installationDate: "", installerName: "", gridConnectionRef: "", fitOrSegContractRef: "", tariffProvider: "", tariffRatePence: "", maintenanceContractor: "", nextServiceDate: "", notes: "", panelCount: "", mcsCertificateNumber: "", installerMcsNumber: "", buildingName: "", locationId: null as number | null, locationIdType: "" };
   const EMPTY_GEN = { readingDate: "", installationId: "", generationKwh: "", exportKwh: "", selfConsumedKwh: "", fitPaymentPeriod: "", fitPaymentAmount: "", meterReference: "", notes: "" };
@@ -782,9 +784,9 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
 
       {/* Sub-tabs */}
       <div className="flex gap-4 border-b border-gray-200 mb-4">
-        {(["installations", "generation", "payments"] as SolarSubTab[]).map(t => (
+        {(["installations", "generation", "payments", "analytics"] as SolarSubTab[]).map(t => (
           <button key={t} onClick={() => setSubTab(t)} className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${subTab === t ? "border-green-700 text-green-800" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
-            {t === "installations" ? `Installations (${installs.length})` : t === "generation" ? `Generation Log (${genReadings.length})` : `Export Payments (${payments.length})`}
+            {t === "installations" ? `Installations (${installs.length})` : t === "generation" ? `Generation Log (${genReadings.length})` : t === "payments" ? `Export Payments (${payments.length})` : "Analytics"}
           </button>
         ))}
       </div>
@@ -955,6 +957,160 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
           )}
         </div>
       )}
+
+      {/* ─── ANALYTICS ─── */}
+      {subTab === "analytics" && (() => {
+        const filteredGen = analyticInstallId === "__all__" ? genReadings : genReadings.filter((r: any) => String(r.installationId) === analyticInstallId);
+        const filteredPay = analyticInstallId === "__all__" ? payments : payments.filter((p: any) => String(p.installationId) === analyticInstallId);
+        const selectedInstall = installs.find((i: any) => String(i.id) === analyticInstallId);
+
+        const totalGenKwh = filteredGen.reduce((s: number, r: any) => s + parseFloat(String(r.generationKwh || 0)), 0);
+        const totalExportKwh = filteredGen.reduce((s: number, r: any) => s + parseFloat(String(r.exportKwh || 0)), 0);
+        const totalSelfKwh = filteredGen.reduce((s: number, r: any) => s + parseFloat(String(r.selfConsumedKwh || 0)), 0);
+        const totalIncomeP = filteredPay.reduce((s: number, p: any) => s + (Number(p.paymentAmountPence) || 0), 0);
+        const co2Saved = totalSelfKwh * 0.233;
+
+        type MonthBucket = { month: string; label: string; generated: number; exported: number; selfUsed: number; income: number };
+        const monthMap = new Map<string, MonthBucket>();
+
+        filteredGen.forEach((r: any) => {
+          if (!r.readingDate) return;
+          const d = new Date(r.readingDate);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+          if (!monthMap.has(key)) monthMap.set(key, { month: key, label, generated: 0, exported: 0, selfUsed: 0, income: 0 });
+          const b = monthMap.get(key)!;
+          b.generated += parseFloat(String(r.generationKwh || 0));
+          b.exported += parseFloat(String(r.exportKwh || 0));
+          b.selfUsed += parseFloat(String(r.selfConsumedKwh || 0));
+        });
+
+        filteredPay.forEach((p: any) => {
+          if (!p.paymentDate) return;
+          const d = new Date(p.paymentDate);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+          if (!monthMap.has(key)) monthMap.set(key, { month: key, label, generated: 0, exported: 0, selfUsed: 0, income: 0 });
+          const b = monthMap.get(key)!;
+          b.income += Number(p.paymentAmountPence) / 100;
+        });
+
+        const chartData = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => ({ ...v, generated: parseFloat(v.generated.toFixed(1)), exported: parseFloat(v.exported.toFixed(1)), selfUsed: parseFloat(v.selfUsed.toFixed(1)), income: parseFloat(v.income.toFixed(2)) }));
+
+        const hasGen = filteredGen.length > 0;
+        const hasPay = filteredPay.length > 0;
+
+        return (
+          <div className="space-y-6">
+            {/* Installation selector */}
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-gray-700 shrink-0">Installation</label>
+              <Select value={analyticInstallId} onValueChange={setAnalyticInstallId}>
+                <SelectTrigger className="w-72">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All installations (combined)</SelectItem>
+                  {installs.map((i: any) => <SelectItem key={String(i.id)} value={String(i.id)}>{String(i.installationName)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {selectedInstall && (
+                <span className="text-xs text-gray-400">{selectedInstall.installedCapacityKw ? `${parseFloat(String(selectedInstall.installedCapacityKw)).toFixed(2)} kW` : ""} · installed {selectedInstall.installationDate ? new Date(selectedInstall.installationDate).toLocaleDateString("en-GB") : "unknown"}</span>
+              )}
+            </div>
+
+            {/* Summary metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Generated</p>
+                <p className="text-2xl font-bold text-amber-700">{totalGenKwh.toLocaleString("en-GB", { maximumFractionDigits: 0 })}</p>
+                <p className="text-xs text-gray-400">kWh lifetime</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Exported</p>
+                <p className="text-2xl font-bold text-blue-700">{totalExportKwh.toLocaleString("en-GB", { maximumFractionDigits: 0 })}</p>
+                <p className="text-xs text-gray-400">kWh to grid</p>
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                <p className="text-xs text-gray-400 uppercase font-medium mb-1">SEG / FiT Income</p>
+                <p className="text-2xl font-bold text-green-700">£{(totalIncomeP / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className="text-xs text-gray-400">lifetime payments</p>
+              </div>
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                <p className="text-xs text-gray-400 uppercase font-medium mb-1">CO₂ Avoided</p>
+                <p className="text-2xl font-bold text-emerald-700">{co2Saved >= 1000 ? `${(co2Saved / 1000).toFixed(1)} t` : `${co2Saved.toFixed(0)} kg`}</p>
+                <p className="text-xs text-gray-400">from self-consumed kWh</p>
+              </div>
+            </div>
+
+            {/* Generation chart */}
+            {!hasGen ? (
+              <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
+                <Zap className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <p className="text-sm text-gray-400">No generation readings yet — log meter readings in the Generation Log tab to see charts here.</p>
+              </div>
+            ) : (
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <p className="text-sm font-semibold text-gray-700 mb-4">Monthly Generation — Exported vs. Self-Consumed (kWh)</p>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tickFormatter={(v: number) => `${v}`} tick={{ fontSize: 11 }} unit=" kWh" width={70} />
+                    <Tooltip formatter={(v: number, name: string) => [`${v.toLocaleString("en-GB", { maximumFractionDigits: 1 })} kWh`, name === "exported" ? "Exported to Grid" : name === "selfUsed" ? "Self-Consumed" : "Generated"]} />
+                    <Legend formatter={(v: string) => v === "exported" ? "Exported to Grid" : v === "selfUsed" ? "Self-Consumed" : "Generated"} />
+                    <Bar dataKey="selfUsed" stackId="a" fill="#16a34a" name="selfUsed" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="exported" stackId="a" fill="#3b82f6" name="exported" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <p className="text-xs text-gray-400 mt-2 text-center">Stacked: green = on-site use, blue = exported. Where self-consumed kWh isn't logged separately, only export is shown.</p>
+              </div>
+            )}
+
+            {/* SEG / FiT income chart */}
+            {!hasPay ? (
+              <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
+                <PoundSterling className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <p className="text-sm text-gray-400">No export payments recorded yet — log quarterly SEG/FiT receipts in the Export Payments tab to see income trends here.</p>
+              </div>
+            ) : (
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <p className="text-sm font-semibold text-gray-700 mb-4">SEG / FiT Income by Month (£)</p>
+                <ResponsiveContainer width="100%" height={220}>
+                  <ComposedChart data={chartData.filter(d => d.income > 0)} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tickFormatter={(v: number) => `£${v.toFixed(0)}`} tick={{ fontSize: 11 }} width={60} />
+                    <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, "SEG / FiT Payment"]} />
+                    <Area type="monotone" dataKey="income" fill="#dcfce7" stroke="#16a34a" strokeWidth={2} name="income" />
+                    <Bar dataKey="income" fill="#16a34a" opacity={0.7} radius={[3, 3, 0, 0]} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Cumulative income line */}
+            {hasPay && (() => {
+              let running = 0;
+              const cumData = chartData.filter(d => d.income > 0).map(d => { running += d.income; return { label: d.label, cumulative: parseFloat(running.toFixed(2)) }; });
+              return (
+                <div className="bg-white border border-gray-200 rounded-xl p-5">
+                  <p className="text-sm font-semibold text-gray-700 mb-4">Cumulative SEG / FiT Income (£)</p>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <LineChart data={cumData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v: number) => `£${v.toFixed(0)}`} tick={{ fontSize: 11 }} width={60} />
+                      <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, "Running total"]} />
+                      <Line type="monotone" dataKey="cumulative" stroke="#15803d" strokeWidth={2.5} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })()}
 
       {/* ─── INSTALLATION DIALOG ─── */}
       <Dialog open={showInstallDialog} onOpenChange={o => { if (!o) { setShowInstallDialog(false); setEditInstall(null); setInstallForm(EMPTY_INSTALL); } }}>
