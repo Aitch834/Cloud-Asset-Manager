@@ -191,8 +191,21 @@ export const renewableEnergyInstallationsTable = pgTable("renewable_energy_insta
   mcsCertificateNumber: text("mcs_certificate_number"),
   installerMcsNumber: text("installer_mcs_number"),
   buildingName: text("building_name"),
+  locationId: integer("location_id"),
+  locationIdType: text("location_type"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const solarInstallationDocumentsTable = pgTable("solar_installation_documents", {
+  id: serial("id").primaryKey(),
+  installationId: integer("installation_id").notNull().references(() => renewableEnergyInstallationsTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id, { onDelete: "cascade" }),
+  documentType: text("document_type").notNull().default("other"),
+  fileName: text("file_name").notNull(),
+  storageKey: text("storage_key").notNull(),
+  notes: text("notes"),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
 });
 
 export const renewableEnergyMeterReadingsTable = pgTable("renewable_energy_meter_readings", {

@@ -16,8 +16,9 @@ import {
   Truck, ClipboardCheck, Gauge, ShieldAlert, Trash2, Zap,
   Flame, Wind, Edit2, Plug, ChevronDown, ChevronRight, ClipboardList,
   Eye, Paperclip, Filter, X as XIcon, ExternalLink, Camera, FileText,
-  Sun, PoundSterling
+  Sun, PoundSterling, Files, Upload, MapPin
 } from "lucide-react";
+import { SelectGroup, SelectLabel } from "@/components/ui/select";
 import { useUpload } from "@workspace/object-storage-web";
 
 function getCropYear(date: Date): { label: string; start: Date; end: Date } {
@@ -604,7 +605,7 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
   type SolarSubTab = "installations" | "generation" | "payments";
   const [subTab, setSubTab] = useState<SolarSubTab>("installations");
 
-  const EMPTY_INSTALL = { installationName: "", technologyType: "solar_pv", installedCapacityKw: "", installationDate: "", installerName: "", gridConnectionRef: "", fitOrSegContractRef: "", tariffProvider: "", tariffRatePence: "", maintenanceContractor: "", nextServiceDate: "", notes: "", panelCount: "", mcsCertificateNumber: "", installerMcsNumber: "", buildingName: "" };
+  const EMPTY_INSTALL = { installationName: "", technologyType: "solar_pv", installedCapacityKw: "", installationDate: "", installerName: "", gridConnectionRef: "", fitOrSegContractRef: "", tariffProvider: "", tariffRatePence: "", maintenanceContractor: "", nextServiceDate: "", notes: "", panelCount: "", mcsCertificateNumber: "", installerMcsNumber: "", buildingName: "", locationId: null as number | null, locationIdType: "" };
   const EMPTY_GEN = { readingDate: "", installationId: "", generationKwh: "", exportKwh: "", selfConsumedKwh: "", fitPaymentPeriod: "", fitPaymentAmount: "", meterReference: "", notes: "" };
   const EMPTY_PAYMENT = { paymentDate: "", installationId: "", periodFrom: "", periodTo: "", exportKwh: "", rateUsedPencePerKwh: "", paymentAmountPence: "", paymentReference: "", supplierName: "", notes: "" };
 
@@ -612,6 +613,11 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
   const [editInstall, setEditInstall] = useState<any | null>(null);
   const [deleteInstallId, setDeleteInstallId] = useState<number | null>(null);
   const [installForm, setInstallForm] = useState<any>(EMPTY_INSTALL);
+  const [docsInstall, setDocsInstall] = useState<any | null>(null);
+  const [showDocsDialog, setShowDocsDialog] = useState(false);
+  const [docUploadType, setDocUploadType] = useState("other");
+  const [docUploadNotes, setDocUploadNotes] = useState("");
+  const [locationPickerValue, setLocationPickerValue] = useState("__custom__");
 
   const [showGenDialog, setShowGenDialog] = useState(false);
   const [editGen, setEditGen] = useState<any | null>(null);
@@ -629,6 +635,27 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
   });
   const installs: any[] = Array.isArray(installsData) ? installsData : [];
+
+  const { data: installLocationsData } = useQuery({
+    queryKey: ["installation-locations", farmId],
+    queryFn: () => fetch(`${base}/installation-locations`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const installLocations = installLocationsData ?? { farmLocations: [], storageLocations: [], fields: [] };
+
+  const { data: installerSuggestions } = useQuery({
+    queryKey: ["solar-installer-suggestions", farmId],
+    queryFn: () => fetch(`${base}/solar-installer-suggestions`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const suggestionsList: string[] = Array.isArray(installerSuggestions) ? installerSuggestions : [];
+
+  const { data: docsData, refetch: refetchDocs } = useQuery({
+    queryKey: ["solar-install-docs", farmId, docsInstall?.id],
+    queryFn: () => fetch(`${base}/solar-installations/${docsInstall!.id}/documents`).then(r => r.json()),
+    enabled: !!farmId && !!docsInstall,
+  });
+  const installDocs: any[] = Array.isArray(docsData) ? docsData : [];
 
   const { data: genData, isLoading: genLoading } = useQuery({
     queryKey: ["solar-generation", farmId],
@@ -659,6 +686,54 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
   const createInstallMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-installations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Installation added" }); qc.invalidateQueries({ queryKey: ["solar-installations", farmId] }); setShowInstallDialog(false); setInstallForm(EMPTY_INSTALL); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
   const updateInstallMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-installations/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Installation updated" }); qc.invalidateQueries({ queryKey: ["solar-installations", farmId] }); setShowInstallDialog(false); setEditInstall(null); setInstallForm(EMPTY_INSTALL); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
   const deleteInstallMut = useMutation({ mutationFn: (id: number) => fetch(`${base}/solar-installations/${id}`, { method: "DELETE" }).then(r => r.json()), onSuccess: () => { toast({ title: "Deleted" }); qc.invalidateQueries({ queryKey: ["solar-installations", farmId] }); setDeleteInstallId(null); } });
+
+  const { uploadFile, isUploading: isInstallDocUploading } = useUpload();
+  const createDocMut = useMutation({
+    mutationFn: (body: { installationId: number; documentType: string; fileName: string; storageKey: string; notes?: string }) =>
+      fetch(`${base}/solar-installations/${body.installationId}/documents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Document saved" }); refetchDocs(); setDocUploadNotes(""); setDocUploadType("other"); },
+    onError: () => toast({ title: "Upload failed", variant: "destructive" }),
+  });
+  const deleteDocMut = useMutation({
+    mutationFn: ({ installId, docId }: { installId: number; docId: number }) =>
+      fetch(`${base}/solar-installations/${installId}/documents/${docId}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Document removed" }); refetchDocs(); },
+  });
+
+  function resolveLocationName(inst: any): string {
+    if (inst.locationId && inst.locationIdType) {
+      const id = Number(inst.locationId);
+      if (inst.locationIdType === "farm_location") {
+        return (installLocations.farmLocations as any[]).find((x: any) => x.id === id)?.name ?? inst.buildingName ?? "—";
+      }
+      if (inst.locationIdType === "storage_location") {
+        return (installLocations.storageLocations as any[]).find((x: any) => x.id === id)?.name ?? inst.buildingName ?? "—";
+      }
+      if (inst.locationIdType === "field") {
+        return (installLocations.fields as any[]).find((x: any) => x.id === id)?.name ?? inst.buildingName ?? "—";
+      }
+    }
+    return inst.buildingName || "—";
+  }
+
+  function pickToForm(val: string) {
+    if (val === "__custom__") {
+      setInstallForm((f: any) => ({ ...f, locationId: null, locationIdType: "" }));
+    } else {
+      const [type, id] = val.split(":");
+      setInstallForm((f: any) => ({ ...f, locationId: parseInt(id), locationIdType: type, buildingName: "" }));
+    }
+    setLocationPickerValue(val);
+  }
+
+  const DOC_TYPES = [
+    { value: "mcs_certificate", label: "MCS Certificate" },
+    { value: "dno_connection", label: "DNO Connection Agreement" },
+    { value: "seg_fit_contract", label: "SEG / FiT Contract" },
+    { value: "installation_photo", label: "Installation Photo" },
+    { value: "maintenance_report", label: "Maintenance Report" },
+    { value: "other", label: "Other Document" },
+  ];
 
   const createGenMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-generation`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Reading logged" }); qc.invalidateQueries({ queryKey: ["solar-generation", farmId] }); setShowGenDialog(false); setGenForm(EMPTY_GEN); }, onError: () => toast({ title: "Failed to save", variant: "destructive" }) });
   const updateGenMut = useMutation({ mutationFn: (b: any) => fetch(`${base}/solar-generation/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(r => r.json()), onSuccess: () => { toast({ title: "Reading updated" }); qc.invalidateQueries({ queryKey: ["solar-generation", farmId] }); setShowGenDialog(false); setEditGen(null); setGenForm(EMPTY_GEN); }, onError: () => toast({ title: "Failed to update", variant: "destructive" }) });
@@ -743,7 +818,8 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
                         </div>
                       </div>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => { setEditInstall(inst); setInstallForm({ ...inst, installedCapacityKw: inst.installedCapacityKw ?? "", panelCount: inst.panelCount ?? "", tariffRatePence: inst.tariffRatePence ?? "" }); setShowInstallDialog(true); }}><Edit2 className="w-3.5 h-3.5" /></Button>
+                        <Button size="sm" variant="ghost" title="Manage documents" onClick={() => { setDocsInstall(inst); setShowDocsDialog(true); }}><Files className="w-3.5 h-3.5 text-blue-500" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => { setEditInstall(inst); const pv = inst.locationId && inst.locationIdType ? `${inst.locationIdType}:${inst.locationId}` : "__custom__"; setLocationPickerValue(pv); setInstallForm({ ...inst, installedCapacityKw: inst.installedCapacityKw ?? "", panelCount: inst.panelCount ?? "", tariffRatePence: inst.tariffRatePence ?? "" }); setShowInstallDialog(true); }}><Edit2 className="w-3.5 h-3.5" /></Button>
                         <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => setDeleteInstallId(Number(inst.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
                       </div>
                     </div>
@@ -752,7 +828,7 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
                       <span className="font-medium">{inst.installedCapacityKw ? `${parseFloat(String(inst.installedCapacityKw)).toFixed(2)} kW${isSolar ? "p" : ""}` : "—"}</span>
                       {isSolar && <><span className="text-gray-400">Panel count</span><span className="font-medium">{inst.panelCount ?? "—"}</span></>}
                       <span className="text-gray-400">Building / location</span>
-                      <span className="font-medium">{inst.buildingName || "—"}</span>
+                      <span className="font-medium">{resolveLocationName(inst)}</span>
                       <span className="text-gray-400">Install date</span>
                       <span className="font-medium">{inst.installationDate ? new Date(inst.installationDate).toLocaleDateString("en-GB") : "—"}</span>
                       <span className="text-gray-400">MCS cert</span>
@@ -894,14 +970,53 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div><Label>Capacity (kW{installForm.technologyType === "solar_pv" ? "p" : ""})</Label><Input type="number" step="0.01" value={installForm.installedCapacityKw ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, installedCapacityKw: e.target.value }))} placeholder="e.g. 49.92" /></div>
               {installForm.technologyType === "solar_pv" && <div><Label>Panel count</Label><Input type="number" value={installForm.panelCount ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, panelCount: e.target.value }))} placeholder="e.g. 144" /></div>}
-              <div><Label>Building / location</Label><Input value={installForm.buildingName ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, buildingName: e.target.value }))} placeholder="e.g. Main grain store roof" /></div>
+            </div>
+            <div>
+              <Label className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-gray-400" />Building / location</Label>
+              <Select value={locationPickerValue} onValueChange={pickToForm}>
+                <SelectTrigger><SelectValue placeholder="Select a location…" /></SelectTrigger>
+                <SelectContent>
+                  {(installLocations.farmLocations as any[]).length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>Farm Buildings &amp; Locations</SelectLabel>
+                      {(installLocations.farmLocations as any[]).map((loc: any) => (
+                        <SelectItem key={`farm_location:${loc.id}`} value={`farm_location:${loc.id}`}>{loc.name}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {(installLocations.storageLocations as any[]).length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>Storage Locations</SelectLabel>
+                      {(installLocations.storageLocations as any[]).map((loc: any) => (
+                        <SelectItem key={`storage_location:${loc.id}`} value={`storage_location:${loc.id}`}>{loc.name}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {(installLocations.fields as any[]).length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>Fields</SelectLabel>
+                      {(installLocations.fields as any[]).map((loc: any) => (
+                        <SelectItem key={`field:${loc.id}`} value={`field:${loc.id}`}>{loc.name}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  <SelectItem value="__custom__">Custom / other (type below)</SelectItem>
+                </SelectContent>
+              </Select>
+              {locationPickerValue === "__custom__" && (
+                <Input className="mt-1.5" value={installForm.buildingName ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, buildingName: e.target.value }))} placeholder="e.g. Main grain store south roof" />
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Installation date</Label><Input type="date" value={installForm.installationDate ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, installationDate: e.target.value }))} /></div>
-              <div><Label>Installer name</Label><Input value={installForm.installerName ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, installerName: e.target.value }))} placeholder="Installer company" /></div>
+              <div>
+                <Label>Installer name</Label>
+                <Input list="installer-suggestions" value={installForm.installerName ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, installerName: e.target.value }))} placeholder="Installer company" />
+                <datalist id="installer-suggestions">{suggestionsList.map(s => <option key={s} value={s} />)}</datalist>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>MCS certificate no.</Label><Input value={installForm.mcsCertificateNumber ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, mcsCertificateNumber: e.target.value }))} placeholder="MCS-..." /></div>
@@ -916,7 +1031,11 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
               <div><Label>DNO grid connection ref</Label><Input value={installForm.gridConnectionRef ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, gridConnectionRef: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Maintenance contractor</Label><Input value={installForm.maintenanceContractor ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, maintenanceContractor: e.target.value }))} /></div>
+              <div>
+                <Label>Maintenance contractor</Label>
+                <Input list="contractor-suggestions" value={installForm.maintenanceContractor ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, maintenanceContractor: e.target.value }))} placeholder="Contractor company" />
+                <datalist id="contractor-suggestions">{suggestionsList.map(s => <option key={s} value={s} />)}</datalist>
+              </div>
               <div><Label>Next service date</Label><Input type="date" value={installForm.nextServiceDate ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, nextServiceDate: e.target.value }))} /></div>
             </div>
             <div><Label>Notes</Label><Textarea value={installForm.notes ?? ""} onChange={e => setInstallForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
@@ -929,6 +1048,78 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
               if (editInstall) updateInstallMut.mutate({ ...body, id: editInstall.id });
               else createInstallMut.mutate(body);
             }}>{editInstall ? "Save Changes" : "Add Installation"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── INSTALLATION DOCUMENTS DIALOG ─── */}
+      <Dialog open={showDocsDialog} onOpenChange={o => { if (!o) { setShowDocsDialog(false); setDocsInstall(null); setDocUploadNotes(""); setDocUploadType("other"); } }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Files className="w-4 h-4 text-blue-500" />
+              Documents — {docsInstall?.installationName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-1">
+            {installDocs.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">No documents attached yet. Upload certificates, agreements, or photos below.</p>
+            ) : (
+              <div className="space-y-2">
+                {installDocs.map((doc: any) => (
+                  <div key={doc.id} className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <FileText className="w-4 h-4 text-blue-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{doc.fileName}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge variant="secondary" className="text-xs">{DOC_TYPES.find(t => t.value === doc.documentType)?.label ?? doc.documentType}</Badge>
+                        {doc.notes && <span className="text-xs text-gray-400 truncate">{doc.notes}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <a href={`/api/storage${doc.storageKey}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded border border-blue-200 hover:bg-blue-50 transition-colors">
+                        <ExternalLink className="w-3 h-3" />View
+                      </a>
+                      <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-600 h-7 w-7 p-0" disabled={deleteDocMut.isPending} onClick={() => deleteDocMut.mutate({ installId: docsInstall.id, docId: doc.id })}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="border-t border-gray-200 pt-4">
+              <p className="text-sm font-medium text-gray-700 mb-2">Upload a document</p>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <Label>Document type</Label>
+                  <Select value={docUploadType} onValueChange={setDocUploadType}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{DOC_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Notes (optional)</Label>
+                  <Input value={docUploadNotes} onChange={e => setDocUploadNotes(e.target.value)} placeholder="e.g. MCS-12345" />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                <Upload className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-500">{isInstallDocUploading ? "Uploading…" : "Click to choose a file (PDF, image, Word)"}</span>
+                <input type="file" className="hidden" accept="image/*,application/pdf,.doc,.docx" disabled={isInstallDocUploading || !docsInstall} onChange={async e => {
+                  const file = e.target.files?.[0];
+                  if (!file || !docsInstall) return;
+                  const result = await uploadFile(file);
+                  if (result) {
+                    createDocMut.mutate({ installationId: docsInstall.id, documentType: docUploadType, fileName: file.name, storageKey: result.objectPath, notes: docUploadNotes || undefined });
+                  }
+                  e.target.value = "";
+                }} />
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowDocsDialog(false); setDocsInstall(null); }}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

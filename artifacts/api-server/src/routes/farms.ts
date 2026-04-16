@@ -185,6 +185,7 @@ import {
   renewableEnergyInstallationsTable,
   renewableEnergyMeterReadingsTable,
   solarExportPaymentsTable,
+  solarInstallationDocumentsTable,
   shootingAndGameRecordsTable,
   diversificationIncomeRecordsTable,
   waterAbstractionLicencesTable,
@@ -13217,6 +13218,57 @@ router.delete("/farms/:farmId/solar-export-payments/:id", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(solarExportPaymentsTable).where(and(eq(solarExportPaymentsTable.id, id), eq(solarExportPaymentsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ── Combined location picker (farm_locations + storage_locations + fields) ────
+router.get("/farms/:farmId/installation-locations", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [farmLocs, storageLocs, fields] = await Promise.all([
+    db.execute(sql`SELECT id, name FROM farm_locations WHERE farm_id = ${farmId} ORDER BY name`),
+    db.execute(sql`SELECT id, name FROM storage_locations WHERE farm_id = ${farmId} ORDER BY name`),
+    db.execute(sql`SELECT id, name FROM fields WHERE farm_id = ${farmId} ORDER BY name`),
+  ]);
+  res.json({
+    farmLocations: farmLocs.rows as { id: number; name: string }[],
+    storageLocations: storageLocs.rows as { id: number; name: string }[],
+    fields: fields.rows as { id: number; name: string }[],
+  });
+});
+
+// ── Solar installation installer suggestions ──────────────────────────────────
+router.get("/farms/:farmId/solar-installer-suggestions", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`
+    SELECT DISTINCT installer_name AS name FROM renewable_energy_installations WHERE farm_id = ${farmId} AND installer_name IS NOT NULL AND installer_name != '' ORDER BY installer_name
+  `);
+  const contractors = await db.execute(sql`
+    SELECT DISTINCT maintenance_contractor AS name FROM renewable_energy_installations WHERE farm_id = ${farmId} AND maintenance_contractor IS NOT NULL AND maintenance_contractor != '' ORDER BY maintenance_contractor
+  `);
+  const all = [...(rows.rows as {name:string}[]), ...(contractors.rows as {name:string}[])].map(r => r.name).filter(Boolean);
+  const unique = [...new Set(all)].sort();
+  res.json(unique);
+});
+
+// ── Solar installation documents ──────────────────────────────────────────────
+router.get("/farms/:farmId/solar-installations/:installId/documents", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const installId = parseInt(req.params.installId); if (isNaN(installId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const rows = await db.select().from(solarInstallationDocumentsTable).where(and(eq(solarInstallationDocumentsTable.farmId, farmId), eq(solarInstallationDocumentsTable.installationId, installId))).orderBy(solarInstallationDocumentsTable.uploadedAt);
+  res.json(rows);
+});
+router.post("/farms/:farmId/solar-installations/:installId/documents", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const installId = parseInt(req.params.installId); if (isNaN(installId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.insert(solarInstallationDocumentsTable).values({ ...req.body, farmId, installationId: installId }).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/solar-installations/:installId/documents/:docId", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const installId = parseInt(req.params.installId);
+  const docId = parseInt(req.params.docId);
+  if (isNaN(installId) || isNaN(docId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(solarInstallationDocumentsTable).where(and(eq(solarInstallationDocumentsTable.id, docId), eq(solarInstallationDocumentsTable.farmId, farmId), eq(solarInstallationDocumentsTable.installationId, installId)));
   res.json({ success: true });
 });
 
