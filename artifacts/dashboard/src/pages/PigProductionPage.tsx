@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -332,73 +332,9 @@ function PigFeedDeliveriesView({ farmId }: { farmId: number }) {
 }
 
 // ─── PIG PEN CONSUMPTION RECORDS ──────────────────────────────────────────────
-function ManageLocationsDialog({ farmId, open, onClose }: { farmId: number; open: boolean; onClose: () => void }) {
-  const qc = useQueryClient();
-  const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState("indoor_shed");
-
-  const { data: raw } = useQuery({
-    queryKey: ["pig-locations", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}/pig-locations`), { credentials: "include" }).then(r => r.json()),
-    enabled: open,
-  });
-  const locs: Record<string, unknown>[] = Array.isArray(raw) ? raw : [];
-
-  const add = useMutation({
-    mutationFn: () => fetch(api(`farms/${farmId}/pig-locations`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ locationName: newName, locationType: newType }) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-locations", farmId] }); setNewName(""); setNewType("indoor_shed"); },
-  });
-  const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-locations/${id}`), { method: "DELETE", credentials: "include" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-locations", farmId] }),
-  });
-
-  const typeLabels: Record<string, string> = {
-    indoor_shed: "Indoor Shed", farrowing_house: "Farrowing House", weaner_unit: "Weaner Unit",
-    finisher_shed: "Finisher Shed", outdoor_paddock: "Outdoor Paddock", outdoor_ark: "Outdoor Ark", other: "Other",
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent style={{ maxWidth: "32rem" }}>
-        <DialogHeader><DialogTitle>Manage Pig Locations / Sheds</DialogTitle></DialogHeader>
-        <p className="text-xs text-muted-foreground mb-2">Define the sheds, pens, and outdoor areas where pigs are kept. These will appear as a lookup when recording feed consumption.</p>
-        <div className="space-y-2 max-h-48 overflow-y-auto">
-          {locs.length === 0 ? <p className="text-xs text-muted-foreground italic text-center py-4">No locations yet. Add one below.</p> : locs.map((l, i) => (
-            <div key={i} className="flex items-center justify-between border rounded px-3 py-2 bg-white">
-              <div>
-                <span className="font-medium text-sm">{fmt(l.locationName)}</span>
-                <span className="text-xs text-muted-foreground ml-2">{typeLabels[String(l.locationType)] ?? String(l.locationType)}</span>
-              </div>
-              <Button size="icon" variant="ghost" onClick={() => del.mutate(l.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
-            </div>
-          ))}
-        </div>
-        <div className="border-t pt-3 space-y-2">
-          <p className="text-xs font-medium">Add new location</p>
-          <div className="flex gap-2">
-            <Input placeholder="e.g. Farrowing House 1" value={newName} onChange={e => setNewName(e.target.value)} className="flex-1" />
-            <Select value={newType} onValueChange={setNewType}>
-              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(typeLabels).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button size="sm" onClick={() => add.mutate()} disabled={!newName.trim() || add.isPending}>Add</Button>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Done</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function PigPenConsumptionView({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [manageLocOpen, setManageLocOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
 
@@ -416,10 +352,11 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
   const flocks: Record<string, unknown>[] = Array.isArray(flocksRaw) ? flocksRaw : (flocksRaw?.records ?? flocksRaw ?? []);
 
   const { data: locsRaw } = useQuery({
-    queryKey: ["pig-locations", farmId],
-    queryFn: () => fetch(api(`farms/${farmId}/pig-locations`), { credentials: "include" }).then(r => r.json()),
+    queryKey: ["farm-locations", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/farm-locations`), { credentials: "include" }).then(r => r.json()),
   });
-  const locations: Record<string, unknown>[] = Array.isArray(locsRaw) ? locsRaw : [];
+  const allLocations: Record<string, unknown>[] = Array.isArray(locsRaw) ? locsRaw : [];
+  const activeLocations = allLocations.filter(l => l.isActive !== false);
 
   const { data: delivRaw } = useQuery({
     queryKey: ["feed-deliveries", farmId],
@@ -454,27 +391,24 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
     setOpen(true);
   }
 
-  const typeIcon: Record<string, string> = { indoor_shed: "🏠", farrowing_house: "🐷", weaner_unit: "🐖", finisher_shed: "🏚", outdoor_paddock: "🌿", outdoor_ark: "⛺", other: "📍" };
-
   return (
     <div className="space-y-4">
-      <ManageLocationsDialog farmId={farmId} open={manageLocOpen} onClose={() => { setManageLocOpen(false); qc.invalidateQueries({ queryKey: ["pig-locations", farmId] }); }} />
       <div className="p-3 rounded-lg border border-green-100 bg-green-50 flex items-start gap-2">
         <UtensilsCrossed className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-        <p className="text-xs text-green-800">Record feed quantity per <strong>flock/batch</strong> and <strong>location</strong> each day. Both are selected from managed lookups for consistent traceability under Red Tractor Pigs standards.</p>
+        <p className="text-xs text-green-800">Record feed quantity per <strong>flock/batch</strong> and <strong>location</strong> each day. Locations are drawn from your central Farm Locations list — add any sheds or outdoor areas there to keep all records consistent.</p>
       </div>
+      {activeLocations.length === 0 && (
+        <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 flex items-start gap-2">
+          <MapPin className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-xs text-amber-800">No farm locations are set up yet. Go to <strong>Farm Locations</strong> in the sidebar and add your pig sheds, farrowing houses, and outdoor areas before recording feed consumption.</p>
+        </div>
+      )}
       <div className="flex justify-between items-center">
-        <div>
-          <h3 className="font-semibold text-sm">Pen Feeding Records</h3>
-          {locations.length === 0 && <p className="text-xs text-amber-600 mt-0.5">⚠ Set up your farm locations first before recording consumption.</p>}
-        </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => setManageLocOpen(true)}>Manage Locations</Button>
-          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
-        </div>
+        <h3 className="font-semibold text-sm">Pen Feeding Records</h3>
+        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : sorted.length === 0 ? (
-        <Empty msg="No feeding records yet. Set up your farm locations, then add daily feed consumption records per flock and shed." />
+        <Empty msg="No feeding records yet. Add your pig sheds to Farm Locations, then record daily feed consumption per flock and location." />
       ) : (
         <div className="space-y-2">
           {sorted.map((r, i) => (
@@ -485,7 +419,7 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
                     <span className="font-medium text-sm">{!!r.flockName ? fmt(r.flockName) : "Unknown flock"}</span>
                     {!!r.locationName && (
                       <Badge className="text-xs" style={{ background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0" }}>
-                        {typeIcon[String(r.locationType)] ?? "📍"} {fmt(r.locationName)}
+                        <MapPin className="w-3 h-3 inline mr-0.5" />{fmt(r.locationName)}
                       </Badge>
                     )}
                   </div>
@@ -524,18 +458,17 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Location / Shed *</Label>
+            <div><Label>Location / Shed</Label>
               <Select value={form.locationId ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, locationId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— Select location —</SelectItem>
-                  {locations.map((l: Record<string, unknown>) => (
-                    <SelectItem key={String(l.id)} value={String(l.id)}>{fmt(l.locationName)}</SelectItem>
+                  {activeLocations.map((l: Record<string, unknown>) => (
+                    <SelectItem key={String(l.id)} value={String(l.id)}>{fmt(l.name)}</SelectItem>
                   ))}
-                  <SelectItem value="__manage__" disabled>─ Manage Locations…</SelectItem>
                 </SelectContent>
               </Select>
-              {locations.length === 0 && <p className="text-xs text-amber-600 mt-1">No locations set up. <button className="underline" onClick={() => { setOpen(false); setManageLocOpen(true); }}>Add locations first</button>.</p>}
+              {activeLocations.length === 0 && <p className="text-xs text-amber-600 mt-1">Add pig buildings to <strong>Farm Locations</strong> first.</p>}
             </div>
             <div><Label>Feed Type *</Label>
               <Select value={form.feedType ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, feedType: v === "__none__" ? "" : v }))}>
