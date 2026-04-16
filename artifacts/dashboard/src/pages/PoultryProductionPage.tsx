@@ -296,30 +296,69 @@ function FlocksTab({ farmId }: { farmId: number }) {
   const { data: houses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
   const { data: raw, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-flocks", "poultry-flocks");
   const flocks = (raw as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName }));
+  const houseList = houses as Record<string, unknown>[];
+  const selectedHouse = houseList.find(h => String(h.id) === String(form.houseId)) ?? null;
+
+  const speciesMismatch = selectedHouse && form.species && String(form.species) !== String(selectedHouse.species ?? "");
+  const systemMismatch = selectedHouse && form.productionSystem && String(form.productionSystem) !== String(selectedHouse.productionSystem ?? "");
+
+  function selectHouse(houseId: string) {
+    const h = houseList.find(x => String(x.id) === houseId);
+    setForm(f => ({
+      ...f,
+      houseId,
+      species: h ? String(h.species ?? f.species) : f.species,
+      productionSystem: h ? String(h.productionSystem ?? f.productionSystem) : f.productionSystem,
+    }));
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Flock Register</h3><Button size="sm" onClick={() => openAdd()}><Plus className="w-4 h-4 mr-1" />Add Flock</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "flockNumber", label: "Flock No." }, { key: "houseName", label: "House" }, { key: "species", label: "Species" }, { key: "productionSystem", label: "System" }, { key: "placementDate", label: "Placed", fmt: r => fmtDate(r.placementDate) }, { key: "placementCount", label: "Placed" }, { key: "status", label: "Status" }]} rows={flocks as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
+        { key: "flockNumber", label: "Flock No." },
+        { key: "houseName", label: "House" },
+        { key: "species", label: "Species" },
+        { key: "productionSystem", label: "System" },
+        { key: "placementDate", label: "Placed", fmt: r => fmtDate(r.placementDate) },
+        { key: "placementCount", label: "Placed" },
+        { key: "status", label: "Status" },
+      ]} rows={flocks as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>Flock Record</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Flock Number *</Label><Input value={String(form.flockNumber ?? "")} onChange={e => setForm(f => ({ ...f, flockNumber: e.target.value }))} /></div>
-            <div><Label>House</Label>
-              <Select value={String(form.houseId ?? "")} onValueChange={v => setForm(f => ({ ...f, houseId: v }))}>
+            <div>
+              <Label>House</Label>
+              <Select value={String(form.houseId ?? "")} onValueChange={selectHouse}>
                 <SelectTrigger><SelectValue placeholder="Select house" /></SelectTrigger>
-                <SelectContent>{(houses as Record<string, unknown>[]).map(h => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.houseName)}</SelectItem>)}</SelectContent>
+                <SelectContent>{houseList.map(h => <SelectItem key={String(h.id)} value={String(h.id)}>{String(h.houseName)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Species *</Label>
+            <div>
+              <Label>Species *</Label>
+              {selectedHouse && !speciesMismatch && (
+                <p className="text-xs text-muted-foreground mb-1">Inherited from house — override only if intentional</p>
+              )}
+              {speciesMismatch && (
+                <p className="text-xs text-amber-600 mb-1">⚠ Differs from house species ({String(selectedHouse!.species)})</p>
+              )}
               <Select value={String(form.species ?? "")} onValueChange={v => setForm(f => ({ ...f, species: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger className={speciesMismatch ? "border-amber-400" : ""}><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>{POULTRY_SPECIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Production System *</Label>
+            <div>
+              <Label>Production System *</Label>
+              {selectedHouse && !systemMismatch && (
+                <p className="text-xs text-muted-foreground mb-1">Inherited from house — override only if intentional</p>
+              )}
+              {systemMismatch && (
+                <p className="text-xs text-amber-600 mb-1">⚠ Differs from house system ({String(selectedHouse!.productionSystem)})</p>
+              )}
               <Select value={String(form.productionSystem ?? "")} onValueChange={v => setForm(f => ({ ...f, productionSystem: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger className={systemMismatch ? "border-amber-400" : ""}><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>{PRODUCTION_SYSTEMS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
