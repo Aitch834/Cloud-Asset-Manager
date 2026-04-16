@@ -13,9 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil, Eye, Zap, ExternalLink, CheckCircle2, AlertCircle, Clock, ShoppingBag, CalendarCheck, X } from "lucide-react";
+import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil, Eye, Zap, ExternalLink, CheckCircle2, AlertCircle, Clock, ShoppingBag, CalendarCheck, X, BarChart3 } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 
-type Tab = "transactions" | "crop-contracts" | "grants" | "livestock-purchases";
+type Tab = "transactions" | "crop-contracts" | "grants" | "livestock-purchases" | "analytics";
 
 const CATEGORIES = [
   "Seeds & Seed Treatments",
@@ -967,6 +968,171 @@ function LivestockPurchasesTab({ farmId }: { farmId: number }) {
   );
 }
 
+const PIE_COLOURS = ["#16a34a","#3b82f6","#f59e0b","#ef4444","#8b5cf6","#14b8a6","#f97316","#ec4899","#6366f1","#84cc16","#06b6d4","#a855f7"];
+
+function FinancialAnalyticsTab({ farmId }: { farmId: number }) {
+  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const txQ = useQuery({
+    queryKey: ["financial-transactions", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/financial-transactions`).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => d.records ?? [],
+  });
+  const allTx: any[] = txQ.data ?? [];
+
+  const yearOptions = [...new Set(allTx.map((r: any) => r.transactionDate ? String(new Date(r.transactionDate).getFullYear()) : null).filter((x): x is string => Boolean(x)))].sort().reverse();
+
+  const yearTx = yearFilter === "all" ? allTx : allTx.filter((r: any) => r.transactionDate && String(new Date(r.transactionDate).getFullYear()) === yearFilter);
+
+  const monthMap = new Map<string, { month: string; label: string; income: number; expense: number }>();
+  yearTx.forEach((r: any) => {
+    if (!r.transactionDate) return;
+    const d = new Date(r.transactionDate);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+    if (!monthMap.has(key)) monthMap.set(key, { month: key, label, income: 0, expense: 0 });
+    const b = monthMap.get(key)!;
+    const amt = (r.amountPence ?? 0) / 100;
+    if (r.transactionType === "income") b.income += amt;
+    else b.expense += amt;
+  });
+  const monthData = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => ({ ...v, income: parseFloat(v.income.toFixed(2)), expense: parseFloat(v.expense.toFixed(2)), net: parseFloat((v.income - v.expense).toFixed(2)) }));
+
+  const catMap = new Map<string, { category: string; income: number; expense: number }>();
+  yearTx.forEach((r: any) => {
+    const cat = r.category || "Uncategorised";
+    if (!catMap.has(cat)) catMap.set(cat, { category: cat, income: 0, expense: 0 });
+    const b = catMap.get(cat)!;
+    const amt = (r.amountPence ?? 0) / 100;
+    if (r.transactionType === "income") b.income += amt;
+    else b.expense += amt;
+  });
+  const catData = [...catMap.values()].sort((a, b) => (b.income + b.expense) - (a.income + a.expense)).slice(0, 12);
+  const expenseCats = [...catMap.values()].filter(c => c.expense > 0).sort((a, b) => b.expense - a.expense).slice(0, 8).map(c => ({ name: c.category, value: parseFloat(c.expense.toFixed(2)) }));
+  const incomeCats = [...catMap.values()].filter(c => c.income > 0).sort((a, b) => b.income - a.income).slice(0, 8).map(c => ({ name: c.category, value: parseFloat(c.income.toFixed(2)) }));
+
+  let runningNet = 0;
+  const cumulData = monthData.map(m => { runningNet += m.net; return { label: m.label, cumulative: parseFloat(runningNet.toFixed(2)) }; });
+
+  const totalIncome = yearTx.filter((r: any) => r.transactionType === "income").reduce((s: number, r: any) => s + (r.amountPence ?? 0), 0) / 100;
+  const totalExpense = yearTx.filter((r: any) => r.transactionType === "expense").reduce((s: number, r: any) => s + (r.amountPence ?? 0), 0) / 100;
+  const netBalance = totalIncome - totalExpense;
+
+  if (txQ.isLoading) return <p className="text-sm text-gray-400 text-center py-16">Loading financial data…</p>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-medium text-gray-700 shrink-0">Year</label>
+        <Select value={yearFilter} onValueChange={setYearFilter}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All years</SelectItem>
+            {yearOptions.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Income</p>
+          <p className="text-2xl font-bold text-green-700">£{totalIncome.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Expenditure</p>
+          <p className="text-2xl font-bold text-red-600">£{totalExpense.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        </div>
+        <div className={`${netBalance >= 0 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"} border rounded-xl p-4`}>
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Net {netBalance >= 0 ? "Surplus" : "Deficit"}</p>
+          <p className={`text-2xl font-bold ${netBalance >= 0 ? "text-green-700" : "text-red-600"}`}>£{Math.abs(netBalance).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        </div>
+      </div>
+
+      {monthData.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-xl p-10 text-center text-gray-400">No transaction data for this period.</div>
+      ) : (
+        <>
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <p className="text-sm font-semibold text-gray-700 mb-4">Monthly Income vs Expenditure (£)</p>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={monthData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis tickFormatter={(v: number) => `£${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}`} tick={{ fontSize: 11 }} width={65} />
+                <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, ""]} />
+                <Legend />
+                <Bar dataKey="income" fill="#16a34a" name="Income" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="expense" fill="#ef4444" name="Expenditure" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <p className="text-sm font-semibold text-gray-700 mb-4">Cumulative Net Position (£)</p>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={cumulData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis tickFormatter={(v: number) => `£${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v >= -1000 ? v.toFixed(0) : `${(v/1000).toFixed(0)}k`}`} tick={{ fontSize: 11 }} width={65} />
+                <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, "Running total"]} />
+                <Line type="monotone" dataKey="cumulative" stroke={netBalance >= 0 ? "#16a34a" : "#ef4444"} strokeWidth={2.5} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            {expenseCats.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <p className="text-sm font-semibold text-gray-700 mb-4">Expenditure by Category</p>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie data={expenseCats} dataKey="value" nameKey="name" cx="40%" cy="50%" outerRadius={85} label={false}>
+                      {expenseCats.map((_: any, i: number) => <Cell key={i} fill={PIE_COLOURS[i % PIE_COLOURS.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, ""]} />
+                    <Legend layout="vertical" align="right" verticalAlign="middle" formatter={(name: string) => <span style={{ fontSize: 11 }}>{name}</span>} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {incomeCats.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <p className="text-sm font-semibold text-gray-700 mb-4">Income by Category</p>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie data={incomeCats} dataKey="value" nameKey="name" cx="40%" cy="50%" outerRadius={85} label={false}>
+                      {incomeCats.map((_: any, i: number) => <Cell key={i} fill={PIE_COLOURS[i % PIE_COLOURS.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, ""]} />
+                    <Legend layout="vertical" align="right" verticalAlign="middle" formatter={(name: string) => <span style={{ fontSize: 11 }}>{name}</span>} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          {catData.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <p className="text-sm font-semibold text-gray-700 mb-4">Income &amp; Expenditure by Category (£)</p>
+              <ResponsiveContainer width="100%" height={Math.max(200, catData.length * 34)}>
+                <BarChart data={catData} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                  <XAxis type="number" tickFormatter={(v: number) => `£${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}`} tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="category" tick={{ fontSize: 11 }} width={160} />
+                  <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, ""]} />
+                  <Legend />
+                  <Bar dataKey="income" fill="#16a34a" name="Income" radius={[0, 3, 3, 0]} />
+                  <Bar dataKey="expense" fill="#ef4444" name="Expenditure" radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function FinancialPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<Tab>("transactions");
@@ -984,11 +1150,15 @@ export default function FinancialPage() {
           <TabButton active={tab === "livestock-purchases"} onClick={() => setTab("livestock-purchases")}>
             <span className="flex items-center gap-1"><ShoppingBag className="w-3.5 h-3.5" />Livestock Purchases</span>
           </TabButton>
+          <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}>
+            <span className="flex items-center gap-1"><BarChart3 className="w-3.5 h-3.5" />Analytics</span>
+          </TabButton>
         </TabBar>
         {farmId && tab === "transactions" && <TransactionsTab farmId={farmId} />}
         {farmId && tab === "crop-contracts" && <CropContractsTab farmId={farmId} />}
         {farmId && tab === "grants" && <GrantsTab farmId={farmId} />}
         {farmId && tab === "livestock-purchases" && <LivestockPurchasesTab farmId={farmId} />}
+        {farmId && tab === "analytics" && <FinancialAnalyticsTab farmId={farmId} />}
       </div>
     </AppLayout>
   );

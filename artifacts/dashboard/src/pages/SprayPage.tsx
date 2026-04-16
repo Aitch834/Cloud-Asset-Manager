@@ -16,6 +16,142 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
+
+const SPRAY_PIE_COLOURS = ["#7c3aed","#16a34a","#f59e0b","#ef4444","#3b82f6","#14b8a6","#f97316","#84cc16"];
+
+function SprayAnalyticsTab({ applications, products, fields }: { applications: any[]; products: any[]; fields: any[] }) {
+  const fieldMap = new Map(fields.map((f: any) => [f.id, f.name]));
+  const productMap = new Map(products.map((p: any) => [p.id, p]));
+
+  const productUsage = new Map<number, { name: string; category: string; totalHa: number; count: number }>();
+  applications.forEach((a: any) => {
+    const prod = productMap.get(a.productId);
+    const name = prod?.productName ?? `Product #${a.productId}`;
+    const category = prod?.category ?? "Other";
+    const ha = parseFloat(String(a.areaSprayedHa || 0));
+    if (!productUsage.has(a.productId)) productUsage.set(a.productId, { name, category, totalHa: 0, count: 0 });
+    const b = productUsage.get(a.productId)!;
+    b.totalHa += ha;
+    b.count++;
+  });
+  const topProducts = [...productUsage.values()].sort((a, b) => b.totalHa - a.totalHa).slice(0, 12).map(p => ({ ...p, totalHa: parseFloat(p.totalHa.toFixed(2)) }));
+
+  const monthMap = new Map<string, { label: string; count: number; totalHa: number }>();
+  applications.forEach((a: any) => {
+    if (!a.applicationDate) return;
+    const d = new Date(a.applicationDate);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+    if (!monthMap.has(key)) monthMap.set(key, { label, count: 0, totalHa: 0 });
+    const b = monthMap.get(key)!;
+    b.count++;
+    b.totalHa += parseFloat(String(a.areaSprayedHa || 0));
+  });
+  const monthData = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => ({ ...v, totalHa: parseFloat(v.totalHa.toFixed(2)) }));
+
+  const catMap = new Map<string, number>();
+  applications.forEach((a: any) => {
+    const cat = productMap.get(a.productId)?.category ?? "Other";
+    catMap.set(cat, (catMap.get(cat) ?? 0) + parseFloat(String(a.areaSprayedHa || 0)));
+  });
+  const catData = [...catMap.entries()].sort(([, a], [, b]) => b - a).map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }));
+
+  const fieldMap2 = new Map<string, number>();
+  applications.forEach((a: any) => {
+    const fn = fieldMap.get(a.fieldId) ?? `Field #${a.fieldId}`;
+    fieldMap2.set(fn, (fieldMap2.get(fn) ?? 0) + 1);
+  });
+  const fieldData = [...fieldMap2.entries()].sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, count]) => ({ name, count }));
+
+  const totalHa = applications.reduce((s: number, a: any) => s + parseFloat(String(a.areaSprayedHa || 0)), 0);
+
+  if (applications.length === 0) return (
+    <div className="bg-white border border-gray-200 rounded-xl p-12 text-center text-gray-400">
+      <Droplets className="w-10 h-10 mx-auto mb-3 opacity-30" />
+      <p className="font-medium text-gray-600">No spray records yet</p>
+      <p className="text-sm">Log spray applications to see analytics here.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Applications</p>
+          <p className="text-2xl font-bold text-purple-700">{applications.length}</p>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Area Sprayed</p>
+          <p className="text-2xl font-bold text-blue-700">{totalHa.toFixed(1)} ha</p>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Products Used</p>
+          <p className="text-2xl font-bold text-green-700">{productUsage.size}</p>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <p className="text-sm font-semibold text-gray-700 mb-4">Area Sprayed by Product (ha) — top {topProducts.length}</p>
+        <ResponsiveContainer width="100%" height={Math.max(200, topProducts.length * 36)}>
+          <BarChart data={topProducts} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+            <XAxis type="number" tickFormatter={(v: number) => `${v} ha`} tick={{ fontSize: 11 }} />
+            <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
+            <Tooltip formatter={(v: number) => [`${v} ha`, "Area sprayed"]} />
+            <Bar dataKey="totalHa" fill="#7c3aed" radius={[0, 3, 3, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Monthly Applications &amp; Area (ha)</p>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={monthData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <YAxis yAxisId="left" tick={{ fontSize: 10 }} unit=" ha" width={50} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} unit=" apps" width={45} />
+              <Tooltip />
+              <Legend />
+              <Bar yAxisId="left" dataKey="totalHa" fill="#7c3aed" name="Area (ha)" radius={[3,3,0,0]} />
+              <Bar yAxisId="right" dataKey="count" fill="#0ea5e9" name="Applications" radius={[3,3,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Area by Product Category (ha)</p>
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
+              <Pie data={catData} dataKey="value" nameKey="name" cx="40%" cy="50%" outerRadius={90} label={false}>
+                {catData.map((_: any, i: number) => <Cell key={i} fill={SPRAY_PIE_COLOURS[i % SPRAY_PIE_COLOURS.length]} />)}
+              </Pie>
+              <Tooltip formatter={(v: number) => [`${v} ha`, ""]} />
+              <Legend layout="vertical" align="right" verticalAlign="middle" formatter={(n: string) => <span style={{ fontSize: 11 }}>{n}</span>} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {fieldData.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Applications by Field — top {fieldData.length}</p>
+          <ResponsiveContainer width="100%" height={Math.max(160, fieldData.length * 34)}>
+            <BarChart data={fieldData} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11 }} unit=" apps" />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
+              <Tooltip formatter={(v: number) => [`${v} application${v !== 1 ? "s" : ""}`, ""]} />
+              <Bar dataKey="count" fill="#16a34a" radius={[0, 3, 3, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const SPRAY_EQUIPMENT_TYPES = ["sprayer", "spot-sprayer", "knapsack", "boom sprayer", "tractor", "uas", "drone", "other"];
 
@@ -39,7 +175,7 @@ export default function SprayPage() {
   const productCategories = useLookupStrings("spray_product_categories", PRODUCT_CATEGORIES_FALLBACK);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print">("applications");
+  const [tab, setTab] = useState<"applications" | "dayview" | "products" | "print" | "analytics">("applications");
 
   const applicationsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const productsQ = useQuery({ queryKey: ["spray-products", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
@@ -65,11 +201,13 @@ export default function SprayPage() {
           <TabButton active={tab === "dayview"} onClick={() => setTab("dayview")}>Day View</TabButton>
           <TabButton active={tab === "products"} onClick={() => setTab("products")}>Product Register</TabButton>
           <TabButton active={tab === "print"} onClick={() => setTab("print")}>Print / Export</TabButton>
+          <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}>Analytics</TabButton>
         </TabBar>
         {tab === "applications" && <ApplicationsTab applications={applications} products={products} fields={fields} farmId={farmId} loading={applicationsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-applications", farmId] })} toast={toast} initialSearch={initialFieldSearch} />}
         {tab === "dayview" && <SprayDayViewTab applications={applications} loading={applicationsQ.isLoading} />}
         {tab === "products" && <ProductsTab products={products} farmId={farmId} loading={productsQ.isLoading} onRefresh={() => qc.invalidateQueries({ queryKey: ["spray-products", farmId] })} toast={toast} />}
         {tab === "print" && <PrintTab applications={applications} farm={currentFarm} />}
+        {tab === "analytics" && <SprayAnalyticsTab applications={applications} products={products} fields={fields} />}
       </div>
     </AppLayout>
   );

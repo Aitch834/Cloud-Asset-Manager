@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
@@ -18,6 +18,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { Redirect, Link } from "wouter";
 import { cn } from "@/lib/utils";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
 const api = (path: string) => `/api/${path}`;
 
@@ -2127,11 +2128,165 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "assets" | "jobs" | "schedule" | "overview" | "parts";
+const WS_PIE_COLOURS = ["#f59e0b","#16a34a","#ef4444","#8b5cf6","#3b82f6","#14b8a6"];
+
+function WorkshopAnalyticsTab({ farmId }: { farmId: number }) {
+  const jobsQ = useQuery({
+    queryKey: ["workshop-jobs", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/workshop/jobs`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => d.records ?? [],
+  });
+  const equipQ = useQuery({
+    queryKey: ["equipment", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/equipment`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!farmId,
+    select: (d: any) => d.records ?? [],
+  });
+  const jobs: any[] = jobsQ.data ?? [];
+  const equipment: any[] = equipQ.data ?? [];
+  const equipMap = useMemo(() => new Map(equipment.map((e: any) => [e.id, e.name ?? assetNumber(e)])), [equipment]);
+
+  const equipCostMap = useMemo(() => {
+    const m = new Map<number, { name: string; labour: number; parts: number }>();
+    jobs.forEach((j: any) => {
+      if (!j.equipmentId) return;
+      const name = equipMap.get(j.equipmentId) ?? `Asset #${j.equipmentId}`;
+      if (!m.has(j.equipmentId)) m.set(j.equipmentId, { name, labour: 0, parts: 0 });
+      const b = m.get(j.equipmentId)!;
+      b.labour += (j.labourCostPence ?? 0) / 100;
+      b.parts += (j.partsCostPence ?? 0) / 100;
+    });
+    return m;
+  }, [jobs, equipMap]);
+
+  const costByEquip = [...equipCostMap.values()].map(e => ({ ...e, total: e.labour + e.parts, labour: parseFloat(e.labour.toFixed(2)), parts: parseFloat(e.parts.toFixed(2)) })).sort((a, b) => b.total - a.total).slice(0, 12);
+
+  const monthMap = useMemo(() => {
+    const m = new Map<string, { label: string; total: number; count: number }>();
+    jobs.forEach((j: any) => {
+      const ds = j.startedAt ?? j.scheduledAt ?? j.completedAt;
+      if (!ds) return;
+      const d = new Date(ds);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+      if (!m.has(key)) m.set(key, { label, total: 0, count: 0 });
+      const b = m.get(key)!;
+      b.total += ((j.labourCostPence ?? 0) + (j.partsCostPence ?? 0)) / 100;
+      b.count++;
+    });
+    return m;
+  }, [jobs]);
+  const monthData = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => ({ ...v, total: parseFloat(v.total.toFixed(2)) }));
+
+  const statusMap = useMemo(() => {
+    const m = new Map<string, number>();
+    jobs.forEach((j: any) => { const s = j.status ?? "unknown"; m.set(s, (m.get(s) ?? 0) + 1); });
+    return m;
+  }, [jobs]);
+  const statusData = [...statusMap.entries()].map(([name, value]) => ({ name: JOB_STATUS[name]?.label ?? name, value }));
+
+  const totalLabour = jobs.reduce((s: number, j: any) => s + (j.labourCostPence ?? 0), 0) / 100;
+  const totalParts = jobs.reduce((s: number, j: any) => s + (j.partsCostPence ?? 0), 0) / 100;
+  const totalCost = totalLabour + totalParts;
+  const splitData = [{ name: "Labour", value: parseFloat(totalLabour.toFixed(2)) }, { name: "Parts", value: parseFloat(totalParts.toFixed(2)) }];
+
+  if (jobsQ.isLoading) return <div className="py-16 text-center text-gray-400 flex items-center justify-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />Loading workshop data…</div>;
+
+  if (jobs.length === 0) return (
+    <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+      <Wrench className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+      <p className="font-medium text-gray-600">No job cards yet</p>
+      <p className="text-sm text-gray-400">Create job cards to see analytics here.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Job Cost</p>
+          <p className="text-2xl font-bold text-amber-700">£{totalCost.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Labour Cost</p>
+          <p className="text-2xl font-bold text-blue-700">£{totalLabour.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        </div>
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Parts Cost</p>
+          <p className="text-2xl font-bold text-purple-700">£{totalParts.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        </div>
+      </div>
+
+      {costByEquip.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Cost by Asset / Machine (£)</p>
+          <ResponsiveContainer width="100%" height={Math.max(200, costByEquip.length * 36)}>
+            <BarChart data={costByEquip} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+              <XAxis type="number" tickFormatter={(v: number) => `£${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}`} tick={{ fontSize: 11 }} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
+              <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, ""]} />
+              <Legend />
+              <Bar dataKey="labour" stackId="a" fill="#3b82f6" name="Labour" />
+              <Bar dataKey="parts" stackId="a" fill="#8b5cf6" name="Parts" radius={[0, 3, 3, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Labour vs Parts Split</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={splitData} dataKey="value" nameKey="name" cx="40%" cy="50%" outerRadius={85} label={false}>
+                <Cell fill="#3b82f6" />
+                <Cell fill="#8b5cf6" />
+              </Pie>
+              <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, ""]} />
+              <Legend layout="vertical" align="right" verticalAlign="middle" formatter={(n: string) => <span style={{ fontSize: 12 }}>{n}</span>} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Jobs by Status</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={statusData} dataKey="value" nameKey="name" cx="40%" cy="50%" outerRadius={85} label={false}>
+                {statusData.map((_: any, i: number) => <Cell key={i} fill={WS_PIE_COLOURS[i % WS_PIE_COLOURS.length]} />)}
+              </Pie>
+              <Tooltip />
+              <Legend layout="vertical" align="right" verticalAlign="middle" formatter={(n: string) => <span style={{ fontSize: 12 }}>{n}</span>} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {monthData.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Monthly Job Spend (£)</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={monthData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={(v: number) => `£${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}`} tick={{ fontSize: 11 }} width={60} />
+              <Tooltip formatter={(v: number) => [`£${v.toLocaleString("en-GB", { minimumFractionDigits: 2 })}`, "Cost"]} />
+              <Line type="monotone" dataKey="total" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: "#f59e0b" }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type Tab = "assets" | "jobs" | "schedule" | "overview" | "parts" | "analytics";
 
 export default function WorkshopPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["assets","jobs","schedule","overview","parts"]; return t && valid.includes(t) ? t : "assets"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["assets","jobs","schedule","overview","parts","analytics"]; return t && valid.includes(t) ? t : "assets"; });
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
   const [jobNavStatus, setJobNavStatus] = useState<string>("all");
   const [jobNavKey, setJobNavKey] = useState(0);
@@ -2160,6 +2315,7 @@ export default function WorkshopPage() {
           <TabButton active={tab === "schedule"} onClick={() => setTab("schedule")}>Service Schedule</TabButton>
           <TabButton active={tab === "overview"} onClick={() => setTab("overview")}>Fleet Overview</TabButton>
           <TabButton active={tab === "parts"} onClick={() => setTab("parts")}><Package className="h-3.5 w-3.5 mr-1 inline-block" />Parts Store</TabButton>
+          <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}>Analytics</TabButton>
         </TabBar>
 
         <div className="mt-6">
@@ -2168,6 +2324,7 @@ export default function WorkshopPage() {
           {tab === "schedule" && <ServiceScheduleTab farmId={farmId} />}
           {tab === "overview" && <FleetOverviewTab farmId={farmId} onNavigate={navigateTo} />}
           {tab === "parts" && <PartsStoreTab farmId={farmId} />}
+          {tab === "analytics" && <WorkshopAnalyticsTab farmId={farmId} />}
         </div>
       </div>
     </AppLayout>

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -20,7 +21,7 @@ import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useFarmMembers, memberFullName, type FarmMember } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 
-type Tab = "training" | "certificates" | "rtw" | "courses";
+type Tab = "training" | "certificates" | "rtw" | "courses" | "analytics";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -1476,6 +1477,154 @@ function CoursesTab({ farmId }: { farmId: number }) {
   );
 }
 
+const TRAINING_PIE_COLOURS = ["#16a34a","#3b82f6","#f59e0b","#ef4444","#8b5cf6","#14b8a6","#f97316","#84cc16"];
+
+function StaffTrainingAnalyticsTab({ trainingRecords, certificates }: { trainingRecords: TrainingRecord[]; certificates: CertificateRecord[] }) {
+  const now = new Date();
+
+  const titleMap = useMemo(() => {
+    const m = new Map<string, number>();
+    trainingRecords.forEach(r => { m.set(r.trainingTitle, (m.get(r.trainingTitle) ?? 0) + 1); });
+    return m;
+  }, [trainingRecords]);
+  const topTitles = [...titleMap.entries()].sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, count]) => ({ name, count }));
+
+  const providerMap = useMemo(() => {
+    const m = new Map<string, number>();
+    trainingRecords.forEach(r => { const p = r.trainingProvider || "In-house / Other"; m.set(p, (m.get(p) ?? 0) + 1); });
+    return m;
+  }, [trainingRecords]);
+  const providerData = [...providerMap.entries()].sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, count]) => ({ name, count }));
+
+  const monthMap = useMemo(() => {
+    const m = new Map<string, { label: string; count: number }>();
+    trainingRecords.forEach(r => {
+      if (!r.trainingDate) return;
+      const d = new Date(r.trainingDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+      if (!m.has(key)) m.set(key, { label, count: 0 });
+      m.get(key)!.count++;
+    });
+    return m;
+  }, [trainingRecords]);
+  const monthData = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
+
+  const certStatusData = useMemo(() => {
+    let valid = 0, expiring = 0, expired = 0, noExpiry = 0;
+    certificates.forEach(c => {
+      if (!c.expiryDate) { noExpiry++; return; }
+      const exp = new Date(c.expiryDate);
+      const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / 86400000);
+      if (daysLeft < 0) expired++;
+      else if (daysLeft <= 90) expiring++;
+      else valid++;
+    });
+    return [
+      { name: "Valid", value: valid },
+      { name: "Expiring (90d)", value: expiring },
+      { name: "Expired", value: expired },
+      { name: "No Expiry", value: noExpiry },
+    ].filter(d => d.value > 0);
+  }, [certificates]);
+
+  const expiredTraining = trainingRecords.filter(r => r.expiryDate && new Date(r.expiryDate) < now).length;
+  const expiringTraining = trainingRecords.filter(r => { if (!r.expiryDate) return false; const d = Math.ceil((new Date(r.expiryDate).getTime() - now.getTime()) / 86400000); return d >= 0 && d <= 90; }).length;
+
+  if (trainingRecords.length === 0 && certificates.length === 0) return (
+    <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+      <GraduationCap className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+      <p className="font-medium text-gray-600 mb-1">No training data yet</p>
+      <p className="text-sm text-gray-400">Add training records and certificates to see analytics.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Training Records</p>
+          <p className="text-2xl font-bold text-green-700">{trainingRecords.length}</p>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Certificates</p>
+          <p className="text-2xl font-bold text-blue-700">{certificates.length}</p>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Expiring (90d)</p>
+          <p className="text-2xl font-bold text-amber-700">{expiringTraining}</p>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Expired</p>
+          <p className="text-2xl font-bold text-red-600">{expiredTraining}</p>
+        </div>
+      </div>
+
+      {topTitles.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Training Records by Course Title (top {topTitles.length})</p>
+          <ResponsiveContainer width="100%" height={Math.max(160, topTitles.length * 36)}>
+            <BarChart data={topTitles} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} unit=" records" />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={220} />
+              <Tooltip formatter={(v: number) => [`${v} record${v !== 1 ? "s" : ""}`, ""]} />
+              <Bar dataKey="count" fill="#16a34a" radius={[0, 3, 3, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-2 gap-4">
+        {certStatusData.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <p className="text-sm font-semibold text-gray-700 mb-4">Certificate Status</p>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={certStatusData} dataKey="value" nameKey="name" cx="40%" cy="50%" outerRadius={85} label={false}>
+                  {certStatusData.map((d, i) => <Cell key={i} fill={d.name === "Valid" ? "#16a34a" : d.name === "Expiring (90d)" ? "#f59e0b" : d.name === "Expired" ? "#ef4444" : "#9ca3af"} />)}
+                </Pie>
+                <Tooltip />
+                <Legend layout="vertical" align="right" verticalAlign="middle" formatter={(n: string) => <span style={{ fontSize: 11 }}>{n}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {providerData.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <p className="text-sm font-semibold text-gray-700 mb-4">Training by Provider</p>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={providerData} dataKey="count" nameKey="name" cx="40%" cy="50%" outerRadius={85} label={false}>
+                  {providerData.map((_: any, i: number) => <Cell key={i} fill={TRAINING_PIE_COLOURS[i % TRAINING_PIE_COLOURS.length]} />)}
+                </Pie>
+                <Tooltip formatter={(v: number) => [`${v} record${v !== 1 ? "s" : ""}`, ""]} />
+                <Legend layout="vertical" align="right" verticalAlign="middle" formatter={(n: string) => <span style={{ fontSize: 11 }}>{n}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {monthData.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Monthly Training Completions</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={monthData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} width={30} allowDecimals={false} />
+              <Tooltip formatter={(v: number) => [`${v} completion${v !== 1 ? "s" : ""}`, ""]} />
+              <Bar dataKey="count" fill="#16a34a" name="Completions" radius={[3,3,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StaffTrainingPage() {
   const { farmId } = useAppStore();
   const { data: farmData } = useQuery<{ record: { id: number; name: string; cphNumber: string | null; redTractorId: string | null } }>({
@@ -1554,6 +1703,9 @@ export default function StaffTrainingPage() {
           <TabButton active={tab === "courses"} onClick={() => setTab("courses")}>
             Course Register
           </TabButton>
+          <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")}>
+            Analytics
+          </TabButton>
         </TabBar>
 
         {!farmId && (
@@ -1574,6 +1726,8 @@ export default function StaffTrainingPage() {
           <CertificatesTab farmId={farmId} staffNames={staffNames} staffLoading={staffLoading} defaultMember={tab === "certificates" ? urlMember : undefined} />
         ) : tab === "rtw" ? (
           <RightToWorkTab farmId={farmId} staffNames={staffNames} staffLoading={staffLoading} defaultMember={tab === "rtw" ? urlMember : undefined} />
+        ) : tab === "analytics" ? (
+          <StaffTrainingAnalyticsTab trainingRecords={trainingRecords} certificates={certificates} />
         ) : (
           <CoursesTab farmId={farmId} />
         )}

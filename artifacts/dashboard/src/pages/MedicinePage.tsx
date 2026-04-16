@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 import { printProReport } from "@/lib/print-report";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear } from "@/lib/cropYear";
@@ -19,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { useToast } from "@/hooks/use-toast";
 import { VMD_MEDICINES, DOSE_UNITS, findVmdMedicine, type VmdMedicine } from "@/data/vmdMedicines";
 
-type StatusFilter = "all" | "in_withdrawal" | "cleared" | "no_withdrawal";
+type StatusFilter = "all" | "in_withdrawal" | "cleared" | "no_withdrawal" | "analytics";
 type TreatmentScope = "individual" | "group" | "whole_herd";
 
 function formatDate(val: string | null | undefined): string {
@@ -418,6 +419,119 @@ export default function MedicinePageDedicated() {
   );
 }
 
+const MED_PIE_COLOURS = ["#16a34a","#3b82f6","#f59e0b","#ef4444","#8b5cf6","#14b8a6","#f97316","#ec4899"];
+
+function MedicineAnalyticsPanel({ records }: { records: MedicineRecord[] }) {
+  const routeMap = useMemo(() => {
+    const m = new Map<string, number>();
+    records.forEach(r => {
+      const route = r.administrationRoute || "Not recorded";
+      m.set(route, (m.get(route) ?? 0) + 1);
+    });
+    return m;
+  }, [records]);
+  const routeData = [...routeMap.entries()].sort(([, a], [, b]) => b - a).map(([name, value]) => ({ name, value }));
+
+  const monthMap = useMemo(() => {
+    const m = new Map<string, { label: string; count: number; inWithdrawal: number }>();
+    records.forEach(r => {
+      if (!r.administeredDate) return;
+      const d = new Date(r.administeredDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+      if (!m.has(key)) m.set(key, { label, count: 0, inWithdrawal: 0 });
+      const b = m.get(key)!;
+      b.count++;
+      if (r.withdrawalPeriodDays && r.withdrawalPeriodDays > 0) b.inWithdrawal++;
+    });
+    return m;
+  }, [records]);
+  const monthData = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
+
+  const medicineMap = useMemo(() => {
+    const m = new Map<string, number>();
+    records.forEach(r => { m.set(r.medicineName, (m.get(r.medicineName) ?? 0) + 1); });
+    return m;
+  }, [records]);
+  const topMedicines = [...medicineMap.entries()].sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, count]) => ({ name, count }));
+
+  const inWithdrawalNow = records.filter(r => isInWithdrawal(r.withdrawalEndDate ?? null)).length;
+  const withWdPeriod = records.filter(r => r.withdrawalPeriodDays && r.withdrawalPeriodDays > 0).length;
+  const avgWd = withWdPeriod > 0 ? Math.round(records.filter(r => r.withdrawalPeriodDays && r.withdrawalPeriodDays > 0).reduce((s, r) => s + (r.withdrawalPeriodDays ?? 0), 0) / withWdPeriod) : 0;
+
+  if (records.length === 0) return (
+    <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+      <HeartPulse className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+      <p className="font-medium text-gray-600 mb-1">No medicine records yet</p>
+      <p className="text-sm text-gray-400">Add medicine records to see analytics here.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total Records</p>
+          <p className="text-2xl font-bold text-green-700">{records.length}</p>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Active Withdrawals</p>
+          <p className="text-2xl font-bold text-amber-700">{inWithdrawalNow}</p>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p className="text-xs text-gray-400 uppercase font-medium mb-1">Avg. W/D Period</p>
+          <p className="text-2xl font-bold text-blue-700">{avgWd > 0 ? `${avgWd}d` : "—"}</p>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Treatments by Administration Route</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={routeData} dataKey="value" nameKey="name" cx="40%" cy="50%" outerRadius={85} label={false}>
+                {routeData.map((_: any, i: number) => <Cell key={i} fill={MED_PIE_COLOURS[i % MED_PIE_COLOURS.length]} />)}
+              </Pie>
+              <Tooltip />
+              <Legend layout="vertical" align="right" verticalAlign="middle" formatter={(n: string) => <span style={{ fontSize: 11 }}>{n}</span>} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Monthly Treatments</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={monthData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 11 }} width={30} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="count" fill="#16a34a" name="Treatments" radius={[3,3,0,0]} />
+              <Bar dataKey="inWithdrawal" fill="#f59e0b" name="With W/D Period" radius={[3,3,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {topMedicines.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <p className="text-sm font-semibold text-gray-700 mb-4">Top Medicines Used (by frequency)</p>
+          <ResponsiveContainer width="100%" height={Math.max(160, topMedicines.length * 34)}>
+            <BarChart data={topMedicines} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11 }} unit=" uses" allowDecimals={false} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={200} />
+              <Tooltip formatter={(v: number) => [`${v} treatment${v !== 1 ? "s" : ""}`, ""]} />
+              <Bar dataKey="count" fill="#16a34a" radius={[0, 3, 3, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main content ──────────────────────────────────────────────────────────────
 function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
@@ -669,42 +783,49 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
         <TabButton active={statusFilter === "in_withdrawal"} onClick={() => setStatusFilter("in_withdrawal")}>In Withdrawal <span className="ml-1 text-xs opacity-60">({tabCounts.in_withdrawal})</span></TabButton>
         <TabButton active={statusFilter === "cleared"} onClick={() => setStatusFilter("cleared")}>Cleared <span className="ml-1 text-xs opacity-60">({tabCounts.cleared})</span></TabButton>
         <TabButton active={statusFilter === "no_withdrawal"} onClick={() => setStatusFilter("no_withdrawal")}>No W/D Required <span className="ml-1 text-xs opacity-60">({tabCounts.no_withdrawal})</span></TabButton>
+        <TabButton active={statusFilter === "analytics"} onClick={() => setStatusFilter("analytics")}>Analytics</TabButton>
       </TabBar>
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-          <Input placeholder="Search medicine, ref, ear tag, reason..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-        <CropYearSelector value={cropYear} onChange={setCropYear} />
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => printMedicineRegister(filtered, herds, animals, farm, filterLabel)} className="gap-2">
-            <Printer className="w-4 h-4" /> Print Register
-          </Button>
-          <Button onClick={() => { setEditing(null); setForm(EMPTY_FORM); setTagValidations([]); setFormOpen(true); }} className="gap-2" size="sm">
-            <Plus className="w-4 h-4" /> Add Record
-          </Button>
-        </div>
-      </div>
+      {statusFilter === "analytics" && <MedicineAnalyticsPanel records={allRecords} />}
 
-      {medicineQ.isLoading ? (
-        <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
-      ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-16 px-6">
-            <div className="w-16 h-16 mx-auto rounded-full bg-primary/5 flex items-center justify-center mb-4">
-              <HeartPulse className="w-8 h-8 text-primary/40" />
+      {statusFilter !== "analytics" && (
+        <>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
+              <Input placeholder="Search medicine, ref, ear tag, reason..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-            <h3 className="text-lg font-semibold text-foreground/80 mb-1">No medicine records</h3>
-            <p className="text-foreground/50 text-sm">{search ? "No records match your search." : statusFilter === "all" ? "Record all veterinary medicines administered to your livestock." : `No records in the "${filterLabel}" category.`}</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map(r => (
-            <RecordCard key={r.id} record={r} herds={herds} animals={animals} onEdit={openEdit} onDelete={setDeleteId} onView={setViewRecord} />
-          ))}
-        </div>
+            <CropYearSelector value={cropYear} onChange={setCropYear} />
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => printMedicineRegister(filtered, herds, animals, farm, filterLabel)} className="gap-2">
+                <Printer className="w-4 h-4" /> Print Register
+              </Button>
+              <Button onClick={() => { setEditing(null); setForm(EMPTY_FORM); setTagValidations([]); setFormOpen(true); }} className="gap-2" size="sm">
+                <Plus className="w-4 h-4" /> Add Record
+              </Button>
+            </div>
+          </div>
+
+          {medicineQ.isLoading ? (
+            <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading...</div>
+          ) : filtered.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-16 px-6">
+                <div className="w-16 h-16 mx-auto rounded-full bg-primary/5 flex items-center justify-center mb-4">
+                  <HeartPulse className="w-8 h-8 text-primary/40" />
+                </div>
+                <h3 className="text-lg font-semibold text-foreground/80 mb-1">No medicine records</h3>
+                <p className="text-foreground/50 text-sm">{search ? "No records match your search." : statusFilter === "all" ? "Record all veterinary medicines administered to your livestock." : `No records in the "${filterLabel}" category.`}</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map(r => (
+                <RecordCard key={r.id} record={r} herds={herds} animals={animals} onEdit={openEdit} onDelete={setDeleteId} onView={setViewRecord} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* ── View dialog ──────────────────────────────────── */}

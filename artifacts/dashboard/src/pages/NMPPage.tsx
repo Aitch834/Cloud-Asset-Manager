@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { Link } from "wouter";
 import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -367,6 +368,33 @@ export default function NMPPage() {
                               <Plus size={13} className="mr-1" />Add Another Field
                             </Button>
                           </div>
+
+                          {entries.some((e: any) => e.nitrogenKgHa || e.phosphorusKgHa || e.potassiumKgHa) && (
+                            <div style={{ marginTop: "1.25rem", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0", padding: "1rem" }}>
+                              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: "0.75rem" }}>N/P/K Budget by Field (kg/ha)</p>
+                              <ResponsiveContainer width="100%" height={Math.max(180, entries.length * 44)}>
+                                <BarChart
+                                  data={entries.map((e: any) => ({
+                                    field: e.fieldName || `Field #${e.fieldId}`,
+                                    N: parseFloat(String(e.nitrogenKgHa || 0)),
+                                    P: parseFloat(String(e.phosphorusKgHa || 0)),
+                                    K: parseFloat(String(e.potassiumKgHa || 0)),
+                                  }))}
+                                  layout="vertical"
+                                  margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+                                  <XAxis type="number" tick={{ fontSize: 11 }} unit=" kg/ha" />
+                                  <YAxis type="category" dataKey="field" tick={{ fontSize: 11 }} width={120} />
+                                  <Tooltip formatter={(v: number) => [`${v} kg/ha`, ""]} />
+                                  <Legend />
+                                  <Bar dataKey="N" fill="#1d4ed8" name="Nitrogen (N)" radius={[0, 2, 2, 0]} />
+                                  <Bar dataKey="P" fill="#7c3aed" name="Phosphorus (P)" radius={[0, 2, 2, 0]} />
+                                  <Bar dataKey="K" fill="#b45309" name="Potassium (K)" radius={[0, 2, 2, 0]} />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
