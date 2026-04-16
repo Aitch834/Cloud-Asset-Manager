@@ -293,7 +293,10 @@ function FeedRecordsTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
 
-  const { data: records = [], isLoading } = useQuery({ queryKey: ["pig-feed", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-feed-records`), { credentials: "include" }).then(r => r.json()) });
+  const { data: rawRecords, isLoading } = useQuery({ queryKey: ["pig-feed", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-feed-records`), { credentials: "include" }).then(r => r.json()) });
+  const records: Record<string, unknown>[] = Array.isArray(rawRecords) ? rawRecords : (rawRecords?.records ?? rawRecords ?? []);
+  const sorted = [...records].sort((a, b) => String(b.deliveryDate ?? "").localeCompare(String(a.deliveryDate ?? "")));
+  const linkedCount = sorted.filter(r => !!r.linkedFeedDeliveryId).length;
 
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
@@ -313,36 +316,71 @@ function FeedRecordsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Feed Delivery Records</h3>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Delivery</Button>
+      <div className="p-3 rounded-lg border border-blue-100 bg-blue-50 flex items-start gap-2">
+        <FileText className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+        <div className="text-xs text-blue-800">
+          <strong>Linked to Feed Management:</strong> Feed deliveries logged in Feed Management for pigs or mixed species are automatically added here. {linkedCount > 0 ? <span>{linkedCount} record{linkedCount > 1 ? "s" : ""} auto-synced so far.</span> : <span>No auto-synced records yet.</span>}
+        </div>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
-        <DataTable
-          cols={[
-            { key: "deliveryDate", label: "Date", fmt: r => fmtDate(r.deliveryDate) }, { key: "supplierName", label: "Supplier" },
-            { key: "feedType", label: "Feed Type" }, { key: "compoundFeedName", label: "Compound Name" },
-            { key: "quantityTonnes", label: "Qty (t)" }, { key: "batchLotNumber", label: "Batch/Lot No." },
-          ]}
-          rows={records}
-          onEdit={openEdit}
-          onDelete={r => del.mutate(r.id as number)}
-        />
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Feed Delivery Records</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Red Tractor compliance record of all feed deliveries to pig units.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Manually</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : sorted.length === 0 ? (
+        <Empty msg="No feed delivery records yet. Log a pig or mixed delivery in Feed Management to auto-create one here, or add manually." />
+      ) : (
+        <div className="space-y-2">
+          {sorted.map((r, i) => (
+            <div key={i} className="border rounded-lg p-3 bg-white">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="font-medium text-sm">{fmt(r.supplierName)}</span>
+                    {!!r.linkedFeedDeliveryId && (
+                      <Badge className="text-xs" style={{ background: "#dbeafe", color: "#1e40af", border: "none" }}>
+                        Auto-synced from Feed Management
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                    <span><span className="font-medium text-foreground/70">Date:</span> {fmtDate(r.deliveryDate)}</span>
+                    <span><span className="font-medium text-foreground/70">Type:</span> {fmt(r.feedType)}</span>
+                    <span><span className="font-medium text-foreground/70">Qty:</span> {fmt(r.quantityTonnes)} t</span>
+                    {!!r.batchLotNumber && <span><span className="font-medium text-foreground/70">Batch:</span> {fmt(r.batchLotNumber)}</span>}
+                    {!!r.compoundFeedName && <span><span className="font-medium text-foreground/70">Product:</span> {fmt(r.compoundFeedName)}</span>}
+                    {!!r.deliveryNoteNumber && <span><span className="font-medium text-foreground/70">Note No.:</span> {fmt(r.deliveryNoteNumber)}</span>}
+                    {!!r.supplierApprovalNumber && <span><span className="font-medium text-foreground/70">UFAS No.:</span> {fmt(r.supplierApprovalNumber)}</span>}
+                  </div>
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => del.mutate(r.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
-          <DialogHeader><DialogTitle>Feed Delivery Record</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? "Edit Feed Delivery Record" : "Add Feed Delivery Record"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Delivery Date *</Label><Input type="date" value={form.deliveryDate ?? ""} onChange={e => setForm(f => ({ ...f, deliveryDate: e.target.value }))} /></div>
             <div><Label>Supplier Name *</Label><Input value={form.supplierName ?? ""} onChange={e => setForm(f => ({ ...f, supplierName: e.target.value }))} /></div>
-            <div><Label>Supplier Approval No.</Label><Input value={form.supplierApprovalNumber ?? ""} onChange={e => setForm(f => ({ ...f, supplierApprovalNumber: e.target.value }))} /></div>
+            <div><Label>Supplier Approval No. (UFAS)</Label><Input value={form.supplierApprovalNumber ?? ""} onChange={e => setForm(f => ({ ...f, supplierApprovalNumber: e.target.value }))} /></div>
             <div><Label>Feed Type *</Label>
-              <Select value={form.feedType ?? ""} onValueChange={v => setForm(f => ({ ...f, feedType: v }))}>
+              <Select value={form.feedType ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, feedType: v === "__none__" ? "" : v }))}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["Compound Feed", "Straights", "Home Mix", "Liquid Feed", "Creep Feed", "Supplement"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select —</SelectItem>
+                  {["Compound Feed", "Straights", "Home Mix", "Liquid Feed", "Creep Feed", "Supplement"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
-            <div><Label>Compound Feed Name</Label><Input value={form.compoundFeedName ?? ""} onChange={e => setForm(f => ({ ...f, compoundFeedName: e.target.value }))} /></div>
+            <div><Label>Compound / Product Name</Label><Input value={form.compoundFeedName ?? ""} onChange={e => setForm(f => ({ ...f, compoundFeedName: e.target.value }))} /></div>
             <div><Label>Quantity (tonnes) *</Label><Input type="number" step="0.1" value={form.quantityTonnes ?? ""} onChange={e => setForm(f => ({ ...f, quantityTonnes: e.target.value }))} /></div>
             <div><Label>Batch/Lot Number</Label><Input value={form.batchLotNumber ?? ""} onChange={e => setForm(f => ({ ...f, batchLotNumber: e.target.value }))} /></div>
             <div><Label>Delivery Note No.</Label><Input value={form.deliveryNoteNumber ?? ""} onChange={e => setForm(f => ({ ...f, deliveryNoteNumber: e.target.value }))} /></div>

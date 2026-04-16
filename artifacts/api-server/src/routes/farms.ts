@@ -14280,6 +14280,30 @@ router.post("/farms/:farmId/feed-deliveries", requireAuth, requireTenant, requir
   // Recalculate awaiting status for linked feed stock bin
   if (record.feedStockItemId) await recalcFeedStockAwaiting(farmId, record.feedStockItemId);
 
+  // ── Auto-create pig feed record if delivery is intended for pigs ──────────
+  const pigSpecies = ["pigs", "mixed"];
+  if (record.speciesIntended && pigSpecies.includes(String(record.speciesIntended).toLowerCase())) {
+    const existingLink = await db.select({ id: pigFeedRecordsTable.id }).from(pigFeedRecordsTable).where(and(eq(pigFeedRecordsTable.farmId, farmId), eq(pigFeedRecordsTable.linkedFeedDeliveryId, record.id))).limit(1);
+    if (existingLink.length === 0) {
+      const deliveryDateStr = record.deliveryDate ? new Date(record.deliveryDate).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10);
+      const qtyTonnes = record.quantityKg ? String(parseFloat(String(record.quantityKg)) / 1000) : "0";
+      const batchLot = [record.batchNumber, record.lotNumber].filter(Boolean).join(" / ") || null;
+      await db.insert(pigFeedRecordsTable).values({
+        farmId,
+        deliveryDate: deliveryDateStr,
+        supplierName: record.supplierName,
+        supplierApprovalNumber: record.ufasNumberOnNote ?? null,
+        feedType: record.feedType,
+        compoundFeedName: record.productName ?? null,
+        quantityTonnes: qtyTonnes,
+        batchLotNumber: batchLot,
+        deliveryNoteNumber: record.deliveryNoteNumber ?? null,
+        linkedFeedDeliveryId: record.id,
+        notes: `Auto-linked from Feed Management delivery #${record.id}`,
+      });
+    }
+  }
+
   res.status(201).json({ record });
 });
 

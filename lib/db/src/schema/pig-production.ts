@@ -63,6 +63,7 @@ export const pigFeedRecordsTable = pgTable("pig_feed_records", {
   batchLotNumber: text("batch_lot_number"),
   deliveryNoteNumber: text("delivery_note_number"),
   appliedToFlockId: integer("applied_to_flock_id").references(() => pigFlocksTable.id),
+  linkedFeedDeliveryId: integer("linked_feed_delivery_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
