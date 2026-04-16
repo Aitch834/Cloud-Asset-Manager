@@ -86,26 +86,91 @@ function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: st
   return { data, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit };
 }
 
+const HOUSE_TYPES = [
+  "Controlled Environment (Dark-out)",
+  "Naturally Lit House",
+  "Free Range Building (with range access)",
+  "Deep Litter House",
+  "Aviary System",
+  "Cage System",
+  "Open-sided / Naturally Ventilated",
+  "Breeding / Parent Stock House",
+  "Rearing / Grower House",
+  "Mobile Unit / Arks",
+  "Multi-purpose",
+];
+
+const POULTRY_SPECIES = [
+  "Broiler (Meat Chicken)",
+  "Layer (Laying Hen)",
+  "Turkey",
+  "Duck",
+  "Goose",
+  "Guinea Fowl",
+  "Pheasant / Game Bird",
+  "Mixed / Other",
+];
+
+const PRODUCTION_SYSTEMS = [
+  "Conventional",
+  "Barn",
+  "Free Range",
+  "Organic",
+  "RSPCA Assured",
+  "Higher Welfare",
+  "Label Rouge",
+];
+
 function HousesTab({ farmId }: { farmId: number }) {
   const { data: houses, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-houses", "poultry-houses");
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Poultry Houses</h3><Button size="sm" onClick={() => openAdd()}><Plus className="w-4 h-4 mr-1" />Add House</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "houseName", label: "House Name" }, { key: "houseType", label: "Type" }, { key: "species", label: "Species" }, { key: "productionSystem", label: "System" }, { key: "approvedCapacity", label: "Capacity" }, { key: "ventilationType", label: "Ventilation" }]} rows={houses as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Poultry Houses</h3>
+        <Button size="sm" onClick={() => openAdd()}><Plus className="w-4 h-4 mr-1" />Add House</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
+        { key: "houseName", label: "House Name" },
+        { key: "species", label: "Species" },
+        { key: "houseType", label: "House Type" },
+        { key: "productionSystem", label: "Production System" },
+        { key: "approvedCapacity", label: "Capacity" },
+        { key: "ventilationType", label: "Ventilation" },
+      ]} rows={houses as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "38rem" }}>
-          <DialogHeader><DialogTitle>{editing ? "Edit House" : "Add Poultry House"}</DialogTitle></DialogHeader>
+        <DialogContent style={{ maxWidth: "40rem" }}>
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit House" : "Add Poultry House"}</DialogTitle>
+          </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            {[["houseName", "House Name *"], ["approvedCapacity", "Approved Capacity *"]].map(([k, l]) => <div key={k}><Label>{l}</Label><Input value={String(form[k] ?? "")} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} /></div>)}
-            {[["houseType", "House Type *", ["Broiler House", "Layer House", "Turkey House", "Rearing House", "Breeding House", "Duck House"]], ["species", "Species *", ["Broiler", "Layer", "Turkey", "Duck", "Goose", "Guinea Fowl"]], ["productionSystem", "Production System *", ["Free Range", "Barn", "Organic", "Conventional", "RSPCA Assured"]]].map(([k, l, opts]) => (
-              <div key={k as string}><Label>{l as string}</Label>
-                <Select value={String(form[k as string] ?? "")} onValueChange={v => setForm(f => ({ ...f, [k as string]: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>{(opts as string[]).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            ))}
-            {[["ventilationType", "Ventilation Type"], ["waterSystem", "Water System"]].map(([k, l]) => <div key={k}><Label>{l}</Label><Input value={String(form[k] ?? "")} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} /></div>)}
+            <div><Label>House Name *</Label><Input value={String(form.houseName ?? "")} onChange={e => setForm(f => ({ ...f, houseName: e.target.value }))} placeholder="e.g. House 1, Shed A" /></div>
+            <div><Label>Approved Capacity (birds) *</Label><Input type="number" value={String(form.approvedCapacity ?? "")} onChange={e => setForm(f => ({ ...f, approvedCapacity: e.target.value }))} /></div>
+            <div>
+              <Label>Species *</Label>
+              <p className="text-xs text-muted-foreground mb-1">Primary approved species for this house</p>
+              <Select value={String(form.species ?? "")} onValueChange={v => setForm(f => ({ ...f, species: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select species" /></SelectTrigger>
+                <SelectContent>{POULTRY_SPECIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>House Type *</Label>
+              <p className="text-xs text-muted-foreground mb-1">Physical structure / building design</p>
+              <Select value={String(form.houseType ?? "")} onValueChange={v => setForm(f => ({ ...f, houseType: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>{HOUSE_TYPES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2">
+              <Label>Production System *</Label>
+              <p className="text-xs text-muted-foreground mb-1">Welfare / certification standard this house operates under</p>
+              <Select value={String(form.productionSystem ?? "")} onValueChange={v => setForm(f => ({ ...f, productionSystem: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select system" /></SelectTrigger>
+                <SelectContent>{PRODUCTION_SYSTEMS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Ventilation Type</Label><Input value={String(form.ventilationType ?? "")} onChange={e => setForm(f => ({ ...f, ventilationType: e.target.value }))} placeholder="e.g. Tunnel, Cross-flow, Natural" /></div>
+            <div><Label>Water System</Label><Input value={String(form.waterSystem ?? "")} onChange={e => setForm(f => ({ ...f, waterSystem: e.target.value }))} placeholder="e.g. Nipple drinkers, Bell drinkers" /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
@@ -136,13 +201,13 @@ function FlocksTab({ farmId }: { farmId: number }) {
             <div><Label>Species *</Label>
               <Select value={String(form.species ?? "")} onValueChange={v => setForm(f => ({ ...f, species: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["Broiler", "Layer", "Turkey", "Duck", "Goose"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                <SelectContent>{POULTRY_SPECIES.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div><Label>Production System *</Label>
               <Select value={String(form.productionSystem ?? "")} onValueChange={v => setForm(f => ({ ...f, productionSystem: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["Free Range", "Barn", "Organic", "Conventional", "RSPCA Assured"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                <SelectContent>{PRODUCTION_SYSTEMS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div><Label>Placement Date *</Label><Input type="date" value={String(form.placementDate ?? "")} onChange={e => setForm(f => ({ ...f, placementDate: e.target.value }))} /></div>
