@@ -74,6 +74,14 @@ interface FieldDeclaration {
   notes?: string;
 }
 
+interface StorageLocation {
+  id: number;
+  name: string;
+  type: string;
+  capacityTonnes?: string;
+  isActive: boolean;
+}
+
 interface Delivery {
   id: number;
   buyerId?: number;
@@ -87,6 +95,17 @@ interface Delivery {
   ghgSavingPercent?: string;
   sustainabilityDeclarationRef?: string;
   notes?: string;
+  // Stock source
+  sourceType?: string;
+  storageLocationId?: number;
+  storageLocationName?: string;
+  storageMovementId?: number;
+  // Transport
+  transportType?: string;
+  haulierName?: string;
+  haulierContact?: string;
+  vehicleRegistration?: string;
+  deliveryNoteRef?: string;
 }
 
 interface Buyer {
@@ -209,6 +228,12 @@ export default function BiofuelPage() {
   const tenantUsersQ = useQuery<{ users: { firstName: string | null; lastName: string | null }[] }>({
     queryKey: ["tenant-users"],
     queryFn: () => fetch(`/api/tenants/current/users`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const storageLocationsQ = useQuery<{ records: StorageLocation[] }>({
+    queryKey: ["storage-locations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/storage-locations`).then(r => r.json()),
     enabled: !!farmId,
   });
 
@@ -336,6 +361,7 @@ export default function BiofuelPage() {
   const deliveries = deliveriesQ.data?.records ?? [];
   const buyers = buyersQ.data?.records ?? [];
   const ghg = ghgQ.data;
+  const storageLocations: StorageLocation[] = (storageLocationsQ.data?.records ?? []).filter(l => l.isActive);
 
   const farmFieldNames: string[] = (farmFieldNamesQ.data?.records ?? []).map(f => f.name).filter(Boolean);
   const existingDeclarants = [...new Set(fields.map(f => f.declaredBy ?? "").filter(Boolean))];
@@ -713,12 +739,26 @@ export default function BiofuelPage() {
                       <Truck size={20} style={{ color: "#d97706" }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{d.buyerName} — {d.cropType}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+                        <span style={{ fontWeight: 600, fontSize: 15 }}>{d.buyerName} — {d.cropType}</span>
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 99,
+                          background: d.sourceType === "ex_field" ? "#dbeafe" : "#dcfce7",
+                          color: d.sourceType === "ex_field" ? "#1d4ed8" : "#15803d",
+                        }}>{d.sourceType === "ex_field" ? "Ex-Field" : "From Store"}</span>
+                        {d.transportType && (
+                          <span style={{ fontSize: 11, fontWeight: 500, padding: "1px 7px", borderRadius: 99, background: "#f3f4f6", color: "#374151" }}>
+                            {d.transportType === "own" ? "Own vehicle" : d.transportType === "buyer" ? "Buyer's vehicle" : d.haulierName ?? "3rd party"}
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: 13, color: "#6b7280" }}>
                         {new Date(d.deliveryDate).toLocaleDateString("en-GB")}
                         {d.quantityTonnes && <span> · {Number(d.quantityTonnes).toFixed(2)}t</span>}
                         {d.buyerRtfoRef && <span> · RTFO Ref: {d.buyerRtfoRef}</span>}
+                        {d.storageLocationName && <span> · {d.storageLocationName}</span>}
                       </div>
+                      {d.deliveryNoteRef && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Note: {d.deliveryNoteRef}{d.vehicleRegistration ? ` · Reg: ${d.vehicleRegistration}` : ""}</div>}
                       {d.sustainabilityScheme && <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Scheme: {d.sustainabilityScheme}</div>}
                       {d.ghgSavingPercent && <div style={{ fontSize: 12, color: "#16a34a", marginTop: 2 }}>GHG saving: {d.ghgSavingPercent}%</div>}
                     </div>
@@ -769,6 +809,7 @@ export default function BiofuelPage() {
         onClose={() => { setDeliveryDialog(false); setEditingDelivery(null); }}
         initial={editingDelivery}
         buyers={buyers}
+        storageLocations={storageLocations}
         onSave={(data) => deliveryMut.mutate(data)}
         saving={deliveryMut.isPending}
       />
@@ -972,16 +1013,19 @@ function FieldDeclarationDialog({ open, onClose, initial, onSave, saving, farmFi
   );
 }
 
-function DeliveryDialog({ open, onClose, initial, buyers, onSave, saving }: {
+function DeliveryDialog({ open, onClose, initial, buyers, storageLocations, onSave, saving }: {
   open: boolean; onClose: () => void; initial: Delivery | null;
   buyers: Buyer[];
+  storageLocations: StorageLocation[];
   onSave: (data: Partial<Delivery>) => void; saving: boolean;
 }) {
   const [form, setForm] = useState<Partial<Delivery>>({});
-  const set = (k: keyof Delivery, v: string | number | undefined) => setForm(f => ({ ...f, [k]: v }));
-  const val = (k: keyof Delivery) => (form as Record<string, string>)[k] ?? (initial as Record<string, string> | null)?.[k] ?? "";
+  const set = (k: keyof Delivery, v: string | number | undefined | null) => setForm(f => ({ ...f, [k]: v }));
+  const val = (k: keyof Delivery) => (form as Record<string, unknown>)[k] ?? (initial as Record<string, unknown> | null)?.[k] ?? "";
 
   const selectedBuyerId = form.buyerId ?? initial?.buyerId;
+  const sourceType = (String(val("sourceType") || "store")) as "store" | "ex_field";
+  const transportType = String(val("transportType") || "__none__");
 
   const handleBuyerSelect = (value: string) => {
     if (value === "__none__") {
@@ -999,71 +1043,155 @@ function DeliveryDialog({ open, onClose, initial, buyers, onSave, saving }: {
     }
   };
 
+  const sectionStyle = { background: "#f9fafb", borderRadius: 8, padding: "12px 14px", border: "1px solid #e5e7eb" };
+  const sectionLabel = { margin: "0 0 10px", fontSize: 12, fontWeight: 600 as const, color: "#6b7280", textTransform: "uppercase" as const, letterSpacing: "0.05em" };
+
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent style={{ maxWidth: 560 }}>
-        <DialogHeader><DialogTitle>{initial ? "Edit Delivery" : "Add Delivery Record"}</DialogTitle></DialogHeader>
+      <DialogContent style={{ maxWidth: 600, maxHeight: "90vh", overflowY: "auto" }}>
+        <DialogHeader><DialogTitle>{initial ? "Edit Delivery Record" : "Add Delivery Record"}</DialogTitle></DialogHeader>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div><Label>Delivery Date *</Label><Input type="date" value={val("deliveryDate")?.split("T")[0] ?? ""} onChange={e => set("deliveryDate", e.target.value)} /></div>
-            <div><Label>Quantity (tonnes) *</Label><Input type="number" value={val("quantityTonnes")} onChange={e => set("quantityTonnes", e.target.value)} placeholder="e.g. 250.5" /></div>
+
+          {/* ── Core delivery details ── */}
+          <div style={sectionStyle}>
+            <p style={sectionLabel}>Consignment</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><Label>Delivery Date *</Label><Input type="date" value={String(val("deliveryDate") || "").split("T")[0]} onChange={e => set("deliveryDate", e.target.value)} /></div>
+                <div><Label>Quantity (tonnes) *</Label><Input type="number" value={String(val("quantityTonnes") || "")} onChange={e => set("quantityTonnes", e.target.value)} placeholder="e.g. 250.5" /></div>
+              </div>
+
+              {buyers.length > 0 ? (
+                <div>
+                  <Label>Buyer *</Label>
+                  <Select value={selectedBuyerId ? String(selectedBuyerId) : "__none__"} onValueChange={handleBuyerSelect}>
+                    <SelectTrigger><SelectValue placeholder="Select a registered buyer…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— select buyer —</SelectItem>
+                      {buyers.map(b => (
+                        <SelectItem key={b.id} value={String(b.id)}>
+                          {b.companyName}{b.rtfoObligationNumber ? ` (RTF ${b.rtfoObligationNumber})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedBuyerId && <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Buyer name and RTFO number auto-filled from buyer record.</p>}
+                </div>
+              ) : (
+                <div>
+                  <Label>Buyer Name *</Label>
+                  <Input value={String(val("buyerName") || "")} onChange={e => set("buyerName", e.target.value)} placeholder="e.g. Vivergo Fuels, Ensus" />
+                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Tip: Add buyers under "Registered Buyers" to select them from a dropdown here.</p>
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <Label>Buyer RTF Obligation No.</Label>
+                  <Input value={String(val("buyerRtfoRef") || "")} onChange={e => set("buyerRtfoRef", e.target.value)} placeholder="e.g. RTFO-2024-xxxx" readOnly={!!selectedBuyerId} style={selectedBuyerId ? { background: "#f9fafb", color: "#374151" } : {}} />
+                </div>
+                <div><Label>Crop Type *</Label><Input value={String(val("cropType") || "")} onChange={e => set("cropType", e.target.value)} placeholder="e.g. Feed wheat, OSR" /></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><Label>Sustainability Scheme</Label><Input value={String(val("sustainabilityScheme") || "")} onChange={e => set("sustainabilityScheme", e.target.value)} placeholder="e.g. ISCC UK" /></div>
+                <div><Label>GHG Saving %</Label><Input type="number" value={String(val("ghgSavingPercent") || "")} onChange={e => set("ghgSavingPercent", e.target.value)} placeholder="e.g. 65" /></div>
+              </div>
+              <div><Label>Certification Ref</Label><Input value={String(val("certificationRef") || "")} onChange={e => set("certificationRef", e.target.value)} placeholder="Your cert number for this delivery" /></div>
+              <div><Label>Sustainability Declaration Ref</Label><Input value={String(val("sustainabilityDeclarationRef") || "")} onChange={e => set("sustainabilityDeclarationRef", e.target.value)} placeholder="e.g. SD-2024-001" /></div>
+            </div>
           </div>
 
-          {/* Buyer selection */}
-          {buyers.length > 0 ? (
-            <div>
-              <Label>Buyer *</Label>
-              <Select value={selectedBuyerId ? String(selectedBuyerId) : "__none__"} onValueChange={handleBuyerSelect}>
-                <SelectTrigger><SelectValue placeholder="Select a registered buyer…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— select buyer —</SelectItem>
-                  {buyers.map(b => (
-                    <SelectItem key={b.id} value={String(b.id)}>
-                      {b.companyName}{b.rtfoObligationNumber ? ` (RTF ${b.rtfoObligationNumber})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedBuyerId && (
-                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                  Buyer name and RTF Obligation Number auto-filled from buyer record.
+          {/* ── Stock source ── */}
+          <div style={sectionStyle}>
+            <p style={sectionLabel}>Stock Source</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <Label>How did the crop leave your holding?</Label>
+                <Select value={sourceType} onValueChange={v => set("sourceType", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="store">From store / grain facility</SelectItem>
+                    <SelectItem value="ex_field">Ex-field — direct from harvest</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {sourceType === "store" ? (
+                <div>
+                  <Label>Storage Location</Label>
+                  {storageLocations.length > 0 ? (
+                    <Select
+                      value={val("storageLocationId") ? String(val("storageLocationId")) : "__none__"}
+                      onValueChange={v => set("storageLocationId", v === "__none__" ? undefined : Number(v))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select store…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— not specified —</SelectItem>
+                        {storageLocations.map(loc => (
+                          <SelectItem key={loc.id} value={String(loc.id)}>
+                            {loc.name}{loc.capacityTonnes ? ` (cap. ${Number(loc.capacityTonnes).toFixed(0)}t)` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>No storage locations registered — add them in Fields &amp; Crops → Storage to link here.</p>
+                  )}
+                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>Selecting a store will automatically record a stock-out movement in that location's inventory.</p>
+                </div>
+              ) : (
+                <p style={{ fontSize: 13, color: "#6b7280", background: "#dbeafe", borderRadius: 6, padding: "8px 12px" }}>
+                  Ex-field: crop goes direct from the combine harvester to the buyer's vehicle at the field gate. No stock deduction is made from any store.
                 </p>
               )}
             </div>
-          ) : (
-            <div>
-              <Label>Buyer Name *</Label>
-              <Input value={val("buyerName")} onChange={e => set("buyerName", e.target.value)} placeholder="e.g. Vivergo Fuels, Ensus" />
-              <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                Tip: Add buyers under the "Registered Buyers" tab to select them from a dropdown here.
-              </p>
-            </div>
-          )}
+          </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <Label>Buyer RTF Obligation No.</Label>
-              <Input
-                value={val("buyerRtfoRef")}
-                onChange={e => set("buyerRtfoRef", e.target.value)}
-                placeholder="e.g. RTFO-2024-xxxx"
-                readOnly={!!selectedBuyerId}
-                style={selectedBuyerId ? { background: "#f9fafb", color: "#374151" } : {}}
-              />
+          {/* ── Transport / Haulage ── */}
+          <div style={sectionStyle}>
+            <p style={sectionLabel}>Transport &amp; Haulage</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <Label>Transported by</Label>
+                <Select value={transportType} onValueChange={v => {
+                  set("transportType", v === "__none__" ? undefined : v);
+                  if (v !== "contractor") { set("haulierName", undefined); set("haulierContact", undefined); }
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— not recorded —</SelectItem>
+                    <SelectItem value="own">Own vehicle / farm transport</SelectItem>
+                    <SelectItem value="buyer">Buyer's vehicle / buyer-arranged</SelectItem>
+                    <SelectItem value="contractor">3rd party haulage contractor</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {transportType === "contractor" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div><Label>Haulier Name</Label><Input value={String(val("haulierName") || "")} onChange={e => set("haulierName", e.target.value)} placeholder="e.g. Smith Haulage Ltd" /></div>
+                  <div><Label>Haulier Contact / Phone</Label><Input value={String(val("haulierContact") || "")} onChange={e => set("haulierContact", e.target.value)} placeholder="e.g. 07700 900123" /></div>
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div>
+                  <Label>Vehicle Registration</Label>
+                  <Input value={String(val("vehicleRegistration") || "")} onChange={e => set("vehicleRegistration", e.target.value.toUpperCase())} placeholder="e.g. AB12 CDE" className="uppercase" />
+                </div>
+                <div>
+                  <Label>Delivery Note / Weighbridge Ref</Label>
+                  <Input value={String(val("deliveryNoteRef") || "")} onChange={e => set("deliveryNoteRef", e.target.value)} placeholder="e.g. WB-2024-1042" />
+                </div>
+              </div>
             </div>
-            <div><Label>Crop Type *</Label><Input value={val("cropType")} onChange={e => set("cropType", e.target.value)} placeholder="e.g. Feed wheat, OSR" /></div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div><Label>Sustainability Scheme</Label><Input value={val("sustainabilityScheme")} onChange={e => set("sustainabilityScheme", e.target.value)} placeholder="e.g. ISCC UK" /></div>
-            <div><Label>GHG Saving %</Label><Input type="number" value={val("ghgSavingPercent")} onChange={e => set("ghgSavingPercent", e.target.value)} placeholder="e.g. 65" /></div>
-          </div>
-          <div><Label>Certification Reference</Label><Input value={val("certificationRef")} onChange={e => set("certificationRef", e.target.value)} placeholder="Your cert number for this delivery" /></div>
-          <div><Label>Sustainability Declaration Reference</Label><Input value={val("sustainabilityDeclarationRef")} onChange={e => set("sustainabilityDeclarationRef", e.target.value)} placeholder="e.g. SD-2024-001" /></div>
-          <div><Label>Notes</Label><Textarea value={val("notes")} onChange={e => set("notes", e.target.value)} rows={2} /></div>
+
+          <div><Label>Notes</Label><Textarea value={String(val("notes") || "")} onChange={e => set("notes", e.target.value)} rows={2} /></div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onSave(form)} disabled={saving}>{saving ? "Saving..." : "Save Delivery"}</Button>
+          <Button onClick={() => onSave({ ...form, sourceType })} disabled={saving}>{saving ? "Saving..." : "Save Delivery"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

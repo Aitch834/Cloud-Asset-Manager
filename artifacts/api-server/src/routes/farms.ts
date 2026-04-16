@@ -9654,14 +9654,44 @@ router.delete("/farms/:farmId/biofuel/field-declarations/:recordId", requireAuth
 router.get("/farms/:farmId/biofuel/deliveries", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(biofuelDeliveriesTable).where(eq(biofuelDeliveriesTable.farmId, farmId)).orderBy(desc(biofuelDeliveriesTable.deliveryDate));
-  res.json({ records });
+  const records = await db.select().from(biofuelDeliveriesTable)
+    .where(eq(biofuelDeliveriesTable.farmId, farmId))
+    .orderBy(desc(biofuelDeliveriesTable.deliveryDate));
+  // Enrich with storage location names
+  const locationIds = [...new Set(records.filter(r => r.storageLocationId).map(r => r.storageLocationId!))];
+  let locationNames: Record<number, string> = {};
+  if (locationIds.length > 0) {
+    const locs = await db.select({ id: storageLocationsTable.id, name: storageLocationsTable.name })
+      .from(storageLocationsTable).where(inArray(storageLocationsTable.id, locationIds));
+    locs.forEach(l => { locationNames[l.id] = l.name; });
+  }
+  const enriched = records.map(r => ({ ...r, storageLocationName: r.storageLocationId ? (locationNames[r.storageLocationId] ?? null) : null }));
+  res.json({ records: enriched });
 });
 
 router.post("/farms/:farmId/biofuel/deliveries", requireAuth, requireTenant, requireModuleByKey("biofuel-rtfo", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(biofuelDeliveriesTable).values({ ...req.body, farmId }).returning();
+  // Auto-create stock OUT movement when sourced from store
+  if (record.sourceType === "store" && record.storageLocationId && record.quantityTonnes) {
+    const movDate = record.deliveryDate ? new Date(record.deliveryDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+    const [mov] = await db.insert(storageLocationMovementsTable).values({
+      farmId,
+      locationId: record.storageLocationId,
+      movementDate: movDate,
+      movementType: "biofuel_sale",
+      direction: "out",
+      commodity: record.cropType ?? null,
+      quantityTonnes: String(record.quantityTonnes),
+      reference: record.deliveryNoteRef ?? record.buyerRtfoRef ?? null,
+      linkedRecordType: "biofuel_delivery",
+      linkedRecordId: record.id,
+      notes: `Biofuel delivery to ${record.buyerName}`,
+    }).returning();
+    await db.update(biofuelDeliveriesTable).set({ storageMovementId: mov.id }).where(eq(biofuelDeliveriesTable.id, record.id));
+    record.storageMovementId = mov.id;
+  }
   res.status(201).json({ record });
 });
 
@@ -9669,7 +9699,45 @@ router.put("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
-  const [record] = await db.update(biofuelDeliveriesTable).set(req.body).where(and(eq(biofuelDeliveriesTable.id, recordId), eq(biofuelDeliveriesTable.farmId, farmId))).returning();
+  const [existing] = await db.select().from(biofuelDeliveriesTable)
+    .where(and(eq(biofuelDeliveriesTable.id, recordId), eq(biofuelDeliveriesTable.farmId, farmId)));
+  if (!existing) { res.status(404).json({ error: "Delivery not found" }); return; }
+  const { sourceType, storageLocationId, quantityTonnes, cropType, buyerName, deliveryDate, deliveryNoteRef, buyerRtfoRef } = req.body;
+  const movDate = deliveryDate ? new Date(deliveryDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+  if (existing.storageMovementId) {
+    if (sourceType === "store" && storageLocationId) {
+      await db.update(storageLocationMovementsTable).set({
+        locationId: Number(storageLocationId),
+        movementDate: movDate,
+        commodity: cropType ?? existing.cropType,
+        quantityTonnes: String(quantityTonnes ?? existing.quantityTonnes),
+        reference: deliveryNoteRef ?? buyerRtfoRef ?? null,
+        notes: `Biofuel delivery to ${buyerName ?? existing.buyerName}`,
+      }).where(eq(storageLocationMovementsTable.id, existing.storageMovementId));
+    } else {
+      // Changed to ex_field — remove the movement
+      await db.delete(storageLocationMovementsTable).where(eq(storageLocationMovementsTable.id, existing.storageMovementId));
+      req.body.storageMovementId = null;
+    }
+  } else if (sourceType === "store" && storageLocationId && quantityTonnes) {
+    // Now has a store — create movement
+    const [mov] = await db.insert(storageLocationMovementsTable).values({
+      farmId,
+      locationId: Number(storageLocationId),
+      movementDate: movDate,
+      movementType: "biofuel_sale",
+      direction: "out",
+      commodity: cropType ?? null,
+      quantityTonnes: String(quantityTonnes),
+      reference: deliveryNoteRef ?? buyerRtfoRef ?? null,
+      linkedRecordType: "biofuel_delivery",
+      linkedRecordId: recordId,
+      notes: `Biofuel delivery to ${buyerName ?? "buyer"}`,
+    }).returning();
+    req.body.storageMovementId = mov.id;
+  }
+  const [record] = await db.update(biofuelDeliveriesTable).set(req.body)
+    .where(and(eq(biofuelDeliveriesTable.id, recordId), eq(biofuelDeliveriesTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -9677,6 +9745,11 @@ router.delete("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requir
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
+  const [existing] = await db.select().from(biofuelDeliveriesTable)
+    .where(and(eq(biofuelDeliveriesTable.id, recordId), eq(biofuelDeliveriesTable.farmId, farmId)));
+  if (existing?.storageMovementId) {
+    await db.delete(storageLocationMovementsTable).where(eq(storageLocationMovementsTable.id, existing.storageMovementId));
+  }
   await db.delete(biofuelDeliveriesTable).where(and(eq(biofuelDeliveriesTable.id, recordId), eq(biofuelDeliveriesTable.farmId, farmId)));
   res.json({ success: true });
 });

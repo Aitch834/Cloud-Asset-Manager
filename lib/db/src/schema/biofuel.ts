@@ -1,6 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, jsonb } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
-import { fieldsTable } from "./fields-crops";
+import { fieldsTable, storageLocationsTable } from "./fields-crops";
 
 // ─── RTFO Registered Buyers ───────────────────────────────────────────────────
 // Buyers are obligated fuel suppliers registered with the Department for Transport.
@@ -76,6 +76,16 @@ export const biofuelDeliveriesTable = pgTable("biofuel_deliveries", {
   sustainabilityScheme: text("sustainability_scheme"),
   ghgSavingPercent: numeric("ghg_saving_percent", { precision: 5, scale: 2 }),
   notes: text("notes"),
+  // ── Stock source ─────────────────────────────────────────────────────────────
+  sourceType: text("source_type").notNull().default("store"),           // 'store' | 'ex_field'
+  storageLocationId: integer("storage_location_id").references(() => storageLocationsTable.id),
+  storageMovementId: integer("storage_movement_id"),                    // linked storage_location_movements.id
+  // ── Transport / haulage ───────────────────────────────────────────────────────
+  transportType: text("transport_type"),                                 // 'own' | 'buyer' | 'contractor'
+  haulierName: text("haulier_name"),
+  haulierContact: text("haulier_contact"),
+  vehicleRegistration: text("vehicle_registration"),
+  deliveryNoteRef: text("delivery_note_ref"),                           // weighbridge ticket / delivery note number
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
