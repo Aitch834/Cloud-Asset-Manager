@@ -200,6 +200,18 @@ export default function BiofuelPage() {
     enabled: !!farmId,
   });
 
+  const farmFieldNamesQ = useQuery<{ records: { name: string }[] }>({
+    queryKey: ["farm-fields-lookup", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const tenantUsersQ = useQuery<{ users: { firstName: string | null; lastName: string | null }[] }>({
+    queryKey: ["tenant-users"],
+    queryFn: () => fetch(`/api/tenants/current/users`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["biofuel-certs", farmId] });
     qc.invalidateQueries({ queryKey: ["biofuel-fields", farmId] });
@@ -324,6 +336,13 @@ export default function BiofuelPage() {
   const deliveries = deliveriesQ.data?.records ?? [];
   const buyers = buyersQ.data?.records ?? [];
   const ghg = ghgQ.data;
+
+  const farmFieldNames: string[] = (farmFieldNamesQ.data?.records ?? []).map(f => f.name).filter(Boolean);
+  const existingDeclarants = [...new Set(fields.map(f => f.declaredBy ?? "").filter(Boolean))];
+  const tenantUserNames = (tenantUsersQ.data?.users ?? [])
+    .map(u => [u.firstName, u.lastName].filter(Boolean).join(" ").trim())
+    .filter(Boolean);
+  const declaredByOptions: string[] = [...new Set([...tenantUserNames, ...existingDeclarants])].sort();
 
   const activeCert = certs.find(c => c.status === "active");
   const eligibleFields = fields.filter(f => f.eligibilityStatus === "eligible").length;
@@ -742,6 +761,8 @@ export default function BiofuelPage() {
         initial={editingField}
         onSave={(data) => fieldMut.mutate(data)}
         saving={fieldMut.isPending}
+        farmFieldNames={farmFieldNames}
+        declaredByOptions={declaredByOptions}
       />
       <DeliveryDialog
         open={deliveryDialog}
@@ -818,9 +839,11 @@ function CertificationDialog({ open, onClose, initial, onSave, saving }: {
   );
 }
 
-function FieldDeclarationDialog({ open, onClose, initial, onSave, saving }: {
+function FieldDeclarationDialog({ open, onClose, initial, onSave, saving, farmFieldNames = [], declaredByOptions = [] }: {
   open: boolean; onClose: () => void; initial: FieldDeclaration | null;
   onSave: (data: Partial<FieldDeclaration>) => void; saving: boolean;
+  farmFieldNames?: string[];
+  declaredByOptions?: string[];
 }) {
   const [form, setForm] = useState<Partial<FieldDeclaration>>({});
   const set = (k: keyof FieldDeclaration, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
@@ -830,12 +853,49 @@ function FieldDeclarationDialog({ open, onClose, initial, onSave, saving }: {
     return v === true;
   };
 
+  const currentFieldName = val("fieldName") as string;
+  const fieldNameInList = farmFieldNames.includes(currentFieldName);
+  const fieldSelectValue = farmFieldNames.length === 0
+    ? "__none__"
+    : (fieldNameInList ? currentFieldName : (currentFieldName ? "__other__" : "__none__"));
+
+  const currentDeclaredBy = val("declaredBy") as string;
+  const declaredByInList = declaredByOptions.includes(currentDeclaredBy);
+  const declaredBySelectValue = declaredByOptions.length === 0
+    ? "__none__"
+    : (declaredByInList ? currentDeclaredBy : (currentDeclaredBy ? "__other__" : "__none__"));
+
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent style={{ maxWidth: 580 }}>
         <DialogHeader><DialogTitle>{initial ? "Edit Field Declaration" : "Add Field Declaration"}</DialogTitle></DialogHeader>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div><Label>Field Name *</Label><Input value={val("fieldName") as string} onChange={e => set("fieldName", e.target.value)} placeholder="e.g. Home Farm West, Twelve Acres" /></div>
+
+          {/* Field Name — lookup from Field Register */}
+          <div>
+            <Label>Field Name *</Label>
+            {farmFieldNames.length > 0 ? (
+              <>
+                <Select value={fieldSelectValue} onValueChange={v => {
+                  if (v === "__none__") set("fieldName", "");
+                  else if (v === "__other__") set("fieldName", "");
+                  else set("fieldName", v);
+                }}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select field…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Select field —</SelectItem>
+                    {farmFieldNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                    <SelectItem value="__other__">Other / type manually</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(fieldSelectValue === "__other__" || (!fieldNameInList && currentFieldName)) && (
+                  <Input className="mt-1" value={currentFieldName} onChange={e => set("fieldName", e.target.value)} placeholder="Type field name" />
+                )}
+              </>
+            ) : (
+              <Input className="mt-1" value={currentFieldName} onChange={e => set("fieldName", e.target.value)} placeholder="e.g. Home Farm West, Twelve Acres" />
+            )}
+          </div>
           <div>
             <Label>Land Use in January 2008 *</Label>
             <Select value={val("landUseIn2008") as string} onValueChange={v => set("landUseIn2008", v)}>
@@ -876,7 +936,31 @@ function FieldDeclarationDialog({ open, onClose, initial, onSave, saving }: {
               </SelectContent>
             </Select>
           </div>
-          <div><Label>Declared By</Label><Input value={val("declaredBy") as string} onChange={e => set("declaredBy", e.target.value)} placeholder="Name of person making declaration" /></div>
+          {/* Declared By — lookup from farm users */}
+          <div>
+            <Label>Declared By</Label>
+            {declaredByOptions.length > 0 ? (
+              <>
+                <Select value={declaredBySelectValue} onValueChange={v => {
+                  if (v === "__none__") set("declaredBy", "");
+                  else if (v === "__other__") set("declaredBy", "");
+                  else set("declaredBy", v);
+                }}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select person…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Select person —</SelectItem>
+                    {declaredByOptions.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                    <SelectItem value="__other__">Other / type manually</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(declaredBySelectValue === "__other__" || (!declaredByInList && currentDeclaredBy)) && (
+                  <Input className="mt-1" value={currentDeclaredBy} onChange={e => set("declaredBy", e.target.value)} placeholder="Type name of person making declaration" />
+                )}
+              </>
+            ) : (
+              <Input className="mt-1" value={currentDeclaredBy} onChange={e => set("declaredBy", e.target.value)} placeholder="Name of person making declaration" />
+            )}
+          </div>
           <div><Label>Notes</Label><Textarea value={val("notes") as string} onChange={e => set("notes", e.target.value)} rows={2} /></div>
         </div>
         <DialogFooter>
