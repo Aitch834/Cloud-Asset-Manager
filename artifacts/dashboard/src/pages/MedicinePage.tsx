@@ -1003,11 +1003,22 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Administration Route</label>
-                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10" value={form.administrationRoute} onChange={e => setForm(f => ({ ...f, administrationRoute: e.target.value }))}>
+                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  value={ADMIN_ROUTES.filter(r => r !== "Other").includes(form.administrationRoute) ? form.administrationRoute : (form.administrationRoute ? "Other" : "")}
+                  onChange={e => setForm(f => ({ ...f, administrationRoute: e.target.value }))}>
                   <option value="">Select route...</option>
-                  {ADMIN_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+                  {ADMIN_ROUTES.map(r => <option key={r} value={r}>{r === "Other" ? "Other (please specify)" : r}</option>)}
                 </select>
-                {vmdMatch && form.administrationRoute && form.administrationRoute !== vmdMatch.route && (
+                {(form.administrationRoute === "Other" || (form.administrationRoute && !ADMIN_ROUTES.filter(r => r !== "Other").includes(form.administrationRoute))) && (
+                  <Input
+                    className="mt-1.5"
+                    value={form.administrationRoute === "Other" ? "" : form.administrationRoute}
+                    onChange={e => setForm(f => ({ ...f, administrationRoute: e.target.value || "Other" }))}
+                    placeholder="Please specify administration route…"
+                    autoFocus={form.administrationRoute === "Other"}
+                  />
+                )}
+                {vmdMatch && form.administrationRoute && form.administrationRoute !== "Other" && form.administrationRoute !== vmdMatch.route && (
                   <p className="text-xs text-foreground/50 mt-1">VMD reference typical route: {vmdMatch.route}</p>
                 )}
               </div>

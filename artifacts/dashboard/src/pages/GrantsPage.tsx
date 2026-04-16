@@ -548,10 +548,21 @@ export default function GrantsPage() {
                 </div>
                 <div>
                   <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Scheme Type</label>
-                  <select value={form.schemeType} onChange={e => setForm(f => ({ ...f, schemeType: e.target.value as SchemeType }))}
+                  <select
+                    value={SCHEME_TYPES.filter(t => t !== "Other").includes(form.schemeType as string) ? form.schemeType : "Other"}
+                    onChange={e => setForm(f => ({ ...f, schemeType: e.target.value as SchemeType }))}
                     style={{ width: "100%", padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: "0.875rem", background: "#fff" }}>
-                    {SCHEME_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    {SCHEME_TYPES.map(t => <option key={t} value={t}>{t === "Other" ? "Other (please specify)" : t}</option>)}
                   </select>
+                  {(form.schemeType === "Other" || (form.schemeType && !SCHEME_TYPES.filter(t => t !== "Other").includes(form.schemeType as string))) && (
+                    <Input
+                      style={{ marginTop: 4, fontSize: "0.875rem" }}
+                      value={form.schemeType === "Other" ? "" : form.schemeType}
+                      onChange={e => setForm(f => ({ ...f, schemeType: (e.target.value || "Other") as SchemeType }))}
+                      placeholder="Please specify scheme type…"
+                      autoFocus={form.schemeType === "Other"}
+                    />
+                  )}
                 </div>
               </div>
 

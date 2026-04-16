@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { OtherSelect } from "@/components/ui/other-select";
 import { Trash2, Plus, Search, Pencil, Eye, FileText, Truck, Recycle, Printer, ExternalLink, Paperclip, X, Upload, AlertTriangle } from "lucide-react";
 
 interface WasteRecord {
@@ -569,10 +570,13 @@ export default function WasteDisposalPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Waste Type <span style={{ color: "#ef4444" }}>*</span></Label>
-                  <Select value={form.wasteType} onValueChange={onWasteTypeChange}>
-                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                    <SelectContent>{WASTE_TYPES_WITH_EWC.map(w => <SelectItem key={w.label} value={w.label}>{w.label}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <OtherSelect
+                    options={WASTE_TYPES_WITH_EWC.map(w => w.label)}
+                    value={form.wasteType}
+                    onValueChange={onWasteTypeChange}
+                    placeholder="Select waste type..."
+                    specifyPlaceholder="Please specify waste type…"
+                  />
                 </div>
                 <div>
                   <Label>EWC Code</Label>

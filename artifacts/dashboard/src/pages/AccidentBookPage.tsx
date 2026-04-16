@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { OtherSelect } from "@/components/ui/other-select";
 import {
   BookOpen, Plus, Printer, Trash2, Pencil, AlertTriangle, CheckCircle, ChevronDown, ChevronUp, AlertCircle, Camera, File, Loader2,
 } from "lucide-react";
@@ -508,13 +509,14 @@ export default function AccidentBookPage() {
                 <div><Label>Nature of Injury</Label><Input className="mt-1" value={form.natureOfInjury} onChange={e => setForm(f => ({ ...f, natureOfInjury: e.target.value }))} placeholder="e.g. Laceration, fracture, sprain, bruising, chemical burn" /></div>
                 <div>
                   <Label>Body Part Affected</Label>
-                  <Select value={form.bodyPartAffected || "__none__"} onValueChange={v => setForm(f => ({ ...f, bodyPartAffected: v === "__none__" ? "" : v }))}>
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select…" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Not specified</SelectItem>
-                      {BODY_PARTS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <OtherSelect
+                    className="mt-1"
+                    options={BODY_PARTS}
+                    value={form.bodyPartAffected}
+                    onValueChange={v => setForm(f => ({ ...f, bodyPartAffected: v }))}
+                    placeholder="Select body part…"
+                    specifyPlaceholder="Describe the affected body part…"
+                  />
                 </div>
 
                 <div>

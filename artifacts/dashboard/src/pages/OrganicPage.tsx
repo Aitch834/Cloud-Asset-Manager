@@ -206,9 +206,19 @@ function CertificationTab({ farmId }: { farmId: number }) {
           <DialogHeader><DialogTitle>{record ? "Edit Certification Details" : "Add Certification Details"}</DialogTitle><DialogDescription>Reference details for your organic certification — stored alongside your operational records.</DialogDescription></DialogHeader>
           <form onSubmit={e => { e.preventDefault(); saveMut.mutate(form); }} className="space-y-4">
             <div><Label>Certifying Body *</Label>
-              <select className={INPUT_CLS} value={form.certifier} onChange={e => setForm(f => ({ ...f, certifier: e.target.value }))}>
-                {CERTIFIERS.map(c => <option key={c} value={c}>{c}</option>)}
+              <select className={INPUT_CLS}
+                value={CERTIFIERS.filter(c => c !== "Other").includes(form.certifier) ? form.certifier : "Other"}
+                onChange={e => setForm(f => ({ ...f, certifier: e.target.value }))}>
+                {CERTIFIERS.map(c => <option key={c} value={c}>{c === "Other" ? "Other (please specify)" : c}</option>)}
               </select>
+              {(form.certifier === "Other" || (form.certifier && !CERTIFIERS.filter(c => c !== "Other").includes(form.certifier))) && (
+                <Input className={`${INPUT_CLS} mt-1`}
+                  value={form.certifier === "Other" ? "" : form.certifier}
+                  onChange={e => setForm(f => ({ ...f, certifier: e.target.value || "Other" }))}
+                  placeholder="Please specify certifying body…"
+                  autoFocus={form.certifier === "Other"}
+                />
+              )}
             </div>
             <div><Label>Farm Status *</Label>
               <select className={INPUT_CLS} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>

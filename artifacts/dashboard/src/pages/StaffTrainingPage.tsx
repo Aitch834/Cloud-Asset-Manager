@@ -1419,13 +1419,23 @@ function CoursesTab({ farmId }: { farmId: number }) {
                 <Label>Course Type</Label>
                 <select
                   className="mt-1"
-                  value={form.courseType}
+                  value={COURSE_TYPES.filter(t => t !== "Other").includes(form.courseType) ? form.courseType : (form.courseType ? "Other" : "")}
                   onChange={e => setForm(f => ({ ...f, courseType: e.target.value }))}
                   style={{ width: "100%", padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: "0.875rem", background: "#fff" }}
                 >
                   <option value="">— select type —</option>
-                  {COURSE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  {COURSE_TYPES.map(t => <option key={t} value={t}>{t === "Other" ? "Other (please specify)" : t}</option>)}
                 </select>
+                {(form.courseType === "Other" || (form.courseType && !COURSE_TYPES.filter(t => t !== "Other").includes(form.courseType))) && (
+                  <Input
+                    className="mt-1"
+                    value={form.courseType === "Other" ? "" : form.courseType}
+                    onChange={e => setForm(f => ({ ...f, courseType: e.target.value || "Other" }))}
+                    placeholder="Please specify course type…"
+                    autoFocus={form.courseType === "Other"}
+                    style={{ fontSize: "0.875rem" }}
+                  />
+                )}
               </div>
               <div><Label>Issuing Body</Label><Input className="mt-1" value={form.issuingBody} onChange={e => setForm(f => ({ ...f, issuingBody: e.target.value }))} placeholder="e.g. Lantra Awards, NPTC Group" /></div>
               <div>

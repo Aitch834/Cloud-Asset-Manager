@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { OtherSelect } from "@/components/ui/other-select";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -841,12 +842,13 @@ function CertificationDialog({ open, onClose, initial, onSave, saving }: {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
             <Label>Certification Scheme *</Label>
-            <Select value={val("scheme")} onValueChange={v => set("scheme", v)}>
-              <SelectTrigger><SelectValue placeholder="Select scheme" /></SelectTrigger>
-              <SelectContent>
-                {biofuelSchemes.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <OtherSelect
+              options={biofuelSchemes}
+              value={val("scheme")}
+              onValueChange={v => set("scheme", v)}
+              placeholder="Select scheme"
+              specifyPlaceholder="Specify certification scheme…"
+            />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div><Label>Certification Number</Label><Input value={val("certificationNumber")} onChange={e => set("certificationNumber", e.target.value)} placeholder="e.g. ISCC-UK-1234567" /></div>

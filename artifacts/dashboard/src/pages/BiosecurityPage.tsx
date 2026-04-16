@@ -749,10 +749,13 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Pest Type <span className="text-red-500">*</span></label>
-                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={PEST_TYPES.includes(form.pestType) ? form.pestType : "Other"} onChange={e => setForm(f => ({ ...f, pestType: e.target.value }))} required>
+                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={PEST_TYPES.filter(p => p !== "Other").includes(form.pestType) ? form.pestType : (form.pestType ? "Other" : "")} onChange={e => setForm(f => ({ ...f, pestType: e.target.value }))} required>
                   <option value="">Select...</option>
-                  {PEST_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
+                  {PEST_TYPES.map(p => <option key={p} value={p}>{p === "Other" ? "Other (please specify)" : p}</option>)}
                 </select>
+                {(form.pestType === "Other" || (form.pestType && !PEST_TYPES.filter(p => p !== "Other").includes(form.pestType))) && (
+                  <Input className="mt-1.5" value={form.pestType === "Other" ? "" : form.pestType} onChange={e => setForm(f => ({ ...f, pestType: e.target.value || "Other" }))} placeholder="Please specify pest type…" autoFocus={form.pestType === "Other"} />
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Location</label>
@@ -997,10 +1000,13 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaning Type <span className="text-red-500">*</span></label>
-                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={form.cleaningType} onChange={e => setForm(f => ({ ...f, cleaningType: e.target.value }))} required>
+                <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={CLEANING_TYPES.filter(t => t !== "Other").includes(form.cleaningType) ? form.cleaningType : (form.cleaningType ? "Other" : "")} onChange={e => setForm(f => ({ ...f, cleaningType: e.target.value }))} required>
                   <option value="">Select type...</option>
-                  {CLEANING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  {CLEANING_TYPES.map(t => <option key={t} value={t}>{t === "Other" ? "Other (please specify)" : t}</option>)}
                 </select>
+                {(form.cleaningType === "Other" || (form.cleaningType && !CLEANING_TYPES.filter(t => t !== "Other").includes(form.cleaningType))) && (
+                  <Input className="mt-1.5" value={form.cleaningType === "Other" ? "" : form.cleaningType} onChange={e => setForm(f => ({ ...f, cleaningType: e.target.value || "Other" }))} placeholder="Please specify cleaning type…" autoFocus={form.cleaningType === "Other"} />
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground/70 mb-1 block">Cleaned Date <span className="text-red-500">*</span></label>

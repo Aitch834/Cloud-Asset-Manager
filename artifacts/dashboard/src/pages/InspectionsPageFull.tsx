@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { OtherSelect } from "@/components/ui/other-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -335,24 +336,25 @@ function InspectionsTab({ farmId, openInspId }: { farmId: number; openInspId?: n
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.inspectionDate} onChange={e => setForm((f: any) => ({ ...f, inspectionDate: e.target.value }))} /></div>
               <div><Label>Type</Label>
-                <Select value={form.inspectionType} onValueChange={v => setForm((f: any) => ({ ...f, inspectionType: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>
-                    {inspectionTypes.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <OtherSelect
+                  options={inspectionTypes}
+                  value={form.inspectionType}
+                  onValueChange={v => setForm((f: any) => ({ ...f, inspectionType: v }))}
+                  placeholder="Select type..."
+                  specifyPlaceholder="Specify inspection type…"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Inspector Name <span style={{ color: "#ef4444" }}>*</span></Label><Input value={form.inspectorName} onChange={e => setForm((f: any) => ({ ...f, inspectorName: e.target.value }))} /></div>
               <div><Label>Inspection Body</Label>
-                <Select value={form.inspectionBody || "__none__"} onValueChange={v => setForm((f: any) => ({ ...f, inspectionBody: v === "__none__" ? "" : v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select body..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— None —</SelectItem>
-                    {certificationBodies.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <OtherSelect
+                  options={certificationBodies}
+                  value={form.inspectionBody}
+                  onValueChange={v => setForm((f: any) => ({ ...f, inspectionBody: v }))}
+                  placeholder="Select body..."
+                  specifyPlaceholder="Specify certification body…"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { OtherSelect } from "@/components/ui/other-select";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -360,10 +361,13 @@ function DispatchesTab({ farmId }: { farmId: number }) {
 
             <div className="grid grid-cols-3 gap-3">
               <div><Label>Load Type <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Select value={form.loadType} onValueChange={v => setForm((f: any) => ({ ...f, loadType: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>{loadTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                </Select>
+                <OtherSelect
+                  options={loadTypes}
+                  value={form.loadType}
+                  onValueChange={v => setForm((f: any) => ({ ...f, loadType: v }))}
+                  placeholder="Select type..."
+                  specifyPlaceholder="Specify load type…"
+                />
               </div>
               <div><Label>Weight (tonnes)</Label><Input type="number" step="0.01" min="0" value={form.weightTonnes} onChange={e => setForm((f: any) => ({ ...f, weightTonnes: e.target.value }))} /></div>
               <div><Label>Status</Label>
