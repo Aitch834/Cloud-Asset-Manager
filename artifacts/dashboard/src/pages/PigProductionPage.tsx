@@ -332,9 +332,73 @@ function PigFeedDeliveriesView({ farmId }: { farmId: number }) {
 }
 
 // ─── PIG PEN CONSUMPTION RECORDS ──────────────────────────────────────────────
+function ManageLocationsDialog({ farmId, open, onClose }: { farmId: number; open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState("indoor_shed");
+
+  const { data: raw } = useQuery({
+    queryKey: ["pig-locations", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-locations`), { credentials: "include" }).then(r => r.json()),
+    enabled: open,
+  });
+  const locs: Record<string, unknown>[] = Array.isArray(raw) ? raw : [];
+
+  const add = useMutation({
+    mutationFn: () => fetch(api(`farms/${farmId}/pig-locations`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ locationName: newName, locationType: newType }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-locations", farmId] }); setNewName(""); setNewType("indoor_shed"); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-locations/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-locations", farmId] }),
+  });
+
+  const typeLabels: Record<string, string> = {
+    indoor_shed: "Indoor Shed", farrowing_house: "Farrowing House", weaner_unit: "Weaner Unit",
+    finisher_shed: "Finisher Shed", outdoor_paddock: "Outdoor Paddock", outdoor_ark: "Outdoor Ark", other: "Other",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent style={{ maxWidth: "32rem" }}>
+        <DialogHeader><DialogTitle>Manage Pig Locations / Sheds</DialogTitle></DialogHeader>
+        <p className="text-xs text-muted-foreground mb-2">Define the sheds, pens, and outdoor areas where pigs are kept. These will appear as a lookup when recording feed consumption.</p>
+        <div className="space-y-2 max-h-48 overflow-y-auto">
+          {locs.length === 0 ? <p className="text-xs text-muted-foreground italic text-center py-4">No locations yet. Add one below.</p> : locs.map((l, i) => (
+            <div key={i} className="flex items-center justify-between border rounded px-3 py-2 bg-white">
+              <div>
+                <span className="font-medium text-sm">{fmt(l.locationName)}</span>
+                <span className="text-xs text-muted-foreground ml-2">{typeLabels[String(l.locationType)] ?? String(l.locationType)}</span>
+              </div>
+              <Button size="icon" variant="ghost" onClick={() => del.mutate(l.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+            </div>
+          ))}
+        </div>
+        <div className="border-t pt-3 space-y-2">
+          <p className="text-xs font-medium">Add new location</p>
+          <div className="flex gap-2">
+            <Input placeholder="e.g. Farrowing House 1" value={newName} onChange={e => setNewName(e.target.value)} className="flex-1" />
+            <Select value={newType} onValueChange={setNewType}>
+              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(typeLabels).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={() => add.mutate()} disabled={!newName.trim() || add.isPending}>Add</Button>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Done</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PigPenConsumptionView({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [manageLocOpen, setManageLocOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
 
@@ -344,6 +408,18 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
   });
   const rows: Record<string, unknown>[] = Array.isArray(rawRows) ? rawRows : (rawRows?.records ?? rawRows ?? []);
   const sorted = [...rows].sort((a, b) => String(b.consumptionDate ?? "").localeCompare(String(a.consumptionDate ?? "")));
+
+  const { data: flocksRaw } = useQuery({
+    queryKey: ["pig-flocks", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-flocks`), { credentials: "include" }).then(r => r.json()),
+  });
+  const flocks: Record<string, unknown>[] = Array.isArray(flocksRaw) ? flocksRaw : (flocksRaw?.records ?? flocksRaw ?? []);
+
+  const { data: locsRaw } = useQuery({
+    queryKey: ["pig-locations", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-locations`), { credentials: "include" }).then(r => r.json()),
+  });
+  const locations: Record<string, unknown>[] = Array.isArray(locsRaw) ? locsRaw : [];
 
   const { data: delivRaw } = useQuery({
     queryKey: ["feed-deliveries", farmId],
@@ -355,7 +431,14 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
       const url = editing ? api(`farms/${farmId}/pig-feed-consumption/${editing.id}`) : api(`farms/${farmId}/pig-feed-consumption`);
-      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      const payload = { ...body };
+      if (payload.appliedToFlockId === "" || payload.appliedToFlockId === "__none__") payload.appliedToFlockId = null;
+      else if (payload.appliedToFlockId) payload.appliedToFlockId = Number(payload.appliedToFlockId);
+      if (payload.locationId === "" || payload.locationId === "__none__") payload.locationId = null;
+      else if (payload.locationId) payload.locationId = Number(payload.locationId);
+      if (payload.linkedDeliveryId === "" || payload.linkedDeliveryId === "__none__") payload.linkedDeliveryId = null;
+      else if (payload.linkedDeliveryId) payload.linkedDeliveryId = Number(payload.linkedDeliveryId);
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(payload) });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-feed-consumption", farmId] }); setOpen(false); setForm({}); setEditing(null); },
   });
@@ -365,20 +448,33 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
   });
 
   function openAdd() { setEditing(null); setForm({}); setOpen(true); }
-  function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
+  function openEdit(r: Record<string, unknown>) {
+    setEditing(r);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    setOpen(true);
+  }
+
+  const typeIcon: Record<string, string> = { indoor_shed: "🏠", farrowing_house: "🐷", weaner_unit: "🐖", finisher_shed: "🏚", outdoor_paddock: "🌿", outdoor_ark: "⛺", other: "📍" };
 
   return (
     <div className="space-y-4">
+      <ManageLocationsDialog farmId={farmId} open={manageLocOpen} onClose={() => { setManageLocOpen(false); qc.invalidateQueries({ queryKey: ["pig-locations", farmId] }); }} />
       <div className="p-3 rounded-lg border border-green-100 bg-green-50 flex items-start gap-2">
         <UtensilsCrossed className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-        <p className="text-xs text-green-800">Record the quantity of feed consumed per pen or group each day. Link to a delivery for full batch-to-pen traceability required under Red Tractor Pigs standards.</p>
+        <p className="text-xs text-green-800">Record feed quantity per <strong>flock/batch</strong> and <strong>location</strong> each day. Both are selected from managed lookups for consistent traceability under Red Tractor Pigs standards.</p>
       </div>
       <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm">Pen Feeding Records</h3>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <div>
+          <h3 className="font-semibold text-sm">Pen Feeding Records</h3>
+          {locations.length === 0 && <p className="text-xs text-amber-600 mt-0.5">⚠ Set up your farm locations first before recording consumption.</p>}
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setManageLocOpen(true)}>Manage Locations</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : sorted.length === 0 ? (
-        <Empty msg="No pen feeding records yet. Add a daily feed consumption record for each pen or group." />
+        <Empty msg="No feeding records yet. Set up your farm locations, then add daily feed consumption records per flock and shed." />
       ) : (
         <div className="space-y-2">
           {sorted.map((r, i) => (
@@ -386,14 +482,19 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="font-medium text-sm">{fmt(r.penName) !== "—" ? fmt(r.penName) : "Unspecified pen"}</span>
+                    <span className="font-medium text-sm">{!!r.flockName ? fmt(r.flockName) : "Unknown flock"}</span>
+                    {!!r.locationName && (
+                      <Badge className="text-xs" style={{ background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0" }}>
+                        {typeIcon[String(r.locationType)] ?? "📍"} {fmt(r.locationName)}
+                      </Badge>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                     <span><span className="font-medium text-foreground/70">Date:</span> {fmtDate(r.consumptionDate)}</span>
                     <span><span className="font-medium text-foreground/70">Type:</span> {fmt(r.feedType)}</span>
                     <span><span className="font-medium text-foreground/70">Qty:</span> {fmt(r.quantityKg)} kg</span>
                     {!!r.batchLotNumber && <span><span className="font-medium text-foreground/70">Batch:</span> {fmt(r.batchLotNumber)}</span>}
-                    {!!r.linkedDeliveryId && <span><span className="font-medium text-foreground/70">Delivery #:</span> {fmt(r.linkedDeliveryId)}</span>}
+                    {!!r.linkedDeliveryId && <span><span className="font-medium text-foreground/70">Linked delivery #:</span> {fmt(r.linkedDeliveryId)}</span>}
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -407,10 +508,35 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
-          <DialogHeader><DialogTitle>{editing ? "Edit Pen Feeding Record" : "Add Pen Feeding Record"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? "Edit Feeding Record" : "Add Feeding Record"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Date *</Label><Input type="date" value={form.consumptionDate ?? ""} onChange={e => setForm(f => ({ ...f, consumptionDate: e.target.value }))} /></div>
-            <div><Label>Pen / Group Name *</Label><Input placeholder="e.g. Pen 7, Sow Group A" value={form.penName ?? ""} onChange={e => setForm(f => ({ ...f, penName: e.target.value }))} /></div>
+            <div><Label>Flock / Batch *</Label>
+              <Select value={form.appliedToFlockId ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, appliedToFlockId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select flock" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select flock —</SelectItem>
+                  {flocks.map((fl: Record<string, unknown>) => (
+                    <SelectItem key={String(fl.id)} value={String(fl.id)}>
+                      {fmt(fl.flockName)}{fl.productionType ? ` (${fl.productionType})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Location / Shed *</Label>
+              <Select value={form.locationId ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, locationId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select location —</SelectItem>
+                  {locations.map((l: Record<string, unknown>) => (
+                    <SelectItem key={String(l.id)} value={String(l.id)}>{fmt(l.locationName)}</SelectItem>
+                  ))}
+                  <SelectItem value="__manage__" disabled>─ Manage Locations…</SelectItem>
+                </SelectContent>
+              </Select>
+              {locations.length === 0 && <p className="text-xs text-amber-600 mt-1">No locations set up. <button className="underline" onClick={() => { setOpen(false); setManageLocOpen(true); }}>Add locations first</button>.</p>}
+            </div>
             <div><Label>Feed Type *</Label>
               <Select value={form.feedType ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, feedType: v === "__none__" ? "" : v }))}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
@@ -422,13 +548,13 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
             </div>
             <div><Label>Quantity (kg) *</Label><Input type="number" step="0.5" value={form.quantityKg ?? ""} onChange={e => setForm(f => ({ ...f, quantityKg: e.target.value }))} /></div>
             <div><Label>Batch/Lot No. (traceability)</Label><Input placeholder="From delivery label" value={form.batchLotNumber ?? ""} onChange={e => setForm(f => ({ ...f, batchLotNumber: e.target.value }))} /></div>
-            <div><Label>Linked Delivery (optional)</Label>
+            <div className="col-span-2"><Label>Linked Delivery (optional)</Label>
               <Select value={form.linkedDeliveryId ?? "__none__"} onValueChange={v => {
                 if (v === "__none__") { setForm(f => ({ ...f, linkedDeliveryId: "" })); return; }
                 const d = pigDeliveries.find(x => String(x.id) === v);
                 setForm(f => ({ ...f, linkedDeliveryId: v, batchLotNumber: d?.batchNumber ? String(d.batchNumber) : f.batchLotNumber }));
               }}>
-                <SelectTrigger><SelectValue placeholder="Link to delivery" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Link to a feed delivery for traceability" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— None —</SelectItem>
                   {pigDeliveries.map((d: Record<string, unknown>) => (

@@ -51,6 +51,15 @@ export const pigFciDocumentsTable = pgTable("pig_fci_documents", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const pigLocationsTable = pgTable("pig_locations", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  locationName: text("location_name").notNull(),
+  locationType: text("location_type").notNull().default("indoor_shed"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const pigFeedConsumptionTable = pgTable("pig_feed_consumption", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
@@ -60,6 +69,7 @@ export const pigFeedConsumptionTable = pgTable("pig_feed_consumption", {
   quantityKg: numeric("quantity_kg", { precision: 10, scale: 2 }),
   batchLotNumber: text("batch_lot_number"),
   appliedToFlockId: integer("applied_to_flock_id").references(() => pigFlocksTable.id),
+  locationId: integer("location_id").references(() => pigLocationsTable.id),
   linkedDeliveryId: integer("linked_delivery_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
