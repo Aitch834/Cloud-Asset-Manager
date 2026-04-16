@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -600,11 +601,88 @@ function SchemeRecordsTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "houses" | "flocks" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records";
+// ─── POULTRY FEED TAB ──────────────────────────────────────────────────────────
+function PoultryFeedTab({ farmId }: { farmId: number }) {
+  const [subTab, setSubTab] = useState<"deliveries" | "consumption">("deliveries");
+
+  const { data: raw, isLoading } = useQuery({
+    queryKey: ["poultry-deliveries-view", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/feed-deliveries`), { credentials: "include" }).then(r => r.json()),
+    enabled: subTab === "deliveries",
+  });
+  const all: Record<string, unknown>[] = Array.isArray(raw) ? raw : (raw?.records ?? []);
+  const poultryDeliveries = all.filter(d => {
+    const sp = String(d.speciesIntended ?? "").toLowerCase();
+    return sp === "poultry" || sp === "mixed";
+  }).sort((a, b) => String(b.deliveryDate ?? "").localeCompare(String(a.deliveryDate ?? "")));
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-0 border-b">
+        {(["deliveries", "consumption"] as const).map(t => (
+          <button key={t} onClick={() => setSubTab(t)} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${subTab === t ? "border-green-600 text-green-700" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            {t === "deliveries" ? "Feed Deliveries" : "Flock Consumption Records"}
+          </button>
+        ))}
+      </div>
+      {subTab === "deliveries" ? (
+        <div className="space-y-3">
+          <div className="p-3 rounded-lg border border-blue-100 bg-blue-50 flex items-start gap-2">
+            <Truck className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-blue-800">
+              Showing all feed deliveries from <strong>Feed Management</strong> where species is set to <em>Poultry</em> or <em>Mixed</em>. To add a delivery, go to Feed Management → Delivery Records.
+            </p>
+          </div>
+          {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : poultryDeliveries.length === 0 ? (
+            <Empty msg='No poultry or mixed-species feed deliveries on record. Log a delivery in Feed Management with species set to "Poultry" or "Mixed".' />
+          ) : (
+            <div className="space-y-2">
+              {poultryDeliveries.map((r, i) => (
+                <div key={i} className="border rounded-lg p-3 bg-white">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-medium text-sm">{fmt(r.supplierName)}</span>
+                        {String(r.speciesIntended ?? "").toLowerCase() === "mixed" && (
+                          <Badge className="text-xs" style={{ background: "#fef9c3", color: "#854d0e", border: "none" }}>Mixed species</Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                        <span><span className="font-medium text-foreground/70">Date:</span> {fmtDate(r.deliveryDate)}</span>
+                        <span><span className="font-medium text-foreground/70">Type:</span> {fmt(r.feedType)}</span>
+                        <span><span className="font-medium text-foreground/70">Qty:</span> {fmt(r.quantityKg)} kg</span>
+                        {!!r.productName && <span><span className="font-medium text-foreground/70">Product:</span> {fmt(r.productName)}</span>}
+                        {!!r.batchNumber && <span><span className="font-medium text-foreground/70">Batch:</span> {fmt(r.batchNumber)}</span>}
+                        {!!r.deliveryNoteNumber && <span><span className="font-medium text-foreground/70">Note No.:</span> {fmt(r.deliveryNoteNumber)}</span>}
+                        {!!r.ufasNumberOnNote && <span><span className="font-medium text-foreground/70">UFAS No.:</span> {fmt(r.ufasNumberOnNote)}</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="p-3 rounded-lg border border-amber-100 bg-amber-50 flex items-start gap-2">
+            <UtensilsCrossed className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-800">
+              Flock-level consumption records (daily feed quantities per house/flock) are recorded via the Livestock section's Feed tab, linked to your poultry herds. This ensures one unified consumption record across all livestock species.
+            </p>
+          </div>
+          <Empty msg="Go to Livestock → Feed tab to record daily flock feed consumption linked to your poultry herds." />
+        </div>
+      )}
+    </div>
+  );
+}
+
+type Tab = "houses" | "flocks" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed";
 
 export default function PoultryProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["houses","flocks","mortality","treatments","cleanouts","envlogs","fci","bwi","thinning","biosecurity","scheme-records"]; return t && valid.includes(t) ? t : "houses"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["houses","flocks","mortality","treatments","cleanouts","envlogs","fci","bwi","thinning","biosecurity","scheme-records","feed"]; return t && valid.includes(t) ? t : "houses"; });
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Poultry Production">
@@ -621,6 +699,7 @@ export default function PoultryProductionPage() {
           <TabButton active={tab === "thinning"} onClick={() => setTab("thinning")}><Scissors className="w-3.5 h-3.5 mr-1" />Thinning</TabButton>
           <TabButton active={tab === "biosecurity"} onClick={() => setTab("biosecurity")}><ClipboardList className="w-3.5 h-3.5 mr-1" />Biosecurity</TabButton>
           <TabButton active={tab === "scheme-records"} onClick={() => setTab("scheme-records")}><Star className="w-3.5 h-3.5 mr-1" />Scheme Records</TabButton>
+          <TabButton active={tab === "feed"} onClick={() => setTab("feed")}><Truck className="w-3.5 h-3.5 mr-1" />Feed</TabButton>
         </TabBar>
         <Card><CardContent className="pt-4">
           {tab === "houses" && <HousesTab farmId={farmId} />}
@@ -634,6 +713,7 @@ export default function PoultryProductionPage() {
           {tab === "thinning" && <ThinningRecordsTab farmId={farmId} />}
           {tab === "biosecurity" && <BiosecurityChecklistTab farmId={farmId} />}
           {tab === "scheme-records" && <SchemeRecordsTab farmId={farmId} />}
+          {tab === "feed" && <PoultryFeedTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>

@@ -51,19 +51,16 @@ export const pigFciDocumentsTable = pgTable("pig_fci_documents", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const pigFeedRecordsTable = pgTable("pig_feed_records", {
+export const pigFeedConsumptionTable = pgTable("pig_feed_consumption", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
-  deliveryDate: date("delivery_date").notNull(),
-  supplierName: text("supplier_name").notNull(),
-  supplierApprovalNumber: text("supplier_approval_number"),
+  consumptionDate: date("consumption_date").notNull(),
+  penName: text("pen_name"),
   feedType: text("feed_type").notNull(),
-  compoundFeedName: text("compound_feed_name"),
-  quantityTonnes: numeric("quantity_tonnes", { precision: 8, scale: 2 }).notNull(),
+  quantityKg: numeric("quantity_kg", { precision: 10, scale: 2 }),
   batchLotNumber: text("batch_lot_number"),
-  deliveryNoteNumber: text("delivery_note_number"),
   appliedToFlockId: integer("applied_to_flock_id").references(() => pigFlocksTable.id),
-  linkedFeedDeliveryId: integer("linked_feed_delivery_id"),
+  linkedDeliveryId: integer("linked_delivery_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

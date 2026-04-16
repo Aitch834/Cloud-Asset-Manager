@@ -144,7 +144,7 @@ import {
   pigFlocksTable,
   pigMovementsTable,
   pigFciDocumentsTable,
-  pigFeedRecordsTable,
+  pigFeedConsumptionTable,
   pigVetAssessmentsTable,
   pigStockmanshipChecksTable,
   pigTailBitingRisksTable,
@@ -12002,26 +12002,26 @@ router.delete("/farms/:farmId/pig-fci-documents/:id", requireAuth, requireTenant
   res.json({ success: true });
 });
 
-router.get("/farms/:farmId/pig-feed-records", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/pig-feed-consumption", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(pigFeedRecordsTable).where(eq(pigFeedRecordsTable.farmId, farmId)).orderBy(desc(pigFeedRecordsTable.deliveryDate));
+  const rows = await db.select().from(pigFeedConsumptionTable).where(eq(pigFeedConsumptionTable.farmId, farmId)).orderBy(desc(pigFeedConsumptionTable.consumptionDate));
   res.json(rows);
 });
-router.post("/farms/:farmId/pig-feed-records", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/pig-feed-consumption", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const [row] = await db.insert(pigFeedRecordsTable).values({ ...req.body, farmId }).returning();
+  const [row] = await db.insert(pigFeedConsumptionTable).values({ ...req.body, farmId }).returning();
   res.json(row);
 });
-router.put("/farms/:farmId/pig-feed-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/pig-feed-consumption/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(pigFeedRecordsTable).set(req.body).where(and(eq(pigFeedRecordsTable.id, id), eq(pigFeedRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(pigFeedConsumptionTable).set(req.body).where(and(eq(pigFeedConsumptionTable.id, id), eq(pigFeedConsumptionTable.farmId, farmId))).returning();
   res.json(row);
 });
-router.delete("/farms/:farmId/pig-feed-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/pig-feed-consumption/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  await db.delete(pigFeedRecordsTable).where(and(eq(pigFeedRecordsTable.id, id), eq(pigFeedRecordsTable.farmId, farmId)));
+  await db.delete(pigFeedConsumptionTable).where(and(eq(pigFeedConsumptionTable.id, id), eq(pigFeedConsumptionTable.farmId, farmId)));
   res.json({ success: true });
 });
 
@@ -14279,30 +14279,6 @@ router.post("/farms/:farmId/feed-deliveries", requireAuth, requireTenant, requir
 
   // Recalculate awaiting status for linked feed stock bin
   if (record.feedStockItemId) await recalcFeedStockAwaiting(farmId, record.feedStockItemId);
-
-  // ── Auto-create pig feed record if delivery is intended for pigs ──────────
-  const pigSpecies = ["pigs", "mixed"];
-  if (record.speciesIntended && pigSpecies.includes(String(record.speciesIntended).toLowerCase())) {
-    const existingLink = await db.select({ id: pigFeedRecordsTable.id }).from(pigFeedRecordsTable).where(and(eq(pigFeedRecordsTable.farmId, farmId), eq(pigFeedRecordsTable.linkedFeedDeliveryId, record.id))).limit(1);
-    if (existingLink.length === 0) {
-      const deliveryDateStr = record.deliveryDate ? new Date(record.deliveryDate).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10);
-      const qtyTonnes = record.quantityKg ? String(parseFloat(String(record.quantityKg)) / 1000) : "0";
-      const batchLot = [record.batchNumber, record.lotNumber].filter(Boolean).join(" / ") || null;
-      await db.insert(pigFeedRecordsTable).values({
-        farmId,
-        deliveryDate: deliveryDateStr,
-        supplierName: record.supplierName,
-        supplierApprovalNumber: record.ufasNumberOnNote ?? null,
-        feedType: record.feedType,
-        compoundFeedName: record.productName ?? null,
-        quantityTonnes: qtyTonnes,
-        batchLotNumber: batchLot,
-        deliveryNoteNumber: record.deliveryNoteNumber ?? null,
-        linkedFeedDeliveryId: record.id,
-        notes: `Auto-linked from Feed Management delivery #${record.id}`,
-      });
-    }
-  }
 
   res.status(201).json({ record });
 });

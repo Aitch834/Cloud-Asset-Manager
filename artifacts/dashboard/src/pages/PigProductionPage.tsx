@@ -286,29 +286,82 @@ function FciDocumentsTab({ farmId }: { farmId: number }) {
   );
 }
 
-// ─── FEED RECORDS TAB ──────────────────────────────────────────────────────────
-function FeedRecordsTab({ farmId }: { farmId: number }) {
+// ─── PIG FEED DELIVERIES VIEW (from master Feed Management) ───────────────────
+function PigFeedDeliveriesView({ farmId }: { farmId: number }) {
+  const { data: raw, isLoading } = useQuery({
+    queryKey: ["pig-deliveries-view", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/feed-deliveries`), { credentials: "include" }).then(r => r.json()),
+  });
+  const all: Record<string, unknown>[] = Array.isArray(raw) ? raw : (raw?.records ?? []);
+  const pigDeliveries = all.filter(d => {
+    const sp = String(d.speciesIntended ?? "").toLowerCase();
+    return sp === "pigs" || sp === "mixed";
+  }).sort((a, b) => String(b.deliveryDate ?? "").localeCompare(String(a.deliveryDate ?? "")));
+
+  if (isLoading) return <Loader2 className="animate-spin w-5 h-5" />;
+  if (pigDeliveries.length === 0) return (
+    <Empty msg='No pig or mixed-species feed deliveries on record. Log a delivery in Feed Management with species set to "Pigs" or "Mixed".' />
+  );
+  return (
+    <div className="space-y-2">
+      {pigDeliveries.map((r, i) => (
+        <div key={i} className="border rounded-lg p-3 bg-white">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="font-medium text-sm">{fmt(r.supplierName)}</span>
+                {String(r.speciesIntended ?? "").toLowerCase() === "mixed" && (
+                  <Badge className="text-xs" style={{ background: "#fef9c3", color: "#854d0e", border: "none" }}>Mixed species</Badge>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                <span><span className="font-medium text-foreground/70">Date:</span> {fmtDate(r.deliveryDate)}</span>
+                <span><span className="font-medium text-foreground/70">Type:</span> {fmt(r.feedType)}</span>
+                <span><span className="font-medium text-foreground/70">Qty:</span> {fmt(r.quantityKg)} kg</span>
+                {!!r.productName && <span><span className="font-medium text-foreground/70">Product:</span> {fmt(r.productName)}</span>}
+                {!!r.batchNumber && <span><span className="font-medium text-foreground/70">Batch:</span> {fmt(r.batchNumber)}</span>}
+                {!!r.deliveryNoteNumber && <span><span className="font-medium text-foreground/70">Note No.:</span> {fmt(r.deliveryNoteNumber)}</span>}
+                {!!r.ufasNumberOnNote && <span><span className="font-medium text-foreground/70">UFAS No.:</span> {fmt(r.ufasNumberOnNote)}</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── PIG PEN CONSUMPTION RECORDS ──────────────────────────────────────────────
+function PigPenConsumptionView({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
 
-  const { data: rawRecords, isLoading } = useQuery({ queryKey: ["pig-feed", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-feed-records`), { credentials: "include" }).then(r => r.json()) });
-  const records: Record<string, unknown>[] = Array.isArray(rawRecords) ? rawRecords : (rawRecords?.records ?? rawRecords ?? []);
-  const sorted = [...records].sort((a, b) => String(b.deliveryDate ?? "").localeCompare(String(a.deliveryDate ?? "")));
-  const linkedCount = sorted.filter(r => !!r.linkedFeedDeliveryId).length;
+  const { data: rawRows, isLoading } = useQuery({
+    queryKey: ["pig-feed-consumption", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-feed-consumption`), { credentials: "include" }).then(r => r.json()),
+  });
+  const rows: Record<string, unknown>[] = Array.isArray(rawRows) ? rawRows : (rawRows?.records ?? rawRows ?? []);
+  const sorted = [...rows].sort((a, b) => String(b.consumptionDate ?? "").localeCompare(String(a.consumptionDate ?? "")));
+
+  const { data: delivRaw } = useQuery({
+    queryKey: ["feed-deliveries", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/feed-deliveries`), { credentials: "include" }).then(r => r.json()),
+  });
+  const deliveries: Record<string, unknown>[] = Array.isArray(delivRaw) ? delivRaw : (delivRaw?.records ?? []);
+  const pigDeliveries = deliveries.filter(d => { const sp = String(d.speciesIntended ?? "").toLowerCase(); return sp === "pigs" || sp === "mixed"; });
 
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
-      const url = editing ? api(`farms/${farmId}/pig-feed-records/${editing.id}`) : api(`farms/${farmId}/pig-feed-records`);
+      const url = editing ? api(`farms/${farmId}/pig-feed-consumption/${editing.id}`) : api(`farms/${farmId}/pig-feed-consumption`);
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-feed", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-feed-consumption", farmId] }); setOpen(false); setForm({}); setEditing(null); },
   });
-
   const del = useMutation({
-    mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-feed-records/${id}`), { method: "DELETE", credentials: "include" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-feed", farmId] }),
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-feed-consumption/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-feed-consumption", farmId] }),
   });
 
   function openAdd() { setEditing(null); setForm({}); setOpen(true); }
@@ -316,21 +369,16 @@ function FeedRecordsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="p-3 rounded-lg border border-blue-100 bg-blue-50 flex items-start gap-2">
-        <FileText className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-        <div className="text-xs text-blue-800">
-          <strong>Linked to Feed Management:</strong> Feed deliveries logged in Feed Management for pigs or mixed species are automatically added here. {linkedCount > 0 ? <span>{linkedCount} record{linkedCount > 1 ? "s" : ""} auto-synced so far.</span> : <span>No auto-synced records yet.</span>}
-        </div>
+      <div className="p-3 rounded-lg border border-green-100 bg-green-50 flex items-start gap-2">
+        <UtensilsCrossed className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+        <p className="text-xs text-green-800">Record the quantity of feed consumed per pen or group each day. Link to a delivery for full batch-to-pen traceability required under Red Tractor Pigs standards.</p>
       </div>
       <div className="flex justify-between items-center">
-        <div>
-          <h3 className="font-semibold text-sm">Feed Delivery Records</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Red Tractor compliance record of all feed deliveries to pig units.</p>
-        </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Manually</Button>
+        <h3 className="font-semibold text-sm">Pen Feeding Records</h3>
+        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
       </div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : sorted.length === 0 ? (
-        <Empty msg="No feed delivery records yet. Log a pig or mixed delivery in Feed Management to auto-create one here, or add manually." />
+        <Empty msg="No pen feeding records yet. Add a daily feed consumption record for each pen or group." />
       ) : (
         <div className="space-y-2">
           {sorted.map((r, i) => (
@@ -338,21 +386,14 @@ function FeedRecordsTab({ farmId }: { farmId: number }) {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="font-medium text-sm">{fmt(r.supplierName)}</span>
-                    {!!r.linkedFeedDeliveryId && (
-                      <Badge className="text-xs" style={{ background: "#dbeafe", color: "#1e40af", border: "none" }}>
-                        Auto-synced from Feed Management
-                      </Badge>
-                    )}
+                    <span className="font-medium text-sm">{fmt(r.penName) !== "—" ? fmt(r.penName) : "Unspecified pen"}</span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
-                    <span><span className="font-medium text-foreground/70">Date:</span> {fmtDate(r.deliveryDate)}</span>
+                    <span><span className="font-medium text-foreground/70">Date:</span> {fmtDate(r.consumptionDate)}</span>
                     <span><span className="font-medium text-foreground/70">Type:</span> {fmt(r.feedType)}</span>
-                    <span><span className="font-medium text-foreground/70">Qty:</span> {fmt(r.quantityTonnes)} t</span>
+                    <span><span className="font-medium text-foreground/70">Qty:</span> {fmt(r.quantityKg)} kg</span>
                     {!!r.batchLotNumber && <span><span className="font-medium text-foreground/70">Batch:</span> {fmt(r.batchLotNumber)}</span>}
-                    {!!r.compoundFeedName && <span><span className="font-medium text-foreground/70">Product:</span> {fmt(r.compoundFeedName)}</span>}
-                    {!!r.deliveryNoteNumber && <span><span className="font-medium text-foreground/70">Note No.:</span> {fmt(r.deliveryNoteNumber)}</span>}
-                    {!!r.supplierApprovalNumber && <span><span className="font-medium text-foreground/70">UFAS No.:</span> {fmt(r.supplierApprovalNumber)}</span>}
+                    {!!r.linkedDeliveryId && <span><span className="font-medium text-foreground/70">Delivery #:</span> {fmt(r.linkedDeliveryId)}</span>}
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -366,11 +407,10 @@ function FeedRecordsTab({ farmId }: { farmId: number }) {
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
-          <DialogHeader><DialogTitle>{editing ? "Edit Feed Delivery Record" : "Add Feed Delivery Record"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? "Edit Pen Feeding Record" : "Add Pen Feeding Record"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Delivery Date *</Label><Input type="date" value={form.deliveryDate ?? ""} onChange={e => setForm(f => ({ ...f, deliveryDate: e.target.value }))} /></div>
-            <div><Label>Supplier Name *</Label><Input value={form.supplierName ?? ""} onChange={e => setForm(f => ({ ...f, supplierName: e.target.value }))} /></div>
-            <div><Label>Supplier Approval No. (UFAS)</Label><Input value={form.supplierApprovalNumber ?? ""} onChange={e => setForm(f => ({ ...f, supplierApprovalNumber: e.target.value }))} /></div>
+            <div><Label>Date *</Label><Input type="date" value={form.consumptionDate ?? ""} onChange={e => setForm(f => ({ ...f, consumptionDate: e.target.value }))} /></div>
+            <div><Label>Pen / Group Name *</Label><Input placeholder="e.g. Pen 7, Sow Group A" value={form.penName ?? ""} onChange={e => setForm(f => ({ ...f, penName: e.target.value }))} /></div>
             <div><Label>Feed Type *</Label>
               <Select value={form.feedType ?? "__none__"} onValueChange={v => setForm(f => ({ ...f, feedType: v === "__none__" ? "" : v }))}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
@@ -380,10 +420,25 @@ function FeedRecordsTab({ farmId }: { farmId: number }) {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Compound / Product Name</Label><Input value={form.compoundFeedName ?? ""} onChange={e => setForm(f => ({ ...f, compoundFeedName: e.target.value }))} /></div>
-            <div><Label>Quantity (tonnes) *</Label><Input type="number" step="0.1" value={form.quantityTonnes ?? ""} onChange={e => setForm(f => ({ ...f, quantityTonnes: e.target.value }))} /></div>
-            <div><Label>Batch/Lot Number</Label><Input value={form.batchLotNumber ?? ""} onChange={e => setForm(f => ({ ...f, batchLotNumber: e.target.value }))} /></div>
-            <div><Label>Delivery Note No.</Label><Input value={form.deliveryNoteNumber ?? ""} onChange={e => setForm(f => ({ ...f, deliveryNoteNumber: e.target.value }))} /></div>
+            <div><Label>Quantity (kg) *</Label><Input type="number" step="0.5" value={form.quantityKg ?? ""} onChange={e => setForm(f => ({ ...f, quantityKg: e.target.value }))} /></div>
+            <div><Label>Batch/Lot No. (traceability)</Label><Input placeholder="From delivery label" value={form.batchLotNumber ?? ""} onChange={e => setForm(f => ({ ...f, batchLotNumber: e.target.value }))} /></div>
+            <div><Label>Linked Delivery (optional)</Label>
+              <Select value={form.linkedDeliveryId ?? "__none__"} onValueChange={v => {
+                if (v === "__none__") { setForm(f => ({ ...f, linkedDeliveryId: "" })); return; }
+                const d = pigDeliveries.find(x => String(x.id) === v);
+                setForm(f => ({ ...f, linkedDeliveryId: v, batchLotNumber: d?.batchNumber ? String(d.batchNumber) : f.batchLotNumber }));
+              }}>
+                <SelectTrigger><SelectValue placeholder="Link to delivery" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— None —</SelectItem>
+                  {pigDeliveries.map((d: Record<string, unknown>) => (
+                    <SelectItem key={String(d.id)} value={String(d.id)}>
+                      {fmtDate(d.deliveryDate)} — {fmt(d.supplierName)} {d.batchNumber ? `(Batch: ${d.batchNumber})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
@@ -392,6 +447,35 @@ function FeedRecordsTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ─── FEED RECORDS TAB ──────────────────────────────────────────────────────────
+function FeedRecordsTab({ farmId }: { farmId: number }) {
+  const [subTab, setSubTab] = useState<"deliveries" | "consumption">("deliveries");
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-0 border-b">
+        {(["deliveries", "consumption"] as const).map(t => (
+          <button key={t} onClick={() => setSubTab(t)} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${subTab === t ? "border-green-600 text-green-700" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            {t === "deliveries" ? "Feed Deliveries" : "Pen Consumption Records"}
+          </button>
+        ))}
+      </div>
+      {subTab === "deliveries" ? (
+        <div className="space-y-3">
+          <div className="p-3 rounded-lg border border-blue-100 bg-blue-50 flex items-start gap-2">
+            <Truck className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-blue-800">
+              Showing all feed deliveries from <strong>Feed Management</strong> where species is set to <em>Pigs</em> or <em>Mixed</em>. To add a delivery, go to Feed Management → Delivery Records.
+            </p>
+          </div>
+          <PigFeedDeliveriesView farmId={farmId} />
+        </div>
+      ) : (
+        <PigPenConsumptionView farmId={farmId} />
+      )}
     </div>
   );
 }
