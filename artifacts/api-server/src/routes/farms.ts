@@ -149,6 +149,7 @@ import {
   pigStockmanshipChecksTable,
   pigTailBitingRisksTable,
   pigFarrowingRecordsTable,
+  pigMedicineTreatmentsTable,
   poultryHousesTable,
   poultryFlocksTable,
   poultryDailyMortalityTable,
@@ -12113,6 +12114,42 @@ router.delete("/farms/:farmId/pig-farrowing-records/:id", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(pigFarrowingRecordsTable).where(and(eq(pigFarrowingRecordsTable.id, id), eq(pigFarrowingRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ── Pig Medicine Treatments ──────────────────────────────────────────────────
+router.get("/farms/:farmId/pig-medicine-treatments", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(pigMedicineTreatmentsTable).where(eq(pigMedicineTreatmentsTable.farmId, farmId)).orderBy(pigMedicineTreatmentsTable.treatmentDate);
+  res.json({ records: rows });
+});
+router.post("/farms/:farmId/pig-medicine-treatments", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const body = { ...req.body, farmId };
+  if (body.withdrawalPeriodMeatDays && body.treatmentDate && !body.withdrawalEndDate) {
+    const end = new Date(body.treatmentDate);
+    end.setDate(end.getDate() + parseInt(body.withdrawalPeriodMeatDays));
+    body.withdrawalEndDate = end.toISOString().substring(0, 10);
+  }
+  const [row] = await db.insert(pigMedicineTreatmentsTable).values(body).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/pig-medicine-treatments/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const body = { ...req.body };
+  if (body.withdrawalPeriodMeatDays && body.treatmentDate) {
+    const end = new Date(body.treatmentDate);
+    end.setDate(end.getDate() + parseInt(body.withdrawalPeriodMeatDays));
+    body.withdrawalEndDate = end.toISOString().substring(0, 10);
+  }
+  const [row] = await db.update(pigMedicineTreatmentsTable).set(body).where(and(eq(pigMedicineTreatmentsTable.id, id), eq(pigMedicineTreatmentsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/pig-medicine-treatments/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(pigMedicineTreatmentsTable).where(and(eq(pigMedicineTreatmentsTable.id, id), eq(pigMedicineTreatmentsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

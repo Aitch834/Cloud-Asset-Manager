@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -781,12 +782,256 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── MEDICINE REGISTER TAB ─────────────────────────────────────────────────────
+const ROUTES = ["Injection", "Oral (individual)", "In-water medication", "In-feed medication", "Topical / pour-on", "Other"];
+const UNITS = ["ml", "g", "kg", "L", "tablets", "sachets", "other"];
+
+function WithdrawalBadge({ endDate }: { endDate: string | null | undefined }) {
+  if (!endDate) return null;
+  const today = new Date();
+  const end = new Date(endDate);
+  const inWithdrawal = end > today;
+  if (inWithdrawal) {
+    return <Badge className="text-xs" style={{ background: "#fee2e2", color: "#991b1b", border: "none" }}><Clock className="w-3 h-3 mr-1" />In Withdrawal until {fmtDate(endDate)}</Badge>;
+  }
+  return <Badge className="text-xs" style={{ background: "#dcfce7", color: "#166534", border: "none" }}><CheckCircle2 className="w-3 h-3 mr-1" />Withdrawal Clear</Badge>;
+}
+
+function MedicineRegisterTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, string | boolean>>({});
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+
+  const { data: treatments = [], isLoading } = useQuery({
+    queryKey: ["pig-medicine-treatments", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-medicine-treatments`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []),
+  });
+  const { data: flocks = [] } = useQuery({
+    queryKey: ["pig-flocks", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-flocks`), { credentials: "include" }).then(r => r.json()),
+  });
+  const flockMap = new Map((flocks as Record<string, unknown>[]).map(f => [String(f.id), String(f.flockName)]));
+
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => {
+      const url = editing ? api(`farms/${farmId}/pig-medicine-treatments/${editing.id}`) : api(`farms/${farmId}/pig-medicine-treatments`);
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-medicine-treatments", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-medicine-treatments/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-medicine-treatments", farmId] }),
+  });
+
+  const EMPTY_FORM: Record<string, string | boolean> = {
+    treatmentDate: new Date().toISOString().substring(0, 10),
+    flockId: "",
+    batchOrPenRef: "",
+    numberOfAnimals: "",
+    medicineProductName: "",
+    activeIngredient: "",
+    manufacturer: "",
+    productBatchNumber: "",
+    expiryDate: "",
+    administrationRoute: "Injection",
+    quantityUsed: "",
+    unitOfMeasure: "ml",
+    diagnosisReason: "",
+    prescribingVetName: "",
+    prescribingVetPractice: "",
+    prescriptionObtained: false,
+    administeredBy: "",
+    withdrawalPeriodMeatDays: "",
+    notes: "",
+  };
+
+  function openAdd() { setEditing(null); setForm({ ...EMPTY_FORM }); setOpen(true); }
+  function openEdit(r: Record<string, unknown>) {
+    setEditing(r);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : (typeof v === "boolean" ? v : String(v))])));
+    setOpen(true);
+  }
+
+  const sorted = [...(treatments as Record<string, unknown>[])].sort((a, b) => String(b.treatmentDate ?? "").localeCompare(String(a.treatmentDate ?? "")));
+  const activeWithdrawals = sorted.filter(r => r.withdrawalEndDate && new Date(r.withdrawalEndDate as string) > new Date());
+
+  return (
+    <div className="space-y-4">
+      {activeWithdrawals.length > 0 && (
+        <div className="p-3 rounded-lg border border-red-200 bg-red-50 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-red-800">{activeWithdrawals.length} active withdrawal period{activeWithdrawals.length > 1 ? "s" : ""}</p>
+            <p className="text-xs text-red-600 mt-0.5">Do not send these animals for slaughter until withdrawal period has expired.</p>
+          </div>
+        </div>
+      )}
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Medicine Register — Batch / Group Level</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Records required under Veterinary Medicines Regulations 2013. Retain for minimum 5 years.</p>
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Treatment</Button>
+      </div>
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : sorted.length === 0 ? (
+        <Empty msg="No medicine treatments recorded yet. Log batch treatments using the button above." />
+      ) : (
+        <div className="space-y-2">
+          {sorted.map((r, i) => (
+            <div key={i} className="border rounded-lg p-3 bg-white hover:bg-gray-50 transition-colors">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="font-medium text-sm">{fmt(r.medicineProductName)}</span>
+                    {!!r.withdrawalEndDate && <WithdrawalBadge endDate={r.withdrawalEndDate as string} />}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                    <span><span className="font-medium text-foreground/70">Date:</span> {fmtDate(r.treatmentDate)}</span>
+                    <span><span className="font-medium text-foreground/70">Animals:</span> {fmt(r.numberOfAnimals)}</span>
+                    <span><span className="font-medium text-foreground/70">Route:</span> {fmt(r.administrationRoute)}</span>
+                    <span><span className="font-medium text-foreground/70">Qty:</span> {fmt(r.quantityUsed)}{r.unitOfMeasure ? ` ${String(r.unitOfMeasure)}` : ""}</span>
+                    {!!r.flockId && <span><span className="font-medium text-foreground/70">Flock:</span> {flockMap.get(String(r.flockId)) ?? fmt(r.flockId)}</span>}
+                    {!!r.batchOrPenRef && <span><span className="font-medium text-foreground/70">Batch/Pen:</span> {fmt(r.batchOrPenRef)}</span>}
+                    {!!r.diagnosisReason && <span className="col-span-2"><span className="font-medium text-foreground/70">Reason:</span> {fmt(r.diagnosisReason)}</span>}
+                    {!!r.prescribingVetName && <span><span className="font-medium text-foreground/70">Vet:</span> {fmt(r.prescribingVetName)}</span>}
+                    {!!r.productBatchNumber && <span><span className="font-medium text-foreground/70">Batch No.:</span> {fmt(r.productBatchNumber)}</span>}
+                  </div>
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <Button size="icon" variant="ghost" onClick={() => setViewRecord(r)}><FileText className="w-3.5 h-3.5" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => del.mutate(r.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add / Edit dialog */}
+      <Dialog open={open} onOpenChange={v => !v && setOpen(false)}>
+        <DialogContent style={{ maxWidth: "44rem" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit Treatment Record" : "Record Medicine Treatment"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+            <p className="text-xs text-muted-foreground bg-blue-50 border border-blue-100 rounded p-2">
+              <strong>Batch/group level recording</strong> — record which pen, batch, or production group was treated. No individual ear tags required for pigs.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs mb-1 block">Treatment Date *</Label><Input type="date" value={String(form.treatmentDate ?? "")} onChange={e => setForm(f => ({ ...f, treatmentDate: e.target.value }))} /></div>
+              <div><Label className="text-xs mb-1 block">Number of Animals Treated *</Label><Input type="number" min="1" value={String(form.numberOfAnimals ?? "")} onChange={e => setForm(f => ({ ...f, numberOfAnimals: e.target.value }))} placeholder="e.g. 12" /></div>
+              <div>
+                <Label className="text-xs mb-1 block">Production Group / Flock</Label>
+                <Select value={String(form.flockId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, flockId: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select flock" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Not specified —</SelectItem>
+                    {(flocks as Record<string, unknown>[]).map(f => <SelectItem key={String(f.id)} value={String(f.id)}>{String(f.flockName)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label className="text-xs mb-1 block">Batch / Pen Reference</Label><Input value={String(form.batchOrPenRef ?? "")} onChange={e => setForm(f => ({ ...f, batchOrPenRef: e.target.value }))} placeholder="e.g. Pen 4, Batch W22-01" /></div>
+            </div>
+            <hr className="border-gray-100" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Medicine Details</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2"><Label className="text-xs mb-1 block">Medicine Product Name *</Label><Input value={String(form.medicineProductName ?? "")} onChange={e => setForm(f => ({ ...f, medicineProductName: e.target.value }))} placeholder="e.g. Alamycin LA 300mg/ml" /></div>
+              <div><Label className="text-xs mb-1 block">Active Ingredient</Label><Input value={String(form.activeIngredient ?? "")} onChange={e => setForm(f => ({ ...f, activeIngredient: e.target.value }))} placeholder="e.g. Oxytetracycline" /></div>
+              <div><Label className="text-xs mb-1 block">Manufacturer</Label><Input value={String(form.manufacturer ?? "")} onChange={e => setForm(f => ({ ...f, manufacturer: e.target.value }))} placeholder="e.g. Norbrook" /></div>
+              <div><Label className="text-xs mb-1 block">Product Batch Number</Label><Input value={String(form.productBatchNumber ?? "")} onChange={e => setForm(f => ({ ...f, productBatchNumber: e.target.value }))} placeholder="e.g. BN1234/A" /></div>
+              <div><Label className="text-xs mb-1 block">Product Expiry Date</Label><Input type="date" value={String(form.expiryDate ?? "")} onChange={e => setForm(f => ({ ...f, expiryDate: e.target.value }))} /></div>
+            </div>
+            <hr className="border-gray-100" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Administration</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block">Route of Administration *</Label>
+                <Select value={String(form.administrationRoute ?? "Injection")} onValueChange={v => setForm(f => ({ ...f, administrationRoute: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{ROUTES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label className="text-xs mb-1 block">Administered By</Label><Input value={String(form.administeredBy ?? "")} onChange={e => setForm(f => ({ ...f, administeredBy: e.target.value }))} placeholder="Name of person" /></div>
+              <div>
+                <Label className="text-xs mb-1 block">Quantity Used *</Label>
+                <div className="flex gap-2">
+                  <Input className="flex-1" value={String(form.quantityUsed ?? "")} onChange={e => setForm(f => ({ ...f, quantityUsed: e.target.value }))} placeholder="e.g. 25" />
+                  <Select value={String(form.unitOfMeasure ?? "ml")} onValueChange={v => setForm(f => ({ ...f, unitOfMeasure: v }))}>
+                    <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                    <SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div><Label className="text-xs mb-1 block">Diagnosis / Reason for Treatment *</Label><Input value={String(form.diagnosisReason ?? "")} onChange={e => setForm(f => ({ ...f, diagnosisReason: e.target.value }))} placeholder="e.g. PRRS, respiratory disease" /></div>
+            </div>
+            <hr className="border-gray-100" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Veterinary Prescription</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs mb-1 block">Prescribing Vet Name</Label><Input value={String(form.prescribingVetName ?? "")} onChange={e => setForm(f => ({ ...f, prescribingVetName: e.target.value }))} placeholder="e.g. Dr. A. Smith" /></div>
+              <div><Label className="text-xs mb-1 block">Vet Practice</Label><Input value={String(form.prescribingVetPractice ?? "")} onChange={e => setForm(f => ({ ...f, prescribingVetPractice: e.target.value }))} placeholder="e.g. Farm Vet Services Ltd" /></div>
+              <div className="col-span-2 flex items-center gap-2">
+                <Checkbox id="prescObtained" checked={Boolean(form.prescriptionObtained)} onCheckedChange={v => setForm(f => ({ ...f, prescriptionObtained: Boolean(v) }))} />
+                <Label htmlFor="prescObtained" className="text-sm">Written prescription obtained</Label>
+              </div>
+            </div>
+            <hr className="border-gray-100" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Withdrawal Period</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs mb-1 block">Withdrawal Period — Meat (days)</Label><Input type="number" min="0" value={String(form.withdrawalPeriodMeatDays ?? "")} onChange={e => setForm(f => ({ ...f, withdrawalPeriodMeatDays: e.target.value }))} placeholder="e.g. 28" /></div>
+              <div className="flex items-end">
+                <p className="text-xs text-muted-foreground pb-2">Withdrawal end date is calculated automatically from treatment date + withdrawal days.</p>
+              </div>
+            </div>
+            <div><Label className="text-xs mb-1 block">Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any additional notes" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button
+              disabled={save.isPending || !form.treatmentDate || !form.numberOfAnimals || !form.medicineProductName || !form.quantityUsed || !form.diagnosisReason}
+              onClick={() => save.mutate(form)}
+            >{editing ? "Update Record" : "Save Record"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View detail dialog */}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "36rem" }}>
+            <DialogHeader><DialogTitle>Treatment Record — {fmt(viewRecord.medicineProductName)}</DialogTitle></DialogHeader>
+            <div className="space-y-3 text-sm">
+              {!!viewRecord.withdrawalEndDate && <WithdrawalBadge endDate={viewRecord.withdrawalEndDate as string} />}
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                {([["treatmentDate", "Treatment Date", fmtDate], ["numberOfAnimals", "Animals Treated"], ["administrationRoute", "Route"], ["quantityUsed", "Quantity Used"], ["unitOfMeasure", "Unit"], ["flockId", "Flock", (v: unknown) => flockMap.get(String(v)) ?? fmt(v)], ["batchOrPenRef", "Batch/Pen Ref"], ["medicineProductName", "Product Name"], ["activeIngredient", "Active Ingredient"], ["manufacturer", "Manufacturer"], ["productBatchNumber", "Product Batch No."], ["expiryDate", "Product Expiry", fmtDate], ["diagnosisReason", "Reason / Diagnosis"], ["prescribingVetName", "Prescribing Vet"], ["prescribingVetPractice", "Vet Practice"], ["prescriptionObtained", "Prescription Obtained", (v: unknown) => v ? "Yes" : "No"], ["administeredBy", "Administered By"], ["withdrawalPeriodMeatDays", "Withdrawal (days)"], ["withdrawalEndDate", "Withdrawal End", fmtDate], ["notes", "Notes"]] as [string, string, ((v: unknown) => string)?][]).map(([key, label, fmtFn]) => {
+                  const val = viewRecord[key];
+                  if (val == null || val === "") return null;
+                  return (
+                    <div key={key} className={key === "diagnosisReason" || key === "notes" ? "col-span-2" : ""}>
+                      <span className="text-muted-foreground text-xs">{label}</span>
+                      <p className="font-medium">{fmtFn ? fmtFn(val) : fmt(val)}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
-type Tab = "flocks" | "movements" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor";
+type Tab = "flocks" | "movements" | "medicine" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor";
 
 export default function PigProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["flocks","movements","fci","feed","vet","stockmanship","tail-biting","farrowing","red-tractor"]; return t && valid.includes(t) ? t : "flocks"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["flocks","movements","medicine","fci","feed","vet","stockmanship","tail-biting","farrowing","red-tractor"]; return t && valid.includes(t) ? t : "flocks"; });
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Pig Production">
@@ -794,6 +1039,7 @@ export default function PigProductionPage() {
         <TabBar>
           <TabButton active={tab === "flocks"} onClick={() => setTab("flocks")}><PiggyBank className="w-3.5 h-3.5 mr-1" />Flocks</TabButton>
           <TabButton active={tab === "movements"} onClick={() => setTab("movements")}><Truck className="w-3.5 h-3.5 mr-1" />Movements</TabButton>
+          <TabButton active={tab === "medicine"} onClick={() => setTab("medicine")}><Pill className="w-3.5 h-3.5 mr-1" />Medicine Register</TabButton>
           <TabButton active={tab === "fci"} onClick={() => setTab("fci")}><FileText className="w-3.5 h-3.5 mr-1" />FCI Documents</TabButton>
           <TabButton active={tab === "feed"} onClick={() => setTab("feed")}><UtensilsCrossed className="w-3.5 h-3.5 mr-1" />Feed Records</TabButton>
           <TabButton active={tab === "vet"} onClick={() => setTab("vet")}><Stethoscope className="w-3.5 h-3.5 mr-1" />Vet Assessments</TabButton>
@@ -805,6 +1051,7 @@ export default function PigProductionPage() {
         <Card><CardContent className="pt-4">
           {tab === "flocks" && <FlocksTab farmId={farmId} />}
           {tab === "movements" && <MovementsTab farmId={farmId} />}
+          {tab === "medicine" && <MedicineRegisterTab farmId={farmId} />}
           {tab === "fci" && <FciDocumentsTab farmId={farmId} />}
           {tab === "feed" && <FeedRecordsTab farmId={farmId} />}
           {tab === "vet" && <VetAssessmentsTab farmId={farmId} />}

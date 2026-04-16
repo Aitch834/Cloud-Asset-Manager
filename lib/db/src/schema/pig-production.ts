@@ -155,6 +155,32 @@ export const pigFarrowingRecordsTable = pgTable("pig_farrowing_records", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const pigMedicineTreatmentsTable = pgTable("pig_medicine_treatments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  treatmentDate: date("treatment_date").notNull(),
+  flockId: integer("flock_id").references(() => pigFlocksTable.id),
+  batchOrPenRef: text("batch_or_pen_ref"),
+  numberOfAnimals: integer("number_of_animals").notNull().default(1),
+  medicineProductName: text("medicine_product_name").notNull(),
+  activeIngredient: text("active_ingredient"),
+  manufacturer: text("manufacturer"),
+  productBatchNumber: text("product_batch_number"),
+  expiryDate: date("expiry_date"),
+  administrationRoute: text("administration_route").notNull(),
+  quantityUsed: text("quantity_used").notNull(),
+  unitOfMeasure: text("unit_of_measure"),
+  diagnosisReason: text("diagnosis_reason").notNull(),
+  prescribingVetName: text("prescribing_vet_name"),
+  prescribingVetPractice: text("prescribing_vet_practice"),
+  prescriptionObtained: boolean("prescription_obtained").default(false),
+  administeredBy: text("administered_by"),
+  withdrawalPeriodMeatDays: integer("withdrawal_period_meat_days"),
+  withdrawalEndDate: date("withdrawal_end_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const pigRedTractorChecklistTable = pgTable("pig_red_tractor_checklists", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
