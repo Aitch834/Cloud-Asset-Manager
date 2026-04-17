@@ -246,7 +246,7 @@ import {
   vetInvoicesTable,
   vetInvoiceLinesTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or } from "drizzle-orm";
+import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
@@ -12236,15 +12236,30 @@ router.get("/farms/:farmId/poultry-daily-mortality", requireAuth, requireTenant,
     .where(eq(poultryDailyMortalityTable.farmId, farmId)).orderBy(desc(poultryDailyMortalityTable.recordDate));
   res.json(rows);
 });
+async function calcMortalityTotals(farmId: number, flockId: number, thisMortality: number, thisCulled: number, excludeId?: number) {
+  const conditions = [eq(poultryDailyMortalityTable.farmId, farmId), eq(poultryDailyMortalityTable.flockId, flockId)];
+  if (excludeId !== undefined) conditions.push(ne(poultryDailyMortalityTable.id, excludeId));
+  const [prior] = await db.select({ total: sql<number>`COALESCE(SUM(${poultryDailyMortalityTable.mortalityCount} + COALESCE(${poultryDailyMortalityTable.culledCount}, 0)), 0)` }).from(poultryDailyMortalityTable).where(and(...conditions));
+  const runningTotal = Number(prior?.total ?? 0) + thisMortality + thisCulled;
+  const [flock] = await db.select({ placementCount: poultryFlocksTable.placementCount }).from(poultryFlocksTable).where(eq(poultryFlocksTable.id, flockId));
+  const placementCount = Number(flock?.placementCount ?? 0);
+  const mortalityPercentage = placementCount > 0 ? (runningTotal / placementCount * 100).toFixed(2) : null;
+  return { runningTotalMortality: runningTotal, mortalityPercentage };
+}
+
 router.post("/farms/:farmId/poultry-daily-mortality", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const [row] = await db.insert(poultryDailyMortalityTable).values({ ...req.body, farmId }).returning();
+  const flockId = Number(req.body.flockId); const thisMortality = Number(req.body.mortalityCount ?? 0); const thisCulled = Number(req.body.culledCount ?? 0);
+  const computed = flockId ? await calcMortalityTotals(farmId, flockId, thisMortality, thisCulled) : {};
+  const [row] = await db.insert(poultryDailyMortalityTable).values({ ...req.body, farmId, ...computed }).returning();
   res.json(row);
 });
 router.put("/farms/:farmId/poultry-daily-mortality/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(poultryDailyMortalityTable).set(req.body).where(and(eq(poultryDailyMortalityTable.id, id), eq(poultryDailyMortalityTable.farmId, farmId))).returning();
+  const flockId = Number(req.body.flockId); const thisMortality = Number(req.body.mortalityCount ?? 0); const thisCulled = Number(req.body.culledCount ?? 0);
+  const computed = flockId ? await calcMortalityTotals(farmId, flockId, thisMortality, thisCulled, id) : {};
+  const [row] = await db.update(poultryDailyMortalityTable).set({ ...req.body, ...computed }).where(and(eq(poultryDailyMortalityTable.id, id), eq(poultryDailyMortalityTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-daily-mortality/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {

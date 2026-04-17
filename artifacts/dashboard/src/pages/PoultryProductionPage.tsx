@@ -410,6 +410,18 @@ function fmtFlock(r: Record<string, unknown>): string {
 function MortalityTab({ farmId }: { farmId: number }) {
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-daily-mortality", "poultry-mortality");
+
+  const recordsList = (records ?? []) as Record<string, unknown>[];
+  const selectedFlock = flocks.find(f => String(f.id) === String(form.flockId)) ?? null;
+  const flockRecords = recordsList.filter(r =>
+    String(r.flockId) === String(form.flockId) && (!editing || String(r.id) !== String((editing as Record<string, unknown>).id))
+  );
+  const currentRunning = flockRecords.length > 0 ? Math.max(...flockRecords.map(r => Number(r.runningTotalMortality ?? 0))) : 0;
+  const todayTotal = Number(form.mortalityCount ?? 0) + Number(form.culledCount ?? 0);
+  const projectedRunning = currentRunning + todayTotal;
+  const placementCount = Number(selectedFlock?.placementCount ?? 0);
+  const projectedPct = placementCount > 0 ? (projectedRunning / placementCount * 100) : null;
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Daily Mortality Records</h3><Button size="sm" onClick={() => openAdd({ mortalityCount: "0", culledCount: "0" })}><Plus className="w-4 h-4 mr-1" />Log Mortality</Button></div>
@@ -418,16 +430,47 @@ function MortalityTab({ farmId }: { farmId: number }) {
         { key: "flockNumber", label: "Flock", fmt: fmtFlock },
         { key: "mortalityCount", label: "Deaths" },
         { key: "culledCount", label: "Culled" },
-        { key: "mortalityPercentage", label: "% Running" },
+        { key: "runningTotalMortality", label: "Running Total" },
+        { key: "mortalityPercentage", label: "Mortality %", fmt: r => r.mortalityPercentage ? `${Number(r.mortalityPercentage).toFixed(2)}%` : "—" },
         { key: "mainCause", label: "Main Cause" },
-      ]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+      ]} rows={recordsList} onEdit={r => openEdit(r)} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader><DialogTitle>Daily Mortality</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Date *</Label><Input type="date" value={String(form.recordDate ?? "")} onChange={e => setForm(f => ({ ...f, recordDate: e.target.value }))} /></div>
             <div><Label>Flock *</Label><FlockSelect flocks={flocks} value={String(form.flockId ?? "")} onChange={v => setForm(f => ({ ...f, flockId: v }))} /></div>
-            {[["mortalityCount", "Deaths *"], ["culledCount", "Culled *"], ["runningTotalMortality", "Running Total"], ["mortalityPercentage", "Mortality %"]].map(([k, l]) => <div key={k}><Label>{l}</Label><Input type="number" step="0.01" value={String(form[k] ?? "")} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} /></div>)}
+            <div><Label>Deaths *</Label><Input type="number" min="0" value={String(form.mortalityCount ?? "0")} onChange={e => setForm(f => ({ ...f, mortalityCount: e.target.value }))} /></div>
+            <div><Label>Culled *</Label><Input type="number" min="0" value={String(form.culledCount ?? "0")} onChange={e => setForm(f => ({ ...f, culledCount: e.target.value }))} /></div>
+            {form.flockId && (
+              <div className="col-span-2 rounded-lg border bg-muted/40 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">After this entry is saved</p>
+                <div className="grid grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <p className="text-muted-foreground">Today's losses</p>
+                    <p className="font-semibold">{todayTotal} birds</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Running total</p>
+                    <p className="font-semibold">{projectedRunning.toLocaleString()} birds</p>
+                  </div>
+                  {projectedPct !== null ? (
+                    <div>
+                      <p className="text-muted-foreground">Mortality %</p>
+                      <p className={`font-semibold ${projectedPct > 5 ? "text-red-600" : projectedPct > 3 ? "text-amber-600" : "text-green-700"}`}>
+                        {projectedPct.toFixed(2)}%
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-muted-foreground">Mortality %</p>
+                      <p className="text-muted-foreground text-xs">Set placement count on flock</p>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Running total and mortality % are calculated automatically — not editable.</p>
+              </div>
+            )}
             <div className="col-span-2"><Label>Main Cause</Label><Input value={String(form.mainCause ?? "")} onChange={e => setForm(f => ({ ...f, mainCause: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
