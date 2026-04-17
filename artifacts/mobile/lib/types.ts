@@ -1114,6 +1114,63 @@ export interface DiversificationRecord {
   synced: boolean;
 }
 
+export interface EquineHealthEventRecord {
+  id: string;
+  farmId: string;
+  horseName: string;
+  eventDate: string;
+  eventType: "vaccination" | "worming" | "farrier" | "dental" | "vet_visit" | "passport_check" | "other";
+  vetOrFarrierName: string;
+  treatmentGiven: string;
+  productUsed: string;
+  batchNumber: string;
+  nextDueDate: string;
+  cost: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface ShootingRecord {
+  id: string;
+  farmId: string;
+  shootDate: string;
+  shootType: "formal_driven" | "rough_shoot" | "walked_up" | "pigeon" | "wildfowl" | "other";
+  organiser: string;
+  numberOfGuns: string;
+  gamekeeperName: string;
+  bagsPheasant: string;
+  bagsPartridge: string;
+  bagsGrouse: string;
+  bagsDuck: string;
+  bagsWoodcock: string;
+  bagsOther: string;
+  totalBag: string;
+  gameDealer: string;
+  incomeLeaseFee: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface FoodHygieneInspectionRecord {
+  id: string;
+  farmId: string;
+  relatesTo: string;
+  inspectionDate: string;
+  inspectionType: "local_authority_routine" | "allergen_compliance" | "haccp_audit" | "red_tractor" | "self_audit" | "other";
+  inspectorName: string;
+  inspectorOrganisation: string;
+  hygieneRating: string;
+  reinspectionRequired: boolean;
+  reinspectionDate: string;
+  findingsSummary: string;
+  correctiveActions: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface StaffTrainingRecord {
   id: string;
   farmId: string;
