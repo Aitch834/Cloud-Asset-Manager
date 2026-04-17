@@ -50,6 +50,16 @@ import {
   serviceInvoicesTable,
   serviceInvoiceLinesTable,
 } from "@workspace/db/schema";
+import {
+  poultryHousesTable, poultryFlocksTable, poultryDailyMortalityTable, poultryTreatmentsTable,
+  poultryHouseCleanoutsTable, poultryEnvironmentalLogsTable, poultryFciDocumentsTable,
+  poultryBroilerWelfareTable, poultryThinningRecordsTable, poultryBiosecurityChecklistTable,
+  poultrySchemeRecordsTable,
+  pigFlocksTable, pigMovementsTable, pigFciDocumentsTable, pigFeedConsumptionTable,
+  pigVetAssessmentsTable, pigStockmanshipChecksTable, pigTailBitingRisksTable,
+  pigFarrowingRecordsTable, pigMedicineTreatmentsTable, pigRedTractorChecklistTable,
+  pigKillRecordsTable,
+} from "@workspace/db/schema";
 import { eq, inArray, and } from "drizzle-orm";
 
 const yr = new Date().getFullYear();
@@ -129,6 +139,8 @@ export async function seedDemoData() {
   await seedCropTrials(farmId);
   await seedAdvisors(farmId);
   await seedFeedCompliance(farmId);
+  await seedPoultry(farmId);
+  await seedPigs(farmId);
 
   console.log("[DEMO SEED] ✅ Complete. Demo data ready for farmId:", farmId);
 }
@@ -1263,4 +1275,592 @@ async function seedFeedCompliance(farmId: number) {
   } else {
     console.log("[DEMO SEED] Farm services already seeded — skipping");
   }
+}
+
+// ─── POULTRY PRODUCTION ───────────────────────────────────────────────────────
+async function seedPoultry(farmId: number) {
+  const existing = await db.select().from(poultryHousesTable).where(eq(poultryHousesTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) { console.log("[DEMO SEED] Poultry already seeded — skipping"); return; }
+
+  // Today reference for relative dates
+  const today = new Date();
+  const ago = (days: number) => { const dt = new Date(today); dt.setDate(dt.getDate() - days); return dt.toISOString().slice(0, 10); };
+  const fwd = (days: number) => { const dt = new Date(today); dt.setDate(dt.getDate() + days); return dt.toISOString().slice(0, 10); };
+
+  // ── Houses ─────────────────────────────────────────────────────────────────
+  const [house1, house2] = await db.insert(poultryHousesTable).values([
+    {
+      farmId, houseName: "Broiler House 1", houseType: "broiler", species: "broiler_chicken",
+      productionSystem: "indoor_intensive", approvedCapacity: 40000,
+      lengthM: "120.0", widthM: "18.0", ventilationType: "tunnel",
+      waterSystem: "nipple_drinker", notes: "East side of yard. Feed silos B1/B2. Tunnel-ventilated with 24 fans.",
+    },
+    {
+      farmId, houseName: "Broiler House 2", houseType: "broiler", species: "broiler_chicken",
+      productionSystem: "indoor_intensive", approvedCapacity: 40000,
+      lengthM: "120.0", widthM: "18.0", ventilationType: "tunnel",
+      waterSystem: "nipple_drinker", notes: "West side of yard. Feed silos B3/B4. Replaced 2022.",
+    },
+  ]).returning();
+
+  // ── Flocks ─────────────────────────────────────────────────────────────────
+  // Flock A — completed 28 days ago in House 1
+  const [flockA] = await db.insert(poultryFlocksTable).values({
+    farmId, houseId: house1!.id,
+    flockNumber: `HF-BH1-${prevYr}-07`,
+    species: "broiler_chicken", breed: "Ross 308", productionSystem: "indoor_intensive",
+    placementDate: ago(70), placementCount: 39800,
+    hatcheryName: "Cobb-Vantress Hatchery, Telford",
+    hatcheryApprovalNumber: "GB-H-2341",
+    status: "completed",
+    depletionDate: ago(28), depletionCount: 39125, depletionReason: "final_clear",
+    notes: "Good flock. Footpad dermatitis minor. Minor ammonia spike week 4 — fans adjusted.",
+  }).returning();
+
+  // Flock B — active, placed 23 days ago in House 2
+  const [flockB] = await db.insert(poultryFlocksTable).values({
+    farmId, houseId: house2!.id,
+    flockNumber: `HF-BH2-${yr}-01`,
+    species: "broiler_chicken", breed: "Ross 308", productionSystem: "indoor_intensive",
+    placementDate: ago(23), placementCount: 40000,
+    hatcheryName: "Cobb-Vantress Hatchery, Telford",
+    hatcheryApprovalNumber: "GB-H-2341",
+    status: "active",
+    notes: "Current crop. Day 23. Growth on track.",
+  }).returning();
+
+  // ── Daily Mortality — Flock A (days 1–42, sampled) ────────────────────────
+  const mortalityA = [];
+  for (let day = 1; day <= 42; day++) {
+    const base = day <= 5 ? 12 : day <= 14 ? 5 : day <= 28 ? 3 : 2;
+    const count = Math.max(0, base + Math.floor(Math.random() * 3 - 1));
+    const running = Math.min(day * base, 320);
+    mortalityA.push({
+      farmId, flockId: flockA!.id,
+      recordDate: ago(70 - day),
+      mortalityCount: count, culledCount: day === 8 ? 2 : 0,
+      runningTotalMortality: running,
+      mortalityPercentage: String((running / 39800 * 100).toFixed(2)),
+      mainCause: day <= 5 ? "transit_stress" : "no_obvious_cause",
+    });
+  }
+  await db.insert(poultryDailyMortalityTable).values(mortalityA);
+
+  // Daily mortality — Flock B (last 23 days active)
+  const mortalityB = [];
+  for (let day = 1; day <= 23; day++) {
+    const count = day <= 3 ? 8 : day <= 7 ? 4 : 2;
+    const running = 8 * 3 + 4 * 4 + (Math.max(0, day - 7)) * 2;
+    mortalityB.push({
+      farmId, flockId: flockB!.id,
+      recordDate: ago(23 - day),
+      mortalityCount: count, culledCount: 0,
+      runningTotalMortality: running,
+      mortalityPercentage: String((running / 40000 * 100).toFixed(2)),
+      mainCause: day <= 3 ? "transit_stress" : "no_obvious_cause",
+    });
+  }
+  await db.insert(poultryDailyMortalityTable).values(mortalityB);
+
+  // ── Treatments ─────────────────────────────────────────────────────────────
+  // Flock A — Amoxicillin course (completed, withdrawal clear)
+  await db.insert(poultryTreatmentsTable).values([
+    {
+      farmId, flockId: flockA!.id,
+      treatmentDate: ago(58),
+      numberOfBirdsTreated: 39800, productName: "Amoxinsol 500 mg/g Oral Powder",
+      activeIngredient: "Amoxicillin trihydrate", condition: "Respiratory disease (suspected E. coli)",
+      routeOfAdministration: "oral_water", doseRate: "15 mg/kg/day",
+      durationDays: 5, batchNumber: "AX240318",
+      expiryDate: `${yr + 1}-03-18`,
+      administeredBy: "Tom Bradley", prescribingVetName: "Dr. Richard Holloway",
+      prescribingVetPractice: "Sleaford Poultry Vets", prescriptionObtained: true,
+      withdrawalPeriodDays: 2, withdrawalClearDate: ago(53),
+      notes: "Treatment started day 13 of crop. Good response — mortality reduced within 48h.",
+    },
+    {
+      farmId, flockId: flockB!.id,
+      treatmentDate: ago(5),
+      numberOfBirdsTreated: 40000, productName: "Tylan Soluble (Tylosin)",
+      activeIngredient: "Tylosin tartrate", condition: "Mycoplasma — routine prophylactic pulse",
+      routeOfAdministration: "oral_water", doseRate: "500 mg/l drinking water",
+      durationDays: 3, batchNumber: "TY250109",
+      expiryDate: `${yr + 1}-01-09`,
+      administeredBy: "James Barnett", prescribingVetName: "Dr. Richard Holloway",
+      prescribingVetPractice: "Sleaford Poultry Vets", prescriptionObtained: true,
+      withdrawalPeriodDays: 5, withdrawalClearDate: fwd(0),
+      notes: "Day 18 pulse per veterinary health plan protocol.",
+    },
+  ]);
+
+  // ── House Cleanout — Flock A ───────────────────────────────────────────────
+  const [cleanoutA] = await db.insert(poultryHouseCleanoutsTable).values({
+    farmId, houseId: house1!.id, flockId: flockA!.id,
+    cleanoutStartDate: ago(27), cleanoutEndDate: ago(22),
+    litterRemovalDate: ago(27),
+    disinfectantUsed: "Virkon S", disinfectantSupplier: "Lanxess Biosecurity",
+    disinfectantApprovalNumber: "UK-BA-2019-0012",
+    applicationMethod: "fogging_and_manual_spray", contactTimeMins: 30,
+    swabsTaken: true, swabResults: "Salmonella negative. Campylobacter negative.",
+    standingTimeDays: 14, completedBy: "Tom Bradley",
+    notes: "Full clean between flocks. 14-day standdown ahead of new placement.",
+  }).returning();
+
+  // ── Environmental Logs — Flock B (last 14 days) ───────────────────────────
+  const envLogs = [];
+  for (let d2 = 14; d2 >= 1; d2--) {
+    const age = 23 - d2;
+    const targetTemp = age < 7 ? 32 : age < 14 ? 28 : 24;
+    envLogs.push({
+      farmId, flockId: flockB!.id,
+      logDate: ago(d2), logTime: "07:00",
+      temperatureMin: String((targetTemp - 1.2).toFixed(1)),
+      temperatureMax: String((targetTemp + 1.5).toFixed(1)),
+      humidity: String((65 + Math.random() * 10 - 5).toFixed(1)),
+      co2Ppm: 1200 + Math.floor(Math.random() * 400),
+      ammoniaPpm: String((d2 > 10 ? 6.5 : d2 > 5 ? 9.2 : 11.4).toFixed(1)),
+      ventilationRate: age < 7 ? "minimum" : "stepped_25pct",
+      lightingHours: String(age < 3 ? 23 : 18),
+      stockingDensity: String((40000 * 2.1 / (120 * 18)).toFixed(2)),
+      alarmActivated: false,
+    });
+  }
+  await db.insert(poultryEnvironmentalLogsTable).values(envLogs);
+
+  // ── FCI Documents — Flock A ───────────────────────────────────────────────
+  // First thinning FCI
+  await db.insert(poultryFciDocumentsTable).values([
+    {
+      farmId, flockId: flockA!.id,
+      documentDate: ago(39), catchingDate: ago(38),
+      destinationAbattoir: "2 Sisters Food Group, Scunthorpe",
+      numberOfBirds: 14000, catchingContractor: "Lincs Catching Services Ltd",
+      anyDiseaseOrCondition: false, medicationsLast7Days: false,
+      withdrawalPeriodClear: true, lastFeedWithdrawalHours: 10,
+      signedByFarmer: true,
+      notes: "First thinning. 14,000 birds @ ~2.0kg target. Feed withdrawn 22:00 day prior.",
+    },
+    {
+      farmId, flockId: flockA!.id,
+      documentDate: ago(28), catchingDate: ago(28),
+      destinationAbattoir: "2 Sisters Food Group, Scunthorpe",
+      numberOfBirds: 25125, catchingContractor: "Lincs Catching Services Ltd",
+      anyDiseaseOrCondition: false, medicationsLast7Days: false,
+      withdrawalPeriodClear: true, lastFeedWithdrawalHours: 12,
+      signedByFarmer: true,
+      notes: "Final clear. Remaining birds 25,125. Good grade-out reported by processor.",
+    },
+  ]);
+
+  // ── Broiler Welfare (BWI) ──────────────────────────────────────────────────
+  await db.insert(poultryBroilerWelfareTable).values([
+    {
+      farmId, flockId: flockA!.id,
+      assessmentDate: ago(32), assessedBy: "James Barnett",
+      ageAtAssessmentDays: 38, sampleSize: 100,
+      footpadDermatitisScore: "Score 1", footpadDermatitisPercent: "12.0",
+      hockBurnScore: "Score 0", hockBurnPercent: "4.0",
+      gaitScore: "Score 0-1", breastBlisterPercent: "2.0",
+      plumageScore: "Good", soiledPlumagePercent: "6.0",
+      overallOutcome: "Pass — Minor Footpad Dermatitis",
+      actionsTaken: "Increased litter management frequency. Extra drinker checks.",
+      notes: "Below trigger threshold. No corrective action required. Monitoring continues.",
+    },
+  ]);
+
+  // ── Thinning Records — Flock A ────────────────────────────────────────────
+  await db.insert(poultryThinningRecordsTable).values([
+    {
+      farmId, flockId: flockA!.id,
+      thinningDate: ago(38), thinningNumber: 1, birdsRemoved: 14000,
+      targetLiveWeightKg: "2.00", averageLiveWeightKg: "2.02",
+      destinationAbattoir: "2 Sisters Food Group, Scunthorpe",
+      catchingContractorName: "Lincs Catching Services Ltd",
+      catchingStartTime: "01:00", catchingEndTime: "04:30",
+      doasAtLoading: 3, transportVehicleReg: "YX22 DTK",
+      catchingConditions: "calm", notes: "Night catch. Birds settled well. 3 DOAs at loading.",
+    },
+  ]);
+
+  // ── Biosecurity Checklist — Flock A Cleanout ──────────────────────────────
+  await db.insert(poultryBiosecurityChecklistTable).values({
+    farmId, houseId: house1!.id, previousFlockId: flockA!.id,
+    cleanoutStartDate: ago(27), cleanoutEndDate: ago(22),
+    downtimeDays: 14,
+    catchingComplete: true, litterRemoved: true,
+    litterDisposalMethod: "land_spread_with_FACTS_advice",
+    dryCleanComplete: true, washComplete: true,
+    disinfectionComplete: true, disinfectantUsed: "Virkon S",
+    disinfectantApproved: true, disinfectantDilutionRate: "1:100",
+    fumigationComplete: false, verminControlComplete: true,
+    verminControlDetails: "Rodenticide bait stations replenished. No evidence of activity.",
+    waterSystemFlushComplete: true, waterSystemDisinfected: true,
+    feedSystemCleaned: true, ventilationChecked: true, heatingChecked: true,
+    footbathsInstalled: true, vehicleRestrictions: true,
+    visitorLogInPlace: true, independentAuditCompleted: false,
+    overallComplianceStatus: "complete",
+    schemeCertificationScheme: "Red Tractor Poultry",
+    completedBy: "Tom Bradley",
+    notes: "Full cleanout protocol completed. Swab results negative. House ready for restock.",
+  });
+
+  // ── Scheme Records ────────────────────────────────────────────────────────
+  await db.insert(poultrySchemeRecordsTable).values([
+    {
+      farmId,
+      scheme: "Red Tractor Poultry Assurance",
+      certificateNumber: "RT-P-2024-18847",
+      assessmentDate: ago(180),
+      assessorName: "Martin Webb",
+      assessorOrganisation: "NSF Red Tractor",
+      outcomeStatus: "pass",
+      nonConformancesCount: 1,
+      nonConformanceDetails: "NC-01: Stockmanship check records incomplete for 3 days in March.",
+      correctiveActionRequired: true,
+      correctiveActionDeadline: ago(150),
+      correctiveActionNotes: "Daily stockmanship log template printed and pinned in porch. Resolved.",
+      nextAssessmentDue: fwd(185),
+      documentReference: "RT-P-2024-18847-CERT",
+      notes: "Passed. One minor NC on stockmanship records. Corrective action confirmed by assessor.",
+    },
+    {
+      farmId,
+      scheme: "RSPCA Assured (formerly Freedom Food)",
+      certificateNumber: "RA-2024-34129",
+      assessmentDate: ago(245),
+      assessorName: "Helen Rycroft",
+      assessorOrganisation: "RSPCA Assured",
+      outcomeStatus: "pass",
+      nonConformancesCount: 0,
+      correctiveActionRequired: false,
+      nextAssessmentDue: fwd(120),
+      notes: "Clean pass. Assessor noted good enrichment provision and litter management.",
+    },
+  ]);
+
+  console.log("[DEMO SEED] Poultry production seeded — 2 houses, 2 flocks, mortality, treatments, BWI, cleanouts, biosecurity, scheme records");
+}
+
+// ─── PIG PRODUCTION ───────────────────────────────────────────────────────────
+async function seedPigs(farmId: number) {
+  const existing = await db.select().from(pigFlocksTable).where(eq(pigFlocksTable.farmId, farmId)).limit(1);
+  if (existing.length > 0) { console.log("[DEMO SEED] Pigs already seeded — skipping"); return; }
+
+  const today = new Date();
+  const ago = (days: number) => { const dt = new Date(today); dt.setDate(dt.getDate() - days); return dt.toISOString().slice(0, 10); };
+  const fwd = (days: number) => { const dt = new Date(today); dt.setDate(dt.getDate() + days); return dt.toISOString().slice(0, 10); };
+
+  // ── Pig Groups / Flocks ───────────────────────────────────────────────────
+  const [sowGroup, weanerGroup, finisherGroup] = await db.insert(pigFlocksTable).values([
+    {
+      farmId, flockName: "Sow Herd — Main Unit",
+      productionType: "breeding_sows", breed: "Large White × Landrace",
+      cphNumber: "30/215/0042", herdNumber: "UK302150042",
+      currentCount: 182, location: "Farrowing Suite & Dry Sow House",
+      notes: "180-sow farrow-to-finish unit. AI programme with JSR Genetics. Approx 2.4 litters/sow/year.",
+    },
+    {
+      farmId, flockName: "Weaner Pen Group — Block A",
+      productionType: "weaners", breed: "Large White × Landrace × Duroc",
+      cphNumber: "30/215/0042", herdNumber: "UK302150042",
+      currentCount: 284, location: "Weaner House — Block A (6–12 weeks)",
+      notes: "Post-weaning group. Weaned at 28 days. Target 30kg by week 12.",
+    },
+    {
+      farmId, flockName: "Finisher Pen Group — Block B",
+      productionType: "finishers", breed: "Large White × Landrace × Duroc",
+      cphNumber: "30/215/0042", herdNumber: "UK302150042",
+      currentCount: 380, location: "Finisher House — Block B (12–24 weeks)",
+      notes: "Finishing group. Target 100–105kg deadweight. SPP scheme via Cranswick.",
+    },
+  ]).returning();
+
+  // ── Pig Movements ─────────────────────────────────────────────────────────
+  const [mov1, mov2] = await db.insert(pigMovementsTable).values([
+    {
+      farmId, movementDate: ago(42),
+      movementType: "on", fromLocation: "JSR Genetics Breeding Unit",
+      toLocation: "Highfield Farm — Weaner House Block A",
+      fromCph: "30/198/0017", toCph: "30/215/0042",
+      numberOfAnimals: 284,
+      eaml2Reference: `EAML2-${yr}-0421`,
+      transporterName: "Lincolnshire Livestock Transport",
+      vehicleRegistration: "FJ22 PLK",
+      cleaningDeclaration: true,
+      notes: "Delivery of weaner batch from JSR. All animals healthy on arrival. No casualties in transit.",
+    },
+    {
+      farmId, movementDate: ago(7),
+      movementType: "off", fromLocation: "Highfield Farm — Finisher House Block B",
+      toLocation: "Cranswick Country Foods, Malton",
+      fromCph: "30/215/0042", toCph: "abattoir",
+      numberOfAnimals: 180,
+      eaml2Reference: `EAML2-${yr}-0587`,
+      transporterName: "Lincolnshire Livestock Transport",
+      vehicleRegistration: "FJ22 PLK",
+      cleaningDeclaration: true,
+      notes: "First draft of finisher batch. 180 pigs @ ~104kg estimated. No withdrawal issues.",
+    },
+  ]).returning();
+
+  // ── FCI Documents ─────────────────────────────────────────────────────────
+  await db.insert(pigFciDocumentsTable).values({
+    farmId, movementId: mov2!.id,
+    documentDate: ago(8), batchReference: `FCI-${yr}-0587`,
+    destinationAbattoir: "Cranswick Country Foods, Malton",
+    numberOfPigs: 180,
+    veterinaryMedicinesLast60Days: true,
+    medicineDetails: "Tylan 200 — administered day 38 of finishing period. Withdrawal clear.",
+    withdrawalPeriodClear: true,
+    feedWithdrawalHours: 12,
+    lambnessCasualtyStatus: "no_casualties",
+    signedByFarmer: true,
+    notes: "Signed by James Barnett. All records reviewed. No health concerns. FCI filed with haulier.",
+  });
+
+  // ── Feed Consumption — last 14 days ──────────────────────────────────────
+  const feedEntries = [];
+  for (let d2 = 14; d2 >= 1; d2--) {
+    feedEntries.push({
+      farmId, consumptionDate: ago(d2),
+      penName: "Finisher Block B", feedType: "Finisher Pellet (16% CP, 13.5 MJ/kg DE)",
+      quantityKg: String((380 * 2.4 + Math.random() * 20 - 10).toFixed(1)),
+      batchLotNumber: "FEED-2026-0312-B",
+      appliedToFlockId: finisherGroup!.id,
+    });
+    feedEntries.push({
+      farmId, consumptionDate: ago(d2),
+      penName: "Weaner Block A", feedType: "Weaner Meal (20% CP, 14.0 MJ/kg DE)",
+      quantityKg: String((284 * 0.9 + Math.random() * 10 - 5).toFixed(1)),
+      batchLotNumber: "FEED-2026-0198-W",
+      appliedToFlockId: weanerGroup!.id,
+    });
+    feedEntries.push({
+      farmId, consumptionDate: ago(d2),
+      penName: "Sow & Farrowing Suite", feedType: "Sow Lactation Nuts (17% CP)",
+      quantityKg: String((182 * 2.8 + Math.random() * 15 - 7).toFixed(1)),
+      batchLotNumber: "FEED-2026-0201-S",
+      appliedToFlockId: sowGroup!.id,
+    });
+  }
+  await db.insert(pigFeedConsumptionTable).values(feedEntries);
+
+  // ── Vet Assessment ────────────────────────────────────────────────────────
+  await db.insert(pigVetAssessmentsTable).values([
+    {
+      farmId, assessmentDate: ago(28),
+      vetName: "Dr. Sarah Baines BVSc MRCVS",
+      practiceName: "Meadow Veterinary Practice, Grantham",
+      flockId: finisherGroup!.id,
+      bodyConditionScore: "3.2",
+      lameness: "minimal — 2 pigs with mild gait issues identified, separated",
+      respiratoryHealth: "good — no coughing or nasal discharge observed",
+      skinCondition: "good — minor scratching on 3 finishers, no mange suspected",
+      tailBiting: "low — minor pen A3 damage, straw increased",
+      mortalityRate: "0.42",
+      findings: "Herd in generally good health. Minimal respiratory challenge. BCS consistent across sow group. Recommend increasing enrichment in finisher block B pen A3.",
+      recommendations: "1. Increase straw provision in pen A3 daily. 2. Continue Tylan pulse at day 38 per HHP. 3. Monitor 2 lame finishers — separate if worsening. 4. Review ventilation settings as temps rise in May.",
+      nextReviewDate: fwd(60),
+    },
+  ]);
+
+  // ── Stockmanship Checks — last 14 days ───────────────────────────────────
+  const stockChecks = [];
+  for (let d2 = 14; d2 >= 1; d2--) {
+    const hasMortality = d2 === 9;
+    stockChecks.push({
+      farmId, checkDate: ago(d2),
+      checkedBy: d2 % 3 === 0 ? "Tom Bradley" : "James Barnett",
+      flockId: finisherGroup!.id,
+      mortalitiesFound: hasMortality ? 1 : 0,
+      injuredFound: 0,
+      waterSystemOk: true, feedSystemOk: true, ventilationOk: true,
+      temperatureOk: true, lightingOk: true, beddingOk: true,
+      overallWelfare: "good",
+      actionsRequired: hasMortality ? "1 finisher found dead in pen B7. Likely twisted gut. Carcass removed and recorded." : null,
+    });
+  }
+  await db.insert(pigStockmanshipChecksTable).values(stockChecks);
+
+  // ── Tail Biting Risk Assessments ──────────────────────────────────────────
+  await db.insert(pigTailBitingRisksTable).values([
+    {
+      farmId, assessmentDate: ago(90),
+      assessedBy: "James Barnett", flockId: finisherGroup!.id,
+      riskLevel: "low",
+      tailsDockedAtBirth: false, tailLengthAdequate: true,
+      stockingDensityOk: true, enrichmentProvided: true,
+      enrichmentTypes: "Straw in racks, hanging chains, mineral lick, root vegetables twice weekly",
+      feedingSystemOk: true, healthStatusOk: true,
+      mixingFrequency: "once_at_weaning_only",
+      currentBiting: false, bitingLevel: null,
+      monitoringFrequency: "daily",
+      reviewDate: fwd(90),
+      notes: "Routine quarterly assessment. Low risk maintained. Good enrichment provision.",
+    },
+    {
+      farmId, assessmentDate: ago(14),
+      assessedBy: "James Barnett", flockId: finisherGroup!.id,
+      riskLevel: "medium",
+      tailsDockedAtBirth: false, tailLengthAdequate: true,
+      stockingDensityOk: true, enrichmentProvided: true,
+      enrichmentTypes: "Straw, chains, jute sacks",
+      feedingSystemOk: true, healthStatusOk: true,
+      mixingFrequency: "stable_groups",
+      currentBiting: true, bitingLevel: "minor — pen A3 only",
+      interventionsTaken: "Extra straw added to pen A3. Chain enrichment moved. Identified and separated 1 biter. Area monitored twice daily.",
+      monitoringFrequency: "twice_daily_pen_A3",
+      reviewDate: ago(7),
+      notes: "Minor tail biting incident in pen A3. Triggered by temporary feed system issue (blocked trough, resolved). Responding well to intervention.",
+    },
+  ]);
+
+  // ── Farrowing Records ─────────────────────────────────────────────────────
+  await db.insert(pigFarrowingRecordsTable).values([
+    {
+      farmId, farrowingDate: ago(18), sowEarTag: "UK302150042-0042",
+      sowBreed: "Large White × Landrace", parityNumber: 3, flockId: sowGroup!.id,
+      totalBornAlive: 14, totalBornDead: 1, totalMummified: 0,
+      fostersIn: 1, fostersOut: 2, averageBirthWeightKg: "1.42",
+      weaningDate: fwd(10), pigletsWeanedCount: 12, averageWeaningWeightKg: "7.8",
+      farrowingEase: "normal", assistanceRequired: false, colostrumManaged: true,
+      notes: "Good litter. 1 stillborn (small/mummified). 2 piglets fostered to sow UK042 who had 11 born.",
+    },
+    {
+      farmId, farrowingDate: ago(16), sowEarTag: "UK302150042-0071",
+      sowBreed: "Large White × Landrace", parityNumber: 5, flockId: sowGroup!.id,
+      totalBornAlive: 16, totalBornDead: 2, totalMummified: 1,
+      fostersIn: 0, fostersOut: 4, averageBirthWeightKg: "1.35",
+      weaningDate: fwd(12), pigletsWeanedCount: 11, averageWeaningWeightKg: "8.1",
+      farrowingEase: "normal", assistanceRequired: false, colostrumManaged: true,
+      notes: "Large litter — fostered 4 piglets. Good milking sow.",
+    },
+    {
+      farmId, farrowingDate: ago(12), sowEarTag: "UK302150042-0103",
+      sowBreed: "Large White × Landrace", parityNumber: 2, flockId: sowGroup!.id,
+      totalBornAlive: 11, totalBornDead: 0, totalMummified: 0,
+      fostersIn: 2, fostersOut: 0, averageBirthWeightKg: "1.51",
+      weaningDate: fwd(16), pigletsWeanedCount: 13,
+      farrowingEase: "difficult", assistanceRequired: true,
+      assistanceDetails: "Posterior presentation. Vet called — assisted delivery. Sow and piglets healthy post-farrowing.",
+      colostrumManaged: true,
+      notes: "Second parity. Assisted farrowing. Vet on-farm within 45 mins. Good outcome.",
+    },
+    {
+      farmId, farrowingDate: ago(4), sowEarTag: "UK302150042-0058",
+      sowBreed: "Large White × Landrace", parityNumber: 4, flockId: sowGroup!.id,
+      totalBornAlive: 13, totalBornDead: 1, totalMummified: 0,
+      fostersIn: 0, fostersOut: 0, averageBirthWeightKg: "1.48",
+      farrowingEase: "normal", assistanceRequired: false, colostrumManaged: true,
+      notes: "Recent farrowing. Piglets active and nursing well.",
+    },
+  ]);
+
+  // ── Medicine Treatments ────────────────────────────────────────────────────
+  await db.insert(pigMedicineTreatmentsTable).values([
+    {
+      farmId, treatmentDate: ago(45), flockId: finisherGroup!.id,
+      batchOrPenRef: "Finisher Pen B4–B6",
+      numberOfAnimals: 60, medicineProductName: "Tylan 200 (Tylosin)",
+      activeIngredient: "Tylosin", manufacturer: "Elanco",
+      productBatchNumber: "TY250112", expiryDate: `${yr + 1}-01-12`,
+      administrationRoute: "intramuscular_injection",
+      quantityUsed: "180", unitOfMeasure: "ml",
+      diagnosisReason: "Enzootic pneumonia — coughing observed in pen B4-B6. Vet-directed.",
+      prescribingVetName: "Dr. Sarah Baines", prescribingVetPractice: "Meadow Veterinary Practice",
+      prescriptionObtained: true, administeredBy: "James Barnett",
+      withdrawalPeriodMeatDays: 28, withdrawalEndDate: ago(17),
+      notes: "Pens B4-B6 treated over 3 days. Good response. Coughing resolved by day 5.",
+    },
+    {
+      farmId, treatmentDate: ago(6), flockId: sowGroup!.id,
+      batchOrPenRef: "Farrowing Pen F3",
+      numberOfAnimals: 1, medicineProductName: "Metricure (Cefapirin)",
+      activeIngredient: "Cefapirin benzathine", manufacturer: "MSD Animal Health",
+      productBatchNumber: "MC250205", expiryDate: `${yr + 1}-02-05`,
+      administrationRoute: "intrauterine",
+      quantityUsed: "19", unitOfMeasure: "ml",
+      diagnosisReason: "Post-farrowing uterine infection (metritis) — sow UK302150042-0103",
+      prescribingVetName: "Dr. Sarah Baines", prescribingVetPractice: "Meadow Veterinary Practice",
+      prescriptionObtained: true, administeredBy: "James Barnett",
+      withdrawalPeriodMeatDays: 10, withdrawalEndDate: fwd(4),
+      notes: "Sow in pen F3. Single dose. Sow recovering well. Withdrawal period extends to slaughter clearance.",
+    },
+  ]);
+
+  // ── Red Tractor Pig Checklist ─────────────────────────────────────────────
+  await db.insert(pigRedTractorChecklistTable).values({
+    farmId, assessmentDate: ago(155),
+    assessorName: "David Hardwick",
+    assessorOrganisation: "NSF Red Tractor",
+    certificateNumber: "RT-PIG-2025-04421",
+    certificateExpiryDate: fwd(210),
+    animalWelfarePlanInPlace: true, vetVisitRecordsComplete: true,
+    medicineRecordsComplete: true, feedRecordsComplete: true,
+    movementRecordsComplete: true, biosecurityPlanInPlace: true,
+    waterQualityTested: true, manureManagementPlan: true,
+    tailBitingRiskAssessment: true, enrichmentProvided: true,
+    muckspreaderCalibrated: true, staffTrainingRecords: true,
+    staffCompetencyAssessed: true, houseConditionAdequate: true,
+    lightingCompliant: true, spaceAllowanceCompliant: true,
+    feedSystemCompliant: true, mortalityRecordsComplete: true,
+    abattoirFeedbackActedOn: true, eaml2RecordsComplete: true,
+    overallStatus: "pass",
+    nonConformancesCount: 1,
+    nonConformanceDetails: "NC-01: Tail biting risk assessment records gap Jan–Feb 2025 (2 months). Corrective action: monthly assessments now documented on farm calendar.",
+    correctiveActionDeadline: ago(125),
+    nextAssessmentDue: fwd(210),
+    notes: "Passed. Clean farm, good welfare ethos. One minor NC on tail biting records frequency. All other areas fully compliant.",
+  });
+
+  // ── Pig Kill Records (previous batches) ───────────────────────────────────
+  await db.insert(pigKillRecordsTable).values([
+    {
+      farmId, killDate: new Date(`${prevYr}-10-14`),
+      processor: "Cranswick Country Foods, Malton", headCount: 200,
+      totalDeadweightKg: "20860.00", averageDeadweightKg: "104.30",
+      pricePerKgPence: 218, grossValuePence: 4547480, levelDeductionPence: 40000,
+      transportDeductionPence: 18000, otherDeductionsPence: 5000,
+      netPaymentPence: 4484480, paymentDate: new Date(`${prevYr}-10-28`),
+      averageP2BackfatMm: "10.2", averageMuscleDepthMm: "64.0",
+      leanMeatPct: "57.40", gradeOut: "R",
+      sppPriceKgPence: 215, sppVariancePence: 57580,
+      killSheetRef: `CRW-${prevYr}-8842`,
+      herdMark: "UK302150042",
+      premiumScheme: "Red Tractor", premiumPence: 42000,
+      notes: "Good kill. Majority graded R. 8 pigs graded O. P2 average 10.2mm — good lean.",
+    },
+    {
+      farmId, killDate: new Date(`${prevYr}-12-09`),
+      processor: "Cranswick Country Foods, Malton", headCount: 190,
+      totalDeadweightKg: "19418.00", averageDeadweightKg: "102.20",
+      pricePerKgPence: 214, grossValuePence: 4155452, levelDeductionPence: 38000,
+      transportDeductionPence: 18000, otherDeductionsPence: 0,
+      netPaymentPence: 4099452, paymentDate: new Date(`${prevYr}-12-23`),
+      averageP2BackfatMm: "11.1", averageMuscleDepthMm: "62.5",
+      leanMeatPct: "56.80", gradeOut: "R",
+      sppPriceKgPence: 210, sppVariancePence: 77520,
+      killSheetRef: `CRW-${prevYr}-9301`,
+      herdMark: "UK302150042",
+      premiumScheme: "Red Tractor", premiumPence: 38000,
+      notes: "Pre-Christmas kill. Slightly heavier — a few pigs graded O. Still profitable.",
+    },
+    {
+      farmId, killDate: new Date(ago(7)),
+      processor: "Cranswick Country Foods, Malton", headCount: 180,
+      totalDeadweightKg: "18846.00", averageDeadweightKg: "104.70",
+      pricePerKgPence: 221, grossValuePence: 4164966, levelDeductionPence: 36000,
+      transportDeductionPence: 18000, otherDeductionsPence: 0,
+      netPaymentPence: 4110966, paymentDate: new Date(fwd(14)),
+      averageP2BackfatMm: "9.8", averageMuscleDepthMm: "65.2",
+      leanMeatPct: "58.10", gradeOut: "R+",
+      sppPriceKgPence: 218, sppVariancePence: 55380,
+      killSheetRef: `CRW-${yr}-0587`,
+      herdMark: "UK302150042",
+      premiumScheme: "Red Tractor", premiumPence: 41400,
+      notes: "Most recent kill — awaiting payment. Best P2 result this year at 9.8mm. Excellent lean meat %.",
+    },
+  ]);
+
+  console.log("[DEMO SEED] Pig production seeded — 3 groups, movements, medicine, farrowing, feed, stockmanship, tail biting, vet, Red Tractor, 3 kill records");
 }
