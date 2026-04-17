@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,24 @@ import { Checkbox } from "@/components/ui/checkbox";
 const api = (path: string) => `/api/${path}`;
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]) {
+  if (!rows.length) return;
+  const header = cols.map(c => `"${c.label}"`).join(",");
+  const body = rows.map(r => cols.map(c => `"${String(c.fmt ? c.fmt(r) : (r[c.key] ?? "")).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([header + "\n" + body], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+}
+function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: "red" | "amber" | "green" }) {
+  const cls = color === "red" ? "text-red-600" : color === "amber" ? "text-amber-600" : color === "green" ? "text-green-700" : "text-foreground";
+  return (
+    <div className="bg-white rounded-lg border p-3 space-y-0.5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`text-xl font-bold ${cls}`}>{value}</p>
+      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
 function Empty({ msg }: { msg: string }) { return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>; }
 function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = "Confirm", confirmVariant = "default" }: { open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string; confirmVariant?: "default" | "destructive" }) {
   return (
@@ -422,9 +440,57 @@ function MortalityTab({ farmId }: { farmId: number }) {
   const placementCount = Number(selectedFlock?.placementCount ?? 0);
   const projectedPct = placementCount > 0 ? (projectedRunning / placementCount * 100) : null;
 
+  const totalDeaths = recordsList.reduce((s, r) => s + Number(r.mortalityCount ?? 0), 0);
+  const totalCulled = recordsList.reduce((s, r) => s + Number(r.culledCount ?? 0), 0);
+  const maxPct = recordsList.length ? Math.max(...recordsList.map(r => Number(r.mortalityPercentage ?? 0))) : 0;
+  const causeCounts: Record<string, number> = {};
+  recordsList.forEach(r => { if (r.mainCause) { const c = String(r.mainCause); causeCounts[c] = (causeCounts[c] ?? 0) + 1; } });
+  const topCause = Object.entries(causeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
+  const flockSummaryMap: Record<string, { label: string; deaths: number; culled: number; pct: number }> = {};
+  recordsList.forEach(r => {
+    const key = String(r.flockId ?? "?");
+    if (!flockSummaryMap[key]) flockSummaryMap[key] = { label: r.flockNumber ? `${r.flockNumber}${r.houseName ? ` · ${r.houseName}` : ""}` : key, deaths: 0, culled: 0, pct: 0 };
+    flockSummaryMap[key].deaths += Number(r.mortalityCount ?? 0);
+    flockSummaryMap[key].culled += Number(r.culledCount ?? 0);
+    flockSummaryMap[key].pct = Math.max(flockSummaryMap[key].pct, Number(r.mortalityPercentage ?? 0));
+  });
+  const flockSummary = Object.values(flockSummaryMap);
+  const csvCols = [
+    { key: "recordDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.recordDate) },
+    { key: "flockNumber", label: "Flock" }, { key: "houseName", label: "House" },
+    { key: "mortalityCount", label: "Deaths" }, { key: "culledCount", label: "Culled" },
+    { key: "runningTotalMortality", label: "Running Total" }, { key: "mortalityPercentage", label: "Mortality %" },
+    { key: "mainCause", label: "Main Cause" }, { key: "notes", label: "Notes" },
+  ];
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Daily Mortality Records</h3><Button size="sm" onClick={() => openAdd({ mortalityCount: "0", culledCount: "0" })}><Plus className="w-4 h-4 mr-1" />Log Mortality</Button></div>
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Daily Mortality Records</h3>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(recordsList, "mortality-records.csv", csvCols)} disabled={!recordsList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={() => openAdd({ mortalityCount: "0", culledCount: "0" })}><Plus className="w-4 h-4 mr-1" />Log Mortality</Button>
+        </div>
+      </div>
+      {!isLoading && recordsList.length > 0 && (
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+          <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Mortality Summary — All Records</p></div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="Total Deaths" value={totalDeaths.toLocaleString()} />
+            <StatCard label="Total Culled" value={totalCulled.toLocaleString()} />
+            <StatCard label="Highest Mortality %" value={`${maxPct.toFixed(2)}%`} color={maxPct > 5 ? "red" : maxPct > 3 ? "amber" : "green"} />
+            <StatCard label="Top Cause" value={topCause.split(" (")[0]} sub={topCause.includes("(") ? topCause.split("(")[1]?.replace(")", "") : undefined} />
+          </div>
+          {flockSummary.length > 1 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="border-b"><th className="text-left py-1.5 pr-4 text-muted-foreground font-medium">Flock</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Deaths</th><th className="text-right py-1.5 pr-4 text-muted-foreground font-medium">Culled</th><th className="text-right py-1.5 text-muted-foreground font-medium">Mortality %</th></tr></thead>
+                <tbody>{flockSummary.map((fs, i) => <tr key={i} className="border-b last:border-0"><td className="py-1.5 pr-4 font-medium">{fs.label}</td><td className="py-1.5 pr-4 text-right">{fs.deaths.toLocaleString()}</td><td className="py-1.5 pr-4 text-right">{fs.culled.toLocaleString()}</td><td className={`py-1.5 text-right font-semibold ${fs.pct > 5 ? "text-red-600" : fs.pct > 3 ? "text-amber-600" : "text-green-700"}`}>{fs.pct.toFixed(2)}%</td></tr>)}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
         { key: "recordDate", label: "Date", fmt: r => fmtDate(r.recordDate) },
         { key: "flockNumber", label: "Flock", fmt: fmtFlock },
@@ -563,6 +629,24 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
     });
   }
 
+  const inWithdrawal = records.filter(r => r.withdrawalClearDate && String(r.withdrawalClearDate) >= todayStr);
+  const pomvCount = records.filter(r => r.prescriptionObtained).length;
+  const medCounts: Record<string, number> = {};
+  records.forEach(r => { if (r.productName) { const n = String(r.productName); medCounts[n] = (medCounts[n] ?? 0) + 1; } });
+  const topMed = Object.entries(medCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
+  const tCsvCols = [
+    { key: "treatmentDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.treatmentDate) },
+    { key: "flockNumber", label: "Flock" }, { key: "houseName", label: "House" },
+    { key: "productName", label: "Product" }, { key: "activeIngredient", label: "Active Ingredient" },
+    { key: "condition", label: "Condition" }, { key: "routeOfAdministration", label: "Route" },
+    { key: "doseRate", label: "Dose Rate" }, { key: "durationDays", label: "Duration (days)" },
+    { key: "numberOfBirdsTreated", label: "Birds Treated" }, { key: "batchNumber", label: "Batch No." },
+    { key: "withdrawalPeriodDays", label: "Withdrawal (days)" }, { key: "withdrawalClearDate", label: "Clear Date", fmt: (r: Record<string, unknown>) => fmtDate(r.withdrawalClearDate) },
+    { key: "prescriptionObtained", label: "Rx Obtained", fmt: (r: Record<string, unknown>) => r.prescriptionObtained ? "Yes" : "No" },
+    { key: "prescribingVetName", label: "Vet Name" }, { key: "prescribingVetPractice", label: "Vet Practice" },
+    { key: "administeredBy", label: "Administered By" }, { key: "notes", label: "Notes" },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="p-3 rounded-lg border border-blue-100 bg-blue-50 flex items-start gap-2">
@@ -571,8 +655,38 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
       </div>
       <div className="flex justify-between items-center">
         <h3 className="font-semibold text-sm">Medication & Treatment Records</h3>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Treatment</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(records, "treatment-records.csv", tCsvCols)} disabled={!records.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Treatment</Button>
+        </div>
       </div>
+      {records.length > 0 && (
+        <div className="space-y-3">
+          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+            <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Treatment Summary</p></div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard label="Total Records" value={records.length} />
+              <StatCard label="In Withdrawal" value={inWithdrawal.length} color={inWithdrawal.length > 0 ? "amber" : "green"} sub={inWithdrawal.length > 0 ? "flocks cannot go to slaughter" : "all clear"} />
+              <StatCard label="POM-V Treatments" value={pomvCount} sub="require vet prescription" />
+              <StatCard label="Most Used Medicine" value={topMed.length > 20 ? topMed.slice(0, 18) + "…" : topMed} />
+            </div>
+          </div>
+          {inWithdrawal.length > 0 && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+              <div className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-600" /><p className="text-xs font-semibold text-amber-800">Active Withdrawal Periods — These flocks cannot be sent to slaughter yet</p></div>
+              <div className="space-y-1">
+                {inWithdrawal.map((r, i) => (
+                  <div key={i} className="flex justify-between items-center text-xs bg-white rounded border border-amber-200 px-3 py-1.5">
+                    <span className="font-medium">{r.flockNumber ? `Flock ${r.flockNumber}${r.houseName ? ` · ${r.houseName}` : ""}` : "—"}</span>
+                    <span className="text-muted-foreground">{String(r.productName ?? "—")}</span>
+                    <span className="text-amber-700 font-semibold">Clear: {fmtDate(r.withdrawalClearDate)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : records.length === 0 ? (
         <Empty msg="No treatment records yet. Log all medicines administered to your flocks, including over-the-counter and prescription products." />
       ) : (
@@ -754,9 +868,41 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
   const { data: rawHouses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
   const houses = rawHouses as Record<string, unknown>[];
   const { data: records, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-house-cleanouts", "poultry-cleanouts");
+  const coList = (records ?? []) as Record<string, unknown>[];
+  const avgStanding = coList.filter(r => r.standingTimeDays).length ? Math.round(coList.filter(r => r.standingTimeDays).reduce((s, r) => s + Number(r.standingTimeDays), 0) / coList.filter(r => r.standingTimeDays).length) : null;
+  const swabsTaken = coList.filter(r => r.swabsTaken).length;
+  const disinfCounts: Record<string, number> = {};
+  coList.forEach(r => { if (r.disinfectantUsed) { const d = String(r.disinfectantUsed); disinfCounts[d] = (disinfCounts[d] ?? 0) + 1; } });
+  const topDisinf = Object.entries(disinfCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
+  const coCsvCols = [
+    { key: "cleanoutStartDate", label: "Start Date", fmt: (r: Record<string, unknown>) => fmtDate(r.cleanoutStartDate) },
+    { key: "cleanoutEndDate", label: "End Date", fmt: (r: Record<string, unknown>) => fmtDate(r.cleanoutEndDate) },
+    { key: "houseName", label: "House" }, { key: "flockNumber", label: "Flock" },
+    { key: "disinfectantUsed", label: "Disinfectant" }, { key: "disinfectantApprovalNumber", label: "Approval No." },
+    { key: "contactTimeMins", label: "Contact Time (mins)" }, { key: "standingTimeDays", label: "Standing Time (days)" },
+    { key: "swabsTaken", label: "Swabs Taken", fmt: (r: Record<string, unknown>) => r.swabsTaken ? "Yes" : "No" },
+    { key: "swabResults", label: "Swab Results" }, { key: "completedBy", label: "Completed By" },
+  ];
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">House Cleanout & Disinfection Records</h3><Button size="sm" onClick={() => openAdd({ swabsTaken: false })}><Plus className="w-4 h-4 mr-1" />Add Cleanout</Button></div>
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">House Cleanout & Disinfection Records</h3>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(coList, "cleanout-records.csv", coCsvCols)} disabled={!coList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={() => openAdd({ swabsTaken: false })}><Plus className="w-4 h-4 mr-1" />Add Cleanout</Button>
+        </div>
+      </div>
+      {!isLoading && coList.length > 0 && (
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+          <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cleanout Summary</p></div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="Total Cleanouts" value={coList.length} />
+            <StatCard label="Avg Standing Time" value={avgStanding !== null ? `${avgStanding} days` : "—"} sub="before restocking" />
+            <StatCard label="Swab Records" value={swabsTaken} sub={`of ${coList.length} cleanouts`} />
+            <StatCard label="Most Used Disinfectant" value={topDisinf.length > 18 ? topDisinf.slice(0, 16) + "…" : topDisinf} />
+          </div>
+        </div>
+      )}
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
         { key: "cleanoutStartDate", label: "Start Date", fmt: r => fmtDate(r.cleanoutStartDate) },
         { key: "houseName", label: "House", fmt: r => r.houseName ? String(r.houseName) : fmt(r.houseId) },
@@ -823,9 +969,55 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
 function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-environmental-logs", "poultry-env-logs");
+  const envList = (records ?? []) as Record<string, unknown>[];
+  const withTemp = envList.filter(r => r.temperatureMin != null && r.temperatureMax != null);
+  const avgMinTemp = withTemp.length ? (withTemp.reduce((s, r) => s + Number(r.temperatureMin), 0) / withTemp.length).toFixed(1) : null;
+  const avgMaxTemp = withTemp.length ? (withTemp.reduce((s, r) => s + Number(r.temperatureMax), 0) / withTemp.length).toFixed(1) : null;
+  const withAmm = envList.filter(r => r.ammoniaPpm != null);
+  const maxAmm = withAmm.length ? Math.max(...withAmm.map(r => Number(r.ammoniaPpm))) : null;
+  const avgHum = envList.filter(r => r.humidity != null).length ? (envList.filter(r => r.humidity != null).reduce((s, r) => s + Number(r.humidity), 0) / envList.filter(r => r.humidity != null).length).toFixed(1) : null;
+  const alarmCount = envList.filter(r => r.alarmActivated).length;
+  const ammAlert = maxAmm !== null && maxAmm > 10;
+  const ammWarn = maxAmm !== null && maxAmm >= 7 && maxAmm <= 10;
+  const envCsvCols = [
+    { key: "logDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.logDate) }, { key: "logTime", label: "Time" },
+    { key: "flockNumber", label: "Flock" }, { key: "houseName", label: "House" },
+    { key: "temperatureMin", label: "Min Temp °C" }, { key: "temperatureMax", label: "Max Temp °C" },
+    { key: "humidity", label: "Humidity %" }, { key: "co2Ppm", label: "CO2 ppm" },
+    { key: "ammoniaPpm", label: "Ammonia ppm" }, { key: "stockingDensity", label: "Stocking Density kg/m²" },
+    { key: "lightingHours", label: "Lighting Hours" },
+    { key: "alarmActivated", label: "Alarm", fmt: (r: Record<string, unknown>) => r.alarmActivated ? "Yes" : "No" },
+    { key: "alarmDetails", label: "Alarm Details" },
+  ];
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Environmental Monitoring Logs</h3><Button size="sm" onClick={() => openAdd({ alarmActivated: false })}><Plus className="w-4 h-4 mr-1" />Log Reading</Button></div>
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Environmental Monitoring Logs</h3>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(envList, "environmental-logs.csv", envCsvCols)} disabled={!envList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={() => openAdd({ alarmActivated: false })}><Plus className="w-4 h-4 mr-1" />Log Reading</Button>
+        </div>
+      </div>
+      {!isLoading && envList.length > 0 && (
+        <div className="space-y-3">
+          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+            <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Environmental Summary — All Records</p></div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard label="Avg Min Temp" value={avgMinTemp !== null ? `${avgMinTemp} °C` : "—"} />
+              <StatCard label="Avg Max Temp" value={avgMaxTemp !== null ? `${avgMaxTemp} °C` : "—"} />
+              <StatCard label="Avg Humidity" value={avgHum !== null ? `${avgHum}%` : "—"} color={avgHum !== null && Number(avgHum) > 80 ? "amber" : undefined} sub={avgHum !== null && Number(avgHum) > 80 ? "above 80% threshold" : undefined} />
+              <StatCard label="Max Ammonia" value={maxAmm !== null ? `${maxAmm} ppm` : "—"} color={ammAlert ? "red" : ammWarn ? "amber" : maxAmm !== null ? "green" : undefined} sub={ammAlert ? "above 10ppm — welfare concern" : ammWarn ? "approaching 10ppm limit" : undefined} />
+            </div>
+            {alarmCount > 0 && <p className="text-xs text-amber-700 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" />{alarmCount} alarm activation{alarmCount > 1 ? "s" : ""} recorded — check alarm details in the table below.</p>}
+          </div>
+          {ammAlert && (
+            <div className="rounded-lg border border-red-300 bg-red-50 p-3 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-red-800"><strong>Ammonia Alert:</strong> Peak reading of {maxAmm} ppm exceeds the 10 ppm welfare threshold. Review ventilation management and check litter condition. Red Tractor and RSPCA Assured require corrective action to be documented.</p>
+            </div>
+          )}
+        </div>
+      )}
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
         { key: "logDate", label: "Date", fmt: r => fmtDate(r.logDate) },
         { key: "flockNumber", label: "Flock", fmt: fmtFlock },
@@ -862,9 +1054,45 @@ function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
 function FciTab({ farmId }: { farmId: number }) {
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-fci-documents", "poultry-fci");
+  const fciList = (records ?? []) as Record<string, unknown>[];
+  const notWithdrawalClear = fciList.filter(r => !r.withdrawalPeriodClear).length;
+  const withMeds = fciList.filter(r => r.medicationsLast7Days).length;
+  const withDisease = fciList.filter(r => r.anyDiseaseOrCondition).length;
+  const totalBirds = fciList.reduce((s, r) => s + Number(r.numberOfBirds ?? 0), 0);
+  const fciCsvCols = [
+    { key: "documentDate", label: "FCI Date", fmt: (r: Record<string, unknown>) => fmtDate(r.documentDate) },
+    { key: "catchingDate", label: "Catching Date", fmt: (r: Record<string, unknown>) => fmtDate(r.catchingDate) },
+    { key: "flockNumber", label: "Flock" }, { key: "houseName", label: "House" },
+    { key: "destinationAbattoir", label: "Abattoir" }, { key: "numberOfBirds", label: "Number of Birds" },
+    { key: "catchingContractor", label: "Catching Contractor" }, { key: "lastFeedWithdrawalHours", label: "Feed Withdrawal (hrs)" },
+    { key: "anyDiseaseOrCondition", label: "Disease/Condition", fmt: (r: Record<string, unknown>) => r.anyDiseaseOrCondition ? "Yes" : "No" },
+    { key: "medicationsLast7Days", label: "Meds Last 7 Days", fmt: (r: Record<string, unknown>) => r.medicationsLast7Days ? "Yes" : "No" },
+    { key: "withdrawalPeriodClear", label: "Withdrawal Clear", fmt: (r: Record<string, unknown>) => r.withdrawalPeriodClear ? "Yes" : "No" },
+    { key: "signedByFarmer", label: "Signed by Farmer", fmt: (r: Record<string, unknown>) => r.signedByFarmer ? "Yes" : "No" },
+  ];
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Food Chain Information (FCI) Documents</h3><Button size="sm" onClick={() => openAdd({ withdrawalPeriodClear: true, signedByFarmer: true, anyDiseaseOrCondition: false, medicationsLast7Days: false })}><Plus className="w-4 h-4 mr-1" />Add FCI Doc</Button></div>
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Food Chain Information (FCI) Documents</h3>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(fciList, "fci-documents.csv", fciCsvCols)} disabled={!fciList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={() => openAdd({ withdrawalPeriodClear: true, signedByFarmer: true, anyDiseaseOrCondition: false, medicationsLast7Days: false })}><Plus className="w-4 h-4 mr-1" />Add FCI Doc</Button>
+        </div>
+      </div>
+      {!isLoading && fciList.length > 0 && (
+        <div className="space-y-3">
+          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+            <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">FCI Summary</p></div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard label="FCI Documents" value={fciList.length} />
+              <StatCard label="Total Birds Declared" value={totalBirds.toLocaleString()} />
+              <StatCard label="Withdrawal Not Clear" value={notWithdrawalClear} color={notWithdrawalClear > 0 ? "red" : "green"} sub={notWithdrawalClear > 0 ? "review before slaughter" : "all clear"} />
+              <StatCard label="Medications Last 7 Days" value={withMeds} color={withMeds > 0 ? "amber" : "green"} sub={withMeds > 0 ? "declared on FCI docs" : "none declared"} />
+            </div>
+            {withDisease > 0 && <p className="text-xs text-amber-700 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" />{withDisease} FCI doc{withDisease > 1 ? "s" : ""} declared a disease or condition — ensure abattoir was notified before birds were accepted.</p>}
+          </div>
+        </div>
+      )}
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[
         { key: "documentDate", label: "Date", fmt: r => fmtDate(r.documentDate) },
         { key: "flockNumber", label: "Flock", fmt: fmtFlock },
@@ -900,6 +1128,23 @@ function FciTab({ farmId }: { farmId: number }) {
 function BroilerWelfareTab({ farmId }: { farmId: number }) {
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-broiler-welfare", "poultry-broiler-welfare");
+  const bwiList = (records ?? []) as Record<string, unknown>[];
+  const passCount = bwiList.filter(r => String(r.overallOutcome ?? "").startsWith("Pass")).length;
+  const advisoryCount = bwiList.filter(r => String(r.overallOutcome ?? "").startsWith("Advisory")).length;
+  const failCount = bwiList.filter(r => String(r.overallOutcome ?? "").startsWith("Fail")).length;
+  const lastAssessment = bwiList[0] ?? null;
+  const passRate = bwiList.length ? Math.round(passCount / bwiList.length * 100) : null;
+  const bwiCsvCols = [
+    { key: "assessmentDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.assessmentDate) },
+    { key: "flockNumber", label: "Flock" }, { key: "houseName", label: "House" },
+    { key: "assessedBy", label: "Assessed By" }, { key: "ageAtAssessmentDays", label: "Bird Age (days)" },
+    { key: "sampleSize", label: "Sample Size" },
+    { key: "footpadDermatitisScore", label: "FPD Score" }, { key: "footpadDermatitisPercent", label: "FPD Prevalence %" },
+    { key: "hockBurnScore", label: "Hock Burn Score" }, { key: "hockBurnPercent", label: "Hock Burn %" },
+    { key: "gaitScore", label: "Gait Score" }, { key: "breastBlisterPercent", label: "Breast Blister %" },
+    { key: "plumageScore", label: "Plumage Score" }, { key: "soiledPlumagePercent", label: "Soiled Plumage %" },
+    { key: "overallOutcome", label: "Outcome" }, { key: "actionsTaken", label: "Actions Taken" }, { key: "notes", label: "Notes" },
+  ];
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -907,8 +1152,27 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-sm">Broiler Welfare Indicators (BWI)</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Red Tractor Broilers — pododermatitis, hock burn and gait score must be assessed and recorded at each crop cycle.</p>
         </div>
-        <Button size="sm" onClick={() => openAdd({ overallOutcome: "Pass" })}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(bwiList, "bwi-assessments.csv", bwiCsvCols)} disabled={!bwiList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={() => openAdd({ overallOutcome: "Pass" })}><Plus className="w-4 h-4 mr-1" />Add Assessment</Button>
+        </div>
       </div>
+      {!isLoading && bwiList.length > 0 && (
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+          <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">BWI Assessment Summary</p></div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="Total Assessments" value={bwiList.length} />
+            <StatCard label="Pass Rate" value={passRate !== null ? `${passRate}%` : "—"} color={passRate !== null && passRate >= 80 ? "green" : passRate !== null && passRate >= 60 ? "amber" : "red"} />
+            <StatCard label="Advisory" value={advisoryCount} color={advisoryCount > 0 ? "amber" : "green"} sub="action recommended" />
+            <StatCard label="Fail" value={failCount} color={failCount > 0 ? "red" : "green"} sub={failCount > 0 ? "action required — check notes" : "no failures"} />
+          </div>
+          {lastAssessment && (
+            <div className="text-xs text-muted-foreground border-t pt-2">
+              <span className="font-medium">Last assessment:</span> {fmtDate(lastAssessment.assessmentDate)} — {String(lastAssessment.flockNumber ?? "Flock unknown")} — Outcome: <span className={`font-semibold ${String(lastAssessment.overallOutcome ?? "").startsWith("Fail") ? "text-red-600" : String(lastAssessment.overallOutcome ?? "").startsWith("Advisory") ? "text-amber-600" : "text-green-700"}`}>{String(lastAssessment.overallOutcome ?? "—")}</span>
+            </div>
+          )}
+        </div>
+      )}
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
         cols={[
           { key: "assessmentDate", label: "Date", fmt: r => fmtDate(r.assessmentDate) },
@@ -984,6 +1248,21 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
 function ThinningRecordsTab({ farmId }: { farmId: number }) {
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-thinning-records", "poultry-thinning");
+  const tList = (records ?? []) as Record<string, unknown>[];
+  const totalBirdsRemoved = tList.reduce((s, r) => s + Number(r.birdsRemoved ?? 0), 0);
+  const totalDoas = tList.reduce((s, r) => s + Number(r.doasAtLoading ?? 0), 0);
+  const withWeight = tList.filter(r => r.averageLiveWeightKg != null);
+  const avgLiveWeight = withWeight.length ? (withWeight.reduce((s, r) => s + Number(r.averageLiveWeightKg), 0) / withWeight.length).toFixed(2) : null;
+  const doaPct = totalBirdsRemoved > 0 ? ((totalDoas / totalBirdsRemoved) * 100).toFixed(2) : null;
+  const tCsv = [
+    { key: "thinningDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.thinningDate) },
+    { key: "flockNumber", label: "Flock" }, { key: "houseName", label: "House" },
+    { key: "thinningNumber", label: "Thinning No." }, { key: "birdsRemoved", label: "Birds Removed" },
+    { key: "doasAtLoading", label: "DOAs at Loading" }, { key: "targetLiveWeightKg", label: "Target Live Wt (kg)" },
+    { key: "averageLiveWeightKg", label: "Avg Live Wt (kg)" }, { key: "destinationAbattoir", label: "Abattoir" },
+    { key: "catchingContractorName", label: "Catching Contractor" }, { key: "catchingConditions", label: "Catching Conditions" },
+    { key: "transportVehicleReg", label: "Vehicle Reg" }, { key: "notes", label: "Notes" },
+  ];
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -991,8 +1270,22 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-sm">Thinning Records</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Record each partial depletion event — numbers removed, live weight, catching details and any DOAs at loading.</p>
         </div>
-        <Button size="sm" onClick={() => openAdd({ thinningNumber: "1", doasAtLoading: "0" })}><Plus className="w-4 h-4 mr-1" />Log Thinning</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(tList, "thinning-records.csv", tCsv)} disabled={!tList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={() => openAdd({ thinningNumber: "1", doasAtLoading: "0" })}><Plus className="w-4 h-4 mr-1" />Log Thinning</Button>
+        </div>
       </div>
+      {!isLoading && tList.length > 0 && (
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+          <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Thinning Summary</p></div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="Total Events" value={tList.length} />
+            <StatCard label="Total Birds Removed" value={totalBirdsRemoved.toLocaleString()} />
+            <StatCard label="Total DOAs" value={totalDoas} color={totalDoas > 0 ? "amber" : "green"} sub={doaPct !== null ? `${doaPct}% of birds removed` : undefined} />
+            <StatCard label="Avg Live Weight" value={avgLiveWeight !== null ? `${avgLiveWeight} kg` : "—"} />
+          </div>
+        </div>
+      )}
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
         cols={[
           { key: "thinningDate", label: "Date", fmt: r => fmtDate(r.thinningDate) },
@@ -1087,6 +1380,18 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
   });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/poultry-biosecurity-checklists/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["poultry-biosecurity", farmId] }) });
 
+  const bioList = records as Record<string, unknown>[];
+  const compliant = bioList.filter(r => r.overallComplianceStatus === "compliant").length;
+  const nonCompliant = bioList.filter(r => r.overallComplianceStatus === "non-compliant").length;
+  const inProgress = bioList.filter(r => r.overallComplianceStatus === "in-progress").length;
+  const avgDowntime = bioList.filter(r => r.downtimeDays).length ? Math.round(bioList.filter(r => r.downtimeDays).reduce((s, r) => s + Number(r.downtimeDays), 0) / bioList.filter(r => r.downtimeDays).length) : null;
+  const bioCsv = [
+    { key: "cleanoutStartDate", label: "Start Date", fmt: (r: Record<string, unknown>) => fmtDate(r.cleanoutStartDate) },
+    { key: "cleanoutEndDate", label: "End Date", fmt: (r: Record<string, unknown>) => fmtDate(r.cleanoutEndDate) },
+    { key: "houseName", label: "House" }, { key: "previousFlockNumber", label: "Previous Flock" },
+    { key: "downtimeDays", label: "Downtime (days)" }, { key: "overallComplianceStatus", label: "Status" },
+    { key: "completedBy", label: "Completed By" }, { key: "verifiedBy", label: "Verified By" },
+  ];
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -1094,8 +1399,23 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-sm">Biosecurity Checklist — Downtime & Cleanout</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Record end-of-flock biosecurity procedures for each house cleanout to demonstrate Red Tractor and RSPCA Assured compliance. All items must be completed before restocking.</p>
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ cleanoutStartDate: new Date().toISOString().slice(0, 10), overallComplianceStatus: "in-progress", vehicleRestrictions: true }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Checklist</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(bioList, "biosecurity-checklists.csv", bioCsv)} disabled={!bioList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm({ cleanoutStartDate: new Date().toISOString().slice(0, 10), overallComplianceStatus: "in-progress", vehicleRestrictions: true }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Checklist</Button>
+        </div>
       </div>
+      {!isLoading && bioList.length > 0 && (
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+          <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Biosecurity Compliance Summary</p></div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="Total Checklists" value={bioList.length} />
+            <StatCard label="Compliant" value={compliant} color={compliant === bioList.length ? "green" : "amber"} sub={`${Math.round(compliant / bioList.length * 100)}% of records`} />
+            <StatCard label="Non-Compliant" value={nonCompliant} color={nonCompliant > 0 ? "red" : "green"} sub={nonCompliant > 0 ? "action required" : "none"} />
+            <StatCard label="Avg Downtime" value={avgDowntime !== null ? `${avgDowntime} days` : "—"} sub="between flocks" />
+          </div>
+          {inProgress > 0 && <p className="text-xs text-amber-700 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" />{inProgress} checklist{inProgress > 1 ? "s" : ""} still in progress — complete before restocking to maintain compliance.</p>}
+        </div>
+      )}
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
         cols={[
           { key: "cleanoutStartDate", label: "Cleanout Start", fmt: r => fmtDate(r.cleanoutStartDate) },
@@ -1230,6 +1550,21 @@ function SchemeRecordsTab({ farmId }: { farmId: number }) {
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/poultry-scheme-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["poultry-schemes", farmId] }) });
   const SCHEMES = ["Red Tractor Poultry (Broiler)", "Red Tractor Poultry (Turkey)", "Red Tractor Poultry (Laying Hens)", "Lion Quality", "RSPCA Assured", "Organic (Soil Association)", "Organic (OF&G)", "Free Range", "Higher Welfare", "M&S Select Farms", "Other"];
   const OUTCOMES = ["Pass", "Conditional Pass", "Fail", "Pending", "Under Review"];
+  const schList = records as Record<string, unknown>[];
+  const today = new Date();
+  const in60Days = new Date(today); in60Days.setDate(today.getDate() + 60);
+  const expiringSoon = schList.filter(r => { if (!r.certificateExpiryDate) return false; const d = new Date(String(r.certificateExpiryDate)); return d >= today && d <= in60Days; });
+  const expired = schList.filter(r => { if (!r.certificateExpiryDate) return false; return new Date(String(r.certificateExpiryDate)) < today; });
+  const passes = schList.filter(r => r.assessmentOutcome === "Pass").length;
+  const schCsv = [
+    { key: "schemeName", label: "Scheme" }, { key: "certificateNumber", label: "Certificate No." },
+    { key: "assessmentYear", label: "Year" }, { key: "assessmentDate", label: "Assessment Date", fmt: (r: Record<string, unknown>) => fmtDate(r.assessmentDate) },
+    { key: "certificateExpiryDate", label: "Expiry Date", fmt: (r: Record<string, unknown>) => fmtDate(r.certificateExpiryDate) },
+    { key: "assessorName", label: "Assessor" }, { key: "assessorOrganisation", label: "Assessor Organisation" },
+    { key: "assessmentOutcome", label: "Outcome" }, { key: "nonConformances", label: "Non-conformances" },
+    { key: "correctiveActionRequired", label: "Corrective Action Required" }, { key: "correctiveActionDueDate", label: "Action Due Date", fmt: (r: Record<string, unknown>) => fmtDate(r.correctiveActionDueDate) },
+    { key: "notes", label: "Notes" },
+  ];
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -1237,8 +1572,35 @@ function SchemeRecordsTab({ farmId }: { farmId: number }) {
           <h3 className="font-semibold text-sm">Assurance Scheme Records</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Log all Red Tractor Poultry, Lion Quality, RSPCA Assured and retailer assurance assessments. Track certificate numbers, assessment dates and non-conformances to maintain compliance status.</p>
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ assessmentYear: String(new Date().getFullYear()), assessmentOutcome: "Pass" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(schList, "scheme-records.csv", schCsv)} disabled={!schList.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm({ assessmentYear: String(new Date().getFullYear()), assessmentOutcome: "Pass" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
       </div>
+      {!isLoading && schList.length > 0 && (
+        <div className="space-y-3">
+          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+            <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-muted-foreground" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scheme Compliance Overview</p></div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard label="Schemes Recorded" value={schList.length} />
+              <StatCard label="Passes" value={passes} color={passes === schList.length ? "green" : "amber"} />
+              <StatCard label="Expiring Soon" value={expiringSoon.length} color={expiringSoon.length > 0 ? "amber" : "green"} sub="within 60 days" />
+              <StatCard label="Expired Certificates" value={expired.length} color={expired.length > 0 ? "red" : "green"} sub={expired.length > 0 ? "renew immediately" : "none"} />
+            </div>
+          </div>
+          {(expiringSoon.length > 0 || expired.length > 0) && (
+            <div className={`rounded-lg border p-3 space-y-1 ${expired.length > 0 ? "border-red-300 bg-red-50" : "border-amber-300 bg-amber-50"}`}>
+              <div className="flex items-center gap-2"><AlertTriangle className={`w-4 h-4 ${expired.length > 0 ? "text-red-600" : "text-amber-600"}`} /><p className={`text-xs font-semibold ${expired.length > 0 ? "text-red-800" : "text-amber-800"}`}>Certificate Expiry Alerts</p></div>
+              {expired.map((r, i) => (
+                <p key={i} className="text-xs text-red-700 pl-6"><strong>{String(r.schemeName ?? "Unknown scheme")}</strong> — Certificate expired {fmtDate(r.certificateExpiryDate)} — renew immediately to maintain scheme membership.</p>
+              ))}
+              {expiringSoon.map((r, i) => (
+                <p key={i} className="text-xs text-amber-700 pl-6"><strong>{String(r.schemeName ?? "Unknown scheme")}</strong> — Expires {fmtDate(r.certificateExpiryDate)} — renewal due within 60 days.</p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable
         cols={[
           { key: "schemeName", label: "Scheme" },
