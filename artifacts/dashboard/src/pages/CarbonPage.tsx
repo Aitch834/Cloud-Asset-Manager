@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, Plus, Pencil, Trash2, Loader2, BarChart3, Flame, Trees, Zap, FileBarChart, SunMedium, Sprout } from "lucide-react";
+import { Eye, Plus, Pencil, Trash2, Loader2, BarChart3, Flame, Trees, Zap, FileBarChart, SunMedium, Sprout, Upload } from "lucide-react";
+import { FctImportDialog } from "@/components/FctImportDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +70,7 @@ function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: stri
 function AuditsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -88,7 +90,18 @@ function AuditsTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Carbon Audits</h3><Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Audit</Button></div>
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold text-sm">Carbon Audits</h3>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
+            <Upload className="w-4 h-4 mr-1" />Import from FCT
+          </Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1" />Add Audit
+          </Button>
+        </div>
+      </div>
+      <FctImportDialog open={showImport} farmId={farmId} onClose={() => setShowImport(false)} />
 
       {chartData.length >= 2 && (
         <div className="border rounded-lg p-4 bg-white">
