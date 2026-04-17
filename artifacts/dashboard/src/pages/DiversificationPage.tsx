@@ -1203,104 +1203,6 @@ function EquineTab({ farmId }: { farmId: number }) {
   );
 }
 
-function RenewableTab({ farmId }: { farmId: number }) {
-  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
-  const [viewReading, setViewReading] = useState<Record<string, unknown> | null>(null);
-  const { data: installs, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "renewable-installations", "renewables");
-  const { data: readings, isLoading: rL, open: rOpen, setOpen: setROpen, form: rForm, setForm: setRForm, save: rSave, del: rDel, openAdd: rOpenAdd } = useCrud(farmId, "renewable-meter-readings", "renewable-readings");
-  return (
-    <div className="space-y-6">
-      <div>
-        <div className="flex justify-between items-center mb-3"><h3 className="font-semibold text-sm">Renewable Energy Installations</h3><Button size="sm" onClick={() => openAdd()}><Plus className="w-4 h-4 mr-1" />Add Installation</Button></div>
-        {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "installationName", label: "Name" }, { key: "technologyType", label: "Technology" }, { key: "installedCapacityKw", label: "Capacity (kW)" }, { key: "fitOrSegContractRef", label: "FIT/SEG Ref" }, { key: "tariffProvider", label: "Provider" }, { key: "nextServiceDate", label: "Next Service", fmt: r => fmtDate(r.nextServiceDate) }]} rows={installs as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
-      </div>
-      <div>
-        <div className="flex justify-between items-center mb-3"><h3 className="font-semibold text-sm">Generation Meter Readings</h3><Button size="sm" onClick={() => rOpenAdd()}><Plus className="w-4 h-4 mr-1" />Log Reading</Button></div>
-        {rL ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "generationKwh", label: "Generated (kWh)" }, { key: "exportKwh", label: "Exported (kWh)" }, { key: "selfConsumedKwh", label: "Self-Use (kWh)" }, { key: "fitPaymentPeriod", label: "FIT Period" }, { key: "fitPaymentAmount", label: "FIT Payment (£)" }]} rows={readings as Record<string, unknown>[]} onView={setViewReading} onDelete={r => rDel.mutate(r.id as number)} />}
-      </div>
-
-      {viewRecord && (
-        <Dialog open onOpenChange={() => setViewRecord(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }}>
-            <DialogHeader><DialogTitle>View Renewable Installation</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Installation Name</p><p className="font-medium">{fmt(viewRecord.installationName)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Technology Type</p><p className="font-medium">{fmt(viewRecord.technologyType)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Capacity (kW)</p><p className="font-medium">{fmt(viewRecord.installedCapacityKw)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Installation Date</p><p className="font-medium">{fmtDate(viewRecord.installationDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">FIT / SEG Contract Ref</p><p className="font-medium">{fmt(viewRecord.fitOrSegContractRef)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tariff Provider</p><p className="font-medium">{fmt(viewRecord.tariffProvider)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tariff Rate (p/kWh)</p><p className="font-medium">{fmt(viewRecord.tariffRatePence)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Service Date</p><p className="font-medium">{fmtDate(viewRecord.nextServiceDate)}</p></div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
-              <Button onClick={() => setViewRecord(null)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {viewReading && (
-        <Dialog open onOpenChange={() => setViewReading(null)}>
-          <DialogContent style={{ maxWidth: "42rem" }}>
-            <DialogHeader><DialogTitle>View Meter Reading</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reading Date</p><p className="font-medium">{fmtDate(viewReading.readingDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meter Reference</p><p className="font-medium">{fmt(viewReading.meterReference)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Generation (kWh)</p><p className="font-medium">{fmt(viewReading.generationKwh)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Export (kWh)</p><p className="font-medium">{fmt(viewReading.exportKwh)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Self-Consumed (kWh)</p><p className="font-medium">{fmt(viewReading.selfConsumedKwh)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">FIT Payment Period</p><p className="font-medium">{fmt(viewReading.fitPaymentPeriod)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">FIT Payment (£)</p><p className="font-medium">{fmt(viewReading.fitPaymentAmount)}</p></div>
-            </div>
-            <DialogFooter>
-              <Button onClick={() => setViewReading(null)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "40rem" }}>
-          <DialogHeader><DialogTitle>Renewable Energy Installation</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Installation Name *</Label><Input value={String(form.installationName ?? "")} onChange={e => setForm(f => ({ ...f, installationName: e.target.value }))} /></div>
-            <div><Label>Technology Type *</Label>
-              <Select value={String(form.technologyType ?? "")} onValueChange={v => setForm(f => ({ ...f, technologyType: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["Solar PV", "Wind Turbine", "Biomass", "Anaerobic Digestion", "Hydro", "Ground Source Heat Pump", "Air Source Heat Pump"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Capacity (kW)</Label><Input type="number" step="0.01" value={String(form.installedCapacityKw ?? "")} onChange={e => setForm(f => ({ ...f, installedCapacityKw: e.target.value }))} /></div>
-            <div><Label>Installation Date</Label><Input type="date" value={String(form.installationDate ?? "")} onChange={e => setForm(f => ({ ...f, installationDate: e.target.value }))} /></div>
-            <div><Label>FIT / SEG Contract Ref</Label><Input value={String(form.fitOrSegContractRef ?? "")} onChange={e => setForm(f => ({ ...f, fitOrSegContractRef: e.target.value }))} /></div>
-            <div><Label>Tariff Provider</Label><Input value={String(form.tariffProvider ?? "")} onChange={e => setForm(f => ({ ...f, tariffProvider: e.target.value }))} /></div>
-            <div><Label>Tariff Rate (p/kWh)</Label><Input type="number" step="0.01" value={String(form.tariffRatePence ?? "")} onChange={e => setForm(f => ({ ...f, tariffRatePence: e.target.value }))} /></div>
-            <div><Label>Next Service Date</Label><Input type="date" value={String(form.nextServiceDate ?? "")} onChange={e => setForm(f => ({ ...f, nextServiceDate: e.target.value }))} /></div>
-          </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={rOpen} onOpenChange={setROpen}>
-        <DialogContent style={{ maxWidth: "36rem" }}>
-          <DialogHeader><DialogTitle>Meter Reading</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Reading Date *</Label><Input type="date" value={String(rForm.readingDate ?? "")} onChange={e => setRForm(f => ({ ...f, readingDate: e.target.value }))} /></div>
-            <div><Label>Meter Reference</Label><Input value={String(rForm.meterReference ?? "")} onChange={e => setRForm(f => ({ ...f, meterReference: e.target.value }))} /></div>
-            <div><Label>Generation (kWh)</Label><Input type="number" step="0.01" value={String(rForm.generationKwh ?? "")} onChange={e => setRForm(f => ({ ...f, generationKwh: e.target.value }))} /></div>
-            <div><Label>Export (kWh)</Label><Input type="number" step="0.01" value={String(rForm.exportKwh ?? "")} onChange={e => setRForm(f => ({ ...f, exportKwh: e.target.value }))} /></div>
-            <div><Label>Self-Consumed (kWh)</Label><Input type="number" step="0.01" value={String(rForm.selfConsumedKwh ?? "")} onChange={e => setRForm(f => ({ ...f, selfConsumedKwh: e.target.value }))} /></div>
-            <div><Label>FIT Payment Period</Label><Input value={String(rForm.fitPaymentPeriod ?? "")} onChange={e => setRForm(f => ({ ...f, fitPaymentPeriod: e.target.value }))} /></div>
-            <div><Label>FIT Payment (£)</Label><Input type="number" step="0.01" value={String(rForm.fitPaymentAmount ?? "")} onChange={e => setRForm(f => ({ ...f, fitPaymentAmount: e.target.value }))} /></div>
-          </div>
-          <DialogFooter><Button variant="outline" onClick={() => setROpen(false)}>Cancel</Button><Button onClick={() => rSave.mutate(rForm)} disabled={rSave.isPending}>Save</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
 function ShootingTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "shooting-game-records", "shooting");
@@ -1697,11 +1599,11 @@ function IncomeTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "activities" | "shop" | "hygiene" | "equine" | "renewable" | "shooting" | "income";
+type Tab = "activities" | "shop" | "hygiene" | "equine" | "shooting" | "income";
 
 export default function DiversificationPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["activities","income","shop","hygiene","equine","renewable","shooting"]; return t && valid.includes(t) ? t : "activities"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["activities","income","shop","hygiene","equine","shooting"]; return t && valid.includes(t) ? t : "activities"; });
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Farm Diversification">
@@ -1712,7 +1614,6 @@ export default function DiversificationPage() {
           <TabButton active={tab === "shop"} onClick={() => setTab("shop")}><ShoppingBag className="w-3.5 h-3.5 mr-1" />Farm Shop</TabButton>
           <TabButton active={tab === "hygiene"} onClick={() => setTab("hygiene")}><ClipboardCheck className="w-3.5 h-3.5 mr-1" />Hygiene</TabButton>
           <TabButton active={tab === "equine"} onClick={() => setTab("equine")}><PawPrint className="w-3.5 h-3.5 mr-1" />Equine</TabButton>
-          <TabButton active={tab === "renewable"} onClick={() => setTab("renewable")}><Zap className="w-3.5 h-3.5 mr-1" />Renewables</TabButton>
           <TabButton active={tab === "shooting"} onClick={() => setTab("shooting")}><Crosshair className="w-3.5 h-3.5 mr-1" />Shooting</TabButton>
         </TabBar>
         <Card><CardContent className="pt-4">
@@ -1721,7 +1622,6 @@ export default function DiversificationPage() {
           {tab === "shop" && <FarmShopTab farmId={farmId} />}
           {tab === "hygiene" && <HygieneInspectionsTab farmId={farmId} />}
           {tab === "equine" && <EquineTab farmId={farmId} />}
-          {tab === "renewable" && <RenewableTab farmId={farmId} />}
           {tab === "shooting" && <ShootingTab farmId={farmId} />}
         </CardContent></Card>
       </div>
