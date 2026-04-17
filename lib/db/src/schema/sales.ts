@@ -242,6 +242,8 @@ export const pigKillRecordsTable = pgTable("pig_kill_records", {
   premiumScheme: text("premium_scheme"), // BPEX, outdoor, organic
   premiumPence: integer("premium_pence"),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

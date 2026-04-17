@@ -30,6 +30,8 @@ export const pigMovementsTable = pgTable("pig_movements", {
   vehicleRegistration: text("vehicle_registration"),
   cleaningDeclaration: boolean("cleaning_declaration").default(false),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -48,6 +50,8 @@ export const pigFciDocumentsTable = pgTable("pig_fci_documents", {
   lambnessCasualtyStatus: text("lamness_casualty_status"),
   signedByFarmer: boolean("signed_by_farmer").default(false),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -82,6 +86,8 @@ export const pigVetAssessmentsTable = pgTable("pig_vet_assessments", {
   findings: text("findings"),
   recommendations: text("recommendations"),
   nextReviewDate: date("next_review_date"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -177,6 +183,8 @@ export const pigMedicineTreatmentsTable = pgTable("pig_medicine_treatments", {
   withdrawalPeriodMeatDays: integer("withdrawal_period_meat_days"),
   withdrawalEndDate: date("withdrawal_end_date"),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -214,5 +222,7 @@ export const pigRedTractorChecklistTable = pgTable("pig_red_tractor_checklists",
   correctiveActionDeadline: date("corrective_action_deadline"),
   nextAssessmentDue: date("next_assessment_due"),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

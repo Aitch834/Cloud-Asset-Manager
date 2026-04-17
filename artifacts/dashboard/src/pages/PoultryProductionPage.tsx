@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DocAttach } from "@/components/DocAttach";
 import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,7 @@ function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel
     </Dialog>
   );
 }
-function DataTable({ cols, rows, onEdit, onDelete }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void }) {
+function DataTable({ cols, rows, onEdit, onDelete }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string; render?: (r: Record<string, unknown>) => ReactNode }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void }) {
   const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
   if (!rows.length) return <Empty msg="No records yet. Add one using the button above." />;
   return (
@@ -61,7 +62,7 @@ function DataTable({ cols, rows, onEdit, onDelete }: { cols: { key: string; labe
           <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete) && <th />}</tr></thead>
           <tbody>{rows.map((row, i) => (
             <tr key={i} className="border-b last:border-0">
-              {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.fmt ? c.fmt(row) : fmt(row[c.key])}</td>)}
+              {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.render ? c.render(row) : c.fmt ? c.fmt(row) : fmt(row[c.key])}</td>)}
               {(onEdit || onDelete) && (
                 <td className="py-2 text-right space-x-1">
                   {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
@@ -717,6 +718,9 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
                     <Button size="icon" variant="ghost" onClick={() => del.mutate(r.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                   </div>
                 </div>
+                <div className="mt-1.5 pt-1.5 border-t">
+                  <DocAttach farmId={farmId} endpoint="poultry-treatments" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-treatments", farmId]} />
+                </div>
               </div>
             );
           })}
@@ -911,6 +915,7 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
         { key: "disinfectantUsed", label: "Disinfectant" },
         { key: "contactTimeMins", label: "Contact (mins)" },
         { key: "completedBy", label: "Completed By" },
+        { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-house-cleanouts" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-cleanouts", farmId]} /> },
       ]} rows={records as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
@@ -1100,6 +1105,7 @@ function FciTab({ farmId }: { farmId: number }) {
         { key: "numberOfBirds", label: "Birds" },
         { key: "catchingContractor", label: "Catching Contractor" },
         { key: "withdrawalPeriodClear", label: "Withdrawal Clear", fmt: r => r.withdrawalPeriodClear ? "✓ Yes" : "No" },
+        { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-fci-documents" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-fci", farmId]} /> },
       ]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
@@ -1183,6 +1189,7 @@ function BroilerWelfareTab({ farmId }: { farmId: number }) {
           { key: "hockBurnScore", label: "Hock Burn Score" },
           { key: "gaitScore", label: "Gait Score" },
           { key: "overallOutcome", label: "Outcome" },
+          { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-broiler-welfare" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-bwi", farmId]} /> },
         ]}
         rows={records as Record<string, unknown>[]}
         onDelete={r => del.mutate(r.id as number)}
@@ -1424,6 +1431,7 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
           { key: "downtimeDays", label: "Downtime (days)" },
           { key: "overallComplianceStatus", label: "Status" },
           { key: "completedBy", label: "Completed By" },
+          { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-biosecurity-checklists" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-biosecurity", farmId]} /> },
         ]}
         rows={records as Record<string, unknown>[]}
         onEdit={r => { setEditing(r); setForm({ ...r, houseId: r.houseId ? String(r.houseId) : "__none__", previousFlockId: r.previousFlockId ? String(r.previousFlockId) : "__none__" }); setOpen(true); }}
@@ -1610,6 +1618,7 @@ function SchemeRecordsTab({ farmId }: { farmId: number }) {
           { key: "assessmentOutcome", label: "Outcome" },
           { key: "certificateExpiryDate", label: "Expires", fmt: r => fmtDate(r.certificateExpiryDate) },
           { key: "nonConformances", label: "Non-conformances" },
+          { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-scheme-records" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-schemes", farmId]} /> },
         ]}
         rows={records as Record<string, unknown>[]}
         onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}

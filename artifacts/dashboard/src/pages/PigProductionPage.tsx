@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DocAttach } from "@/components/DocAttach";
 import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,7 @@ function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel
   );
 }
 // ─── Simple table ──────────────────────────────────────────────────────────────
-function DataTable({ cols, rows, onEdit, onDelete }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void }) {
+function DataTable({ cols, rows, onEdit, onDelete }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string; render?: (r: Record<string, unknown>) => ReactNode }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void }) {
   const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
   if (!rows.length) return <Empty msg="No records yet. Add one using the button above." />;
   return (
@@ -48,7 +49,7 @@ function DataTable({ cols, rows, onEdit, onDelete }: { cols: { key: string; labe
           <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete) && <th />}</tr></thead>
           <tbody>{rows.map((row, i) => (
             <tr key={i} className="border-b last:border-0">
-              {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.fmt ? c.fmt(row) : fmt(row[c.key])}</td>)}
+              {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.render ? c.render(row) : c.fmt ? c.fmt(row) : fmt(row[c.key])}</td>)}
               {(onEdit || onDelete) && (
                 <td className="py-2 text-right space-x-1">
                   {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
@@ -180,6 +181,7 @@ function MovementsTab({ farmId }: { farmId: number }) {
             { key: "movementDate", label: "Date", fmt: r => fmtDate(r.movementDate) }, { key: "movementType", label: "Type" },
             { key: "fromLocation", label: "From" }, { key: "toLocation", label: "To" },
             { key: "numberOfAnimals", label: "Animals" }, { key: "eaml2Reference", label: "eAML2 Ref" },
+            { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-movements" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-movements", farmId]} /> },
           ]}
           rows={movements}
           onEdit={openEdit}
@@ -250,6 +252,7 @@ function FciDocumentsTab({ farmId }: { farmId: number }) {
             { key: "destinationAbattoir", label: "Abattoir" }, { key: "numberOfPigs", label: "Pigs" },
             { key: "withdrawalPeriodClear", label: "Withdrawal Clear", fmt: r => r.withdrawalPeriodClear ? "Yes" : "No" },
             { key: "signedByFarmer", label: "Signed", fmt: r => r.signedByFarmer ? "Yes" : "No" },
+            { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-fci-documents" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-fci", farmId]} /> },
           ]}
           rows={docs}
           onEdit={openEdit}
@@ -576,6 +579,7 @@ function VetAssessmentsTab({ farmId }: { farmId: number }) {
             { key: "assessmentDate", label: "Date", fmt: r => fmtDate(r.assessmentDate) }, { key: "vetName", label: "Vet" },
             { key: "practiceName", label: "Practice" }, { key: "lameness", label: "Lameness" },
             { key: "respiratoryHealth", label: "Respiratory" }, { key: "nextReviewDate", label: "Next Review", fmt: r => fmtDate(r.nextReviewDate) },
+            { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-vet-assessments" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-vet", farmId]} /> },
           ]}
           rows={assessments}
           onEdit={openEdit}
@@ -909,6 +913,7 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
           { key: "overallStatus", label: "Overall Status" },
           { key: "nextAssessmentDue", label: "Next Due", fmt: r => fmtDate(r.nextAssessmentDue) },
           { key: "nonConformances", label: "Non-conformances" },
+          { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-red-tractor-checklists" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-rt-checklist", farmId]} /> },
         ]}
         rows={records as Record<string, unknown>[]}
         onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
@@ -1088,6 +1093,9 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
                   <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => del.mutate(r.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                 </div>
+              </div>
+              <div className="mt-1.5 pt-1.5 border-t">
+                <DocAttach farmId={farmId} endpoint="pig-medicine-treatments" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-medicine-treatments", farmId]} />
               </div>
             </div>
           ))}
@@ -1361,7 +1369,7 @@ function KillRecordsTab({ farmId }: { farmId: number }) {
               <th className="text-right py-2 pr-3">Head</th><th className="text-right py-2 pr-3">Deadweight (kg)</th>
               <th className="text-right py-2 pr-3">Avg DW (kg)</th><th className="text-right py-2 pr-3">P2 (mm)</th>
               <th className="text-left py-2 pr-3">Grade</th><th className="text-right py-2 pr-3">Net (£)</th>
-              <th className="text-left py-2">Kill Sheet Ref</th><th />
+              <th className="text-left py-2 pr-3">Kill Sheet Ref</th><th className="text-left py-2 pr-3">Document</th><th />
             </tr></thead>
             <tbody>
               {(records as Record<string, unknown>[]).map(r => (
@@ -1374,7 +1382,10 @@ function KillRecordsTab({ farmId }: { farmId: number }) {
                   <td className="py-2 pr-3 text-right">{r.averageP2BackfatMm ? `${parseFloat(String(r.averageP2BackfatMm)).toFixed(1)}` : "—"}</td>
                   <td className="py-2 pr-3"><Badge variant="outline">{fmt(r.gradeOut)}</Badge></td>
                   <td className="py-2 pr-3 text-right">{r.netPaymentPence ? `£${(Number(r.netPaymentPence) / 100).toFixed(2)}` : "—"}</td>
-                  <td className="py-2">{fmt(r.killSheetRef)}</td>
+                  <td className="py-2 pr-3">{fmt(r.killSheetRef)}</td>
+                  <td className="py-2 pr-3" onClick={e => e.stopPropagation()}>
+                    <DocAttach farmId={farmId} endpoint="pig-kill-records" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-kill-records", farmId]} />
+                  </td>
                   <td className="py-2 pl-2 flex gap-1" onClick={e => e.stopPropagation()}>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => setConfirmDelete(Number(r.id))}><Trash2 className="w-3.5 h-3.5" /></Button>

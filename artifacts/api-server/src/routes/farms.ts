@@ -15188,6 +15188,44 @@ router.delete("/farms/:farmId/poultry-scheme-records/:id", requireAuth, requireT
   res.json({ success: true });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DOCUMENT ATTACHMENT ENDPOINTS (poultry + pig)
+// PATCH /:id/document  →  { documentPath, documentName } — attach or clear
+// ═══════════════════════════════════════════════════════════════════════════
+async function handleDocPatch(
+  req: Request,
+  res: Response,
+  table: Parameters<typeof db.update>[0],
+) {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { documentPath = null, documentName = null } = req.body ?? {};
+  const [record] = await db
+    .update(table as any)
+    .set({ documentPath: documentPath ?? null, documentName: documentName ?? null })
+    .where(and(eq((table as any).id, id), eq((table as any).farmId, farmId)))
+    .returning();
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
+}
+
+// Poultry
+router.patch("/farms/:farmId/poultry-treatments/:id/document", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), (req, res) => handleDocPatch(req, res, poultryTreatmentsTable));
+router.patch("/farms/:farmId/poultry-house-cleanouts/:id/document", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), (req, res) => handleDocPatch(req, res, poultryHouseCleanoutsTable));
+router.patch("/farms/:farmId/poultry-fci-documents/:id/document", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), (req, res) => handleDocPatch(req, res, poultryFciDocumentsTable));
+router.patch("/farms/:farmId/poultry-broiler-welfare/:id/document", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), (req, res) => handleDocPatch(req, res, poultryBroilerWelfareTable));
+router.patch("/farms/:farmId/poultry-biosecurity-checklists/:id/document", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), (req, res) => handleDocPatch(req, res, poultryBiosecurityChecklistTable));
+router.patch("/farms/:farmId/poultry-scheme-records/:id/document", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), (req, res) => handleDocPatch(req, res, poultrySchemeRecordsTable));
+// Pig
+router.patch("/farms/:farmId/pig-movements/:id/document", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), (req, res) => handleDocPatch(req, res, pigMovementsTable));
+router.patch("/farms/:farmId/pig-fci-documents/:id/document", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), (req, res) => handleDocPatch(req, res, pigFciDocumentsTable));
+router.patch("/farms/:farmId/pig-vet-assessments/:id/document", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), (req, res) => handleDocPatch(req, res, pigVetAssessmentsTable));
+router.patch("/farms/:farmId/pig-medicine-treatments/:id/document", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), (req, res) => handleDocPatch(req, res, pigMedicineTreatmentsTable));
+router.patch("/farms/:farmId/pig-red-tractor-checklists/:id/document", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), (req, res) => handleDocPatch(req, res, pigRedTractorChecklistTable));
+router.patch("/farms/:farmId/pig-kill-records/:id/document", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), (req, res) => handleDocPatch(req, res, pigKillRecordsTable));
+
 // --- Poultry Compliance Summary ---
 router.get("/farms/:farmId/poultry-compliance-summary", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;

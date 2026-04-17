@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, numeric, boolean, jsonb, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
+import { suppliersTable } from "./stock-suppliers";
 
 export const herdFlockRegisterTable = pgTable("herd_flock_register", {
   id: serial("id").primaryKey(),

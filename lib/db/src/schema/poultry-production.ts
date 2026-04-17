@@ -72,6 +72,8 @@ export const poultryTreatmentsTable = pgTable("poultry_treatments", {
   withdrawalPeriodDays: integer("withdrawal_period_days"),
   withdrawalClearDate: date("withdrawal_clear_date"),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -93,6 +95,8 @@ export const poultryHouseCleanoutsTable = pgTable("poultry_house_cleanouts", {
   standingTimeDays: integer("standing_time_days"),
   completedBy: text("completed_by"),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -133,6 +137,8 @@ export const poultryFciDocumentsTable = pgTable("poultry_fci_documents", {
   lastFeedWithdrawalHours: integer("last_feed_withdrawal_hours"),
   signedByFarmer: boolean("signed_by_farmer").default(false),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -155,6 +161,8 @@ export const poultryBroilerWelfareTable = pgTable("poultry_broiler_welfare", {
   overallOutcome: text("overall_outcome").notNull(),
   actionsTaken: text("actions_taken"),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -213,6 +221,8 @@ export const poultryBiosecurityChecklistTable = pgTable("poultry_biosecurity_che
   schemeCertificationScheme: text("scheme_certification_scheme"),
   completedBy: text("completed_by"),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -234,5 +244,7 @@ export const poultrySchemeRecordsTable = pgTable("poultry_scheme_records", {
   nextAssessmentDue: date("next_assessment_due"),
   documentReference: text("document_reference"),
   notes: text("notes"),
+  documentPath: text("document_path"),
+  documentName: text("document_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
