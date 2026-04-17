@@ -602,13 +602,82 @@ function TreatmentsTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div><Label>Number of Birds Treated</Label><Input type="number" min="1" value={String(form.numberOfBirdsTreated ?? "")} onChange={e => setForm(f => ({ ...f, numberOfBirdsTreated: e.target.value }))} /></div>
-              <div><Label>Condition / Diagnosis *</Label><Input placeholder="e.g. Respiratory infection" value={String(form.condition ?? "")} onChange={e => setForm(f => ({ ...f, condition: e.target.value }))} /></div>
+              <div>
+                <Label>Condition / Diagnosis *</Label>
+                <Select value={String(form.condition ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, condition: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select condition" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Select condition —</SelectItem>
+                    {[
+                      "Coccidiosis",
+                      "Necrotic Enteritis",
+                      "Colibacillosis (E. coli)",
+                      "Infectious Bronchitis (IB)",
+                      "Newcastle Disease (ND)",
+                      "Marek's Disease",
+                      "Mycoplasma (MG / MS)",
+                      "Gumboro Disease (IBD)",
+                      "Infectious Laryngotracheitis (ILT)",
+                      "Avian Metapneumovirus (aMPV / TRT)",
+                      "Salmonella",
+                      "Fowl Cholera (Pasteurella)",
+                      "Clostridial Disease",
+                      "Swollen Head Syndrome (SHS)",
+                      "Respiratory Disease (general)",
+                      "Egg Peritonitis / Salpingitis",
+                      "External Parasites (Red Mite / Lice)",
+                      "Internal Parasites",
+                      "Bumblefoot",
+                      "Nutritional Deficiency",
+                      "Vaccination Reaction",
+                      "Injury / Trauma",
+                      "Other (specify in notes)",
+                    ].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-b pb-1">Medicine Details</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2"><Label>Product Name *</Label><Input placeholder="e.g. Tylan 200mg/ml, Baytril 100" value={String(form.productName ?? "")} onChange={e => setForm(f => ({ ...f, productName: e.target.value }))} /></div>
-              <div><Label>Active Ingredient</Label><Input placeholder="e.g. Tylosin, Enrofloxacin" value={String(form.activeIngredient ?? "")} onChange={e => setForm(f => ({ ...f, activeIngredient: e.target.value }))} /></div>
+              <div>
+                <Label>Active Ingredient</Label>
+                <Select value={String(form.activeIngredient ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, activeIngredient: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select ingredient" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Select or leave blank —</SelectItem>
+                    {[
+                      "Amoxicillin",
+                      "Amprolium",
+                      "Colistin",
+                      "Diclazuril",
+                      "Doxycycline",
+                      "Enrofloxacin",
+                      "Erythromycin",
+                      "Florfenicol",
+                      "Flubendazole",
+                      "Ivermectin",
+                      "Lasalocid",
+                      "Lincomycin",
+                      "Maduramicin",
+                      "Monensin",
+                      "Narasin",
+                      "Neomycin",
+                      "Oxytetracycline",
+                      "Permethrin",
+                      "Robenidine",
+                      "Salinomycin",
+                      "Spectinomycin",
+                      "Thiamphenicol",
+                      "Toltrazuril",
+                      "Trimethoprim / Sulfadiazine",
+                      "Tylosin",
+                      "Other (specify in notes)",
+                    ].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div><Label>Route of Administration *</Label>
                 <Select value={String(form.routeOfAdministration ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, routeOfAdministration: v === "__none__" ? "" : v }))}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
