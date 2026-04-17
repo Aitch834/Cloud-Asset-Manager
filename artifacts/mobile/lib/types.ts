@@ -1382,6 +1382,130 @@ export interface ServiceJobRecord {
   synced: boolean;
 }
 
+export interface PigMedicineTreatment {
+  id: string;
+  farmId: string;
+  flockId: number;
+  treatmentDate: string;
+  batchOrPenRef: string;
+  numberOfAnimals: string;
+  medicineProductName: string;
+  activeIngredient: string;
+  manufacturer: string;
+  productBatchNumber: string;
+  expiryDate: string;
+  administrationRoute: string;
+  quantityUsed: string;
+  unitOfMeasure: string;
+  diagnosisReason: string;
+  prescribingVetName: string;
+  prescribingVetPractice: string;
+  prescriptionObtained: boolean;
+  administeredBy: string;
+  withdrawalPeriodMeatDays: string;
+  withdrawalEndDate: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PigMovement {
+  id: string;
+  farmId: string;
+  movementDate: string;
+  movementType: string;
+  fromLocation: string;
+  toLocation: string;
+  fromCph: string;
+  toCph: string;
+  numberOfAnimals: string;
+  eaml2Reference: string;
+  transporterName: string;
+  vehicleRegistration: string;
+  cleaningDeclaration: boolean;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PigFciDocument {
+  id: string;
+  farmId: string;
+  flockId: number;
+  documentDate: string;
+  batchReference: string;
+  destinationAbattoir: string;
+  numberOfPigs: string;
+  veterinaryMedicinesLast60Days: boolean;
+  medicineDetails: string;
+  withdrawalPeriodClear: boolean;
+  feedWithdrawalHours: string;
+  lambnessCasualtyStatus: string;
+  signedByFarmer: boolean;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PigFeedConsumption {
+  id: string;
+  farmId: string;
+  flockId: number;
+  consumptionDate: string;
+  penName: string;
+  feedType: string;
+  quantityKg: string;
+  batchLotNumber: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PigVetAssessment {
+  id: string;
+  farmId: string;
+  flockId: number;
+  assessmentDate: string;
+  vetName: string;
+  practiceName: string;
+  bodyConditionScore: string;
+  lameness: string;
+  respiratoryHealth: string;
+  skinCondition: string;
+  tailBiting: string;
+  mortalityRate: string;
+  findings: string;
+  recommendations: string;
+  nextReviewDate: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PigTailBitingRisk {
+  id: string;
+  farmId: string;
+  flockId: number;
+  assessmentDate: string;
+  assessedBy: string;
+  riskLevel: string;
+  tailsDockedAtBirth: boolean;
+  tailLengthAdequate: boolean;
+  stockingDensityOk: boolean;
+  enrichmentProvided: boolean;
+  enrichmentTypes: string;
+  feedingSystemOk: boolean;
+  healthStatusOk: boolean;
+  mixingFrequency: string;
+  currentBiting: boolean;
+  bitingLevel: string;
+  interventionsTaken: string;
+  monitoringFrequency: string;
+  reviewDate: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
 export interface PoultryDailyMortality {
   id: string;
   farmId: string;
