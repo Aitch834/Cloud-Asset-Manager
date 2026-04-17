@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Eye, Plus, Pencil, Trash2, Loader2, BarChart3, Flame, Trees, Zap, FileBarChart, SunMedium, Sprout, Upload } from "lucide-react";
 import { FctImportDialog } from "@/components/FctImportDialog";
@@ -436,25 +436,174 @@ function ReportsTab({ farmId }: { farmId: number }) {
   );
 }
 
+const TECH_TYPE_MAP: Record<string, string> = {
+  solar_pv: "Solar PV", wind_turbine: "Wind Turbine", hydro: "Hydro",
+  biomass_boiler: "Biomass Boiler", anaerobic_digester: "Anaerobic Digestion (AD)",
+  ground_source_heat_pump: "Ground Source Heat Pump", air_source_heat_pump: "Air Source Heat Pump",
+  other: "Other",
+};
+const UK_GRID_KG_CO2E_PER_KWH = 0.207;
+
 function RenewableEnergyTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const { data: records = [], isLoading } = useQuery({ queryKey: ["renewable-energy", farmId], queryFn: () => fetch(api(`farms/${farmId}/renewable-energy-production`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
-  const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/renewable-energy-production/${editing.id}`) : api(`farms/${farmId}/renewable-energy-production`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["renewable-energy", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/renewable-energy-production/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["renewable-energy", farmId] }) });
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{ time: string; created: number } | null>(null);
+  const hasSyncedRef = useRef(false);
+
+  const { data: records = [], isLoading } = useQuery({
+    queryKey: ["renewable-energy", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/renewable-energy-production`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []),
+  });
+  const { data: installations = [], isLoading: instLoading } = useQuery({
+    queryKey: ["solar-installations", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/solar-installations`), { credentials: "include" }).then(r => r.json()).then(d => Array.isArray(d) ? d : (d.records ?? [])),
+  });
+  const { data: generationReadings = [], isLoading: genLoading } = useQuery({
+    queryKey: ["solar-generation", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/solar-generation`), { credentials: "include" }).then(r => r.json()).then(d => Array.isArray(d) ? d : (d.records ?? [])),
+  });
+
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/renewable-energy-production/${editing.id}`) : api(`farms/${farmId}/renewable-energy-production`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["renewable-energy", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/renewable-energy-production/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["renewable-energy", farmId] }),
+  });
+
+  const doSync = async (force = false) => {
+    if (!installations.length && !generationReadings.length) { setSyncStatus({ time: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }), created: 0 }); return; }
+    setSyncing(true);
+    let created = 0;
+    try {
+      type InstRow = { id: number; installationName: string; technologyType: string; installedCapacityKw?: number; tariffRatePence?: number; fitOrSegContractRef?: string };
+      type GenRow = { id: number; installationId: number; readingDate: string; generationKwh?: number; exportKwh?: number; selfConsumedKwh?: number; fitPaymentAmount?: number };
+      type CarbonRow = { systemName?: string; productionYear?: number | string };
+
+      const instMap = new Map<number, InstRow>();
+      (installations as InstRow[]).forEach(i => instMap.set(i.id, i));
+
+      type Group = { installationId: number; year: number; readings: GenRow[] };
+      const groups = new Map<string, Group>();
+      (generationReadings as GenRow[]).forEach(g => {
+        if (!g.readingDate) return;
+        const year = new Date(g.readingDate).getFullYear();
+        const key = `${g.installationId}_${year}`;
+        if (!groups.has(key)) groups.set(key, { installationId: g.installationId, year, readings: [] });
+        groups.get(key)!.readings.push(g);
+      });
+
+      const existingKeys = new Set(
+        (records as CarbonRow[]).map(r => `${String(r.systemName ?? "").trim().toLowerCase()}_${r.productionYear}`)
+      );
+
+      for (const { installationId, year, readings } of groups.values()) {
+        const inst = instMap.get(installationId);
+        if (!inst) continue;
+        const existKey = `${inst.installationName.trim().toLowerCase()}_${year}`;
+        if (!force && existingKeys.has(existKey)) continue;
+
+        const totalGen = readings.reduce((s, r) => s + (Number(r.generationKwh) || 0), 0);
+        const totalExport = readings.reduce((s, r) => s + (Number(r.exportKwh) || 0), 0);
+        const totalSelf = readings.reduce((s, r) => s + (Number(r.selfConsumedKwh) || 0), 0);
+        const totalRevenue = readings.reduce((s, r) => s + (Number(r.fitPaymentAmount) || 0), 0);
+        const co2Avoided = parseFloat(((totalGen * UK_GRID_KG_CO2E_PER_KWH) / 1000).toFixed(3));
+        const dates = readings.map(r => r.readingDate).sort();
+        const periodStart = `${year}-01-01`;
+        const periodEnd = `${year}-12-31`;
+
+        await fetch(api(`farms/${farmId}/renewable-energy-production`), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            technologyType: TECH_TYPE_MAP[inst.technologyType] ?? "Other",
+            systemName: inst.installationName,
+            productionYear: year,
+            installedCapacityKw: inst.installedCapacityKw ?? null,
+            periodStart,
+            periodEnd,
+            generationKwh: totalGen || null,
+            selfConsumedKwh: totalSelf || null,
+            exportedKwh: totalExport || null,
+            exportTariffPencePerKwh: inst.tariffRatePence ?? null,
+            exportRevenueGbp: totalRevenue ? parseFloat((totalRevenue / 100).toFixed(2)) : null,
+            co2AvoidedTonnes: co2Avoided || null,
+            fitRocReference: inst.fitOrSegContractRef ?? null,
+            meterReadingStart: null,
+            meterReadingEnd: null,
+            notes: `Auto-synced from Fuel & Energy (${readings.length} reading${readings.length !== 1 ? "s" : ""}, ${dates[0]} – ${dates[dates.length - 1]})`,
+          }),
+        });
+        created++;
+      }
+
+      if (created > 0) qc.invalidateQueries({ queryKey: ["renewable-energy", farmId] });
+      setSyncStatus({ time: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }), created });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!hasSyncedRef.current && !isLoading && !instLoading && !genLoading) {
+      hasSyncedRef.current = true;
+      doSync(false);
+    }
+  }, [isLoading, instLoading, genLoading]);
+
   const TECH_TYPES = ["Solar PV", "Wind Turbine", "Anaerobic Digestion (AD)", "Hydro", "Biomass Boiler", "Ground Source Heat Pump", "Air Source Heat Pump", "Other"];
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div>
           <h3 className="font-semibold text-sm">Renewable Energy Production Log</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Record generation, self-consumption and export for all on-farm renewable systems — solar PV, wind turbines and anaerobic digestion. FIT/RO and export revenue tracked for financial reporting.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Auto-synced from Fuel &amp; Energy. Generation, self-consumption and export from all on-farm renewables. CO₂ avoided calculated using the BEIS UK grid factor (0.207 kgCO₂e/kWh).</p>
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm({ productionYear: String(new Date().getFullYear()) }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({ productionYear: String(new Date().getFullYear()) }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Manual Record</Button>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "technologyType", label: "Technology" }, { key: "systemName", label: "System" }, { key: "periodStart", label: "Period", fmt: r => `${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}` }, { key: "generationKwh", label: "Generated (kWh)" }, { key: "selfConsumedKwh", label: "Self-used (kWh)" }, { key: "exportedKwh", label: "Exported (kWh)" }, { key: "exportRevenueGbp", label: "Export Revenue" }, { key: "co2AvoidedTonnes", label: "CO₂ Avoided (t)" }]} rows={records as Record<string, unknown>[]} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />}
+
+      <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-green-50 border border-green-200 text-xs text-green-800">
+        {syncing ? (
+          <><Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /><span>Syncing from Fuel &amp; Energy…</span></>
+        ) : syncStatus ? (
+          <>
+            <SunMedium className="w-3.5 h-3.5 shrink-0 text-green-600" />
+            <span className="flex-1">
+              {syncStatus.created > 0
+                ? <><strong>{syncStatus.created} new record{syncStatus.created !== 1 ? "s" : ""}</strong> pulled from Fuel &amp; Energy · {syncStatus.time}</>
+                : <>Up to date · last checked {syncStatus.time}</>}
+            </span>
+            <button className="underline text-green-700 hover:text-green-900" onClick={() => { hasSyncedRef.current = false; doSync(false); }}>Re-sync</button>
+          </>
+        ) : (
+          <><SunMedium className="w-3.5 h-3.5 shrink-0" /><span>Checking Fuel &amp; Energy for new generation data…</span></>
+        )}
+      </div>
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "technologyType", label: "Technology" },
+            { key: "systemName", label: "System" },
+            { key: "productionYear", label: "Year" },
+            { key: "periodStart", label: "Period", fmt: r => `${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}` },
+            { key: "generationKwh", label: "Generated (kWh)" },
+            { key: "selfConsumedKwh", label: "Self-used (kWh)" },
+            { key: "exportedKwh", label: "Exported (kWh)" },
+            { key: "exportRevenueGbp", label: "Export Revenue (£)" },
+            { key: "co2AvoidedTonnes", label: "CO₂ Avoided (t)" },
+          ]}
+          rows={records as Record<string, unknown>[]}
+          onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
+          onDelete={r => del.mutate(r.id as number)}
+        />
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>Renewable Energy Production</DialogTitle></DialogHeader>
