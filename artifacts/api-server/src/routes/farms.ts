@@ -15188,6 +15188,55 @@ router.delete("/farms/:farmId/poultry-scheme-records/:id", requireAuth, requireT
   res.json({ success: true });
 });
 
+// --- Poultry Compliance Summary ---
+router.get("/farms/:farmId/poultry-compliance-summary", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const today = new Date();
+  const todayIso = today.toISOString().slice(0, 10);
+  const in60 = new Date(today); in60.setDate(today.getDate() + 60);
+  const in60Iso = in60.toISOString().slice(0, 10);
+
+  const [houses, flocks, mortality, treatments, cleanouts, envLogs, fci, bwi, thinning, biosecurity, schemes] = await Promise.all([
+    db.select({ id: poultryHousesTable.id }).from(poultryHousesTable).where(and(eq(poultryHousesTable.farmId, farmId), eq(poultryHousesTable.isActive, true))),
+    db.select({ id: poultryFlocksTable.id, status: poultryFlocksTable.status }).from(poultryFlocksTable).where(eq(poultryFlocksTable.farmId, farmId)),
+    db.select({ id: poultryDailyMortalityTable.id, mortalityDate: poultryDailyMortalityTable.mortalityDate, mortalityPercentage: poultryDailyMortalityTable.mortalityPercentage }).from(poultryDailyMortalityTable).where(eq(poultryDailyMortalityTable.farmId, farmId)).orderBy(desc(poultryDailyMortalityTable.mortalityDate)).limit(50),
+    db.select({ id: poultryTreatmentsTable.id, withdrawalClearDate: poultryTreatmentsTable.withdrawalClearDate, treatmentDate: poultryTreatmentsTable.treatmentDate }).from(poultryTreatmentsTable).where(eq(poultryTreatmentsTable.farmId, farmId)).orderBy(desc(poultryTreatmentsTable.treatmentDate)).limit(50),
+    db.select({ id: poultryHouseCleanoutsTable.id, cleanoutStartDate: poultryHouseCleanoutsTable.cleanoutStartDate }).from(poultryHouseCleanoutsTable).where(eq(poultryHouseCleanoutsTable.farmId, farmId)).orderBy(desc(poultryHouseCleanoutsTable.cleanoutStartDate)).limit(20),
+    db.select({ id: poultryEnvironmentalLogsTable.id, logDate: poultryEnvironmentalLogsTable.logDate, ammoniaPpm: poultryEnvironmentalLogsTable.ammoniaPpm }).from(poultryEnvironmentalLogsTable).where(eq(poultryEnvironmentalLogsTable.farmId, farmId)).orderBy(desc(poultryEnvironmentalLogsTable.logDate)).limit(50),
+    db.select({ id: poultryFciDocumentsTable.id, documentDate: poultryFciDocumentsTable.documentDate, withdrawalPeriodClear: poultryFciDocumentsTable.withdrawalPeriodClear }).from(poultryFciDocumentsTable).where(eq(poultryFciDocumentsTable.farmId, farmId)).orderBy(desc(poultryFciDocumentsTable.documentDate)).limit(20),
+    db.select({ id: poultryBroilerWelfareTable.id, assessmentDate: poultryBroilerWelfareTable.assessmentDate, overallOutcome: poultryBroilerWelfareTable.overallOutcome }).from(poultryBroilerWelfareTable).where(eq(poultryBroilerWelfareTable.farmId, farmId)).orderBy(desc(poultryBroilerWelfareTable.assessmentDate)).limit(20),
+    db.select({ id: poultryThinningRecordsTable.id, thinningDate: poultryThinningRecordsTable.thinningDate }).from(poultryThinningRecordsTable).where(eq(poultryThinningRecordsTable.farmId, farmId)).orderBy(desc(poultryThinningRecordsTable.thinningDate)).limit(20),
+    db.select({ id: poultryBiosecurityChecklistTable.id, cleanoutStartDate: poultryBiosecurityChecklistTable.cleanoutStartDate, overallComplianceStatus: poultryBiosecurityChecklistTable.overallComplianceStatus }).from(poultryBiosecurityChecklistTable).where(eq(poultryBiosecurityChecklistTable.farmId, farmId)).orderBy(desc(poultryBiosecurityChecklistTable.cleanoutStartDate)).limit(20),
+    db.select({ id: poultrySchemeRecordsTable.id, scheme: poultrySchemeRecordsTable.scheme, nextAssessmentDue: poultrySchemeRecordsTable.nextAssessmentDue, outcomeStatus: poultrySchemeRecordsTable.outcomeStatus }).from(poultrySchemeRecordsTable).where(eq(poultrySchemeRecordsTable.farmId, farmId)).orderBy(desc(poultrySchemeRecordsTable.assessmentDate)).limit(20),
+  ]);
+
+  const activeFlocks = flocks.filter(f => f.status === "active").length;
+  const activeWithdrawals = treatments.filter(t => t.withdrawalClearDate && t.withdrawalClearDate >= todayIso).length;
+  const maxAmm = envLogs.length ? Math.max(...envLogs.filter(e => e.ammoniaPpm != null).map(e => parseFloat(String(e.ammoniaPpm)))) : 0;
+  const fciUnclear = fci.filter(f => !f.withdrawalPeriodClear).length;
+  const bwiFails = bwi.filter(b => String(b.overallOutcome).toLowerCase().includes("fail")).length;
+  const bioNonCompliant = biosecurity.filter(b => b.overallComplianceStatus === "non-compliant").length;
+  const schemesExpired = schemes.filter(s => s.nextAssessmentDue && s.nextAssessmentDue < todayIso).length;
+  const schemesExpiringSoon = schemes.filter(s => s.nextAssessmentDue && s.nextAssessmentDue >= todayIso && s.nextAssessmentDue <= in60Iso).length;
+  const highMortality = mortality.filter(m => m.mortalityPercentage != null && parseFloat(String(m.mortalityPercentage)) > 5).length;
+
+  res.json({
+    summary: {
+      houses: { count: houses.length, status: houses.length > 0 ? "green" : "grey", label: `${houses.length} active house${houses.length !== 1 ? "s" : ""}` },
+      flocks: { count: flocks.length, activeCount: activeFlocks, status: flocks.length > 0 ? "green" : "grey", label: `${activeFlocks} active flock${activeFlocks !== 1 ? "s" : ""}` },
+      mortality: { count: mortality.length, highCount: highMortality, status: highMortality > 0 ? "red" : mortality.length > 0 ? "green" : "grey", label: mortality.length > 0 ? `${mortality.length} records${highMortality > 0 ? ` — ${highMortality} high mortality events` : ""}` : "No records", lastDate: mortality[0]?.mortalityDate ?? null },
+      treatments: { count: treatments.length, activeWithdrawals, status: activeWithdrawals > 0 ? "amber" : treatments.length > 0 ? "green" : "grey", label: treatments.length > 0 ? `${treatments.length} records${activeWithdrawals > 0 ? ` — ${activeWithdrawals} active withdrawal period${activeWithdrawals > 1 ? "s" : ""}` : ""}` : "No records", lastDate: treatments[0]?.treatmentDate ?? null },
+      cleanouts: { count: cleanouts.length, status: cleanouts.length > 0 ? "green" : "grey", label: `${cleanouts.length} cleanout record${cleanouts.length !== 1 ? "s" : ""}`, lastDate: cleanouts[0]?.cleanoutStartDate ?? null },
+      envLogs: { count: envLogs.length, maxAmm: maxAmm || null, status: maxAmm > 10 ? "red" : maxAmm >= 7 ? "amber" : envLogs.length > 0 ? "green" : "grey", label: envLogs.length > 0 ? `${envLogs.length} readings${maxAmm > 10 ? ` — ammonia ${maxAmm.toFixed(1)}ppm (above threshold)` : maxAmm >= 7 ? ` — ammonia ${maxAmm.toFixed(1)}ppm (approaching limit)` : ""}` : "No records", lastDate: envLogs[0]?.logDate ?? null },
+      fci: { count: fci.length, unclearCount: fciUnclear, status: fciUnclear > 0 ? "red" : fci.length > 0 ? "green" : "grey", label: fci.length > 0 ? `${fci.length} documents${fciUnclear > 0 ? ` — ${fciUnclear} withdrawal period unclear` : ""}` : "No records", lastDate: fci[0]?.documentDate ?? null },
+      bwi: { count: bwi.length, failCount: bwiFails, status: bwiFails > 0 ? "red" : bwi.length > 0 ? "green" : "grey", label: bwi.length > 0 ? `${bwi.length} assessments${bwiFails > 0 ? ` — ${bwiFails} failed` : " — all passed"}` : "No records", lastDate: bwi[0]?.assessmentDate ?? null },
+      thinning: { count: thinning.length, status: thinning.length > 0 ? "green" : "grey", label: `${thinning.length} thinning event${thinning.length !== 1 ? "s" : ""}`, lastDate: thinning[0]?.thinningDate ?? null },
+      biosecurity: { count: biosecurity.length, nonCompliantCount: bioNonCompliant, status: bioNonCompliant > 0 ? "red" : biosecurity.length > 0 ? "green" : "grey", label: biosecurity.length > 0 ? `${biosecurity.length} checklists${bioNonCompliant > 0 ? ` — ${bioNonCompliant} non-compliant` : " — all compliant"}` : "No records", lastDate: biosecurity[0]?.cleanoutStartDate ?? null },
+      schemes: { count: schemes.length, expiredCount: schemesExpired, expiringSoonCount: schemesExpiringSoon, status: schemesExpired > 0 ? "red" : schemesExpiringSoon > 0 ? "amber" : schemes.length > 0 ? "green" : "grey", label: schemes.length > 0 ? `${schemes.length} scheme${schemes.length !== 1 ? "s" : ""}${schemesExpired > 0 ? ` — ${schemesExpired} assessment overdue` : schemesExpiringSoon > 0 ? ` — ${schemesExpiringSoon} due within 60 days` : ""}` : "No records" },
+    }
+  });
+});
+
 // --- Pig Red Tractor Checklists ---
 router.get("/farms/:farmId/pig-red-tractor-checklists", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;

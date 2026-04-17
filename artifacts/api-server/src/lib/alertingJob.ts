@@ -1,4 +1,4 @@
-import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable } from "@workspace/db";
+import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable, poultryTreatmentsTable, poultrySchemeRecordsTable, poultryBroilerWelfareTable } from "@workspace/db";
 import { usersTable, userTenantsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
 import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable, feedPurchaseOrdersTable } from "@workspace/db/schema";
@@ -963,6 +963,167 @@ async function checkOverdueVetPlanActions() {
   }
 }
 
+async function checkPoultryWithdrawalPeriods() {
+  const today = new Date();
+  const todayIso = today.toISOString().slice(0, 10);
+
+  const active = await db
+    .select({
+      id: poultryTreatmentsTable.id,
+      farmId: poultryTreatmentsTable.farmId,
+      productName: poultryTreatmentsTable.productName,
+      withdrawalClearDate: poultryTreatmentsTable.withdrawalClearDate,
+      withdrawalPeriodDays: poultryTreatmentsTable.withdrawalPeriodDays,
+    })
+    .from(poultryTreatmentsTable)
+    .where(gte(poultryTreatmentsTable.withdrawalClearDate, todayIso));
+
+  for (const tx of active) {
+    if (!tx.withdrawalClearDate) continue;
+
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, tx.farmId))
+      .limit(1);
+
+    if (!farm) continue;
+
+    const clearDate = new Date(tx.withdrawalClearDate);
+    const daysRemaining = Math.ceil((clearDate.getTime() - today.getTime()) / 86400000);
+    const clearDateStr = clearDate.toLocaleDateString("en-GB");
+
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: tx.farmId,
+      type: "poultry_withdrawal_active",
+      severity: daysRemaining <= 3 ? "critical" : "warning",
+      title: `Withdrawal Period Active — ${tx.productName}`,
+      message: `${tx.productName} treatment has an active withdrawal period. Birds must NOT be sent for slaughter before ${clearDateStr} (${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} remaining). Ensure FCI document reflects this before any birds leave the farm.`,
+      relatedModule: "poultry-production",
+      relatedId: tx.id,
+      dedupeKey: `poultry-withdrawal-${tx.id}-${todayIso}`,
+    });
+  }
+}
+
+async function checkPoultrySchemeExpiry() {
+  const today = new Date();
+  const todayIso = today.toISOString().slice(0, 10);
+  const in60 = new Date(today);
+  in60.setDate(today.getDate() + 60);
+  const in60Iso = in60.toISOString().slice(0, 10);
+
+  const schemes = await db
+    .select({
+      id: poultrySchemeRecordsTable.id,
+      farmId: poultrySchemeRecordsTable.farmId,
+      scheme: poultrySchemeRecordsTable.scheme,
+      nextAssessmentDue: poultrySchemeRecordsTable.nextAssessmentDue,
+    })
+    .from(poultrySchemeRecordsTable)
+    .where(
+      and(
+        isNotNull(poultrySchemeRecordsTable.nextAssessmentDue),
+        lte(poultrySchemeRecordsTable.nextAssessmentDue, in60Iso),
+      )
+    );
+
+  for (const scheme of schemes) {
+    if (!scheme.nextAssessmentDue) continue;
+
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, scheme.farmId))
+      .limit(1);
+
+    if (!farm) continue;
+
+    const dueDate = new Date(scheme.nextAssessmentDue);
+    const expired = dueDate < today;
+    const daysUntil = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
+    const dueDateStr = dueDate.toLocaleDateString("en-GB");
+    const schemeName = scheme.scheme || "Assurance Scheme";
+
+    if (expired) {
+      await upsertNotification({
+        tenantId: farm.tenantId,
+        farmId: scheme.farmId,
+        type: "poultry_scheme_overdue",
+        severity: "critical",
+        title: `${schemeName} Assessment Overdue`,
+        message: `The ${schemeName} next assessment was due on ${dueDateStr}. Arrange an inspection immediately — operating outside scheme compliance risks your certification and premium contracts.`,
+        relatedModule: "poultry-production",
+        relatedId: scheme.id,
+        dedupeKey: `poultry-scheme-overdue-${scheme.id}-week${Math.floor(Math.abs(daysUntil) / 7)}`,
+      });
+      await dispatchSmsForCriticalAlert(farm.tenantId, `${schemeName} Assessment Overdue`, `Assessment was due ${dueDateStr}. Arrange inspection immediately to maintain scheme certification.`);
+    } else {
+      await upsertNotification({
+        tenantId: farm.tenantId,
+        farmId: scheme.farmId,
+        type: "poultry_scheme_due_soon",
+        severity: daysUntil <= 14 ? "critical" : "warning",
+        title: `${schemeName} Assessment Due in ${daysUntil} Days`,
+        message: `Your ${schemeName} assessment is due on ${dueDateStr}. Ensure all poultry records (mortality, treatments, BWI, biosecurity checklists) are complete and up to date before the assessor visit.`,
+        relatedModule: "poultry-production",
+        relatedId: scheme.id,
+        dedupeKey: `poultry-scheme-due-${scheme.id}-days${Math.floor(daysUntil / 7)}`,
+      });
+    }
+  }
+}
+
+async function checkPoultryBwiAlerts() {
+  const RECENT_DAYS = 30;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - RECENT_DAYS);
+  const cutoffIso = cutoff.toISOString().slice(0, 10);
+
+  const failedAssessments = await db
+    .select({
+      id: poultryBroilerWelfareTable.id,
+      farmId: poultryBroilerWelfareTable.farmId,
+      assessmentDate: poultryBroilerWelfareTable.assessmentDate,
+      overallOutcome: poultryBroilerWelfareTable.overallOutcome,
+      actionsTaken: poultryBroilerWelfareTable.actionsTaken,
+    })
+    .from(poultryBroilerWelfareTable)
+    .where(
+      and(
+        gte(poultryBroilerWelfareTable.assessmentDate, cutoffIso),
+        sql`lower(${poultryBroilerWelfareTable.overallOutcome}) like '%fail%'`,
+      )
+    );
+
+  for (const assessment of failedAssessments) {
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, assessment.farmId))
+      .limit(1);
+
+    if (!farm) continue;
+
+    const dateStr = assessment.assessmentDate ? new Date(assessment.assessmentDate).toLocaleDateString("en-GB") : "recent date";
+
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: assessment.farmId,
+      type: "poultry_bwi_fail",
+      severity: "critical",
+      title: "BWI Assessment Failed — Action Required",
+      message: `A Broiler Welfare Indicator assessment on ${dateStr} recorded a Fail outcome. Review pododermatitis, hock burn and gait scores, take corrective action and re-assess. Document actions in the BWI record. This must be resolved before the next Red Tractor audit.`,
+      relatedModule: "poultry-production",
+      relatedId: assessment.id,
+      dedupeKey: `poultry-bwi-fail-${assessment.id}`,
+    });
+
+    await dispatchSmsForCriticalAlert(farm.tenantId, "BWI Assessment Failed", `BWI assessment on ${dateStr} failed. Corrective action required before next Red Tractor audit.`);
+  }
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
@@ -976,6 +1137,9 @@ export async function runAlertingJob() {
     await checkFeedStockLevels();
     await checkOverdueFeedOrders();
     await checkOverdueVetPlanActions();
+    await checkPoultryWithdrawalPeriods();
+    await checkPoultrySchemeExpiry();
+    await checkPoultryBwiAlerts();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {
     console.error("[ALERTS] Alerting job error:", err);

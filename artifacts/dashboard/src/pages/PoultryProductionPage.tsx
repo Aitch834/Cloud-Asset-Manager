@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1725,30 +1725,235 @@ function PoultryFeedTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "houses" | "flocks" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed";
+type ComplianceStatus = "green" | "amber" | "red" | "grey";
+type SummaryItem = { count: number; status: ComplianceStatus; label: string; lastDate?: string | null; activeCount?: number; activeWithdrawals?: number; highCount?: number; failCount?: number; unclearCount?: number; nonCompliantCount?: number; expiredCount?: number; expiringSoonCount?: number; maxAmm?: number | null };
+type ComplianceSummary = { houses: SummaryItem; flocks: SummaryItem; mortality: SummaryItem; treatments: SummaryItem; cleanouts: SummaryItem; envLogs: SummaryItem; fci: SummaryItem; bwi: SummaryItem; thinning: SummaryItem; biosecurity: SummaryItem; schemes: SummaryItem };
+
+function ComplianceCard({ title, icon, item, tab, onGoto }: { title: string; icon: ReactNode; item: SummaryItem; tab: string; onGoto: (t: string) => void }) {
+  const borderCls = item.status === "red" ? "border-red-300 bg-red-50" : item.status === "amber" ? "border-amber-300 bg-amber-50" : item.status === "green" ? "border-green-200 bg-green-50" : "border-gray-200 bg-gray-50";
+  const iconCls = item.status === "red" ? "text-red-600" : item.status === "amber" ? "text-amber-600" : item.status === "green" ? "text-green-700" : "text-gray-400";
+  const StatusIcon = item.status === "red" ? XCircle : item.status === "amber" ? AlertTriangle : item.status === "green" ? CheckCircle2 : Circle;
+  return (
+    <button onClick={() => onGoto(tab)} className={`w-full text-left rounded-lg border p-4 space-y-2 hover:shadow-sm transition-shadow ${borderCls}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={iconCls}>{icon}</span>
+          <span className="text-sm font-semibold text-foreground">{title}</span>
+        </div>
+        <StatusIcon className={`w-4 h-4 ${iconCls}`} />
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground leading-relaxed">{item.label}</p>
+        {item.lastDate && <p className="text-xs text-muted-foreground mt-0.5">Last record: {new Date(item.lastDate).toLocaleDateString("en-GB")}</p>}
+      </div>
+    </button>
+  );
+}
+
+function OverviewTab({ farmId, onGoto }: { farmId: number; onGoto: (tab: string) => void }) {
+  const { data, isLoading } = useQuery<{ summary: ComplianceSummary }>({
+    queryKey: ["poultry-compliance-summary", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/poultry-compliance-summary`), { credentials: "include" }).then(r => r.json()),
+    refetchInterval: 60000,
+  });
+  const summary = data?.summary;
+
+  const overallStatus: ComplianceStatus = !summary ? "grey" : (Object.values(summary) as SummaryItem[]).some(s => s.status === "red") ? "red" : (Object.values(summary) as SummaryItem[]).some(s => s.status === "amber") ? "amber" : "green";
+  const redCount = summary ? (Object.values(summary) as SummaryItem[]).filter(s => s.status === "red").length : 0;
+  const amberCount = summary ? (Object.values(summary) as SummaryItem[]).filter(s => s.status === "amber").length : 0;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">Red Tractor Compliance Overview</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Live status across all 12 poultry record categories. Click any card to go straight to that tab.</p>
+        </div>
+        {summary && (
+          <div className={`rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 ${overallStatus === "red" ? "bg-red-100 text-red-700" : overallStatus === "amber" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+            {overallStatus === "green" ? <CheckCircle2 className="w-3.5 h-3.5" /> : overallStatus === "amber" ? <AlertTriangle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+            {overallStatus === "green" ? "All Clear" : overallStatus === "amber" ? `${amberCount} Attention Needed` : `${redCount} Issue${redCount > 1 ? "s" : ""} Require Action`}
+          </div>
+        )}
+      </div>
+
+      {isLoading && <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center"><Loader2 className="animate-spin w-4 h-4" />Loading compliance status…</div>}
+
+      {summary && (
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Farm Setup</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ComplianceCard title="Houses" icon={<Home className="w-4 h-4" />} item={summary.houses} tab="houses" onGoto={onGoto} />
+              <ComplianceCard title="Flocks" icon={<Bird className="w-4 h-4" />} item={summary.flocks} tab="flocks" onGoto={onGoto} />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Daily Records</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ComplianceCard title="Daily Mortality" icon={<BarChart3 className="w-4 h-4" />} item={summary.mortality} tab="mortality" onGoto={onGoto} />
+              <ComplianceCard title="Environmental Logs" icon={<Thermometer className="w-4 h-4" />} item={summary.envLogs} tab="envlogs" onGoto={onGoto} />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Treatments & Welfare</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <ComplianceCard title="Treatments" icon={<Pill className="w-4 h-4" />} item={summary.treatments} tab="treatments" onGoto={onGoto} />
+              <ComplianceCard title="Broiler Welfare (BWI)" icon={<ShieldCheck className="w-4 h-4" />} item={summary.bwi} tab="bwi" onGoto={onGoto} />
+              <ComplianceCard title="FCI Documents" icon={<FileText className="w-4 h-4" />} item={summary.fci} tab="fci" onGoto={onGoto} />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Biosecurity & Cleanouts</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <ComplianceCard title="House Cleanouts" icon={<SprayCan className="w-4 h-4" />} item={summary.cleanouts} tab="cleanouts" onGoto={onGoto} />
+              <ComplianceCard title="Biosecurity Checklists" icon={<ClipboardList className="w-4 h-4" />} item={summary.biosecurity} tab="biosecurity" onGoto={onGoto} />
+              <ComplianceCard title="Thinning Records" icon={<Scissors className="w-4 h-4" />} item={summary.thinning} tab="thinning" onGoto={onGoto} />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Scheme Certification</p>
+            <div className="grid grid-cols-1 sm:grid-cols-1 gap-3">
+              <ComplianceCard title="Assurance Scheme Records" icon={<Star className="w-4 h-4" />} item={summary.schemes} tab="scheme-records" onGoto={onGoto} />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+async function generateAuditPDF(farmId: number) {
+  const headers = { credentials: "include" as const };
+  const get = (path: string) => fetch(api(`farms/${farmId}/${path}`), headers).then(r => r.json());
+
+  const [housesRes, flocksRes, mortalityRes, treatmentsRes, cleanoutsRes, envRes, fciRes, bwiRes, thinRes, bioRes, schemeRes] = await Promise.all([
+    get("poultry-houses"), get("poultry-flocks"), get("poultry-daily-mortality"),
+    get("poultry-treatments"), get("poultry-house-cleanouts"), get("poultry-environmental-logs"),
+    get("poultry-fci-documents"), get("poultry-broiler-welfare"), get("poultry-thinning-records"),
+    get("poultry-biosecurity-checklists"), get("poultry-scheme-records"),
+  ]);
+
+  const jsPDFModule = await import("jspdf");
+  const autoTableModule = await import("jspdf-autotable");
+  const jsPDF = jsPDFModule.default;
+  const autoTable = autoTableModule.default;
+
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const today = new Date().toLocaleDateString("en-GB");
+
+  function addSection(title: string, heads: string[], rows: (string | number)[][], newPage = true) {
+    if (newPage) doc.addPage();
+    doc.setFontSize(13); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 80, 40);
+    doc.text(title, 14, 16);
+    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(120, 120, 120);
+    doc.text(`Generated ${today} — BDE Farm Trac`, pageW - 14, 16, { align: "right" });
+    autoTable(doc, {
+      head: [heads], body: rows.map(r => r.map(String)),
+      startY: 22, styles: { fontSize: 7, cellPadding: 2 },
+      headStyles: { fillColor: [30, 80, 40], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 250, 246] },
+    });
+  }
+
+  const fd = (v: unknown) => v ? new Date(v as string).toLocaleDateString("en-GB") : "";
+  const yn = (v: unknown) => v ? "Yes" : "No";
+
+  doc.setFontSize(20); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 80, 40);
+  doc.text("BDE Farm Trac — Poultry Production Audit Report", pageW / 2, 40, { align: "center" });
+  doc.setFontSize(11); doc.setFont("helvetica", "normal"); doc.setTextColor(80, 80, 80);
+  doc.text(`Generated: ${today}`, pageW / 2, 52, { align: "center" });
+  doc.text("Barnett Davies Enterprises Ltd — Red Tractor Poultry Compliance Records", pageW / 2, 60, { align: "center" });
+
+  const houses = (Array.isArray(housesRes) ? housesRes : housesRes?.houses ?? housesRes?.records ?? []) as Record<string, unknown>[];
+  const flocks = (Array.isArray(flocksRes) ? flocksRes : flocksRes?.flocks ?? flocksRes?.records ?? []) as Record<string, unknown>[];
+  const mortality = (mortalityRes?.records ?? []) as Record<string, unknown>[];
+  const treatments = (treatmentsRes?.records ?? []) as Record<string, unknown>[];
+  const cleanouts = (cleanoutsRes?.records ?? []) as Record<string, unknown>[];
+  const envLogs = (envRes?.records ?? []) as Record<string, unknown>[];
+  const fciDocs = (fciRes?.records ?? []) as Record<string, unknown>[];
+  const bwi = (bwiRes?.records ?? []) as Record<string, unknown>[];
+  const thinning = (thinRes?.records ?? []) as Record<string, unknown>[];
+  const biosecurity = (bioRes?.records ?? []) as Record<string, unknown>[];
+  const schemes = (Array.isArray(schemeRes) ? schemeRes : schemeRes?.records ?? []) as Record<string, unknown>[];
+
+  if (houses.length) addSection("Houses", ["Name", "House Type", "Capacity", "Active"],
+    houses.map(r => [String(r.houseName ?? ""), String(r.houseType ?? ""), String(r.capacity ?? ""), yn(r.isActive)]));
+
+  if (flocks.length) addSection("Flocks", ["Flock No.", "Breed", "Placement Date", "Placement Count", "Status"],
+    flocks.map(r => [String(r.flockNumber ?? ""), String(r.breed ?? ""), fd(r.placementDate), String(r.placementCount ?? ""), String(r.status ?? "")]));
+
+  if (mortality.length) addSection("Daily Mortality Records", ["Date", "Flock", "Daily Mortality", "Running Total", "Percentage", "Main Cause"],
+    mortality.map(r => [fd(r.mortalityDate), String(r.flockNumber ?? ""), String(r.dailyMortality ?? ""), String(r.runningTotalMortality ?? ""), `${r.mortalityPercentage ?? ""}%`, String(r.mainCause ?? "")]));
+
+  if (treatments.length) addSection("Treatment Records", ["Date", "Flock", "Product", "Condition", "Route", "Withdrawal Clear Date", "Vet Prescribed"],
+    treatments.map(r => [fd(r.treatmentDate), String(r.flockNumber ?? ""), String(r.productName ?? ""), String(r.condition ?? ""), String(r.routeOfAdministration ?? ""), fd(r.withdrawalClearDate), yn(r.prescriptionObtained)]));
+
+  if (cleanouts.length) addSection("House Cleanout Records", ["Start Date", "End Date", "House", "Disinfectant", "Standing Time (days)", "Swabs Taken", "Results"],
+    cleanouts.map(r => [fd(r.cleanoutStartDate), fd(r.cleanoutEndDate), String(r.houseName ?? ""), String(r.disinfectantUsed ?? ""), String(r.standingTimeDays ?? ""), yn(r.swabsTaken), String(r.swabResults ?? "")]));
+
+  if (envLogs.length) addSection("Environmental Monitoring Logs", ["Date", "Flock", "Min °C", "Max °C", "Humidity %", "Ammonia ppm", "Alarm"],
+    envLogs.map(r => [fd(r.logDate), String(r.flockNumber ?? ""), String(r.temperatureMin ?? ""), String(r.temperatureMax ?? ""), String(r.humidity ?? ""), String(r.ammoniaPpm ?? ""), yn(r.alarmActivated)]));
+
+  if (fciDocs.length) addSection("Food Chain Information (FCI) Documents", ["Date", "Flock", "Abattoir", "Birds", "Withdrawal Clear", "Meds Last 7 Days", "Signed"],
+    fciDocs.map(r => [fd(r.documentDate), String(r.flockNumber ?? ""), String(r.destinationAbattoir ?? ""), String(r.numberOfBirds ?? ""), yn(r.withdrawalPeriodClear), yn(r.medicationsLast7Days), yn(r.signedByFarmer)]));
+
+  if (bwi.length) addSection("Broiler Welfare Indicators (BWI)", ["Date", "Flock", "Assessed By", "FPD Score", "Hock Burn", "Gait Score", "Outcome"],
+    bwi.map(r => [fd(r.assessmentDate), String(r.flockNumber ?? ""), String(r.assessedBy ?? ""), String(r.footpadDermatitisScore ?? ""), String(r.hockBurnScore ?? ""), String(r.gaitScore ?? ""), String(r.overallOutcome ?? "")]));
+
+  if (thinning.length) addSection("Thinning Records", ["Date", "Flock", "Thinning No.", "Birds Removed", "DOAs", "Avg Live Wt (kg)", "Abattoir"],
+    thinning.map(r => [fd(r.thinningDate), String(r.flockNumber ?? ""), String(r.thinningNumber ?? ""), String(r.birdsRemoved ?? ""), String(r.doasAtLoading ?? "0"), String(r.averageLiveWeightKg ?? ""), String(r.destinationAbattoir ?? "")]));
+
+  if (biosecurity.length) addSection("Biosecurity Checklists", ["Date", "House", "Downtime (days)", "Disinfectant", "Status", "Completed By"],
+    biosecurity.map(r => [fd(r.cleanoutStartDate), String(r.houseName ?? ""), String(r.downtimeDays ?? ""), String(r.disinfectantUsed ?? ""), String(r.overallComplianceStatus ?? ""), String(r.completedBy ?? "")]));
+
+  if (schemes.length) addSection("Assurance Scheme Records", ["Scheme", "Certificate No.", "Assessment Date", "Assessor", "Outcome", "Next Assessment Due"],
+    schemes.map(r => [String(r.scheme ?? r.schemeName ?? ""), String(r.certificateNumber ?? ""), fd(r.assessmentDate), String(r.assessorName ?? ""), String(r.outcomeStatus ?? r.assessmentOutcome ?? ""), fd(r.nextAssessmentDue ?? r.certificateExpiryDate)]));
+
+  const safeFarmId = String(farmId).replace(/[^a-z0-9]/gi, "");
+  doc.save(`poultry-audit-report-farm${safeFarmId}-${today.replace(/\//g, "-")}.pdf`);
+}
+
+type Tab = "overview" | "houses" | "flocks" | "mortality" | "treatments" | "cleanouts" | "envlogs" | "fci" | "bwi" | "thinning" | "biosecurity" | "scheme-records" | "feed";
 
 export default function PoultryProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["houses","flocks","mortality","treatments","cleanouts","envlogs","fci","bwi","thinning","biosecurity","scheme-records","feed"]; return t && valid.includes(t) ? t : "houses"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","houses","flocks","mortality","treatments","cleanouts","envlogs","fci","bwi","thinning","biosecurity","scheme-records","feed"]; return t && valid.includes(t) ? t : "overview"; });
+  const [generating, setGenerating] = useState(false);
   if (!farmId) return <Redirect to="/" />;
+
+  async function handleGeneratePdf() {
+    setGenerating(true);
+    try { await generateAuditPDF(farmId!); } catch (e) { console.error("PDF generation failed:", e); } finally { setGenerating(false); }
+  }
+
   return (
     <AppLayout title="Poultry Production">
       <div className="space-y-4">
-        <TabBar>
-          <TabButton active={tab === "houses"} onClick={() => setTab("houses")}><Home className="w-3.5 h-3.5 mr-1" />Houses</TabButton>
-          <TabButton active={tab === "flocks"} onClick={() => setTab("flocks")}><Bird className="w-3.5 h-3.5 mr-1" />Flocks</TabButton>
-          <TabButton active={tab === "mortality"} onClick={() => setTab("mortality")}><BarChart3 className="w-3.5 h-3.5 mr-1" />Mortality</TabButton>
-          <TabButton active={tab === "treatments"} onClick={() => setTab("treatments")}><Pill className="w-3.5 h-3.5 mr-1" />Treatments</TabButton>
-          <TabButton active={tab === "cleanouts"} onClick={() => setTab("cleanouts")}><SprayCan className="w-3.5 h-3.5 mr-1" />Cleanouts</TabButton>
-          <TabButton active={tab === "envlogs"} onClick={() => setTab("envlogs")}><Thermometer className="w-3.5 h-3.5 mr-1" />Environment</TabButton>
-          <TabButton active={tab === "fci"} onClick={() => setTab("fci")}><FileText className="w-3.5 h-3.5 mr-1" />FCI Docs</TabButton>
-          <TabButton active={tab === "bwi"} onClick={() => setTab("bwi")}><ShieldCheck className="w-3.5 h-3.5 mr-1" />Broiler Welfare</TabButton>
-          <TabButton active={tab === "thinning"} onClick={() => setTab("thinning")}><Scissors className="w-3.5 h-3.5 mr-1" />Thinning</TabButton>
-          <TabButton active={tab === "biosecurity"} onClick={() => setTab("biosecurity")}><ClipboardList className="w-3.5 h-3.5 mr-1" />Biosecurity</TabButton>
-          <TabButton active={tab === "scheme-records"} onClick={() => setTab("scheme-records")}><Star className="w-3.5 h-3.5 mr-1" />Scheme Records</TabButton>
-          <TabButton active={tab === "feed"} onClick={() => setTab("feed")}><Truck className="w-3.5 h-3.5 mr-1" />Feed</TabButton>
-        </TabBar>
+        <div className="flex items-center justify-between">
+          <TabBar>
+            <TabButton active={tab === "overview"} onClick={() => setTab("overview")}><LayoutDashboard className="w-3.5 h-3.5 mr-1" />Overview</TabButton>
+            <TabButton active={tab === "houses"} onClick={() => setTab("houses")}><Home className="w-3.5 h-3.5 mr-1" />Houses</TabButton>
+            <TabButton active={tab === "flocks"} onClick={() => setTab("flocks")}><Bird className="w-3.5 h-3.5 mr-1" />Flocks</TabButton>
+            <TabButton active={tab === "mortality"} onClick={() => setTab("mortality")}><BarChart3 className="w-3.5 h-3.5 mr-1" />Mortality</TabButton>
+            <TabButton active={tab === "treatments"} onClick={() => setTab("treatments")}><Pill className="w-3.5 h-3.5 mr-1" />Treatments</TabButton>
+            <TabButton active={tab === "cleanouts"} onClick={() => setTab("cleanouts")}><SprayCan className="w-3.5 h-3.5 mr-1" />Cleanouts</TabButton>
+            <TabButton active={tab === "envlogs"} onClick={() => setTab("envlogs")}><Thermometer className="w-3.5 h-3.5 mr-1" />Environment</TabButton>
+            <TabButton active={tab === "fci"} onClick={() => setTab("fci")}><FileText className="w-3.5 h-3.5 mr-1" />FCI Docs</TabButton>
+            <TabButton active={tab === "bwi"} onClick={() => setTab("bwi")}><ShieldCheck className="w-3.5 h-3.5 mr-1" />Broiler Welfare</TabButton>
+            <TabButton active={tab === "thinning"} onClick={() => setTab("thinning")}><Scissors className="w-3.5 h-3.5 mr-1" />Thinning</TabButton>
+            <TabButton active={tab === "biosecurity"} onClick={() => setTab("biosecurity")}><ClipboardList className="w-3.5 h-3.5 mr-1" />Biosecurity</TabButton>
+            <TabButton active={tab === "scheme-records"} onClick={() => setTab("scheme-records")}><Star className="w-3.5 h-3.5 mr-1" />Scheme Records</TabButton>
+            <TabButton active={tab === "feed"} onClick={() => setTab("feed")}><Truck className="w-3.5 h-3.5 mr-1" />Feed</TabButton>
+          </TabBar>
+          <Button size="sm" variant="outline" onClick={handleGeneratePdf} disabled={generating} className="ml-3 shrink-0">
+            {generating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileDown className="w-3.5 h-3.5 mr-1" />}
+            {generating ? "Generating…" : "Audit Report PDF"}
+          </Button>
+        </div>
         <Card><CardContent className="pt-4">
+          {tab === "overview" && <OverviewTab farmId={farmId} onGoto={t => setTab(t as Tab)} />}
           {tab === "houses" && <HousesTab farmId={farmId} />}
           {tab === "flocks" && <FlocksTab farmId={farmId} />}
           {tab === "mortality" && <MortalityTab farmId={farmId} />}
