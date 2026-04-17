@@ -15259,6 +15259,107 @@ router.delete("/farms/:farmId/pig-red-tractor-checklists/:id", requireAuth, requ
   res.json({ success: true });
 });
 
+// ─── Pig Compliance Summary ─────────────────────────────────────────────────
+router.get("/farms/:farmId/pig-compliance-summary", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const today = new Date();
+  const todayIso = today.toISOString().slice(0, 10);
+  const in60 = new Date(today); in60.setDate(today.getDate() + 60);
+  const in60Iso = in60.toISOString().slice(0, 10);
+  const ago7 = new Date(today); ago7.setDate(today.getDate() - 7); const ago7Iso = ago7.toISOString().slice(0, 10);
+  const ago14 = new Date(today); ago14.setDate(today.getDate() - 14); const ago14Iso = ago14.toISOString().slice(0, 10);
+  const ago90 = new Date(today); ago90.setDate(today.getDate() - 90); const ago90Iso = ago90.toISOString().slice(0, 10);
+  const ago180 = new Date(today); ago180.setDate(today.getDate() - 180); const ago180Iso = ago180.toISOString().slice(0, 10);
+  const ago365 = new Date(today); ago365.setDate(today.getDate() - 365); const ago365Iso = ago365.toISOString().slice(0, 10);
+
+  const [flocks, stockmanship, medicine, fci, feed, vet, tailBiting, farrowing, redTractor, movements] = await Promise.all([
+    db.select({ id: pigFlocksTable.id }).from(pigFlocksTable).where(eq(pigFlocksTable.farmId, farmId)),
+    db.select({ id: pigStockmanshipChecksTable.id, checkDate: pigStockmanshipChecksTable.checkDate }).from(pigStockmanshipChecksTable).where(eq(pigStockmanshipChecksTable.farmId, farmId)).orderBy(desc(pigStockmanshipChecksTable.checkDate)).limit(30),
+    db.select({ id: pigMedicineTreatmentsTable.id, treatmentDate: pigMedicineTreatmentsTable.treatmentDate, withdrawalEndDate: pigMedicineTreatmentsTable.withdrawalEndDate }).from(pigMedicineTreatmentsTable).where(eq(pigMedicineTreatmentsTable.farmId, farmId)).orderBy(desc(pigMedicineTreatmentsTable.treatmentDate)).limit(50),
+    db.select({ id: pigFciDocumentsTable.id, documentDate: pigFciDocumentsTable.documentDate, withdrawalPeriodClear: pigFciDocumentsTable.withdrawalPeriodClear }).from(pigFciDocumentsTable).where(eq(pigFciDocumentsTable.farmId, farmId)).orderBy(desc(pigFciDocumentsTable.documentDate)).limit(20),
+    db.select({ id: pigFeedConsumptionTable.id, consumptionDate: pigFeedConsumptionTable.consumptionDate }).from(pigFeedConsumptionTable).where(eq(pigFeedConsumptionTable.farmId, farmId)).orderBy(desc(pigFeedConsumptionTable.consumptionDate)).limit(30),
+    db.select({ id: pigVetAssessmentsTable.id, assessmentDate: pigVetAssessmentsTable.assessmentDate }).from(pigVetAssessmentsTable).where(eq(pigVetAssessmentsTable.farmId, farmId)).orderBy(desc(pigVetAssessmentsTable.assessmentDate)).limit(20),
+    db.select({ id: pigTailBitingRisksTable.id, assessmentDate: pigTailBitingRisksTable.assessmentDate, riskLevel: pigTailBitingRisksTable.riskLevel }).from(pigTailBitingRisksTable).where(eq(pigTailBitingRisksTable.farmId, farmId)).orderBy(desc(pigTailBitingRisksTable.assessmentDate)).limit(20),
+    db.select({ id: pigFarrowingRecordsTable.id, farrowingDate: pigFarrowingRecordsTable.farrowingDate }).from(pigFarrowingRecordsTable).where(eq(pigFarrowingRecordsTable.farmId, farmId)).orderBy(desc(pigFarrowingRecordsTable.farrowingDate)).limit(20),
+    db.select({ id: pigRedTractorChecklistTable.id, nextAssessmentDue: pigRedTractorChecklistTable.nextAssessmentDue, overallStatus: pigRedTractorChecklistTable.overallStatus }).from(pigRedTractorChecklistTable).where(eq(pigRedTractorChecklistTable.farmId, farmId)).orderBy(desc(pigRedTractorChecklistTable.assessmentDate)).limit(10),
+    db.select({ id: pigMovementsTable.id, movementDate: pigMovementsTable.movementDate }).from(pigMovementsTable).where(eq(pigMovementsTable.farmId, farmId)).orderBy(desc(pigMovementsTable.movementDate)).limit(50),
+  ]);
+
+  type ComplianceStatus = "green" | "amber" | "red" | "grey";
+  function item(status: ComplianceStatus, count: number, lastEntry: string | null, message: string) {
+    return { status, count, lastEntry, message };
+  }
+
+  // Flocks
+  const flockStatus: ComplianceStatus = flocks.length === 0 ? "amber" : "green";
+  const flockItem = item(flockStatus, flocks.length, null, flocks.length === 0 ? "No pig flocks registered — add flocks in the Flocks tab." : `${flocks.length} group${flocks.length !== 1 ? "s" : ""} registered.`);
+
+  // Stockmanship checks
+  const lastCheckDate = stockmanship[0]?.checkDate ?? null;
+  const stockStatus: ComplianceStatus = !lastCheckDate ? "red" : lastCheckDate >= ago7Iso ? "green" : lastCheckDate >= ago14Iso ? "amber" : "red";
+  const stockItem = item(stockStatus, stockmanship.length, lastCheckDate, !lastCheckDate ? "No stockmanship checks recorded — Red Tractor requires daily pen inspection." : stockStatus === "green" ? `Last check: ${lastCheckDate}. Within 7-day window.` : stockStatus === "amber" ? `Last check: ${lastCheckDate}. Over 7 days ago — daily checks required.` : `Last check: ${lastCheckDate}. Over 14 days ago — immediate action needed.`);
+
+  // Medicine treatments
+  const activeWithdrawals = medicine.filter(m => m.withdrawalEndDate && m.withdrawalEndDate >= todayIso).length;
+  const lastTreatDate = medicine[0]?.treatmentDate ?? null;
+  const medStatus: ComplianceStatus = activeWithdrawals > 0 ? "amber" : "green";
+  const medItem = item(medStatus, medicine.length, lastTreatDate, activeWithdrawals > 0 ? `${activeWithdrawals} active withdrawal period${activeWithdrawals !== 1 ? "s" : ""} — pigs must not go to slaughter until clear.` : medicine.length === 0 ? "No medicine treatments recorded." : `${medicine.length} treatment record${medicine.length !== 1 ? "s" : ""}. No active withdrawal periods.`);
+
+  // FCI documents
+  const fciWithUnclearWd = fci.filter(f => f.withdrawalPeriodClear === false).length;
+  const lastFciDate = fci[0]?.documentDate ?? null;
+  const fciStatus: ComplianceStatus = fciWithUnclearWd > 0 ? "red" : fci.length === 0 ? "grey" : "green";
+  const fciItem = item(fciStatus, fci.length, lastFciDate, fciWithUnclearWd > 0 ? `${fciWithUnclearWd} FCI document${fciWithUnclearWd !== 1 ? "s" : ""} where withdrawal period is NOT clear — review before dispatch.` : fci.length === 0 ? "No FCI documents recorded. Required for all pigs going to slaughter." : `${fci.length} FCI document${fci.length !== 1 ? "s" : ""}. All withdrawal periods clear.`);
+
+  // Feed consumption
+  const lastFeedDate = feed[0]?.consumptionDate ?? null;
+  const feedStatus: ComplianceStatus = !lastFeedDate ? "amber" : lastFeedDate >= ago7Iso ? "green" : lastFeedDate >= ago14Iso ? "amber" : "red";
+  const feedItem = item(feedStatus, feed.length, lastFeedDate, !lastFeedDate ? "No feed consumption records. Red Tractor requires feed records for traceability." : feedStatus === "green" ? `${feed.length} records. Last logged: ${lastFeedDate}.` : `Last feed record: ${lastFeedDate}. Regular feed logging is required.`);
+
+  // Vet assessments
+  const lastVetDate = vet[0]?.assessmentDate ?? null;
+  const vetStatus: ComplianceStatus = !lastVetDate ? "amber" : lastVetDate >= ago90Iso ? "green" : lastVetDate >= ago180Iso ? "amber" : "red";
+  const vetItem = item(vetStatus, vet.length, lastVetDate, !lastVetDate ? "No vet health assessments recorded." : vetStatus === "green" ? `Last assessment: ${lastVetDate}. Within 90 days.` : vetStatus === "amber" ? `Last assessment: ${lastVetDate}. Over 90 days ago — consider scheduling a vet visit.` : `Last assessment: ${lastVetDate}. Over 6 months ago — vet assessment overdue.`);
+
+  // Tail biting risk
+  const highRisk = tailBiting.filter(t => t.riskLevel === "high" || t.riskLevel === "active").length;
+  const lastTbDate = tailBiting[0]?.assessmentDate ?? null;
+  const tbStatus: ComplianceStatus = highRisk > 0 ? "red" : !lastTbDate ? "amber" : lastTbDate >= ago365Iso ? "green" : "amber";
+  const tbItem = item(tbStatus, tailBiting.length, lastTbDate, highRisk > 0 ? `${highRisk} high-risk or active-outbreak assessment${highRisk !== 1 ? "s" : ""} recorded. Immediate corrective action required.` : !lastTbDate ? "No tail biting risk assessment recorded — mandatory for Red Tractor." : `${tailBiting.length} assessment${tailBiting.length !== 1 ? "s" : ""}. Last: ${lastTbDate}.`);
+
+  // Farrowing records
+  const lastFarrowDate = farrowing[0]?.farrowingDate ?? null;
+  const farrowStatus: ComplianceStatus = farrowing.length === 0 ? "grey" : "green";
+  const farrowItem = item(farrowStatus, farrowing.length, lastFarrowDate, farrowing.length === 0 ? "No farrowing records. Required if you have breeding sows." : `${farrowing.length} farrowing record${farrowing.length !== 1 ? "s" : ""}. Last: ${lastFarrowDate ?? "—"}.`);
+
+  // Red Tractor checklist
+  const latestRt = redTractor[0];
+  const rtDue = latestRt?.nextAssessmentDue ?? null;
+  const rtStatus: ComplianceStatus = !rtDue ? (redTractor.length === 0 ? "amber" : "green") : rtDue < todayIso ? "red" : rtDue <= in60Iso ? "amber" : "green";
+  const rtItem = item(rtStatus, redTractor.length, latestRt ? String(latestRt.overallStatus ?? "") : null, !rtDue && redTractor.length === 0 ? "No Red Tractor assessment recorded." : rtStatus === "red" ? `Assessment was due ${rtDue} — overdue. Arrange an inspection immediately.` : rtStatus === "amber" ? `Next assessment due ${rtDue} — within 60 days. Prepare records for assessor.` : `${redTractor.length} checklist${redTractor.length !== 1 ? "s" : ""}. Next due: ${rtDue ?? "not set"}.`);
+
+  // Movements
+  const recentMovements = movements.filter(m => m.movementDate >= ago90Iso).length;
+  const lastMoveDate = movements[0]?.movementDate ?? null;
+  const moveStatus: ComplianceStatus = movements.length === 0 ? "grey" : "green";
+  const moveItem = item(moveStatus, movements.length, lastMoveDate, movements.length === 0 ? "No movement records. Record all on/off movements for EAML2 compliance." : `${movements.length} total movement${movements.length !== 1 ? "s" : ""}. ${recentMovements} in last 90 days.`);
+
+  res.json({
+    summary: {
+      flocks: flockItem,
+      stockmanship: stockItem,
+      medicine: medItem,
+      fci: fciItem,
+      feed: feedItem,
+      vet: vetItem,
+      tailBiting: tbItem,
+      farrowing: farrowItem,
+      redTractor: rtItem,
+      movements: moveItem,
+    },
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // SALES & TRADING MODULE
 // ═══════════════════════════════════════════════════════════════════════════

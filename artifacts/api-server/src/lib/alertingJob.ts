@@ -1,4 +1,4 @@
-import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable, poultryTreatmentsTable, poultrySchemeRecordsTable, poultryBroilerWelfareTable } from "@workspace/db";
+import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable, poultryTreatmentsTable, poultrySchemeRecordsTable, poultryBroilerWelfareTable, pigMedicineTreatmentsTable, pigRedTractorChecklistTable, pigTailBitingRisksTable } from "@workspace/db";
 import { usersTable, userTenantsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
 import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable, feedPurchaseOrdersTable } from "@workspace/db/schema";
@@ -1124,6 +1124,165 @@ async function checkPoultryBwiAlerts() {
   }
 }
 
+async function checkPigWithdrawalPeriods() {
+  const today = new Date();
+  const todayIso = today.toISOString().slice(0, 10);
+
+  const active = await db
+    .select({
+      id: pigMedicineTreatmentsTable.id,
+      farmId: pigMedicineTreatmentsTable.farmId,
+      medicineProductName: pigMedicineTreatmentsTable.medicineProductName,
+      withdrawalEndDate: pigMedicineTreatmentsTable.withdrawalEndDate,
+    })
+    .from(pigMedicineTreatmentsTable)
+    .where(gte(pigMedicineTreatmentsTable.withdrawalEndDate, todayIso));
+
+  for (const tx of active) {
+    if (!tx.withdrawalEndDate) continue;
+
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, tx.farmId))
+      .limit(1);
+    if (!farm) continue;
+
+    const clearDate = new Date(tx.withdrawalEndDate);
+    const daysRemaining = Math.ceil((clearDate.getTime() - today.getTime()) / 86400000);
+    const clearDateStr = clearDate.toLocaleDateString("en-GB");
+
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: tx.farmId,
+      type: "pig_withdrawal_active",
+      severity: daysRemaining <= 3 ? "critical" : "warning",
+      title: `Pig Withdrawal Period Active — ${tx.medicineProductName}`,
+      message: `${tx.medicineProductName} has an active meat withdrawal period. Pigs must NOT go to slaughter before ${clearDateStr} (${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} remaining). Ensure FCI document reflects this before any pigs leave the farm.`,
+      relatedModule: "pig-production",
+      relatedId: tx.id,
+      dedupeKey: `pig-withdrawal-${tx.id}-${todayIso}`,
+    });
+  }
+}
+
+async function checkPigRedTractorExpiry() {
+  const today = new Date();
+  const todayIso = today.toISOString().slice(0, 10);
+  const in60 = new Date(today);
+  in60.setDate(today.getDate() + 60);
+  const in60Iso = in60.toISOString().slice(0, 10);
+
+  const checklists = await db
+    .select({
+      id: pigRedTractorChecklistTable.id,
+      farmId: pigRedTractorChecklistTable.farmId,
+      nextAssessmentDue: pigRedTractorChecklistTable.nextAssessmentDue,
+    })
+    .from(pigRedTractorChecklistTable)
+    .where(
+      and(
+        isNotNull(pigRedTractorChecklistTable.nextAssessmentDue),
+        lte(pigRedTractorChecklistTable.nextAssessmentDue, in60Iso),
+      )
+    );
+
+  for (const checklist of checklists) {
+    if (!checklist.nextAssessmentDue) continue;
+
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, checklist.farmId))
+      .limit(1);
+    if (!farm) continue;
+
+    const dueDate = new Date(checklist.nextAssessmentDue);
+    const expired = dueDate < today;
+    const daysUntil = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
+    const dueDateStr = dueDate.toLocaleDateString("en-GB");
+
+    if (expired) {
+      await upsertNotification({
+        tenantId: farm.tenantId,
+        farmId: checklist.farmId,
+        type: "pig_red_tractor_overdue",
+        severity: "critical",
+        title: "Pig Red Tractor Assessment Overdue",
+        message: `The Red Tractor Pig assurance assessment was due on ${dueDateStr}. Arrange an inspection immediately — operating outside scheme compliance risks your certification and premium contracts.`,
+        relatedModule: "pig-production",
+        relatedId: checklist.id,
+        dedupeKey: `pig-rt-overdue-${checklist.id}-week${Math.floor(Math.abs(daysUntil) / 7)}`,
+      });
+      await dispatchSmsForCriticalAlert(farm.tenantId, "Pig Red Tractor Assessment Overdue", `Assessment was due ${dueDateStr}. Arrange inspection immediately to maintain scheme certification.`);
+    } else {
+      await upsertNotification({
+        tenantId: farm.tenantId,
+        farmId: checklist.farmId,
+        type: "pig_red_tractor_due_soon",
+        severity: daysUntil <= 14 ? "critical" : "warning",
+        title: `Pig Red Tractor Assessment Due in ${daysUntil} Days`,
+        message: `Your Red Tractor Pig assessment is due on ${dueDateStr}. Ensure all pig records (stockmanship checks, medicine register, movements, tail biting risk assessments, FCI documents) are complete and up to date before the assessor visit.`,
+        relatedModule: "pig-production",
+        relatedId: checklist.id,
+        dedupeKey: `pig-rt-due-${checklist.id}-days${Math.floor(daysUntil / 7)}`,
+      });
+    }
+  }
+}
+
+async function checkPigTailBitingOutbreaks() {
+  const RECENT_DAYS = 30;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - RECENT_DAYS);
+  const cutoffIso = cutoff.toISOString().slice(0, 10);
+
+  const highRisk = await db
+    .select({
+      id: pigTailBitingRisksTable.id,
+      farmId: pigTailBitingRisksTable.farmId,
+      assessmentDate: pigTailBitingRisksTable.assessmentDate,
+      riskLevel: pigTailBitingRisksTable.riskLevel,
+    })
+    .from(pigTailBitingRisksTable)
+    .where(
+      and(
+        gte(pigTailBitingRisksTable.assessmentDate, cutoffIso),
+        sql`${pigTailBitingRisksTable.riskLevel} in ('high', 'active')`,
+      )
+    );
+
+  for (const assessment of highRisk) {
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, assessment.farmId))
+      .limit(1);
+    if (!farm) continue;
+
+    const dateStr = assessment.assessmentDate ? new Date(assessment.assessmentDate).toLocaleDateString("en-GB") : "recent date";
+    const isActive = assessment.riskLevel === "active";
+
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: assessment.farmId,
+      type: "pig_tail_biting_outbreak",
+      severity: isActive ? "critical" : "warning",
+      title: isActive ? "Active Tail Biting Outbreak — Immediate Action Required" : "High Tail Biting Risk Recorded",
+      message: isActive
+        ? `A tail biting assessment on ${dateStr} recorded an active outbreak. Remove biters immediately, treat wounds, add enrichment material (straw, chains), and increase monitoring to twice daily. Document all interventions. Notify your vet if injuries are severe.`
+        : `A tail biting risk assessment on ${dateStr} recorded a HIGH risk level. Review enrichment provision, stocking density, group stability and feeding adequacy. Increase monitoring frequency and update your risk assessment once corrective actions are in place.`,
+      relatedModule: "pig-production",
+      relatedId: assessment.id,
+      dedupeKey: `pig-tail-biting-${assessment.riskLevel}-${assessment.id}`,
+    });
+
+    if (isActive) {
+      await dispatchSmsForCriticalAlert(farm.tenantId, "Active Tail Biting Outbreak", `Tail biting outbreak recorded on ${dateStr}. Remove biters, treat wounds, add enrichment. Notify vet if injuries are severe.`);
+    }
+  }
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
@@ -1140,6 +1299,9 @@ export async function runAlertingJob() {
     await checkPoultryWithdrawalPeriods();
     await checkPoultrySchemeExpiry();
     await checkPoultryBwiAlerts();
+    await checkPigWithdrawalPeriods();
+    await checkPigRedTractorExpiry();
+    await checkPigTailBitingOutbreaks();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {
     console.error("[ALERTS] Alerting job error:", err);

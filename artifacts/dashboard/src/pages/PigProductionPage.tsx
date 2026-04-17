@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1207,29 +1207,365 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Compliance Overview ───────────────────────────────────────────────────────
+type ComplianceStatus = "green" | "amber" | "red" | "grey";
+interface SummaryItem { status: ComplianceStatus; count: number; lastEntry: string | null; message: string; }
+interface PigComplianceSummary {
+  flocks: SummaryItem; stockmanship: SummaryItem; medicine: SummaryItem; fci: SummaryItem;
+  feed: SummaryItem; vet: SummaryItem; tailBiting: SummaryItem; farrowing: SummaryItem;
+  redTractor: SummaryItem; movements: SummaryItem;
+}
+
+function StatusDot({ status }: { status: ComplianceStatus }) {
+  const cls = status === "green" ? "bg-green-500" : status === "amber" ? "bg-amber-400" : status === "red" ? "bg-red-500" : "bg-gray-300";
+  return <span className={`inline-block w-2 h-2 rounded-full ${cls} shrink-0`} />;
+}
+
+function ComplianceCard({ title, icon, item, tab, onGoto }: { title: string; icon: React.ReactNode; item: SummaryItem; tab: string; onGoto: (t: string) => void }) {
+  const borderCls = item.status === "green" ? "border-green-200 hover:border-green-400" : item.status === "amber" ? "border-amber-200 hover:border-amber-400" : item.status === "red" ? "border-red-200 hover:border-red-400" : "border-gray-200";
+  const bgCls = item.status === "green" ? "bg-green-50" : item.status === "amber" ? "bg-amber-50" : item.status === "red" ? "bg-red-50" : "bg-gray-50";
+  return (
+    <button onClick={() => onGoto(tab)} className={`w-full text-left rounded-lg border p-3 transition-colors cursor-pointer ${borderCls} ${bgCls}`}>
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-2 text-muted-foreground">{icon}<span className="text-xs font-semibold uppercase tracking-wide">{title}</span></div>
+        <StatusDot status={item.status} />
+      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed">{item.message}</p>
+      {item.lastEntry && <p className="text-xs text-muted-foreground/60 mt-1">Last: {item.lastEntry}</p>}
+    </button>
+  );
+}
+
+function OverviewTab({ farmId, onGoto }: { farmId: number; onGoto: (tab: string) => void }) {
+  const { data, isLoading } = useQuery<{ summary: PigComplianceSummary }>({
+    queryKey: ["pig-compliance-summary", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-compliance-summary`), { credentials: "include" }).then(r => r.json()),
+    refetchInterval: 60000,
+  });
+  const summary = data?.summary;
+
+  const statuses = summary ? Object.values(summary) as SummaryItem[] : [];
+  const overallStatus: ComplianceStatus = !summary ? "grey" : statuses.some(s => s.status === "red") ? "red" : statuses.some(s => s.status === "amber") ? "amber" : "green";
+  const redCount = statuses.filter(s => s.status === "red").length;
+  const amberCount = statuses.filter(s => s.status === "amber").length;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-sm">Red Tractor Pig Compliance Overview</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Live status across all 10 pig record categories. Click any card to jump to that tab.</p>
+        </div>
+        {summary && (
+          <div className={`rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 shrink-0 ${overallStatus === "red" ? "bg-red-100 text-red-700" : overallStatus === "amber" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+            {overallStatus === "green" ? <CheckCircle2 className="w-3.5 h-3.5" /> : overallStatus === "amber" ? <AlertTriangle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+            {overallStatus === "green" ? "All Clear" : overallStatus === "amber" ? `${amberCount} Need${amberCount === 1 ? "s" : ""} Attention` : `${redCount} Issue${redCount > 1 ? "s" : ""} Require Action`}
+          </div>
+        )}
+      </div>
+
+      {isLoading && <div className="flex items-center gap-2 text-sm text-muted-foreground py-10 justify-center"><Loader2 className="animate-spin w-4 h-4" />Loading compliance status…</div>}
+
+      {summary && (
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Herd Setup</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ComplianceCard title="Flocks / Groups" icon={<PiggyBank className="w-4 h-4" />} item={summary.flocks} tab="flocks" onGoto={onGoto} />
+              <ComplianceCard title="Movements" icon={<Truck className="w-4 h-4" />} item={summary.movements} tab="movements" onGoto={onGoto} />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Daily Compliance</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ComplianceCard title="Stockmanship Checks" icon={<ClipboardCheck className="w-4 h-4" />} item={summary.stockmanship} tab="stockmanship" onGoto={onGoto} />
+              <ComplianceCard title="Feed Records" icon={<UtensilsCrossed className="w-4 h-4" />} item={summary.feed} tab="feed" onGoto={onGoto} />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Treatments & Slaughter</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <ComplianceCard title="Medicine Register" icon={<Pill className="w-4 h-4" />} item={summary.medicine} tab="medicine" onGoto={onGoto} />
+              <ComplianceCard title="FCI Documents" icon={<FileText className="w-4 h-4" />} item={summary.fci} tab="fci" onGoto={onGoto} />
+              <ComplianceCard title="Farrowing Records" icon={<Baby className="w-4 h-4" />} item={summary.farrowing} tab="farrowing" onGoto={onGoto} />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Health & Welfare</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <ComplianceCard title="Vet Assessments" icon={<Stethoscope className="w-4 h-4" />} item={summary.vet} tab="vet" onGoto={onGoto} />
+              <ComplianceCard title="Tail Biting Risk" icon={<AlertTriangle className="w-4 h-4" />} item={summary.tailBiting} tab="tail-biting" onGoto={onGoto} />
+              <ComplianceCard title="Red Tractor Checklist" icon={<ShieldCheck className="w-4 h-4" />} item={summary.redTractor} tab="red-tractor" onGoto={onGoto} />
+            </div>
+          </div>
+          <div className="rounded-lg border border-pink-200 bg-pink-50 p-3">
+            <div className="flex items-center gap-2 mb-1"><TrendingUp className="w-4 h-4 text-pink-600" /><p className="text-xs font-semibold text-pink-700">Scheme Compliance Status</p></div>
+            <p className="text-xs text-pink-600">{summary.redTractor.message}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Kill Records Tab ──────────────────────────────────────────────────────────
+function KillRecordsTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { data: records = [], isLoading } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["pig-kill-records", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-kill-records`), { credentials: "include" }).then(r => r.json()).then((d: unknown) => {
+      if (Array.isArray(d)) return d as Record<string, unknown>[];
+      if (d && typeof d === "object" && "records" in d && Array.isArray((d as { records: unknown[] }).records)) return (d as { records: Record<string, unknown>[] }).records;
+      return [] as Record<string, unknown>[];
+    }),
+  });
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<Record<string, unknown>>({});
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/pig-kill-records/${editing.id}`) : api(`farms/${farmId}/pig-kill-records`), {
+      method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b),
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-kill-records", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-kill-records/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-kill-records", farmId] }); setConfirmDelete(null); },
+  });
+
+  const totalDeadweight = (records as Record<string, unknown>[]).reduce((s, r) => s + parseFloat(String(r.totalDeadweightKg ?? "0") || "0"), 0);
+  const totalHead = (records as Record<string, unknown>[]).reduce((s, r) => s + (Number(r.headCount) || 0), 0);
+  const avgP2 = records.length > 0 ? records.reduce((s, r) => s + parseFloat(String(r.averageP2BackfatMm ?? "0") || "0"), 0) / records.filter(r => r.averageP2BackfatMm).length : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="text-center"><p className="text-xs text-muted-foreground">Total Head</p><p className="text-lg font-bold">{totalHead.toLocaleString()}</p></div>
+          <div className="text-center"><p className="text-xs text-muted-foreground">Total Deadweight</p><p className="text-lg font-bold">{totalDeadweight.toFixed(0)} kg</p></div>
+          {avgP2 > 0 && <div className="text-center"><p className="text-xs text-muted-foreground">Avg P2 Backfat</p><p className="text-lg font-bold">{avgP2.toFixed(1)} mm</p></div>}
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Kill Record</Button>
+      </div>
+
+      {isLoading && <div className="flex justify-center py-8"><Loader2 className="animate-spin w-5 h-5" /></div>}
+      {!isLoading && records.length === 0 && <Empty msg="No pig kill records yet. Add your first abattoir kill sheet." />}
+      {!isLoading && records.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b text-xs text-muted-foreground">
+              <th className="text-left py-2 pr-3">Kill Date</th><th className="text-left py-2 pr-3">Processor</th>
+              <th className="text-right py-2 pr-3">Head</th><th className="text-right py-2 pr-3">Deadweight (kg)</th>
+              <th className="text-right py-2 pr-3">Avg DW (kg)</th><th className="text-right py-2 pr-3">P2 (mm)</th>
+              <th className="text-left py-2 pr-3">Grade</th><th className="text-right py-2 pr-3">Net (£)</th>
+              <th className="text-left py-2">Kill Sheet Ref</th><th />
+            </tr></thead>
+            <tbody>
+              {(records as Record<string, unknown>[]).map(r => (
+                <tr key={String(r.id)} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => setViewRecord(r)}>
+                  <td className="py-2 pr-3 font-medium">{fmtDate(r.killDate)}</td>
+                  <td className="py-2 pr-3">{fmt(r.processor)}</td>
+                  <td className="py-2 pr-3 text-right">{fmt(r.headCount)}</td>
+                  <td className="py-2 pr-3 text-right">{r.totalDeadweightKg ? parseFloat(String(r.totalDeadweightKg)).toFixed(1) : "—"}</td>
+                  <td className="py-2 pr-3 text-right">{r.averageDeadweightKg ? parseFloat(String(r.averageDeadweightKg)).toFixed(1) : "—"}</td>
+                  <td className="py-2 pr-3 text-right">{r.averageP2BackfatMm ? `${parseFloat(String(r.averageP2BackfatMm)).toFixed(1)}` : "—"}</td>
+                  <td className="py-2 pr-3"><Badge variant="outline">{fmt(r.gradeOut)}</Badge></td>
+                  <td className="py-2 pr-3 text-right">{r.netPaymentPence ? `£${(Number(r.netPaymentPence) / 100).toFixed(2)}` : "—"}</td>
+                  <td className="py-2">{fmt(r.killSheetRef)}</td>
+                  <td className="py-2 pl-2 flex gap-1" onClick={e => e.stopPropagation()}>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditing(r); setForm(r); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => setConfirmDelete(Number(r.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); setEditing(null); setForm({}); } }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit Kill Record" : "Add Pig Kill Record"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            {[
+              ["killDate", "Kill Date", "date"],["processor", "Processor / Abattoir", "text"],
+              ["headCount", "Head Count", "number"],["totalDeadweightKg", "Total Deadweight (kg)", "number"],
+              ["averageDeadweightKg", "Avg Deadweight (kg)", "number"],["pricePerKgPence", "Price per kg (pence)", "number"],
+              ["grossValuePence", "Gross Value (pence)", "number"],["levelDeductionPence", "Levy Deduction (pence)", "number"],
+              ["transportDeductionPence", "Transport Deduction (pence)", "number"],["otherDeductionsPence", "Other Deductions (pence)", "number"],
+              ["netPaymentPence", "Net Payment (pence)", "number"],["averageP2BackfatMm", "Avg P2 Backfat (mm)", "number"],
+              ["averageMuscleDepthMm", "Avg Muscle Depth (mm)", "number"],["leanMeatPct", "Lean Meat %", "number"],
+              ["gradeOut", "Grade Out (R/O/P…)", "text"],["sppPriceKgPence", "SPP Price/kg (pence)", "number"],
+              ["sppVariancePence", "SPP Variance (pence)", "number"],["killSheetRef", "Kill Sheet Reference", "text"],
+              ["herdMark", "Herd Mark", "text"],["premiumScheme", "Premium Scheme", "text"],
+              ["premiumPence", "Premium Value (pence)", "number"],["paymentDate", "Payment Date", "date"],
+            ].map(([k, label, type]) => (
+              <div key={k} className={type === "text" && k !== "gradeOut" && k !== "herdMark" && k !== "premiumScheme" && k !== "killSheetRef" ? "col-span-2" : ""}>
+                <Label className="text-xs">{label}</Label>
+                <Input type={type as string} value={String(form[k] ?? "")} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} />
+              </div>
+            ))}
+            <div className="col-span-2">
+              <Label className="text-xs">Notes</Label>
+              <textarea className="w-full border rounded-md p-2 text-sm min-h-[60px]" value={String(form.notes ?? "")} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpen(false); setEditing(null); setForm({}); }}>Cancel</Button>
+            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>{save.isPending ? <Loader2 className="animate-spin w-4 h-4" /> : editing ? "Save Changes" : "Add Record"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Kill Record — {fmtDate(viewRecord.killDate)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-2 text-sm py-2">
+              {[
+                ["Processor", viewRecord.processor],["Head Count", viewRecord.headCount],
+                ["Total Deadweight", viewRecord.totalDeadweightKg ? `${parseFloat(String(viewRecord.totalDeadweightKg)).toFixed(1)} kg` : "—"],
+                ["Avg Deadweight", viewRecord.averageDeadweightKg ? `${parseFloat(String(viewRecord.averageDeadweightKg)).toFixed(1)} kg` : "—"],
+                ["P2 Backfat", viewRecord.averageP2BackfatMm ? `${parseFloat(String(viewRecord.averageP2BackfatMm)).toFixed(1)} mm` : "—"],
+                ["Muscle Depth", viewRecord.averageMuscleDepthMm ? `${parseFloat(String(viewRecord.averageMuscleDepthMm)).toFixed(1)} mm` : "—"],
+                ["Lean Meat %", viewRecord.leanMeatPct ? `${viewRecord.leanMeatPct}%` : "—"],
+                ["Grade Out", viewRecord.gradeOut],["Kill Sheet Ref", viewRecord.killSheetRef],
+                ["Price/kg", viewRecord.pricePerKgPence ? `${Number(viewRecord.pricePerKgPence)}p` : "—"],
+                ["Gross Value", viewRecord.grossValuePence ? `£${(Number(viewRecord.grossValuePence) / 100).toFixed(2)}` : "—"],
+                ["Net Payment", viewRecord.netPaymentPence ? `£${(Number(viewRecord.netPaymentPence) / 100).toFixed(2)}` : "—"],
+                ["SPP Variance", viewRecord.sppVariancePence ? `${Number(viewRecord.sppVariancePence) > 0 ? "+" : ""}${(Number(viewRecord.sppVariancePence) / 100).toFixed(2)}` : "—"],
+                ["Herd Mark", viewRecord.herdMark],["Premium Scheme", viewRecord.premiumScheme],
+                ["Premium Value", viewRecord.premiumPence ? `£${(Number(viewRecord.premiumPence) / 100).toFixed(2)}` : "—"],
+                ["Payment Date", fmtDate(viewRecord.paymentDate)],
+              ].map(([l, v]) => (
+                <div key={String(l)}><p className="text-xs text-muted-foreground">{l}</p><p className="font-medium">{fmt(v)}</p></div>
+              ))}
+              {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground">Notes</p><p className="text-sm">{String(viewRecord.notes)}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { setEditing(viewRecord); setForm(viewRecord); setViewRecord(null); setOpen(true); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <ConfirmDialog open={confirmDelete !== null} title="Delete Kill Record" message="Delete this kill record? This cannot be undone." confirmLabel="Delete" confirmVariant="destructive" onConfirm={() => { if (confirmDelete) del.mutate(confirmDelete); }} onCancel={() => setConfirmDelete(null)} />
+    </div>
+  );
+}
+
+// ─── PDF Audit Report ──────────────────────────────────────────────────────────
+async function generatePigAuditPDF(farmId: number) {
+  const [jsPDFModule, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+  const jsPDF = jsPDFModule.default;
+  const autoTable = autoTableModule.default;
+
+  const [flocks, movements, medicine, fci, feed, vet, stockmanship, tailBiting, farrowing, redTractor, killRecords] = await Promise.all([
+    fetch(`/api/farms/${farmId}/pig-flocks`, { credentials: "include" }).then(r => r.json()).then((d: unknown) => Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? []),
+    fetch(`/api/farms/${farmId}/pig-movements`, { credentials: "include" }).then(r => r.json()).then((d: unknown) => Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? []),
+    fetch(`/api/farms/${farmId}/pig-medicine-treatments`, { credentials: "include" }).then(r => r.json()).then((d: unknown) => Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? []),
+    fetch(`/api/farms/${farmId}/pig-fci-documents`, { credentials: "include" }).then(r => r.json()).then((d: unknown) => Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? []),
+    fetch(`/api/farms/${farmId}/pig-feed-consumption`, { credentials: "include" }).then(r => r.json()).then((d: unknown) => Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? []),
+    fetch(`/api/farms/${farmId}/pig-vet-assessments`, { credentials: "include" }).then(r => r.json()).then((d: unknown) => Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? []),
+    fetch(`/api/farms/${farmId}/pig-stockmanship-checks`, { credentials: "include" }).then(r => r.json()).then((d: unknown) => Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? []),
+    fetch(`/api/farms/${farmId}/pig-tail-biting-risks`, { credentials: "include" }).then(r => r.json()).then((d: unknown) => Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? []),
+    fetch(`/api/farms/${farmId}/pig-farrowing-records`, { credentials: "include" }).then(r => r.json()).then((d: unknown) => Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? []),
+    fetch(`/api/farms/${farmId}/pig-red-tractor-checklists`, { credentials: "include" }).then(r => r.json()).then((d: unknown) => Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? []),
+    fetch(`/api/farms/${farmId}/pig-kill-records`, { credentials: "include" }).then(r => r.json()).then((d: unknown) => Array.isArray(d) ? d : (d as { records?: unknown[] }).records ?? []),
+  ]);
+
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const today = new Date().toLocaleDateString("en-GB");
+  const fd = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+  const fv = (v: unknown) => (v == null || v === "" ? "—" : String(v));
+  const fp = (p: unknown) => p ? `£${(Number(p) / 100).toFixed(2)}` : "—";
+
+  doc.setFontSize(16); doc.setFont("helvetica", "bold");
+  doc.text("BDE Farm Trac — Pig Production Audit Report", 14, 18);
+  doc.setFontSize(10); doc.setFont("helvetica", "normal");
+  doc.text(`Farm ID: ${farmId}   Generated: ${today}   Red Tractor Pig Assurance`, 14, 26);
+  doc.setDrawColor(219, 39, 119); doc.setLineWidth(0.5);
+  doc.line(14, 30, 283, 30);
+
+  let y = 38;
+  function addSection(title: string, head: string[], rows: string[][], colour = [219, 39, 119]) {
+    if (rows.length === 0) return;
+    if (y > 170) { doc.addPage(); y = 20; }
+    doc.setFontSize(11); doc.setFont("helvetica", "bold");
+    doc.setTextColor(colour[0], colour[1], colour[2]);
+    doc.text(title, 14, y); y += 4;
+    doc.setTextColor(0, 0, 0);
+    autoTable(doc, {
+      startY: y, head: [head], body: rows,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: colour as [number, number, number], textColor: 255 },
+      alternateRowStyles: { fillColor: [253, 242, 248] },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type R = Record<string, any>;
+  if ((flocks as R[]).length) addSection("Pig Flocks / Groups", ["Name", "Type", "Breed", "Location", "Current Count", "Herd No.", "CPH"], (flocks as R[]).map(r => [fv(r.flockName), fv(r.productionType), fv(r.breed), fv(r.location), fv(r.currentCount), fv(r.herdNumber), fv(r.cphNumber)]));
+  if ((stockmanship as R[]).length) addSection("Daily Stockmanship Checks", ["Date", "Group", "Behaviour", "Bedding", "Tail Biting", "Overall Welfare", "Action Taken"], (stockmanship as R[]).map(r => [fd(r.checkDate), fv(r.groupName), fv(r.behaviour), fv(r.beddingCondition), r.tailBitingObserved ? "Yes" : "No", fv(r.overallWelfare), fv(r.actionTaken)]));
+  if ((medicine as R[]).length) addSection("Medicine Treatments", ["Date", "Group", "Product", "Diagnosis", "Route", "Qty", "Withdrawal Clear", "Vet"], (medicine as R[]).map(r => [fd(r.treatmentDate), fv(r.batchOrPenRef), fv(r.medicineProductName), fv(r.diagnosisReason), fv(r.administrationRoute), `${fv(r.quantityUsed)} ${fv(r.unitOfMeasure)}`, fd(r.withdrawalEndDate), fv(r.prescribingVetName)]));
+  if ((movements as R[]).length) addSection("Pig Movements (EAML2)", ["Date", "Type", "From", "To", "Head", "EAML2 Ref", "Haulier"], (movements as R[]).map(r => [fd(r.movementDate), fv(r.movementType), `${fv(r.fromLocation)} (${fv(r.fromCph)})`, `${fv(r.toLocation)} (${fv(r.toCph)})`, fv(r.numberOfAnimals), fv(r.eaml2Reference), fv(r.transporterName)]));
+  if ((fci as R[]).length) addSection("Food Chain Information (FCI)", ["Date", "Batch Ref", "Abattoir", "Pigs", "Medicines?", "WD Clear?", "Feed WD (h)", "Signed"], (fci as R[]).map(r => [fd(r.documentDate), fv(r.batchReference), fv(r.destinationAbattoir), fv(r.numberOfPigs), r.veterinaryMedicinesLast60Days ? "Yes" : "No", r.withdrawalPeriodClear ? "Yes" : "No", fv(r.feedWithdrawalHours), r.signedByFarmer ? "Yes" : "No"]));
+  if ((feed as R[]).length) addSection("Feed Consumption Records", ["Date", "Group / Pen", "Feed Type", "Quantity (kg)", "Batch / Lot No."], (feed as R[]).map(r => [fd(r.consumptionDate), fv(r.penName), fv(r.feedType), fv(r.quantityKg), fv(r.batchLotNumber)]));
+  if ((vet as R[]).length) addSection("Vet Health Assessments", ["Date", "Vet", "Practice", "BCS", "Lameness", "Respiratory", "Findings", "Next Review"], (vet as R[]).map(r => [fd(r.assessmentDate), fv(r.vetName), fv(r.practiceName), fv(r.bodyConditionScore), fv(r.lameness), fv(r.respiratoryHealth), String(fv(r.findings)).slice(0, 60), fd(r.nextReviewDate)]));
+  if ((tailBiting as R[]).length) addSection("Tail Biting Risk Assessments", ["Date", "Assessed By", "Risk Level", "Current Biting", "Interventions", "Next Review"], (tailBiting as R[]).map(r => [fd(r.assessmentDate), fv(r.assessedBy), fv(r.riskLevel), r.currentBiting ? "Yes" : "No", String(fv(r.interventionsTaken)).slice(0, 50), fd(r.reviewDate)]));
+  if ((farrowing as R[]).length) addSection("Farrowing Records", ["Date", "Sow Tag", "Parity", "Born Alive", "Stillborn", "Mummified", "Avg Birth Wt (kg)", "Ease"], (farrowing as R[]).map(r => [fd(r.farrowingDate), fv(r.sowEarTag), fv(r.parity), fv(r.bornAlive), fv(r.stillborn), fv(r.mummified), fv(r.averageBirthWeightKg), fv(r.farrowingEase)]));
+  if ((redTractor as R[]).length) addSection("Red Tractor Checklists", ["Date", "Assessor", "Overall Status", "Non-conformances", "Next Due", "Corrective Action Deadline"], (redTractor as R[]).map(r => [fd(r.assessmentDate), fv(r.assessorName), fv(r.overallStatus), fv(r.nonConformancesCount), fd(r.nextAssessmentDue), fd(r.correctiveActionDeadline)]));
+  if ((killRecords as R[]).length) addSection("Abattoir Kill Records", ["Kill Date", "Processor", "Head", "Total DW (kg)", "Avg DW (kg)", "P2 (mm)", "Grade", "Net Payment", "Kill Sheet Ref"], (killRecords as R[]).map(r => [fd(r.killDate), fv(r.processor), fv(r.headCount), r.totalDeadweightKg ? parseFloat(String(r.totalDeadweightKg)).toFixed(1) : "—", r.averageDeadweightKg ? parseFloat(String(r.averageDeadweightKg)).toFixed(1) : "—", r.averageP2BackfatMm ? parseFloat(String(r.averageP2BackfatMm)).toFixed(1) : "—", fv(r.gradeOut), fp(r.netPaymentPence), fv(r.killSheetRef)]));
+
+  const safeFarmId = String(farmId).replace(/[^a-z0-9]/gi, "");
+  doc.save(`pig-audit-report-farm${safeFarmId}-${today.replace(/\//g, "-")}.pdf`);
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
-type Tab = "flocks" | "movements" | "medicine" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor";
+type Tab = "overview" | "flocks" | "movements" | "medicine" | "fci" | "feed" | "vet" | "stockmanship" | "tail-biting" | "farrowing" | "red-tractor" | "kill-records";
 
 export default function PigProductionPage() {
   const { farmId } = useAppStore();
-  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["flocks","movements","medicine","fci","feed","vet","stockmanship","tail-biting","farrowing","red-tractor"]; return t && valid.includes(t) ? t : "flocks"; });
+  const [tab, setTab] = useState<Tab>(() => { const p = new URLSearchParams(window.location.search); const t = p.get("tab") as Tab | null; const valid: Tab[] = ["overview","flocks","movements","medicine","fci","feed","vet","stockmanship","tail-biting","farrowing","red-tractor","kill-records"]; return t && valid.includes(t) ? t : "overview"; });
+  const [generating, setGenerating] = useState(false);
   if (!farmId) return <Redirect to="/" />;
+
+  async function handleGeneratePdf() {
+    setGenerating(true);
+    try { await generatePigAuditPDF(farmId!); } catch (e) { console.error("Pig PDF generation failed:", e); } finally { setGenerating(false); }
+  }
+
   return (
     <AppLayout title="Pig Production">
       <div className="space-y-4">
-        <TabBar>
-          <TabButton active={tab === "flocks"} onClick={() => setTab("flocks")}><PiggyBank className="w-3.5 h-3.5 mr-1" />Flocks</TabButton>
-          <TabButton active={tab === "movements"} onClick={() => setTab("movements")}><Truck className="w-3.5 h-3.5 mr-1" />Movements</TabButton>
-          <TabButton active={tab === "medicine"} onClick={() => setTab("medicine")}><Pill className="w-3.5 h-3.5 mr-1" />Medicine Register</TabButton>
-          <TabButton active={tab === "fci"} onClick={() => setTab("fci")}><FileText className="w-3.5 h-3.5 mr-1" />FCI Documents</TabButton>
-          <TabButton active={tab === "feed"} onClick={() => setTab("feed")}><UtensilsCrossed className="w-3.5 h-3.5 mr-1" />Feed Records</TabButton>
-          <TabButton active={tab === "vet"} onClick={() => setTab("vet")}><Stethoscope className="w-3.5 h-3.5 mr-1" />Vet Assessments</TabButton>
-          <TabButton active={tab === "stockmanship"} onClick={() => setTab("stockmanship")}><ClipboardCheck className="w-3.5 h-3.5 mr-1" />Stockmanship</TabButton>
-          <TabButton active={tab === "tail-biting"} onClick={() => setTab("tail-biting")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Tail Biting Risk</TabButton>
-          <TabButton active={tab === "farrowing"} onClick={() => setTab("farrowing")}><Baby className="w-3.5 h-3.5 mr-1" />Farrowing</TabButton>
-          <TabButton active={tab === "red-tractor"} onClick={() => setTab("red-tractor")}><ShieldCheck className="w-3.5 h-3.5 mr-1" />Red Tractor</TabButton>
-        </TabBar>
+        <div className="flex items-center justify-between gap-3">
+          <TabBar>
+            <TabButton active={tab === "overview"} onClick={() => setTab("overview")}><LayoutDashboard className="w-3.5 h-3.5 mr-1" />Overview</TabButton>
+            <TabButton active={tab === "flocks"} onClick={() => setTab("flocks")}><PiggyBank className="w-3.5 h-3.5 mr-1" />Flocks</TabButton>
+            <TabButton active={tab === "movements"} onClick={() => setTab("movements")}><Truck className="w-3.5 h-3.5 mr-1" />Movements</TabButton>
+            <TabButton active={tab === "medicine"} onClick={() => setTab("medicine")}><Pill className="w-3.5 h-3.5 mr-1" />Medicine Register</TabButton>
+            <TabButton active={tab === "fci"} onClick={() => setTab("fci")}><FileText className="w-3.5 h-3.5 mr-1" />FCI Documents</TabButton>
+            <TabButton active={tab === "feed"} onClick={() => setTab("feed")}><UtensilsCrossed className="w-3.5 h-3.5 mr-1" />Feed Records</TabButton>
+            <TabButton active={tab === "vet"} onClick={() => setTab("vet")}><Stethoscope className="w-3.5 h-3.5 mr-1" />Vet Assessments</TabButton>
+            <TabButton active={tab === "stockmanship"} onClick={() => setTab("stockmanship")}><ClipboardCheck className="w-3.5 h-3.5 mr-1" />Stockmanship</TabButton>
+            <TabButton active={tab === "tail-biting"} onClick={() => setTab("tail-biting")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Tail Biting Risk</TabButton>
+            <TabButton active={tab === "farrowing"} onClick={() => setTab("farrowing")}><Baby className="w-3.5 h-3.5 mr-1" />Farrowing</TabButton>
+            <TabButton active={tab === "red-tractor"} onClick={() => setTab("red-tractor")}><ShieldCheck className="w-3.5 h-3.5 mr-1" />Red Tractor</TabButton>
+            <TabButton active={tab === "kill-records"} onClick={() => setTab("kill-records")}><Scale className="w-3.5 h-3.5 mr-1" />Kill Records</TabButton>
+          </TabBar>
+          <Button size="sm" variant="outline" onClick={handleGeneratePdf} disabled={generating} className="ml-2 shrink-0">
+            {generating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FileDown className="w-4 h-4 mr-1" />}
+            Audit Report
+          </Button>
+        </div>
         <Card><CardContent className="pt-4">
+          {tab === "overview" && <OverviewTab farmId={farmId} onGoto={t => setTab(t as Tab)} />}
           {tab === "flocks" && <FlocksTab farmId={farmId} />}
           {tab === "movements" && <MovementsTab farmId={farmId} />}
           {tab === "medicine" && <MedicineRegisterTab farmId={farmId} />}
@@ -1240,6 +1576,7 @@ export default function PigProductionPage() {
           {tab === "tail-biting" && <TailBitingRisksTab farmId={farmId} />}
           {tab === "farrowing" && <FarrowingRecordsTab farmId={farmId} />}
           {tab === "red-tractor" && <PigRedTractorChecklistTab farmId={farmId} />}
+          {tab === "kill-records" && <KillRecordsTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>
