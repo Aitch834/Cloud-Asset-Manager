@@ -1381,3 +1381,111 @@ export interface ServiceJobRecord {
   createdAt: string;
   synced: boolean;
 }
+
+export interface PoultryDailyMortality {
+  id: string;
+  farmId: string;
+  flockId: number;
+  flockNumber: string;
+  recordDate: string;
+  mortalityCount: string;
+  culledCount: string;
+  mainCause: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PoultryTreatment {
+  id: string;
+  farmId: string;
+  flockId: number;
+  flockNumber: string;
+  treatmentDate: string;
+  numberOfBirdsTreated: string;
+  productName: string;
+  activeIngredient: string;
+  condition: string;
+  routeOfAdministration: string;
+  doseRate: string;
+  durationDays: string;
+  batchNumber: string;
+  expiryDate: string;
+  administeredBy: string;
+  prescribingVetName: string;
+  prescribingVetPractice: string;
+  prescriptionObtained: boolean;
+  withdrawalPeriodDays: string;
+  withdrawalClearDate: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PoultryEnvironmentalLog {
+  id: string;
+  farmId: string;
+  flockId: number;
+  flockNumber: string;
+  logDate: string;
+  logTime: string;
+  temperatureMin: string;
+  temperatureMax: string;
+  humidity: string;
+  co2Ppm: string;
+  ammoniaPpm: string;
+  ventilationRate: string;
+  lightingHours: string;
+  stockingDensity: string;
+  alarmActivated: boolean;
+  alarmDetails: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PoultryFciDocument {
+  id: string;
+  farmId: string;
+  flockId: number;
+  flockNumber: string;
+  documentDate: string;
+  catchingDate: string;
+  destinationAbattoir: string;
+  numberOfBirds: string;
+  catchingContractor: string;
+  anyDiseaseOrCondition: boolean;
+  diseaseDetails: string;
+  medicationsLast7Days: boolean;
+  medicationDetails: string;
+  withdrawalPeriodClear: boolean;
+  lastFeedWithdrawalHours: string;
+  signedByFarmer: boolean;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface PoultryBroilerWelfare {
+  id: string;
+  farmId: string;
+  flockId: number;
+  flockNumber: string;
+  assessmentDate: string;
+  assessedBy: string;
+  ageAtAssessmentDays: string;
+  sampleSize: string;
+  footpadDermatitisScore: string;
+  footpadDermatitisPercent: string;
+  hockBurnScore: string;
+  hockBurnPercent: string;
+  gaitScore: string;
+  breastBlisterPercent: string;
+  plumageScore: string;
+  soiledPlumagePercent: string;
+  overallOutcome: string;
+  actionsTaken: string;
+  notes: string;
+  createdAt: string;
+  synced: boolean;
+}
