@@ -828,6 +828,7 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
+  const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [milkYearFilter, setMilkYearFilter] = useState("__all__");
 
@@ -945,6 +946,7 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
                 <td style={{ padding: "8px 12px", fontWeight: 600, color: "#1d4ed8" }}>{pToGBP(r.netPaymentPence)}</td>
                 <td style={{ padding: "8px 12px" }}>
                   <div style={{ display: "flex", gap: 4 }}>
+                    <Button size="sm" variant="ghost" onClick={() => setViewRecord(r)}><Eye size={14} /></Button>
                     <Button size="sm" variant="ghost" onClick={() => { setEditing(r); setForm({ ...r, paymentDate: r.paymentDate?.slice(0, 10) ?? "" }); setOpen(true); }}><Pencil size={14} /></Button>
                     <Button size="sm" variant="ghost" style={{ color: "#dc2626" }} onClick={() => setDeleteId(r.id)}><Trash2 size={14} /></Button>
                   </div>
@@ -954,6 +956,41 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
           })}
         </tbody>
       </table>
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Milk Sale</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Month</p><p className="font-medium">{fmtMonth(viewRecord.statementMonth)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Buyer</p><p className="font-medium">{String(viewRecord.buyer ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Litres</p><p className="font-medium">{viewRecord.litresSupplied ? `${parseFloat(viewRecord.litresSupplied).toLocaleString("en-GB")} L` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">PPL</p><p className="font-medium">{viewRecord.pencePerLitre ? `${parseFloat(viewRecord.pencePerLitre).toFixed(2)}p` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Butterfat %</p><p className="font-medium">{viewRecord.butterfatPct ? `${parseFloat(viewRecord.butterfatPct).toFixed(2)}%` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Protein %</p><p className="font-medium">{viewRecord.proteinPct ? `${parseFloat(viewRecord.proteinPct).toFixed(2)}%` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC</p><p className="font-medium">{String(viewRecord.scc ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Bactoscan</p><p className="font-medium">{String(viewRecord.bactoscan ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Gross Value</p><p className="font-medium">{pToGBP(viewRecord.grossValuePence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quality Bonus</p><p className="font-medium">{pToGBP(viewRecord.qualityBonusPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quality Penalty</p><p className="font-medium">{pToGBP(viewRecord.qualityPenaltyPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC Penalty</p><p className="font-medium">{pToGBP(viewRecord.sccPenaltyPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Transport Deduction</p><p className="font-medium">{pToGBP(viewRecord.transportDeductionPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Other Deductions</p><p className="font-medium">{pToGBP(viewRecord.otherDeductionsPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Net Payment</p><p className="font-medium font-bold text-blue-600">{pToGBP(viewRecord.netPaymentPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Date</p><p className="font-medium">{fmtDate(viewRecord.paymentDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Invoice Reference</p><p className="font-medium">{String(viewRecord.statementRef ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">CPH Number</p><p className="font-medium">{String(viewRecord.cphNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Organic Premium</p><p className="font-medium">{pToGBP(viewRecord.organicPremiumPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sustainability Bonus</p><p className="font-medium">{pToGBP(viewRecord.sustainabilityBonusPence)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setEditing(viewRecord); setForm({ ...viewRecord, paymentDate: viewRecord.paymentDate?.slice(0, 10) ?? "" }); setOpen(true); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm(empty); } }}>
         <DialogContent style={{ maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
@@ -1023,8 +1060,10 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
   const [subTab, setSubTab] = useState<"batch" | "eggs">("batch");
   const [openBatch, setOpenBatch] = useState(false);
   const [editingBatch, setEditingBatch] = useState<any | null>(null);
+  const [viewBatch, setViewBatch] = useState<any | null>(null);
   const [openEgg, setOpenEgg] = useState(false);
   const [editingEgg, setEditingEgg] = useState<any | null>(null);
+  const [viewEgg, setViewEgg] = useState<any | null>(null);
   const [deleteBatchId, setDeleteBatchId] = useState<number | null>(null);
   const [deleteEggId, setDeleteEggId] = useState<number | null>(null);
   const [poultryYearFilter, setPoultryYearFilter] = useState("__all__");
@@ -1167,6 +1206,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
                   <td style={{ padding: "8px 10px", fontWeight: 600, color: "#b45309" }}>{pToGBP(r.netPaymentPence)}</td>
                   <td style={{ padding: "8px 10px" }}>
                     <div style={{ display: "flex", gap: 4 }}>
+                      <Button size="sm" variant="ghost" onClick={() => setViewBatch(r)}><Eye size={14} /></Button>
                       <Button size="sm" variant="ghost" onClick={() => { setEditingBatch(r); setFormBatch({ ...r, placementDate: r.placementDate?.slice(0, 10) ?? "", catchDate: r.catchDate?.slice(0, 10) ?? "", paymentDate: r.paymentDate?.slice(0, 10) ?? "" }); setOpenBatch(true); }}><Pencil size={14} /></Button>
                       <Button size="sm" variant="ghost" style={{ color: "#dc2626" }} onClick={() => setDeleteBatchId(r.id)}><Trash2 size={14} /></Button>
                     </div>
@@ -1206,6 +1246,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
                   <td style={{ padding: "8px 10px", fontWeight: 600, color: "#c2410c" }}>{pToGBP(r.netValuePence)}</td>
                   <td style={{ padding: "8px 10px" }}>
                     <div style={{ display: "flex", gap: 4 }}>
+                      <Button size="sm" variant="ghost" onClick={() => setViewEgg(r)}><Eye size={14} /></Button>
                       <Button size="sm" variant="ghost" onClick={() => { setEditingEgg(r); setFormEgg({ ...r, weekEnding: r.weekEnding?.slice(0, 10) ?? "", paymentDate: r.paymentDate?.slice(0, 10) ?? "" }); setOpenEgg(true); }}><Pencil size={14} /></Button>
                       <Button size="sm" variant="ghost" style={{ color: "#dc2626" }} onClick={() => setDeleteEggId(r.id)}><Trash2 size={14} /></Button>
                     </div>
@@ -1215,6 +1256,72 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewBatch && (
+        <Dialog open onOpenChange={() => setViewBatch(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Batch Settlement</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Flock Ref</p><p className="font-medium">{String(viewBatch.flockRef ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Integrator</p><p className="font-medium">{String(viewBatch.integratorName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Species</p><p className="font-medium">{String(viewBatch.species ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Placement Date</p><p className="font-medium">{fmtDate(viewBatch.placementDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Catch Date</p><p className="font-medium">{fmtDate(viewBatch.catchDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Birds Placed</p><p className="font-medium">{viewBatch.birdsPlaced?.toLocaleString() ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Birds Delivered</p><p className="font-medium">{viewBatch.birdsDelivered?.toLocaleString() ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Mortality %</p><p className="font-medium">{viewBatch.mortalityPct ? `${parseFloat(viewBatch.mortalityPct).toFixed(2)}%` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Liveweight</p><p className="font-medium">{viewBatch.averageLiveweightKg ? `${parseFloat(viewBatch.averageLiveweightKg).toFixed(3)} kg` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Total Liveweight</p><p className="font-medium">{viewBatch.totalLiveweightKg ? `${parseFloat(viewBatch.totalLiveweightKg).toFixed(2)} kg` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">FCR</p><p className="font-medium">{viewBatch.fcr ? parseFloat(viewBatch.fcr).toFixed(3) : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">EBI</p><p className="font-medium">{viewBatch.ebi ? parseFloat(viewBatch.ebi).toFixed(2) : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Settlement Rate</p><p className="font-medium">{viewBatch.settlementRatePence ? `${(viewBatch.settlementRatePence / 100).toFixed(2)}p/kg` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Gross Value</p><p className="font-medium">{pToGBP(viewBatch.grossValuePence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Performance Bonus</p><p className="font-medium">{pToGBP(viewBatch.bonusPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Penalty</p><p className="font-medium">{pToGBP(viewBatch.penaltyPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Catching Cost</p><p className="font-medium">{pToGBP(viewBatch.catchingCostPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Net Payment</p><p className="font-medium font-bold text-blue-600">{pToGBP(viewBatch.netPaymentPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Date</p><p className="font-medium">{fmtDate(viewBatch.paymentDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Settlement Ref</p><p className="font-medium">{String(viewBatch.settlementRef ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewBatch.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setEditingBatch(viewBatch); setFormBatch({ ...viewBatch, placementDate: viewBatch.placementDate?.slice(0, 10) ?? "", catchDate: viewBatch.catchDate?.slice(0, 10) ?? "", paymentDate: viewBatch.paymentDate?.slice(0, 10) ?? "" }); setOpenBatch(true); setViewBatch(null); }}>Edit</Button>
+              <Button onClick={() => setViewBatch(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {viewEgg && (
+        <Dialog open onOpenChange={() => setViewEgg(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Egg Sale</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Week Ending</p><p className="font-medium">{fmtDate(viewEgg.weekEnding)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sales Channel</p><p className="font-medium text-capitalize">{viewEgg.salesChannel?.replace("_", " ") ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Packing Station</p><p className="font-medium">{String(viewEgg.packingStation ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Flock Ref</p><p className="font-medium">{String(viewEgg.flockRef ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Egg Type</p><p className="font-medium text-capitalize">{viewEgg.eggType?.replace("_", " ") ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dozens Collected</p><p className="font-medium">{viewEgg.dozensCollected ? `${parseFloat(viewEgg.dozensCollected).toLocaleString()} doz` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dozens Delivered</p><p className="font-medium">{viewEgg.dozensDelivered ? `${parseFloat(viewEgg.dozensDelivered).toLocaleString()} doz` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Grade A Dozens</p><p className="font-medium">{viewEgg.gradeADozens ? `${parseFloat(viewEgg.gradeADozens).toLocaleString()} doz` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Grade B Dozens</p><p className="font-medium">{viewEgg.gradeBDozens ? `${parseFloat(viewEgg.gradeBDozens).toLocaleString()} doz` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Crack / Waste Dozens</p><p className="font-medium">{viewEgg.crackWasteDozens ? `${parseFloat(viewEgg.crackWasteDozens).toLocaleString()} doz` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lay Rate %</p><p className="font-medium">{viewEgg.layRatePct ? `${parseFloat(viewEgg.layRatePct).toFixed(1)}%` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Price per Dozen</p><p className="font-medium">{viewEgg.pricePerDozenPence ? pToGBP(viewEgg.pricePerDozenPence) : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Gross Value</p><p className="font-medium">{pToGBP(viewEgg.grossValuePence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Deductions</p><p className="font-medium">{pToGBP(viewEgg.deductionsPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Net Value</p><p className="font-medium font-bold text-orange-600">{pToGBP(viewEgg.netValuePence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Date</p><p className="font-medium">{fmtDate(viewEgg.paymentDate)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewEgg.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setEditingEgg(viewEgg); setFormEgg({ ...viewEgg, weekEnding: viewEgg.weekEnding?.slice(0, 10) ?? "", paymentDate: viewEgg.paymentDate?.slice(0, 10) ?? "" }); setOpenEgg(true); setViewEgg(null); }}>Edit</Button>
+              <Button onClick={() => setViewEgg(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Batch Dialog */}
@@ -1372,6 +1479,7 @@ function PigSalesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
+  const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [pigYearFilter, setPigYearFilter] = useState("__all__");
 
@@ -1494,6 +1602,7 @@ function PigSalesTab({ farmId }: { farmId: number }) {
                 </td>
                 <td style={{ padding: "8px 10px" }}>
                   <div style={{ display: "flex", gap: 4 }}>
+                    <Button size="sm" variant="ghost" onClick={() => setViewRecord(r)}><Eye size={14} /></Button>
                     <Button size="sm" variant="ghost" onClick={() => { setEditing(r); setForm({ ...r, killDate: r.killDate?.slice(0, 10) ?? "", paymentDate: r.paymentDate?.slice(0, 10) ?? "" }); setOpen(true); }}><Pencil size={14} /></Button>
                     <Button size="sm" variant="ghost" style={{ color: "#dc2626" }} onClick={() => setDeleteId(r.id)}><Trash2 size={14} /></Button>
                   </div>
@@ -1503,6 +1612,41 @@ function PigSalesTab({ farmId }: { farmId: number }) {
           })}
         </tbody>
       </table>
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Kill Record</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Kill Date</p><p className="font-medium">{fmtDate(viewRecord.killDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Processor</p><p className="font-medium">{String(viewRecord.processor ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Head Count</p><p className="font-medium">{String(viewRecord.headCount ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Herd Mark</p><p className="font-medium">{String(viewRecord.herdMark ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Total Deadweight</p><p className="font-medium">{viewRecord.totalDeadweightKg ? `${parseFloat(viewRecord.totalDeadweightKg).toFixed(1)} kg` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Deadweight</p><p className="font-medium">{viewRecord.averageDeadweightKg ? `${parseFloat(viewRecord.averageDeadweightKg).toFixed(1)} kg` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Price</p><p className="font-medium">{viewRecord.pricePerKgPence ? `${viewRecord.pricePerKgPence}p/kg` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Avg P2 Backfat</p><p className="font-medium">{viewRecord.averageP2BackfatMm ? `${parseFloat(viewRecord.averageP2BackfatMm).toFixed(1)} mm` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Muscle Depth</p><p className="font-medium">{viewRecord.averageMuscleDepthMm ? `${parseFloat(viewRecord.averageMuscleDepthMm).toFixed(1)} mm` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lean Meat %</p><p className="font-medium">{viewRecord.leanMeatPct ? `${parseFloat(viewRecord.leanMeatPct).toFixed(1)}%` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Grade Out</p><p className="font-medium">{String(viewRecord.gradeOut ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Kill Sheet Ref</p><p className="font-medium">{String(viewRecord.killSheetRef ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Gross Value</p><p className="font-medium">{pToGBP(viewRecord.grossValuePence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Levy</p><p className="font-medium">{pToGBP(viewRecord.levyDeductionPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Transport Deduction</p><p className="font-medium">{pToGBP(viewRecord.transportDeductionPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Net Payment</p><p className="font-medium font-bold text-purple-600">{pToGBP(viewRecord.netPaymentPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Date</p><p className="font-medium">{fmtDate(viewRecord.paymentDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SPP Variance</p><p className="font-medium">{viewRecord.sppVariancePence != null ? (viewRecord.sppVariancePence >= 0 ? "+" : "") + pToGBP(viewRecord.sppVariancePence) : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Premium Scheme</p><p className="font-medium">{String(viewRecord.premiumScheme ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Premium Value</p><p className="font-medium">{pToGBP(viewRecord.premiumPence)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setEditing(viewRecord); setForm({ ...viewRecord, killDate: viewRecord.killDate?.slice(0, 10) ?? "", paymentDate: viewRecord.paymentDate?.slice(0, 10) ?? "" }); setOpen(true); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm(empty); } }}>
         <DialogContent style={{ maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
@@ -1584,6 +1728,7 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
+  const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [channelFilter, setChannelFilter] = useState("all");
   const [directYearFilter, setDirectYearFilter] = useState("__all__");
@@ -1697,6 +1842,7 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
               <td style={{ padding: "8px 10px", color: "#6b7280" }}>{r.customerName ?? "—"}</td>
               <td style={{ padding: "8px 10px" }}>
                 <div style={{ display: "flex", gap: 4 }}>
+                  <Button size="sm" variant="ghost" onClick={() => setViewRecord(r)}><Eye size={14} /></Button>
                   <Button size="sm" variant="ghost" onClick={() => { setEditing(r); setForm({ ...r, saleDate: r.saleDate?.slice(0, 10) ?? "" }); setOpen(true); }}><Pencil size={14} /></Button>
                   <Button size="sm" variant="ghost" style={{ color: "#dc2626" }} onClick={() => setDeleteId(r.id)}><Trash2 size={14} /></Button>
                 </div>
@@ -1705,6 +1851,36 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
           ))}
         </tbody>
       </table>
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Direct Sale</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{fmtDate(viewRecord.saleDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Channel</p><p className="font-medium">{DIRECT_CHANNELS.find(c => c.value === viewRecord.channel)?.label ?? viewRecord.channel}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product</p><p className="font-medium">{String(viewRecord.productName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Category</p><p className="font-medium">{String(viewRecord.productCategory ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quantity</p><p className="font-medium">{viewRecord.quantity ? `${parseFloat(viewRecord.quantity).toFixed(2)} ${viewRecord.unit}` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Unit Price</p><p className="font-medium">{pToGBP(viewRecord.unitPricePence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Gross Value</p><p className="font-medium">{pToGBP(viewRecord.grossValuePence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">VAT Rate</p><p className="font-medium">{viewRecord.vatRate}%</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">VAT Amount</p><p className="font-medium">{pToGBP(viewRecord.vatPence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Net Value</p><p className="font-medium font-bold text-cyan-600">{pToGBP(viewRecord.netValuePence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Status</p><p className="font-medium text-capitalize">{viewRecord.paymentStatus}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Method</p><p className="font-medium text-capitalize">{viewRecord.paymentMethod}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Customer</p><p className="font-medium">{String(viewRecord.customerName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Invoice Number</p><p className="font-medium">{String(viewRecord.invoiceNumber ?? "—")}</p></div>
+              {viewRecord.marketName && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Market Name</p><p className="font-medium">{viewRecord.marketName}</p></div>}
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setEditing(viewRecord); setForm({ ...viewRecord, saleDate: viewRecord.saleDate?.slice(0, 10) ?? "" }); setOpen(true); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setEditing(null); setForm(empty); } }}>
         <DialogContent style={{ maxWidth: 700, maxHeight: "90vh", overflowY: "auto" }}>

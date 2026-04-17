@@ -195,6 +195,9 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Visitor | null>(null);
   const [viewVisitor, setViewVisitor] = useState<Visitor | null>(null);
+  const [viewPest, setViewPest] = useState<PestRecord | null>(null);
+  const [viewCleaning, setViewCleaning] = useState<CleaningRecord | null>(null);
+  const [viewCoshh, setViewCoshh] = useState<any | null>(null);
   const [form, setForm] = useState<typeof EMPTY_VISITOR>(EMPTY_VISITOR);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [sigModal, setSigModal] = useState<"biosecurity" | "health" | null>(null);
@@ -610,6 +613,7 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PestRecord | null>(null);
+  const [viewPest, setViewPest] = useState<PestRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_PEST>(EMPTY_PEST);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -713,6 +717,7 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
                         <td className="p-4 text-sm text-foreground/70 max-w-[120px] truncate">{p.outcome || "—"}</td>
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => setViewPest(p)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-green-600" title="View"><Eye className="w-4 h-4" /></button>
                             <button onClick={() => setExpandedId(expanded ? null : p.id)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-primary" title="Photos">
                               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                               {(p.photos?.length ?? 0) > 0 && <span style={{ fontSize: "0.65rem", background: "#2563eb", color: "#fff", borderRadius: 8, padding: "1px 5px", marginLeft: 2 }}>{p.photos.length}</span>}
@@ -734,6 +739,29 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
             </table>
           </div>
         </Card>
+      )}
+
+      {viewPest && (
+        <Dialog open onOpenChange={() => setViewPest(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><Bug className="w-5 h-5 text-primary" />View Pest Control Record</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm py-4">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Pest Type</p><p className="font-medium">{String(viewPest.pestType ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Location</p><p className="font-medium">{String(viewPest.location ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Date</p><p className="font-medium">{formatDate(viewPest.treatmentDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treated By</p><p className="font-medium">{String(viewPest.treatedBy ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Method</p><p className="font-medium">{String(viewPest.treatmentMethod ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Used</p><p className="font-medium">{String(viewPest.productUsed ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Follow-up Date</p><p className="font-medium">{formatDate(viewPest.followUpDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Outcome</p><p className="font-medium">{String(viewPest.outcome ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewPest.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewPest); setViewPest(null); }}>Edit</Button>
+              <Button onClick={() => setViewPest(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={formOpen} onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditing(null); setForm(EMPTY_PEST); } }}>
@@ -853,6 +881,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CleaningRecord | null>(null);
+  const [viewCleaning, setViewCleaning] = useState<CleaningRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_CLEANING>(EMPTY_CLEANING);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -971,6 +1000,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
                     <td className="p-4 text-sm text-foreground/70">{c.verifiedBy || "—"}</td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setViewCleaning(c)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-green-600" title="View"><Eye className="w-4 h-4" /></button>
                         <button onClick={() => openEdit(c)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/40 hover:text-primary"><Pencil className="w-4 h-4" /></button>
                         <button onClick={() => setDeleteId(c.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/40 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                       </div>
@@ -1174,6 +1204,7 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [addOpen, setAddOpen] = useState(false);
+  const [viewCoshh, setViewCoshh] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<any>({ substanceName: "", manufacturer: "", hazardClassification: "", usageArea: "", storageLocation: "", controlMeasures: "", ppe: "", emergencyProcedures: "", assessedBy: "", assessmentDate: "", reviewDate: "", notes: "" });
 
@@ -1241,6 +1272,7 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{r.reviewDate ? new Date(r.reviewDate).toLocaleDateString("en-GB") : "—"}</td>
                   <td style={{ padding: "0.5rem" }}>
                     <div style={{ display: "flex", gap: 2 }}>
+                      <button onClick={() => setViewCoshh(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="View"><Eye size={14} /></button>
                       <button onClick={() => printCoshhSheet(r, farmName)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Print COSHH Assessment Sheet"><Printer size={14} /></button>
                       <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                     </div>
@@ -1250,6 +1282,30 @@ function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewCoshh && (
+        <Dialog open onOpenChange={() => setViewCoshh(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-primary" />View COSHH Assessment</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm py-4">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Substance</p><p className="font-medium">{String(viewCoshh.substanceName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Manufacturer</p><p className="font-medium">{String(viewCoshh.manufacturer ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Hazard Classification</p><p className="font-medium">{String(viewCoshh.hazardClassification ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Usage Area</p><p className="font-medium">{String(viewCoshh.usageArea ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Storage Location</p><p className="font-medium">{String(viewCoshh.storageLocation ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessed By</p><p className="font-medium">{String(viewCoshh.assessedBy ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessment Date</p><p className="font-medium">{viewCoshh.assessmentDate ? new Date(viewCoshh.assessmentDate).toLocaleDateString("en-GB") : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Review Date</p><p className="font-medium">{viewCoshh.reviewDate ? new Date(viewCoshh.reviewDate).toLocaleDateString("en-GB") : "—"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">PPE / Control Measures</p><p className="font-medium whitespace-pre-wrap">{String(viewCoshh.controlMeasures || viewCoshh.ppe || "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Emergency Procedures</p><p className="font-medium whitespace-pre-wrap">{String(viewCoshh.emergencyProcedures || "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewCoshh.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setViewCoshh(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={addOpen} onOpenChange={o => { setAddOpen(o); if (!o) resetForm(); }}>

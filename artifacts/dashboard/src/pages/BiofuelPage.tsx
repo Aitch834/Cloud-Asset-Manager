@@ -22,6 +22,7 @@ import {
   Mail,
   FileText,
   Download,
+  Eye,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -186,6 +187,10 @@ export default function BiofuelPage() {
   const [editingField, setEditingField] = useState<FieldDeclaration | null>(null);
   const [editingDelivery, setEditingDelivery] = useState<Delivery | null>(null);
   const [editingBuyer, setEditingBuyer] = useState<Buyer | null>(null);
+  const [viewCert, setViewCert] = useState<Certification | null>(null);
+  const [viewField, setViewField] = useState<FieldDeclaration | null>(null);
+  const [viewBuyer, setViewBuyer] = useState<Buyer | null>(null);
+  const [viewDelivery, setViewDelivery] = useState<Delivery | null>(null);
   const [declarationDownloading, setDeclarationDownloading] = useState<number | null>(null);
   const [auditPackDownloading, setAuditPackDownloading] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<{ title: string; msg: string; fn: () => void } | null>(null);
@@ -546,6 +551,7 @@ export default function BiofuelPage() {
                     </div>
                     {certStatusBadge(cert)}
                     <div style={{ display: "flex", gap: 8 }}>
+                      <Button size="sm" variant="outline" onClick={() => setViewCert(cert)}><Eye size={14} /></Button>
                       <Button size="sm" variant="outline" onClick={() => { setEditingCert(cert); setCertDialog(true); }}><Edit size={14} /></Button>
                       <Button size="sm" variant="outline" onClick={() => setPendingConfirm({ title: "Delete Certification", msg: "Delete this certification record? This cannot be undone.", fn: () => deleteCertMut.mutate(cert.id) })} style={{ color: "#dc2626" }}><Trash2 size={14} /></Button>
                     </div>
@@ -607,6 +613,7 @@ export default function BiofuelPage() {
                         <td style={{ padding: "12px 16px" }}>{eligibilityBadge(f.eligibilityStatus)}</td>
                         <td style={{ padding: "12px 16px" }}>
                           <div style={{ display: "flex", gap: 6 }}>
+                            <Button size="sm" variant="outline" onClick={() => setViewField(f)}><Eye size={13} /></Button>
                             <Button size="sm" variant="outline" onClick={() => { setEditingField(f); setFieldDialog(true); }}><Edit size={13} /></Button>
                             <Button size="sm" variant="outline" style={{ color: "#dc2626" }} onClick={() => setPendingConfirm({ title: "Delete Declaration", msg: "Delete this field land eligibility declaration? This cannot be undone.", fn: () => deleteFieldMut.mutate(f.id) })}><Trash2 size={13} /></Button>
                           </div>
@@ -703,6 +710,7 @@ export default function BiofuelPage() {
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                      <Button size="sm" variant="outline" onClick={() => setViewBuyer(b)}><Eye size={14} /></Button>
                       {isActive && <Button size="sm" variant="outline" onClick={() => { setEditingBuyer(b); setBuyerDialog(true); }}><Edit size={14} /></Button>}
                       <Button size="sm" variant="outline" style={{ color: isActive ? "#dc2626" : "#16a34a", borderColor: isActive ? "#fecaca" : "#bbf7d0" }}
                         onClick={() => isActive ? deactivateBuyerMut.mutate(b.id) : reactivateBuyerMut.mutate(b.id)}>
@@ -764,6 +772,7 @@ export default function BiofuelPage() {
                       {d.ghgSavingPercent && <div style={{ fontSize: 12, color: "#16a34a", marginTop: 2 }}>GHG saving: {d.ghgSavingPercent}%</div>}
                     </div>
                     <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                      <Button size="sm" variant="outline" onClick={() => setViewDelivery(d)}><Eye size={14} /></Button>
                       <Button
                         size="sm"
                         variant="outline"

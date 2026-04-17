@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
 import {
-  MapPin, Plus, Pencil, Trash2, Search, Building2, Warehouse, FlaskConical, Tractor, TreePine, Users, LayoutGrid, Map,
+  MapPin, Plus, Pencil, Trash2, Search, Building2, Warehouse, FlaskConical, Tractor, TreePine, Users, LayoutGrid, Map, Eye,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -61,6 +61,7 @@ export default function FarmLocationsPage() {
   const [filterType, setFilterType] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<FarmLocation | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [editing, setEditing] = useState<FarmLocation | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -303,6 +304,9 @@ export default function FarmLocationsPage() {
                       )}
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
+                      <Button variant="ghost" size="sm" onClick={() => setViewRecord(loc)}>
+                        <Eye className="w-4 h-4" />
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={() => openEdit(loc)}>
                         <Pencil className="w-4 h-4" />
                       </Button>
@@ -317,6 +321,27 @@ export default function FarmLocationsPage() {
           )}
         </Card>
       </div>
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Location</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Name</p><p className="font-medium">{String(viewRecord.name ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Location Type</p><p className="font-medium">{typeMap[viewRecord.locationType]?.label ?? viewRecord.locationType}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Description</p><p className="font-medium">{String(viewRecord.description ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Latitude</p><p className="font-medium">{String(viewRecord.latitude ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Longitude</p><p className="font-medium">{String(viewRecord.longitude ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{viewRecord.isActive ? "Active" : "Inactive"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Add / Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={o => { if (!o) closeDialog(); }}>

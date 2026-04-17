@@ -573,6 +573,7 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<CertificateRecord | null>(null);
+  const [viewItem, setViewItem] = useState<CertificateRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedCertId, setExpandedCertId] = useState<number | null>(null);
 
@@ -730,6 +731,7 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
                     <td style={{ padding: "0.625rem 0.75rem" }}>{r.expiryDate ? expiryBadge(r.expiryDate) : <Badge style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb" }}>No expiry</Badge>}</td>
                     <td style={{ padding: "0.625rem 0.75rem" }}>
                       <div style={{ display: "flex", gap: 4 }}>
+                        <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0, color: "#9ca3af" }} onClick={() => setViewItem(r)} title="View"><Eye size={13} /></Button>
                         <Button
                           size="sm"
                           variant="outline"
@@ -758,6 +760,27 @@ function CertificatesTab({ farmId, staffNames, staffLoading, defaultMember }: { 
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewItem && (
+        <Dialog open onOpenChange={() => setViewItem(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Certificate</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm py-4">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Staff Member</p><p className="font-medium">{resolveStaffName(viewItem.userId)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certificate Type</p><p className="font-medium">{String(viewItem.certificateType ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certificate Number</p><p className="font-medium">{String(viewItem.certificateNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Issuer</p><p className="font-medium">{String(viewItem.issuer ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Issue Date</p><p className="font-medium">{fmt(viewItem.issueDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expiry Date</p><p className="font-medium">{viewItem.expiryDate ? fmt(viewItem.expiryDate) : "No expiry"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewItem.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}>Edit</Button>
+              <Button onClick={() => setViewItem(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={addOpen || !!editItem} onOpenChange={open => { if (!open) { setAddOpen(false); setEditItem(null); setRenewMode(false); } }}>
@@ -941,6 +964,7 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<RtwRecord | null>(null);
+  const [viewItem, setViewItem] = useState<RtwRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [search, setSearch] = useState(defaultMember ?? "");
   const [expandedRtwId, setExpandedRtwId] = useState<number | null>(null);
@@ -1066,6 +1090,7 @@ function RightToWorkTab({ farmId, staffNames, staffLoading, defaultMember }: { f
                     <td style={{ padding: "0.625rem 0.75rem" }}>{rtwStatusBadge(r.expiryDate)}</td>
                     <td style={{ padding: "0.625rem 0.75rem" }}>
                       <div style={{ display: "flex", gap: 4 }}>
+                        <Button size="sm" variant="ghost" style={{ height: 28, width: 28, padding: 0, color: "#9ca3af" }} onClick={() => setViewItem(r)} title="View"><Eye size={13} /></Button>
                         <Button
                           size="sm"
                           variant="outline"
@@ -1306,6 +1331,7 @@ function CoursesTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState({ ...emptyForm });
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<any | null>(null);
+  const [viewItem, setViewItem] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   function openEdit(c: any) {
@@ -1398,6 +1424,7 @@ function CoursesTab({ farmId }: { farmId: number }) {
                   </td>
                   <td style={{ padding: "10px 14px" }}>
                     <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                      <Button size="sm" variant="ghost" onClick={() => setViewItem(c)} style={{ height: 28, width: 28, padding: 0, color: "#9ca3af" }} title="View"><Eye size={13} /></Button>
                       <Button size="sm" variant="ghost" onClick={() => openEdit(c)} style={{ padding: "4px 8px" }}>Edit</Button>
                       <Button size="sm" variant="ghost" onClick={() => setDeleteId(c.id)} style={{ padding: "4px 8px", color: "#dc2626" }}>Delete</Button>
                     </div>
@@ -1407,6 +1434,26 @@ function CoursesTab({ farmId }: { farmId: number }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewItem && (
+        <Dialog open onOpenChange={() => setViewItem(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Course</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm py-4">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Course Name</p><p className="font-medium">{String(viewItem.name ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Course Type</p><p className="font-medium">{String(viewItem.courseType ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Issuing Body</p><p className="font-medium">{String(viewItem.issuingBody ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Default Validity (months)</p><p className="font-medium">{String(viewItem.defaultValidityMonths ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{viewItem.isActive ? "Active" : "Inactive"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewItem.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewItem); setViewItem(null); }}>Edit</Button>
+              <Button onClick={() => setViewItem(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Add / Edit dialog */}

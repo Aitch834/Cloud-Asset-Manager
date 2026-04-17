@@ -9,7 +9,7 @@ import { Redirect } from "wouter";
 import {
   Plus, Loader2, Pencil, Trash2, CheckCircle2, AlertTriangle,
   Calendar, Printer, Leaf, ShieldCheck, FlaskConical, BookOpen,
-  Clock, Info, ExternalLink,
+  Clock, Info, ExternalLink, Eye,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -124,6 +124,7 @@ function CertificationTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [viewRecord, setViewRecord] = useState<Certification | null>(null);
   const EMPTY = { certifier: "Soil Association", certificateNumber: "", certificationDate: "", renewalDate: "", status: "certified", operatorNumber: "", notes: "" };
   const [form, setForm] = useState(EMPTY);
 
@@ -180,7 +181,10 @@ function CertificationTab({ farmId }: { farmId: number }) {
                 <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${STATUS_COLORS[record.status] ?? STATUS_COLORS.conventional}`}>{STATUS_LABELS[record.status] ?? record.status}</span>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="w-4 h-4 mr-1" />Edit</Button>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(record)}><Eye className="w-4 h-4" /></Button>
+              <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="w-4 h-4 mr-1" />Edit</Button>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm border-t pt-4">
             {record.certificateNumber && <><span className="text-foreground/60">Certificate Number</span><span className="font-medium">{record.certificateNumber}</span></>}
@@ -199,6 +203,27 @@ function CertificationTab({ farmId }: { farmId: number }) {
           </div>
           {record.notes && <p className="text-sm text-foreground/70 border-t pt-3">{record.notes}</p>}
         </Card>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Organic Certification</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifying Body</p><p className="font-medium">{String(viewRecord.certifier ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium text-capitalize">{STATUS_LABELS[viewRecord.status] ?? viewRecord.status}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certificate Number</p><p className="font-medium">{String(viewRecord.certificateNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Operator Number</p><p className="font-medium">{String(viewRecord.operatorNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certification Date</p><p className="font-medium">{fmt(viewRecord.certificationDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Annual Renewal Date</p><p className="font-medium">{fmt(viewRecord.renewalDate)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={editing} onOpenChange={setEditing}>
@@ -253,6 +278,7 @@ function FieldsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<FieldStatus | null>(null);
   const [editing, setEditing] = useState<FieldStatus | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_FIELD);
@@ -344,6 +370,7 @@ function FieldsTab({ farmId }: { farmId: number }) {
                           {r.certifierRef && <p className="text-xs text-foreground/50 mt-1">Ref: {r.certifierRef}</p>}
                         </div>
                         <div className="flex gap-1 shrink-0">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(r)}><Eye className="w-4 h-4" /></Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="w-4 h-4" /></Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="w-4 h-4" /></Button>
                         </div>
@@ -371,6 +398,7 @@ function FieldsTab({ farmId }: { farmId: number }) {
                         </div>
                       </div>
                       <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(r)}><Eye className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="w-4 h-4" /></Button>
                       </div>
@@ -394,6 +422,7 @@ function FieldsTab({ farmId }: { farmId: number }) {
                         <p className="font-medium">{r.fieldName}{r.parallelProduction ? <span className="ml-2 text-xs text-blue-600">(parallel production)</span> : ""}</p>
                       </div>
                       <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(r)}><Eye className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="w-4 h-4" /></Button>
                       </div>
@@ -404,6 +433,28 @@ function FieldsTab({ farmId }: { farmId: number }) {
             </div>
           )}
         </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Organic Field Status</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Field Name</p><p className="font-medium">{String(viewRecord.fieldName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium text-capitalize">{STATUS_LABELS[viewRecord.status] ?? viewRecord.status}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Parallel Production</p><p className="font-medium">{viewRecord.parallelProduction ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Conversion Start Date</p><p className="font-medium">{fmt(viewRecord.conversionStartDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expected Certification Date</p><p className="font-medium">{viewRecord.conversionStartDate ? expectedCertDate(viewRecord.conversionStartDate) : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Actual Certification Date</p><p className="font-medium">{fmt(viewRecord.certificationDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Reference</p><p className="font-medium">{String(viewRecord.certifierRef ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Form dialog */}
@@ -464,6 +515,7 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
   const { toast } = useToast();
   const qc = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<InspectionRecord | null>(null);
   const [editing, setEditing] = useState<InspectionRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_INSP);
@@ -546,6 +598,7 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(r)}><Eye className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="w-4 h-4" /></Button>
                   </div>
@@ -554,6 +607,29 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
             );
           })}
         </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Organic Inspection</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Inspection Date</p><p className="font-medium">{fmt(viewRecord.inspectionDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifying Body</p><p className="font-medium">{String(viewRecord.certifier ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Inspector Name</p><p className="font-medium">{String(viewRecord.inspectorName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Outcome</p><p className="font-medium">{String(viewRecord.outcome ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certificate Reference</p><p className="font-medium">{String(viewRecord.certificateReference ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Inspection Due</p><p className="font-medium">{fmt(viewRecord.nextDueDate)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Non-Conformances</p><p className="font-medium">{String(viewRecord.nonConformances ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Actions Required</p><p className="font-medium">{String(viewRecord.actions ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={formOpen} onOpenChange={v => { setFormOpen(v); if (!v) setEditing(null); }}>
@@ -617,6 +693,7 @@ function RestrictedInputsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<RestrictedInput | null>(null);
   const [editing, setEditing] = useState<RestrictedInput | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_INPUT);
@@ -695,6 +772,7 @@ function RestrictedInputsTab({ farmId }: { farmId: number }) {
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewRecord(r)}><Eye className="w-4 h-4" /></Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Pencil className="w-4 h-4" /></Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(r.id)}><Trash2 className="w-4 h-4" /></Button>
                 </div>
@@ -702,6 +780,29 @@ function RestrictedInputsTab({ farmId }: { farmId: number }) {
             </Card>
           ))}
         </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Restricted Input</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Name</p><p className="font-medium">{String(viewRecord.productName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Category</p><p className="font-medium">{String(viewRecord.productCategory ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date Applied</p><p className="font-medium">{fmt(viewRecord.dateApplied)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Field / Area</p><p className="font-medium">{String(viewRecord.fieldName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Applied By</p><p className="font-medium">{String(viewRecord.appliedBy ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approval Reference</p><p className="font-medium">{String(viewRecord.approvalReference ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Notified</p><p className="font-medium">{viewRecord.certifierNotified ? "Yes" : "No"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Justification</p><p className="font-medium">{String(viewRecord.justification ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={formOpen} onOpenChange={v => { setFormOpen(v); if (!v) setEditing(null); }}>
@@ -757,8 +858,15 @@ function RestrictedInputsTab({ farmId }: { farmId: number }) {
 type OrgTab = "certification" | "fields" | "inspections" | "restricted-inputs";
 
 export default function OrganicPage() {
-  const { farmId, farmName } = useAppStore();
+  const { farmId } = useAppStore();
   const [tab, setTab] = useState<OrgTab>("certification");
+
+  const { data: farmData } = useQuery<{ record: { name: string } }>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const farmName = farmData?.record?.name;
 
   if (!farmId) return <Redirect to="/select" />;
 

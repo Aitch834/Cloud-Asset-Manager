@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, Eye } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
@@ -110,6 +110,7 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MilkRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<MilkRecord | null>(null);
   const [form, setForm] = useState<Partial<MilkRecord>>({});
 
   const { data, isLoading } = useQuery<{ records: MilkRecord[] }>({
@@ -138,11 +139,34 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <div>
-          <p className="text-sm text-gray-500">Daily milk recording — yield, SCC, TBC, composition. Legal SCC limit: 400,000 cells/mL (400 k).</p>
-        </div>
         <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Record</Button>
       </div>
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Milk Record</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{formatDate(viewRecord.recordDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Record Type</p><p className="font-medium capitalize">{String(viewRecord.recordType ?? "—").replace("-", " ")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Milking Session</p><p className="font-medium capitalize">{String(viewRecord.sessionType ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Yield (litres)</p><p className="font-medium">{viewRecord.yieldLitres ? `${parseFloat(viewRecord.yieldLitres).toLocaleString()} L` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC (k/mL)</p><p className="font-medium">{viewRecord.sccThousands?.toLocaleString() ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">TBC (cfu/mL)</p><p className="font-medium">{viewRecord.tbcCfuMl?.toLocaleString() ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fat (%)</p><p className="font-medium">{String(viewRecord.fatPercent ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Protein (%)</p><p className="font-medium">{String(viewRecord.proteinPercent ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lactose (%)</p><p className="font-medium">{String(viewRecord.lactosePercent ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Temperature (°C)</p><p className="font-medium">{String(viewRecord.milkTemperatureCelsius ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Antibiotic Residue Test</p><p className="font-medium capitalize">{String(viewRecord.antibioticResidueTestResult ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collector Ref</p><p className="font-medium">{String(viewRecord.collectorReference ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
           {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No milk records yet — click Add Record to begin.</CardContent></Card>}
@@ -166,6 +190,7 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
                     )}
                   </div>
                   <div className="flex gap-1 ml-2">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
@@ -268,6 +293,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MastitisRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<MastitisRecord | null>(null);
   const [form, setForm] = useState<Partial<MastitisRecord>>({});
 
   const { data, isLoading } = useQuery<{ records: MastitisRecord[] }>({
@@ -295,9 +321,36 @@ function MastitisTab({ farmId }: { farmId: number }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <p className="text-sm text-gray-500">Individual cow mastitis events — quarters affected, clinical grade, treatment, and outcome. Linked to antibiotic stewardship records.</p>
         <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Record</Button>
       </div>
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Mastitis Record</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Onset Date</p><p className="font-medium">{formatDate(viewRecord.onsetDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cow Ear Tag</p><p className="font-medium">{String(viewRecord.earTagNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quarters Affected</p><p className="font-medium">{String(viewRecord.quartersAffected ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Clinical Grade</p><p className="font-medium">{String(viewRecord.clinicalGrade ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Bacterial Culture</p><p className="font-medium">{String(viewRecord.bacterialCultureResult ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC at Onset</p><p className="font-medium">{viewRecord.sccAtOnset?.toLocaleString() ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Product</p><p className="font-medium">{String(viewRecord.treatmentProduct ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Start</p><p className="font-medium">{formatDate(viewRecord.treatmentStartDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Duration (days)</p><p className="font-medium">{String(viewRecord.treatmentDurationDays ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawal End</p><p className="font-medium">{formatDate(viewRecord.withdrawalEndDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Outcome</p><p className="font-medium capitalize">{String(viewRecord.outcome ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Outcome Date</p><p className="font-medium">{formatDate(viewRecord.outcomeDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Consulted</p><p className="font-medium">{viewRecord.vetConsulted ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Name</p><p className="font-medium">{String(viewRecord.vetName ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
           {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No mastitis records yet.</CardContent></Card>}
@@ -315,6 +368,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
                     {r.withdrawalEndDate && <span className="text-xs text-amber-600">Withdrawal ends {formatDate(r.withdrawalEndDate)}</span>}
                   </div>
                   <div className="flex gap-1 ml-2">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
@@ -437,6 +491,7 @@ function CalvingTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CalvingRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<CalvingRecord | null>(null);
   const [form, setForm] = useState<Partial<CalvingRecord>>({});
 
   const { data, isLoading } = useQuery<{ records: CalvingRecord[] }>({
@@ -490,6 +545,7 @@ function CalvingTab({ farmId }: { farmId: number }) {
                     {r.bcmsPassportApplied && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Passport applied</span>}
                   </div>
                   <div className="flex gap-1 ml-2">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
@@ -652,6 +708,7 @@ function BcsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<BcsRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<BcsRecord | null>(null);
   const [form, setForm] = useState<Partial<BcsRecord>>({});
 
   const { data, isLoading } = useQuery<{ records: BcsRecord[] }>({
@@ -686,6 +743,28 @@ function BcsTab({ farmId }: { farmId: number }) {
         </div>
         <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add BCS</Button>
       </div>
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View BCS Record</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessment Date</p><p className="font-medium">{formatDate(viewRecord.assessmentDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Ear Tag Number</p><p className="font-medium">{String(viewRecord.earTagNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Life Stage</p><p className="font-medium capitalize">{String(viewRecord.lifeStage ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">BCS Score</p><p className="font-medium">{String(viewRecord.bcsScore ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Target Score</p><p className="font-medium">{String(viewRecord.targetScore ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessed By</p><p className="font-medium">{String(viewRecord.assessedBy ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Action Required</p><p className="font-medium">{viewRecord.actionRequired ? "Yes" : "No"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Action Taken</p><p className="font-medium">{String(viewRecord.actionTaken ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
           {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No BCS records yet.</CardContent></Card>}
@@ -702,6 +781,7 @@ function BcsTab({ farmId }: { farmId: number }) {
                     {r.actionRequired && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded flex items-center gap-1"><AlertTriangle className="h-3 w-3" />Action needed</span>}
                   </div>
                   <div className="flex gap-1 ml-2">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
@@ -777,6 +857,7 @@ function MobilityTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MobilityScoring | null>(null);
+  const [viewRecord, setViewRecord] = useState<MobilityScoring | null>(null);
   const [form, setForm] = useState<Partial<MobilityScoring>>({});
 
   const { data, isLoading } = useQuery<{ records: MobilityScoring[] }>({
@@ -812,6 +893,30 @@ function MobilityTab({ farmId }: { farmId: number }) {
         </div>
         <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Assessment</Button>
       </div>
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Mobility Assessment</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessment Date</p><p className="font-medium">{formatDate(viewRecord.assessmentDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessed By</p><p className="font-medium">{String(viewRecord.assessedBy ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Total Scored</p><p className="font-medium">{String(viewRecord.totalCowsScored ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Score 0 (Normal)</p><p className="font-medium">{String(viewRecord.score0Count ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Score 1</p><p className="font-medium">{String(viewRecord.score1Count ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Score 2</p><p className="font-medium">{String(viewRecord.score2Count ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Score 3 (Lame)</p><p className="font-medium">{String(viewRecord.score3Count ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lameness %</p><p className="font-medium">{String(viewRecord.lamenessPrevalencePercent ?? "—")}%</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Action Taken</p><p className="font-medium">{String(viewRecord.actionTaken ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Due</p><p className="font-medium">{formatDate(viewRecord.nextAssessmentDue)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
           {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No mobility assessments yet. Assessments should be carried out at least quarterly.</CardContent></Card>}
@@ -938,6 +1043,7 @@ function BulkTankTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<BulkTankRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<BulkTankRecord | null>(null);
   const [form, setForm] = useState<Partial<BulkTankRecord>>({});
 
   const { data, isLoading } = useQuery<{ records: BulkTankRecord[] }>({
@@ -968,6 +1074,27 @@ function BulkTankTab({ farmId }: { farmId: number }) {
         <p className="text-sm text-gray-500">Bulk milk tank records — daily temperature, cleaning, antibiotic residue tests, and collection references.</p>
         <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Record</Button>
       </div>
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Bulk Tank Record</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{formatDate(viewRecord.recordDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Record Type</p><p className="font-medium capitalize">{String(viewRecord.recordType ?? "—").replace("-", " ")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Temperature (°C)</p><p className="font-medium">{String(viewRecord.tankTemperatureCelsius ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tank Cleaned</p><p className="font-medium">{viewRecord.tankCleaned ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cleaning Product</p><p className="font-medium">{String(viewRecord.cleaningProductUsed ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">ABR Result</p><p className="font-medium capitalize">{String(viewRecord.antibioticResidueResult ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Collection Ref</p><p className="font-medium">{String(viewRecord.collectionRef ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
           {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No bulk tank records yet.</CardContent></Card>}
@@ -990,6 +1117,7 @@ function BulkTankTab({ farmId }: { farmId: number }) {
                     {r.collectionRef && <span className="text-xs text-gray-400">Ref: {r.collectionRef}</span>}
                   </div>
                   <div className="flex gap-1 ml-2">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
@@ -1073,6 +1201,7 @@ function DctTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<DctRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<DctRecord | null>(null);
   const [form, setForm] = useState<Partial<DctRecord>>({});
 
   const { data, isLoading } = useQuery<{ records: DctRecord[] }>({
@@ -1113,6 +1242,30 @@ function DctTab({ farmId }: { farmId: number }) {
         </div>
         <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add DCT Record</Button>
       </div>
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View DCT Record</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dry-Off Date</p><p className="font-medium">{formatDate(viewRecord.dryOffDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cow Ear Tag</p><p className="font-medium">{String(viewRecord.cowEarTag ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Protocol</p><p className="font-medium capitalize">{String(viewRecord.protocol ?? "—").replace("-", " ")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Antibiotic Product</p><p className="font-medium">{String(viewRecord.antibioticRegimeProduct || viewRecord.antibioticTubeProduct || "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Teat Sealant</p><p className="font-medium">{String(viewRecord.teatSealantProduct ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">SCC at Dry-Off</p><p className="font-medium">{viewRecord.sccAtDryOff?.toLocaleString() ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Mastitis Eps (12m)</p><p className="font-medium">{String(viewRecord.mastitisEpisodes12Months ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Authorisation</p><p className="font-medium">{viewRecord.vetAuthorisation ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expected Calving</p><p className="font-medium">{formatDate(viewRecord.expectedCalvingDate)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Justification</p><p className="font-medium">{String(viewRecord.treatmentJustification ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
           {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No DCT records yet. Record dry-off treatments for each cow at the end of lactation.</CardContent></Card>}
@@ -1132,6 +1285,7 @@ function DctTab({ farmId }: { farmId: number }) {
                     {r.expectedCalvingDate && <span className="text-xs text-gray-400 flex items-center gap-1"><ChevronRight className="h-3 w-3" />Expected calving {formatDate(r.expectedCalvingDate)}</span>}
                   </div>
                   <div className="flex gap-1 ml-2">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => del.mutate(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>

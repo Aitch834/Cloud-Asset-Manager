@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
-import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,19 +39,20 @@ function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel
   );
 }
 // ─── Simple table ──────────────────────────────────────────────────────────────
-function DataTable({ cols, rows, onEdit, onDelete }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string; render?: (r: Record<string, unknown>) => ReactNode }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void }) {
+function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string; render?: (r: Record<string, unknown>) => ReactNode }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void }) {
   const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
   if (!rows.length) return <Empty msg="No records yet. Add one using the button above." />;
   return (
     <>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete) && <th />}</tr></thead>
+          <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete || onView) && <th />}</tr></thead>
           <tbody>{rows.map((row, i) => (
             <tr key={i} className="border-b last:border-0">
               {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.render ? c.render(row) : c.fmt ? c.fmt(row) : fmt(row[c.key])}</td>)}
-              {(onEdit || onDelete) && (
+              {(onEdit || onDelete || onView) && (
                 <td className="py-2 text-right space-x-1">
+                  {onView && <Button size="icon" variant="ghost" onClick={() => onView(row)}><Eye className="w-3.5 h-3.5" /></Button>}
                   {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
                   {onDelete && <Button size="icon" variant="ghost" onClick={() => setPendingDelete(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
                 </td>
@@ -149,6 +150,7 @@ function MovementsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
 
   const { data: movements = [], isLoading } = useQuery({ queryKey: ["pig-movements", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-movements`), { credentials: "include" }).then(r => r.json()) });
@@ -186,8 +188,35 @@ function MovementsTab({ farmId }: { farmId: number }) {
           rows={movements}
           onEdit={openEdit}
           onDelete={r => del.mutate(r.id as number)}
+          onView={setViewRecord}
         />
       )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Movement</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Movement Date</p><p className="font-medium">{fmtDate(viewRecord.movementDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Movement Type</p><p className="font-medium">{String(viewRecord.movementType ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">From Location</p><p className="font-medium">{String(viewRecord.fromLocation ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">From CPH</p><p className="font-medium">{String(viewRecord.fromCph ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">To Location</p><p className="font-medium">{String(viewRecord.toLocation ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">To CPH</p><p className="font-medium">{String(viewRecord.toCph ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Number of Animals</p><p className="font-medium">{String(viewRecord.numberOfAnimals ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">eAML2 Reference</p><p className="font-medium">{String(viewRecord.eaml2Reference ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Transporter Name</p><p className="font-medium">{String(viewRecord.transporterName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vehicle Registration</p><p className="font-medium">{String(viewRecord.vehicleRegistration ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Movement" : "Log Pig Movement"}</DialogTitle></DialogHeader>
@@ -219,6 +248,7 @@ function FciDocumentsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
 
   const { data: docs = [], isLoading } = useQuery({ queryKey: ["pig-fci", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-fci-documents`), { credentials: "include" }).then(r => r.json()) });
@@ -257,8 +287,35 @@ function FciDocumentsTab({ farmId }: { farmId: number }) {
           rows={docs}
           onEdit={openEdit}
           onDelete={r => del.mutate(r.id as number)}
+          onView={setViewRecord}
         />
       )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View FCI Document</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Document Date</p><p className="font-medium">{fmtDate(viewRecord.documentDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Batch Reference</p><p className="font-medium">{String(viewRecord.batchReference ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Destination Abattoir</p><p className="font-medium">{String(viewRecord.destinationAbattoir ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Number of Pigs</p><p className="font-medium">{String(viewRecord.numberOfPigs ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Feed Withdrawal (hours)</p><p className="font-medium">{String(viewRecord.feedWithdrawalHours ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lameness / Casualty Status</p><p className="font-medium">{String(viewRecord.lambnessCasualtyStatus ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Veterinary Medicines Last 60 Days</p><p className="font-medium">{viewRecord.veterinaryMedicinesLast60Days ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawal Period Clear</p><p className="font-medium">{viewRecord.withdrawalPeriodClear ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Signed By Farmer</p><p className="font-medium">{viewRecord.signedByFarmer ? "Yes" : "No"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Medicine Details</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.medicineDetails ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>FCI Document</DialogTitle></DialogHeader>
@@ -547,6 +604,7 @@ function VetAssessmentsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
 
   const { data: assessments = [], isLoading } = useQuery({ queryKey: ["pig-vet", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-vet-assessments`), { credentials: "include" }).then(r => r.json()) });
@@ -584,8 +642,36 @@ function VetAssessmentsTab({ farmId }: { farmId: number }) {
           rows={assessments}
           onEdit={openEdit}
           onDelete={r => del.mutate(r.id as number)}
+          onView={setViewRecord}
         />
       )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Vet Assessment</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessment Date</p><p className="font-medium">{fmtDate(viewRecord.assessmentDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Name</p><p className="font-medium">{String(viewRecord.vetName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Practice Name</p><p className="font-medium">{String(viewRecord.practiceName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Mortality Rate (%)</p><p className="font-medium">{String(viewRecord.mortalityRate ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lameness Assessment</p><p className="font-medium">{String(viewRecord.lameness ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Respiratory Health</p><p className="font-medium">{String(viewRecord.respiratoryHealth ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Skin Condition</p><p className="font-medium">{String(viewRecord.skinCondition ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tail Biting</p><p className="font-medium">{String(viewRecord.tailBiting ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Review Date</p><p className="font-medium">{fmtDate(viewRecord.nextReviewDate)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Findings</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.findings ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Recommendations</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.recommendations ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Vet Assessment</DialogTitle></DialogHeader>
@@ -884,6 +970,7 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const { data: records = [], isLoading } = useQuery({ queryKey: ["pig-rt-checklist", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-red-tractor-checklists`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/pig-red-tractor-checklists/${editing.id}`) : api(`farms/${farmId}/pig-red-tractor-checklists`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-rt-checklist", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
@@ -895,6 +982,8 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
       <Label htmlFor={field} className="text-sm">{label}</Label>
     </div>
   );
+
+  const openEdit = (r: Record<string, unknown>) => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
 
   return (
     <div className="space-y-4">
@@ -916,9 +1005,64 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
           { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="pig-red-tractor-checklists" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["pig-rt-checklist", farmId]} /> },
         ]}
         rows={records as Record<string, unknown>[]}
-        onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }}
+        onEdit={openEdit}
         onDelete={r => del.mutate(r.id as number)}
+        onView={setViewRecord}
       />}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "54rem" }}>
+            <DialogHeader><DialogTitle>View Red Tractor Pig Self-Assessment</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessment Date</p><p className="font-medium">{fmtDate(viewRecord.assessmentDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assessor Name</p><p className="font-medium">{String(viewRecord.assessorName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certificate Number</p><p className="font-medium">{String(viewRecord.certificateNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Overall Status</p><p className="font-medium uppercase">{String(viewRecord.overallStatus ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Assessment Due</p><p className="font-medium">{fmtDate(viewRecord.nextAssessmentDue)}</p></div>
+            </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mt-4 mb-2">Compliance Items</p>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+              {[
+                ["medicinesRecorded", "Medicines & veterinary treatments recorded correctly"],
+                ["withdrawalPeriodsObserved", "Withdrawal periods observed (no residue failures)"],
+                ["movementsRecorded", "Pig movements / eAML2 records up to date"],
+                ["feedRecordsKept", "Feed records maintained (source, batch, HACCP)"],
+                ["waterQualityChecked", "Water supply quality checked / tested"],
+                ["identificationCorrect", "Identification / tagging correct for all pigs"],
+                ["stockmanshipChecked", "Stockmanship daily checks evidenced"],
+                ["bodyConditionScored", "Body condition scored and recorded"],
+                ["tailBitingRiskAssessed", "Tail biting risk assessment completed"],
+                ["tailDockingJustified", "Tail docking justification documented"],
+                ["boarTuskTrimmed", "Boar tusk trimming recorded"],
+                ["enrichmentProvided", "Environmental enrichment provided"],
+                ["ventilationAdequate", "Ventilation and thermal environment adequate"],
+                ["housingStructuralOk", "Building / housing structural integrity checked"],
+                ["pestControlCurrent", "Pest and vermin control records current"],
+                ["biosecurityInPlace", "Biosecurity protocols in place and enforced"],
+                ["casualtyDisposalCompliant", "Casualty / fallen stock disposal compliant"],
+                ["vetHealthPlanReviewed", "Vet health plan reviewed within 12 months"],
+                ["emergencyPlanInPlace", "Emergency plan / out-of-hours contact available"],
+                ["trainingRecordsKept", "Farm training / competence records maintained"],
+              ].map(([k, l]) => (
+                <div key={k} className="flex justify-between items-center border-b border-gray-50 pb-0.5">
+                  <span className="text-muted-foreground">{l}</span>
+                  <span className={viewRecord[k] ? "text-green-600 font-medium" : "text-red-600 font-medium"}>{viewRecord[k] ? "Yes" : "No"}</span>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-3 mt-4">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Non-conformances / Observations</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.nonConformances ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Corrective Actions Required</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.correctiveActions ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "54rem" }}>
           <DialogHeader><DialogTitle>Red Tractor Pig Self-Assessment</DialogTitle></DialogHeader>
@@ -1089,7 +1233,7 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <Button size="icon" variant="ghost" onClick={() => setViewRecord(r)}><FileText className="w-3.5 h-3.5" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => setViewRecord(r)}><Eye className="w-3.5 h-3.5" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => del.mutate(r.id as number)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
                 </div>
@@ -1100,6 +1244,39 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
             </div>
           ))}
         </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Medicine Treatment</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Date</p><p className="font-medium">{fmtDate(viewRecord.treatmentDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Number of Animals</p><p className="font-medium">{String(viewRecord.numberOfAnimals ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Production Group / Flock</p><p className="font-medium">{flockMap.get(String(viewRecord.flockId)) ?? String(viewRecord.flockId ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Batch / Pen Reference</p><p className="font-medium">{String(viewRecord.batchOrPenRef ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Medicine Product Name</p><p className="font-medium">{String(viewRecord.medicineProductName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Active Ingredient</p><p className="font-medium">{String(viewRecord.activeIngredient ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Manufacturer</p><p className="font-medium">{String(viewRecord.manufacturer ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Batch Number</p><p className="font-medium">{String(viewRecord.productBatchNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Expiry Date</p><p className="font-medium">{fmtDate(viewRecord.expiryDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Administration Route</p><p className="font-medium">{String(viewRecord.administrationRoute ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quantity Used</p><p className="font-medium">{fmt(viewRecord.quantityUsed)}{viewRecord.unitOfMeasure ? ` ${String(viewRecord.unitOfMeasure)}` : ""}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Diagnosis / Reason</p><p className="font-medium">{String(viewRecord.diagnosisReason ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Prescribing Vet Name</p><p className="font-medium">{String(viewRecord.prescribingVetName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Practice</p><p className="font-medium">{String(viewRecord.prescribingVetPractice ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Prescription Obtained</p><p className="font-medium">{viewRecord.prescriptionObtained ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Administered By</p><p className="font-medium">{String(viewRecord.administeredBy ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawal Period (Meat Days)</p><p className="font-medium">{String(viewRecord.withdrawalPeriodMeatDays ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Withdrawal End Date</p><p className="font-medium">{fmtDate(viewRecord.withdrawalEndDate)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Add / Edit dialog */}

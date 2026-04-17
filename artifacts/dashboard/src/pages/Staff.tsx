@@ -14,7 +14,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users, Plus, Search, Mail, UserCheck, UserX, RefreshCw, Award, AlertTriangle,
   ArrowRight, CheckCircle2, Smartphone, Monitor, Shield, User, Edit2, Send,
-  Lock, Unlock, ChevronDown, GraduationCap, Phone, UserRound,
+  Lock, Unlock, ChevronDown, GraduationCap, Phone, UserRound, Eye,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -617,7 +617,7 @@ function EditMemberDialog({
 // ─── Member Row ────────────────────────────────────────────────────────────────
 
 function MemberRow({
-  member, farmId, certs, rtw, onInvite, onEdit, navigate,
+  member, farmId, certs, rtw, onInvite, onEdit, onView, navigate,
 }: {
   member: FarmMember;
   farmId: number;
@@ -625,6 +625,7 @@ function MemberRow({
   rtw: RtwRecord[];
   onInvite: () => void;
   onEdit: () => void;
+  onView: () => void;
   navigate: (to: string) => void;
 }) {
   const fullName = `${member.firstName} ${member.lastName}`;
@@ -680,6 +681,9 @@ function MemberRow({
       </td>
       <td className="px-6 py-4">
         <div className="flex gap-1.5 flex-wrap">
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onView}>
+            <Eye className="w-3.5 h-3.5" />
+          </Button>
           {member.accessType === "none" && member.invitationStatus !== "pending" && member.email && (
             <Button size="sm" variant="outline" className="text-xs h-7" onClick={onInvite}>
               <Send className="w-3 h-3 mr-1" />Invite
@@ -789,7 +793,7 @@ export default function StaffPage() {
               <p className="text-xs text-muted-foreground mt-0.5">Staff with mobile or web dashboard access</p>
             </div>
             <StaffTable members={withAccess} farmId={farmId} certs={allCerts} rtw={allRtw}
-              onInvite={setInviteMember} onEdit={setEditMember} navigate={navigate} />
+              onInvite={setInviteMember} onEdit={setEditMember} onView={setViewRecord} navigate={navigate} />
           </CardContent>
         </Card>
       )}
@@ -806,7 +810,7 @@ export default function StaffPage() {
               <p className="text-xs text-muted-foreground mt-0.5">In the records for compliance purposes. Click Invite to give system access.</p>
             </div>
             <StaffTable members={noAccess} farmId={farmId} certs={allCerts} rtw={allRtw}
-              onInvite={setInviteMember} onEdit={setEditMember} navigate={navigate} />
+              onInvite={setInviteMember} onEdit={setEditMember} onView={setViewRecord} navigate={navigate} />
           </CardContent>
         </Card>
       )}
@@ -849,17 +853,55 @@ export default function StaffPage() {
         onClose={() => setInviteMember(null)} />
       <EditMemberDialog farmId={farmId} member={editMember} open={!!editMember}
         onClose={() => setEditMember(null)} />
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Staff Member</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Name</p><p className="font-medium">{viewRecord.firstName} {viewRecord.lastName}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p><p className="font-medium">{viewRecord.email || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p><p className="font-medium">{viewRecord.phone || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Job Title</p><p className="font-medium">{viewRecord.jobTitle || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Farm Role</p><p className="font-medium">{FARM_ROLE_LABELS[viewRecord.farmRole]}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Access Level</p><p className="font-medium">{ACCESS_LABELS[viewRecord.accessType]}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{viewRecord.isActive ? "Active" : "Inactive"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Employed From</p><p className="font-medium">{viewRecord.employedFrom ? new Date(viewRecord.employedFrom).toLocaleDateString("en-GB") : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">NI Number</p><p className="font-medium">{viewRecord.niNumber || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payroll Number</p><p className="font-medium">{viewRecord.payrollNumber || "—"}</p></div>
+              <div className="col-span-2 border-t pt-2 mt-2">
+                <p className="font-semibold mb-2">Emergency Contact (Next of Kin)</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Name</p><p className="font-medium">{viewRecord.nokName || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Relationship</p><p className="font-medium">{viewRecord.nokRelationship || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p><p className="font-medium">{viewRecord.nokPhone || "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p><p className="font-medium">{viewRecord.nokEmail || "—"}</p></div>
+                </div>
+              </div>
+              <div className="col-span-2 border-t pt-2 mt-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p>
+                <p className="font-medium whitespace-pre-wrap">{viewRecord.notes || "—"}</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setEditMember(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </AppLayout>
   );
 }
 
-function StaffTable({ members, farmId, certs, rtw, onInvite, onEdit, navigate }: {
+function StaffTable({ members, farmId, certs, rtw, onInvite, onEdit, onView, navigate }: {
   members: FarmMember[];
   farmId: number;
   certs: CertRecord[];
   rtw: RtwRecord[];
   onInvite: (m: FarmMember) => void;
   onEdit: (m: FarmMember) => void;
+  onView: (m: FarmMember) => void;
   navigate: (to: string) => void;
 }) {
   return (
@@ -893,6 +935,7 @@ function StaffTable({ members, farmId, certs, rtw, onInvite, onEdit, navigate }:
               rtw={rtw}
               onInvite={() => onInvite(m)}
               onEdit={() => onEdit(m)}
+              onView={() => onView(m)}
               navigate={navigate}
             />
           ))}

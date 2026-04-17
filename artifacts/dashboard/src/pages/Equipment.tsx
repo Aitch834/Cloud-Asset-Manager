@@ -322,6 +322,9 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
                     </div>
                     <p className="text-sm font-medium text-foreground">{d.description}</p>
                     <div className="flex items-center gap-3 flex-wrap mt-1 text-xs text-foreground/50">
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setViewRecord({ ...d, _type: "defect", _equipName: equip?.name })}>
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
                       {equip && <span>{equip.name}</span>}
                       {d.reportedDate && <span>· Reported {new Date(d.reportedDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>}
                       {d.reportedBy && <span>· by {d.reportedBy}</span>}
@@ -408,6 +411,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
 export default function EquipmentPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = useState<"equipment" | "defects">("equipment");
+  const [viewRecord, setViewRecord] = useState<any>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [managingItem, setManagingItem] = useState<EquipmentRecord | null>(null);
   const [manageTab, setManageTab] = useState<"details" | "service">("details");
@@ -1093,6 +1097,7 @@ export default function EquipmentPage() {
                               )}
                             </div>
                             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                              <Button variant="ghost" size="sm" onClick={() => setViewRecord({ ...log, _type: "maint" })} style={{ padding: "4px 8px" }}><Eye className="w-3.5 h-3.5" /></Button>
                               <Button variant="ghost" size="sm" onClick={() => openServiceEdit(log)} style={{ padding: "4px 8px" }}><Pencil className="w-3.5 h-3.5" /></Button>
                               <Button variant="ghost" size="sm" onClick={() => setDeletingLogId(log.id)} style={{ padding: "4px 8px", color: "#ef4444" }}><Trash2 className="w-3.5 h-3.5" /></Button>
                             </div>

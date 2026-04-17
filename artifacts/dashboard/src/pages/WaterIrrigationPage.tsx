@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, ScrollText, BarChart3, Drill, Droplets, Tractor, CloudRain, AlertTriangle, FileCheck } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, ScrollText, BarChart3, Drill, Droplets, Tractor, CloudRain, AlertTriangle, FileCheck, Eye } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,16 +32,17 @@ function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel
     </Dialog>
   );
 }
-function DataTable({ cols, rows, onEdit, onDelete }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void }) {
+function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void }) {
   const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
   if (!rows.length) return <Empty msg="No records yet." />;
   return (
     <>
       <div className="overflow-x-auto"><table className="w-full text-sm">
-        <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete) && <th />}</tr></thead>
+        <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete || onView) && <th />}</tr></thead>
         <tbody>{rows.map((row, i) => <tr key={i} className="border-b last:border-0">
           {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.fmt ? c.fmt(row) : fmt(row[c.key])}</td>)}
-          {(onEdit || onDelete) && <td className="py-2 text-right space-x-1">
+          {(onEdit || onDelete || onView) && <td className="py-2 text-right space-x-1 whitespace-nowrap">
+            {onView && <Button size="icon" variant="ghost" onClick={() => onView(row)}><Eye className="w-3.5 h-3.5" /></Button>}
             {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
             {onDelete && <Button size="icon" variant="ghost" onClick={() => setPendingDelete(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
           </td>}
@@ -63,15 +64,53 @@ function DataTable({ cols, rows, onEdit, onDelete }: { cols: { key: string; labe
 function LicencesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const { data: licences = [], isLoading } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/water-abstraction-licences/${editing.id}`) : api(`farms/${farmId}/water-abstraction-licences`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-licences", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/water-abstraction-licences/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["water-licences", farmId] }) });
+  
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditing(r);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>);
+    setOpen(true);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Abstraction Licences</h3><Button size="sm" onClick={() => { setEditing(null); setForm({ meterRequired: true, returnRequired: true, issuingAuthority: "Environment Agency" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Licence</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "licenceNumber", label: "Licence No." }, { key: "issuingAuthority", label: "Issuing Authority" }, { key: "waterSource", label: "Source" }, { key: "purposeOfUse", label: "Purpose" }, { key: "annualLicencedVolumeM3", label: "Annual m³" }, { key: "licenceExpiryDate", label: "Expiry", fmt: r => fmtDate(r.licenceExpiryDate) }]} rows={licences as Record<string, unknown>[]} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "licenceNumber", label: "Licence No." }, { key: "issuingAuthority", label: "Issuing Authority" }, { key: "waterSource", label: "Source" }, { key: "purposeOfUse", label: "Purpose" }, { key: "annualLicencedVolumeM3", label: "Annual m³" }, { key: "licenceExpiryDate", label: "Expiry", fmt: r => fmtDate(r.licenceExpiryDate) }]} rows={licences as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Licence</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Licence Number</p><p className="font-medium">{fmt(viewRecord.licenceNumber)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Issuing Authority</p><p className="font-medium">{fmt(viewRecord.issuingAuthority)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Water Source</p><p className="font-medium">{fmt(viewRecord.waterSource)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Purpose of Use</p><p className="font-medium">{fmt(viewRecord.purposeOfUse)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Abstraction Point</p><p className="font-medium">{fmt(viewRecord.abstractionPointDescription)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Annual Volume (m³)</p><p className="font-medium">{fmt(viewRecord.annualLicencedVolumeM3)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Daily Volume (m³)</p><p className="font-medium">{fmt(viewRecord.dailyLicencedVolumeM3)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Start Date</p><p className="font-medium">{fmtDate(viewRecord.licenceStartDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expiry Date</p><p className="font-medium">{fmtDate(viewRecord.licenceExpiryDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meter Serial Number</p><p className="font-medium">{fmt(viewRecord.meterSerialNumber)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Return Deadline</p><p className="font-medium">{fmt(viewRecord.returnDeadline)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meter Required</p><p className="font-medium">{viewRecord.meterRequired ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Return Required</p><p className="font-medium">{viewRecord.returnRequired ? "Yes" : "No"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Conditions</p><p className="font-medium">{fmt(viewRecord.conditions)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Seasonal Restrictions</p><p className="font-medium">{fmt(viewRecord.seasonalRestrictions)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>Abstraction Licence</DialogTitle></DialogHeader>
@@ -113,6 +152,7 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
   const { data: licences = [] } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: readings = [], isLoading } = useQuery({ queryKey: ["water-readings", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-meter-readings`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/water-meter-readings`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-readings", farmId] }); setOpen(false); setForm({}); } });
@@ -120,7 +160,28 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Abstraction Meter Readings</h3><Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Log Reading</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "meterReading", label: "Meter Reading" }, { key: "volumeAbstractedM3", label: "Abstracted (m³)" }, { key: "cumulativeYtdM3", label: "YTD (m³)" }, { key: "percentOfAnnualAllocation", label: "% of Allocation" }, { key: "readBy", label: "Read By" }]} rows={readings as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "meterReading", label: "Meter Reading" }, { key: "volumeAbstractedM3", label: "Abstracted (m³)" }, { key: "cumulativeYtdM3", label: "YTD (m³)" }, { key: "percentOfAnnualAllocation", label: "% of Allocation" }, { key: "readBy", label: "Read By" }]} rows={readings as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
+      
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Meter Reading</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reading Date</p><p className="font-medium">{fmtDate(viewRecord.readingDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Licence</p><p className="font-medium">{(licences as any[]).find(l => l.id === viewRecord.licenceId)?.licenceNumber ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meter Reading</p><p className="font-medium">{fmt(viewRecord.meterReading)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Volume Abstracted (m³)</p><p className="font-medium">{fmt(viewRecord.volumeAbstractedM3)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">YTD Cumulative (m³)</p><p className="font-medium">{fmt(viewRecord.cumulativeYtdM3)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">% of Annual Allocation</p><p className="font-medium">{fmt(viewRecord.percentOfAnnualAllocation)}%</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Read By</p><p className="font-medium">{fmt(viewRecord.readBy)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader><DialogTitle>Meter Reading</DialogTitle></DialogHeader>
@@ -148,6 +209,7 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
 function BoreholeTestsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: tests = [], isLoading } = useQuery({ queryKey: ["borehole-tests", farmId], queryFn: () => fetch(api(`farms/${farmId}/borehole-tests`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/borehole-tests`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["borehole-tests", farmId] }); setOpen(false); setForm({}); } });
@@ -155,7 +217,30 @@ function BoreholeTestsTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Borehole & Well Tests</h3><Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Test</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "testDate", label: "Date", fmt: r => fmtDate(r.testDate) }, { key: "testingCompany", label: "Testing Company" }, { key: "bacteriologicalResult", label: "Bacteriological" }, { key: "chemicalResult", label: "Chemical" }, { key: "overallResult", label: "Overall Result" }, { key: "nextTestDueDate", label: "Next Test", fmt: r => fmtDate(r.nextTestDueDate) }]} rows={tests as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "testDate", label: "Date", fmt: r => fmtDate(r.testDate) }, { key: "testingCompany", label: "Testing Company" }, { key: "bacteriologicalResult", label: "Bacteriological" }, { key: "chemicalResult", label: "Chemical" }, { key: "overallResult", label: "Overall Result" }, { key: "nextTestDueDate", label: "Next Test", fmt: r => fmtDate(r.nextTestDueDate) }]} rows={tests as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
+      
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Borehole Test</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Test Date</p><p className="font-medium">{fmtDate(viewRecord.testDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Testing Company</p><p className="font-medium">{fmt(viewRecord.testingCompany)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Static Water Level (m)</p><p className="font-medium">{fmt(viewRecord.staticWaterLevelM)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Pumping Water Level (m)</p><p className="font-medium">{fmt(viewRecord.pumpingWaterLevelM)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Bacteriological Result</p><p className="font-medium">{fmt(viewRecord.bacteriologicalResult)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Chemical Result</p><p className="font-medium">{fmt(viewRecord.chemicalResult)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Overall Result</p><p className="font-medium">{fmt(viewRecord.overallResult)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Test Due</p><p className="font-medium">{fmtDate(viewRecord.nextTestDueDate)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Corrective Action</p><p className="font-medium">{fmt(viewRecord.correctiveAction)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Borehole Test</DialogTitle></DialogHeader>
@@ -196,6 +281,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   const { data: licences = [] } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: records = [], isLoading } = useQuery({ queryKey: ["irrig-records", farmId], queryFn: () => fetch(api(`farms/${farmId}/irrigation-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/irrigation-records`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["irrig-records", farmId] }); setOpen(false); setForm({}); } });
@@ -203,7 +289,31 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Irrigation Application Records</h3><Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Log Application</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "irrigationDate", label: "Date", fmt: r => fmtDate(r.irrigationDate) }, { key: "fieldOrBlockDescription", label: "Field / Block" }, { key: "cropType", label: "Crop" }, { key: "irrigationMethod", label: "Method" }, { key: "applicationDepthMm", label: "Depth (mm)" }, { key: "volumeAppliedM3", label: "Volume (m³)" }]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "irrigationDate", label: "Date", fmt: r => fmtDate(r.irrigationDate) }, { key: "fieldOrBlockDescription", label: "Field / Block" }, { key: "cropType", label: "Crop" }, { key: "irrigationMethod", label: "Method" }, { key: "applicationDepthMm", label: "Depth (mm)" }, { key: "volumeAppliedM3", label: "Volume (m³)" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
+      
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Irrigation Record</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{fmtDate(viewRecord.irrigationDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Licence</p><p className="font-medium">{(licences as any[]).find(l => l.id === viewRecord.licenceId)?.licenceNumber ?? "—"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Field / Block Description</p><p className="font-medium">{fmt(viewRecord.fieldOrBlockDescription)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Area Irrigated (ha)</p><p className="font-medium">{fmt(viewRecord.areaIrrigatedHa)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Crop Type</p><p className="font-medium">{fmt(viewRecord.cropType)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Method</p><p className="font-medium">{fmt(viewRecord.irrigationMethod)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Application Depth (mm)</p><p className="font-medium">{fmt(viewRecord.applicationDepthMm)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Volume Applied (m³)</p><p className="font-medium">{fmt(viewRecord.volumeAppliedM3)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Soil Moisture Deficit (mm)</p><p className="font-medium">{fmt(viewRecord.soilMoistureDeficitMm)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Operator Name</p><p className="font-medium">{fmt(viewRecord.operatorName)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>Irrigation Record</DialogTitle></DialogHeader>
@@ -239,15 +349,48 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
 function IrrigationEquipmentTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: equipment = [], isLoading } = useQuery({ queryKey: ["irrig-equip", farmId], queryFn: () => fetch(api(`farms/${farmId}/irrigation-equipment`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/irrigation-equipment/${editing.id}`) : api(`farms/${farmId}/irrigation-equipment`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["irrig-equip", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/irrigation-equipment/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["irrig-equip", farmId] }) });
+  
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditing(r);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    setOpen(true);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Irrigation Equipment Register</h3><Button size="sm" onClick={() => { setEditing(null); setForm({ status: "active" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Equipment</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "equipmentName", label: "Name" }, { key: "equipmentType", label: "Type" }, { key: "manufacturer", label: "Manufacturer" }, { key: "applicationRateLph", label: "Rate (L/hr)" }, { key: "lastCalibrationDate", label: "Last Calibration", fmt: r => fmtDate(r.lastCalibrationDate) }, { key: "nextCalibrationDue", label: "Next Due", fmt: r => fmtDate(r.nextCalibrationDue) }, { key: "status", label: "Status" }]} rows={equipment as Record<string, unknown>[]} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "equipmentName", label: "Name" }, { key: "equipmentType", label: "Type" }, { key: "manufacturer", label: "Manufacturer" }, { key: "applicationRateLph", label: "Rate (L/hr)" }, { key: "lastCalibrationDate", label: "Last Calibration", fmt: r => fmtDate(r.lastCalibrationDate) }, { key: "nextCalibrationDue", label: "Next Due", fmt: r => fmtDate(r.nextCalibrationDue) }, { key: "status", label: "Status" }]} rows={equipment as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Equipment</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Equipment Name</p><p className="font-medium">{fmt(viewRecord.equipmentName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Equipment Type</p><p className="font-medium">{fmt(viewRecord.equipmentType)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Manufacturer</p><p className="font-medium">{fmt(viewRecord.manufacturer)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Model Number</p><p className="font-medium">{fmt(viewRecord.modelNumber)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Application Rate (L/hr)</p><p className="font-medium">{fmt(viewRecord.applicationRateLph)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Last Calibration Date</p><p className="font-medium">{fmtDate(viewRecord.lastCalibrationDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Calibration Due</p><p className="font-medium">{fmtDate(viewRecord.nextCalibrationDue)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Calibrated By</p><p className="font-medium">{fmt(viewRecord.calibratedBy)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{fmt(viewRecord.status)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.notes)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "38rem" }}>
           <DialogHeader><DialogTitle>Irrigation Equipment</DialogTitle></DialogHeader>
@@ -282,11 +425,19 @@ function IrrigationEquipmentTab({ farmId }: { farmId: number }) {
 function SoilMoistureTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const { data: records = [], isLoading } = useQuery({ queryKey: ["soil-moisture", farmId], queryFn: () => fetch(api(`farms/${farmId}/soil-moisture-readings`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/soil-moisture-readings/${editing.id}`) : api(`farms/${farmId}/soil-moisture-readings`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["soil-moisture", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/soil-moisture-readings/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["soil-moisture", farmId] }) });
+  
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditing(r);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    setOpen(true);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -296,7 +447,31 @@ function SoilMoistureTab({ farmId }: { farmId: number }) {
         </div>
         <Button size="sm" onClick={() => { setEditing(null); setForm({ readingMethod: "manual" }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Reading</Button>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "fieldOrBlockDescription", label: "Field / Block" }, { key: "sensorType", label: "Sensor Type" }, { key: "depthCm", label: "Depth (cm)" }, { key: "moisturePercent", label: "Moisture %" }, { key: "soilMoistureDeficitMm", label: "SMD (mm)" }, { key: "readingMethod", label: "Method" }, { key: "recordedBy", label: "Recorded By" }]} rows={records as Record<string, unknown>[]} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "fieldOrBlockDescription", label: "Field / Block" }, { key: "sensorType", label: "Sensor Type" }, { key: "depthCm", label: "Depth (cm)" }, { key: "moisturePercent", label: "Moisture %" }, { key: "soilMoistureDeficitMm", label: "SMD (mm)" }, { key: "readingMethod", label: "Method" }, { key: "recordedBy", label: "Recorded By" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Soil Moisture Reading</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reading Date</p><p className="font-medium">{fmtDate(viewRecord.readingDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Field / Block Description</p><p className="font-medium">{fmt(viewRecord.fieldOrBlockDescription)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sensor Type</p><p className="font-medium">{fmt(viewRecord.sensorType)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Depth (cm)</p><p className="font-medium">{fmt(viewRecord.depthCm)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Moisture (%)</p><p className="font-medium">{fmt(viewRecord.moisturePercent)}%</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Soil Moisture Deficit (mm)</p><p className="font-medium">{fmt(viewRecord.soilMoistureDeficitMm)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reading Method</p><p className="font-medium">{fmt(viewRecord.readingMethod)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Recorded By</p><p className="font-medium">{fmt(viewRecord.recordedBy)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.notes)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Soil Moisture Reading</DialogTitle></DialogHeader>
@@ -334,12 +509,20 @@ function SoilMoistureTab({ farmId }: { farmId: number }) {
 function DroughtManagementTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const { data: licences = [] } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
   const { data: records = [], isLoading } = useQuery({ queryKey: ["drought-plans", farmId], queryFn: () => fetch(api(`farms/${farmId}/drought-management-plans`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/drought-management-plans/${editing.id}`) : api(`farms/${farmId}/drought-management-plans`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["drought-plans", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/drought-management-plans/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["drought-plans", farmId] }) });
+  
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditing(r);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    setOpen(true);
+  };
+
   const STAGES = ["normal", "prolonged dry spell", "drought", "severe drought", "exceptional drought"];
   const RESTRICTIONS = ["none", "voluntary reduction", "stage 1 restriction", "stage 2 restriction", "temporary use ban", "drought permit needed"];
   return (
@@ -351,7 +534,35 @@ function DroughtManagementTab({ farmId }: { farmId: number }) {
         </div>
         <Button size="sm" onClick={() => { setEditing(null); setForm({ droughtStage: "normal", restrictionLevel: "none", isActive: true }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Plan</Button>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "planYear", label: "Year" }, { key: "planTitle", label: "Plan Title" }, { key: "droughtStage", label: "Drought Stage" }, { key: "restrictionLevel", label: "Restriction Level" }, { key: "isActive", label: "Active", fmt: r => r.isActive ? "Yes" : "No" }, { key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) }]} rows={records as Record<string, unknown>[]} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "planYear", label: "Year" }, { key: "planTitle", label: "Plan Title" }, { key: "droughtStage", label: "Drought Stage" }, { key: "restrictionLevel", label: "Restriction Level" }, { key: "isActive", label: "Active", fmt: r => r.isActive ? "Yes" : "No" }, { key: "reviewDate", label: "Review Date", fmt: r => fmtDate(r.reviewDate) }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Drought Management Plan</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Plan Year</p><p className="font-medium">{fmt(viewRecord.planYear)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Review Date</p><p className="font-medium">{fmtDate(viewRecord.reviewDate)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Plan Title</p><p className="font-medium">{fmt(viewRecord.planTitle)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Drought Stage</p><p className="font-medium">{fmt(viewRecord.droughtStage)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Restriction Level</p><p className="font-medium">{fmt(viewRecord.restrictionLevel)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Trigger Conditions</p><p className="font-medium">{fmt(viewRecord.triggerCondition)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Actions Taken</p><p className="font-medium">{fmt(viewRecord.actionsTaken)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Linked Licence</p><p className="font-medium">{(licences as any[]).find(l => String(l.id) === String(viewRecord.licenceId))?.licenceNumber ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">EA Contact Name</p><p className="font-medium">{fmt(viewRecord.eaContactName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">EA Contact Reference</p><p className="font-medium">{fmt(viewRecord.eaContactRef)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Alternative Water Source</p><p className="font-medium">{fmt(viewRecord.alternativeSourceDescription)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Alternative Source Available</p><p className="font-medium">{viewRecord.alternativeSourceAvailable ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Currently Active</p><p className="font-medium">{viewRecord.isActive ? "Yes" : "No"}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>Drought Management Plan</DialogTitle></DialogHeader>
@@ -395,12 +606,20 @@ function DroughtManagementTab({ farmId }: { farmId: number }) {
 function CamsReturnsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const { data: licences = [] } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
   const { data: records = [], isLoading } = useQuery({ queryKey: ["cams-returns", farmId], queryFn: () => fetch(api(`farms/${farmId}/cams-annual-returns`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/cams-annual-returns/${editing.id}`) : api(`farms/${farmId}/cams-annual-returns`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["cams-returns", farmId] }); setOpen(false); setForm({}); setEditing(null); } });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/cams-annual-returns/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["cams-returns", farmId] }) });
+  
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditing(r);
+    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    setOpen(true);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -410,7 +629,33 @@ function CamsReturnsTab({ farmId }: { farmId: number }) {
         </div>
         <Button size="sm" onClick={() => { setEditing(null); setForm({ submittedToEa: false, complianceStatus: "compliant", returnYear: String(new Date().getFullYear()) }); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Return</Button>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "returnYear", label: "Year" }, { key: "licenceId", label: "Licence", fmt: r => { const l = (licences as Record<string, unknown>[]).find(x => String(x.id) === String(r.licenceId)); return l ? String(l.licenceNumber) : fmt(r.licenceId); } }, { key: "totalAbstractedM3", label: "Total (m³)" }, { key: "submittedToEa", label: "Submitted", fmt: r => r.submittedToEa ? "Yes" : "No" }, { key: "submissionDate", label: "Submission Date", fmt: r => fmtDate(r.submissionDate) }, { key: "eaReturnReference", label: "EA Ref" }, { key: "complianceStatus", label: "Compliance" }]} rows={records as Record<string, unknown>[]} onEdit={r => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "returnYear", label: "Year" }, { key: "licenceId", label: "Licence", fmt: r => { const l = (licences as Record<string, unknown>[]).find(x => String(x.id) === String(r.licenceId)); return l ? String(l.licenceNumber) : fmt(r.licenceId); } }, { key: "totalAbstractedM3", label: "Total (m³)" }, { key: "submittedToEa", label: "Submitted", fmt: r => r.submittedToEa ? "Yes" : "No" }, { key: "submissionDate", label: "Submission Date", fmt: r => fmtDate(r.submissionDate) }, { key: "eaReturnReference", label: "EA Ref" }, { key: "complianceStatus", label: "Compliance" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onEdit={openEdit} onDelete={r => del.mutate(r.id as number)} />}
+      
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View CAMS Annual Return</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Return Year</p><p className="font-medium">{fmt(viewRecord.returnYear)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Licence</p><p className="font-medium">{(licences as any[]).find(l => String(l.id) === String(viewRecord.licenceId))?.licenceNumber ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Period Start</p><p className="font-medium">{fmtDate(viewRecord.returnPeriodStart)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Period End</p><p className="font-medium">{fmtDate(viewRecord.returnPeriodEnd)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Total Abstracted (m³)</p><p className="font-medium">{fmt(viewRecord.totalAbstractedM3)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Compliance Status</p><p className="font-medium">{fmt(viewRecord.complianceStatus)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Submitted to EA</p><p className="font-medium">{viewRecord.submittedToEa ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Submission Date</p><p className="font-medium">{fmtDate(viewRecord.submissionDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">EA Return Reference</p><p className="font-medium">{fmt(viewRecord.eaReturnReference)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Submitted By</p><p className="font-medium">{fmt(viewRecord.submittedBy)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Exceedance / Non-compliance Notes</p><p className="font-medium">{fmt(viewRecord.exceedanceNotes)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "42rem" }}>
           <DialogHeader><DialogTitle>CAMS Annual Return</DialogTitle></DialogHeader>

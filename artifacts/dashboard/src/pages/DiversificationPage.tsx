@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, LayoutList, ShoppingBag, ClipboardCheck, PawPrint, Zap, PoundSterling, Crosshair, TrendingUp, PackagePlus, ChevronDown, ChevronRight, AlertTriangle, Package } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, Loader2, LayoutList, ShoppingBag, ClipboardCheck, PawPrint, Zap, PoundSterling, Crosshair, TrendingUp, PackagePlus, ChevronDown, ChevronRight, AlertTriangle, Package } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,16 +37,17 @@ function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel
   );
 }
 
-function DataTable({ cols, rows, onEdit, onDelete }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void }) {
+function DataTable({ cols, rows, onEdit, onDelete, onView }: { cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]; rows: Record<string, unknown>[]; onEdit?: (r: Record<string, unknown>) => void; onDelete?: (r: Record<string, unknown>) => void; onView?: (r: Record<string, unknown>) => void }) {
   const [pendingDelete, setPendingDelete] = useState<Record<string, unknown> | null>(null);
   if (!rows.length) return <Empty msg="No records yet." />;
   return (
     <>
       <div className="overflow-x-auto"><table className="w-full text-sm">
-        <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete) && <th />}</tr></thead>
+        <thead><tr className="border-b">{cols.map(c => <th key={c.key} className="text-left py-2 pr-4 font-medium text-muted-foreground">{c.label}</th>)}{(onEdit || onDelete || onView) && <th />}</tr></thead>
         <tbody>{rows.map((row, i) => <tr key={i} className="border-b last:border-0">
           {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.fmt ? c.fmt(row) : fmt(row[c.key])}</td>)}
-          {(onEdit || onDelete) && <td className="py-2 text-right space-x-1">
+          {(onEdit || onDelete || onView) && <td className="py-2 text-right space-x-1">
+            {onView && <Button size="icon" variant="ghost" onClick={() => onView(row)}><Eye className="w-3.5 h-3.5" /></Button>}
             {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
             {onDelete && <Button size="icon" variant="ghost" onClick={() => setPendingDelete(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
           </td>}
@@ -79,12 +80,37 @@ function useCrud(farmId: number, endpoint: string, key: string) {
 }
 
 function ActivitiesTab({ farmId }: { farmId: number }) {
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: acts, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "diversification-activities", "div-activities");
   const TYPES = ["Farm Shop / Direct Sales", "Holiday Accommodation / Glamping", "Equine / Livery", "Renewable Energy", "Shooting & Game", "Leisure & Recreation", "Food Processing", "Events / Weddings", "Storage / Industrial Let", "Other"];
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Diversification Activities</h3><Button size="sm" onClick={() => openAdd({ status: "active" })}><Plus className="w-4 h-4 mr-1" />Add Activity</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "activityName", label: "Activity" }, { key: "activityType", label: "Type" }, { key: "startDate", label: "Start Date", fmt: r => fmtDate(r.startDate) }, { key: "planningPermissionRef", label: "Planning Ref" }, { key: "status", label: "Status" }, { key: "annualTurnover", label: "Annual Turnover (£)" }]} rows={acts as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "activityName", label: "Activity" }, { key: "activityType", label: "Type" }, { key: "startDate", label: "Start Date", fmt: r => fmtDate(r.startDate) }, { key: "planningPermissionRef", label: "Planning Ref" }, { key: "status", label: "Status" }, { key: "annualTurnover", label: "Annual Turnover (£)" }]} rows={acts as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Activity</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Activity Name</p><p className="font-medium">{fmt(viewRecord.activityName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Activity Type</p><p className="font-medium">{fmt(viewRecord.activityType)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{fmt(viewRecord.status)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Start Date</p><p className="font-medium">{fmtDate(viewRecord.startDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Annual Turnover (£)</p><p className="font-medium">{fmt(viewRecord.annualTurnover)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Planning Permission Ref</p><p className="font-medium">{fmt(viewRecord.planningPermissionRef)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Insurance Policy No.</p><p className="font-medium">{fmt(viewRecord.insurancePolicyNumber)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Insurance Renewal Date</p><p className="font-medium">{fmtDate(viewRecord.insuranceRenewalDate)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.notes)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Diversification Activity</DialogTitle></DialogHeader>
@@ -122,6 +148,7 @@ type SaleItem = { productId?: number; productName: string; quantity: string; uni
 type Session = { id: number; saleDate: string; notes?: string; totalNet: string; items: Record<string, unknown>[] };
 
 function FarmShopTab({ farmId }: { farmId: number }) {
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const qc = useQueryClient();
   const [shopTab, setShopTab] = useState<"products" | "sales" | "history" | "suppliers" | "purchases" | "stocktakes">("products");
 
@@ -317,6 +344,30 @@ function FarmShopTab({ farmId }: { farmId: number }) {
             <h3 className="font-semibold text-sm">Product Catalogue</h3>
             <Button size="sm" onClick={() => { setProdEditing(null); setProdForm({ active: true }); setProdOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Product</Button>
           </div>
+
+          {viewRecord && (
+            <Dialog open onOpenChange={() => setViewRecord(null)}>
+              <DialogContent style={{ maxWidth: "42rem" }}>
+                <DialogHeader><DialogTitle>View Product</DialogTitle></DialogHeader>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Name</p><p className="font-medium">{fmt(viewRecord.productName)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Category</p><p className="font-medium">{fmt(viewRecord.category)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Unit of Sale</p><p className="font-medium">{fmt(viewRecord.unitOfSale)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cost Price</p><p className="font-medium">{fmtGbp(viewRecord.costPrice)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Retail Price</p><p className="font-medium">{fmtGbp(viewRecord.pricePerUnit)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reorder Level</p><p className="font-medium">{fmt(viewRecord.reorderLevel)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Current Stock</p><p className="font-medium">{fmt(viewRecord.currentStock)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Is Active</p><p className="font-medium">{viewRecord.active !== false ? "Yes" : "No"}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.notes)}</p></div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { setProdEditing(viewRecord); setProdForm(Object.fromEntries(Object.entries(viewRecord).map(([k, v]) => [k, v ?? ""]))); setProdOpen(true); setViewRecord(null); }}>Edit</Button>
+                  <Button onClick={() => setViewRecord(null)}>Close</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+
           {prodLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -356,6 +407,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                           <span className={`text-xs px-1.5 py-0.5 rounded-full ${p.active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>{p.active ? "Active" : "Inactive"}</span>
                         </td>
                         <td className="py-2 text-right space-x-1 whitespace-nowrap">
+                          <Button size="icon" variant="ghost" onClick={() => setViewRecord(p)}><Eye className="w-3.5 h-3.5" /></Button>
                           <Button size="icon" variant="ghost" title="Stock In" onClick={() => { setStockTarget(p); setStockQty(""); }}><PackagePlus className="w-3.5 h-3.5 text-emerald-600" /></Button>
                           <Button size="icon" variant="ghost" onClick={() => { setProdEditing(p); setProdForm(Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v ?? ""]))); setProdOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                           <Button size="icon" variant="ghost" onClick={() => showConfirm("Delete Product", "Remove this product from the catalogue? Stock history and purchase records will be retained.", () => delProd.mutate(p.id as number), { confirmLabel: "Delete", variant: "destructive" })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
@@ -503,6 +555,26 @@ function FarmShopTab({ farmId }: { farmId: number }) {
               <Plus className="w-3.5 h-3.5 mr-1" /> Add Supplier
             </Button>
           </div>
+
+          {viewRecord && (
+            <Dialog open onOpenChange={() => setViewRecord(null)}>
+              <DialogContent style={{ maxWidth: "42rem" }}>
+                <DialogHeader><DialogTitle>View Supplier</DialogTitle></DialogHeader>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier Name</p><p className="font-medium">{fmt(viewRecord.supplierName)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Contact Name</p><p className="font-medium">{fmt(viewRecord.contactName)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p><p className="font-medium">{fmt(viewRecord.phone)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p><p className="font-medium">{fmt(viewRecord.email)}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.notes)}</p></div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { setSuppEditing(viewRecord); setSuppForm({ name: String(viewRecord.supplierName ?? ""), contactName: String(viewRecord.contactName ?? ""), phone: String(viewRecord.phone ?? ""), email: String(viewRecord.email ?? ""), notes: String(viewRecord.notes ?? "") }); setSuppOpen(true); setViewRecord(null); }}>Edit</Button>
+                  <Button onClick={() => setViewRecord(null)}>Close</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+
           {suppLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (suppliers as Record<string, unknown>[]).length === 0 ? (
             <Empty msg="No suppliers yet. Add one to start recording purchases." />
           ) : (
@@ -528,6 +600,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                         <td className="py-2 pr-3 text-muted-foreground max-w-[200px] truncate">{fmt(s.notes)}</td>
                         <td className="py-2">
                           <div className="flex gap-1">
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setViewRecord(s)}><Eye className="w-3.5 h-3.5" /></Button>
                             {isActive && <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setSuppEditing(s); setSuppForm({ name: String(s.supplierName ?? ""), contactName: s.contactName ?? "", phone: s.phone ?? "", email: s.email ?? "", notes: s.notes ?? "" }); setSuppOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>}
                             <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => toggleSuppActive.mutate({ id: s.id as number, active: !isActive })}>
                               {isActive ? "Deactivate" : "Reactivate"}
@@ -553,6 +626,29 @@ function FarmShopTab({ farmId }: { farmId: number }) {
               <Plus className="w-3.5 h-3.5 mr-1" /> Record Purchase
             </Button>
           </div>
+
+          {viewRecord && (
+            <Dialog open onOpenChange={() => setViewRecord(null)}>
+              <DialogContent style={{ maxWidth: "42rem" }}>
+                <DialogHeader><DialogTitle>View Purchase</DialogTitle></DialogHeader>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Purchase Date</p><p className="font-medium">{fmtDate(String(viewRecord.purchaseDate))}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier</p><p className="font-medium">{fmt(viewRecord.supplierName)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product</p><p className="font-medium">{fmt(viewRecord.productName)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quantity</p><p className="font-medium">{fmt(viewRecord.quantity)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cost Per Unit</p><p className="font-medium">{fmtGbp(viewRecord.costPerUnit)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Total Cost</p><p className="font-medium">{fmtGbp(viewRecord.totalCost)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Invoice Reference</p><p className="font-medium">{fmt(viewRecord.invoiceRef)}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.notes)}</p></div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { setPurchEditing(viewRecord); setPurchForm({ purchaseDate: String(viewRecord.purchaseDate ?? "").slice(0, 10), supplierId: viewRecord.supplierId ? String(viewRecord.supplierId) : "__none__", productId: viewRecord.productId ? String(viewRecord.productId) : "__none__", quantityPurchased: String(viewRecord.quantity ?? ""), costPerUnit: String(viewRecord.costPerUnit ?? ""), totalCost: String(viewRecord.totalCost ?? ""), invoiceRef: String(viewRecord.invoiceRef ?? ""), notes: String(viewRecord.notes ?? ""), updateCostPrice: false }); setPurchOpen(true); setViewRecord(null); }}>Edit</Button>
+                  <Button onClick={() => setViewRecord(null)}>Close</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+
           {purchLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (purchases as Record<string, unknown>[]).length === 0 ? (
             <Empty msg="No purchases recorded. Hit 'Record Purchase' to log your first order." />
           ) : (
@@ -573,6 +669,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                       <td className="py-2 pr-3 text-muted-foreground">{fmt(p.invoiceRef)}</td>
                       <td className="py-2">
                         <div className="flex gap-1">
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setViewRecord(p)}><Eye className="w-3.5 h-3.5" /></Button>
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setPurchEditing(p); setPurchForm({ purchaseDate: String(p.purchaseDate ?? "").slice(0, 10), supplierId: p.supplierId ? String(p.supplierId) : "__none__", productId: p.productId ? String(p.productId) : "__none__", quantityPurchased: String(p.quantity ?? ""), costPerUnit: String(p.costPerUnit ?? ""), totalCost: String(p.totalCost ?? ""), invoiceRef: String(p.invoiceRef ?? ""), notes: String(p.notes ?? ""), updateCostPrice: false }); setPurchOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => showConfirm("Delete Purchase", "Remove this purchase record? Note: any stock that was added when this was logged will not be automatically reversed.", () => delPurch.mutate(p.id as number), { confirmLabel: "Delete", variant: "destructive" })}><Trash2 className="w-3.5 h-3.5 text-red-400" /></Button>
                         </div>
@@ -601,6 +698,23 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                   <Plus className="w-3.5 h-3.5 mr-1" /> New Stocktake
                 </Button>
               </div>
+
+              {viewRecord && (
+                <Dialog open onOpenChange={() => setViewRecord(null)}>
+                  <DialogContent style={{ maxWidth: "42rem" }}>
+                    <DialogHeader><DialogTitle>View Stocktake</DialogTitle></DialogHeader>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Stocktake Date</p><p className="font-medium">{fmtDate(String(viewRecord.stocktakeDate))}</p></div>
+                      <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{fmt(viewRecord.status)}</p></div>
+                      <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.notes)}</p></div>
+                    </div>
+                    <DialogFooter>
+                      <Button onClick={() => setViewRecord(null)}>Close</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+
               {stocktakesLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (stocktakes as StocktakeSession[]).length === 0 ? (
                 <Empty msg="No stocktakes recorded yet. Start your first count with 'New Stocktake'." />
               ) : (
@@ -634,6 +748,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
                             <td className="py-2 pr-3 text-muted-foreground text-xs">{s.notes || "—"}</td>
                             <td className="py-2" onClick={e => e.stopPropagation()}>
                               <div className="flex gap-1">
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setViewRecord(s)}><Eye className="w-3.5 h-3.5" /></Button>
                                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setLocalCounts({}); setActiveStocktakeId(s.id); }}>
                                   {isDraft ? "Continue" : "View"}
                                 </Button>
@@ -977,18 +1092,65 @@ function HygieneInspectionsTab({ farmId }: { farmId: number }) {
 }
 
 function EquineTab({ farmId }: { farmId: number }) {
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const [viewEvent, setViewEvent] = useState<Record<string, unknown> | null>(null);
   const { data: horses, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "equine-records", "equine");
   const { data: events, isLoading: evL, open: evOpen, setOpen: setEvOpen, form: evForm, setForm: setEvForm, save: evSave, del: evDel, openAdd: evOpenAdd } = useCrud(farmId, "equine-health-events", "equine-health");
   return (
     <div className="space-y-6">
       <div>
         <div className="flex justify-between items-center mb-3"><h3 className="font-semibold text-sm">Equine Register</h3><Button size="sm" onClick={() => openAdd({ status: "active" })}><Plus className="w-4 h-4 mr-1" />Add Horse</Button></div>
-        {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "horseName", label: "Name" }, { key: "breed", label: "Breed" }, { key: "sex", label: "Sex" }, { key: "passportNumber", label: "Passport No." }, { key: "microchipNumber", label: "Microchip" }, { key: "ownerName", label: "Owner" }, { key: "liveryType", label: "Livery Type" }, { key: "box", label: "Box" }]} rows={horses as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+        {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "horseName", label: "Name" }, { key: "breed", label: "Breed" }, { key: "sex", label: "Sex" }, { key: "passportNumber", label: "Passport No." }, { key: "microchipNumber", label: "Microchip" }, { key: "ownerName", label: "Owner" }, { key: "liveryType", label: "Livery Type" }, { key: "box", label: "Box" }]} rows={horses as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       </div>
       <div>
         <div className="flex justify-between items-center mb-3"><h3 className="font-semibold text-sm">Health Events (Worming, Farrier, Vaccination)</h3><Button size="sm" onClick={() => evOpenAdd()}><Plus className="w-4 h-4 mr-1" />Log Event</Button></div>
-        {evL ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "eventDate", label: "Date", fmt: r => fmtDate(r.eventDate) }, { key: "eventType", label: "Type" }, { key: "vetOrFarrierName", label: "Vet / Farrier" }, { key: "treatmentGiven", label: "Treatment" }, { key: "productUsed", label: "Product" }, { key: "cost", label: "Cost (£)" }]} rows={events as Record<string, unknown>[]} onDelete={r => evDel.mutate(r.id as number)} />}
+        {evL ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "eventDate", label: "Date", fmt: r => fmtDate(r.eventDate) }, { key: "eventType", label: "Type" }, { key: "vetOrFarrierName", label: "Vet / Farrier" }, { key: "treatmentGiven", label: "Treatment" }, { key: "productUsed", label: "Product" }, { key: "cost", label: "Cost (£)" }]} rows={events as Record<string, unknown>[]} onView={setViewEvent} onDelete={r => evDel.mutate(r.id as number)} />}
       </div>
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Equine Record</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Horse Name</p><p className="font-medium">{fmt(viewRecord.horseName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Breed</p><p className="font-medium">{fmt(viewRecord.breed)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sex</p><p className="font-medium">{fmt(viewRecord.sex)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Colour</p><p className="font-medium">{fmt(viewRecord.colour)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date of Birth</p><p className="font-medium">{fmtDate(viewRecord.dateOfBirth)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Passport Number</p><p className="font-medium">{fmt(viewRecord.passportNumber)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">UELN Number</p><p className="font-medium">{fmt(viewRecord.uelnNumber)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Microchip Number</p><p className="font-medium">{fmt(viewRecord.microchipNumber)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Owner Name</p><p className="font-medium">{fmt(viewRecord.ownerName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Livery Type</p><p className="font-medium">{fmt(viewRecord.liveryType)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Box / Stable</p><p className="font-medium">{fmt(viewRecord.box)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {viewEvent && (
+        <Dialog open onOpenChange={() => setViewEvent(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Health Event</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p><p className="font-medium">{fmtDate(viewEvent.eventDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Event Type</p><p className="font-medium">{fmt(viewEvent.eventType)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet / Farrier Name</p><p className="font-medium">{fmt(viewEvent.vetOrFarrierName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Given</p><p className="font-medium">{fmt(viewEvent.treatmentGiven)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Used</p><p className="font-medium">{fmt(viewEvent.productUsed)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Cost (£)</p><p className="font-medium">{fmt(viewEvent.cost)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setViewEvent(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "36rem" }}>
           <DialogHeader><DialogTitle>Equine Record</DialogTitle></DialogHeader>
@@ -1042,18 +1204,63 @@ function EquineTab({ farmId }: { farmId: number }) {
 }
 
 function RenewableTab({ farmId }: { farmId: number }) {
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const [viewReading, setViewReading] = useState<Record<string, unknown> | null>(null);
   const { data: installs, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "renewable-installations", "renewables");
   const { data: readings, isLoading: rL, open: rOpen, setOpen: setROpen, form: rForm, setForm: setRForm, save: rSave, del: rDel, openAdd: rOpenAdd } = useCrud(farmId, "renewable-meter-readings", "renewable-readings");
   return (
     <div className="space-y-6">
       <div>
         <div className="flex justify-between items-center mb-3"><h3 className="font-semibold text-sm">Renewable Energy Installations</h3><Button size="sm" onClick={() => openAdd()}><Plus className="w-4 h-4 mr-1" />Add Installation</Button></div>
-        {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "installationName", label: "Name" }, { key: "technologyType", label: "Technology" }, { key: "installedCapacityKw", label: "Capacity (kW)" }, { key: "fitOrSegContractRef", label: "FIT/SEG Ref" }, { key: "tariffProvider", label: "Provider" }, { key: "nextServiceDate", label: "Next Service", fmt: r => fmtDate(r.nextServiceDate) }]} rows={installs as Record<string, unknown>[]} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
+        {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "installationName", label: "Name" }, { key: "technologyType", label: "Technology" }, { key: "installedCapacityKw", label: "Capacity (kW)" }, { key: "fitOrSegContractRef", label: "FIT/SEG Ref" }, { key: "tariffProvider", label: "Provider" }, { key: "nextServiceDate", label: "Next Service", fmt: r => fmtDate(r.nextServiceDate) }]} rows={installs as Record<string, unknown>[]} onView={setViewRecord} onEdit={r => openEdit(r as Record<string, unknown>)} onDelete={r => del.mutate(r.id as number)} />}
       </div>
       <div>
         <div className="flex justify-between items-center mb-3"><h3 className="font-semibold text-sm">Generation Meter Readings</h3><Button size="sm" onClick={() => rOpenAdd()}><Plus className="w-4 h-4 mr-1" />Log Reading</Button></div>
-        {rL ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "generationKwh", label: "Generated (kWh)" }, { key: "exportKwh", label: "Exported (kWh)" }, { key: "selfConsumedKwh", label: "Self-Use (kWh)" }, { key: "fitPaymentPeriod", label: "FIT Period" }, { key: "fitPaymentAmount", label: "FIT Payment (£)" }]} rows={readings as Record<string, unknown>[]} onDelete={r => rDel.mutate(r.id as number)} />}
+        {rL ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "generationKwh", label: "Generated (kWh)" }, { key: "exportKwh", label: "Exported (kWh)" }, { key: "selfConsumedKwh", label: "Self-Use (kWh)" }, { key: "fitPaymentPeriod", label: "FIT Period" }, { key: "fitPaymentAmount", label: "FIT Payment (£)" }]} rows={readings as Record<string, unknown>[]} onView={setViewReading} onDelete={r => rDel.mutate(r.id as number)} />}
       </div>
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Renewable Installation</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Installation Name</p><p className="font-medium">{fmt(viewRecord.installationName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Technology Type</p><p className="font-medium">{fmt(viewRecord.technologyType)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Capacity (kW)</p><p className="font-medium">{fmt(viewRecord.installedCapacityKw)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Installation Date</p><p className="font-medium">{fmtDate(viewRecord.installationDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">FIT / SEG Contract Ref</p><p className="font-medium">{fmt(viewRecord.fitOrSegContractRef)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tariff Provider</p><p className="font-medium">{fmt(viewRecord.tariffProvider)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Tariff Rate (p/kWh)</p><p className="font-medium">{fmt(viewRecord.tariffRatePence)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Service Date</p><p className="font-medium">{fmtDate(viewRecord.nextServiceDate)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {viewReading && (
+        <Dialog open onOpenChange={() => setViewReading(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Meter Reading</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reading Date</p><p className="font-medium">{fmtDate(viewReading.readingDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meter Reference</p><p className="font-medium">{fmt(viewReading.meterReference)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Generation (kWh)</p><p className="font-medium">{fmt(viewReading.generationKwh)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Export (kWh)</p><p className="font-medium">{fmt(viewReading.exportKwh)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Self-Consumed (kWh)</p><p className="font-medium">{fmt(viewReading.selfConsumedKwh)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">FIT Payment Period</p><p className="font-medium">{fmt(viewReading.fitPaymentPeriod)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">FIT Payment (£)</p><p className="font-medium">{fmt(viewReading.fitPaymentAmount)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setViewReading(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Renewable Energy Installation</DialogTitle></DialogHeader>
@@ -1095,11 +1302,39 @@ function RenewableTab({ farmId }: { farmId: number }) {
 }
 
 function ShootingTab({ farmId }: { farmId: number }) {
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "shooting-game-records", "shooting");
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Shooting & Game Records</h3><Button size="sm" onClick={() => openAdd({ bagsPheasant: "0", bagsPartridge: "0", bagsGrouse: "0", bagsDuck: "0", bagsWoodcock: "0", bagsOther: "0", totalBag: "0" })}><Plus className="w-4 h-4 mr-1" />Log Shoot</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "shootDate", label: "Date", fmt: r => fmtDate(r.shootDate) }, { key: "shootType", label: "Type" }, { key: "organiser", label: "Organiser" }, { key: "numberOfGuns", label: "Guns" }, { key: "totalBag", label: "Total Bag" }, { key: "gameDealer", label: "Game Dealer" }, { key: "incomeLeaseFee", label: "Income (£)" }]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "shootDate", label: "Date", fmt: r => fmtDate(r.shootDate) }, { key: "shootType", label: "Type" }, { key: "organiser", label: "Organiser" }, { key: "numberOfGuns", label: "Guns" }, { key: "totalBag", label: "Total Bag" }, { key: "gameDealer", label: "Game Dealer" }, { key: "incomeLeaseFee", label: "Income (£)" }]} rows={records as Record<string, unknown>[]} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} />}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Shoot Record</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Shoot Date</p><p className="font-medium">{fmtDate(viewRecord.shootDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Shoot Type</p><p className="font-medium">{fmt(viewRecord.shootType)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Organiser</p><p className="font-medium">{fmt(viewRecord.organiser)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Number of Guns</p><p className="font-medium">{fmt(viewRecord.numberOfGuns)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Gamekeeper Name</p><p className="font-medium">{fmt(viewRecord.gamekeeperName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Game Dealer</p><p className="font-medium">{fmt(viewRecord.gameDealer)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Total Bag</p><p className="font-medium">{fmt(viewRecord.totalBag)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Income / Lease Fee (£)</p><p className="font-medium">{fmt(viewRecord.incomeLeaseFee)}</p></div>
+              <div className="col-span-2 grid grid-cols-3 gap-2">
+                {[["bagsPheasant", "Pheasant"], ["bagsPartridge", "Partridge"], ["bagsGrouse", "Grouse"], ["bagsDuck", "Duck"], ["bagsWoodcock", "Woodcock"], ["bagsOther", "Other"]].map(([k, l]) => (
+                  <div key={k}><p className="text-xs text-muted-foreground uppercase tracking-wide">{l}</p><p className="font-medium">{fmt(viewRecord[k])}</p></div>
+                ))}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "40rem" }}>
           <DialogHeader><DialogTitle>Shoot Record</DialogTitle></DialogHeader>
@@ -1150,6 +1385,7 @@ const VAT_RATES = [
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function IncomeTab({ farmId }: { farmId: number }) {
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const qc = useQueryClient();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState<number | null>(null);
@@ -1372,6 +1608,31 @@ function IncomeTab({ farmId }: { farmId: number }) {
               <button onClick={() => setSelectedType(null)} className="text-xs text-muted-foreground hover:text-foreground underline">Clear filter</button>
             </div>
           )}
+
+          {viewRecord && (
+            <Dialog open onOpenChange={() => setViewRecord(null)}>
+              <DialogContent style={{ maxWidth: "42rem" }}>
+                <DialogHeader><DialogTitle>View Income Record</DialogTitle></DialogHeader>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Income Date</p><p className="font-medium">{fmtDate(viewRecord.incomeDate)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Income Type</p><p className="font-medium">{fmt(viewRecord.incomeType)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Activity</p><p className="font-medium">{fmt(viewRecord.activityName)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Customer / Payer</p><p className="font-medium">{fmt(viewRecord.customerName)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Net Amount (£)</p><p className="font-medium">{fmtGbp(viewRecord.amountNet)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">VAT Rate</p><p className="font-medium">{VAT_RATES.find(v => v.value === viewRecord.vatRate)?.label ?? String(viewRecord.vatRate)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">VAT Amount (£)</p><p className="font-medium">{fmt(viewRecord.vatAmount)}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Invoice / Reference</p><p className="font-medium">{fmt(viewRecord.invoiceRef)}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Description</p><p className="font-medium">{fmt(viewRecord.description)}</p></div>
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{fmt(viewRecord.notes)}</p></div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+                  <Button onClick={() => setViewRecord(null)}>Close</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+
           <DataTable
             cols={[
               { key: "incomeDate", label: "Date", fmt: r => fmtDate(r.incomeDate) },
@@ -1384,6 +1645,7 @@ function IncomeTab({ farmId }: { farmId: number }) {
               { key: "invoiceRef", label: "Invoice Ref" },
             ]}
             rows={displayRecords}
+            onView={setViewRecord}
             onEdit={r => openEdit(r)}
             onDelete={r => del.mutate(r.id as number)}
           />

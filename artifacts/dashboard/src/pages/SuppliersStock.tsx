@@ -36,6 +36,7 @@ import {
   Trash2,
   Loader2,
   ClipboardCheck,
+  Eye,
 } from "lucide-react";
 
 const PRODUCT_CATEGORIES = [
@@ -761,6 +762,7 @@ function MovementsTab({ movements, products, loading, farmId, onRefresh, toast }
 
 function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }: any) {
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<any>(null);
   const [editItem, setEditItem] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<any>({ name: "", category: "", productCode: "", mappNumber: "", unit: "", reorderLevel: "", storageLocation: "", defaultSupplierId: "", notes: "" });
@@ -821,7 +823,12 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
                   <td style={{ padding: "0.625rem 0.875rem" }}>{p.reorderLevel ? `${p.reorderLevel} ${p.unit || ""}` : "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280" }}>{p.defaultSupplierName || "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem" }}>
-                    <button onClick={() => openEdit(p)} style={{ fontSize: "0.75rem", color: "#166534", cursor: "pointer", background: "none", border: "none" }}>Edit</button>
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setViewRecord(p)}>
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                      <button onClick={() => openEdit(p)} style={{ fontSize: "0.75rem", color: "#166534", cursor: "pointer", background: "none", border: "none" }}>Edit</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -897,6 +904,29 @@ function ProductsTab({ products, suppliers, loading, farmId, onRefresh, toast }:
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Product Catalogue Entry</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Name</p><p className="font-medium text-lg">{viewRecord.name}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Category</p><p className="font-medium">{viewRecord.category || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Unit</p><p className="font-medium">{viewRecord.unit || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Product Code</p><p className="font-medium font-mono">{viewRecord.productCode || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">MAPP Number</p><p className="font-medium font-mono">{viewRecord.mappNumber || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reorder Level</p><p className="font-medium">{viewRecord.reorderLevel ? `${viewRecord.reorderLevel} ${viewRecord.unit || ""}` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Default Supplier</p><p className="font-medium">{viewRecord.defaultSupplierName || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Storage Location</p><p className="font-medium">{viewRecord.storageLocation || "—"}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{viewRecord.notes || "—"}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -1294,6 +1324,7 @@ function certExpiryStatus(expiry: string | null | undefined): "ok" | "soon" | "e
 
 function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<any>(null);
   const [editItem, setEditItem] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
@@ -1426,6 +1457,9 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
                   </p>
                 )}
                 <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setViewRecord(s)}>
+                    <Eye className="w-3.5 h-3.5" />
+                  </Button>
                   {isActive && <button onClick={() => openEdit(s)} style={{ fontSize: "0.75rem", color: "#166534", cursor: "pointer", background: "none", border: "none", padding: 0 }}>Edit</button>}
                   <button
                     onClick={() => isActive ? deactivateMut.mutate(s.id) : reactivateMut.mutate(s.id)}

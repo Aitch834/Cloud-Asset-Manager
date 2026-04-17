@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users, FileText, Wheat, Receipt, Plus, Pencil, Trash2, CheckCircle, XCircle,
   ChevronDown, ChevronUp, Building2, Phone, Mail, MapPin, Loader2,
-  ClipboardList, TrendingUp, Package, AlertTriangle, Calendar, ArrowRight,
+  ClipboardList, TrendingUp, Package, AlertTriangle, Calendar, ArrowRight, Eye,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -123,6 +123,7 @@ function CustomersTab({ farmId, customers, isLoading }: { farmId: number; custom
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<FarmCustomer | null>(null);
   const [edit, setEdit] = useState<FarmCustomer | null>(null);
   const [showInactive, setShowInactive] = useState(false);
   const [form, setForm] = useState({ name: "", contactName: "", contactPhone: "", contactEmail: "", address: "", holdingNumber: "", vatNumber: "", notes: "", isActive: true });
@@ -202,6 +203,7 @@ function CustomersTab({ farmId, customers, isLoading }: { farmId: number; custom
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 justify-end">
+                      <Button variant="ghost" size="icon" onClick={() => setViewRecord(c)}><Eye className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={() => deleteMut.mutate(c.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                     </div>
@@ -211,6 +213,29 @@ function CustomersTab({ farmId, customers, isLoading }: { farmId: number; custom
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Customer</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Name</p><p className="font-medium">{String(viewRecord.name ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Contact Name</p><p className="font-medium">{String(viewRecord.contactName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p><p className="font-medium">{String(viewRecord.contactPhone ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p><p className="font-medium">{String(viewRecord.contactEmail ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Holding No.</p><p className="font-medium font-mono">{String(viewRecord.holdingNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">VAT Number</p><p className="font-medium">{String(viewRecord.vatNumber ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Address</p><p className="font-medium">{String(viewRecord.address ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{viewRecord.isActive ? "Active" : "Inactive"}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEdit(null); }}>
@@ -260,6 +285,7 @@ function AgreementsTab({ farmId, customers }: { farmId: number; customers: FarmC
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<ServiceAgreement | null>(null);
   const [edit, setEdit] = useState<ServiceAgreement | null>(null);
 
   const emptyForm = () => ({
@@ -377,6 +403,7 @@ function AgreementsTab({ farmId, customers }: { farmId: number; customers: FarmC
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" onClick={() => setViewRecord(a)}><Eye className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => openEdit(a)}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => deleteMut.mutate(a.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
@@ -384,6 +411,48 @@ function AgreementsTab({ farmId, customers }: { farmId: number; customers: FarmC
             </div>
           ))}
         </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Agreement</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Title</p><p className="font-medium">{String(viewRecord.title ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Customer</p><p className="font-medium">{customerName(viewRecord.customerId)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Agreement Type</p><p className="font-medium">{agreementTypeLabel(viewRecord.agreementType)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reference Number</p><p className="font-medium">{String(viewRecord.referenceNumber ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Start Date</p><p className="font-medium">{String(viewRecord.startDate ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">End Date</p><p className="font-medium">{String(viewRecord.endDate ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{String(viewRecord.status ?? "—")}</p></div>
+              {viewRecord.agreementType === "land_rental" && (
+                <>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Area (ha)</p><p className="font-medium">{String(viewRecord.areaHa ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Annual Rent</p><p className="font-medium">{viewRecord.annualRentPence != null ? fmtPence(viewRecord.annualRentPence) : "—"}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Frequency</p><p className="font-medium">{String(viewRecord.paymentFrequency ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Next Payment Date</p><p className="font-medium">{String(viewRecord.nextPaymentDate ?? "—")}</p></div>
+                </>
+              )}
+              {["grain_storage", "drying_service"].includes(viewRecord.agreementType) && (
+                <>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Max Tonnes</p><p className="font-medium">{String(viewRecord.maxTonnesContracted ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Storage Rate (£/t/wk)</p><p className="font-medium">{String(viewRecord.storageRatePptWeek ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Intake Charge (£/t)</p><p className="font-medium">{String(viewRecord.intakeChargePpt ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Outloading Charge (£/t)</p><p className="font-medium">{String(viewRecord.outloadingChargePpt ?? "—")}</p></div>
+                  <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Drying Charge (£/t)</p><p className="font-medium">{String(viewRecord.dryingChargePpt ?? "—")}</p></div>
+                </>
+              )}
+              {["contract_farming", "machinery_hire", "haulage"].includes(viewRecord.agreementType) && (
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Day Rate</p><p className="font-medium">{viewRecord.dayRatePence != null ? fmtPence(viewRecord.dayRatePence) : "—"}</p></div>
+              )}
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEdit(null); }}>
@@ -494,6 +563,7 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [viewRecord, setViewRecord] = useState<GrainIntake | null>(null);
   const [edit, setEdit] = useState<GrainIntake | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [movementOpen, setMovementOpen] = useState<number | null>(null);
@@ -615,6 +685,7 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
                           <Button variant="ghost" size="icon" title={isExp ? "Collapse" : "Movements"} onClick={() => setExpandedId(isExp ? null : i.id)} className="text-amber-600">
                             {isExp ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </Button>
+                          <Button variant="ghost" size="icon" onClick={() => setViewRecord(i)}><Eye className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="icon" onClick={() => openEdit(i)}><Pencil className="h-4 w-4" /></Button>
                         </div>
                       </td>
@@ -653,6 +724,33 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Grain Intake</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Intake Date</p><p className="font-medium">{String(viewRecord.intakeDate ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Customer</p><p className="font-medium">{customerName(viewRecord.customerId)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Commodity</p><p className="font-medium">{String(viewRecord.commodity ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Variety</p><p className="font-medium">{String(viewRecord.variety ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Quantity (t)</p><p className="font-medium">{String(viewRecord.quantityTonnes ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Moisture (%)</p><p className="font-medium">{String(viewRecord.moisturePercent ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Specific Weight (kg/hl)</p><p className="font-medium">{String(viewRecord.specificWeightKgHl ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lot Reference</p><p className="font-medium">{String(viewRecord.lotReference ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Delivery Note Ref</p><p className="font-medium">{String(viewRecord.deliveryNoteRef ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vehicle Reg</p><p className="font-medium">{String(viewRecord.vehicleReg ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Bay / Bin</p><p className="font-medium">{String(viewRecord.bayOrBin ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{String(viewRecord.status ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Intake form dialog */}

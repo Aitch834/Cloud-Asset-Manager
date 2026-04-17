@@ -496,6 +496,7 @@ export default function CompliancePage() {
   const [diseaseAffectedIds, setDiseaseAffectedIds] = useState<number[]>([]);
   const [diseaseMortalityIds, setDiseaseMortalityIds] = useState<number[]>([]);
   const [showAllDiseases, setShowAllDiseases] = useState(false);
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
 
   // ── Feed recall state
   const [showRecallDialog, setShowRecallDialog] = useState(false);
@@ -1500,6 +1501,7 @@ export default function CompliancePage() {
                         {!!r.treatmentGiven && <p className="text-xs text-gray-500 mt-1">Treatment: <span className="font-medium">{String(r.treatmentGiven)}</span></p>}
                       </div>
                       <div className="flex gap-1 shrink-0">
+                        <Button size="sm" variant="ghost" onClick={() => setViewRecord(r)} className="h-7 px-2"><Eye className="w-3 h-3" /></Button>
                         <Button size="sm" variant="ghost" onClick={() => openDiseaseEdit(r)} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
                         <Button size="sm" variant="ghost" onClick={() => delDiseaseMut.mutate(Number(r.id))} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
                       </div>
@@ -1584,6 +1586,37 @@ export default function CompliancePage() {
             </div>
           )}
         </div>
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }} className="max-h-[92vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>View Disease Incident</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Incident Type</p><p className="font-medium">{INCIDENT_TYPES.find(t => t.value === viewRecord.incidentType)?.label ?? String(viewRecord.incidentType ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{String(viewRecord.status ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Incident Date</p><p className="font-medium">{fmtDate(String(viewRecord.incidentDate ?? ""))}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Species</p><p className="font-medium">{String(viewRecord.species ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Animal Count</p><p className="font-medium">{String(viewRecord.animalCount ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reported By</p><p className="font-medium">{String(viewRecord.reportedBy ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Symptoms</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.symptoms ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Diagnosis Confirmed</p><p className="font-medium">{viewRecord.diagnosisConfirmed ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Veterinary Diagnosis</p><p className="font-medium">{String(viewRecord.veterinaryDiagnosis ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Notifiable Disease</p><p className="font-medium">{viewRecord.notifiableDisease ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">APHA Notified</p><p className="font-medium">{viewRecord.aphaNotified ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Contacted</p><p className="font-medium">{viewRecord.vetContacted ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Mortality Count</p><p className="font-medium">{String(viewRecord.mortalityCount ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Treatment Given</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.treatmentGiven ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Affected Animal IDs</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.affectedAnimalIds ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Quarantine Measures</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.quarantineMeasures ?? "—")}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openDiseaseEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ══ DISEASE INCIDENT DIALOG ════════════════════════════════════════ */}
