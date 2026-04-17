@@ -471,7 +471,34 @@ function MortalityTab({ farmId }: { farmId: number }) {
                 <p className="text-xs text-muted-foreground mt-2">Running total and mortality % are calculated automatically — not editable.</p>
               </div>
             )}
-            <div className="col-span-2"><Label>Main Cause</Label><Input value={String(form.mainCause ?? "")} onChange={e => setForm(f => ({ ...f, mainCause: e.target.value }))} /></div>
+            <div className="col-span-2">
+              <Label>Main Cause of Death</Label>
+              <Select value={String(form.mainCause ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, mainCause: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select cause" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select cause —</SelectItem>
+                  {[
+                    "Natural causes (normal losses)",
+                    "Sudden Death Syndrome (SDS / Flip-over)",
+                    "Ascites (Waterbelly)",
+                    "Cardiovascular failure",
+                    "Respiratory disease",
+                    "Leg / skeletal problems",
+                    "Digestive disorder",
+                    "Bacterial infection",
+                    "Viral disease",
+                    "Injury / trauma",
+                    "Cannibalism / pecking injury",
+                    "Heat stress",
+                    "Chilling (young chicks)",
+                    "Smothering / piling",
+                    "Nutritional deficiency",
+                    "Unknown",
+                    "Other (specify in notes)",
+                  ].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save</Button></DialogFooter>
@@ -755,8 +782,31 @@ function CleanoutsTab({ farmId }: { farmId: number }) {
             <div><Label>Flock (outgoing)</Label><FlockSelect flocks={flocks} value={String(form.flockId ?? "")} onChange={v => setForm(f => ({ ...f, flockId: v }))} /></div>
             <div><Label>Cleanout Start *</Label><Input type="date" value={String(form.cleanoutStartDate ?? "")} onChange={e => setForm(f => ({ ...f, cleanoutStartDate: e.target.value }))} /></div>
             <div><Label>Cleanout End</Label><Input type="date" value={String(form.cleanoutEndDate ?? "")} onChange={e => setForm(f => ({ ...f, cleanoutEndDate: e.target.value }))} /></div>
-            <div><Label>Disinfectant Used</Label><Input value={String(form.disinfectantUsed ?? "")} onChange={e => setForm(f => ({ ...f, disinfectantUsed: e.target.value }))} /></div>
-            <div><Label>Approval Number</Label><Input value={String(form.disinfectantApprovalNumber ?? "")} onChange={e => setForm(f => ({ ...f, disinfectantApprovalNumber: e.target.value }))} /></div>
+            <div>
+              <Label>Disinfectant Used</Label>
+              <Select value={String(form.disinfectantUsed ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, disinfectantUsed: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select product —</SelectItem>
+                  {[
+                    "Virkon S",
+                    "Anigene HLD4V",
+                    "FAM 30",
+                    "Interkokask",
+                    "Kilcox Extra",
+                    "Defecto Forte",
+                    "Menno Ter Forte",
+                    "Biocide Extra",
+                    "Glutex (Glutaraldehyde)",
+                    "Acticide CMK",
+                    "Perasafe (Peracetic Acid)",
+                    "DupHast Forte",
+                    "Other (specify in notes)",
+                  ].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Approval / Reference Number</Label><Input placeholder="From product label" value={String(form.disinfectantApprovalNumber ?? "")} onChange={e => setForm(f => ({ ...f, disinfectantApprovalNumber: e.target.value }))} /></div>
             <div><Label>Contact Time (mins)</Label><Input type="number" value={String(form.contactTimeMins ?? "")} onChange={e => setForm(f => ({ ...f, contactTimeMins: e.target.value }))} /></div>
             <div><Label>Standing Time (days)</Label><Input type="number" value={String(form.standingTimeDays ?? "")} onChange={e => setForm(f => ({ ...f, standingTimeDays: e.target.value }))} /></div>
             <div><Label>Completed By</Label><Input value={String(form.completedBy ?? "")} onChange={e => setForm(f => ({ ...f, completedBy: e.target.value }))} /></div>
@@ -978,7 +1028,26 @@ function ThinningRecordsTab({ farmId }: { farmId: number }) {
             <div><Label>Catching Start Time</Label><Input type="time" value={String(form.catchingStartTime ?? "")} onChange={e => setForm(f => ({ ...f, catchingStartTime: e.target.value }))} /></div>
             <div><Label>Catching End Time</Label><Input type="time" value={String(form.catchingEndTime ?? "")} onChange={e => setForm(f => ({ ...f, catchingEndTime: e.target.value }))} /></div>
             <div><Label>Transport Vehicle Reg</Label><Input value={String(form.transportVehicleReg ?? "")} onChange={e => setForm(f => ({ ...f, transportVehicleReg: e.target.value }))} /></div>
-            <div><Label>Catching Conditions</Label><Input value={String(form.catchingConditions ?? "")} onChange={e => setForm(f => ({ ...f, catchingConditions: e.target.value }))} placeholder="e.g. Good, dark, calm" /></div>
+            <div>
+              <Label>Catching Conditions</Label>
+              <Select value={String(form.catchingConditions ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, catchingConditions: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select conditions" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select conditions —</SelectItem>
+                  {[
+                    "Good — dark, calm conditions",
+                    "Good — cool overnight temperatures",
+                    "Moderate — some natural light",
+                    "Moderate — light wind or breeze",
+                    "Poor — high ambient temperature (heat stress risk)",
+                    "Poor — wet or adverse weather",
+                    "Poor — strong wind",
+                    "Emergency — welfare concern raised",
+                    "Other (specify in notes)",
+                  ].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate({ ...form, flockId: form.flockId ? Number(form.flockId) : null })} disabled={save.isPending}>Save Record</Button></DialogFooter>
@@ -1090,12 +1159,58 @@ function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
             <BioBoolField label="Independent audit completed" field="independentAuditCompleted" form={form} setForm={setForm} />
           </div>
           <div className="grid grid-cols-2 gap-3 mt-3">
-            <div><Label>Disinfectant Used</Label><Input value={String(form.disinfectantUsed ?? "")} onChange={e => setForm(f => ({ ...f, disinfectantUsed: e.target.value }))} /></div>
+            <div>
+              <Label>Disinfectant Used</Label>
+              <Select value={String(form.disinfectantUsed ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, disinfectantUsed: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select product —</SelectItem>
+                  {["Virkon S", "Anigene HLD4V", "FAM 30", "Interkokask", "Kilcox Extra", "Defecto Forte", "Menno Ter Forte", "Biocide Extra", "Glutex (Glutaraldehyde)", "Acticide CMK", "Perasafe (Peracetic Acid)", "DupHast Forte", "Other (specify in notes)"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div><Label>Dilution Rate</Label><Input placeholder="e.g. 1:200" value={String(form.disinfectantDilutionRate ?? "")} onChange={e => setForm(f => ({ ...f, disinfectantDilutionRate: e.target.value }))} /></div>
-            <div><Label>Litter Disposal Method</Label><Input placeholder="e.g. Composted on-farm" value={String(form.litterDisposalMethod ?? "")} onChange={e => setForm(f => ({ ...f, litterDisposalMethod: e.target.value }))} /></div>
-            <div><Label>Audit Body</Label><Input placeholder="e.g. Red Tractor, RSPCA" value={String(form.auditBody ?? "")} onChange={e => setForm(f => ({ ...f, auditBody: e.target.value }))} /></div>
+            <div>
+              <Label>Litter Disposal Method</Label>
+              <Select value={String(form.litterDisposalMethod ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, litterDisposalMethod: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select method —</SelectItem>
+                  {[
+                    "Spread to land — direct application",
+                    "Spread to land — via licensed contractor",
+                    "Composted on-farm",
+                    "Collected by contractor (AD / biogas plant)",
+                    "Sold to third party (e.g. mushroom compost)",
+                    "Incinerated on-farm",
+                    "Incinerated — licensed contractor",
+                    "Landfill (licensed)",
+                    "Other (specify in notes)",
+                  ].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Audit Body</Label>
+              <Select value={String(form.auditBody ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, auditBody: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select body" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select audit body —</SelectItem>
+                  {["Red Tractor Assurance", "RSPCA Assured", "Soil Association", "Organic Farmers & Growers (OF&G)", "Lion Quality (BEIC)", "M&S Select Farms", "Tesco Nurture", "Internal audit", "Other (specify in notes)"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div><Label>Completed By</Label><Input value={String(form.completedBy ?? "")} onChange={e => setForm(f => ({ ...f, completedBy: e.target.value }))} /></div>
-            <div><Label>Scheme / Certification</Label><Input placeholder="e.g. Red Tractor Broilers" value={String(form.schemeCertificationScheme ?? "")} onChange={e => setForm(f => ({ ...f, schemeCertificationScheme: e.target.value }))} /></div>
+            <div>
+              <Label>Scheme / Certification</Label>
+              <Select value={String(form.schemeCertificationScheme ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, schemeCertificationScheme: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select scheme" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Select scheme —</SelectItem>
+                  {["Red Tractor Poultry (Broiler)", "Red Tractor Poultry (Turkey)", "Red Tractor Poultry (Laying Hens)", "Lion Quality", "RSPCA Assured", "Organic (Soil Association)", "Organic (OF&G)", "Free Range", "Higher Welfare", "M&S Select Farms", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="col-span-2"><Label>Notes / Deficiencies</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
