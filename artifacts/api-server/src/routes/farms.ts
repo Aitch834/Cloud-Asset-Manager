@@ -15197,7 +15197,7 @@ router.get("/farms/:farmId/poultry-compliance-summary", requireAuth, requireTena
   const in60Iso = in60.toISOString().slice(0, 10);
 
   const [houses, flocks, mortality, treatments, cleanouts, envLogs, fci, bwi, thinning, biosecurity, schemes] = await Promise.all([
-    db.select({ id: poultryHousesTable.id }).from(poultryHousesTable).where(and(eq(poultryHousesTable.farmId, farmId), eq(poultryHousesTable.isActive, true))),
+    db.select({ id: poultryHousesTable.id }).from(poultryHousesTable).where(eq(poultryHousesTable.farmId, farmId)),
     db.select({ id: poultryFlocksTable.id, status: poultryFlocksTable.status }).from(poultryFlocksTable).where(eq(poultryFlocksTable.farmId, farmId)),
     db.select({ id: poultryDailyMortalityTable.id, mortalityDate: poultryDailyMortalityTable.mortalityDate, mortalityPercentage: poultryDailyMortalityTable.mortalityPercentage }).from(poultryDailyMortalityTable).where(eq(poultryDailyMortalityTable.farmId, farmId)).orderBy(desc(poultryDailyMortalityTable.mortalityDate)).limit(50),
     db.select({ id: poultryTreatmentsTable.id, withdrawalClearDate: poultryTreatmentsTable.withdrawalClearDate, treatmentDate: poultryTreatmentsTable.treatmentDate }).from(poultryTreatmentsTable).where(eq(poultryTreatmentsTable.farmId, farmId)).orderBy(desc(poultryTreatmentsTable.treatmentDate)).limit(50),
