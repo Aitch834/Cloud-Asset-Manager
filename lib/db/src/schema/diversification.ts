@@ -125,6 +125,7 @@ export const farmShopHygieneInspectionsTable = pgTable("farm_shop_hygiene_inspec
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   inspectionDate: date("inspection_date").notNull(),
+  relatesTo: text("relates_to"),
   inspectorName: text("inspector_name"),
   inspectorOrganisation: text("inspector_organisation"),
   inspectionType: text("inspection_type").notNull(),

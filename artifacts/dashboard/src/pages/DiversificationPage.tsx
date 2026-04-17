@@ -1060,29 +1060,87 @@ function FarmShopTab({ farmId }: { farmId: number }) {
   );
 }
 
+const HYGIENE_RELATES_TO = ["Farm Shop", "Food Processing", "Events / Catering", "Farm Kitchen", "Equine / Livery", "Other"];
+
 function HygieneInspectionsTab({ farmId }: { farmId: number }) {
-  const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "farm-shop-hygiene-inspections", "shop-hygiene");
+  const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
+  const { data: records, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "farm-shop-hygiene-inspections", "shop-hygiene");
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Hygiene & Food Safety Inspections</h3><Button size="sm" onClick={() => openAdd({ reinspectionRequired: false })}><Plus className="w-4 h-4 mr-1" />Add Inspection</Button></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "inspectionDate", label: "Date", fmt: r => fmtDate(r.inspectionDate) }, { key: "inspectorOrganisation", label: "Organisation" }, { key: "inspectionType", label: "Type" }, { key: "hygieneRating", label: "Hygiene Rating" }, { key: "reinspectionRequired", label: "Reinspection", fmt: r => r.reinspectionRequired ? "Yes" : "No" }]} rows={records as Record<string, unknown>[]} onDelete={r => del.mutate(r.id as number)} />}
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-sm">Hygiene &amp; Food Safety Inspections</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Log all hygiene and food safety inspections across diversification activities — Farm Shop, food processing, events catering and more.</p>
+        </div>
+        <Button size="sm" onClick={() => openAdd({ reinspectionRequired: false })}><Plus className="w-4 h-4 mr-1" />Add Inspection</Button>
+      </div>
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
+        <DataTable
+          cols={[
+            { key: "relatesTo", label: "Relates To" },
+            { key: "inspectionDate", label: "Date", fmt: r => fmtDate(r.inspectionDate) },
+            { key: "inspectionType", label: "Type" },
+            { key: "inspectorOrganisation", label: "Organisation" },
+            { key: "hygieneRating", label: "Rating" },
+            { key: "reinspectionRequired", label: "Reinspection", fmt: r => r.reinspectionRequired ? "Yes" : "No" },
+          ]}
+          rows={records as Record<string, unknown>[]}
+          onView={setViewRecord}
+          onEdit={r => openEdit(r as Record<string, unknown>)}
+          onDelete={r => del.mutate(r.id as number)}
+        />
+      )}
+
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "42rem" }}>
+            <DialogHeader><DialogTitle>View Hygiene Inspection</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Relates To</p><p className="font-medium">{fmt(viewRecord.relatesTo)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Inspection Date</p><p className="font-medium">{fmtDate(viewRecord.inspectionDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Inspection Type</p><p className="font-medium">{fmt(viewRecord.inspectionType)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Food Hygiene Rating</p><p className="font-medium">{viewRecord.hygieneRating != null ? `${viewRecord.hygieneRating} / 5` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Inspector Name</p><p className="font-medium">{fmt(viewRecord.inspectorName)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Organisation</p><p className="font-medium">{fmt(viewRecord.inspectorOrganisation)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reinspection Required</p><p className="font-medium">{viewRecord.reinspectionRequired ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reinspection Date</p><p className="font-medium">{fmtDate(viewRecord.reinspectionDate)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Findings Summary</p><p className="font-medium whitespace-pre-wrap">{fmt(viewRecord.findingsSummary)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Corrective Actions</p><p className="font-medium whitespace-pre-wrap">{fmt(viewRecord.correctiveActions)}</p></div>
+              <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{fmt(viewRecord.notes)}</p></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
+              <Button onClick={() => setViewRecord(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "38rem" }}>
-          <DialogHeader><DialogTitle>Hygiene Inspection</DialogTitle></DialogHeader>
+        <DialogContent style={{ maxWidth: "40rem" }}>
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Hygiene Inspection</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2"><Label>Relates To *</Label>
+              <Select value={String(form.relatesTo ?? "")} onValueChange={v => setForm(f => ({ ...f, relatesTo: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select activity this inspection covers" /></SelectTrigger>
+                <SelectContent>{HYGIENE_RELATES_TO.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div><Label>Inspection Date *</Label><Input type="date" value={String(form.inspectionDate ?? "")} onChange={e => setForm(f => ({ ...f, inspectionDate: e.target.value }))} /></div>
-            <div><Label>Inspector Name</Label><Input value={String(form.inspectorName ?? "")} onChange={e => setForm(f => ({ ...f, inspectorName: e.target.value }))} /></div>
-            <div><Label>Organisation</Label><Input value={String(form.inspectorOrganisation ?? "")} onChange={e => setForm(f => ({ ...f, inspectorOrganisation: e.target.value }))} /></div>
             <div><Label>Inspection Type *</Label>
               <Select value={String(form.inspectionType ?? "")} onValueChange={v => setForm(f => ({ ...f, inspectionType: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>{["Local Authority Routine", "Allergen Compliance", "HACCP Audit", "Red Tractor", "Self-Audit", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Food Hygiene Rating (0-5)</Label><Input type="number" min="0" max="5" value={String(form.hygieneRating ?? "")} onChange={e => setForm(f => ({ ...f, hygieneRating: e.target.value }))} /></div>
-            <div className="flex items-center gap-2 mt-4"><Checkbox id="reinsp" checked={Boolean(form.reinspectionRequired)} onCheckedChange={v => setForm(f => ({ ...f, reinspectionRequired: Boolean(v) }))} /><Label htmlFor="reinsp">Reinspection required?</Label></div>
+            <div><Label>Inspector Name</Label><Input value={String(form.inspectorName ?? "")} onChange={e => setForm(f => ({ ...f, inspectorName: e.target.value }))} /></div>
+            <div><Label>Organisation</Label><Input value={String(form.inspectorOrganisation ?? "")} onChange={e => setForm(f => ({ ...f, inspectorOrganisation: e.target.value }))} /></div>
+            <div><Label>Food Hygiene Rating (0–5)</Label><Input type="number" min="0" max="5" value={String(form.hygieneRating ?? "")} onChange={e => setForm(f => ({ ...f, hygieneRating: e.target.value }))} /></div>
+            <div className="flex items-center gap-2 self-end pb-1"><Checkbox id="reinsp" checked={Boolean(form.reinspectionRequired)} onCheckedChange={v => setForm(f => ({ ...f, reinspectionRequired: Boolean(v) }))} /><Label htmlFor="reinsp">Reinspection required?</Label></div>
+            <div><Label>Reinspection Date</Label><Input type="date" value={String(form.reinspectionDate ?? "")} onChange={e => setForm(f => ({ ...f, reinspectionDate: e.target.value }))} /></div>
             <div className="col-span-2"><Label>Findings Summary</Label><Textarea value={String(form.findingsSummary ?? "")} onChange={e => setForm(f => ({ ...f, findingsSummary: e.target.value }))} rows={2} /></div>
             <div className="col-span-2"><Label>Corrective Actions</Label><Textarea value={String(form.correctiveActions ?? "")} onChange={e => setForm(f => ({ ...f, correctiveActions: e.target.value }))} rows={2} /></div>
+            <div className="col-span-2"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save</Button></DialogFooter>
         </DialogContent>
