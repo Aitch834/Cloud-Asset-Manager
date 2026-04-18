@@ -215,7 +215,7 @@ export default function FieldOperationsPage() {
     queryKey: ["equipment", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/equipment`).then((r) => r.json()),
     enabled: !!farmId && hasEquipmentModule,
-    select: (d) => d.equipment ?? [],
+    select: (d) => d.records ?? [],
   });
   const equipmentList: any[] = equipmentQ.data ?? [];
 
