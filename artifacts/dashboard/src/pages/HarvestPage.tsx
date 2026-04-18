@@ -313,6 +313,21 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
     );
   });
 
+  // Derive the UK crop year from the selected harvest date (Aug–Jul season).
+  // Crop Year Y = 1 Aug (Y-1) → 31 Jul Y.
+  const harvestCropYear: number | null = form.harvestDate
+    ? (() => {
+        const d = new Date(form.harvestDate);
+        return (d.getMonth() + 1) >= 8 ? d.getFullYear() + 1 : d.getFullYear();
+      })()
+    : null;
+
+  // Only show field-crop assignments that belong to the same crop season as
+  // the chosen harvest date. When no date is selected yet, show all.
+  const relevantFieldCrops: any[] = harvestCropYear
+    ? fieldCrops.filter((fc: any) => !fc.year || fc.year === harvestCropYear)
+    : fieldCrops;
+
   return (
     <>
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
@@ -415,29 +430,56 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
           <div className="space-y-3 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div>
+                <Label>Harvest Date <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Input
+                  type="date"
+                  value={form.harvestDate}
+                  onChange={e => {
+                    const newDate = e.target.value;
+                    const newYear = newDate
+                      ? (() => { const d = new Date(newDate); return (d.getMonth() + 1) >= 8 ? d.getFullYear() + 1 : d.getFullYear(); })()
+                      : null;
+                    const validIds = newYear
+                      ? new Set(fieldCrops.filter((fc: any) => !fc.year || fc.year === newYear).map((fc: any) => String(fc.id)))
+                      : null;
+                    setForm((f: any) => {
+                      const keepSelection = !validIds || validIds.has(f.fieldCropAssignmentId);
+                      return {
+                        ...f,
+                        harvestDate: newDate,
+                        fieldCropAssignmentId: keepSelection ? f.fieldCropAssignmentId : "",
+                        areaHarvestedHa: keepSelection ? f.areaHarvestedHa : "",
+                      };
+                    });
+                  }}
+                />
+              </div>
+              <div>
                 <Label>Field & Crop <span style={{ color: "#ef4444" }}>*</span></Label>
                 <Select
                   value={form.fieldCropAssignmentId}
                   onValueChange={v => {
-                    const fc = fieldCrops.find((x: any) => String(x.id) === v);
+                    const fc = relevantFieldCrops.find((x: any) => String(x.id) === v);
                     const area = fc?.areaHectares ? parseFloat(String(fc.areaHectares)).toFixed(2) : "";
                     setForm((f: any) => ({ ...f, fieldCropAssignmentId: v, areaHarvestedHa: area }));
                   }}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select field / crop..." /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={harvestCropYear ? "Select field / crop..." : "Set harvest date first…"} /></SelectTrigger>
                   <SelectContent>
-                    {fieldCrops.map((fc: any) => (
-                      <SelectItem key={fc.id} value={String(fc.id)}>
-                        {fc.fieldName || `Field #${fc.fieldId}`} — {fc.cropName || `Crop #${fc.cropId}`}
-                        {fc.year ? ` (${fc.year})` : ""}
-                      </SelectItem>
-                    ))}
+                    {relevantFieldCrops.length === 0 ? (
+                      <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                        No crops recorded for the {harvestCropYear ? `${harvestCropYear - 1}/${String(harvestCropYear).slice(2)} season` : "selected period"}
+                      </div>
+                    ) : (
+                      relevantFieldCrops.map((fc: any) => (
+                        <SelectItem key={fc.id} value={String(fc.id)}>
+                          {fc.fieldName || `Field #${fc.fieldId}`} — {fc.cropName || `Crop #${fc.cropId}`}
+                          {fc.year ? ` (${fc.year - 1}/${String(fc.year).slice(2)})` : ""}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
-              </div>
-              <div>
-                <Label>Harvest Date <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Input type="date" value={form.harvestDate} onChange={e => setForm((f: any) => ({ ...f, harvestDate: e.target.value }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
