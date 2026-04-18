@@ -993,7 +993,7 @@ export default function FieldOperationsPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "0.75rem" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "0.75rem", alignItems: "end" }}>
                     <div className="space-y-1.5">
                       <Label className="flex items-center gap-1"><Tractor className="w-3 h-3" /> Machine Hours</Label>
                       <Input
