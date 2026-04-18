@@ -288,10 +288,14 @@ export default function TaskBoardPage() {
   const records = data?.records ?? [];
   const staff = staffData?.members ?? [];
 
-  const filtered = records.filter(r => {
-    const statusOk = statusFilter === "all" || r.status === statusFilter;
-    const memberOk = memberFilter === "all" || r.staffName === memberFilter;
-    return statusOk && memberOk;
+  // Records filtered by member only — used for stat card counts so they
+  // always reflect the selected staff member (or all staff when "all").
+  const memberFiltered = memberFilter === "all"
+    ? records
+    : records.filter(r => r.staffName === memberFilter);
+
+  const filtered = memberFiltered.filter(r => {
+    return statusFilter === "all" || r.status === statusFilter;
   });
 
   const pending = filtered.filter(r => r.status === "pending" || r.status === "in_progress");
@@ -307,7 +311,7 @@ export default function TaskBoardPage() {
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {["pending", "in_progress", "completed", "cancelled"].map(s => {
-            const count = records.filter(r => r.status === s).length;
+            const count = memberFiltered.filter(r => r.status === s).length;
             const cfg = STATUS_CONFIG[s];
             const Icon = cfg.icon;
             return (
