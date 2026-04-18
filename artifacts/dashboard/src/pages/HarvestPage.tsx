@@ -10,6 +10,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { VEHICLE_TYPES } from "@/lib/equipmentTypes";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,6 +101,7 @@ export default function HarvestPage() {
   const transports: any[] = transportQ.data ?? [];
   const storages: any[] = storageQ.data ?? [];
   const equipment: any[] = equipmentQ.data ?? [];
+  const vehicleEquipment: any[] = equipment.filter(e => VEHICLE_TYPES.has(e.type));
   const fieldCrops: any[] = fieldCropQ.data ?? [];
 
   return (
@@ -499,7 +501,7 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
                   <SelectTrigger><SelectValue placeholder="Select machinery..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">None / not recorded</SelectItem>
-                    {equipment.map((eq: any) => (
+                    {vehicleEquipment.map((eq: any) => (
                       <SelectItem key={eq.id} value={String(eq.id)}>
                         {eq.name} {eq.registrationNumber ? `(${eq.registrationNumber})` : ""}
                       </SelectItem>

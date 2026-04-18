@@ -21,6 +21,7 @@ import {
 import { SelectGroup, SelectLabel } from "@/components/ui/select";
 import { ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ComposedChart, Area } from "recharts";
 import { useUpload } from "@workspace/object-storage-web";
+import { IMPLEMENT_TYPES } from "@/lib/equipmentTypes";
 
 function getCropYear(date: Date): { label: string; start: Date; end: Date } {
   const aug = new Date(date.getFullYear(), 7, 1);
@@ -1634,6 +1635,7 @@ export default function FuelEnergyPage() {
   const readings: Record<string, unknown>[] = readingsQ.data ?? [];
   const stockChecks: Record<string, unknown>[] = stockChecksQ.data ?? [];
   const equipment: Record<string, unknown>[] = equipmentQ.data ?? [];
+  const motorEquipment: Record<string, unknown>[] = equipment.filter(e => !IMPLEMENT_TYPES.has(String(e.type ?? "")));
   const members: Record<string, unknown>[] = membersQ.data ?? [];
 
   useEffect(() => {
@@ -2578,9 +2580,9 @@ export default function FuelEnergyPage() {
             <div>
               <Label>Vehicle / Machine</Label>
               <Select value={usageForm.vehicleName ?? ""} onValueChange={v => setUsageForm(f => ({ ...f, vehicleName: v, vehicleNameCustom: "" }))}>
-                <SelectTrigger><SelectValue placeholder={equipment.length ? "Select vehicle / machine" : "No equipment registered"} /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={motorEquipment.length ? "Select vehicle / machine" : "No equipment registered"} /></SelectTrigger>
                 <SelectContent>
-                  {equipment.map(e => <SelectItem key={String(e.id)} value={String(e.name)}>{String(e.name)}</SelectItem>)}
+                  {motorEquipment.map(e => <SelectItem key={String(e.id)} value={String(e.name)}>{String(e.name)}</SelectItem>)}
                   <SelectItem value="__custom__">Other — type manually…</SelectItem>
                 </SelectContent>
               </Select>
