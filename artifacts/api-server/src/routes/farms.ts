@@ -5765,13 +5765,22 @@ router.get("/help/articles", async (_req: Request, res: Response): Promise<void>
 
 <p>The <strong>Equipment &amp; Vehicles</strong> page is the central record for all machinery and vehicle maintenance on your holding. It tracks MOT test dates, scheduled service intervals, and calibration due dates, surfacing overdue items as colour-coded alerts so nothing slips through between inspections.</p>
 
-<h3>The Equipment List</h3>
-<p>Each piece of equipment is shown as a row in the register. Two columns give an at-a-glance status without opening any record:</p>
+<h3>The Equipment Register</h3>
+<p>Equipment is displayed in a grouped table, organised by equipment type (Tractors, Combines, Telehandlers, Seed Drills, and so on). Two columns give an at-a-glance maintenance status for each asset:</p>
 <ul>
-<li><strong>MOT Due</strong> — the next MOT date from the most recent MOT Test log. Displayed as a green (OK), amber (due within 90 days), or red (overdue) badge.</li>
-<li><strong>Next Service</strong> — the next service date from the most recent service log. Same traffic-light colour coding.</li>
+<li><strong>MOT Due</strong> — the next MOT date, shown as a green (OK), amber (due within 90 days), or red (overdue) badge.</li>
+<li><strong>Next Service</strong> — the next service interval date, colour-coded the same way.</li>
 </ul>
-<p>Clicking the <strong>Manage</strong> button on any row opens the full record.</p>
+<p>Clicking <strong>Actions</strong> on any row opens a menu with options to manage the record, print a QR label, or record a disposal.</p>
+
+<h3>Searching and Filtering by Type</h3>
+<p>Use the <strong>search box</strong> at the top of the register to filter by equipment name, make, model, serial number, or registration plate as you type. If your fleet contains more than one equipment type, a row of <strong>type filter chips</strong> appears below the search bar — for example <em>All (12)</em>, <em>Tractor (4)</em>, <em>Telehandler / Handler (2)</em>. Clicking a chip shows only that category; clicking it again returns to the full grouped view. When a type filter is active, the group headers are hidden and only the filtered results are shown.</p>
+
+<h3>Printing the Register</h3>
+<p>The <strong>Print Register</strong> button generates an A4 landscape report grouped by equipment type. Each group opens with a dark header row showing the type name and count, followed by rows for Asset No., Name, Make/Model, Serial/Reg, Year, Status, and Next Service date. The report always covers your full fleet regardless of any active screen filters, so it is suitable for presenting at a Red Tractor inspection.</p>
+
+<h3>QR Labels for Equipment</h3>
+<p>Open the <strong>Actions</strong> menu on any equipment row and select <strong>Print QR Label</strong>. A 62 × 90 mm print dialog opens showing the label with the equipment name, asset number, and a scannable QR code. The code encodes a unique BDE Farm Trac reference (<code>EQ-XXXX</code>) that the mobile app recognises instantly when scanned. After scanning, the app displays the equipment record and offers four quick actions: Report Defect, Log Service, Record Fuel Drawdown, and Calibration Check.</p>
 
 <h3>Service &amp; MOT History Tab</h3>
 <p>Inside the Manage dialog, click the <strong>Service &amp; MOT History</strong> tab to see a complete maintenance history for that asset and to add new records.</p>
@@ -6952,7 +6961,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h3>The Five Workshop Tabs</h3>
 <ul>
-<li><strong>Assets &amp; QR Codes</strong> — Register every piece of equipment with a unique <strong>EQ-XXXX</strong> code. Generate and print a scannable QR label for instant mobile access from the field or workshop.</li>
+<li><strong>Assets &amp; QR Codes</strong> — A mirrored view of your full equipment fleet, grouped by type. Use the search bar and type filter chips to narrow the list, then tap the QR icon on any row to generate and print a scannable QR label. A <strong>Print Register</strong> button exports an A4 landscape report of all assets, grouped by type, suitable for inspection.</li>
 <li><strong>Job Cards</strong> — Raise a job card for any repair, scheduled service, inspection, or investigation. Set the priority (Low, Medium, High, Critical) and track progress through Open → In Progress → Awaiting Parts → Completed. Record labour time, root cause analysis, and attach documents or photos. When parts are issued from the Parts Store to a job card, the job displays a full costed parts breakdown — part name, quantity, unit cost, and line total — and the parts cost field updates automatically in real time.</li>
 <li><strong>Service Schedule</strong> — A consolidated view of all upcoming and overdue maintenance events across every registered asset, pulled from maintenance records entered on the Equipment page. Each card shows the asset name, service type, and a colour-coded status badge: <em>Overdue</em> (red), <em>Due Soon within 14 days</em> (amber), or the scheduled due date (green). Click any card to open a full detail modal showing all recorded fields — date performed, who carried out the work, cost, parts used, and notes. A <strong>Log Service Done</strong> button is available both on the card and inside the detail modal: clicking it opens a quick-log form where you can record the date performed, who did the work, the new next-due date, cost, parts used, and any notes. Saving the log creates a new maintenance record on the Equipment page and immediately refreshes the schedule — once a newer record supersedes the previous one for that asset and service type, the card updates automatically. Overdue summary counters at the top of the tab show at a glance how many assets need attention.</li>
 <li><strong>Fleet Overview</strong> — A live summary of every registered asset: status (Operational, Broken Down, In Service, Retired, Sold), hours or odometer reading, and current location. Assets with overdue maintenance are highlighted automatically.</li>
@@ -6990,7 +6999,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-family:monospace;font-weight:bold;color:#0f766e;">FLD-XXXX</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Field</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Fields &amp; Crops page → field card menu → Generate QR Label</td></tr>
 <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-family:monospace;font-weight:bold;color:#0f766e;">ANM-XXXX</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Individual Animal</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Livestock page → Animals tab → QR icon in the animal row</td></tr>
 <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-family:monospace;font-weight:bold;color:#0f766e;">STG-XXXX</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Storage Location</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Storage Locations page → QR icon in the location row</td></tr>
-<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-family:monospace;font-weight:bold;color:#0f766e;">EQ-XXXX</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Equipment Asset</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Workshop page → QR Code Labels tab → Generate Label</td></tr>
+<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-family:monospace;font-weight:bold;color:#0f766e;">EQ-XXXX</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Equipment Asset</td><td style="padding:8px 12px;border:1px solid #e5e7eb;">Machinery &amp; Equipment page → Actions menu → Print QR Label; or Workshop → Assets &amp; QR Codes tab → QR icon in the asset row</td></tr>
 </tbody>
 </table>
 
@@ -7000,9 +7009,17 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <li><strong>Fields (FLD-):</strong> Log Crop Event, Record Spray Application, Log Soil Sample, Field Inspection</li>
 <li><strong>Animals (ANM-):</strong> Log Medicine / Treatment, Mobility Score, Calving Record</li>
 <li><strong>Storage (STG-):</strong> Log Biofuel Delivery, Log Feed Record</li>
-<li><strong>Equipment (EQ-):</strong> Report Defect / Fault</li>
+<li><strong>Equipment (EQ-):</strong> Report Defect / Fault, Log Service / Workshop Job, Record Fuel Drawdown, Calibration Check</li>
 </ul>
 <p>Tap a quick action to open the relevant form, pre-filled with the entity name and ID. Complete the form and save — the record is stored immediately and syncs to the cloud dashboard.</p>
+
+<h3>Inline Scan Buttons in Forms</h3>
+<p>You do not always need to scan from the main scanner hub. Many forms in the mobile app include a small <strong>camera icon</strong> button next to equipment, field, or storage pickers. Tapping it opens the camera within the form — scan the label and the relevant field is filled in automatically. This works for:</p>
+<ul>
+<li>The <strong>Equipment</strong> field in Defect Reports — tap the camera icon next to "Equipment" to scan the machine's QR label and identify it without scrolling a long list.</li>
+<li>The <strong>Field</strong> selector on all field-operation forms — scan a field boundary post or signage to select the correct field.</li>
+<li>The <strong>Storage Location</strong> selector on delivery and stock forms — scan the bin, tank, or store door label to select the correct location.</li>
+</ul>
 
 <h3>Unrecognised Codes</h3>
 <p>If the app cannot match a code, it shows an error message explaining the issue. This can happen if you scan a QR code from a different system, or if the label was generated for a different farm. Make sure you are scanning a BDE Farm Trac label starting with one of the four recognised prefixes.</p>
