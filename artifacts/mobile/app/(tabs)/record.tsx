@@ -172,6 +172,7 @@ const recordOptions: RecordOption[] = [
     color: "#059669",
     bgColor: "#d1fae5",
     route: "/service-job",
+    moduleKeys: ["haulage-transport"],
   },
   {
     id: "seed-drilling",
