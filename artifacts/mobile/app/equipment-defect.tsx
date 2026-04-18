@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { QrScanModal, type BdeScanResult } from "@/components/ui/QrScanModal";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -42,9 +43,11 @@ export default function EquipmentDefectScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const params = useLocalSearchParams<{ assetId?: string; assetName?: string }>();
   const [saving, setSaving] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
 
-  const [equipmentName, setEquipmentName] = useState("");
+  const [equipmentName, setEquipmentName] = useState(params.assetName ?? "");
   const [reportedBy, setReportedBy] = useState(user?.name || "");
   const [defectDescription, setDefectDescription] = useState("");
   const [severity, setSeverity] = useState<Severity>("minor");
@@ -113,10 +116,28 @@ export default function EquipmentDefectScreen() {
           contentContainerStyle={styles.form}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.sectionLabel}>
-            <Feather name="tool" size={14} color={colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Equipment</Text>
+          <View style={[styles.sectionLabel, { justifyContent: "space-between" }]}>
+            <View style={styles.sectionLabel}>
+              <Feather name="tool" size={14} color={colors.textSecondary} />
+              <Text style={styles.sectionTitle}>Equipment</Text>
+            </View>
+            <Pressable
+              style={styles.qrScanPill}
+              onPress={() => { Haptics.selectionAsync(); setScanOpen(true); }}
+            >
+              <Feather name="camera" size={13} color={colors.primary} />
+              <Text style={styles.qrScanPillText}>Scan QR</Text>
+            </Pressable>
           </View>
+
+          <QrScanModal
+            visible={scanOpen}
+            onClose={() => setScanOpen(false)}
+            onResolved={(r: BdeScanResult) => setEquipmentName((r.data.name as string) || `Asset #${r.data.id}`)}
+            entityType="equipment"
+            title="Scan Equipment QR Label"
+          />
+
           <View style={styles.chipRow}>
             {COMMON_EQUIPMENT.map((e) => (
               <Pressable
@@ -245,6 +266,22 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  qrScanPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.primary + "40",
+    backgroundColor: colors.primary + "0e",
+  },
+  qrScanPillText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.primary,
   },
   chipRow: {
     flexDirection: "row",

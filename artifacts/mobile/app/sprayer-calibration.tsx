@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -37,11 +37,12 @@ export default function SprayerCalibrationScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const params = useLocalSearchParams<{ assetId?: string; assetName?: string }>();
   const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [sprayerName, setSprayerName] = useState("");
+  const [sprayerName, setSprayerName] = useState(params.assetName ?? "");
   const [calibrationDate, setCalibrationDate] = useState(today);
   const [calibratedBy, setCalibratedBy] = useState(user?.name || "");
   const [certificationNumber, setCertificationNumber] = useState("");

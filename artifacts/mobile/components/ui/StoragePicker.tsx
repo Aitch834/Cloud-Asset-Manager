@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { QrScanModal, type BdeScanResult } from "@/components/ui/QrScanModal";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -35,11 +36,21 @@ interface StoragePickerProps {
   loading: boolean;
   error: string | null;
   label?: string;
+  allowScan?: boolean;
 }
 
-export function StoragePicker({ value, onChange, locations, loading, error, label = "Storage Destination" }: StoragePickerProps) {
+export function StoragePicker({
+  value,
+  onChange,
+  locations,
+  loading,
+  error,
+  label = "Storage Destination",
+  allowScan = true,
+}: StoragePickerProps) {
   const insets = useSafeAreaInsets();
   const [modalOpen, setModalOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
   const [search, setSearch] = useState("");
 
   const filtered = search.trim()
@@ -53,24 +64,47 @@ export function StoragePicker({ value, onChange, locations, loading, error, labe
     setSearch("");
   };
 
+  function handleScanResolved(result: BdeScanResult) {
+    const name = (result.data.name as string) || `Store #${result.data.id}`;
+    onChange(name);
+  }
+
   const noLocations = !loading && locations.length === 0;
 
   if (noLocations || error) {
     return (
       <View style={styles.wrapper}>
         {label ? <Text style={styles.label}>{label}</Text> : null}
-        <TextInput
-          style={styles.textInput}
-          placeholder="e.g. Home store bin 2, Co-op Dereham"
-          placeholderTextColor={colors.textSecondary}
-          value={value}
-          onChangeText={onChange}
-        />
+        <View style={styles.selectorRow}>
+          <TextInput
+            style={[styles.textInput, { flex: 1 }]}
+            placeholder="e.g. Home store bin 2, Co-op Dereham"
+            placeholderTextColor={colors.textSecondary}
+            value={value}
+            onChangeText={onChange}
+          />
+          {allowScan && (
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setScanOpen(true); }}
+              style={styles.scanBtn}
+              hitSlop={6}
+            >
+              <Feather name="camera" size={18} color={colors.primary} />
+            </Pressable>
+          )}
+        </View>
         {error ? (
           <Text style={styles.hintText}>Using free text — storage locations could not be loaded.</Text>
         ) : (
           <Text style={styles.hintText}>No storage locations set up yet. Add them in the web dashboard, or type here.</Text>
         )}
+        <QrScanModal
+          visible={scanOpen}
+          onClose={() => setScanOpen(false)}
+          onResolved={handleScanResolved}
+          entityType="storage"
+          title="Scan Storage QR Code"
+        />
       </View>
     );
   }
@@ -79,22 +113,47 @@ export function StoragePicker({ value, onChange, locations, loading, error, labe
     <>
       <View style={styles.wrapper}>
         {label ? <Text style={styles.label}>{label}</Text> : null}
-        <Pressable
-          onPress={() => { Haptics.selectionAsync(); setModalOpen(true); }}
-          style={[styles.selector, !value && styles.selectorEmpty]}
-        >
-          <Feather name="database" size={15} color={value ? colors.fieldGold : colors.textSecondary} />
-          <Text style={[styles.selectorText, !value && styles.selectorPlaceholder]} numberOfLines={1}>
-            {value || "Select storage location…"}
-          </Text>
-          {loading
-            ? <ActivityIndicator size="small" color={colors.textSecondary} />
-            : <Feather name="chevron-down" size={16} color={colors.textSecondary} />
-          }
-        </Pressable>
+        <View style={styles.selectorRow}>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); setModalOpen(true); }}
+            style={[styles.selector, !value && styles.selectorEmpty]}
+          >
+            <Feather name="database" size={15} color={value ? colors.fieldGold : colors.textSecondary} />
+            <Text style={[styles.selectorText, !value && styles.selectorPlaceholder]} numberOfLines={1}>
+              {value || "Select storage location…"}
+            </Text>
+            {loading
+              ? <ActivityIndicator size="small" color={colors.textSecondary} />
+              : <Feather name="chevron-down" size={16} color={colors.textSecondary} />
+            }
+          </Pressable>
+
+          {allowScan && (
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setScanOpen(true); }}
+              style={styles.scanBtn}
+              hitSlop={6}
+            >
+              <Feather name="camera" size={18} color={colors.primary} />
+            </Pressable>
+          )}
+        </View>
       </View>
 
-      <Modal visible={modalOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setModalOpen(false); setSearch(""); }}>
+      <QrScanModal
+        visible={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onResolved={handleScanResolved}
+        entityType="storage"
+        title="Scan Storage QR Code"
+      />
+
+      <Modal
+        visible={modalOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => { setModalOpen(false); setSearch(""); }}
+      >
         <View style={[styles.modal, { paddingTop: insets.top + spacing.sm }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Select Storage Location</Text>
@@ -178,6 +237,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.xs,
   },
+  selectorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
   textInput: {
     fontFamily: fonts.regular,
     fontSize: fontSize.md,
@@ -196,6 +260,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   selector: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
@@ -218,6 +283,16 @@ const styles = StyleSheet.create({
   selectorPlaceholder: {
     color: colors.textSecondary,
     fontFamily: fonts.regular,
+  },
+  scanBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary + "40",
+    backgroundColor: colors.primary + "0e",
+    alignItems: "center",
+    justifyContent: "center",
   },
   modal: {
     flex: 1,

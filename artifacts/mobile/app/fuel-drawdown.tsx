@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
@@ -42,12 +42,13 @@ export default function FuelDrawdownScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const params = useLocalSearchParams<{ assetId?: string; assetName?: string }>();
   const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
 
   const [tankName, setTankName] = useState("");
-  const [vehicleName, setVehicleName] = useState("");
+  const [vehicleName, setVehicleName] = useState(params.assetName ?? "");
   const [quantityLitres, setQuantityLitres] = useState("");
   const [purpose, setPurpose] = useState("");
   const [qualifyingActivity, setQualifyingActivity] = useState<QualifyingActivity>("agriculture");

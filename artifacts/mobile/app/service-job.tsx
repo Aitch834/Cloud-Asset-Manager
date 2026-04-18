@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
@@ -50,6 +50,7 @@ export default function ServiceJobScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const params = useLocalSearchParams<{ assetId?: string; assetName?: string }>();
   const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
@@ -58,7 +59,7 @@ export default function ServiceJobScreen() {
   const [customerName, setCustomerName] = useState("");
   const [jobType, setJobType] = useState("");
   const [hoursWorked, setHoursWorked] = useState("");
-  const [equipmentUsed, setEquipmentUsed] = useState("");
+  const [equipmentUsed, setEquipmentUsed] = useState(params.assetName ?? "");
   const [rateType, setRateType] = useState<RateType>("per_hour");
   const [rateAmount, setRateAmount] = useState("");
   const [fieldOrLocation, setFieldOrLocation] = useState("");

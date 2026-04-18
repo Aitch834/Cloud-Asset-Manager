@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { QrScanModal, type BdeScanResult } from "@/components/ui/QrScanModal";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -27,11 +28,23 @@ interface FieldPickerProps {
   fromCache?: boolean;
   error: string | null;
   label?: string;
+  allowScan?: boolean;
 }
 
-export function FieldPicker({ value, onChange, onChangeField, fields, loading, fromCache, error, label = "Field" }: FieldPickerProps) {
+export function FieldPicker({
+  value,
+  onChange,
+  onChangeField,
+  fields,
+  loading,
+  fromCache,
+  error,
+  label = "Field",
+  allowScan = true,
+}: FieldPickerProps) {
   const insets = useSafeAreaInsets();
   const [modalOpen, setModalOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
   const [search, setSearch] = useState("");
 
   const filtered = search.trim()
@@ -46,29 +59,56 @@ export function FieldPicker({ value, onChange, onChangeField, fields, loading, f
     setSearch("");
   };
 
+  function handleScanResolved(result: BdeScanResult) {
+    const data = result.data as unknown as ApiField;
+    const name = (data.name as string) || `Field #${data.id}`;
+    onChange(name);
+    const matched = fields.find((f) => f.id === (data.id as number));
+    onChangeField?.(matched ?? (data as unknown as ApiField));
+  }
+
   return (
     <>
       <View style={styles.wrapper}>
         {label ? <Text style={styles.label}>{label}</Text> : null}
-        <Pressable
-          onPress={() => { Haptics.selectionAsync(); setModalOpen(true); }}
-          style={[styles.selector, !value && styles.selectorEmpty]}
-        >
-          <Feather name="map-pin" size={15} color={value ? colors.primary : colors.textSecondary} />
-          <Text style={[styles.selectorText, !value && styles.selectorPlaceholder]} numberOfLines={1}>
-            {value || "Select a field…"}
-          </Text>
-          {loading
-            ? <ActivityIndicator size="small" color={colors.textSecondary} />
-            : <Feather name="chevron-down" size={16} color={colors.textSecondary} />
-          }
-        </Pressable>
+        <View style={styles.selectorRow}>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); setModalOpen(true); }}
+            style={[styles.selector, !value && styles.selectorEmpty]}
+          >
+            <Feather name="map-pin" size={15} color={value ? colors.primary : colors.textSecondary} />
+            <Text style={[styles.selectorText, !value && styles.selectorPlaceholder]} numberOfLines={1}>
+              {value || "Select a field…"}
+            </Text>
+            {loading
+              ? <ActivityIndicator size="small" color={colors.textSecondary} />
+              : <Feather name="chevron-down" size={16} color={colors.textSecondary} />
+            }
+          </Pressable>
+
+          {allowScan && (
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setScanOpen(true); }}
+              style={styles.scanBtn}
+              hitSlop={6}
+            >
+              <Feather name="camera" size={18} color={colors.primary} />
+            </Pressable>
+          )}
+        </View>
+
         {fromCache && (
-          <Text style={styles.cacheNote}>
-            Offline — showing cached fields list
-          </Text>
+          <Text style={styles.cacheNote}>Offline — showing cached fields list</Text>
         )}
       </View>
+
+      <QrScanModal
+        visible={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onResolved={handleScanResolved}
+        entityType="field"
+        title="Scan Field QR Code"
+      />
 
       <Modal visible={modalOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalOpen(false)}>
         <View style={[styles.modal, { paddingTop: insets.top + spacing.sm }]}>
@@ -165,7 +205,13 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.xs,
   },
+  selectorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
   selector: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
@@ -188,6 +234,16 @@ const styles = StyleSheet.create({
   selectorPlaceholder: {
     color: colors.textSecondary,
     fontFamily: fonts.regular,
+  },
+  scanBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary + "40",
+    backgroundColor: colors.primary + "0e",
+    alignItems: "center",
+    justifyContent: "center",
   },
   cacheNote: {
     fontFamily: fonts.regular,

@@ -63,7 +63,10 @@ const ENTITY_META: Record<EntityType, { label: string; colour: string; icon: key
 
 const QUICK_ACTIONS: Record<EntityType, { label: string; sub: string; icon: keyof typeof Feather.glyphMap; colour: string; bg: string; route: string; paramKey: string; nameKey?: string }[]> = {
   equipment: [
-    { label: "Report Defect / Fault",      sub: "Log a breakdown, fault or safety concern",    icon: "alert-triangle", colour: "#dc2626", bg: "#FEE2E2", route: "/equipment-defect",  paramKey: "assetId",   nameKey: "assetName" },
+    { label: "Report Defect / Fault",      sub: "Log a breakdown, fault or safety concern",       icon: "alert-triangle", colour: "#dc2626", bg: "#FEE2E2", route: "/equipment-defect",  paramKey: "assetId",   nameKey: "assetName" },
+    { label: "Log Service / Workshop Job", sub: "Record a service, repair or inspection job",      icon: "tool",           colour: "#0f766e", bg: "#CCFBF1", route: "/service-job",       paramKey: "assetId",   nameKey: "assetName" },
+    { label: "Record Fuel Drawdown",       sub: "Log fuel drawn from storage for this equipment", icon: "droplet",        colour: "#0369a1", bg: "#DBEAFE", route: "/fuel-drawdown",     paramKey: "assetId",   nameKey: "assetName" },
+    { label: "Calibration Check",          sub: "Record a sprayer or equipment calibration",      icon: "check-circle",   colour: "#7c3aed", bg: "#EDE9FE", route: "/sprayer-calibration", paramKey: "assetId",   nameKey: "assetName" },
   ],
   field: [
     { label: "Log Crop Event",             sub: "Record drilling, spraying or harvest activity", icon: "feather",       colour: "#15803d", bg: "#DCFCE7", route: "/crop-event",        paramKey: "fieldId",   nameKey: "fieldName" },
@@ -82,7 +85,13 @@ const QUICK_ACTIONS: Record<EntityType, { label: string; sub: string; icon: keyo
   ],
 };
 
-function detectEntityType(code: string): EntityType | null {
+function normaliseBdeCode(raw: string): string {
+  const match = raw.match(/^BDE:F\d+:(.+)$/i);
+  return match ? match[1] : raw;
+}
+
+function detectEntityType(raw: string): EntityType | null {
+  const code = normaliseBdeCode(raw);
   if (code.startsWith("EQ-"))  return "equipment";
   if (code.startsWith("FLD-")) return "field";
   if (code.startsWith("ANM-")) return "animal";
@@ -90,7 +99,8 @@ function detectEntityType(code: string): EntityType | null {
   return null;
 }
 
-async function lookupEntity(code: string, type: EntityType, farmId: number, headers: Record<string, string>): Promise<Record<string, unknown> | null> {
+async function lookupEntity(rawCode: string, type: EntityType, farmId: number, headers: Record<string, string>): Promise<Record<string, unknown> | null> {
+  const code = normaliseBdeCode(rawCode);
   const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
   const base = `https://${apiDomain}/api/farms/${farmId}`;
   const endpoints: Record<EntityType, string> = {
@@ -163,16 +173,17 @@ export default function ScanQRScreen() {
 
     const type = detectEntityType(data);
     if (!type) {
-      setError(`Unrecognised code "${data}". Make sure you're scanning a BDE Farm Trac QR label (EQ-, FLD-, ANM-, or STG- prefix).`);
+      setError("Unrecognised code. Make sure you're scanning a BDE Farm Trac QR label.");
       setLoading(false);
       return;
     }
 
+    const normalised = normaliseBdeCode(data);
     try {
       const headers = await getAuthHeaders();
       const entityData = await lookupEntity(data, type, currentFarm.id, headers);
       if (entityData) {
-        setResult({ type, code: data, data: entityData });
+        setResult({ type, code: normalised, data: entityData });
       } else {
         setError(`No record found for "${data}". Make sure you scanned a label generated in BDE Farm Trac.`);
       }
