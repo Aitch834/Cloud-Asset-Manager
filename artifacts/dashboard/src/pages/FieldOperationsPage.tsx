@@ -205,18 +205,10 @@ export default function FieldOperationsPage() {
     select: (d) => d.records ?? [],
   });
 
-  const modulesQ = useQuery({
-    queryKey: ["farm-modules", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/modules`).then((r) => r.json()),
-    enabled: !!farmId,
-  });
-  const activeModuleKeys: string[] = modulesQ.data?.activeModuleKeys ?? [];
-  const hasEquipmentModule = activeModuleKeys.includes("equipment-management");
-
   const equipmentQ = useQuery({
     queryKey: ["equipment", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/equipment`).then((r) => r.json()),
-    enabled: !!farmId && hasEquipmentModule,
+    enabled: !!farmId,
     select: (d) => d.records ?? [],
   });
   const equipmentList: any[] = equipmentQ.data ?? [];
@@ -891,96 +883,80 @@ export default function FieldOperationsPage() {
             {/* Vehicle */}
             <div className="space-y-1.5">
               <Label>Vehicle / Tractor</Label>
-              {hasEquipmentModule ? (
-                <Select
-                  value={form.vehicleId || "__none__"}
-                  onValueChange={(v) => {
-                    if (v === "__none__") {
-                      setForm((f) => ({ ...f, vehicleId: "", vehicleDescription: "" }));
-                      return;
-                    }
-                    const eq = equipmentList.find((e: any) => e.id.toString() === v);
-                    const label = eq
-                      ? [eq.name, eq.make, eq.model].filter(Boolean).join(" — ") + (eq.registrationNumber ? ` (${eq.registrationNumber})` : "")
-                      : "";
-                    setForm((f) => ({ ...f, vehicleId: v, vehicleDescription: label }));
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select vehicle…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">None / N/A</SelectItem>
-                    {vehicleEquipment.map((e: any) => (
-                      <SelectItem key={e.id} value={e.id.toString()}>
-                        {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
-                        {e.registrationNumber ? ` (${e.registrationNumber})` : ""}
-                      </SelectItem>
-                    ))}
-                    {unknownEquipment.length > 0 && vehicleEquipment.length > 0 && (
-                      <SelectItem value="__separator__" disabled>── Other Equipment ──</SelectItem>
-                    )}
-                    {unknownEquipment.map((e: any) => (
-                      <SelectItem key={e.id} value={e.id.toString()}>
-                        {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
-                        {e.registrationNumber ? ` (${e.registrationNumber})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  placeholder="e.g. JD 6R 185 (YT23 ABC)"
-                  value={form.vehicleDescription}
-                  onChange={(e) => setForm((f) => ({ ...f, vehicleDescription: e.target.value }))}
-                />
-              )}
+              <Select
+                value={form.vehicleId || "__none__"}
+                onValueChange={(v) => {
+                  if (v === "__none__") {
+                    setForm((f) => ({ ...f, vehicleId: "", vehicleDescription: "" }));
+                    return;
+                  }
+                  const eq = equipmentList.find((e: any) => e.id.toString() === v);
+                  const label = eq
+                    ? [eq.name, eq.make, eq.model].filter(Boolean).join(" — ") + (eq.registrationNumber ? ` (${eq.registrationNumber})` : "")
+                    : "";
+                  setForm((f) => ({ ...f, vehicleId: v, vehicleDescription: label }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select vehicle…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None / N/A</SelectItem>
+                  {vehicleEquipment.map((e: any) => (
+                    <SelectItem key={e.id} value={e.id.toString()}>
+                      {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                      {e.registrationNumber ? ` (${e.registrationNumber})` : ""}
+                    </SelectItem>
+                  ))}
+                  {unknownEquipment.length > 0 && vehicleEquipment.length > 0 && (
+                    <SelectItem value="__separator__" disabled>── Other Equipment ──</SelectItem>
+                  )}
+                  {unknownEquipment.map((e: any) => (
+                    <SelectItem key={e.id} value={e.id.toString()}>
+                      {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                      {e.registrationNumber ? ` (${e.registrationNumber})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Implement + Operator */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div className="space-y-1.5">
                 <Label>Implement / Machinery</Label>
-                {hasEquipmentModule ? (
-                  <Select
-                    value={form.implementId || "__none__"}
-                    onValueChange={(v) => {
-                      if (v === "__none__") {
-                        setForm((f) => ({ ...f, implementId: "", implement: "" }));
-                        return;
-                      }
-                      const eq = equipmentList.find((e: any) => e.id.toString() === v);
-                      const label = eq ? [eq.name, eq.make, eq.model].filter(Boolean).join(" — ") : "";
-                      setForm((f) => ({ ...f, implementId: v, implement: label }));
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select implement…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">None / N/A</SelectItem>
-                      {implementEquipment.map((e: any) => (
-                        <SelectItem key={e.id} value={e.id.toString()}>
-                          {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
-                        </SelectItem>
-                      ))}
-                      {unknownEquipment.length > 0 && implementEquipment.length > 0 && (
-                        <SelectItem value="__separator2__" disabled>── Other Equipment ──</SelectItem>
-                      )}
-                      {unknownEquipment.map((e: any) => (
-                        <SelectItem key={e.id} value={e.id.toString()}>
-                          {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    placeholder="e.g. Vaderstad Topdown 400"
-                    value={form.implement}
-                    onChange={(e) => setForm((f) => ({ ...f, implement: e.target.value }))}
-                  />
-                )}
+                <Select
+                  value={form.implementId || "__none__"}
+                  onValueChange={(v) => {
+                    if (v === "__none__") {
+                      setForm((f) => ({ ...f, implementId: "", implement: "" }));
+                      return;
+                    }
+                    const eq = equipmentList.find((e: any) => e.id.toString() === v);
+                    const label = eq ? [eq.name, eq.make, eq.model].filter(Boolean).join(" — ") : "";
+                    setForm((f) => ({ ...f, implementId: v, implement: label }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select implement…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None / N/A</SelectItem>
+                    {implementEquipment.map((e: any) => (
+                      <SelectItem key={e.id} value={e.id.toString()}>
+                        {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                      </SelectItem>
+                    ))}
+                    {unknownEquipment.length > 0 && implementEquipment.length > 0 && (
+                      <SelectItem value="__separator2__" disabled>── Other Equipment ──</SelectItem>
+                    )}
+                    {unknownEquipment.map((e: any) => (
+                      <SelectItem key={e.id} value={e.id.toString()}>
+                        {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Operator</Label>
