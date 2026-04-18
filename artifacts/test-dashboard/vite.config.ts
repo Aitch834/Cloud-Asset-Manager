@@ -32,6 +32,7 @@ export default defineConfig({
     react({
       include: [
         path.resolve(import.meta.dirname, "src") + "/**/*.{tsx,ts,jsx,js}",
+        path.resolve(import.meta.dirname, "../dashboard/src") + "/**/*.{tsx,ts,jsx,js}",
         path.resolve(import.meta.dirname, "index.html"),
       ],
     }),
