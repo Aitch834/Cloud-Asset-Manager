@@ -176,6 +176,7 @@ export default function FieldOperationsPage() {
   const [showDialog, setShowDialog] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [viewRecord, setViewRecord] = useState<any>(null);
+  const [areaAutoSource, setAreaAutoSource] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(blank());
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [showCostSummary, setShowCostSummary] = useState(false);
@@ -310,11 +311,13 @@ export default function FieldOperationsPage() {
   function openAdd() {
     setEditId(null);
     setForm(blank());
+    setAreaAutoSource(null);
     setShowDialog(true);
   }
 
   function openEdit(r: any) {
     setEditId(r.id);
+    setAreaAutoSource(null);
     const hasDbField = r.fieldId && r.fieldId.toString() !== "" && r.fieldId.toString() !== "0";
     setForm({
       fieldName: r.fieldName ?? "",
@@ -345,12 +348,26 @@ export default function FieldOperationsPage() {
 
   function handleFieldSelect(fid: string) {
     const field = (fieldsQ.data ?? []).find((f: any) => f.id.toString() === fid);
-    setForm((f) => ({
-      ...f,
-      fieldId: fid,
-      fieldName: field?.name ?? f.fieldName,
-      areaHa: f.areaHa || (field?.areaHa ? parseFloat(field.areaHa).toFixed(2) : ""),
-    }));
+    setForm((prev) => {
+      if (prev.areaHa) return { ...prev, fieldId: fid, fieldName: field?.name ?? prev.fieldName };
+      const computedFarmable = field?.computedFarmableAreaHa;
+      const manualFarmable = field?.farmableAreaHectares;
+      const gross = field?.areaHectares;
+      let autoArea = "";
+      let autoSource: string | null = null;
+      if (computedFarmable && parseFloat(computedFarmable) > 0) {
+        autoArea = parseFloat(computedFarmable).toFixed(2);
+        autoSource = "farmable area (gross minus enclosed features)";
+      } else if (manualFarmable && parseFloat(manualFarmable) > 0) {
+        autoArea = parseFloat(manualFarmable).toFixed(2);
+        autoSource = "recorded farmable area";
+      } else if (gross && parseFloat(gross) > 0) {
+        autoArea = parseFloat(gross).toFixed(2);
+        autoSource = "registered gross field area";
+      }
+      setAreaAutoSource(autoSource);
+      return { ...prev, fieldId: fid, fieldName: field?.name ?? prev.fieldName, areaHa: autoArea };
+    });
   }
 
   function handleOpTypeChange(val: string) {
@@ -798,8 +815,13 @@ export default function FieldOperationsPage() {
                   step="0.01"
                   placeholder="0.00"
                   value={form.areaHa}
-                  onChange={(e) => setForm((f) => ({ ...f, areaHa: e.target.value }))}
+                  onChange={(e) => { setAreaAutoSource(null); setForm((f) => ({ ...f, areaHa: e.target.value })); }}
                 />
+                {areaAutoSource && (
+                  <p className="text-xs text-green-700 flex items-center gap-1">
+                    <span>↑ Auto-filled from {areaAutoSource}. Edit if the worked area differs.</span>
+                  </p>
+                )}
               </div>
             </div>
 
