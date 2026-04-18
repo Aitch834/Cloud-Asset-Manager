@@ -731,25 +731,42 @@ export default function EquipmentPage() {
   }
 
   const handleEquipmentPrint = () => {
-    const tableHtml = `<table><thead><tr>
-      <th>Name</th><th>Type</th><th>Make / Model</th><th>Serial / Reg</th><th>Year</th><th>Status</th><th>Next Calibration</th>
-    </tr></thead><tbody>${allEquipment.map(item => `<tr>
+    const printGroups: { label: string; items: EquipmentRecord[] }[] = [];
+    for (const t of EQUIPMENT_TYPES) {
+      const items = allEquipment.filter(e => e.type === t.value);
+      if (items.length) printGroups.push({ label: t.label, items });
+    }
+    const unknownPrint = allEquipment.filter(e => !EQUIPMENT_TYPES.some(t => t.value === e.type));
+    if (unknownPrint.length) printGroups.push({ label: "Other / Unclassified", items: unknownPrint });
+
+    const cols = `<th>Asset No.</th><th>Name</th><th>Make / Model</th><th>Serial / Reg</th><th>Year</th><th>Status</th><th>Next Service</th>`;
+    const itemRow = (item: EquipmentRecord) => `<tr>
+      <td style="font-family:monospace">${item.assetNumber || `EQ-${String(item.id).padStart(4, "0")}`}</td>
       <td><strong>${item.name || "Asset #" + item.id}</strong></td>
-      <td>${item.type || "—"}</td>
       <td>${[item.make, item.model].filter(Boolean).join(" ") || "—"}</td>
       <td style="font-family:monospace">${item.serialNumber || item.registrationNumber || "—"}</td>
       <td>${item.yearOfManufacture || "—"}</td>
       <td>${item.status === "disposed" ? `Disposed — ${disposalLabel(item.disposalMethod)}${item.disposalDate ? " (" + new Date(item.disposalDate).toLocaleDateString("en-GB") + ")" : ""}` : "Active"}</td>
-      <td>${item.nextCalibrationDue ? new Date(item.nextCalibrationDue).toLocaleDateString("en-GB") : "—"}</td>
-    </tr>`).join("")}</tbody></table>`;
+      <td>${item.nextServiceDue ? new Date(item.nextServiceDue).toLocaleDateString("en-GB") : "—"}</td>
+    </tr>`;
+
+    const tableHtml = printGroups.map(group => `
+      <tr style="background:#1a3a1a!important">
+        <td colspan="7" style="padding:5px 6px;font-size:8.5px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.07em;border:none">
+          ${group.label} <span style="font-weight:400;opacity:0.7">(${group.items.length})</span>
+        </td>
+      </tr>
+      ${group.items.map(itemRow).join("")}
+    `).join("");
+
     printProReport({
       title: "Machinery & Equipment Register",
       farmName: farm?.name,
       cphNumber: farm?.cphNumber ?? undefined,
       recordCount: allEquipment.length,
       recordLabel: "item",
-      tableHtml,
-      landscape: false,
+      tableHtml: `<table><thead><tr>${cols}</tr></thead><tbody>${tableHtml}</tbody></table>`,
+      landscape: true,
     });
   };
 

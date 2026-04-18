@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Redirect, Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { EQUIPMENT_TYPES } from "@/lib/equipmentTypes";
+import { printProReport } from "@/lib/print-report";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
 const api = (path: string) => `/api/${path}`;
@@ -213,6 +214,47 @@ function AssetsTab({ farmId }: { farmId: number }) {
   const wsUnknownItems = wsFiltered.filter(e => !EQUIPMENT_TYPES.some(t => t.value === e.type));
   if (wsUnknownItems.length) wsGrouped.push({ label: "Other / Unclassified", value: "__unknown", items: wsUnknownItems });
 
+  const handleAssetPrint = () => {
+    const printGroups: { label: string; items: Equipment[] }[] = [];
+    for (const t of EQUIPMENT_TYPES) {
+      const items = allEquipment.filter(e => e.type === t.value);
+      if (items.length) printGroups.push({ label: t.label, items });
+    }
+    const unknownPrint = allEquipment.filter(e => !EQUIPMENT_TYPES.some(t => t.value === e.type));
+    if (unknownPrint.length) printGroups.push({ label: "Other / Unclassified", items: unknownPrint });
+
+    const cols = `<th>Asset No.</th><th>Name</th><th>Type</th><th>Make / Model</th><th>Serial / Reg</th><th>Status</th><th>Hours</th><th>Location</th>`;
+    const itemRow = (eq: Equipment) => `<tr>
+      <td style="font-family:monospace;font-weight:600">${eq.assetNumber || `EQ-${String(eq.id).padStart(4, "0")}`}</td>
+      <td><strong>${eq.name}</strong></td>
+      <td>${eq.type || "—"}</td>
+      <td>${[eq.make, eq.model].filter(Boolean).join(" ") || "—"}</td>
+      <td style="font-family:monospace">${eq.serialNumber || eq.registrationNumber || "—"}</td>
+      <td>${eq.status === "disposed" ? "Disposed" : "Active"}</td>
+      <td>${eq.currentHours != null ? eq.currentHours + " hrs" : "—"}</td>
+      <td>${eq.location || "—"}</td>
+    </tr>`;
+
+    const rows = printGroups.map(group => `
+      <tr style="background:#1a3a1a!important">
+        <td colspan="8" style="padding:5px 6px;font-size:8.5px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.07em;border:none">
+          ${group.label} <span style="font-weight:400;opacity:0.7">(${group.items.length})</span>
+        </td>
+      </tr>
+      ${group.items.map(itemRow).join("")}
+    `).join("");
+
+    printProReport({
+      title: "Workshop & Asset Register",
+      farmName: farmName,
+      recordCount: allEquipment.length,
+      recordLabel: "asset",
+      tableHtml: `<table><thead><tr>${cols}</tr></thead><tbody>${rows}</tbody></table>`,
+      landscape: true,
+      footerNote: "Asset register for workshop planning and compliance. Retain with service records for Red Tractor audit inspection.",
+    });
+  };
+
   return (
     <div>
       {qrEquip && <QRDialog equip={qrEquip} farmId={farmId} farmName={farmName} onClose={() => setQrEquip(null)} />}
@@ -231,12 +273,18 @@ function AssetsTab({ farmId }: { farmId: number }) {
                 className="w-full h-8 pl-8 pr-3 text-xs rounded-md border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
-            {disposedCount > 0 && (
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 ml-auto" onClick={() => setShowDisposed(v => !v)}>
-                {showDisposed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                {showDisposed ? "Hide disposed assets" : `Show ${disposedCount} disposed asset${disposedCount !== 1 ? "s" : ""}`}
+            <div className="flex items-center gap-2 ml-auto">
+              {disposedCount > 0 && (
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={() => setShowDisposed(v => !v)}>
+                  {showDisposed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {showDisposed ? "Hide disposed" : `Show ${disposedCount} disposed`}
+                </Button>
+              )}
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={handleAssetPrint} disabled={allEquipment.length === 0}>
+                <Printer className="h-3.5 w-3.5" />
+                Print Register
               </Button>
-            )}
+            </div>
           </div>
           {wsAvailableTypes.length > 1 && (
             <div className="flex flex-wrap gap-1.5">
