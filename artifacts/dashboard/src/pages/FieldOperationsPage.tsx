@@ -16,6 +16,7 @@ import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { VEHICLE_TYPES, IMPLEMENT_TYPES, equipmentTypeLabel } from "@/lib/equipmentTypes";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -219,6 +220,9 @@ export default function FieldOperationsPage() {
     select: (d) => d.records ?? [],
   });
   const equipmentList: any[] = equipmentQ.data ?? [];
+  const vehicleEquipment  = equipmentList.filter(e => VEHICLE_TYPES.has(e.type));
+  const implementEquipment = equipmentList.filter(e => IMPLEMENT_TYPES.has(e.type));
+  const unknownEquipment   = equipmentList.filter(e => !VEHICLE_TYPES.has(e.type) && !IMPLEMENT_TYPES.has(e.type));
 
   const records: any[] = opsQ.data ?? [];
 
@@ -907,7 +911,16 @@ export default function FieldOperationsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">None / N/A</SelectItem>
-                    {equipmentList.map((e: any) => (
+                    {vehicleEquipment.map((e: any) => (
+                      <SelectItem key={e.id} value={e.id.toString()}>
+                        {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                        {e.registrationNumber ? ` (${e.registrationNumber})` : ""}
+                      </SelectItem>
+                    ))}
+                    {unknownEquipment.length > 0 && vehicleEquipment.length > 0 && (
+                      <SelectItem value="__separator__" disabled>── Other Equipment ──</SelectItem>
+                    )}
+                    {unknownEquipment.map((e: any) => (
                       <SelectItem key={e.id} value={e.id.toString()}>
                         {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
                         {e.registrationNumber ? ` (${e.registrationNumber})` : ""}
@@ -946,7 +959,15 @@ export default function FieldOperationsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">None / N/A</SelectItem>
-                      {equipmentList.map((e: any) => (
+                      {implementEquipment.map((e: any) => (
+                        <SelectItem key={e.id} value={e.id.toString()}>
+                          {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                        </SelectItem>
+                      ))}
+                      {unknownEquipment.length > 0 && implementEquipment.length > 0 && (
+                        <SelectItem value="__separator2__" disabled>── Other Equipment ──</SelectItem>
+                      )}
+                      {unknownEquipment.map((e: any) => (
                         <SelectItem key={e.id} value={e.id.toString()}>
                           {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
                         </SelectItem>

@@ -20,6 +20,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getListEquipmentQueryKey } from "@workspace/api-client-react/src/generated/api";
 import { useToast } from "@/hooks/use-toast";
 import { printProReport } from "@/lib/print-report";
+import { EQUIPMENT_TYPES, equipmentTypeLabel } from "@/lib/equipmentTypes";
 
 interface EquipmentRecord {
   id: number;
@@ -718,7 +719,18 @@ export default function EquipmentPage() {
                 </div>
                 <div>
                   <Label htmlFor="add-type">Equipment Type</Label>
-                  <Input id="add-type" {...register("type")} placeholder="e.g. Tractor, Sprayer" className="mt-1" />
+                  <select id="add-type" {...register("type", { required: true })} className="mt-1 w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+                    <option value="">— Select type —</option>
+                    <optgroup label="Vehicles &amp; Self-Propelled">
+                      {EQUIPMENT_TYPES.filter(t => t.category === "vehicle").map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </optgroup>
+                    <optgroup label="Implements &amp; Attachments">
+                      {EQUIPMENT_TYPES.filter(t => t.category === "implement").map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </optgroup>
+                    <optgroup label="Other Equipment">
+                      {EQUIPMENT_TYPES.filter(t => t.category === "other").map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </optgroup>
+                  </select>
                 </div>
                 <div>
                   <Label htmlFor="add-year">Year of Manufacture</Label>
@@ -919,7 +931,18 @@ export default function EquipmentPage() {
                 </div>
                 <div>
                   <Label>Equipment Type</Label>
-                  <Input {...regEdit("type")} className="mt-1" />
+                  <select {...regEdit("type", { required: true })} className="mt-1 w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+                    <option value="">— Select type —</option>
+                    <optgroup label="Vehicles &amp; Self-Propelled">
+                      {EQUIPMENT_TYPES.filter(t => t.category === "vehicle").map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </optgroup>
+                    <optgroup label="Implements &amp; Attachments">
+                      {EQUIPMENT_TYPES.filter(t => t.category === "implement").map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </optgroup>
+                    <optgroup label="Other Equipment">
+                      {EQUIPMENT_TYPES.filter(t => t.category === "other").map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </optgroup>
+                  </select>
                 </div>
                 <div>
                   <Label>Year of Manufacture</Label>
