@@ -212,9 +212,8 @@ export default function FieldOperationsPage() {
     select: (d) => d.records ?? [],
   });
   const equipmentList: any[] = equipmentQ.data ?? [];
-  const vehicleEquipment  = equipmentList.filter(e => VEHICLE_TYPES.has(e.type));
+  const vehicleEquipment   = equipmentList.filter(e => VEHICLE_TYPES.has(e.type));
   const implementEquipment = equipmentList.filter(e => IMPLEMENT_TYPES.has(e.type));
-  const unknownEquipment   = equipmentList.filter(e => !VEHICLE_TYPES.has(e.type) && !IMPLEMENT_TYPES.has(e.type));
 
   const records: any[] = opsQ.data ?? [];
 
@@ -908,15 +907,6 @@ export default function FieldOperationsPage() {
                       {e.registrationNumber ? ` (${e.registrationNumber})` : ""}
                     </SelectItem>
                   ))}
-                  {unknownEquipment.length > 0 && vehicleEquipment.length > 0 && (
-                    <SelectItem value="__separator__" disabled>── Other Equipment ──</SelectItem>
-                  )}
-                  {unknownEquipment.map((e: any) => (
-                    <SelectItem key={e.id} value={e.id.toString()}>
-                      {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
-                      {e.registrationNumber ? ` (${e.registrationNumber})` : ""}
-                    </SelectItem>
-                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -943,14 +933,6 @@ export default function FieldOperationsPage() {
                   <SelectContent>
                     <SelectItem value="__none__">None / N/A</SelectItem>
                     {implementEquipment.map((e: any) => (
-                      <SelectItem key={e.id} value={e.id.toString()}>
-                        {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
-                      </SelectItem>
-                    ))}
-                    {unknownEquipment.length > 0 && implementEquipment.length > 0 && (
-                      <SelectItem value="__separator2__" disabled>── Other Equipment ──</SelectItem>
-                    )}
-                    {unknownEquipment.map((e: any) => (
                       <SelectItem key={e.id} value={e.id.toString()}>
                         {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
                       </SelectItem>

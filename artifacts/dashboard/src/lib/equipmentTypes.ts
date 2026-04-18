@@ -26,6 +26,8 @@ export const EQUIPMENT_TYPES: EquipmentTypeDef[] = [
   { value: "loader",               label: "Front Loader / Bucket",          category: "implement" },
   { value: "roller",               label: "Roller / Press",                 category: "implement" },
   { value: "header",               label: "Combine Header / Attachment",    category: "implement" },
+  { value: "fertiliser_spreader",  label: "Fertiliser Spreader",            category: "implement" },
+  { value: "muck_spreader",        label: "Muck / Slurry Spreader",         category: "implement" },
   { value: "other_implement",      label: "Other Implement / Attachment",   category: "implement" },
 
   { value: "generator",            label: "Generator / Engine",             category: "other" },
