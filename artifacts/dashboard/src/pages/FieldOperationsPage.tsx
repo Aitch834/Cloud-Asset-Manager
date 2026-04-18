@@ -193,7 +193,7 @@ export default function FieldOperationsPage() {
     queryKey: ["fields", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/fields`).then((r) => r.json()),
     enabled: !!farmId,
-    select: (d) => d.fields ?? [],
+    select: (d) => d.records ?? [],
   });
 
   const opsQ = useQuery({
