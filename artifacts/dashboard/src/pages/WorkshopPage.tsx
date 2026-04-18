@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, Fragment } from "react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
@@ -18,6 +18,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { Redirect, Link } from "wouter";
 import { cn } from "@/lib/utils";
+import { EQUIPMENT_TYPES } from "@/lib/equipmentTypes";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
 const api = (path: string) => `/api/${path}`;
@@ -157,6 +158,8 @@ function AssetsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const [qrEquip, setQrEquip] = useState<Equipment | null>(null);
   const [showDisposed, setShowDisposed] = useState(false);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
 
   const { data: farmData } = useQuery<{ record: { name: string } }>({
     queryKey: ["farm", farmId],
@@ -189,6 +192,27 @@ function AssetsTab({ farmId }: { farmId: number }) {
   const disposedCount = allEquipment.filter(e => e.status === "disposed").length;
   const equipment = showDisposed ? allEquipment : allEquipment.filter(e => e.status !== "disposed");
 
+  const wsq = search.trim().toLowerCase();
+  const wsFiltered = equipment.filter(e => {
+    const matchSearch = !wsq
+      || (e.name ?? "").toLowerCase().includes(wsq)
+      || (e.make ?? "").toLowerCase().includes(wsq)
+      || (e.model ?? "").toLowerCase().includes(wsq)
+      || (e.assetNumber ?? "").toLowerCase().includes(wsq);
+    const matchType = !typeFilter || e.type === typeFilter;
+    return matchSearch && matchType;
+  });
+
+  const wsAvailableTypes = EQUIPMENT_TYPES.filter(t => equipment.some(e => e.type === t.value));
+
+  const wsGrouped: { label: string; value: string; items: Equipment[] }[] = [];
+  for (const t of EQUIPMENT_TYPES) {
+    const items = wsFiltered.filter(e => e.type === t.value);
+    if (items.length) wsGrouped.push({ label: t.label, value: t.value, items });
+  }
+  const wsUnknownItems = wsFiltered.filter(e => !EQUIPMENT_TYPES.some(t => t.value === e.type));
+  if (wsUnknownItems.length) wsGrouped.push({ label: "Other / Unclassified", value: "__unknown", items: wsUnknownItems });
+
   return (
     <div>
       {qrEquip && <QRDialog equip={qrEquip} farmId={farmId} farmName={farmName} onClose={() => setQrEquip(null)} />}
@@ -196,12 +220,44 @@ function AssetsTab({ farmId }: { farmId: number }) {
         <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No equipment registered. Add equipment on the Equipment page first.</CardContent></Card>
       ) : (
         <div className="space-y-3">
-          {disposedCount > 0 && (
-            <div className="flex items-center justify-end">
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={() => setShowDisposed(v => !v)}>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search assets..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full h-8 pl-8 pr-3 text-xs rounded-md border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            {disposedCount > 0 && (
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 ml-auto" onClick={() => setShowDisposed(v => !v)}>
                 {showDisposed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 {showDisposed ? "Hide disposed assets" : `Show ${disposedCount} disposed asset${disposedCount !== 1 ? "s" : ""}`}
               </Button>
+            )}
+          </div>
+          {wsAvailableTypes.length > 1 && (
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setTypeFilter("")}
+                className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-colors ${!typeFilter ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-500 border-gray-200 hover:border-blue-300 hover:text-blue-700"}`}
+              >
+                All ({equipment.length})
+              </button>
+              {wsAvailableTypes.map(t => {
+                const count = equipment.filter(e => e.type === t.value).length;
+                return (
+                  <button
+                    key={t.value}
+                    onClick={() => setTypeFilter(prev => prev === t.value ? "" : t.value)}
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-colors ${typeFilter === t.value ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-500 border-gray-200 hover:border-blue-300 hover:text-blue-700"}`}
+                  >
+                    {t.label} ({count})
+                  </button>
+                );
+              })}
             </div>
           )}
           <div className="overflow-x-auto rounded-lg border bg-white">
@@ -219,7 +275,17 @@ function AssetsTab({ farmId }: { farmId: number }) {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {equipment.map(eq => (
+                {wsFiltered.length === 0 ? (
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">No assets match your search or filter.</td></tr>
+                ) : wsGrouped.map(group => <Fragment key={group.value}>
+                  {!typeFilter && (
+                    <tr className="bg-blue-50/60 border-b border-blue-100">
+                      <td colSpan={8} className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-blue-700">
+                        {group.label} <span className="font-normal text-blue-400 ml-1">({group.items.length})</span>
+                      </td>
+                    </tr>
+                  )}
+                  {group.items.map(eq => (
                   <tr key={eq.id} className={cn("hover:bg-gray-50", eq.status === "disposed" && "opacity-60")}>
                     <td className="px-4 py-3">
                       {eq.assetNumber ? (
@@ -250,6 +316,7 @@ function AssetsTab({ farmId }: { farmId: number }) {
                     </td>
                   </tr>
                 ))}
+                </Fragment>)}
               </tbody>
             </table>
           </div>

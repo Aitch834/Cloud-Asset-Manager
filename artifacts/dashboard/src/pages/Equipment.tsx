@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, Fragment } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getListEquipmentQueryKey } from "@workspace/api-client-react/src/generated/api";
 import { useToast } from "@/hooks/use-toast";
 import { printProReport } from "@/lib/print-report";
-import { EQUIPMENT_TYPES } from "@/lib/equipmentTypes";
+import { EQUIPMENT_TYPES, equipmentTypeLabel } from "@/lib/equipmentTypes";
 
 interface EquipmentRecord {
   id: number;
@@ -488,6 +488,8 @@ export default function EquipmentPage() {
   const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
   const [serviceFormOpen, setServiceFormOpen] = useState(false);
   const [showDisposed, setShowDisposed] = useState(false);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const [qrItem, setQrItem] = useState<EquipmentRecord | null>(null);
   const [disposeItem, setDisposeItem] = useState<EquipmentRecord | null>(null);
   const [disposeForm, setDisposeForm] = useState(EMPTY_DISPOSE_FORM);
@@ -682,6 +684,28 @@ export default function EquipmentPage() {
   const allEquipment = (data?.records ?? []) as unknown as EquipmentRecord[];
   const equipment = showDisposed ? allEquipment : allEquipment.filter(e => e.status !== "disposed");
   const disposedCount = allEquipment.filter(e => e.status === "disposed").length;
+
+  const sq = search.trim().toLowerCase();
+  const filtered = equipment.filter(e => {
+    const matchSearch = !sq
+      || (e.name ?? "").toLowerCase().includes(sq)
+      || (e.make ?? "").toLowerCase().includes(sq)
+      || (e.model ?? "").toLowerCase().includes(sq)
+      || (e.serialNumber ?? "").toLowerCase().includes(sq)
+      || (e.registrationNumber ?? "").toLowerCase().includes(sq);
+    const matchType = !typeFilter || e.type === typeFilter;
+    return matchSearch && matchType;
+  });
+
+  const availableTypes = EQUIPMENT_TYPES.filter(t => equipment.some(e => e.type === t.value));
+
+  const grouped: { label: string; value: string; items: EquipmentRecord[] }[] = [];
+  for (const t of EQUIPMENT_TYPES) {
+    const items = filtered.filter(e => e.type === t.value);
+    if (items.length) grouped.push({ label: t.label, value: t.value, items });
+  }
+  const unknownItems = filtered.filter(e => !EQUIPMENT_TYPES.some(t => t.value === e.type));
+  if (unknownItems.length) grouped.push({ label: "Other / Unclassified", value: "__unknown", items: unknownItems });
   const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   function disposalLabel(method: string | null | undefined) {
@@ -748,7 +772,12 @@ export default function EquipmentPage() {
       <div className="flex flex-col sm:flex-row justify-between mb-6 gap-4">
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/40" />
-          <Input placeholder="Search equipment..." className="pl-10 bg-white" />
+          <Input
+            placeholder="Search equipment..."
+            className="pl-10 bg-white"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
 
         <div className="flex items-center gap-2">
@@ -840,6 +869,29 @@ export default function EquipmentPage() {
         </div>
       </div>
 
+      {availableTypes.length > 1 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            onClick={() => setTypeFilter("")}
+            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${!typeFilter ? "bg-orange-600 text-white border-orange-600" : "bg-white text-foreground/60 border-border hover:border-orange-400 hover:text-orange-700"}`}
+          >
+            All ({equipment.length})
+          </button>
+          {availableTypes.map(t => {
+            const count = equipment.filter(e => e.type === t.value).length;
+            return (
+              <button
+                key={t.value}
+                onClick={() => setTypeFilter(prev => prev === t.value ? "" : t.value)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${typeFilter === t.value ? "bg-orange-600 text-white border-orange-600" : "bg-white text-foreground/60 border-border hover:border-orange-400 hover:text-orange-700"}`}
+              >
+                {t.label} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border border-border/50 overflow-hidden shadow-sm">
         <table className="w-full text-left">
           <thead className="bg-black/5 text-sm uppercase tracking-wider text-foreground/60 font-semibold border-b border-border/50">
@@ -855,11 +907,21 @@ export default function EquipmentPage() {
           <tbody className="divide-y divide-border/50">
             {isLoading ? (
               <tr><td colSpan={6} className="px-6 py-12 text-center text-foreground/50">Loading equipment...</td></tr>
-            ) : equipment.length === 0 ? (
+            ) : filtered.length === 0 ? (
               <tr><td colSpan={6} className="px-6 py-12 text-center text-foreground/50">
-                {showDisposed && disposedCount > 0 ? "All equipment is disposed." : "No equipment registered."}
+                {equipment.length === 0
+                  ? (showDisposed && disposedCount > 0 ? "All equipment is disposed." : "No equipment registered.")
+                  : "No equipment matches your search or filter."}
               </td></tr>
-            ) : equipment.map(item => {
+            ) : grouped.map(group => <Fragment key={group.value}>
+              {!typeFilter && (
+                <tr className="bg-orange-50/70 border-b border-orange-100">
+                  <td colSpan={6} className="px-6 py-2 text-xs font-bold uppercase tracking-wider text-orange-700">
+                    {group.label} <span className="font-normal text-orange-400 ml-1">({group.items.length})</span>
+                  </td>
+                </tr>
+              )}
+              {group.items.map(item => {
               const isDisposed = item.status === "disposed";
               const dispMeta = isDisposed ? disposalMeta(item.disposalMethod) : null;
               const motSt = dueStatus(item.nextMotDue);
@@ -938,6 +1000,7 @@ export default function EquipmentPage() {
               </tr>
               );
             })}
+            </Fragment>)}
           </tbody>
         </table>
       </div>
