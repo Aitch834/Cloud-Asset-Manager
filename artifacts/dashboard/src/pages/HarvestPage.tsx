@@ -101,7 +101,6 @@ export default function HarvestPage() {
   const transports: any[] = transportQ.data ?? [];
   const storages: any[] = storageQ.data ?? [];
   const equipment: any[] = equipmentQ.data ?? [];
-  const vehicleEquipment: any[] = equipment.filter(e => VEHICLE_TYPES.has(e.type));
   const fieldCrops: any[] = fieldCropQ.data ?? [];
 
   return (
@@ -301,6 +300,8 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
     },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
+
+  const vehicleEquipment: any[] = equipment.filter((e: any) => VEHICLE_TYPES.has(e.type));
 
   const filtered = harvests.filter((r: any) => {
     if (!isInCropYear(r.harvestDate, cropYear)) return false;
