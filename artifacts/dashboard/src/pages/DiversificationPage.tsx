@@ -82,7 +82,7 @@ function useCrud(farmId: number, endpoint: string, key: string) {
 function ActivitiesTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: acts, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "diversification-activities", "div-activities");
-  const TYPES = ["Farm Shop / Direct Sales", "Holiday Accommodation / Glamping", "Equine / Livery", "Renewable Energy", "Shooting & Game", "Leisure & Recreation", "Food Processing", "Events / Weddings", "Storage / Industrial Let", "Other"];
+  const TYPES = ["Farm Shop / Direct Sales", "Holiday Accommodation / Glamping", "Equine / Livery", "Renewable Energy", "Shooting & Game", "Leisure & Recreation", "Food Processing", "Dairy / Artisan Processing", "Events / Weddings", "Storage / Industrial Let", "Other"];
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center"><h3 className="font-semibold text-sm">Diversification Activities</h3><Button size="sm" onClick={() => openAdd({ status: "active" })}><Plus className="w-4 h-4 mr-1" />Add Activity</Button></div>
@@ -1060,7 +1060,7 @@ function FarmShopTab({ farmId }: { farmId: number }) {
   );
 }
 
-const HYGIENE_RELATES_TO = ["Farm Shop", "Food Processing", "Events / Catering", "Farm Kitchen", "Equine / Livery", "Other"];
+const HYGIENE_RELATES_TO = ["Farm Shop", "Food Processing", "Dairy / Artisan Processing", "Events / Catering", "Farm Kitchen", "Equine / Livery", "Other"];
 
 function HygieneInspectionsTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
