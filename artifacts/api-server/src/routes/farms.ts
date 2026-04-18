@@ -16638,6 +16638,57 @@ router.delete("/farms/:farmId/vet-invoices/:id", requireAuth, requireTenant, req
   res.json({ success: true });
 });
 
+// ── Mobile sync aliases ──────────────────────────────────────────────────────
+// The mobile app syncs to /shooting-records and /food-hygiene-inspections.
+// These aliases route to the same underlying tables as the canonical dashboard
+// endpoints (/shooting-game-records and /farm-shop-hygiene-inspections).
+
+router.get("/farms/:farmId/shooting-records", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(shootingAndGameRecordsTable).where(eq(shootingAndGameRecordsTable.farmId, farmId)).orderBy(desc(shootingAndGameRecordsTable.shootDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/shooting-records", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(shootingAndGameRecordsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/shooting-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(shootingAndGameRecordsTable).set(req.body).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/shooting-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(shootingAndGameRecordsTable).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/food-hygiene-inspections", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(farmShopHygieneInspectionsTable).where(eq(farmShopHygieneInspectionsTable.farmId, farmId)).orderBy(desc(farmShopHygieneInspectionsTable.inspectionDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/food-hygiene-inspections", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [row] = await db.insert(farmShopHygieneInspectionsTable).values({ ...req.body, farmId }).returning();
+  res.json(row);
+});
+router.put("/farms/:farmId/food-hygiene-inspections/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db.update(farmShopHygieneInspectionsTable).set(req.body).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/food-hygiene-inspections/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(farmShopHygieneInspectionsTable).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
 export default router;
 
 

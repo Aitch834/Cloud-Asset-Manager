@@ -16,7 +16,7 @@ import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
-import { VEHICLE_TYPES, IMPLEMENT_TYPES, equipmentTypeLabel } from "@/lib/equipmentTypes";
+import { VEHICLE_TYPES, IMPLEMENT_TYPES } from "@/lib/equipmentTypes";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";

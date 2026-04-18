@@ -20,7 +20,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getListEquipmentQueryKey } from "@workspace/api-client-react/src/generated/api";
 import { useToast } from "@/hooks/use-toast";
 import { printProReport } from "@/lib/print-report";
-import { EQUIPMENT_TYPES, equipmentTypeLabel } from "@/lib/equipmentTypes";
+import { EQUIPMENT_TYPES } from "@/lib/equipmentTypes";
 
 interface EquipmentRecord {
   id: number;
