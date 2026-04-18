@@ -81,6 +81,7 @@ import TradeHistory from "@/pages/TradeHistory";
 import OrganicPage from "@/pages/OrganicPage";
 import CompliancePage from "@/pages/CompliancePage";
 import VetLedgerPage from "@/pages/VetLedgerPage";
+import SeasonReportsPage from "@/pages/SeasonReportsPage";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 // NOTE: in dev this env var will be empty, in prod it will be automatically set
@@ -309,6 +310,7 @@ function ProtectedContent() {
         <Route path="/sales-trading" component={SalesTradingPage} />
         <Route path="/trade-history" component={TradeHistory} />
         <Route path="/business-reports" component={BusinessReportsPage} />
+        <Route path="/season-reports" component={SeasonReportsPage} />
         <Route path="/field-operations" component={FieldOperationsPage} />
         <Route path="/field-inspections" component={FieldInspectionsPage} />
         <Route path="/environmental" component={EnvironmentalPage} />
@@ -409,6 +411,7 @@ function DevBypassContent() {
         <Route path="/sales-trading" component={SalesTradingPage} />
         <Route path="/trade-history" component={TradeHistory} />
         <Route path="/business-reports" component={BusinessReportsPage} />
+        <Route path="/season-reports" component={SeasonReportsPage} />
         <Route path="/field-operations" component={FieldOperationsPage} />
         <Route path="/field-inspections" component={FieldInspectionsPage} />
         <Route path="/environmental" component={EnvironmentalPage} />

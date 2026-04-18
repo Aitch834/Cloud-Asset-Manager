@@ -16706,6 +16706,192 @@ router.delete("/farms/:farmId/food-hygiene-inspections/:id", requireAuth, requir
   res.json({ success: true });
 });
 
+// ─── Season Reports ───────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/reports/available-years", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const [assignmentYears, operationYears, harvestYears, movementYears] = await Promise.all([
+    db.selectDistinct({ year: fieldCropAssignmentsTable.year })
+      .from(fieldCropAssignmentsTable)
+      .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+      .where(and(eq(fieldsTable.farmId, farmId), isNotNull(fieldCropAssignmentsTable.year)))
+      .orderBy(desc(fieldCropAssignmentsTable.year)),
+    db.selectDistinct({ year: sql<number>`extract(year from ${fieldOperationsTable.operationDate})::int` })
+      .from(fieldOperationsTable)
+      .where(eq(fieldOperationsTable.farmId, farmId)),
+    db.selectDistinct({ year: sql<number>`extract(year from ${harvestRecordsTable.harvestDate})::int` })
+      .from(harvestRecordsTable)
+      .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
+      .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+      .where(eq(fieldsTable.farmId, farmId)),
+    db.selectDistinct({ year: sql<number>`extract(year from ${livestockMovementsTable.movementDate})::int` })
+      .from(livestockMovementsTable)
+      .where(eq(livestockMovementsTable.farmId, farmId)),
+  ]);
+  const yearSet = new Set<number>();
+  assignmentYears.forEach(r => r.year && yearSet.add(r.year));
+  operationYears.forEach(r => r.year && yearSet.add(r.year));
+  harvestYears.forEach(r => r.year && yearSet.add(r.year));
+  movementYears.forEach(r => r.year && yearSet.add(r.year));
+  const years = Array.from(yearSet).sort((a, b) => b - a);
+  res.json({ years });
+});
+
+router.get("/farms/:farmId/reports/season-report", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
+  if (isNaN(year)) { res.status(400).json({ error: "Invalid year" }); return; }
+
+  const [farm, fields, assignments, sprays, drilling, operations, harvests, herds, movements, medicines, milkRecs, mortality, feedRecs] = await Promise.all([
+    db.select({ name: farmsTable.name, cphNumber: farmsTable.cphNumber }).from(farmsTable).where(eq(farmsTable.id, farmId)).then(r => r[0]),
+    db.select().from(fieldsTable).where(and(eq(fieldsTable.farmId, farmId), eq(fieldsTable.isActive, true))).orderBy(asc(fieldsTable.name)),
+    db.select({
+      id: fieldCropAssignmentsTable.id,
+      fieldId: fieldCropAssignmentsTable.fieldId,
+      plantingDate: fieldCropAssignmentsTable.plantingDate,
+      expectedHarvestDate: fieldCropAssignmentsTable.expectedHarvestDate,
+      seedRate: fieldCropAssignmentsTable.seedRate,
+      seedUnit: fieldCropAssignmentsTable.seedUnit,
+      season: fieldCropAssignmentsTable.season,
+      year: fieldCropAssignmentsTable.year,
+      cropName: cropsTable.name,
+      cropVariety: cropsTable.variety,
+      cropCategory: cropsTable.category,
+    }).from(fieldCropAssignmentsTable)
+      .innerJoin(cropsTable, eq(fieldCropAssignmentsTable.cropId, cropsTable.id))
+      .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+      .where(and(eq(fieldsTable.farmId, farmId), eq(fieldCropAssignmentsTable.year, year))),
+    db.select({
+      id: sprayApplicationsTable.id,
+      fieldId: sprayApplicationsTable.fieldId,
+      applicationDate: sprayApplicationsTable.applicationDate,
+      applicationRate: sprayApplicationsTable.applicationRate,
+      rateUnit: sprayApplicationsTable.rateUnit,
+      areaSprayedHa: sprayApplicationsTable.areaSprayedHa,
+      waterVolumeLitres: sprayApplicationsTable.waterVolumeLitres,
+      operatorName: sprayApplicationsTable.operatorName,
+      reasonForApplication: sprayApplicationsTable.reasonForApplication,
+      productName: sprayProductsTable.productName,
+      activeIngredient: sprayProductsTable.activeIngredient,
+      category: sprayProductsTable.category,
+    }).from(sprayApplicationsTable)
+      .leftJoin(sprayProductsTable, eq(sprayApplicationsTable.productId, sprayProductsTable.id))
+      .where(and(eq(sprayApplicationsTable.farmId, farmId), sql`extract(year from ${sprayApplicationsTable.applicationDate}) = ${year}`)
+      ).orderBy(asc(sprayApplicationsTable.applicationDate)),
+    db.select().from(seedDrillingRecordsTable)
+      .where(and(eq(seedDrillingRecordsTable.farmId, farmId), sql`extract(year from ${seedDrillingRecordsTable.drillingDate}) = ${year}`))
+      .orderBy(asc(seedDrillingRecordsTable.drillingDate)),
+    db.select().from(fieldOperationsTable)
+      .where(and(eq(fieldOperationsTable.farmId, farmId), sql`extract(year from ${fieldOperationsTable.operationDate}) = ${year}`))
+      .orderBy(asc(fieldOperationsTable.operationDate)),
+    db.select({
+      id: harvestRecordsTable.id,
+      fieldCropAssignmentId: harvestRecordsTable.fieldCropAssignmentId,
+      harvestDate: harvestRecordsTable.harvestDate,
+      operatorName: harvestRecordsTable.operatorName,
+      yieldTonnes: harvestRecordsTable.yieldTonnes,
+      areaHarvestedHa: harvestRecordsTable.areaHarvestedHa,
+      moisturePercent: harvestRecordsTable.moisturePercent,
+      qualityGrade: harvestRecordsTable.qualityGrade,
+      notes: harvestRecordsTable.notes,
+      fieldId: fieldCropAssignmentsTable.fieldId,
+    }).from(harvestRecordsTable)
+      .innerJoin(fieldCropAssignmentsTable, eq(harvestRecordsTable.fieldCropAssignmentId, fieldCropAssignmentsTable.id))
+      .innerJoin(fieldsTable, eq(fieldCropAssignmentsTable.fieldId, fieldsTable.id))
+      .where(and(eq(fieldsTable.farmId, farmId), sql`extract(year from ${harvestRecordsTable.harvestDate}) = ${year}`))
+      .orderBy(asc(harvestRecordsTable.harvestDate)),
+    db.select().from(herdFlockRegisterTable).where(eq(herdFlockRegisterTable.farmId, farmId)).orderBy(asc(herdFlockRegisterTable.name)),
+    db.select().from(livestockMovementsTable)
+      .where(and(eq(livestockMovementsTable.farmId, farmId), sql`extract(year from ${livestockMovementsTable.movementDate}) = ${year}`))
+      .orderBy(asc(livestockMovementsTable.movementDate)),
+    db.select().from(livestockMedicineRecordsTable)
+      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), sql`extract(year from ${livestockMedicineRecordsTable.administeredDate}) = ${year}`))
+      .orderBy(asc(livestockMedicineRecordsTable.administeredDate)),
+    db.select().from(dairyMilkRecordsTable)
+      .where(and(eq(dairyMilkRecordsTable.farmId, farmId), sql`extract(year from ${dairyMilkRecordsTable.recordDate}) = ${year}`))
+      .orderBy(asc(dairyMilkRecordsTable.recordDate)),
+    db.select().from(livestockMortalityTable)
+      .where(and(eq(livestockMortalityTable.farmId, farmId), sql`extract(year from ${livestockMortalityTable.dateOfDeath}) = ${year}`))
+      .orderBy(asc(livestockMortalityTable.dateOfDeath)),
+    db.select().from(livestockFeedRecordsTable)
+      .where(and(eq(livestockFeedRecordsTable.farmId, farmId), sql`extract(year from ${livestockFeedRecordsTable.feedDate}) = ${year}`))
+      .orderBy(asc(livestockFeedRecordsTable.feedDate)),
+  ]);
+
+  const arableFields = fields.map(field => {
+    const fieldAssignments = assignments.filter(a => a.fieldId === field.id);
+    const fieldSprays = sprays.filter(s => s.fieldId === field.id);
+    const fieldDrilling = drilling.filter(d => d.fieldId === field.id);
+    const fieldOps = operations.filter(o => o.fieldId === field.id);
+    const fieldHarvests = harvests.filter(h => h.fieldId === field.id);
+    const totalMachineHours = fieldOps.reduce((s, o) => s + (parseFloat(String(o.machineHours ?? "0")) || 0), 0);
+    const totalLabourHours = fieldOps.reduce((s, o) => s + (parseFloat(String(o.labourHours ?? "0")) || 0), 0);
+    const machineCostPence = fieldOps.reduce((s, o) => {
+      if (o.isContractor) return s + (o.contractorCostPence ?? 0);
+      return s + Math.round((parseFloat(String(o.machineHours ?? "0")) || 0) * (o.machineRatePence ?? 0)) + Math.round((parseFloat(String(o.labourHours ?? "0")) || 0) * (o.labourRatePence ?? 0));
+    }, 0);
+    const totalYieldTonnes = fieldHarvests.reduce((s, h) => s + (parseFloat(String(h.yieldTonnes ?? "0")) || 0), 0);
+    const totalAreaHarvestedHa = fieldHarvests.reduce((s, h) => s + (parseFloat(String(h.areaHarvestedHa ?? "0")) || 0), 0);
+    const fieldAreaHa = parseFloat(String(field.areaHectares ?? "0")) || 0;
+    const yieldTHa = totalAreaHarvestedHa > 0 ? totalYieldTonnes / totalAreaHarvestedHa : 0;
+    if (fieldAssignments.length === 0 && fieldOps.length === 0 && fieldSprays.length === 0 && fieldHarvests.length === 0 && fieldDrilling.length === 0) return null;
+    return {
+      field: { id: field.id, name: field.name, fieldReference: field.fieldReference, areaHectares: field.areaHectares, farmableAreaHectares: field.farmableAreaHectares, soilType: field.soilType },
+      assignments: fieldAssignments,
+      sprays: fieldSprays,
+      drilling: fieldDrilling,
+      operations: fieldOps,
+      harvests: fieldHarvests,
+      summary: { totalMachineHours, totalLabourHours, machineCostPence, totalYieldTonnes, totalAreaHarvestedHa, fieldAreaHa, yieldTHa, sprayCount: fieldSprays.length, operationCount: fieldOps.length },
+    };
+  }).filter(Boolean);
+
+  const livestockHerds = herds.map(herd => {
+    const herdMovements = movements.filter(m => m.herdId === herd.id);
+    const herdMedicines = medicines.filter(m => m.herdId === herd.id);
+    const herdMilk = milkRecs.filter(m => m.herdId === herd.id);
+    const herdMortality = mortality.filter(m => m.herdId === herd.id);
+    const herdFeed = feedRecs.filter(f => f.herdId === herd.id);
+    const inTypes = ["in", "purchase", "birth", "on-farm-birth"];
+    const outTypes = ["out", "sale", "slaughter", "disposal", "off-farm-death"];
+    const movementIn = herdMovements.filter(m => inTypes.some(t => m.movementType?.toLowerCase().includes(t))).reduce((s, m) => s + (m.numberOfAnimals ?? 1), 0);
+    const movementOut = herdMovements.filter(m => outTypes.some(t => m.movementType?.toLowerCase().includes(t))).reduce((s, m) => s + (m.numberOfAnimals ?? 1), 0);
+    const totalMilkLitres = herdMilk.reduce((s, m) => s + (parseFloat(String(m.yieldLitres ?? "0")) || 0), 0);
+    const totalFeedKg = herdFeed.reduce((s, f) => s + (parseFloat(String(f.quantityKg ?? "0")) || 0), 0);
+    if (herdMovements.length === 0 && herdMedicines.length === 0 && herdMilk.length === 0 && herdMortality.length === 0 && herdFeed.length === 0) return null;
+    return {
+      herd: { id: herd.id, name: herd.name, type: herd.type, breed: herd.breed, herdNumber: herd.herdNumber },
+      movements: herdMovements,
+      medicines: herdMedicines,
+      milk: herdMilk,
+      mortality: herdMortality,
+      feed: herdFeed,
+      summary: { movementIn, movementOut, deaths: herdMortality.length, totalMilkLitres, totalFeedKg, medicineCount: herdMedicines.length, milkRecordCount: herdMilk.length },
+    };
+  }).filter(Boolean);
+
+  const farmSummary = {
+    arable: {
+      fieldCount: arableFields.length,
+      totalCroppedAreaHa: arableFields.reduce((s, f) => s + (f!.summary.fieldAreaHa), 0),
+      totalYieldTonnes: arableFields.reduce((s, f) => s + f!.summary.totalYieldTonnes, 0),
+      totalAreaHarvestedHa: arableFields.reduce((s, f) => s + f!.summary.totalAreaHarvestedHa, 0),
+      totalMachineHours: arableFields.reduce((s, f) => s + f!.summary.totalMachineHours, 0),
+      totalLabourHours: arableFields.reduce((s, f) => s + f!.summary.totalLabourHours, 0),
+      totalMachCostPence: arableFields.reduce((s, f) => s + f!.summary.machineCostPence, 0),
+      totalSprayApps: arableFields.reduce((s, f) => s + f!.summary.sprayCount, 0),
+    },
+    livestock: {
+      herdCount: livestockHerds.length,
+      totalMilkLitres: livestockHerds.reduce((s, h) => s + h!.summary.totalMilkLitres, 0),
+      totalMedicineRecords: livestockHerds.reduce((s, h) => s + h!.summary.medicineCount, 0),
+      totalMovements: livestockHerds.reduce((s, h) => s + h!.movements.length, 0),
+    },
+  };
+
+  res.json({ year, farm, farmSummary, arableFields, livestockHerds });
+});
+
 export default router;
 
 
