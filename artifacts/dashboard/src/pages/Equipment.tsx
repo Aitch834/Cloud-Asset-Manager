@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useEquipment, useAddEquipment } from "@/hooks/use-equipment";
-import { Plus, Search, Tractor, Camera, X, Pencil, Loader2, Printer, Trash2, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown, PackageX, RotateCcw, Eye, EyeOff } from "lucide-react";
+import { Plus, Search, Tractor, Camera, X, Pencil, Loader2, Printer, Trash2, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown, PackageX, RotateCcw, Eye, EyeOff, QrCode } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,6 +25,7 @@ import { EQUIPMENT_TYPES } from "@/lib/equipmentTypes";
 
 interface EquipmentRecord {
   id: number;
+  assetNumber?: string | null;
   name?: string;
   type?: string;
   make?: string;
@@ -199,6 +201,68 @@ function PhotoUploader({
 }
 
 // ─── (Grain Storage Quality moved to StorageLocationsPage) ─────────────────────
+
+// ─── QR Label ─────────────────────────────────────────────────────────────────
+
+const LABEL_CSS = `
+  @page{size:62mm 90mm;margin:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;padding:10px 12px;text-align:center;background:#fff;margin:0}
+  .brand{font-size:9px;color:#0f766e;font-weight:700;letter-spacing:.06em;margin-bottom:3px}
+  .divider{border:none;border-top:1px solid #e5e7eb;margin:4px 0}
+  .farm{font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px}
+  svg{display:block;margin:0 auto}
+  .code{font-family:monospace;font-size:17px;font-weight:700;color:#0f766e;margin-top:7px;letter-spacing:.1em}
+  .iname{font-size:11px;font-weight:600;color:#374151;margin-top:3px}
+  .desc{font-size:9px;color:#9ca3af;margin-top:2px}
+  .hint{font-size:8px;color:#d1d5db;margin-top:4px}
+`;
+
+function equipAssetNumber(equip: { id: number; assetNumber?: string | null }) {
+  return equip.assetNumber || `EQ-${String(equip.id).padStart(4, "0")}`;
+}
+
+function EquipQRDialog({ equip, farmId, farmName, onClose }: {
+  equip: { id: number; assetNumber?: string | null; name?: string; make?: string; model?: string };
+  farmId: number;
+  farmName: string;
+  onClose: () => void;
+}) {
+  const an = equipAssetNumber(equip);
+  const qrValue = `BDE:F${farmId}:${an}`;
+  const printRef = useRef<HTMLDivElement>(null);
+
+  function handlePrint() {
+    const win = window.open("", "_blank");
+    if (!win || !printRef.current) return;
+    win.document.write(`<html><head><title>Asset Label — ${an}</title><style>${LABEL_CSS}</style></head><body>${printRef.current.innerHTML}</body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+    win.close();
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent style={{ maxWidth: "22rem" }}>
+        <DialogHeader><DialogTitle>Asset QR Label</DialogTitle></DialogHeader>
+        <div className="flex flex-col items-center gap-1.5 py-2 border rounded-xl bg-white px-5 shadow-sm" ref={printRef}>
+          <p className="brand text-[11px] font-bold text-teal-700 tracking-widest mt-1">🌿 BDE Farm Trac</p>
+          <hr className="divider w-full border-gray-200" />
+          <p className="farm text-sm font-bold text-gray-900 uppercase tracking-wider">{farmName}</p>
+          <QRCodeSVG value={qrValue} size={180} bgColor="#ffffff" fgColor="#0f766e" level="M" />
+          <p className="code font-mono text-xl font-bold tracking-widest text-teal-700 mt-1">{an}</p>
+          <p className="iname text-sm font-semibold text-gray-700">{equip.name ?? "Equipment"}</p>
+          {(equip.make || equip.model) && <p className="desc text-xs text-gray-400">{[equip.make, equip.model].filter(Boolean).join(" · ")}</p>}
+          <p className="hint text-[10px] text-gray-300 mb-1">Scan to view equipment record</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button onClick={handlePrint}><Printer className="h-4 w-4 mr-1" />Print Label</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 interface FarmRecord { name?: string; address?: string; postcode?: string; cphNumber?: string; }
 
@@ -424,6 +488,7 @@ export default function EquipmentPage() {
   const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
   const [serviceFormOpen, setServiceFormOpen] = useState(false);
   const [showDisposed, setShowDisposed] = useState(false);
+  const [qrItem, setQrItem] = useState<EquipmentRecord | null>(null);
   const [disposeItem, setDisposeItem] = useState<EquipmentRecord | null>(null);
   const [disposeForm, setDisposeForm] = useState(EMPTY_DISPOSE_FORM);
   const { toast } = useToast();
@@ -859,6 +924,9 @@ export default function EquipmentPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openManage(item)}>
                           <Pencil className="w-3.5 h-3.5 mr-2" /> Manage / Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setQrItem(item)}>
+                          <QrCode className="w-3.5 h-3.5 mr-2" /> Print QR Label
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => { setDisposeItem(item); setDisposeForm(EMPTY_DISPOSE_FORM); }} className="text-red-600">
                           <PackageX className="w-3.5 h-3.5 mr-2" /> Record Disposal
@@ -1328,6 +1396,14 @@ export default function EquipmentPage() {
             </div>
           </DialogContent>
         </Dialog>
+      )}
+      {qrItem && farmId && (
+        <EquipQRDialog
+          equip={qrItem}
+          farmId={farmId}
+          farmName={farm?.name ?? "Farm"}
+          onClose={() => setQrItem(null)}
+        />
       )}
       </>}
     </AppLayout>
