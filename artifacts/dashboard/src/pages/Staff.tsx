@@ -719,6 +719,7 @@ export default function StaffPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [inviteMember, setInviteMember] = useState<FarmMember | null>(null);
   const [editMember, setEditMember] = useState<FarmMember | null>(null);
+  const [viewRecord, setViewRecord] = useState<FarmMember | null>(null);
   const [, navigate] = useLocation();
 
   const { data, isLoading, isError, refetch } = useMembers(farmId);
