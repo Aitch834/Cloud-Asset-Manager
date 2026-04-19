@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -12,7 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardCheck, Search, CheckCircle2, AlertTriangle, AlertCircle, Eye, Filter, Camera, File, Trash2, Loader2, Plus, Pencil, UserPlus, ClipboardList } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ClipboardCheck, Search, CheckCircle2, AlertTriangle, AlertCircle, Eye, Filter, Camera, File, Trash2, Loader2, Plus, Pencil, UserPlus, ClipboardList, MoreHorizontal, CheckSquare } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
 type ActionRequired = "none" | "monitor" | "treat" | "urgent";
@@ -264,11 +265,23 @@ export default function FieldInspectionsPage() {
   }
   function closeInspectionForm() { setAddOpen(false); setEditRecord(null); setForm({ ...emptyForm }); }
 
+  const raiseAfterSave = useRef(false);
+
   const createInspMut = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       fetch(`/api/farms/${farmId}/field-inspections`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["field-inspections", farmId] }); toast({ title: "Inspection logged" }); closeInspectionForm(); },
-    onError: () => toast({ title: "Failed to save inspection", variant: "destructive" }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["field-inspections", farmId] });
+      toast({ title: "Inspection logged" });
+      closeInspectionForm();
+      if (raiseAfterSave.current && data?.id) {
+        raiseAfterSave.current = false;
+        setRaiseTaskRecord(data as FieldInspection);
+      } else {
+        raiseAfterSave.current = false;
+      }
+    },
+    onError: () => { raiseAfterSave.current = false; toast({ title: "Failed to save inspection", variant: "destructive" }); },
   });
 
   const updateInspMut = useMutation({
@@ -315,6 +328,15 @@ export default function FieldInspectionsPage() {
     const body = { fieldName: form.fieldName, inspectionDate: form.inspectionDate, cropType: form.cropType || null, growthStage: form.growthStage || null, pestDiseaseObservations: form.pestDiseaseObservations || null, actionRequired: form.actionRequired, recommendedAction: form.recommendedAction || null, inspector: form.inspector || null, notes: form.notes || null };
     if (editRecord) { updateInspMut.mutate({ id: editRecord.id, body }); } else { createInspMut.mutate(body); }
   }
+
+  function submitAndRaiseTask() {
+    if (!form.fieldName || !form.inspectionDate) { toast({ title: "Field name and date are required", variant: "destructive" }); return; }
+    raiseAfterSave.current = true;
+    const body = { fieldName: form.fieldName, inspectionDate: form.inspectionDate, cropType: form.cropType || null, growthStage: form.growthStage || null, pestDiseaseObservations: form.pestDiseaseObservations || null, actionRequired: form.actionRequired, recommendedAction: form.recommendedAction || null, inspector: form.inspector || null, notes: form.notes || null };
+    createInspMut.mutate(body);
+  }
+
+  const canRaiseTask = (form.actionRequired === "monitor" || form.actionRequired === "treat" || form.actionRequired === "urgent");
 
   const { data, isLoading } = useQuery({
     queryKey: ["field-inspections", farmId],
@@ -570,24 +592,32 @@ export default function FieldInspectionsPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-600">{r.inspector || "—"}</td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => { setDetailRecord(r); setResolveOpen(false); }}>
-                          <Eye className="w-3.5 h-3.5 mr-1" />View
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => openEditInspection(r)}>
-                          <Pencil className="w-3.5 h-3.5 mr-1" />Edit
-                        </Button>
-                        {!r.isResolved && (r.actionRequired === "treat" || r.actionRequired === "urgent" || r.actionRequired === "monitor") && (
-                          <>
-                            <Button size="sm" variant="outline" className="text-indigo-700 border-indigo-300 hover:bg-indigo-50" onClick={() => setRaiseTaskRecord(r)}>
-                              <UserPlus className="w-3 h-3 mr-1" />Raise Task
-                            </Button>
-                            <Button size="sm" variant="outline" className="text-green-700 border-green-300 hover:bg-green-50" onClick={() => openResolve(r)}>
-                              Resolve
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => { setDetailRecord(r); setResolveOpen(false); }}>
+                            <Eye className="w-3.5 h-3.5 mr-2" />View details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEditInspection(r)}>
+                            <Pencil className="w-3.5 h-3.5 mr-2" />Edit
+                          </DropdownMenuItem>
+                          {!r.isResolved && (r.actionRequired === "treat" || r.actionRequired === "urgent" || r.actionRequired === "monitor") && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-indigo-700 focus:text-indigo-700" onClick={() => setRaiseTaskRecord(r)}>
+                                <UserPlus className="w-3.5 h-3.5 mr-2" />Raise Task
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-green-700 focus:text-green-700" onClick={() => openResolve(r)}>
+                                <CheckSquare className="w-3.5 h-3.5 mr-2" />Mark as Resolved
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   </tr>
                 ))}
@@ -785,6 +815,18 @@ export default function FieldInspectionsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeInspectionForm}>Cancel</Button>
+            {!editRecord && canRaiseTask && (
+              <Button
+                variant="outline"
+                className="text-indigo-700 border-indigo-300 hover:bg-indigo-50"
+                onClick={submitAndRaiseTask}
+                disabled={!form.fieldName || !form.inspectionDate || createInspMut.isPending}
+              >
+                {createInspMut.isPending && raiseAfterSave.current
+                  ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</>
+                  : <><UserPlus className="w-3.5 h-3.5 mr-1.5" />Save &amp; Raise Task</>}
+              </Button>
+            )}
             <Button onClick={submitInspectionForm} disabled={!form.fieldName || !form.inspectionDate || createInspMut.isPending || updateInspMut.isPending}>
               {createInspMut.isPending || updateInspMut.isPending ? "Saving…" : editRecord ? "Save Changes" : "Log Inspection"}
             </Button>
