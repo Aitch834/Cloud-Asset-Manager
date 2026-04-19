@@ -118,6 +118,7 @@ function DispatchesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const commodityTypes = useLookupStrings("commodity_types", GRAIN_COMMODITIES);
   const loadTypes = useLookupStrings("load_types", LOAD_TYPES);
+  const [yearFilter, setYearFilter] = useState(() => new Date().getFullYear());
   const [addOpen, setAddOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<any>(null);
   const [editRecord, setEditRecord] = useState<any | null>(null);
@@ -191,8 +192,28 @@ function DispatchesTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Failed to confirm dispatch", variant: "destructive" }),
   });
 
-  const records: any[] = q.data ?? [];
+  const allRecords: any[] = q.data ?? [];
   const hauliers: any[] = hauliersQ.data ?? [];
+
+  const years = useMemo(() => {
+    const ys = new Set(allRecords.map(r => r.departureDate?.slice(0, 4)).filter(Boolean).map(Number));
+    ys.add(new Date().getFullYear());
+    return [...ys].sort((a, b) => b - a);
+  }, [allRecords]);
+
+  const records = useMemo(
+    () => allRecords.filter(r => r.departureDate?.startsWith(String(yearFilter))),
+    [allRecords, yearFilter]
+  );
+
+  const totalWeightT = useMemo(
+    () => records.reduce((s, r) => s + parseFloat(r.weightTonnes ?? "0"), 0),
+    [records]
+  );
+  const totalCostPence = useMemo(
+    () => records.reduce((s, r) => s + (r.costPence ?? 0), 0),
+    [records]
+  );
 
   const openAdd = () => { setEditRecord(null); setForm(emptyForm); setAddOpen(true); };
   const openEdit = (r: any) => {
@@ -207,14 +228,26 @@ function DispatchesTab({ farmId }: { farmId: number }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Crop and commodity dispatches leaving the farm — stock deducted on confirmation.</p>
-        <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" /><ArrowUpRight size={14} className="mr-1" />Record Dispatch</Button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Select value={String(yearFilter)} onValueChange={v => setYearFilter(Number(v))}>
+            <SelectTrigger style={{ width: 96 }}><SelectValue /></SelectTrigger>
+            <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" /><ArrowUpRight size={14} className="mr-1" />Record Dispatch</Button>
+        </div>
       </div>
 
-      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading…</p> : records.length === 0 ? (
+      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading…</p> : allRecords.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
           <Truck size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
           <p style={{ fontWeight: 600, color: "#374151" }}>No dispatches recorded</p>
           <p style={{ fontSize: "0.875rem" }}>Record crop dispatches leaving the farm — grain, straw, or other commodities sent to merchants or customers.</p>
+        </div>
+      ) : records.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <Truck size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>No dispatches in {yearFilter}</p>
+          <p style={{ fontSize: "0.875rem" }}>Try selecting a different year, or record a new dispatch.</p>
         </div>
       ) : (
         <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflowX: "auto" }}>
@@ -265,6 +298,21 @@ function DispatchesTab({ farmId }: { farmId: number }) {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr style={{ background: "#f9fafb", borderTop: "2px solid #e5e7eb" }}>
+                <td colSpan={4} style={{ padding: "0.625rem 0.875rem", fontWeight: 600, fontSize: "0.8rem", color: "#6b7280" }}>
+                  {records.length} dispatch{records.length !== 1 ? "es" : ""} · {yearFilter}
+                </td>
+                <td style={{ padding: "0.625rem 0.875rem", fontWeight: 700, color: "#111827", whiteSpace: "nowrap" }}>
+                  {totalWeightT > 0 ? `${totalWeightT.toFixed(2)} t` : "—"}
+                </td>
+                <td colSpan={4} />
+                <td style={{ padding: "0.625rem 0.875rem", fontWeight: 700, color: "#111827", whiteSpace: "nowrap" }}>
+                  {totalCostPence > 0 ? fmtCost(totalCostPence) : "—"}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
@@ -482,6 +530,7 @@ function TransfersTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const commodityTypes = useLookupStrings("commodity_types", GRAIN_COMMODITIES);
   const loadTypes = useLookupStrings("load_types", LOAD_TYPES);
+  const [yearFilter, setYearFilter] = useState(() => new Date().getFullYear());
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -537,7 +586,23 @@ function TransfersTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Failed to confirm transfer", variant: "destructive" }),
   });
 
-  const records: any[] = q.data ?? [];
+  const allRecords: any[] = q.data ?? [];
+
+  const years = useMemo(() => {
+    const ys = new Set(allRecords.map(r => r.departureDate?.slice(0, 4)).filter(Boolean).map(Number));
+    ys.add(new Date().getFullYear());
+    return [...ys].sort((a, b) => b - a);
+  }, [allRecords]);
+
+  const records = useMemo(
+    () => allRecords.filter(r => r.departureDate?.startsWith(String(yearFilter))),
+    [allRecords, yearFilter]
+  );
+
+  const totalWeightT = useMemo(
+    () => records.reduce((s, r) => s + parseFloat(r.weightTonnes ?? "0"), 0),
+    [records]
+  );
 
   const openAdd = () => { setEditRecord(null); setForm(emptyForm); setAddOpen(true); };
   const openEdit = (r: any) => {
@@ -550,14 +615,26 @@ function TransfersTab({ farmId }: { farmId: number }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>On-farm movements between bins or storage locations — stock is deducted from source and added to destination.</p>
-        <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" /><ArrowLeftRight size={14} className="mr-1" />Record Transfer</Button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Select value={String(yearFilter)} onValueChange={v => setYearFilter(Number(v))}>
+            <SelectTrigger style={{ width: 96 }}><SelectValue /></SelectTrigger>
+            <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" /><ArrowLeftRight size={14} className="mr-1" />Record Transfer</Button>
+        </div>
       </div>
 
-      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading…</p> : records.length === 0 ? (
+      {q.isLoading ? <p className="text-sm text-gray-400 py-8 text-center">Loading…</p> : allRecords.length === 0 ? (
         <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
           <ArrowLeftRight size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
           <p style={{ fontWeight: 600, color: "#374151" }}>No on-farm transfers recorded</p>
           <p style={{ fontSize: "0.875rem" }}>Record internal movements of crop between grain bins, stores, or field heaps.</p>
+        </div>
+      ) : records.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <ArrowLeftRight size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>No transfers in {yearFilter}</p>
+          <p style={{ fontSize: "0.875rem" }}>Try selecting a different year, or record a new transfer.</p>
         </div>
       ) : (
         <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflowX: "auto" }}>
@@ -599,6 +676,17 @@ function TransfersTab({ farmId }: { farmId: number }) {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr style={{ background: "#f9fafb", borderTop: "2px solid #e5e7eb" }}>
+                <td colSpan={4} style={{ padding: "0.625rem 0.875rem", fontWeight: 600, fontSize: "0.8rem", color: "#6b7280" }}>
+                  {records.length} transfer{records.length !== 1 ? "s" : ""} · {yearFilter}
+                </td>
+                <td style={{ padding: "0.625rem 0.875rem", fontWeight: 700, color: "#111827", whiteSpace: "nowrap" }}>
+                  {totalWeightT > 0 ? `${totalWeightT.toFixed(2)} t` : "—"}
+                </td>
+                <td colSpan={2} />
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
