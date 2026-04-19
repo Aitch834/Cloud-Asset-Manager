@@ -70,6 +70,47 @@ export const livestockMovementsTable = pgTable("livestock_movements", {
   transporterDetails: text("transporter_details"),
   reason: text("reason"),
   notes: text("notes"),
+  // ─── Haulier / logistics (links to haulage_records) ─────────────────────
+  haulageRecordId: integer("haulage_record_id"),
+  vehicleRegistration: text("vehicle_registration"),
+  driverName: text("driver_name"),
+  haulierCompany: text("haulier_company"),
+  operatorLicenceNo: text("operator_licence_no"),
+  // ─── Dispatch compliance checklist ───────────────────────────────────────
+  fciCompleted: boolean("fci_completed"),
+  fciWithdrawalsClear: boolean("fci_withdrawals_clear"),
+  fciCompletedBy: text("fci_completed_by"),
+  allAnimalsTagged: boolean("all_animals_tagged"),
+  vehicleClean: boolean("vehicle_clean"),
+  atcRequired: boolean("atc_required"),
+  atcNumber: text("atc_number"),
+  journeyTimeHours: numeric("journey_time_hours", { precision: 5, scale: 1 }),
+  driverCompetencyCertNo: text("driver_competency_cert_no"),
+  emergencyContactName: text("emergency_contact_name"),
+  emergencyContactPhone: text("emergency_contact_phone"),
+  welfareCheckComplete: boolean("welfare_check_complete"),
+  movementDocumentUrl: text("movement_document_url"),
+  checklistCompletedBy: text("checklist_completed_by"),
+  checklistCompletedAt: timestamp("checklist_completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ─── Per-animal junction table for livestock movements ────────────────────────
+// Used for cattle (mandatory BCMS per-animal tracking) and optionally sheep/pigs.
+// One row per animal per movement. Allows selecting from the livestock_animals register
+// or recording unregistered animals by tag number only.
+export const livestockMovementAnimalsTable = pgTable("livestock_movement_animals", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  movementId: integer("movement_id").notNull().references(() => livestockMovementsTable.id),
+  animalId: integer("animal_id").references(() => livestockAnimalsTable.id),
+  tagNumber: text("tag_number"),
+  eidNumber: text("eid_number"),
+  species: text("species"),
+  breed: text("breed"),
+  sex: text("sex"),
+  dateOfBirth: timestamp("date_of_birth", { withTimezone: true }),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

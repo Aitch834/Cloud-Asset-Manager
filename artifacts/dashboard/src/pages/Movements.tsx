@@ -9,8 +9,9 @@ import { Redirect } from "wouter";
 import {
   Plus, Search, RefreshCw, Loader2, Pencil, Eye, Trash2, X, Printer,
   ArrowRight, Paperclip, CheckCircle2, AlertTriangle, Upload, File, Skull, Download, ExternalLink,
-  Send, ShieldCheck, Shield, WifiOff, Clock,
+  Send, ShieldCheck, Shield, WifiOff, Clock, ClipboardCheck, Truck,
 } from "lucide-react";
+import { LivestockDispatchChecklist } from "@/components/livestock/LivestockDispatchChecklist";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -39,6 +40,13 @@ interface Movement {
   reason: string | null;
   notes: string | null;
   createdAt: string;
+  // Dispatch checklist fields
+  haulageRecordId: number | null;
+  vehicleRegistration: string | null;
+  driverName: string | null;
+  haulierCompany: string | null;
+  checklistCompletedBy: string | null;
+  checklistCompletedAt: string | null;
 }
 
 interface Attachment {
@@ -857,6 +865,7 @@ export default function Movements() {
   const [cropYear, setCropYear] = useState(currentCropYear());
   const [showForm, setShowForm] = useState(false);
   const [viewMovement, setViewMovement] = useState<Movement | null>(null);
+  const [checklistMovement, setChecklistMovement] = useState<Movement | null>(null);
   const [editingRecord, setEditingRecord] = useState<Movement | null>(null);
   const [formData, setFormData] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
@@ -1316,15 +1325,64 @@ export default function Movements() {
                   {r.transporterDetails && <F label="Transporter" value={r.transporterDetails} />}
                   {r.reason && <F label="Reason" value={r.reason} />}
                   {r.notes && <F label="Notes" value={r.notes} />}
+                  {/* Haulage cross-link */}
+                  {r.haulageRecordId && (
+                    <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "8px 14px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <Truck size={13} color="#1d4ed8" />
+                        <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#1e40af" }}>
+                          Linked to Haulage Record HR-{r.haulageRecordId}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: "0.72rem", color: "#6b7280", marginTop: 2 }}>
+                        This movement was arranged via the Haulage module. See the Haulage &amp; Transport tab for vehicle and cost details.
+                      </p>
+                    </div>
+                  )}
+                  {/* Dispatch checklist summary for off movements */}
+                  {r.movementType === "off" && (
+                    <div style={{ background: r.checklistCompletedAt ? "#f0fdf4" : "#fffbeb", border: `1px solid ${r.checklistCompletedAt ? "#bbf7d0" : "#fde68a"}`, borderRadius: 8, padding: "10px 14px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {r.checklistCompletedAt
+                          ? <CheckCircle2 size={14} color="#16a34a" />
+                          : <ClipboardCheck size={14} color="#92400e" />}
+                        <span style={{ fontSize: "0.8rem", fontWeight: 600, color: r.checklistCompletedAt ? "#166534" : "#92400e" }}>
+                          {r.checklistCompletedAt
+                            ? `Dispatch checklist signed off by ${r.checklistCompletedBy}`
+                            : "Dispatch checklist not yet completed"}
+                        </span>
+                      </div>
+                      {r.vehicleRegistration && (
+                        <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>
+                          {r.haulierCompany ? `${r.haulierCompany} · ` : ""}{r.vehicleRegistration}{r.driverName ? ` · ${r.driverName}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })()}
-            <DialogFooter className="mt-4">
+            <DialogFooter className="mt-4" style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
               <Button variant="outline" onClick={() => setViewMovement(null)}>Close</Button>
+              {viewMovement?.movementType === "off" && (
+                <Button variant="outline" style={{ gap: 6, borderColor: "#1a6b3a", color: "#1a6b3a" }} onClick={() => { const r = viewMovement; setViewMovement(null); setChecklistMovement(r); }}>
+                  <ClipboardCheck size={14} /> Dispatch Checklist
+                  {viewMovement.checklistCompletedAt && <CheckCircle2 size={12} color="#16a34a" />}
+                </Button>
+              )}
               <Button onClick={() => { const r = viewMovement; setViewMovement(null); openEdit(r); }}>Edit Movement</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Livestock Dispatch Checklist Dialog */}
+      {checklistMovement && farmId && (
+        <LivestockDispatchChecklist
+          farmId={farmId}
+          movementId={checklistMovement.id}
+          onClose={() => setChecklistMovement(null)}
+        />
       )}
 
       {/* Add / Edit form */}

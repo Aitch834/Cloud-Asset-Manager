@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2, ArrowLeftRight, ArrowUpRight, Paperclip, X, FileText, Image } from "lucide-react";
+import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2, ArrowLeftRight, ArrowUpRight, Paperclip, X, FileText, Image, FileDown } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
 type Tab = "dispatches" | "transfers" | "grain-position" | "directory";
@@ -110,6 +110,42 @@ function BinSelect({ farmId, value, onChange, placeholder }: {
         {bins.map((b: any) => <SelectItem key={b.id} value={String(b.id)}>{b.binName}{b.binType ? ` (${b.binType})` : ""}</SelectItem>)}
       </SelectContent>
     </Select>
+  );
+}
+
+// ─── Linked livestock movements panel (shown inside view dialog) ────────────
+function LinkedMovementsPanel({ farmId, recordId }: { farmId: number; recordId: number }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["linked-livestock-movements", farmId, recordId],
+    queryFn: () => fetch(`/api/farms/${farmId}/haulage/${recordId}/linked-livestock-movements`).then(r => r.json()),
+  });
+  const records: Array<{ id: number; species: string | null; movementType: string; movementDate: string; numberOfAnimals: number | null; fromLocation: string | null; toLocation: string | null; checklistCompletedAt: string | null; checklistCompletedBy: string | null }> = data?.records ?? [];
+  if (isLoading || records.length === 0) return null;
+  return (
+    <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 14px" }}>
+      <p style={{ fontSize: "0.78rem", fontWeight: 700, color: "#1e40af", marginBottom: 8 }}>
+        Linked Livestock Movements ({records.length})
+      </p>
+      {records.map(m => (
+        <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 4, borderBottom: "1px solid #dbeafe", marginBottom: 4 }}>
+          <div>
+            <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#1d4ed8" }}>
+              {m.species || "Livestock"} — {m.numberOfAnimals ?? "?"} animals
+            </span>
+            <span style={{ fontSize: "0.75rem", color: "#6b7280", marginLeft: 8 }}>
+              {m.fromLocation || "?"} → {m.toLocation || "?"}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {m.checklistCompletedAt ? (
+              <span style={{ fontSize: "0.7rem", background: "#dcfce7", color: "#166534", borderRadius: 10, padding: "1px 7px", fontWeight: 600 }}>✓ Checklist signed</span>
+            ) : (
+              <span style={{ fontSize: "0.7rem", background: "#fef3c7", color: "#92400e", borderRadius: 10, padding: "1px 7px" }}>Checklist pending</span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -502,9 +538,22 @@ function DispatchesTab({ farmId }: { farmId: number }) {
                 </div>
               )}
               {viewRecord.notes && <F label="Notes" value={viewRecord.notes} />}
+              <LinkedMovementsPanel farmId={farmId} recordId={viewRecord.id} />
             </div>
-            <DialogFooter className="mt-4">
+            <DialogFooter className="mt-4" style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button variant="outline" style={{ gap: 6 }} onClick={async () => {
+                const r = viewRecord;
+                try {
+                  const resp = await fetch(`/api/farms/${farmId}/haulage/${r.id}/dispatch-note`);
+                  if (!resp.ok) throw new Error("Failed to generate dispatch note");
+                  const blob = await resp.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url; a.download = `dispatch-note-HR-${r.id}.pdf`; a.click();
+                  setTimeout(() => URL.revokeObjectURL(url), 5000);
+                } catch { alert("Could not generate dispatch note. Please try again."); }
+              }}><FileDown size={14} /> Dispatch Note PDF</Button>
               <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit</Button>
             </DialogFooter>
           </DialogContent>

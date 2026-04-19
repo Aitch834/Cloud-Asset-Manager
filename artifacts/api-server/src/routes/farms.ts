@@ -42,6 +42,7 @@ import {
   livestockAnimalsTable,
   animalDocumentsTable,
   livestockMovementsTable,
+  livestockMovementAnimalsTable,
   lisFarmTokensTable,
   lisSubmissionsTable,
   bcmsFarmCredentialsTable,
@@ -250,6 +251,7 @@ import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, 
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
+import { generateDispatchNote } from "../lib/dispatch-note-pdf";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
 import { submitLisMovement, testLisConnection, fetchLisToken, isLisSandboxMode } from "../lib/lis";
 
@@ -2084,6 +2086,15 @@ router.post("/farms/:farmId/movements", requireAuth, requireTenant, requireModul
   if (!farmId) return;
   const [record] = await db.insert(livestockMovementsTable).values({ ...req.body, farmId }).returning();
   res.status(201).json({ record });
+});
+
+router.get("/farms/:farmId/movements/:movementId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const movementId = parseInt(req.params.movementId);
+  const [record] = await db.select().from(livestockMovementsTable).where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId)));
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record });
 });
 
 // ─── Livestock Medicine ────────────────────────────
@@ -15211,6 +15222,183 @@ router.post("/farms/:farmId/haulage/:recordId/confirm-delivery", requireAuth, re
     ...(weighbridgeWeightTonnes != null ? { weighbridgeWeightTonnes: String(weighbridgeWeightTonnes) } : {}),
   }).where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId))).returning();
   res.json({ record });
+});
+
+// --- Grain Dispatch Note PDF ---
+router.get("/farms/:farmId/haulage/:recordId/dispatch-note", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const rows = await db.select({
+    id: haulageRecordsTable.id,
+    loadType: haulageRecordsTable.loadType,
+    loadDescription: haulageRecordsTable.loadDescription,
+    commodity: haulageRecordsTable.commodity,
+    variety: haulageRecordsTable.variety,
+    grade: haulageRecordsTable.grade,
+    moisturePercent: haulageRecordsTable.moisturePercent,
+    specificWeightKgHl: haulageRecordsTable.specificWeightKgHl,
+    weighbridgeTicketNo: haulageRecordsTable.weighbridgeTicketNo,
+    storageLocation: haulageRecordsTable.storageLocation,
+    customerRef: haulageRecordsTable.customerRef,
+    destination: haulageRecordsTable.destination,
+    departureDate: haulageRecordsTable.departureDate,
+    arrivalDate: haulageRecordsTable.arrivalDate,
+    waybillNumber: haulageRecordsTable.waybillNumber,
+    weightTonnes: haulageRecordsTable.weightTonnes,
+    vehicleRegistration: haulageRecordsTable.vehicleRegistration,
+    driverName: haulageRecordsTable.driverName,
+    haulierCompany: haulageRecordsTable.haulierCompany,
+    deliveryConfirmedAt: haulageRecordsTable.deliveryConfirmedAt,
+    deliveryConfirmedBy: haulageRecordsTable.deliveryConfirmedBy,
+    weighbridgeWeightTonnes: haulageRecordsTable.weighbridgeWeightTonnes,
+    notes: haulageRecordsTable.notes,
+    binName: grainStorageBinsTable.binName,
+  }).from(haulageRecordsTable)
+    .leftJoin(grainStorageBinsTable, eq(haulageRecordsTable.binId, grainStorageBinsTable.id))
+    .where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId)));
+  if (!rows.length) { res.status(404).json({ error: "Not found" }); return; }
+  const record = rows[0];
+  const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId));
+  const buf = await generateDispatchNote({
+    farmName: farm?.name || "Unknown Farm",
+    farmAddress: farm?.address,
+    farmPostcode: farm?.postcode,
+    cphNumber: farm?.cphNumber,
+    sbiNumber: farm?.sbiNumber,
+    redTractorId: farm?.redTractorId,
+    farmManager: farm?.farmManager,
+    dispatchRef: record.waybillNumber || `HR-${record.id}`,
+    departureDate: record.departureDate,
+    arrivalDate: record.arrivalDate,
+    loadType: record.loadType,
+    commodity: record.commodity,
+    variety: record.variety,
+    grade: record.grade,
+    storageLocation: record.storageLocation,
+    weighbridgeTicketNo: record.weighbridgeTicketNo,
+    weightTonnes: record.weightTonnes,
+    moisturePercent: record.moisturePercent,
+    specificWeightKgHl: record.specificWeightKgHl,
+    destination: record.destination,
+    customerRef: record.customerRef,
+    waybillNumber: record.waybillNumber,
+    vehicleRegistration: record.vehicleRegistration,
+    driverName: record.driverName,
+    haulierCompany: record.haulierCompany,
+    binName: record.binName,
+    confirmedAt: record.deliveryConfirmedAt,
+    confirmedBy: record.deliveryConfirmedBy,
+    weighbridgeWeightTonnes: record.weighbridgeWeightTonnes,
+  });
+  const filename = `dispatch-note-HR-${record.id}.pdf`;
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(buf);
+});
+
+// --- Livestock movements linked to a haulage record ---
+router.get("/farms/:farmId/haulage/:recordId/linked-livestock-movements", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const recordId = parseInt(req.params.recordId);
+  const records = await db.select({
+    id: livestockMovementsTable.id,
+    movementType: livestockMovementsTable.movementType,
+    movementDate: livestockMovementsTable.movementDate,
+    species: livestockMovementsTable.species,
+    numberOfAnimals: livestockMovementsTable.numberOfAnimals,
+    fromLocation: livestockMovementsTable.fromLocation,
+    toLocation: livestockMovementsTable.toLocation,
+    checklistCompletedAt: livestockMovementsTable.checklistCompletedAt,
+    checklistCompletedBy: livestockMovementsTable.checklistCompletedBy,
+  }).from(livestockMovementsTable)
+    .where(and(
+      eq(livestockMovementsTable.farmId, farmId),
+      eq(livestockMovementsTable.haulageRecordId, recordId),
+    ));
+  res.json({ records });
+});
+
+// --- Livestock Movement Animals (per-animal junction) ---
+router.get("/farms/:farmId/livestock-movements/:movementId/animals", requireAuth, requireTenant, requireModuleByKey("livestock", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const movementId = parseInt(req.params.movementId);
+  const animals = await db.select({
+    id: livestockMovementAnimalsTable.id,
+    movementId: livestockMovementAnimalsTable.movementId,
+    animalId: livestockMovementAnimalsTable.animalId,
+    tagNumber: livestockMovementAnimalsTable.tagNumber,
+    eidNumber: livestockMovementAnimalsTable.eidNumber,
+    species: livestockMovementAnimalsTable.species,
+    breed: livestockMovementAnimalsTable.breed,
+    sex: livestockMovementAnimalsTable.sex,
+    dateOfBirth: livestockMovementAnimalsTable.dateOfBirth,
+    notes: livestockMovementAnimalsTable.notes,
+    createdAt: livestockMovementAnimalsTable.createdAt,
+    animalCode: livestockAnimalsTable.animalCode,
+    animalName: livestockAnimalsTable.name,
+  }).from(livestockMovementAnimalsTable)
+    .leftJoin(livestockAnimalsTable, eq(livestockMovementAnimalsTable.animalId, livestockAnimalsTable.id))
+    .where(and(eq(livestockMovementAnimalsTable.movementId, movementId), eq(livestockMovementAnimalsTable.farmId, farmId)));
+  res.json({ animals });
+});
+
+router.post("/farms/:farmId/livestock-movements/:movementId/animals", requireAuth, requireTenant, requireModuleByKey("livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const movementId = parseInt(req.params.movementId);
+  const rows = Array.isArray(req.body) ? req.body : [req.body];
+  const inserted = await db.insert(livestockMovementAnimalsTable).values(
+    rows.map((r: { animalId?: number; tagNumber?: string; eidNumber?: string; species?: string; breed?: string; sex?: string; dateOfBirth?: string; notes?: string }) => ({ ...r, farmId, movementId }))
+  ).returning();
+  res.json({ animals: inserted });
+});
+
+router.delete("/farms/:farmId/livestock-movements/:movementId/animals/:animalRowId", requireAuth, requireTenant, requireModuleByKey("livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  await db.delete(livestockMovementAnimalsTable).where(and(
+    eq(livestockMovementAnimalsTable.id, parseInt(req.params.animalRowId)),
+    eq(livestockMovementAnimalsTable.farmId, farmId),
+  ));
+  res.json({ success: true });
+});
+
+// PATCH livestock movement checklist fields
+router.patch("/farms/:farmId/livestock-movements/:movementId/checklist", requireAuth, requireTenant, requireModuleByKey("livestock", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = getFarmId(req); if (!farmId) return;
+  const movementId = parseInt(req.params.movementId);
+  const {
+    haulageRecordId, vehicleRegistration, driverName, haulierCompany, operatorLicenceNo,
+    fciCompleted, fciWithdrawalsClear, fciCompletedBy,
+    allAnimalsTagged, vehicleClean, atcRequired, atcNumber,
+    journeyTimeHours, driverCompetencyCertNo,
+    emergencyContactName, emergencyContactPhone,
+    welfareCheckComplete, movementDocumentUrl,
+    checklistCompletedBy,
+  } = req.body;
+  const [updated] = await db.update(livestockMovementsTable).set({
+    ...(haulageRecordId !== undefined ? { haulageRecordId } : {}),
+    ...(vehicleRegistration !== undefined ? { vehicleRegistration } : {}),
+    ...(driverName !== undefined ? { driverName } : {}),
+    ...(haulierCompany !== undefined ? { haulierCompany } : {}),
+    ...(operatorLicenceNo !== undefined ? { operatorLicenceNo } : {}),
+    ...(fciCompleted !== undefined ? { fciCompleted } : {}),
+    ...(fciWithdrawalsClear !== undefined ? { fciWithdrawalsClear } : {}),
+    ...(fciCompletedBy !== undefined ? { fciCompletedBy } : {}),
+    ...(allAnimalsTagged !== undefined ? { allAnimalsTagged } : {}),
+    ...(vehicleClean !== undefined ? { vehicleClean } : {}),
+    ...(atcRequired !== undefined ? { atcRequired } : {}),
+    ...(atcNumber !== undefined ? { atcNumber } : {}),
+    ...(journeyTimeHours !== undefined ? { journeyTimeHours: String(journeyTimeHours) } : {}),
+    ...(driverCompetencyCertNo !== undefined ? { driverCompetencyCertNo } : {}),
+    ...(emergencyContactName !== undefined ? { emergencyContactName } : {}),
+    ...(emergencyContactPhone !== undefined ? { emergencyContactPhone } : {}),
+    ...(welfareCheckComplete !== undefined ? { welfareCheckComplete } : {}),
+    ...(movementDocumentUrl !== undefined ? { movementDocumentUrl } : {}),
+    ...(checklistCompletedBy !== undefined ? {
+      checklistCompletedBy,
+      checklistCompletedAt: new Date(),
+    } : {}),
+  }).where(and(eq(livestockMovementsTable.id, movementId), eq(livestockMovementsTable.farmId, farmId))).returning();
+  res.json({ record: updated });
 });
 
 // --- Poultry Biosecurity Checklists ---
