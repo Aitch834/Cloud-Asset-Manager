@@ -5212,14 +5212,17 @@ router.delete("/farms/:farmId/storage-locations/:locationId/movements/:movementI
 router.get("/farms/:farmId/hauliers", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(hauliersTable).where(eq(hauliersTable.farmId, farmId)).orderBy(hauliersTable.companyName);
+  const records = await db.select().from(hauliersTable)
+    .where(and(eq(hauliersTable.farmId, farmId), isNull(hauliersTable.deletedAt)))
+    .orderBy(hauliersTable.companyName);
   res.json({ records });
 });
 
 router.post("/farms/:farmId/hauliers", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(hauliersTable).values({ ...req.body, farmId }).returning();
+  const { deletedAt, ...body } = req.body;
+  const [record] = await db.insert(hauliersTable).values({ ...body, farmId }).returning();
   res.status(201).json({ record });
 });
 
@@ -5228,7 +5231,8 @@ router.put("/farms/:farmId/hauliers/:recordId", requireAuth, requireTenant, requ
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(hauliersTable).set(req.body).where(and(eq(hauliersTable.id, recordId), eq(hauliersTable.farmId, farmId))).returning();
+  const { deletedAt, id, farmId: _fid, createdAt, ...body } = req.body;
+  const [record] = await db.update(hauliersTable).set(body).where(and(eq(hauliersTable.id, recordId), eq(hauliersTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -5237,7 +5241,7 @@ router.delete("/farms/:farmId/hauliers/:recordId", requireAuth, requireTenant, r
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  await db.delete(hauliersTable).where(and(eq(hauliersTable.id, recordId), eq(hauliersTable.farmId, farmId)));
+  await db.update(hauliersTable).set({ deletedAt: new Date() }).where(and(eq(hauliersTable.id, recordId), eq(hauliersTable.farmId, farmId)));
   res.json({ success: true });
 });
 

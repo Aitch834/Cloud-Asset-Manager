@@ -57,13 +57,22 @@ export const hauliersTable = pgTable("hauliers", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   companyName: text("company_name").notNull(),
-  contactName: text("contact_name"),
-  phone: text("phone"),
+  // Structured address
+  addressLine1: text("address_line1"),
+  addressLine2: text("address_line2"),
+  town: text("town"),
+  county: text("county"),
+  postcode: text("postcode"),
+  // Contacts — JSON array: [{name, role, phone, email}]
+  contacts: text("contacts"),
+  // Primary email kept for quick display / legacy
   email: text("email"),
-  address: text("address"),
+  // Vehicle types — JSON array of strings from predefined list
   vehicleTypes: text("vehicle_types"),
   operatorLicence: text("operator_licence"),
   notes: text("notes"),
+  // Soft delete
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1081,15 +1081,65 @@ function GrainPositionTab({ farmId, onGoToDispatches }: { farmId: number; onGoTo
   );
 }
 
+// ─── Haulier Directory — constants ──────────────────────────────────────────
+const VEHICLE_TYPES = [
+  "Articulated lorry", "Articulated tipper", "Rigid tipper", "Grain trailer",
+  "Livestock wagon", "Double-deck livestock wagon", "Tanker", "Flatbed / dropsider",
+  "Curtain-sider", "Refrigerated lorry", "Container lorry", "Low-loader",
+];
+const CONTACT_ROLES = ["Office / Admin", "Driver", "Emergency / Out-of-hours", "Accounts", "Other"];
+
+interface HaulierContact { name: string; role: string; phone: string; email: string; }
+interface HaulierForm {
+  companyName: string; operatorLicence: string; notes: string; email: string;
+  addressLine1: string; addressLine2: string; town: string; county: string; postcode: string;
+  vehicleTypes: string[]; contacts: HaulierContact[];
+}
+
+const emptyContact = (): HaulierContact => ({ name: "", role: "Office / Admin", phone: "", email: "" });
+const emptyHaulierForm = (): HaulierForm => ({
+  companyName: "", operatorLicence: "", notes: "", email: "",
+  addressLine1: "", addressLine2: "", town: "", county: "", postcode: "",
+  vehicleTypes: [], contacts: [emptyContact()],
+});
+
+function parseVehicleTypes(raw: string | string[] | null | undefined): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  try { return JSON.parse(raw); } catch { return raw ? [raw as string] : []; }
+}
+function parseContacts(raw: string | HaulierContact[] | null | undefined): HaulierContact[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  try { return JSON.parse(raw); } catch { return []; }
+}
+function haulierToForm(h: any): HaulierForm {
+  return {
+    companyName: h.companyName ?? "", operatorLicence: h.operatorLicence ?? "",
+    notes: h.notes ?? "", email: h.email ?? "",
+    addressLine1: h.addressLine1 ?? "", addressLine2: h.addressLine2 ?? "",
+    town: h.town ?? "", county: h.county ?? "", postcode: h.postcode ?? "",
+    vehicleTypes: parseVehicleTypes(h.vehicleTypes),
+    contacts: parseContacts(h.contacts).length > 0 ? parseContacts(h.contacts) : [emptyContact()],
+  };
+}
+function addressOneLine(h: any): string {
+  return [h.addressLine1, h.town, h.postcode].filter(Boolean).join(", ") || "";
+}
+function primaryContact(h: any): HaulierContact | null {
+  const contacts = parseContacts(h.contacts);
+  return contacts[0] ?? null;
+}
+
 // ─── Haulier Directory Tab ──────────────────────────────────────────────────
 function HaulierDirectoryTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [editHaulier, setEditHaulier] = useState<any | null>(null);
-
-  const empty = { companyName: "", contactName: "", phone: "", email: "", address: "", vehicleTypes: "", operatorLicence: "", notes: "" };
-  const [form, setForm] = useState<any>(empty);
+  const [viewHaulier, setViewHaulier] = useState<any | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [form, setForm] = useState<HaulierForm>(emptyHaulierForm());
 
   const q = useQuery({
     queryKey: ["hauliers", farmId],
@@ -1103,16 +1153,45 @@ function HaulierDirectoryTab({ farmId }: { farmId: number }) {
       if (editHaulier) return fetch(`/api/farms/${farmId}/hauliers/${editHaulier.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       return fetch(`/api/farms/${farmId}/hauliers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     },
-    onSuccess: () => { toast({ title: editHaulier ? "Haulier updated" : "Haulier added" }); qc.invalidateQueries({ queryKey: ["hauliers", farmId] }); setAddOpen(false); setEditHaulier(null); setForm(empty); },
+    onSuccess: () => {
+      toast({ title: editHaulier ? "Haulier updated" : "Haulier added" });
+      qc.invalidateQueries({ queryKey: ["hauliers", farmId] });
+      setAddOpen(false); setEditHaulier(null); setForm(emptyHaulierForm());
+    },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/hauliers/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Haulier removed" }); qc.invalidateQueries({ queryKey: ["hauliers", farmId] }); setDeleteTarget(null); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
 
   const records: any[] = q.data ?? [];
 
+  const openAdd = () => { setEditHaulier(null); setForm(emptyHaulierForm()); setAddOpen(true); };
+  const openEdit = (h: any) => { setEditHaulier(h); setForm(haulierToForm(h)); setAddOpen(true); };
+
+  const setContact = (i: number, field: keyof HaulierContact, value: string) =>
+    setForm(f => { const cs = [...f.contacts]; cs[i] = { ...cs[i], [field]: value }; return { ...f, contacts: cs }; });
+  const addContact = () => setForm(f => ({ ...f, contacts: [...f.contacts, emptyContact()] }));
+  const removeContact = (i: number) => setForm(f => ({ ...f, contacts: f.contacts.filter((_, idx) => idx !== i) }));
+  const toggleVehicle = (v: string) => setForm(f => ({
+    ...f, vehicleTypes: f.vehicleTypes.includes(v) ? f.vehicleTypes.filter(x => x !== v) : [...f.vehicleTypes, v],
+  }));
+
+  const handleSave = () => {
+    saveMut.mutate({
+      ...form,
+      vehicleTypes: JSON.stringify(form.vehicleTypes),
+      contacts: JSON.stringify(form.contacts.filter(c => c.name || c.phone || c.email)),
+    });
+  };
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <Button size="sm" onClick={() => { setEditHaulier(null); setForm(empty); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Haulier</Button>
+        <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Add Haulier</Button>
       </div>
 
       {records.length === 0 ? (
@@ -1123,41 +1202,160 @@ function HaulierDirectoryTab({ farmId }: { farmId: number }) {
         </div>
       ) : (
         <div style={{ display: "grid", gap: 10 }}>
-          {records.map((h: any) => (
-            <div key={h.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <p style={{ fontWeight: 600, color: "#111827" }}>{h.companyName}</p>
-                {h.contactName && <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>{h.contactName}</p>}
-                <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
-                  {h.phone && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>{h.phone}</p>}
-                  {h.email && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>{h.email}</p>}
-                  {h.operatorLicence && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>Licence: {h.operatorLicence}</p>}
+          {records.map((h: any) => {
+            const vts = parseVehicleTypes(h.vehicleTypes);
+            const pc = primaryContact(h);
+            const addr = addressOneLine(h);
+            return (
+              <div key={h.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <p style={{ fontWeight: 600, color: "#111827", fontSize: "0.95rem" }}>{h.companyName}</p>
+                    {h.operatorLicence && <span style={{ fontSize: "0.75rem", background: "#eff6ff", color: "#1e40af", padding: "1px 7px", borderRadius: 4 }}>O Licence: {h.operatorLicence}</span>}
+                  </div>
+                  {addr && <p style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: 2 }}>{addr}</p>}
+                  {pc && <p style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: 2 }}>{pc.name}{pc.role ? ` · ${pc.role}` : ""}{pc.phone ? ` · ${pc.phone}` : ""}</p>}
+                  {vts.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                      {vts.map(v => <span key={v} style={{ fontSize: "0.7rem", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", padding: "1px 6px", borderRadius: 4 }}>{v}</span>)}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                  <Button size="sm" variant="ghost" title="View" onClick={() => setViewHaulier(h)}><Eye size={14} /></Button>
+                  <Button size="sm" variant="ghost" title="Edit" onClick={() => openEdit(h)}><Pencil size={14} /></Button>
+                  <Button size="sm" variant="ghost" title="Delete" style={{ color: "#ef4444" }} onClick={() => setDeleteTarget(h)}><Trash2 size={14} /></Button>
                 </div>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => { setEditHaulier(h); setForm({ ...h }); setAddOpen(true); }}><Pencil size={14} /></Button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditHaulier(null); setForm(empty); } }}>
-        <DialogContent style={{ maxWidth: 500 }}>
-          <DialogHeader><DialogTitle>{editHaulier ? "Edit Haulier" : "Add Haulier"}</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
-            <div><Label>Company Name <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Smith Agricultural Haulage Ltd" value={form.companyName} onChange={e => setForm((f: any) => ({ ...f, companyName: e.target.value }))} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Contact Name</Label><Input value={form.contactName} onChange={e => setForm((f: any) => ({ ...f, contactName: e.target.value }))} /></div>
-              <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm((f: any) => ({ ...f, phone: e.target.value }))} /></div>
-            </div>
-            <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => setForm((f: any) => ({ ...f, email: e.target.value }))} /></div>
-            <div><Label>Operator Licence No.</Label><Input value={form.operatorLicence} onChange={e => setForm((f: any) => ({ ...f, operatorLicence: e.target.value }))} /></div>
-            <div><Label>Vehicle Types</Label><Input placeholder="e.g. Articulated tipper, grain trailer" value={form.vehicleTypes} onChange={e => setForm((f: any) => ({ ...f, vehicleTypes: e.target.value }))} /></div>
-            <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-          </div>
+      {/* ── View Dialog ── */}
+      <Dialog open={!!viewHaulier} onOpenChange={o => { if (!o) setViewHaulier(null); }}>
+        <DialogContent style={{ maxWidth: 560 }}>
+          <DialogHeader><DialogTitle>{viewHaulier?.companyName}</DialogTitle></DialogHeader>
+          {viewHaulier && (() => {
+            const vts = parseVehicleTypes(viewHaulier.vehicleTypes);
+            const cs = parseContacts(viewHaulier.contacts);
+            const addr = [viewHaulier.addressLine1, viewHaulier.addressLine2, viewHaulier.town, viewHaulier.county, viewHaulier.postcode].filter(Boolean).join(", ");
+            return (
+              <div className="space-y-4 py-1">
+                {viewHaulier.operatorLicence && <div><p style={{ fontSize: "0.75rem", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Operator Licence</p><p style={{ fontWeight: 500 }}>{viewHaulier.operatorLicence}</p></div>}
+                {addr && <div><p style={{ fontSize: "0.75rem", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Address</p><p style={{ whiteSpace: "pre-line" }}>{[viewHaulier.addressLine1, viewHaulier.addressLine2, viewHaulier.town, viewHaulier.county, viewHaulier.postcode].filter(Boolean).join("\n")}</p></div>}
+                {vts.length > 0 && <div><p style={{ fontSize: "0.75rem", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Vehicle Types</p><div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>{vts.map(v => <span key={v} style={{ fontSize: "0.8rem", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", padding: "2px 8px", borderRadius: 4 }}>{v}</span>)}</div></div>}
+                {cs.length > 0 && <div><p style={{ fontSize: "0.75rem", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Contacts</p>
+                  <div className="space-y-2">{cs.map((c, i) => <div key={i} style={{ background: "#f9fafb", borderRadius: 6, padding: "8px 10px" }}>
+                    <p style={{ fontWeight: 600, fontSize: "0.875rem" }}>{c.name} {c.role && <span style={{ fontWeight: 400, color: "#6b7280" }}>· {c.role}</span>}</p>
+                    <div style={{ display: "flex", gap: 16, marginTop: 2 }}>
+                      {c.phone && <p style={{ fontSize: "0.8rem", color: "#374151" }}>{c.phone}</p>}
+                      {c.email && <p style={{ fontSize: "0.8rem", color: "#374151" }}>{c.email}</p>}
+                    </div>
+                  </div>)}</div>
+                </div>}
+                {viewHaulier.notes && <div><p style={{ fontSize: "0.75rem", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Notes</p><p style={{ fontSize: "0.875rem" }}>{viewHaulier.notes}</p></div>}
+              </div>
+            );
+          })()}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddOpen(false); setEditHaulier(null); setForm(empty); }}>Cancel</Button>
-            <Button onClick={() => saveMut.mutate(form)} disabled={!form.companyName || saveMut.isPending}>
+            <Button variant="outline" onClick={() => setViewHaulier(null)}>Close</Button>
+            <Button onClick={() => { openEdit(viewHaulier); setViewHaulier(null); }}><Pencil size={14} className="mr-1" />Edit</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add / Edit Dialog ── */}
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditHaulier(null); setForm(emptyHaulierForm()); } }}>
+        <DialogContent style={{ maxWidth: 620, maxHeight: "90vh", overflowY: "auto" }}>
+          <DialogHeader><DialogTitle>{editHaulier ? "Edit Haulier" : "Add Haulier"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+
+            {/* Company + Licence */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2"><Label>Company Name <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Smith Agricultural Haulage Ltd" value={form.companyName} onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))} /></div>
+              <div><Label>Operator Licence No.</Label><Input placeholder="O-XXXXXX" value={form.operatorLicence} onChange={e => setForm(f => ({ ...f, operatorLicence: e.target.value }))} /></div>
+              <div><Label>General Email</Label><Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
+            </div>
+
+            {/* Address */}
+            <div>
+              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 4 }}>Address</p>
+              <div className="space-y-2">
+                <Input placeholder="Address line 1" value={form.addressLine1} onChange={e => setForm(f => ({ ...f, addressLine1: e.target.value }))} />
+                <Input placeholder="Address line 2 (optional)" value={form.addressLine2} onChange={e => setForm(f => ({ ...f, addressLine2: e.target.value }))} />
+                <div className="grid grid-cols-3 gap-2">
+                  <Input placeholder="Town / City" value={form.town} onChange={e => setForm(f => ({ ...f, town: e.target.value }))} />
+                  <Input placeholder="County" value={form.county} onChange={e => setForm(f => ({ ...f, county: e.target.value }))} />
+                  <Input placeholder="Postcode" value={form.postcode} onChange={e => setForm(f => ({ ...f, postcode: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+
+            {/* Vehicle Types */}
+            <div>
+              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 4 }}>Vehicle Types</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px 12px" }}>
+                {VEHICLE_TYPES.map(v => (
+                  <label key={v} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", cursor: "pointer", padding: "3px 0" }}>
+                    <input type="checkbox" checked={form.vehicleTypes.includes(v)} onChange={() => toggleVehicle(v)} style={{ accentColor: "#1a6b3a" }} />
+                    {v}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Contacts */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e5e7eb", paddingBottom: 4, marginBottom: 8 }}>
+                <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151" }}>Contacts</p>
+                <Button size="sm" variant="outline" type="button" onClick={addContact} style={{ height: 26, fontSize: "0.75rem" }}><Plus size={12} className="mr-1" />Add Contact</Button>
+              </div>
+              <div className="space-y-3">
+                {form.contacts.map((c, i) => (
+                  <div key={i} style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>Contact {i + 1}</span>
+                      {form.contacts.length > 1 && <Button size="sm" variant="ghost" type="button" onClick={() => removeContact(i)} style={{ height: 22, padding: "0 6px", color: "#ef4444" }}><X size={12} /></Button>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input placeholder="Full name" value={c.name} onChange={e => setContact(i, "name", e.target.value)} style={{ fontSize: "0.85rem" }} />
+                      <Select value={c.role} onValueChange={v => setContact(i, "role", v)}>
+                        <SelectTrigger style={{ fontSize: "0.85rem" }}><SelectValue /></SelectTrigger>
+                        <SelectContent>{CONTACT_ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <Input placeholder="Phone number" value={c.phone} onChange={e => setContact(i, "phone", e.target.value)} style={{ fontSize: "0.85rem" }} />
+                      <Input placeholder="Email address" type="email" value={c.email} onChange={e => setContact(i, "email", e.target.value)} style={{ fontSize: "0.85rem" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditHaulier(null); setForm(emptyHaulierForm()); }}>Cancel</Button>
+            <Button onClick={handleSave} disabled={!form.companyName || saveMut.isPending}>
               {saveMut.isPending ? "Saving…" : editHaulier ? "Save Changes" : "Add Haulier"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirmation ── */}
+      <Dialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}>
+        <DialogContent style={{ maxWidth: 420 }}>
+          <DialogHeader><DialogTitle>Remove Haulier</DialogTitle></DialogHeader>
+          <p style={{ fontSize: "0.875rem", color: "#374151" }}>
+            Remove <strong>{deleteTarget?.companyName}</strong> from the directory? This haulier will no longer appear in dropdown lists, but existing dispatch records that reference them will be preserved.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteMut.mutate(deleteTarget.id)} disabled={deleteMut.isPending}>
+              {deleteMut.isPending ? "Removing…" : "Remove Haulier"}
             </Button>
           </DialogFooter>
         </DialogContent>
