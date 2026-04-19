@@ -67,6 +67,10 @@ export default defineConfig({
       "@tanstack/react-query": path.resolve(import.meta.dirname, "node_modules/@tanstack/react-query"),
       "react-hook-form": path.resolve(import.meta.dirname, "node_modules/react-hook-form"),
       "wouter": path.resolve(import.meta.dirname, "node_modules/wouter"),
+      // @clerk/react lives in dashboard's node_modules — alias it explicitly so
+      // Vite can pre-bundle it and its internal React imports go through the
+      // react alias above, preventing a duplicate React instance
+      "@clerk/react": path.resolve(import.meta.dirname, "../dashboard/node_modules/@clerk/react"),
       // Zustand: alias each sub-path to its ESM file so Vite can pre-bundle it
       // without needing zustand in test-dashboard's node_modules. All sub-paths
       // must be covered because esm/index.mjs imports 'zustand/vanilla' etc.
@@ -87,6 +91,7 @@ export default defineConfig({
       "react-hook-form",
       "wouter",
       "zustand",
+      "@clerk/react",
       "@radix-ui/react-dialog",
       "@radix-ui/react-select",
       "@radix-ui/react-dropdown-menu",
@@ -119,6 +124,7 @@ export default defineConfig({
       "wouter",
       "zustand",
       "zustand/middleware",
+      "@clerk/react",
       "@radix-ui/react-dialog",
       "@radix-ui/react-select",
       "@radix-ui/react-dropdown-menu",
