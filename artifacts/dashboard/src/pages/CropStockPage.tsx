@@ -270,8 +270,10 @@ function BinCard({ bin, parcels, allMovements, onEdit, onDelete, onHarvestIn }: 
   const [historyParcel, setHistoryParcel] = useState<any | null>(null);
   const binTotal = parcels.reduce((s, p) => s + parseFloat(p.quantityTonnes ?? "0"), 0);
   const cap = parseFloat(bin.capacityTonnes ?? "0");
+  const available = cap > 0 ? Math.max(0, cap - binTotal) : null;
   const fillPct = cap > 0 ? Math.min(100, (binTotal / cap) * 100) : 0;
   const fillColor = fillPct >= 90 ? "#dc2626" : fillPct >= 70 ? "#f59e0b" : "#16a34a";
+  const availColor = fillPct >= 90 ? "#dc2626" : fillPct >= 70 ? "#b45309" : "#15803d";
 
   const parcelMovements = (p: any) =>
     allMovements.filter(m => m.binId === bin.id && m.commodity === p.commodity && (m.variety ?? "") === (p.variety ?? ""));
@@ -290,10 +292,17 @@ function BinCard({ bin, parcels, allMovements, onEdit, onDelete, onHarvestIn }: 
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <span style={{ fontSize: "0.9rem", fontWeight: 700, color: "#111827" }}>
-            {binTotal.toFixed(1)} t
-            {cap > 0 && <span style={{ fontSize: "0.8rem", color: "#9ca3af", fontWeight: 400 }}> / {cap.toFixed(0)} t capacity</span>}
-          </span>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#111827", lineHeight: 1.3 }}>
+              {binTotal.toFixed(1)} t stored
+              {cap > 0 && <span style={{ fontSize: "0.78rem", color: "#9ca3af", fontWeight: 400 }}> / {cap.toFixed(0)} t cap</span>}
+            </div>
+            {available !== null && (
+              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: availColor, lineHeight: 1.2 }}>
+                {available.toFixed(1)} t available
+              </div>
+            )}
+          </div>
           <button
             onClick={() => onHarvestIn(bin.id)}
             title="Record harvest into this bin"
@@ -310,7 +319,14 @@ function BinCard({ bin, parcels, allMovements, onEdit, onDelete, onHarvestIn }: 
           <div style={{ height: 7, background: "#f3f4f6", borderRadius: 4, overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${fillPct}%`, background: fillColor, borderRadius: 4, transition: "width 0.6s ease" }} />
           </div>
-          <p style={{ fontSize: "0.68rem", color: "#9ca3af", marginTop: 3 }}>{fillPct.toFixed(0)}% full</p>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3 }}>
+            <span style={{ fontSize: "0.68rem", color: "#9ca3af" }}>{fillPct.toFixed(0)}% full</span>
+            {available !== null && (
+              <span style={{ fontSize: "0.68rem", fontWeight: 600, color: availColor }}>
+                {available.toFixed(1)} t remaining
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -719,11 +735,19 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
                 }}
                 placeholder="Select destination bin or store..."
               />
-              {harvestExistingParcel && !harvestHasConflict && (
-                <div style={{ marginTop: 6, padding: "0.5rem 0.75rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, fontSize: "0.8rem", color: "#15803d" }}>
-                  <strong>Existing lot:</strong> {harvestExistingParcel.commodity} / {harvestExistingParcel.variety ?? "—"} ({harvestExistingParcel.cropYear ?? "—"}) — {parseFloat(harvestExistingParcel.quantityTonnes ?? 0).toFixed(1)}t in store. Harvest-in will add to this lot.
-                </div>
-              )}
+              {harvestExistingParcel && !harvestHasConflict && (() => {
+                const dialogBin = bins.find((b: any) => b.id === harvestForm.binId);
+                const cap = parseFloat(dialogBin?.capacityTonnes ?? "0");
+                const stored = parseFloat(harvestExistingParcel.quantityTonnes ?? "0");
+                const avail = cap > 0 ? Math.max(0, cap - stored) : null;
+                return (
+                  <div style={{ marginTop: 6, padding: "0.5rem 0.75rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, fontSize: "0.8rem", color: "#15803d" }}>
+                    <strong>Existing lot:</strong> {harvestExistingParcel.commodity} / {harvestExistingParcel.variety ?? "—"} ({harvestExistingParcel.cropYear ?? "—"}) — {stored.toFixed(1)} t in store
+                    {avail !== null && <span style={{ marginLeft: 8, fontWeight: 700 }}>· {avail.toFixed(1)} t space remaining</span>}
+                    . Harvest-in will add to this lot.
+                  </div>
+                );
+              })()}
               {harvestCommodityConflict && (
                 <div style={{ marginTop: 6, padding: "0.5rem 0.75rem", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, fontSize: "0.8rem", color: "#b91c1c" }}>
                   <strong>Red Tractor conflict — mixed crop:</strong> This bin already holds {harvestExistingParcel!.commodity} / {harvestExistingParcel!.variety ?? "—"}. Each registered location must hold one commodity and variety only. Select a different bin, or clear the existing lot first.
