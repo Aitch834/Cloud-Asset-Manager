@@ -495,9 +495,13 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
 
   // Conflict detection — harvest dialog
   const harvestExistingParcel = harvestForm.binId ? binOccupancyMap[harvestForm.binId] : null;
-  const harvestHasConflict = harvestExistingParcel && harvestForm.commodity &&
+  const harvestCommodityConflict = !!(harvestExistingParcel && harvestForm.commodity &&
     (harvestExistingParcel.commodity !== harvestForm.commodity ||
-     (harvestExistingParcel.variety ?? "") !== (harvestForm.variety ?? ""));
+     (harvestExistingParcel.variety ?? "") !== (harvestForm.variety ?? "")));
+  const harvestCropYearConflict = !!(harvestExistingParcel && derivedCropYear &&
+    harvestExistingParcel.cropYear && harvestExistingParcel.cropYear !== derivedCropYear &&
+    !harvestCommodityConflict); // only show year conflict when commodity/variety match
+  const harvestHasConflict = harvestCommodityConflict || harvestCropYearConflict;
 
   // Conflict detection — manual stock entry dialog (skip when editing the same record)
   const levelExistingParcel = (levelForm.binId && !editRow) ? binOccupancyMap[levelForm.binId] : null;
@@ -720,9 +724,14 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
                   <strong>Existing lot:</strong> {harvestExistingParcel.commodity} / {harvestExistingParcel.variety ?? "—"} ({harvestExistingParcel.cropYear ?? "—"}) — {parseFloat(harvestExistingParcel.quantityTonnes ?? 0).toFixed(1)}t in store. Harvest-in will add to this lot.
                 </div>
               )}
-              {harvestHasConflict && (
+              {harvestCommodityConflict && (
                 <div style={{ marginTop: 6, padding: "0.5rem 0.75rem", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, fontSize: "0.8rem", color: "#b91c1c" }}>
-                  <strong>Red Tractor conflict:</strong> This bin already holds {harvestExistingParcel.commodity} / {harvestExistingParcel.variety ?? "—"}. You cannot mix {harvestForm.commodity} into the same registered location. Select a different bin, or clear the existing lot first.
+                  <strong>Red Tractor conflict — mixed crop:</strong> This bin already holds {harvestExistingParcel!.commodity} / {harvestExistingParcel!.variety ?? "—"}. Each registered location must hold one commodity and variety only. Select a different bin, or clear the existing lot first.
+                </div>
+              )}
+              {harvestCropYearConflict && (
+                <div style={{ marginTop: 6, padding: "0.5rem 0.75rem", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, fontSize: "0.8rem", color: "#b91c1c" }}>
+                  <strong>Red Tractor conflict — harvest year mismatch:</strong> This bin holds <strong>{harvestExistingParcel!.cropYear}</strong> grain. The date you have entered produces crop year <strong>{derivedCropYear}</strong>. Red Tractor requires each registered location to hold one crop year as a discrete traceable lot. Select a different bin, or clear and clean this location before the new harvest is stored.
                 </div>
               )}
             </div>
