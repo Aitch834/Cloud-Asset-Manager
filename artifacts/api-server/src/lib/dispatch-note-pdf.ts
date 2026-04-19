@@ -224,10 +224,10 @@ export async function generateDispatchNote(data: DispatchNoteData): Promise<Buff
   // Farm identifiers on right
   kv(doc, "CPH Number",       data.cphNumber,    C3,    y,      CW);
   kv(doc, "SBI Number",       data.sbiNumber,    C4,    y,      CW);
-  kv(doc, "Red Tractor No.",  data.redTractorId, C3,    y + 16, CW);
-  kv(doc, "Farm Manager",     data.farmManager,  C4,    y + 16, CW);
+  kv(doc, "Red Tractor No.",  data.redTractorId, C3,    y + 26, CW);
+  kv(doc, "Farm Manager",     data.farmManager,  C4,    y + 26, CW);
 
-  y += 38;
+  y += 50;
   rule(doc, y);
   y += 8;
 
