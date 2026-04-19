@@ -543,15 +543,20 @@ function DispatchesTab({ farmId }: { farmId: number }) {
             <DialogFooter className="mt-4" style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
               <Button variant="outline" style={{ gap: 6 }} onClick={async () => {
+                const win = window.open("about:blank", "_blank");
                 try {
                   const resp = await fetch(`/api/farms/${farmId}/haulage/${viewRecord.id}/dispatch-note`);
-                  if (!resp.ok) throw new Error("Auth failed");
+                  if (!resp.ok) throw new Error("failed");
                   const blob = await resp.blob();
                   const url = URL.createObjectURL(blob);
-                  const tab = window.open(url, "_blank");
-                  if (!tab) alert("Please allow pop-ups for this site to view the dispatch note.");
+                  if (win) {
+                    win.location.href = url;
+                  } else {
+                    const a = Object.assign(document.createElement("a"), { href: url, download: `dispatch-note-${viewRecord.id}.pdf` });
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                  }
                   setTimeout(() => URL.revokeObjectURL(url), 60000);
-                } catch { alert("Could not generate dispatch note. Please try again."); }
+                } catch { if (win) win.close(); }
               }}><FileDown size={14} /> Dispatch Note PDF</Button>
               <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit</Button>
             </DialogFooter>
