@@ -115,6 +115,23 @@ const getCategoryForType = (value: string) => {
 
 const UNITS = ["t/ha", "kg/ha", "l/ha", "mm", "m³", "bales", "bags"];
 
+const UNITS_FOR_TYPE: Record<string, string[]> = {
+  // Soil Amendments — solid material by weight per area
+  lime_spreading:   ["t/ha", "kg/ha"],
+  gypsum:           ["t/ha", "kg/ha"],
+  compost:          ["t/ha", "kg/ha", "l/ha"],
+  // Crop Establishment — seed rate always in kg/ha
+  cover_crop_seeding: ["kg/ha"],
+  // Applications
+  slug_pellets:     ["kg/ha"],
+  irrigation:       ["mm", "m³", "l/ha"],
+  desiccation:      ["l/ha"],
+};
+
+function unitsForType(opType: string): string[] {
+  return UNITS_FOR_TYPE[opType] ?? UNITS;
+}
+
 function computeOpCost(r: any): number {
   let cost = 0;
   if (r.isContractor && r.contractorCostPence) {
@@ -367,11 +384,13 @@ export default function FieldOperationsPage() {
 
   function handleOpTypeChange(val: string) {
     const def = getTypeDef(val);
-    setForm((f) => ({
-      ...f,
-      operationType: val,
-      quantityUnit: def && (def as any).defaultUnit ? (def as any).defaultUnit : f.quantityUnit,
-    }));
+    const validUnits = unitsForType(val);
+    setForm((f) => {
+      const newUnit = def && (def as any).defaultUnit
+        ? (def as any).defaultUnit
+        : validUnits.includes(f.quantityUnit) ? f.quantityUnit : validUnits[0] ?? "";
+      return { ...f, operationType: val, quantityUnit: newUnit };
+    });
   }
 
   function handleSubmit() {
@@ -870,7 +889,7 @@ export default function FieldOperationsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">Select…</SelectItem>
-                      {UNITS.map((u) => (
+                      {unitsForType(form.operationType).map((u) => (
                         <SelectItem key={u} value={u}>{u}</SelectItem>
                       ))}
                     </SelectContent>
