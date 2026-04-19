@@ -5,7 +5,7 @@ interface AppState {
   tenantSlug: string | null;
   farmId: number | null;
   setTenantSlug: (slug: string) => void;
-  setFarmId: (id: number) => void;
+  setFarmId: (id: number | null) => void;
   clearState: () => void;
 }
 

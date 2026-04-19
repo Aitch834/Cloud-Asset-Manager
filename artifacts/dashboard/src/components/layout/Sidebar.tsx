@@ -223,6 +223,8 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
   filteredBottomNav: NavItem[];
 }) {
   const navRef = useRef<HTMLElement>(null);
+  const [, setLocation] = useLocation();
+  const { setFarmId } = useAppStore();
 
   useEffect(() => {
     const el = navRef.current;
@@ -258,15 +260,22 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
       </div>
 
       <div className="px-3 py-2 flex-shrink-0">
-        <Link href="/select" className="block" onClick={onNavClick}>
-          <div className="w-full flex items-center justify-between px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-colors border border-white/5 cursor-pointer">
+        <button
+          className="w-full block"
+          onClick={() => {
+            setFarmId(null);
+            setLocation("/select");
+            onNavClick?.();
+          }}
+        >
+          <div className="w-full flex items-center justify-between px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-colors border border-white/5 cursor-pointer group">
             <div className="flex flex-col text-left">
-              <span className="text-[10px] text-white/50 font-medium">Current Farm</span>
+              <span className="text-[10px] text-white/50 font-medium group-hover:text-white/70 transition-colors">Switch Farm</span>
               <span className="text-sm font-semibold text-white">{currentFarmName || "Select Farm"}</span>
             </div>
-            <ChevronDown className="w-4 h-4 text-white/50" />
+            <ChevronDown className="w-4 h-4 text-white/50 group-hover:text-white/70 transition-colors" />
           </div>
-        </Link>
+        </button>
       </div>
 
       <nav ref={navRef} className="flex-1 px-3 py-3 space-y-0 overflow-y-auto">
