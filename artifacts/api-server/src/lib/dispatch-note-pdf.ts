@@ -88,7 +88,7 @@ export interface DispatchNoteData {
 
 // ─── Main generator ───────────────────────────────────────────────────────────
 export async function generateDispatchNote(data: DispatchNoteData): Promise<Buffer> {
-  const doc = new PDFDocument({ margin: 48, size: "A4" });
+  const doc = new PDFDocument({ margin: 48, size: "A4", layout: "landscape" });
 
   // ── Header bar ──────────────────────────────────────────────────────────────
   doc.rect(0, 0, doc.page.width, 72).fill(GREEN);

@@ -542,17 +542,8 @@ function DispatchesTab({ farmId }: { farmId: number }) {
             </div>
             <DialogFooter className="mt-4" style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
-              <Button variant="outline" style={{ gap: 6 }} onClick={async () => {
-                const r = viewRecord;
-                try {
-                  const resp = await fetch(`/api/farms/${farmId}/haulage/${r.id}/dispatch-note`);
-                  if (!resp.ok) throw new Error("Failed to generate dispatch note");
-                  const blob = await resp.blob();
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url; a.download = `dispatch-note-HR-${r.id}.pdf`; a.click();
-                  setTimeout(() => URL.revokeObjectURL(url), 5000);
-                } catch { alert("Could not generate dispatch note. Please try again."); }
+              <Button variant="outline" style={{ gap: 6 }} onClick={() => {
+                window.open(`/api/farms/${farmId}/haulage/${viewRecord.id}/dispatch-note`, "_blank");
               }}><FileDown size={14} /> Dispatch Note PDF</Button>
               <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit</Button>
             </DialogFooter>

@@ -15292,7 +15292,7 @@ router.get("/farms/:farmId/haulage/:recordId/dispatch-note", requireAuth, requir
   });
   const filename = `dispatch-note-HR-${record.id}.pdf`;
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
   res.send(buf);
 });
 
