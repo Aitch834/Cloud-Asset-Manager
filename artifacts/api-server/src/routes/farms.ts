@@ -251,7 +251,7 @@ import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, 
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
-import { generateDispatchNote } from "../lib/dispatch-note-pdf";
+import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
 import { submitLisMovement, testLisConnection, fetchLisToken, isLisSandboxMode } from "../lib/lis";
 
@@ -15259,7 +15259,7 @@ router.get("/farms/:farmId/haulage/:recordId/dispatch-note", requireAuth, requir
   if (!rows.length) { res.status(404).json({ error: "Not found" }); return; }
   const record = rows[0];
   const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.id, farmId));
-  const buf = await generateDispatchNote({
+  const html = generateDispatchNoteHtml({
     farmName: farm?.name || "Unknown Farm",
     farmAddress: farm?.address,
     farmPostcode: farm?.postcode,
@@ -15290,10 +15290,8 @@ router.get("/farms/:farmId/haulage/:recordId/dispatch-note", requireAuth, requir
     confirmedBy: record.deliveryConfirmedBy,
     weighbridgeWeightTonnes: record.weighbridgeWeightTonnes,
   });
-  const filename = `dispatch-note-HR-${record.id}.pdf`;
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-  res.send(buf);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html);
 });
 
 // --- Livestock movements linked to a haulage record ---

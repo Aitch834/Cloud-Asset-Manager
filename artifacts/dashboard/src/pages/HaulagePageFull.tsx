@@ -543,21 +543,19 @@ function DispatchesTab({ farmId }: { farmId: number }) {
             <DialogFooter className="mt-4" style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
               <Button variant="outline" style={{ gap: 6 }} onClick={async () => {
-                const win = window.open("about:blank", "_blank");
+                const win = window.open("", "_blank");
                 try {
                   const resp = await fetch(`/api/farms/${farmId}/haulage/${viewRecord.id}/dispatch-note`);
                   if (!resp.ok) throw new Error("failed");
-                  const blob = await resp.blob();
-                  const url = URL.createObjectURL(blob);
+                  const html = await resp.text();
                   if (win) {
-                    win.location.href = url;
-                  } else {
-                    const a = Object.assign(document.createElement("a"), { href: url, download: `dispatch-note-${viewRecord.id}.pdf` });
-                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    win.document.write(html);
+                    win.document.close();
+                    win.addEventListener("afterprint", () => win.close());
+                    win.print();
                   }
-                  setTimeout(() => URL.revokeObjectURL(url), 60000);
                 } catch { if (win) win.close(); }
-              }}><FileDown size={14} /> Dispatch Note PDF</Button>
+              }}><FileDown size={14} /> Dispatch Note</Button>
               <Button onClick={() => { const r = viewRecord; setViewRecord(null); openEdit(r); }}>Edit</Button>
             </DialogFooter>
           </DialogContent>
