@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { OtherSelect } from "@/components/ui/other-select";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2, ArrowLeftRight, ArrowUpRight } from "lucide-react";
+import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2, ArrowLeftRight, ArrowUpRight, Paperclip, X, FileText, Image } from "lucide-react";
+import { useUpload } from "@workspace/object-storage-web";
 
 type Tab = "dispatches" | "transfers" | "grain-position" | "directory";
 
@@ -124,7 +125,17 @@ function DispatchesTab({ farmId }: { farmId: number }) {
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [confirmId, setConfirmId] = useState<number | null>(null);
-  const [confirmForm, setConfirmForm] = useState({ confirmedBy: "", notes: "" });
+  const [confirmRecord, setConfirmRecord] = useState<any | null>(null);
+  const [confirmForm, setConfirmForm] = useState({ confirmedBy: "", notes: "", weighbridgeWeightTonnes: "", proofOfDeliveryUrl: "" });
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const proofInputRef = useRef<HTMLInputElement>(null);
+
+  const { uploadFile, isUploading, progress: uploadProgress } = useUpload({
+    onSuccess: (res: any) => {
+      setConfirmForm(f => ({ ...f, proofOfDeliveryUrl: res.objectPath }));
+    },
+    onError: () => toast({ title: "File upload failed", variant: "destructive" }),
+  });
 
   const emptyForm = {
     movementType: "farm_exit_dispatch",
@@ -188,7 +199,14 @@ function DispatchesTab({ farmId }: { farmId: number }) {
   const confirmMut = useMutation({
     mutationFn: ({ id, body }: { id: number; body: any }) =>
       fetch(`/api/farms/${farmId}/haulage/${id}/confirm-dispatch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
-    onSuccess: () => { toast({ title: "Dispatch confirmed — stock deducted from bin" }); invalidate(); setConfirmId(null); setConfirmForm({ confirmedBy: "", notes: "" }); },
+    onSuccess: () => {
+      toast({ title: "Dispatch confirmed — stock deducted from bin" });
+      invalidate();
+      setConfirmId(null);
+      setConfirmRecord(null);
+      setConfirmForm({ confirmedBy: "", notes: "", weighbridgeWeightTonnes: "", proofOfDeliveryUrl: "" });
+      setProofFile(null);
+    },
     onError: () => toast({ title: "Failed to confirm dispatch", variant: "destructive" }),
   });
 
@@ -279,16 +297,22 @@ function DispatchesTab({ farmId }: { farmId: number }) {
                   <td style={{ padding: "0.625rem 0.875rem" }}>{r.deliveryStatus ? <StatusBadge status={r.deliveryStatus} /> : "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{fmtCost(r.costPence)}</td>
                   <td style={{ padding: "0.5rem" }}>
-                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
                       {!r.deliveryConfirmedAt && r.deliveryStatus !== "cancelled" && (
                         <button
-                          onClick={() => { setConfirmId(r.id); setConfirmForm({ confirmedBy: "", notes: "" }); }}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#16a34a", padding: 4 }}
-                          title="Confirm dispatch & deduct stock"
-                        ><CheckCircle2 size={14} /></button>
+                          onClick={() => { setConfirmId(r.id); setConfirmRecord(r); setConfirmForm({ confirmedBy: "", notes: "", weighbridgeWeightTonnes: "", proofOfDeliveryUrl: "" }); setProofFile(null); }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", padding: "3px 8px", fontSize: "0.72rem", fontWeight: 600, whiteSpace: "nowrap" }}
+                          title="Confirm receipt at destination & deduct stock"
+                        ><CheckCircle2 size={12} />Confirm Receipt</button>
                       )}
                       {r.deliveryConfirmedAt && (
-                        <span title={`Confirmed ${new Date(r.deliveryConfirmedAt).toLocaleDateString("en-GB")}${r.deliveryConfirmedBy ? ` by ${r.deliveryConfirmedBy}` : ""}`} style={{ color: "#16a34a", padding: 4, display: "inline-flex" }}><CheckCircle2 size={14} /></span>
+                        <span
+                          title={`Confirmed ${new Date(r.deliveryConfirmedAt).toLocaleDateString("en-GB")}${r.deliveryConfirmedBy ? ` by ${r.deliveryConfirmedBy}` : ""}${r.proofOfDeliveryUrl ? " · Proof attached" : ""}`}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#dcfce7", color: "#166534", borderRadius: 6, padding: "3px 7px", fontSize: "0.72rem", fontWeight: 600, whiteSpace: "nowrap" }}
+                        >
+                          <CheckCircle2 size={12} />Stock Deducted
+                          {r.proofOfDeliveryUrl && <Paperclip size={11} style={{ marginLeft: 2 }} />}
+                        </span>
                       )}
                       <button onClick={() => setViewRecord(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="View"><Eye size={13} /></button>
                       <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }} title="Edit"><Pencil size={13} /></button>
@@ -318,24 +342,86 @@ function DispatchesTab({ farmId }: { farmId: number }) {
       )}
 
       {/* Confirm Dispatch Dialog */}
-      <Dialog open={confirmId !== null} onOpenChange={o => { if (!o) setConfirmId(null); }}>
-        <DialogContent style={{ maxWidth: 400 }}>
-          <DialogHeader><DialogTitle>Confirm Dispatch</DialogTitle></DialogHeader>
-          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
-            Confirming this dispatch will deduct the recorded tonnage from the source bin stock level. This cannot be undone.
+      <Dialog open={confirmId !== null} onOpenChange={o => { if (!o) { setConfirmId(null); setConfirmRecord(null); setProofFile(null); } }}>
+        <DialogContent style={{ maxWidth: 460 }}>
+          <DialogHeader><DialogTitle>Confirm Receipt at Destination</DialogTitle></DialogHeader>
+          {confirmRecord && (
+            <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.625rem 0.875rem", fontSize: "0.8rem", color: "#374151" }}>
+              <span style={{ fontWeight: 600 }}>{confirmRecord.commodity || confirmRecord.loadType}</span>
+              {confirmRecord.destination ? <> → {confirmRecord.destination}</> : null}
+              {confirmRecord.weightTonnes ? <span style={{ color: "#6b7280" }}> · {parseFloat(confirmRecord.weightTonnes).toFixed(2)} t (estimated)</span> : null}
+            </div>
+          )}
+          <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+            This will record delivery confirmation and deduct stock from the source bin. This action cannot be undone.
           </p>
-          <div className="space-y-3 mt-2">
-            <div><Label>Confirmed By</Label><Input placeholder="Your name" value={confirmForm.confirmedBy} onChange={e => setConfirmForm(f => ({ ...f, confirmedBy: e.target.value }))} /></div>
-            <div><Label>Notes (optional)</Label><Textarea rows={2} value={confirmForm.notes} onChange={e => setConfirmForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          <div className="space-y-3 mt-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Confirmed By <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Input placeholder="Your name" value={confirmForm.confirmedBy} onChange={e => setConfirmForm(f => ({ ...f, confirmedBy: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Weighbridge Weight (t)</Label>
+                <Input type="number" step="0.01" min="0" placeholder="Actual delivered" value={confirmForm.weighbridgeWeightTonnes} onChange={e => setConfirmForm(f => ({ ...f, weighbridgeWeightTonnes: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label>Notes (optional)</Label>
+              <Textarea rows={2} placeholder="e.g. Weighbridge ticket ref, any discrepancies…" value={confirmForm.notes} onChange={e => setConfirmForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Proof of Delivery</Label>
+              <p style={{ fontSize: "0.72rem", color: "#9ca3af", marginBottom: 6 }}>Attach a photo of the weighbridge ticket, text message, or any confirmation received from the destination.</p>
+              <input
+                ref={proofInputRef}
+                type="file"
+                accept="image/*,application/pdf,.jpg,.jpeg,.png,.pdf,.heic,.webp"
+                style={{ display: "none" }}
+                onChange={async e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setProofFile(file);
+                  await uploadFile(file);
+                }}
+              />
+              {!proofFile ? (
+                <button
+                  type="button"
+                  onClick={() => proofInputRef.current?.click()}
+                  style={{ width: "100%", border: "2px dashed #d1d5db", borderRadius: 8, padding: "0.875rem", background: "#fafafa", cursor: "pointer", color: "#6b7280", fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                >
+                  <Paperclip size={14} /> Click to attach file
+                </button>
+              ) : (
+                <div style={{ border: "1px solid #d1fae5", borderRadius: 8, padding: "0.625rem 0.875rem", background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.8rem", color: "#374151", minWidth: 0 }}>
+                    {proofFile.type.startsWith("image/") ? <Image size={14} style={{ color: "#16a34a", flexShrink: 0 }} /> : <FileText size={14} style={{ color: "#16a34a", flexShrink: 0 }} />}
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{proofFile.name}</span>
+                    {isUploading && <span style={{ color: "#9ca3af", flexShrink: 0 }}>({uploadProgress}%)</span>}
+                    {!isUploading && confirmForm.proofOfDeliveryUrl && <span style={{ color: "#16a34a", flexShrink: 0 }}>✓ Uploaded</span>}
+                  </div>
+                  <button type="button" onClick={() => { setProofFile(null); setConfirmForm(f => ({ ...f, proofOfDeliveryUrl: "" })); if (proofInputRef.current) proofInputRef.current.value = ""; }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 2, flexShrink: 0 }}><X size={14} /></button>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setConfirmId(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setConfirmId(null); setConfirmRecord(null); setProofFile(null); }}>Cancel</Button>
             <Button
               style={{ background: "#16a34a", color: "#fff" }}
-              onClick={() => confirmId !== null && confirmMut.mutate({ id: confirmId, body: confirmForm })}
-              disabled={confirmMut.isPending}
+              onClick={() => confirmId !== null && confirmMut.mutate({
+                id: confirmId,
+                body: {
+                  confirmedBy: confirmForm.confirmedBy,
+                  notes: confirmForm.notes,
+                  ...(confirmForm.weighbridgeWeightTonnes ? { weighbridgeWeightTonnes: parseFloat(confirmForm.weighbridgeWeightTonnes) } : {}),
+                  ...(confirmForm.proofOfDeliveryUrl ? { proofOfDeliveryUrl: confirmForm.proofOfDeliveryUrl } : {}),
+                }
+              })}
+              disabled={!confirmForm.confirmedBy || isUploading || confirmMut.isPending}
             >
-              {confirmMut.isPending ? "Confirming…" : "Confirm Dispatch"}
+              {confirmMut.isPending ? "Confirming…" : isUploading ? `Uploading… ${uploadProgress}%` : "Confirm Receipt"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -380,11 +466,39 @@ function DispatchesTab({ farmId }: { farmId: number }) {
                 <F label="Cost" value={fmtCost(viewRecord.costPence)} />
               </div>
               {viewRecord.deliveryConfirmedAt && (
-                <div style={{ background: "#dcfce7", borderRadius: 8, padding: 10, display: "flex", gap: 8, alignItems: "center" }}>
-                  <CheckCircle2 size={16} style={{ color: "#16a34a", flexShrink: 0 }} />
-                  <p style={{ fontSize: "0.875rem", color: "#166534" }}>
-                    Dispatch confirmed {fmt(viewRecord.deliveryConfirmedAt)}{viewRecord.deliveryConfirmedBy ? ` by ${viewRecord.deliveryConfirmedBy}` : ""}. Stock deducted from bin.
-                  </p>
+                <div style={{ background: "#dcfce7", borderRadius: 8, padding: 10 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <CheckCircle2 size={16} style={{ color: "#16a34a", flexShrink: 0, marginTop: 2 }} />
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: "0.875rem", color: "#166534", fontWeight: 600 }}>
+                        Stock Deducted — confirmed {fmt(viewRecord.deliveryConfirmedAt)}{viewRecord.deliveryConfirmedBy ? ` by ${viewRecord.deliveryConfirmedBy}` : ""}
+                      </p>
+                      {viewRecord.weighbridgeWeightTonnes && (
+                        <p style={{ fontSize: "0.8rem", color: "#16a34a", marginTop: 2 }}>
+                          Weighbridge weight: <strong>{parseFloat(viewRecord.weighbridgeWeightTonnes).toFixed(2)} t</strong>
+                          {viewRecord.weightTonnes && Math.abs(parseFloat(viewRecord.weighbridgeWeightTonnes) - parseFloat(viewRecord.weightTonnes)) > 0.01
+                            ? <span style={{ color: "#92400e" }}> (estimated was {parseFloat(viewRecord.weightTonnes).toFixed(2)} t)</span>
+                            : null}
+                        </p>
+                      )}
+                      {viewRecord.deliveryConfirmationNotes && (
+                        <p style={{ fontSize: "0.8rem", color: "#374151", marginTop: 2 }}>{viewRecord.deliveryConfirmationNotes}</p>
+                      )}
+                      {viewRecord.proofOfDeliveryUrl && (
+                        <div style={{ marginTop: 8 }}>
+                          <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "#166534", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Proof of Delivery</p>
+                          <a
+                            href={`/api/storage${viewRecord.proofOfDeliveryUrl}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #bbf7d0", borderRadius: 6, padding: "4px 10px", fontSize: "0.8rem", color: "#166534", textDecoration: "none", fontWeight: 500 }}
+                          >
+                            <Paperclip size={13} /> View attachment
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
               {viewRecord.notes && <F label="Notes" value={viewRecord.notes} />}

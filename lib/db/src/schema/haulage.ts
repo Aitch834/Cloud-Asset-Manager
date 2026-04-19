@@ -47,6 +47,8 @@ export const haulageRecordsTable = pgTable("haulage_records", {
   deliveryConfirmedAt: timestamp("delivery_confirmed_at", { withTimezone: true }),
   deliveryConfirmedBy: text("delivery_confirmed_by"),
   deliveryConfirmationNotes: text("delivery_confirmation_notes"),
+  weighbridgeWeightTonnes: numeric("weighbridge_weight_tonnes", { precision: 10, scale: 2 }),
+  proofOfDeliveryUrl: text("proof_of_delivery_url"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

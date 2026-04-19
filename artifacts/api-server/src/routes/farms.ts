@@ -15132,7 +15132,7 @@ router.delete("/farms/:farmId/vehicle-weather-readings/:id", requireAuth, requir
 router.post("/farms/:farmId/haulage/:recordId/confirm-dispatch", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
   const recordId = parseInt(req.params.recordId);
-  const { confirmedBy, notes } = req.body;
+  const { confirmedBy, notes, proofOfDeliveryUrl, weighbridgeWeightTonnes } = req.body;
 
   // Update the haulage record
   const [record] = await db.update(haulageRecordsTable).set({
@@ -15140,6 +15140,8 @@ router.post("/farms/:farmId/haulage/:recordId/confirm-dispatch", requireAuth, re
     deliveryConfirmedBy: confirmedBy,
     deliveryConfirmationNotes: notes,
     deliveryStatus: "dispatched",
+    ...(proofOfDeliveryUrl ? { proofOfDeliveryUrl } : {}),
+    ...(weighbridgeWeightTonnes != null ? { weighbridgeWeightTonnes: String(weighbridgeWeightTonnes) } : {}),
   }).where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId))).returning();
 
   // If this is a farm_exit_dispatch with a source bin, create a dispatch_out stock movement
@@ -15199,12 +15201,14 @@ router.post("/farms/:farmId/haulage/:recordId/confirm-dispatch", requireAuth, re
 router.post("/farms/:farmId/haulage/:recordId/confirm-delivery", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
   const recordId = parseInt(req.params.recordId);
-  const { confirmedBy, notes } = req.body;
+  const { confirmedBy, notes, proofOfDeliveryUrl, weighbridgeWeightTonnes } = req.body;
   const [record] = await db.update(haulageRecordsTable).set({
     deliveryConfirmedAt: new Date(),
     deliveryConfirmedBy: confirmedBy,
     deliveryConfirmationNotes: notes,
     deliveryStatus: "dispatched",
+    ...(proofOfDeliveryUrl ? { proofOfDeliveryUrl } : {}),
+    ...(weighbridgeWeightTonnes != null ? { weighbridgeWeightTonnes: String(weighbridgeWeightTonnes) } : {}),
   }).where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
