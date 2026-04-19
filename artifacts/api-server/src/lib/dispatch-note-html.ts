@@ -72,23 +72,23 @@ export interface DispatchNoteData {
 
 const CSS = `
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Helvetica,Arial,sans-serif;font-size:9px;color:#1a1a1a;background:#fff}
+  body{font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#1a1a1a;background:#fff}
   .hdr{background:#1a6b3a;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:flex-start}
-  .hdr-left h1{font-size:16px;font-weight:700;margin-bottom:2px}
-  .hdr-left p{font-size:8px;color:#a7d9b8}
+  .hdr-left h1{font-size:18px;font-weight:700;margin-bottom:2px}
+  .hdr-left p{font-size:9.5px;color:#a7d9b8}
   .hdr-right{text-align:right}
-  .hdr-right h2{font-size:13px;font-weight:700;margin-bottom:2px}
-  .hdr-right p{font-size:8px;color:#c8ecd5}
+  .hdr-right h2{font-size:15px;font-weight:700;margin-bottom:2px}
+  .hdr-right p{font-size:9.5px;color:#c8ecd5}
   .farm-bar{padding:8px 20px 6px;border-bottom:1px solid #d1d5db;display:flex;gap:16px;align-items:flex-start}
-  .farm-name{font-size:11px;font-weight:700;flex:1}
-  .farm-addr{font-size:8px;color:#6b7280;margin-top:1px}
+  .farm-name{font-size:13px;font-weight:700;flex:1}
+  .farm-addr{font-size:10px;color:#6b7280;margin-top:1px}
   .farm-ids{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px 12px;min-width:420px}
   .kv{padding:2px 0}
-  .kv label{display:block;font-size:6.5px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:1px}
-  .kv span{font-size:9px;color:#1a1a1a}
+  .kv label{display:block;font-size:8px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:1px}
+  .kv span{font-size:11px;color:#1a1a1a}
   .kv span.empty{color:#d1d5db}
   section{padding:0 20px}
-  .sec-hdr{background:#e8f5ee;padding:4px 8px;margin:0 -20px;font-size:7.5px;font-weight:700;color:#1a6b3a;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:6px;margin-top:0}
+  .sec-hdr{background:#e8f5ee;padding:4px 8px;margin:0 -20px;font-size:9px;font-weight:700;color:#1a6b3a;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:6px;margin-top:0}
   .sec-hdr.amber{background:#fef3c7;color:#92400e}
   .sec-hdr.confirmed{background:#dcfce7;color:#1a6b3a}
   .row4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px 12px;margin-bottom:6px}
@@ -96,22 +96,22 @@ const CSS = `
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:6px}
   .panels{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 20px;margin-bottom:4px}
   .panel{border:1px solid #e5e7eb;border-radius:3px;overflow:hidden}
-  .panel-hdr{background:#e8f5ee;padding:4px 8px;font-size:7.5px;font-weight:700;color:#1a6b3a;letter-spacing:0.5px;text-transform:uppercase}
+  .panel-hdr{background:#e8f5ee;padding:4px 8px;font-size:9px;font-weight:700;color:#1a6b3a;letter-spacing:0.5px;text-transform:uppercase}
   .panel-body{padding:6px 8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px 8px}
   .panel-body.dest{grid-template-columns:1fr 1fr}
   .divider{height:1px;background:#d1d5db;margin:6px 20px}
   .checkbox-row{display:flex;gap:24px;margin-bottom:6px;align-items:flex-start}
-  .cb{display:flex;align-items:flex-start;gap:5px;font-size:8.5px;color:#1a1a1a}
+  .cb{display:flex;align-items:flex-start;gap:5px;font-size:10.5px;color:#1a1a1a}
   .cb-box{width:11px;height:11px;min-width:11px;border:1px solid #6b7280;display:inline-block;margin-top:1px}
-  .write-line{border-bottom:1px solid #d1d5db;height:16px;margin-bottom:4px}
+  .write-line{border-bottom:1px solid #d1d5db;height:18px;margin-bottom:4px}
   .sig-box{border:1px solid #d1d5db;height:44px;padding:6px 8px;display:flex;flex-direction:column;justify-content:space-between}
-  .sig-box p{font-size:7px;color:#6b7280}
+  .sig-box p{font-size:9px;color:#6b7280}
   .receipt-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px 12px;margin-bottom:8px}
-  .footer-bar{background:#f9fafb;padding:5px 20px;font-size:6.5px;color:#6b7280;border-top:1px solid #e5e7eb;margin-top:6px}
+  .footer-bar{background:#f9fafb;padding:5px 20px;font-size:8px;color:#6b7280;border-top:1px solid #e5e7eb;margin-top:6px}
   .section-wrap{padding:6px 20px 4px}
   @media print{
     @page{size:A4 landscape;margin:0.8cm}
-    body{font-size:8px}
+    body{font-size:10px}
   }
 `;
 
