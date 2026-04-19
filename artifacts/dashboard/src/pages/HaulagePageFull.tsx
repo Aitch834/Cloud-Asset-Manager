@@ -13,10 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2, ArrowLeftRight, ArrowUpRight, Paperclip, X, FileText, Image, FileDown } from "lucide-react";
+import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2, ArrowLeftRight, ArrowUpRight, Paperclip, X, FileText, Image, FileDown, Receipt, ChevronDown, ChevronUp } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
-type Tab = "dispatches" | "transfers" | "grain-position" | "directory";
+type Tab = "dispatches" | "transfers" | "grain-position" | "directory" | "invoices";
 
 const DISPATCH_STATUSES = [
   { value: "booked", label: "Booked", bg: "#eff6ff", color: "#1e40af" },
@@ -187,7 +187,7 @@ function DispatchesTab({ farmId }: { farmId: number }) {
     weightTonnes: "", vehicleRegistration: "", driverName: "",
     origin: "", destination: "",
     departureDate: "", arrivalDate: "",
-    waybillNumber: "", costPence: "", notes: "",
+    waybillNumber: "", invoiceRef: "", costPence: "", notes: "",
   };
   const [form, setForm] = useState<any>(emptyForm);
 
@@ -497,8 +497,9 @@ function DispatchesTab({ farmId }: { farmId: number }) {
                 <F label="Driver" value={viewRecord.driverName} />
                 <F label="Haulier" value={viewRecord.haulierCompany} />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
                 <F label="Waybill" value={viewRecord.waybillNumber} />
+                <F label="Invoice Ref" value={viewRecord.invoiceRef} />
                 <F label="Cost" value={fmtCost(viewRecord.costPence)} />
               </div>
               {viewRecord.deliveryConfirmedAt && (
@@ -658,8 +659,9 @@ function DispatchesTab({ farmId }: { farmId: number }) {
                 </div>
                 <div><Label>Waybill / Docket Ref</Label><Input value={form.waybillNumber} onChange={e => setForm((f: any) => ({ ...f, waybillNumber: e.target.value }))} /></div>
               </div>
-              <div className="grid grid-cols-2 gap-3" style={{ marginTop: "0.75rem" }}>
+              <div className="grid grid-cols-3 gap-3" style={{ marginTop: "0.75rem" }}>
                 <div><Label>Origin (farm / field)</Label><Input placeholder="e.g. Home Farm, Barn 2" value={form.origin} onChange={e => setForm((f: any) => ({ ...f, origin: e.target.value }))} /></div>
+                <div><Label>Invoice Ref</Label><Input placeholder="e.g. INV-1234" value={form.invoiceRef ?? ""} onChange={e => setForm((f: any) => ({ ...f, invoiceRef: e.target.value }))} /></div>
                 <div><Label>Haulage Cost (£)</Label><Input type="number" step="0.01" min="0" value={form.costPence} onChange={e => setForm((f: any) => ({ ...f, costPence: e.target.value }))} /></div>
               </div>
             </div>
@@ -1364,6 +1366,349 @@ function HaulierDirectoryTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Haulier Invoices Tab ───────────────────────────────────────────────────
+const INV_STATUSES: { value: string; label: string; bg: string; color: string }[] = [
+  { value: "received",    label: "Received",    bg: "#fef3c7", color: "#92400e" },
+  { value: "queried",     label: "Queried",     bg: "#fee2e2", color: "#991b1b" },
+  { value: "reconciled",  label: "Reconciled",  bg: "#eff6ff", color: "#1e40af" },
+  { value: "paid",        label: "Paid",        bg: "#dcfce7", color: "#166534" },
+];
+
+function fmtGBP(pence: number | null | undefined): string {
+  if (pence == null) return "—";
+  return `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+interface InvoiceForm {
+  haulierId: string; haulierName: string; invoiceNumber: string;
+  invoiceDate: string; periodFrom: string; periodTo: string;
+  amountNetPence: string; vatPence: string; amountGrossPence: string;
+  status: string; notes: string;
+}
+const emptyInvoiceForm = (): InvoiceForm => ({
+  haulierId: "", haulierName: "", invoiceNumber: "",
+  invoiceDate: "", periodFrom: "", periodTo: "",
+  amountNetPence: "", vatPence: "", amountGrossPence: "",
+  status: "received", notes: "",
+});
+
+function HaulierInvoicesTab({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
+  const [editInv, setEditInv] = useState<any | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [form, setForm] = useState<InvoiceForm>(emptyInvoiceForm());
+  const [useDirectory, setUseDirectory] = useState(true);
+
+  const invQ = useQuery({
+    queryKey: ["haulier-invoices", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/haulier-invoices`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
+  const hauliersQ = useQuery({
+    queryKey: ["hauliers", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/hauliers`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
+  const loadsQ = useQuery({
+    queryKey: ["haulier-invoice-loads", farmId, expandedId],
+    queryFn: () => fetch(`/api/farms/${farmId}/haulier-invoices/${expandedId}/loads`).then(r => r.json()),
+    enabled: !!expandedId,
+    select: d => d.loads ?? [],
+  });
+
+  const saveMut = useMutation({
+    mutationFn: (body: any) => {
+      if (editInv) return fetch(`/api/farms/${farmId}/haulier-invoices/${editInv.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      return fetch(`/api/farms/${farmId}/haulier-invoices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    },
+    onSuccess: () => {
+      toast({ title: editInv ? "Invoice updated" : "Invoice added" });
+      qc.invalidateQueries({ queryKey: ["haulier-invoices", farmId] });
+      setAddOpen(false); setEditInv(null); setForm(emptyInvoiceForm());
+    },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/haulier-invoices/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Invoice deleted" });
+      qc.invalidateQueries({ queryKey: ["haulier-invoices", farmId] });
+      setDeleteTarget(null);
+    },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const invoices: any[] = invQ.data ?? [];
+  const hauliers: any[] = hauliersQ.data ?? [];
+
+  const openAdd = () => { setEditInv(null); setForm(emptyInvoiceForm()); setUseDirectory(true); setAddOpen(true); };
+  const openEdit = (inv: any) => {
+    setEditInv(inv);
+    setUseDirectory(!!inv.haulierId);
+    setForm({
+      haulierId: inv.haulierId ? String(inv.haulierId) : "",
+      haulierName: inv.haulierName ?? "",
+      invoiceNumber: inv.invoiceNumber ?? "",
+      invoiceDate: inv.invoiceDate ?? "",
+      periodFrom: inv.periodFrom ?? "",
+      periodTo: inv.periodTo ?? "",
+      amountNetPence: inv.amountNetPence != null ? (inv.amountNetPence / 100).toFixed(2) : "",
+      vatPence: inv.vatPence != null ? (inv.vatPence / 100).toFixed(2) : "",
+      amountGrossPence: inv.amountGrossPence != null ? (inv.amountGrossPence / 100).toFixed(2) : "",
+      status: inv.status ?? "received",
+      notes: inv.notes ?? "",
+    });
+    setAddOpen(true);
+  };
+
+  const autoGross = () => {
+    const net = parseFloat(form.amountNetPence) || 0;
+    const vat = parseFloat(form.vatPence) || 0;
+    if (net || vat) setForm(f => ({ ...f, amountGrossPence: (net + vat).toFixed(2) }));
+  };
+
+  const invStatus = (s: string) => INV_STATUSES.find(x => x.value === s) ?? INV_STATUSES[0];
+
+  const outstanding = invoices.filter(i => i.status === "received" || i.status === "queried").length;
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+            Invoices received from hauliers — reconcile against dispatches for accurate records.
+          </p>
+          {outstanding > 0 && (
+            <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "2px 10px", borderRadius: 12, fontSize: "0.75rem", fontWeight: 600 }}>
+              {outstanding} outstanding
+            </span>
+          )}
+        </div>
+        <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Record Invoice</Button>
+      </div>
+
+      {invoices.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <Receipt size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>No haulier invoices recorded</p>
+          <p style={{ fontSize: "0.875rem" }}>Record invoices received from hauliers and reconcile them against individual loads.</p>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 8 }}>
+          {invoices.map((inv: any) => {
+            const st = invStatus(inv.status);
+            const isExpanded = expandedId === inv.id;
+            const haulierLabel = inv.haulierName || (hauliers.find((h: any) => h.id === inv.haulierId)?.companyName) || "Unknown haulier";
+            return (
+              <div key={inv.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ padding: "0.875rem 1rem", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <p style={{ fontWeight: 600, fontSize: "0.9rem", color: "#111827" }}>{inv.invoiceNumber}</p>
+                      <span style={{ background: st.bg, color: st.color, padding: "1px 8px", borderRadius: 10, fontSize: "0.7rem", fontWeight: 600 }}>{st.label}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 16, marginTop: 2, flexWrap: "wrap" }}>
+                      <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>{haulierLabel}</p>
+                      {inv.invoiceDate && <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>Dated {inv.invoiceDate}</p>}
+                      {(inv.periodFrom || inv.periodTo) && (
+                        <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>Period: {inv.periodFrom ?? "?"} — {inv.periodTo ?? "?"}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <p style={{ fontWeight: 700, fontSize: "0.95rem", color: "#111827" }}>{fmtGBP(inv.amountGrossPence)}</p>
+                    {inv.amountNetPence != null && inv.vatPence != null && (
+                      <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>Net {fmtGBP(inv.amountNetPence)} + VAT {fmtGBP(inv.vatPence)}</p>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                    <Button size="sm" variant="ghost" title={isExpanded ? "Hide loads" : "View matched loads"} onClick={() => setExpandedId(isExpanded ? null : inv.id)}>
+                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </Button>
+                    <Button size="sm" variant="ghost" title="Edit" onClick={() => openEdit(inv)}><Pencil size={14} /></Button>
+                    <Button size="sm" variant="ghost" title="Delete" style={{ color: "#ef4444" }} onClick={() => setDeleteTarget(inv)}><Trash2 size={14} /></Button>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div style={{ borderTop: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 16px" }}>
+                    {loadsQ.isLoading ? (
+                      <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>Loading loads…</p>
+                    ) : (loadsQ.data ?? []).length === 0 ? (
+                      <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                        No loads have been tagged with invoice reference <strong>{inv.invoiceNumber}</strong> yet.
+                        Set the "Invoice Ref" field on individual dispatch records to link them here.
+                      </p>
+                    ) : (
+                      <div>
+                        <p style={{ fontSize: "0.75rem", color: "#374151", fontWeight: 600, marginBottom: 6 }}>
+                          {(loadsQ.data ?? []).length} load{(loadsQ.data ?? []).length !== 1 ? "s" : ""} matched to this invoice
+                        </p>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                          <thead>
+                            <tr style={{ color: "#6b7280" }}>
+                              <th style={{ textAlign: "left", padding: "3px 8px" }}>Date</th>
+                              <th style={{ textAlign: "left", padding: "3px 8px" }}>Commodity</th>
+                              <th style={{ textAlign: "left", padding: "3px 8px" }}>Destination</th>
+                              <th style={{ textAlign: "right", padding: "3px 8px" }}>Weight (t)</th>
+                              <th style={{ textAlign: "right", padding: "3px 8px" }}>Cost</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(loadsQ.data ?? []).map((load: any) => (
+                              <tr key={load.id} style={{ borderTop: "1px solid #e5e7eb" }}>
+                                <td style={{ padding: "4px 8px" }}>{load.departureDate?.slice(0, 10) ?? "—"}</td>
+                                <td style={{ padding: "4px 8px" }}>{load.commodity || load.loadType || "—"}</td>
+                                <td style={{ padding: "4px 8px" }}>{load.destination || "—"}</td>
+                                <td style={{ padding: "4px 8px", textAlign: "right" }}>{load.weightTonnes ? parseFloat(load.weightTonnes).toFixed(2) : "—"}</td>
+                                <td style={{ padding: "4px 8px", textAlign: "right" }}>{fmtGBP(load.costPence)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr style={{ borderTop: "2px solid #e5e7eb", fontWeight: 600 }}>
+                              <td colSpan={3} style={{ padding: "4px 8px" }}>Total matched</td>
+                              <td style={{ padding: "4px 8px", textAlign: "right" }}>
+                                {(loadsQ.data ?? []).reduce((s: number, l: any) => s + parseFloat(l.weightTonnes ?? "0"), 0).toFixed(2)} t
+                              </td>
+                              <td style={{ padding: "4px 8px", textAlign: "right" }}>
+                                {fmtGBP((loadsQ.data ?? []).reduce((s: number, l: any) => s + (l.costPence ?? 0), 0))}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Add / Edit Dialog ── */}
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditInv(null); setForm(emptyInvoiceForm()); } }}>
+        <DialogContent style={{ maxWidth: 580, maxHeight: "90vh", overflowY: "auto" }}>
+          <DialogHeader><DialogTitle>{editInv ? "Edit Invoice" : "Record Haulier Invoice"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+
+            {/* Haulier */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <Label>Haulier</Label>
+                <button type="button" onClick={() => setUseDirectory(d => !d)} style={{ fontSize: "0.75rem", color: "#1a6b3a", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+                  {useDirectory ? "Enter name manually" : "Use directory"}
+                </button>
+              </div>
+              {useDirectory ? (
+                <Select value={form.haulierId || "__none__"} onValueChange={v => {
+                  const h = hauliers.find((x: any) => String(x.id) === v);
+                  setForm(f => ({ ...f, haulierId: v === "__none__" ? "" : v, haulierName: h ? h.companyName : "" }));
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Select haulier from directory" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Select haulier —</SelectItem>
+                    {hauliers.map((h: any) => <SelectItem key={h.id} value={String(h.id)}>{h.companyName}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input placeholder="Haulier company name" value={form.haulierName} onChange={e => setForm(f => ({ ...f, haulierName: e.target.value, haulierId: "" }))} />
+              )}
+            </div>
+
+            {/* Invoice number + date */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Invoice Number <span style={{ color: "#ef4444" }}>*</span></Label>
+                <Input placeholder="e.g. INV-1234" value={form.invoiceNumber} onChange={e => setForm(f => ({ ...f, invoiceNumber: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Invoice Date</Label>
+                <Input type="date" value={form.invoiceDate} onChange={e => setForm(f => ({ ...f, invoiceDate: e.target.value }))} />
+              </div>
+            </div>
+
+            {/* Period */}
+            <div>
+              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 4 }}>Billing Period</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>From</Label><Input type="date" value={form.periodFrom} onChange={e => setForm(f => ({ ...f, periodFrom: e.target.value }))} /></div>
+                <div><Label>To</Label><Input type="date" value={form.periodTo} onChange={e => setForm(f => ({ ...f, periodTo: e.target.value }))} /></div>
+              </div>
+            </div>
+
+            {/* Amounts */}
+            <div>
+              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 4 }}>Amounts</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label>Net (£)</Label>
+                  <Input type="number" step="0.01" min="0" placeholder="0.00" value={form.amountNetPence} onChange={e => setForm(f => ({ ...f, amountNetPence: e.target.value }))} onBlur={autoGross} />
+                </div>
+                <div>
+                  <Label>VAT (£)</Label>
+                  <Input type="number" step="0.01" min="0" placeholder="0.00" value={form.vatPence} onChange={e => setForm(f => ({ ...f, vatPence: e.target.value }))} onBlur={autoGross} />
+                </div>
+                <div>
+                  <Label>Gross (£)</Label>
+                  <Input type="number" step="0.01" min="0" placeholder="0.00" value={form.amountGrossPence} onChange={e => setForm(f => ({ ...f, amountGrossPence: e.target.value }))} />
+                </div>
+              </div>
+              <p style={{ fontSize: "0.7rem", color: "#9ca3af", marginTop: 4 }}>Tab out of Net or VAT to auto-calculate Gross.</p>
+            </div>
+
+            {/* Status */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Status</Label>
+                <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {INV_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditInv(null); setForm(emptyInvoiceForm()); }}>Cancel</Button>
+            <Button onClick={() => saveMut.mutate(form)} disabled={!form.invoiceNumber || saveMut.isPending}>
+              {saveMut.isPending ? "Saving…" : editInv ? "Save Changes" : "Record Invoice"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirmation ── */}
+      <Dialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}>
+        <DialogContent style={{ maxWidth: 420 }}>
+          <DialogHeader><DialogTitle>Delete Invoice</DialogTitle></DialogHeader>
+          <p style={{ fontSize: "0.875rem", color: "#374151" }}>
+            Delete invoice <strong>{deleteTarget?.invoiceNumber}</strong>? This will not affect the dispatch records linked to it.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteMut.mutate(deleteTarget.id)} disabled={deleteMut.isPending}>
+              {deleteMut.isPending ? "Deleting…" : "Delete Invoice"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Page Shell ─────────────────────────────────────────────────────────────
 export default function HaulagePageFull() {
   const { farmId } = useAppStore();
@@ -1375,6 +1720,7 @@ export default function HaulagePageFull() {
         <TabButton active={tab === "dispatches"} onClick={() => setTab("dispatches")}><ArrowUpRight size={14} className="mr-1" />Dispatches</TabButton>
         <TabButton active={tab === "transfers"} onClick={() => setTab("transfers")}><ArrowLeftRight size={14} className="mr-1" />On-Farm Transfers</TabButton>
         <TabButton active={tab === "grain-position"} onClick={() => setTab("grain-position")}><Wheat size={14} className="mr-1" />Grain Position</TabButton>
+        <TabButton active={tab === "invoices"} onClick={() => setTab("invoices")}><Receipt size={14} className="mr-1" />Haulier Invoices</TabButton>
         <TabButton active={tab === "directory"} onClick={() => setTab("directory")}><Building2 size={14} className="mr-1" />Haulier Directory</TabButton>
       </TabBar>
 
@@ -1382,6 +1728,7 @@ export default function HaulagePageFull() {
         {farmId && tab === "dispatches" && <DispatchesTab farmId={farmId} />}
         {farmId && tab === "transfers" && <TransfersTab farmId={farmId} />}
         {farmId && tab === "grain-position" && <GrainPositionTab farmId={farmId} onGoToDispatches={() => setTab("dispatches")} />}
+        {farmId && tab === "invoices" && <HaulierInvoicesTab farmId={farmId} />}
         {farmId && tab === "directory" && <HaulierDirectoryTab farmId={farmId} />}
       </div>
     </AppLayout>

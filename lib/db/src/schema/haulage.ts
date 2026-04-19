@@ -43,6 +43,7 @@ export const haulageRecordsTable = pgTable("haulage_records", {
   departureDate: timestamp("departure_date", { withTimezone: true }).notNull(),
   arrivalDate: timestamp("arrival_date", { withTimezone: true }),
   waybillNumber: text("waybill_number"),
+  invoiceRef: text("invoice_ref"),
   costPence: integer("cost_pence"),
   deliveryConfirmedAt: timestamp("delivery_confirmed_at", { withTimezone: true }),
   deliveryConfirmedBy: text("delivery_confirmed_by"),
@@ -73,6 +74,26 @@ export const hauliersTable = pgTable("hauliers", {
   notes: text("notes"),
   // Soft delete
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ─── Haulier Invoices ──────────────────────────────────────────────────────────
+// Register of invoices received from hauliers.
+// status values: received | reconciled | queried | paid
+export const haulierInvoicesTable = pgTable("haulier_invoices", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  haulierId: integer("haulier_id").references(() => hauliersTable.id),
+  haulierName: text("haulier_name"), // free-text fallback when haulier not in directory
+  invoiceNumber: text("invoice_number").notNull(),
+  invoiceDate: text("invoice_date"), // ISO date string
+  periodFrom: text("period_from"),   // ISO date string
+  periodTo: text("period_to"),       // ISO date string
+  amountNetPence: integer("amount_net_pence"),
+  vatPence: integer("vat_pence"),
+  amountGrossPence: integer("amount_gross_pence"),
+  status: text("status").notNull().default("received"),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

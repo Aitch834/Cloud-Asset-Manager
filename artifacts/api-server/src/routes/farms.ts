@@ -96,6 +96,7 @@ import {
   environmentalManagementEventsTable,
   haulageRecordsTable,
   hauliersTable,
+  haulierInvoicesTable,
   cropStockLevelsTable,
   cropStockMovementsTable,
   suppliersTable,
@@ -5243,6 +5244,69 @@ router.delete("/farms/:farmId/hauliers/:recordId", requireAuth, requireTenant, r
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.update(hauliersTable).set({ deletedAt: new Date() }).where(and(eq(hauliersTable.id, recordId), eq(hauliersTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Haulier Invoice Register ──────────────────────────────────────────────
+router.get("/farms/:farmId/haulier-invoices", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(haulierInvoicesTable)
+    .where(eq(haulierInvoicesTable.farmId, farmId))
+    .orderBy(desc(haulierInvoicesTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/haulier-invoices", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { id, farmId: _fid, createdAt, ...body } = req.body;
+  const amountNetPence = body.amountNetPence ? Math.round(parseFloat(body.amountNetPence) * 100) : null;
+  const vatPence = body.vatPence ? Math.round(parseFloat(body.vatPence) * 100) : null;
+  const amountGrossPence = body.amountGrossPence ? Math.round(parseFloat(body.amountGrossPence) * 100) : null;
+  const [record] = await db.insert(haulierInvoicesTable).values({
+    ...body, farmId, amountNetPence, vatPence, amountGrossPence,
+    haulierId: body.haulierId ? parseInt(body.haulierId) : null,
+  }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/haulier-invoices/:recordId", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { id, farmId: _fid, createdAt, ...body } = req.body;
+  const amountNetPence = body.amountNetPence ? Math.round(parseFloat(body.amountNetPence) * 100) : null;
+  const vatPence = body.vatPence ? Math.round(parseFloat(body.vatPence) * 100) : null;
+  const amountGrossPence = body.amountGrossPence ? Math.round(parseFloat(body.amountGrossPence) * 100) : null;
+  const [record] = await db.update(haulierInvoicesTable).set({
+    ...body, amountNetPence, vatPence, amountGrossPence,
+    haulierId: body.haulierId ? parseInt(body.haulierId) : null,
+  }).where(and(eq(haulierInvoicesTable.id, recordId), eq(haulierInvoicesTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/haulier-invoices/:recordId", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(haulierInvoicesTable).where(and(eq(haulierInvoicesTable.id, recordId), eq(haulierInvoicesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Returns haulage records whose invoice_ref matches the given invoice number for this farm
+router.get("/farms/:farmId/haulier-invoices/:recordId/loads", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [inv] = await db.select().from(haulierInvoicesTable).where(and(eq(haulierInvoicesTable.id, recordId), eq(haulierInvoicesTable.farmId, farmId)));
+  if (!inv) { res.status(404).json({ error: "Invoice not found" }); return; }
+  const loads = await db.select().from(haulageRecordsTable)
+    .where(and(eq(haulageRecordsTable.farmId, farmId), eq(haulageRecordsTable.invoiceRef, inv.invoiceNumber)))
+    .orderBy(desc(haulageRecordsTable.departureDate));
+  res.json({ loads });
 });
 
 router.put("/farms/:farmId/stock-items/:recordId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
