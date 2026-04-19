@@ -670,9 +670,15 @@ async function seedBiosecurity(farmId: number) {
 
   const cleanExists = await db.select().from(cleaningDisinfectionRecordsTable).where(eq(cleaningDisinfectionRecordsTable.farmId, farmId)).limit(1);
   if (cleanExists.length === 0) {
+    // Look up grain bin IDs so cleaning records can be linked to specific stores (Red Tractor traceability)
+    const grainBins = await db.select({ id: grainStorageBinsTable.id, binName: grainStorageBinsTable.binName })
+      .from(grainStorageBinsTable).where(eq(grainStorageBinsTable.farmId, farmId));
+    const bayABin = grainBins.find(b => b.binName.includes("Bay A"));
+    const bayBBin = grainBins.find(b => b.binName.includes("Bay B"));
     await db.insert(cleaningDisinfectionRecordsTable).values([
       { farmId, cleanedDate: d(`${yr}-01-15`), area: "Livestock building — North Block (post-movement)", cleaningType: "full_cleandown", productsUsed: "Anigene HLD4V 1:100", cleanedBy: "Tom Bradley", verifiedBy: "James Barnett", notes: "Full clean-down after cattle moved." },
-      { farmId, cleanedDate: d(`${yr}-02-28`), area: "Grain store — Bay A after emptying", cleaningType: "routine", productsUsed: "Agrigerm (Peracetic acid) 1:50", cleanedBy: "Rob Clarke", verifiedBy: "James Barnett", notes: "Pre-storage hygiene. Dried 48hr before new crop." },
+      { farmId, locationId: bayABin?.id ?? null, cleanedDate: d(`${yr}-02-28`), area: "Main Store — Bay A (Wheat)", cleaningType: "full_clean_and_treat", productsUsed: "Actellic 50EC (Pirimiphos-methyl) — 10ml/L water", dilutionRate: "1:100 in water", cleanedBy: "Rob Clarke", verifiedBy: "James Barnett", notes: "Pre-storage hygiene before new harvest fill. Store swept, pressure-washed, insecticide fogger applied. Dried 48hr before grain intake." },
+      { farmId, locationId: bayBBin?.id ?? null, cleanedDate: d(`${yr}-03-15`), area: "Main Store — Bay B (Barley/OSR)", cleaningType: "physical_clean", productsUsed: null, cleanedBy: "Rob Clarke", verifiedBy: "James Barnett", notes: "Store swept after OSR cleared. Barley intake expected late summer — insecticide treatment to follow before fill." },
       { farmId, cleanedDate: d(`${yr}-03-20`), area: "Sprayer tank and boom (post-OSR fungicide)", cleaningType: "product_change", productsUsed: "Omniwash cleaner — product rate", cleanedBy: "James Barnett", notes: "Product change — OSR fungicide to wheat herbicide." },
     ]);
   }

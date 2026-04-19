@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Wheat, Plus, ArrowDown, ArrowUp, ArrowLeftRight, Pencil, Trash2, History, Database, Printer } from "lucide-react";
+import { Wheat, Plus, ArrowDown, ArrowUp, ArrowLeftRight, Pencil, Trash2, History, Database, Printer, ShieldCheck, ShieldAlert, Loader2, Droplets } from "lucide-react";
 import { openPrintWindow, buildProReport } from "@/lib/print-report";
 
 type Tab = "stock" | "movements";
@@ -262,12 +262,133 @@ function MovementHistoryModal({ parcel, movements, onClose }: {
   );
 }
 
+// ─── Log Clean Dialog ──────────────────────────────────────────────────────────
+function LogCleanDialog({ farmId, bin, onClose, onSaved }: { farmId: number; bin: any; onClose: () => void; onSaved: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({
+    cleaningType: "full_clean_and_treat",
+    productsUsed: "",
+    dilutionRate: "",
+    cleanedBy: "",
+    cleanedDate: today,
+    notes: "",
+  });
+  const mut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/cleaning`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        farmId,
+        locationId: bin.id,
+        area: bin.binName,
+        cleaningType: form.cleaningType,
+        productsUsed: form.productsUsed || null,
+        dilutionRate: form.dilutionRate || null,
+        cleanedBy: form.cleanedBy || null,
+        cleanedDate: new Date(form.cleanedDate).toISOString(),
+        notes: form.notes || null,
+      }),
+    }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bin-cleaning-status", farmId, bin.id] });
+      toast({ title: "Cleaning record saved", description: `${bin.binName} marked as cleaned.` });
+      onSaved();
+    },
+    onError: () => toast({ title: "Failed to save cleaning record", variant: "destructive" }),
+  });
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent style={{ maxWidth: 480 }}>
+        <DialogHeader>
+          <DialogTitle>
+            <span className="flex items-center gap-2"><Droplets className="w-4 h-4 text-blue-600" />Log Store Clean — {bin.binName}</span>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-1">
+          <div>
+            <Label>Cleaning Type <span className="text-red-500">*</span></Label>
+            <Select value={form.cleaningType} onValueChange={v => setForm(f => ({ ...f, cleaningType: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full_clean_and_treat">Full clean + insecticide treatment</SelectItem>
+                <SelectItem value="physical_clean">Physical clean only (sweep / vacuum)</SelectItem>
+                <SelectItem value="insecticide_treatment">Insecticide treatment only</SelectItem>
+                <SelectItem value="fumigation">Fumigation</SelectItem>
+                <SelectItem value="inspection_only">Inspection — no treatment required</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Products Used</Label>
+              <Input placeholder="e.g. Actellic 50EC" value={form.productsUsed} onChange={e => setForm(f => ({ ...f, productsUsed: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Dilution Rate</Label>
+              <Input placeholder="e.g. 1:200 in water" value={form.dilutionRate} onChange={e => setForm(f => ({ ...f, dilutionRate: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Cleaned By</Label>
+              <Input placeholder="Name" value={form.cleanedBy} onChange={e => setForm(f => ({ ...f, cleanedBy: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Date Cleaned <span className="text-red-500">*</span></Label>
+              <Input type="date" value={form.cleanedDate} onChange={e => setForm(f => ({ ...f, cleanedDate: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <Label>Notes</Label>
+            <Textarea rows={2} placeholder="Any additional observations or actions taken…" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+          </div>
+          <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.78rem", color: "#0369a1" }}>
+            <strong>Red Tractor:</strong> Stores must be cleaned and treated with an approved grain store insecticide before each new fill. Keep this record for a minimum of 3 years.
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={() => mut.mutate()}
+            disabled={!form.cleanedDate || mut.isPending}
+            style={{ background: "#2563eb", color: "#fff" }}
+          >
+            {mut.isPending ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</> : <><ShieldCheck className="w-3.5 h-3.5 mr-1.5" />Save Cleaning Record</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Bin Card ─────────────────────────────────────────────────────────────────
-function BinCard({ bin, parcels, allMovements, onEdit, onDelete, onHarvestIn }: {
-  bin: any; parcels: any[]; allMovements: any[];
+function BinCard({ bin, farmId, parcels, allMovements, onEdit, onDelete, onHarvestIn }: {
+  bin: any; farmId: number; parcels: any[]; allMovements: any[];
   onEdit: (p: any) => void; onDelete: (id: number) => void; onHarvestIn: (binId: number) => void;
 }) {
   const [historyParcel, setHistoryParcel] = useState<any | null>(null);
+  const [logCleanOpen, setLogCleanOpen] = useState(false);
+
+  // Fetch cleaning status for this bin
+  const { data: cleaningStatus } = useQuery({
+    queryKey: ["bin-cleaning-status", farmId, bin.id],
+    queryFn: () => fetch(`/api/farms/${farmId}/grain-storage-bins/${bin.id}/cleaning-status`).then(r => r.json()),
+    enabled: !!farmId && !!bin.id,
+    staleTime: 60_000,
+  });
+
+  const lastCleaned: Date | null = cleaningStatus?.lastCleaning?.cleanedDate
+    ? new Date(cleaningStatus.lastCleaning.cleanedDate)
+    : null;
+  const daysSinceCleaning = lastCleaned
+    ? Math.floor((Date.now() - lastCleaned.getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+  const cleaningBadgeColor = daysSinceCleaning === null ? "#9ca3af"
+    : daysSinceCleaning <= 30 ? "#15803d"
+    : daysSinceCleaning <= 60 ? "#b45309"
+    : "#dc2626";
   const binTotal = parcels.reduce((s, p) => s + parseFloat(p.quantityTonnes ?? "0"), 0);
   const cap = parseFloat(bin.capacityTonnes ?? "0");
   const available = cap > 0 ? Math.max(0, cap - binTotal) : null;
@@ -282,7 +403,7 @@ function BinCard({ bin, parcels, allMovements, onEdit, onDelete, onHarvestIn }: 
     <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, marginBottom: 16, overflow: "hidden", background: "#fff" }}>
       {/* Bin header */}
       <div style={{ background: "#f9fafb", padding: "0.875rem 1rem", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #e5e7eb" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <Database size={15} style={{ color: "#6b7280" }} />
           <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#111827" }}>{bin.binName}</span>
           {bin.binType && (
@@ -290,8 +411,21 @@ function BinCard({ bin, parcels, allMovements, onEdit, onDelete, onHarvestIn }: 
               {bin.binType.replace(/_/g, " ")}
             </Badge>
           )}
+          {/* Cleaning status badge */}
+          {bin.id > 0 && (
+            <span
+              title={lastCleaned ? `Last cleaned ${lastCleaned.toLocaleDateString("en-GB")} (${daysSinceCleaning} days ago)` : "No cleaning record logged for this store"}
+              style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: "0.65rem", fontWeight: 600, padding: "2px 7px", borderRadius: 99, border: `1px solid ${cleaningBadgeColor}20`, background: `${cleaningBadgeColor}12`, color: cleaningBadgeColor, cursor: "default" }}
+            >
+              {daysSinceCleaning === null
+                ? <><ShieldAlert size={9} />No clean record</>
+                : daysSinceCleaning <= 30
+                ? <><ShieldCheck size={9} />Cleaned {daysSinceCleaning}d ago</>
+                : <><ShieldAlert size={9} />Cleaned {daysSinceCleaning}d ago</>}
+            </span>
+          )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#111827", lineHeight: 1.3 }}>
               {binTotal.toFixed(1)} t stored
@@ -303,6 +437,15 @@ function BinCard({ bin, parcels, allMovements, onEdit, onDelete, onHarvestIn }: 
               </div>
             )}
           </div>
+          {bin.id > 0 && (
+            <button
+              onClick={() => setLogCleanOpen(true)}
+              title="Log a cleaning record for this store"
+              style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: "0.75rem", color: "#2563eb", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}
+            >
+              <Droplets size={12} />Log Clean
+            </button>
+          )}
           <button
             onClick={() => onHarvestIn(bin.id)}
             title="Record harvest into this bin"
@@ -384,6 +527,15 @@ function BinCard({ bin, parcels, allMovements, onEdit, onDelete, onHarvestIn }: 
           parcel={historyParcel}
           movements={parcelMovements(historyParcel)}
           onClose={() => setHistoryParcel(null)}
+        />
+      )}
+
+      {logCleanOpen && bin.id > 0 && (
+        <LogCleanDialog
+          farmId={farmId}
+          bin={bin}
+          onClose={() => setLogCleanOpen(false)}
+          onSaved={() => setLogCleanOpen(false)}
         />
       )}
     </div>
@@ -519,6 +671,17 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
     !harvestCommodityConflict); // only show year conflict when commodity/variety match
   const harvestHasConflict = harvestCommodityConflict || harvestCropYearConflict;
 
+  // Cleaning status for the selected harvest-in bin (only when bin is empty / no current parcel)
+  const harvestBinIsEmpty = !!harvestForm.binId && !binOccupancyMap[harvestForm.binId];
+  const { data: harvestCleanStatus } = useQuery({
+    queryKey: ["bin-cleaning-status", farmId, harvestForm.binId],
+    queryFn: () => fetch(`/api/farms/${farmId}/grain-storage-bins/${harvestForm.binId}/cleaning-status`).then(r => r.json()),
+    enabled: harvestOpen && !!harvestForm.binId && harvestBinIsEmpty,
+    staleTime: 30_000,
+  });
+  const harvestCleaningWarning = harvestBinIsEmpty && harvestCleanStatus?.requiresCleaningLog === true;
+  const harvestCleaningOk = harvestBinIsEmpty && harvestCleanStatus && !harvestCleanStatus.requiresCleaningLog;
+
   // Conflict detection — manual stock entry dialog (skip when editing the same record)
   const levelExistingParcel = (levelForm.binId && !editRow) ? binOccupancyMap[levelForm.binId] : null;
   const levelHasConflict = levelExistingParcel && levelForm.commodity &&
@@ -638,6 +801,7 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
             <BinCard
               key={bin.id}
               bin={bin}
+              farmId={farmId}
               parcels={byBin[bin.id] ?? []}
               allMovements={allMovements}
               onEdit={p => { setEditRow(p); setLevelForm({ ...p }); setAddOpen(true); }}
@@ -650,6 +814,7 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
             <BinCard
               key={0}
               bin={{ id: 0, binName: "Unassigned / Field Heap", binType: null, capacityTonnes: null }}
+              farmId={farmId}
               parcels={byBin[0]}
               allMovements={allMovements}
               onEdit={p => { setEditRow(p); setLevelForm({ ...p }); setAddOpen(true); }}
@@ -756,6 +921,24 @@ function StockLevelsTab({ farmId }: { farmId: number }) {
               {harvestCropYearConflict && (
                 <div style={{ marginTop: 6, padding: "0.5rem 0.75rem", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, fontSize: "0.8rem", color: "#b91c1c" }}>
                   <strong>Red Tractor conflict — harvest year mismatch:</strong> This bin holds <strong>{harvestExistingParcel!.cropYear}</strong> grain. The date you have entered produces crop year <strong>{derivedCropYear}</strong>. Red Tractor requires each registered location to hold one crop year as a discrete traceable lot. Select a different bin, or clear and clean this location before the new harvest is stored.
+                </div>
+              )}
+              {/* Cleaning status for empty bin (Red Tractor gate) */}
+              {harvestCleaningWarning && (
+                <div style={{ marginTop: 6, padding: "0.55rem 0.75rem", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 6, fontSize: "0.8rem", color: "#92400e", display: "flex", alignItems: "flex-start", gap: 6 }}>
+                  <ShieldAlert size={14} style={{ color: "#d97706", flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <strong>Cleaning not confirmed for this fill:</strong> No cleaning record has been logged since the bin was last emptied. Red Tractor requires stores to be cleaned and treated with an approved insecticide before each new fill. You can still record this harvest — log the clean on the bin card afterwards.
+                  </div>
+                </div>
+              )}
+              {harvestCleaningOk && harvestCleanStatus?.lastCleaning && (
+                <div style={{ marginTop: 6, padding: "0.45rem 0.75rem", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 6, fontSize: "0.78rem", color: "#15803d", display: "flex", alignItems: "center", gap: 6 }}>
+                  <ShieldCheck size={13} style={{ color: "#16a34a", flexShrink: 0 }} />
+                  <span>
+                    <strong>Cleaning confirmed</strong> — cleaned {new Date(harvestCleanStatus.lastCleaning.cleanedDate).toLocaleDateString("en-GB")}
+                    {harvestCleanStatus.lastCleaning.cleaningType && ` (${harvestCleanStatus.lastCleaning.cleaningType.replace(/_/g, " ")})`}
+                  </span>
                 </div>
               )}
             </div>

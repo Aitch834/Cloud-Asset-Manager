@@ -38,6 +38,7 @@ export const pestControlRecordsTable = pgTable("pest_control_records", {
 export const cleaningDisinfectionRecordsTable = pgTable("cleaning_disinfection_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  locationId: integer("location_id"), // references grain_storage_bins.id when set via crop stock module; no FK enforced so IDs can span both storage_locations and grain_storage_bins
   area: text("area").notNull(),
   cleaningType: text("cleaning_type").notNull(),
   productsUsed: text("products_used"),

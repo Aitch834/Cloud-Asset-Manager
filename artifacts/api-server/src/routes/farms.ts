@@ -2474,14 +2474,22 @@ router.post("/farms/:farmId/pest-control", requireAuth, requireTenant, requireMo
 router.get("/farms/:farmId/cleaning", requireAuth, requireTenant, requireModuleByKey("biosecurity", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(cleaningDisinfectionRecordsTable).where(eq(cleaningDisinfectionRecordsTable.farmId, farmId)).orderBy(desc(cleaningDisinfectionRecordsTable.cleanedDate));
+  const locationIdParam = req.query.locationId ? parseInt(req.query.locationId as string) : null;
+  const conditions = [eq(cleaningDisinfectionRecordsTable.farmId, farmId)];
+  if (locationIdParam) conditions.push(eq(cleaningDisinfectionRecordsTable.locationId, locationIdParam));
+  const records = await db.select().from(cleaningDisinfectionRecordsTable).where(and(...conditions)).orderBy(desc(cleaningDisinfectionRecordsTable.cleanedDate));
   res.json({ records });
 });
 
 router.post("/farms/:farmId/cleaning", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(cleaningDisinfectionRecordsTable).values({ ...req.body, farmId }).returning();
+  const { locationId, ...rest } = req.body;
+  const [record] = await db.insert(cleaningDisinfectionRecordsTable).values({
+    ...rest,
+    farmId,
+    locationId: locationId ? parseInt(locationId) : null,
+  }).returning();
   res.status(201).json({ record });
 });
 
@@ -3362,6 +3370,7 @@ router.post("/farms/:farmId/crop-stock-movements", requireAuth, requireTenant, r
   const { binId, commodity, variety, cropYear, movementType, direction, quantityTonnes, referenceType, referenceId, performedBy, notes } = req.body;
 
   // Red Tractor compliance: for inbound movements, check the bin doesn't already hold a different lot
+  let cleaningWarning: string | null = null;
   if (binId && direction === "in") {
     const existingLot = await db.select().from(cropStockLevelsTable)
       .where(and(eq(cropStockLevelsTable.farmId, farmId), eq(cropStockLevelsTable.binId, binId)))
@@ -3378,6 +3387,26 @@ router.post("/farms/:farmId/crop-stock-movements", requireAuth, requireTenant, r
           existing: lot,
         });
         return;
+      }
+    }
+
+    // Biosecurity check: if bin is currently empty (first fill / new season), warn if no cleaning record exists since last dispatch
+    const currentLevel = existingLot[0] ? parseFloat(existingLot[0].quantityTonnes ?? "0") : 0;
+    const binIsEmpty = currentLevel <= 0;
+    if (binIsEmpty) {
+      const [lastDispatch] = await db.select().from(cropStockMovementsTable)
+        .where(and(eq(cropStockMovementsTable.farmId, farmId), eq(cropStockMovementsTable.binId, binId), eq(cropStockMovementsTable.direction, "out")))
+        .orderBy(desc(cropStockMovementsTable.movedAt)).limit(1);
+      const [lastCleaning] = await db.select().from(cleaningDisinfectionRecordsTable)
+        .where(and(eq(cleaningDisinfectionRecordsTable.farmId, farmId), eq(cleaningDisinfectionRecordsTable.locationId, binId)))
+        .orderBy(desc(cleaningDisinfectionRecordsTable.cleanedDate)).limit(1);
+      const cleanedSinceDispatch = lastCleaning && lastDispatch
+        ? new Date(lastCleaning.cleanedDate) >= new Date(lastDispatch.movedAt ?? 0)
+        : !!lastCleaning;
+      if (!cleanedSinceDispatch) {
+        cleaningWarning = lastCleaning
+          ? `No cleaning record for this store since it was last emptied (last dispatch: ${lastDispatch ? new Date(lastDispatch.movedAt!).toLocaleDateString("en-GB") : "unknown"}). Red Tractor requires stores to be cleaned and treated before refilling. Please log a cleaning record.`
+          : `No cleaning record has ever been logged for this store. Red Tractor requires stores to be cleaned and treated before filling. Please log a cleaning record in the Biosecurity module or from this bin's card.`;
       }
     }
   }
@@ -3413,7 +3442,7 @@ router.post("/farms/:farmId/crop-stock-movements", requireAuth, requireTenant, r
     }
   }
 
-  res.status(201).json({ movement });
+  res.status(201).json({ movement, cleaningWarning });
 });
 
 // ─── Suppliers ─────────────────────────────────────
@@ -13671,7 +13700,47 @@ router.delete("/farms/:farmId/grain-storage-bins/:id", requireAuth, requireTenan
   res.json({ success: true });
 });
 
-// ─── Equipment Defect Reports Register ───────────────
+// ─── Grain Store Cleaning Status ────────────────────────────────────────────
+  router.get("/farms/:farmId/grain-storage-bins/:binId/cleaning-status", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+    const farmId = await validateFarmAccess(req, res);
+    if (!farmId) return;
+    const binId = parseInt(req.params.binId);
+    if (isNaN(binId)) { res.status(400).json({ error: "Invalid binId" }); return; }
+
+    const [lastCleaning] = await db.select()
+      .from(cleaningDisinfectionRecordsTable)
+      .where(and(eq(cleaningDisinfectionRecordsTable.farmId, farmId), eq(cleaningDisinfectionRecordsTable.locationId, binId)))
+      .orderBy(desc(cleaningDisinfectionRecordsTable.cleanedDate))
+      .limit(1);
+
+    const [lastDispatch] = await db.select()
+      .from(cropStockMovementsTable)
+      .where(and(eq(cropStockMovementsTable.farmId, farmId), eq(cropStockMovementsTable.binId, binId), eq(cropStockMovementsTable.direction, "out")))
+      .orderBy(desc(cropStockMovementsTable.movedAt))
+      .limit(1);
+
+    const [level] = await db.select()
+      .from(cropStockLevelsTable)
+      .where(and(eq(cropStockLevelsTable.farmId, farmId), eq(cropStockLevelsTable.binId, binId)))
+      .limit(1);
+
+    const currentTonnes = parseFloat(level?.quantityTonnes ?? "0");
+    const isEmpty = currentTonnes <= 0;
+    const cleanedAfterDispatch = lastCleaning && lastDispatch
+      ? new Date(lastCleaning.cleanedDate) >= new Date(lastDispatch.movedAt ?? 0)
+      : !!lastCleaning;
+
+    res.json({
+      lastCleaning: lastCleaning ?? null,
+      lastDispatch: lastDispatch ?? null,
+      currentTonnes,
+      isEmpty,
+      cleanedAfterDispatch,
+      requiresCleaningLog: isEmpty && !cleanedAfterDispatch,
+    });
+  });
+
+  // ─── Equipment Defect Reports Register ───────────────
 router.get("/farms/:farmId/equipment-defect-reports", requireAuth, requireTenant, requireModuleByKey("equipment-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
