@@ -97,6 +97,7 @@ import {
   haulageRecordsTable,
   hauliersTable,
   haulierInvoicesTable,
+  dispatchPlansTable,
   cropStockLevelsTable,
   cropStockMovementsTable,
   suppliersTable,
@@ -5244,6 +5245,69 @@ router.delete("/farms/:farmId/hauliers/:recordId", requireAuth, requireTenant, r
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.update(hauliersTable).set({ deletedAt: new Date() }).where(and(eq(hauliersTable.id, recordId), eq(hauliersTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Dispatch Plans ────────────────────────────────────────────────────────
+router.get("/farms/:farmId/dispatch-plans", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db.select().from(dispatchPlansTable)
+    .where(eq(dispatchPlansTable.farmId, farmId))
+    .orderBy(desc(dispatchPlansTable.plannedDate));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/dispatch-plans", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { id, farmId: _fid, createdAt, ...body } = req.body;
+  const [record] = await db.insert(dispatchPlansTable).values({
+    ...body, farmId,
+    haulierId: body.haulierId ? parseInt(body.haulierId) : null,
+    buyerId: body.buyerId ? parseInt(body.buyerId) : null,
+    binId: body.binId ? parseInt(body.binId) : null,
+    estimatedLoads: body.estimatedLoads ? parseInt(body.estimatedLoads) : null,
+  }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/dispatch-plans/:recordId", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { id, farmId: _fid, createdAt, ...body } = req.body;
+  const [record] = await db.update(dispatchPlansTable).set({
+    ...body,
+    haulierId: body.haulierId ? parseInt(body.haulierId) : null,
+    buyerId: body.buyerId ? parseInt(body.buyerId) : null,
+    binId: body.binId ? parseInt(body.binId) : null,
+    estimatedLoads: body.estimatedLoads ? parseInt(body.estimatedLoads) : null,
+  }).where(and(eq(dispatchPlansTable.id, recordId), eq(dispatchPlansTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/dispatch-plans/:recordId", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  // Unlink any haulage records referencing this plan before deleting
+  await db.update(haulageRecordsTable).set({ dispatchPlanId: null }).where(and(eq(haulageRecordsTable.farmId, farmId), eq(haulageRecordsTable.dispatchPlanId, recordId)));
+  await db.delete(dispatchPlansTable).where(and(eq(dispatchPlansTable.id, recordId), eq(dispatchPlansTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// Returns haulage records linked to a dispatch plan
+router.get("/farms/:farmId/dispatch-plans/:recordId/loads", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const loads = await db.select().from(haulageRecordsTable)
+    .where(and(eq(haulageRecordsTable.farmId, farmId), eq(haulageRecordsTable.dispatchPlanId, recordId)))
+    .orderBy(desc(haulageRecordsTable.departureDate));
+  res.json({ loads });
 });
 
 // ─── Haulier Invoice Register ──────────────────────────────────────────────
@@ -10667,6 +10731,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     taskAssignmentRows, fuelDiscrepancyRows,
     feedStockStatusRows,
     vetFollowUpRows,
+    dispatchPlanRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -10882,6 +10947,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: vetVisitsTable.id, vetName: vetVisitsTable.vetName, vetPractice: vetVisitsTable.vetPractice, followUpActions: vetVisitsTable.followUpActions, followUpDueDate: vetVisitsTable.followUpDueDate })
       .from(vetVisitsTable)
       .where(and(eq(vetVisitsTable.farmId, farmId), isNotNull(vetVisitsTable.followUpDueDate), gte(vetVisitsTable.followUpDueDate, overdueStart.toISOString().split("T")[0]), lt(vetVisitsTable.followUpDueDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Dispatch Plans: confirmed plans appearing on their planned date ──
+    db.select({ id: dispatchPlansTable.id, planRef: dispatchPlansTable.planRef, title: dispatchPlansTable.title, loadType: dispatchPlansTable.loadType, commodity: dispatchPlansTable.commodity, destination: dispatchPlansTable.destination, haulierName: dispatchPlansTable.haulierName, haulierId: dispatchPlansTable.haulierId, plannedDate: dispatchPlansTable.plannedDate, estimatedLoads: dispatchPlansTable.estimatedLoads, status: dispatchPlansTable.status })
+      .from(dispatchPlansTable)
+      .where(and(eq(dispatchPlansTable.farmId, farmId), inArray(dispatchPlansTable.status, ["confirmed", "in_progress"]), gte(dispatchPlansTable.plannedDate, overdueStart.toISOString().split("T")[0]), lt(dispatchPlansTable.plannedDate, rangeEnd.toISOString().split("T")[0]))),
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -11111,6 +11181,24 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     if (!r.followUpDueDate) continue;
     const practice = r.vetPractice ? ` (${String(r.vetPractice)})` : "";
     tasks.push({ id: `vetfu-${r.id}`, type: "vet_follow_up", title: `Vet Follow-Up Due — ${String(r.vetName ?? "")}${practice}`, description: String(r.followUpActions ?? "Follow-up action required from vet visit"), dueDate: toISO(r.followUpDueDate)!, module: "Livestock", href: `/vet-ledger?open=${r.id}`, colour: "green" });
+  }
+
+  for (const r of dispatchPlanRows) {
+    if (!r.plannedDate) continue;
+    const haulierLabel = r.haulierName || "";
+    const loadDesc = [r.commodity || r.loadType, r.estimatedLoads ? `${r.estimatedLoads} load${r.estimatedLoads !== 1 ? "s" : ""}` : null].filter(Boolean).join(" · ");
+    const destLabel = r.destination ? ` → ${r.destination}` : "";
+    const ref = r.planRef ? `[${r.planRef}] ` : "";
+    tasks.push({
+      id: `dispatch-plan-${r.id}`,
+      type: "dispatch_plan",
+      title: `${ref}${r.title}`,
+      description: `${loadDesc}${destLabel}${haulierLabel ? ` via ${haulierLabel}` : ""}`,
+      dueDate: typeof r.plannedDate === "string" ? new Date(r.plannedDate + "T00:00:00Z").toISOString() : (r.plannedDate as Date).toISOString(),
+      module: "Haulage & Transport",
+      href: "/haulage?tab=plans",
+      colour: "orange",
+    });
   }
 
   tasks.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());

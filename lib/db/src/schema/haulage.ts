@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, numeric, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric, boolean, uniqueIndex, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { grainStorageBinsTable } from "./equipment";
 import { suppliersTable } from "./stock-suppliers";
@@ -44,6 +44,7 @@ export const haulageRecordsTable = pgTable("haulage_records", {
   arrivalDate: timestamp("arrival_date", { withTimezone: true }),
   waybillNumber: text("waybill_number"),
   invoiceRef: text("invoice_ref"),
+  dispatchPlanId: integer("dispatch_plan_id").references(() => dispatchPlansTable.id),
   costPence: integer("cost_pence"),
   deliveryConfirmedAt: timestamp("delivery_confirmed_at", { withTimezone: true }),
   deliveryConfirmedBy: text("delivery_confirmed_by"),
@@ -94,6 +95,35 @@ export const haulierInvoicesTable = pgTable("haulier_invoices", {
   amountGrossPence: integer("amount_gross_pence"),
   status: text("status").notNull().default("received"),
   notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ─── Dispatch Plans ────────────────────────────────────────────────────────────
+// A Dispatch Plan records the decision to move a commodity or load before any
+// individual loads are actually dispatched. It appears in the Week Ahead planner
+// and individual haulage records link back to the plan that originated them.
+// status values: draft | confirmed | in_progress | complete | cancelled
+export const dispatchPlansTable = pgTable("dispatch_plans", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  planRef: text("plan_ref"),                // e.g. "DP-001", user-editable
+  title: text("title").notNull(),           // e.g. "Feed wheat to Frontier — 5 loads"
+  loadType: text("load_type").notNull().default("Other"),  // Grain | Livestock | Machinery | Other
+  commodity: text("commodity"),             // e.g. "Feed Wheat", "Hereford Steers", "Claas Lexion"
+  sourceLocation: text("source_location"),  // free-text location
+  binId: integer("bin_id").references(() => grainStorageBinsTable.id),
+  destination: text("destination"),
+  buyerId: integer("buyer_id").references(() => suppliersTable.id),
+  buyerRef: text("buyer_ref"),              // merchant contract / TASQ reference
+  haulierId: integer("haulier_id").references(() => hauliersTable.id),
+  haulierName: text("haulier_name"),        // free-text fallback
+  plannedDate: date("planned_date").notNull(),
+  plannedDateEnd: date("planned_date_end"), // optional end of window for multi-day moves
+  estimatedLoads: integer("estimated_loads"),
+  estimatedTonnes: numeric("estimated_tonnes", { precision: 10, scale: 2 }),
+  status: text("status").notNull().default("draft"),
+  notes: text("notes"),
+  createdBy: text("created_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

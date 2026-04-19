@@ -13,10 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2, ArrowLeftRight, ArrowUpRight, Paperclip, X, FileText, Image, FileDown, Receipt, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2, ArrowLeftRight, ArrowUpRight, Paperclip, X, FileText, Image, FileDown, Receipt, ChevronDown, ChevronUp, ClipboardList, ArrowRight } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
-type Tab = "dispatches" | "transfers" | "grain-position" | "directory" | "invoices";
+type Tab = "plans" | "dispatches" | "transfers" | "grain-position" | "invoices" | "directory";
 
 const DISPATCH_STATUSES = [
   { value: "booked", label: "Booked", bg: "#eff6ff", color: "#1e40af" },
@@ -188,6 +188,7 @@ function DispatchesTab({ farmId }: { farmId: number }) {
     origin: "", destination: "",
     departureDate: "", arrivalDate: "",
     waybillNumber: "", invoiceRef: "", costPence: "", notes: "",
+    dispatchPlanId: null as number | null,
   };
   const [form, setForm] = useState<any>(emptyForm);
 
@@ -203,6 +204,13 @@ function DispatchesTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(`/api/farms/${farmId}/hauliers`).then(r => r.json()),
     enabled: !!farmId,
     select: d => d.records ?? [],
+  });
+
+  const plansQ = useQuery({
+    queryKey: ["dispatch-plans", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dispatch-plans`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => (d.records ?? []).filter((p: any) => p.status !== "cancelled" && p.status !== "complete"),
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["haulage", farmId] });
@@ -248,6 +256,7 @@ function DispatchesTab({ farmId }: { farmId: number }) {
 
   const allRecords: any[] = q.data ?? [];
   const hauliers: any[] = hauliersQ.data ?? [];
+  const activePlans: any[] = plansQ.data ?? [];
 
   const years = useMemo(() => {
     const ys = new Set(allRecords.map(r => r.departureDate?.slice(0, 4)).filter(Boolean).map(Number));
@@ -568,6 +577,42 @@ function DispatchesTab({ farmId }: { farmId: number }) {
         <DialogContent style={{ maxWidth: 680, maxHeight: "90vh", overflowY: "auto" }}>
           <DialogHeader><DialogTitle>{editRecord ? "Edit Dispatch" : "Record Dispatch"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
+            {/* Link to Dispatch Plan */}
+            {activePlans.length > 0 && (
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 12px" }}>
+                <Label style={{ color: "#166534" }}>Link to Dispatch Plan (optional)</Label>
+                <Select
+                  value={form.dispatchPlanId ? String(form.dispatchPlanId) : "__none__"}
+                  onValueChange={v => {
+                    if (v === "__none__") { setForm((f: any) => ({ ...f, dispatchPlanId: null })); return; }
+                    const plan = activePlans.find((p: any) => String(p.id) === v);
+                    if (!plan) return;
+                    setForm((f: any) => ({
+                      ...f,
+                      dispatchPlanId: plan.id,
+                      loadType: plan.loadType || f.loadType,
+                      commodity: plan.commodity || f.commodity,
+                      destination: plan.destination || f.destination,
+                      haulierRegisteredId: plan.haulierId || f.haulierRegisteredId,
+                      haulierCompany: plan.haulierName || (plan.haulierId ? hauliers.find((h: any) => h.id === plan.haulierId)?.companyName : f.haulierCompany) || f.haulierCompany,
+                      customerRef: plan.buyerRef || f.customerRef,
+                    }));
+                  }}
+                >
+                  <SelectTrigger style={{ marginTop: 4 }}><SelectValue placeholder="Select a plan to link this load…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— No plan (standalone load) —</SelectItem>
+                    {activePlans.map((p: any) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.planRef ? `[${p.planRef}] ` : ""}{p.title} — {p.plannedDate}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.dispatchPlanId && <p style={{ fontSize: "0.72rem", color: "#166534", marginTop: 4 }}>Destination, haulier, and commodity pre-filled from plan where available.</p>}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Departure Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.departureDate} onChange={e => setForm((f: any) => ({ ...f, departureDate: e.target.value }))} /></div>
               <div><Label>Arrival / Expected Date</Label><Input type="date" value={form.arrivalDate} onChange={e => setForm((f: any) => ({ ...f, arrivalDate: e.target.value }))} /></div>
@@ -1079,6 +1124,410 @@ function GrainPositionTab({ farmId, onGoToDispatches }: { farmId: number; onGoTo
           <p style={{ fontSize: "0.875rem" }}>Stock levels are updated automatically when dispatches and transfers are confirmed. Add harvest-in records via the Crop Stock page to initialise your position.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Dispatch Plans Tab ─────────────────────────────────────────────────────
+const PLAN_LOAD_TYPES = ["Grain", "Livestock", "Machinery / Equipment", "Straw / Forage", "Other"];
+
+const PLAN_STATUSES = [
+  { value: "draft",       label: "Draft",       bg: "#f1f5f9", color: "#475569" },
+  { value: "confirmed",   label: "Confirmed",   bg: "#eff6ff", color: "#1e40af" },
+  { value: "in_progress", label: "In Progress", bg: "#fef3c7", color: "#92400e" },
+  { value: "complete",    label: "Complete",    bg: "#dcfce7", color: "#166534" },
+  { value: "cancelled",   label: "Cancelled",   bg: "#fee2e2", color: "#991b1b" },
+];
+
+function planStatus(s: string) { return PLAN_STATUSES.find(x => x.value === s) ?? PLAN_STATUSES[0]; }
+function planLoadTypeBadge(t: string): { bg: string; color: string } {
+  if (t === "Grain") return { bg: "#fef9c3", color: "#854d0e" };
+  if (t === "Livestock") return { bg: "#dcfce7", color: "#166534" };
+  if (t?.startsWith("Machinery")) return { bg: "#eff6ff", color: "#1e40af" };
+  return { bg: "#f1f5f9", color: "#475569" };
+}
+
+interface PlanForm {
+  planRef: string; title: string; loadType: string; commodity: string;
+  sourceLocation: string; binId: string; destination: string;
+  haulierId: string; haulierName: string; useHaulierDir: boolean;
+  buyerId: string; buyerRef: string;
+  plannedDate: string; plannedDateEnd: string;
+  estimatedLoads: string; estimatedTonnes: string;
+  status: string; notes: string; createdBy: string;
+}
+const emptyPlanForm = (): PlanForm => ({
+  planRef: "", title: "", loadType: "Grain", commodity: "",
+  sourceLocation: "", binId: "", destination: "",
+  haulierId: "", haulierName: "", useHaulierDir: true,
+  buyerId: "", buyerRef: "",
+  plannedDate: "", plannedDateEnd: "",
+  estimatedLoads: "", estimatedTonnes: "",
+  status: "draft", notes: "", createdBy: "",
+});
+
+function planToForm(p: any): PlanForm {
+  return {
+    planRef: p.planRef ?? "", title: p.title ?? "", loadType: p.loadType ?? "Grain",
+    commodity: p.commodity ?? "", sourceLocation: p.sourceLocation ?? "",
+    binId: p.binId ? String(p.binId) : "", destination: p.destination ?? "",
+    haulierId: p.haulierId ? String(p.haulierId) : "", haulierName: p.haulierName ?? "",
+    useHaulierDir: !!p.haulierId,
+    buyerId: p.buyerId ? String(p.buyerId) : "", buyerRef: p.buyerRef ?? "",
+    plannedDate: p.plannedDate ?? "", plannedDateEnd: p.plannedDateEnd ?? "",
+    estimatedLoads: p.estimatedLoads != null ? String(p.estimatedLoads) : "",
+    estimatedTonnes: p.estimatedTonnes != null ? String(parseFloat(p.estimatedTonnes).toFixed(2)) : "",
+    status: p.status ?? "draft", notes: p.notes ?? "", createdBy: p.createdBy ?? "",
+  };
+}
+
+function DispatchPlansTab({ farmId }: { farmId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
+  const [editPlan, setEditPlan] = useState<any | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [form, setForm] = useState<PlanForm>(emptyPlanForm());
+
+  const plansQ = useQuery({
+    queryKey: ["dispatch-plans", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dispatch-plans`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
+  const hauliersQ = useQuery({
+    queryKey: ["hauliers", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/hauliers`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
+  const suppliersQ = useQuery({
+    queryKey: ["suppliers", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
+  const loadsQ = useQuery({
+    queryKey: ["dispatch-plan-loads", farmId, expandedId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dispatch-plans/${expandedId}/loads`).then(r => r.json()),
+    enabled: !!expandedId,
+    select: d => d.loads ?? [],
+  });
+
+  const saveMut = useMutation({
+    mutationFn: (body: any) => {
+      if (editPlan) return fetch(`/api/farms/${farmId}/dispatch-plans/${editPlan.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      return fetch(`/api/farms/${farmId}/dispatch-plans`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    },
+    onSuccess: () => {
+      toast({ title: editPlan ? "Dispatch plan updated" : "Dispatch plan created" });
+      qc.invalidateQueries({ queryKey: ["dispatch-plans", farmId] });
+      setAddOpen(false); setEditPlan(null); setForm(emptyPlanForm());
+    },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/dispatch-plans/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Plan deleted" }); qc.invalidateQueries({ queryKey: ["dispatch-plans", farmId] }); setDeleteTarget(null); },
+    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const statusMut = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) =>
+      fetch(`/api/farms/${farmId}/dispatch-plans/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["dispatch-plans", farmId] }),
+  });
+
+  const plans: any[] = plansQ.data ?? [];
+  const hauliers: any[] = hauliersQ.data ?? [];
+  const suppliers: any[] = suppliersQ.data ?? [];
+
+  const openAdd = () => { setEditPlan(null); setForm(emptyPlanForm()); setAddOpen(true); };
+  const openEdit = (p: any) => { setEditPlan(p); setForm(planToForm(p)); setAddOpen(true); };
+
+  const handleSave = () => {
+    saveMut.mutate({
+      planRef: form.planRef || null,
+      title: form.title,
+      loadType: form.loadType,
+      commodity: form.commodity || null,
+      sourceLocation: form.sourceLocation || null,
+      binId: form.binId ? parseInt(form.binId) : null,
+      destination: form.destination || null,
+      haulierId: form.useHaulierDir && form.haulierId ? parseInt(form.haulierId) : null,
+      haulierName: (!form.useHaulierDir && form.haulierName) ? form.haulierName : (form.useHaulierDir && form.haulierId ? hauliers.find((h: any) => String(h.id) === form.haulierId)?.companyName : null),
+      buyerId: form.buyerId ? parseInt(form.buyerId) : null,
+      buyerRef: form.buyerRef || null,
+      plannedDate: form.plannedDate,
+      plannedDateEnd: form.plannedDateEnd || null,
+      estimatedLoads: form.estimatedLoads ? parseInt(form.estimatedLoads) : null,
+      estimatedTonnes: form.estimatedTonnes || null,
+      status: form.status,
+      notes: form.notes || null,
+      createdBy: form.createdBy || null,
+    });
+  };
+
+  const activePlans = plans.filter(p => p.status !== "cancelled" && p.status !== "complete");
+  const archivedPlans = plans.filter(p => p.status === "cancelled" || p.status === "complete");
+  const [showArchived, setShowArchived] = useState(false);
+  const visiblePlans = showArchived ? plans : activePlans;
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+          Plan and co-ordinate dispatch movements before execution. Confirmed plans appear in the Week Ahead planner.
+        </p>
+        <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />New Plan</Button>
+      </div>
+
+      {plans.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#9ca3af" }}>
+          <ClipboardList size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+          <p style={{ fontWeight: 600, color: "#374151" }}>No dispatch plans yet</p>
+          <p style={{ fontSize: "0.875rem" }}>Create a plan to co-ordinate a movement — grain dispatch, livestock transport, machinery movement, or anything else.</p>
+        </div>
+      ) : (
+        <div>
+          <div style={{ display: "grid", gap: 10 }}>
+            {visiblePlans.map((plan: any) => {
+              const st = planStatus(plan.status);
+              const lt = planLoadTypeBadge(plan.loadType);
+              const isExpanded = expandedId === plan.id;
+              const haulierLabel = plan.haulierName || (hauliers.find((h: any) => h.id === plan.haulierId)?.companyName) || null;
+              return (
+                <div key={plan.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                  <div style={{ padding: "0.875rem 1rem", display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Row 1: badges + title */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+                        {plan.planRef && <span style={{ fontSize: "0.7rem", fontFamily: "monospace", color: "#6b7280", background: "#f1f5f9", padding: "1px 6px", borderRadius: 4 }}>{plan.planRef}</span>}
+                        <span style={{ background: st.bg, color: st.color, fontSize: "0.7rem", fontWeight: 600, padding: "1px 8px", borderRadius: 10 }}>{st.label}</span>
+                        <span style={{ background: lt.bg, color: lt.color, fontSize: "0.7rem", fontWeight: 600, padding: "1px 8px", borderRadius: 10 }}>{plan.loadType}</span>
+                        <p style={{ fontWeight: 600, fontSize: "0.9rem", color: "#111827" }}>{plan.title}</p>
+                      </div>
+                      {/* Row 2: commodity · loads · tonnes */}
+                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: "0.8rem", color: "#6b7280" }}>
+                        {plan.commodity && <span>{plan.commodity}</span>}
+                        {plan.estimatedLoads && <span>{plan.estimatedLoads} load{plan.estimatedLoads !== 1 ? "s" : ""}</span>}
+                        {plan.estimatedTonnes && <span>{parseFloat(plan.estimatedTonnes).toFixed(1)} t est.</span>}
+                      </div>
+                      {/* Row 3: haulier → destination */}
+                      {(haulierLabel || plan.destination) && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontSize: "0.8rem" }}>
+                          {haulierLabel && <span style={{ color: "#374151" }}><Truck size={11} style={{ display: "inline", marginRight: 3 }} />{haulierLabel}</span>}
+                          {haulierLabel && plan.destination && <ArrowRight size={11} style={{ color: "#9ca3af" }} />}
+                          {plan.destination && <span style={{ color: "#374151" }}>{plan.destination}</span>}
+                        </div>
+                      )}
+                      {/* Row 4: dates */}
+                      <p style={{ fontSize: "0.78rem", color: "#9ca3af", marginTop: 4 }}>
+                        Planned: <strong style={{ color: "#374151" }}>{plan.plannedDate}</strong>
+                        {plan.plannedDateEnd && plan.plannedDateEnd !== plan.plannedDate ? ` — ${plan.plannedDateEnd}` : ""}
+                        {plan.buyerRef && <span style={{ marginLeft: 10 }}>Ref: <strong style={{ color: "#374151" }}>{plan.buyerRef}</strong></span>}
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end", flexShrink: 0 }}>
+                      <div style={{ display: "flex", gap: 2 }}>
+                        <Button size="sm" variant="ghost" title={isExpanded ? "Hide loads" : "View linked loads"} onClick={() => setExpandedId(isExpanded ? null : plan.id)}>
+                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </Button>
+                        <Button size="sm" variant="ghost" title="Edit plan" onClick={() => openEdit(plan)}><Pencil size={14} /></Button>
+                        <Button size="sm" variant="ghost" title="Delete" style={{ color: "#ef4444" }} onClick={() => setDeleteTarget(plan)}><Trash2 size={14} /></Button>
+                      </div>
+                      {/* Quick status advance */}
+                      {plan.status === "draft" && <Button size="sm" variant="outline" style={{ fontSize: "0.72rem", height: 24, padding: "0 8px" }} onClick={() => statusMut.mutate({ id: plan.id, status: "confirmed" })}>Confirm Plan</Button>}
+                      {plan.status === "confirmed" && <Button size="sm" variant="outline" style={{ fontSize: "0.72rem", height: 24, padding: "0 8px" }} onClick={() => statusMut.mutate({ id: plan.id, status: "in_progress" })}>Start Moving</Button>}
+                      {plan.status === "in_progress" && <Button size="sm" style={{ fontSize: "0.72rem", height: 24, padding: "0 8px", background: "#166534" }} onClick={() => statusMut.mutate({ id: plan.id, status: "complete" })}>Mark Complete</Button>}
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div style={{ borderTop: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 16px" }}>
+                      {loadsQ.isLoading ? (
+                        <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>Loading loads…</p>
+                      ) : (loadsQ.data ?? []).length === 0 ? (
+                        <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                          No dispatch records linked to this plan yet. When recording a dispatch, select this plan from the "Link to Plan" dropdown to connect it here.
+                        </p>
+                      ) : (
+                        <div>
+                          <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                            {(loadsQ.data ?? []).length} load{(loadsQ.data ?? []).length !== 1 ? "s" : ""} recorded against this plan
+                          </p>
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                            <thead><tr style={{ color: "#6b7280" }}>
+                              <th style={{ textAlign: "left", padding: "3px 8px" }}>Date</th>
+                              <th style={{ textAlign: "left", padding: "3px 8px" }}>Commodity</th>
+                              <th style={{ textAlign: "left", padding: "3px 8px" }}>Vehicle</th>
+                              <th style={{ textAlign: "left", padding: "3px 8px" }}>Status</th>
+                              <th style={{ textAlign: "right", padding: "3px 8px" }}>Weight (t)</th>
+                            </tr></thead>
+                            <tbody>
+                              {(loadsQ.data ?? []).map((load: any) => (
+                                <tr key={load.id} style={{ borderTop: "1px solid #e5e7eb" }}>
+                                  <td style={{ padding: "4px 8px" }}>{load.departureDate?.slice(0, 10) ?? "—"}</td>
+                                  <td style={{ padding: "4px 8px" }}>{load.commodity || load.loadType || "—"}</td>
+                                  <td style={{ padding: "4px 8px" }}>{load.vehicleRegistration || load.haulierCompany || "—"}</td>
+                                  <td style={{ padding: "4px 8px" }}>
+                                    {load.deliveryConfirmedAt
+                                      ? <span style={{ color: "#166534", fontWeight: 500 }}>Confirmed</span>
+                                      : <span style={{ color: "#92400e" }}>{load.deliveryStatus || "Pending"}</span>}
+                                  </td>
+                                  <td style={{ padding: "4px 8px", textAlign: "right" }}>{load.weightTonnes ? parseFloat(load.weightTonnes).toFixed(2) : "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot><tr style={{ borderTop: "2px solid #e5e7eb", fontWeight: 600 }}>
+                              <td colSpan={4} style={{ padding: "4px 8px" }}>
+                                {(loadsQ.data ?? []).filter((l: any) => l.deliveryConfirmedAt).length} of {(loadsQ.data ?? []).length} confirmed
+                              </td>
+                              <td style={{ padding: "4px 8px", textAlign: "right" }}>
+                                {(loadsQ.data ?? []).reduce((s: number, l: any) => s + parseFloat(l.weightTonnes ?? "0"), 0).toFixed(2)} t
+                              </td>
+                            </tr></tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {archivedPlans.length > 0 && (
+            <div style={{ marginTop: 12, textAlign: "center" }}>
+              <button type="button" onClick={() => setShowArchived(a => !a)} style={{ fontSize: "0.8rem", color: "#6b7280", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+                {showArchived ? "Hide" : `Show ${archivedPlans.length} completed / cancelled plan${archivedPlans.length !== 1 ? "s" : ""}`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Add / Edit Dialog ── */}
+      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditPlan(null); setForm(emptyPlanForm()); } }}>
+        <DialogContent style={{ maxWidth: 660, maxHeight: "90vh", overflowY: "auto" }}>
+          <DialogHeader><DialogTitle>{editPlan ? "Edit Dispatch Plan" : "New Dispatch Plan"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+
+            {/* Identity */}
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Plan Ref</Label><Input placeholder="e.g. DP-001" value={form.planRef} onChange={e => setForm(f => ({ ...f, planRef: e.target.value }))} style={{ fontFamily: "monospace" }} /></div>
+              <div className="col-span-2"><Label>Title <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Feed wheat to Frontier — 5 loads" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></div>
+            </div>
+
+            {/* Load type + commodity */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Load Type</Label>
+                <Select value={form.loadType} onValueChange={v => setForm(f => ({ ...f, loadType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{PLAN_LOAD_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Commodity / Description</Label><Input placeholder="e.g. Feed Wheat, Hereford steers, Claas Lexion" value={form.commodity} onChange={e => setForm(f => ({ ...f, commodity: e.target.value }))} /></div>
+            </div>
+
+            {/* Source + Destination */}
+            <div>
+              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 4 }}>Movement</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>From (source location)</Label><Input placeholder="e.g. Home Farm, Barn 2, Field 7" value={form.sourceLocation} onChange={e => setForm(f => ({ ...f, sourceLocation: e.target.value }))} /></div>
+                <div><Label>To (destination)</Label><Input placeholder="e.g. Frontier Gain, Stowmarket" value={form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))} /></div>
+              </div>
+            </div>
+
+            {/* Haulier */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <Label>Haulier</Label>
+                <button type="button" onClick={() => setForm(f => ({ ...f, useHaulierDir: !f.useHaulierDir, haulierId: "", haulierName: "" }))} style={{ fontSize: "0.75rem", color: "#1a6b3a", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+                  {form.useHaulierDir ? "Enter name manually" : "Use directory"}
+                </button>
+              </div>
+              {form.useHaulierDir ? (
+                <Select value={form.haulierId || "__none__"} onValueChange={v => setForm(f => ({ ...f, haulierId: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select haulier from directory" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— No haulier selected —</SelectItem>
+                    {hauliers.map((h: any) => <SelectItem key={h.id} value={String(h.id)}>{h.companyName}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input placeholder="Haulier company name" value={form.haulierName} onChange={e => setForm(f => ({ ...f, haulierName: e.target.value }))} />
+              )}
+            </div>
+
+            {/* Buyer + ref */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Buyer / Merchant</Label>
+                <Select value={form.buyerId || "__none__"} onValueChange={v => setForm(f => ({ ...f, buyerId: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select or leave blank" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {suppliers.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name || s.companyName}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Contract / TASQ Ref</Label><Input placeholder="e.g. TASQ-12345" value={form.buyerRef} onChange={e => setForm(f => ({ ...f, buyerRef: e.target.value }))} /></div>
+            </div>
+
+            {/* Dates + load estimates */}
+            <div>
+              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 4 }}>Schedule & Quantities</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Planned Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.plannedDate} onChange={e => setForm(f => ({ ...f, plannedDate: e.target.value }))} /></div>
+                <div><Label>End Date (if multi-day)</Label><Input type="date" value={form.plannedDateEnd} onChange={e => setForm(f => ({ ...f, plannedDateEnd: e.target.value }))} /></div>
+              </div>
+              <div className="grid grid-cols-3 gap-3" style={{ marginTop: "0.75rem" }}>
+                <div><Label>Est. Loads</Label><Input type="number" min="1" step="1" placeholder="e.g. 5" value={form.estimatedLoads} onChange={e => setForm(f => ({ ...f, estimatedLoads: e.target.value }))} /></div>
+                <div><Label>Est. Tonnes</Label><Input type="number" min="0" step="0.01" placeholder="e.g. 250.00" value={form.estimatedTonnes} onChange={e => setForm(f => ({ ...f, estimatedTonnes: e.target.value }))} /></div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{PLAN_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Decided by + notes */}
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Decision made by</Label><Input placeholder="e.g. James Barnett" value={form.createdBy} onChange={e => setForm(f => ({ ...f, createdBy: e.target.value }))} /></div>
+            </div>
+            <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setEditPlan(null); setForm(emptyPlanForm()); }}>Cancel</Button>
+            <Button onClick={handleSave} disabled={!form.title || !form.plannedDate || saveMut.isPending}>
+              {saveMut.isPending ? "Saving…" : editPlan ? "Save Changes" : "Create Plan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirmation ── */}
+      <Dialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}>
+        <DialogContent style={{ maxWidth: 420 }}>
+          <DialogHeader><DialogTitle>Delete Dispatch Plan</DialogTitle></DialogHeader>
+          <p style={{ fontSize: "0.875rem", color: "#374151" }}>
+            Delete plan <strong>{deleteTarget?.title}</strong>? Any dispatch records linked to it will remain, but the link will be removed.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteMut.mutate(deleteTarget.id)} disabled={deleteMut.isPending}>
+              {deleteMut.isPending ? "Deleting…" : "Delete Plan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1717,6 +2166,7 @@ export default function HaulagePageFull() {
   return (
     <AppLayout title="Haulage & Transport">
       <TabBar>
+        <TabButton active={tab === "plans"} onClick={() => setTab("plans")}><ClipboardList size={14} className="mr-1" />Dispatch Plans</TabButton>
         <TabButton active={tab === "dispatches"} onClick={() => setTab("dispatches")}><ArrowUpRight size={14} className="mr-1" />Dispatches</TabButton>
         <TabButton active={tab === "transfers"} onClick={() => setTab("transfers")}><ArrowLeftRight size={14} className="mr-1" />On-Farm Transfers</TabButton>
         <TabButton active={tab === "grain-position"} onClick={() => setTab("grain-position")}><Wheat size={14} className="mr-1" />Grain Position</TabButton>
@@ -1725,6 +2175,7 @@ export default function HaulagePageFull() {
       </TabBar>
 
       <div style={{ marginTop: 20 }}>
+        {farmId && tab === "plans" && <DispatchPlansTab farmId={farmId} />}
         {farmId && tab === "dispatches" && <DispatchesTab farmId={farmId} />}
         {farmId && tab === "transfers" && <TransfersTab farmId={farmId} />}
         {farmId && tab === "grain-position" && <GrainPositionTab farmId={farmId} onGoToDispatches={() => setTab("dispatches")} />}
