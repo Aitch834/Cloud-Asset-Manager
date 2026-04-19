@@ -1,11 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { Printer, TrendingUp, TrendingDown, BarChart3, Package, Leaf, Tractor, PoundSterling, Calendar } from "lucide-react";
+import { Printer, Download, TrendingUp, TrendingDown, BarChart3, Package, Leaf, Tractor, PoundSterling, Calendar } from "lucide-react";
 
 type Tab = "gross-margin" | "pl" | "input-costs" | "grain-position" | "subsidies" | "year-on-year" | "assets";
 
@@ -21,6 +21,23 @@ const fmtN = (n: number | null | undefined, dp = 2) => {
   if (n == null || isNaN(n)) return "—";
   return n.toLocaleString("en-GB", { minimumFractionDigits: dp, maximumFractionDigits: dp });
 };
+
+type ExportFn = () => void;
+
+function downloadCsv(filename: string, rows: (string | number | null | undefined)[][]) {
+  const content = rows.map(r =>
+    r.map(cell => {
+      const s = String(cell ?? "");
+      return s.includes(",") || s.includes('"') || s.includes("\n")
+        ? `"${s.replace(/"/g, '""')}"` : s;
+    }).join(",")
+  ).join("\n");
+  const blob = new Blob(["\uFEFF" + content, ""], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 function StatCard({ label, value, sub, color = "#166534", bg = "#f0fdf4", border = "#bbf7d0" }: { label: string; value: string; sub?: string; color?: string; bg?: string; border?: string }) {
   return (
@@ -69,7 +86,7 @@ function EmptyState({ icon: Icon, message }: { icon: React.ComponentType<{ size:
 }
 
 // ── Gross Margin Tab ─────────────────────────────────────────────────────────
-function GrossMarginTab({ farmId, year }: { farmId: number; year: number }) {
+function GrossMarginTab({ farmId, year, onRegisterExport }: { farmId: number; year: number; onRegisterExport: (fn: ExportFn) => void }) {
   const { data, isLoading } = useQuery({
     queryKey: ["report-gross-margin", farmId, year],
     queryFn: () => fetch(`/api/farms/${farmId}/reports/gross-margin?year=${year}`).then(r => r.json()),
@@ -108,6 +125,27 @@ function GrossMarginTab({ farmId, year }: { farmId: number; year: number }) {
     }
     return m;
   }, [costs]);
+
+  useEffect(() => {
+    onRegisterExport(() => {
+      const rows: (string | number)[][] = [["Crop", "Records", "Area (ha)", "Total Yield (t)", "Yield / ha"]];
+      for (const [crop, d] of Object.entries(cropMap)) {
+        rows.push([crop, d.count, fmtN(d.area), fmtN(d.yield), d.area > 0 ? fmtN(d.yield / d.area) : "—"]);
+      }
+      rows.push([]);
+      rows.push(["Input Cost Category", "Total Cost", "Cost / ha"]);
+      for (const cat of VARIABLE_COST_CATS.filter(c => costByCat[c])) {
+        rows.push([cat, fmt(costByCat[cat]), totalArea > 0 ? fmt(Math.round(costByCat[cat] / totalArea)) : "—"]);
+      }
+      rows.push(["Total Variable Costs", fmt(varCostTotal), totalArea > 0 ? fmt(Math.round(varCostTotal / totalArea)) : "—"]);
+      rows.push([]);
+      rows.push(["Summary", ""]);
+      rows.push(["Total Farm Output", fmt(incomeTotal)]);
+      rows.push(["Total Variable Costs", fmt(varCostTotal)]);
+      rows.push(["Gross Margin", fmt(grossMargin)]);
+      downloadCsv(`gross-margin-${year}.csv`, rows);
+    });
+  }, [data, cropMap, costByCat, totalArea, varCostTotal, incomeTotal, grossMargin, year, onRegisterExport]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
   if (harvests.length === 0 && costs.length === 0) return <EmptyState icon={TrendingUp} message="Add harvest records and financial transactions to generate this report." />;
@@ -187,7 +225,7 @@ function GrossMarginTab({ farmId, year }: { farmId: number; year: number }) {
 }
 
 // ── P&L Statement Tab ────────────────────────────────────────────────────────
-function PLTab({ farmId, year }: { farmId: number; year: number }) {
+function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: number; onRegisterExport: (fn: ExportFn) => void }) {
   const { data, isLoading } = useQuery({
     queryKey: ["report-gross-margin", farmId, year],
     queryFn: () => fetch(`/api/farms/${farmId}/reports/gross-margin?year=${year}`).then(r => r.json()),
@@ -216,6 +254,35 @@ function PLTab({ farmId, year }: { farmId: number; year: number }) {
   const otherExp = costs.filter(t => t.transactionType === "expense" && t.category === "Other Expense").reduce((s, t) => s + t.amountPence, 0);
   const totalFixed = labour + fuel + machinery + otherExp;
   const netFarmIncome = grossMargin - totalFixed;
+
+  useEffect(() => {
+    onRegisterExport(() => {
+      const rows: (string | number)[][] = [
+        ["Line Item", "Amount"],
+        ["INCOME", ""],
+        ["Crop Sales", fmt(cropSales)],
+        ["Livestock Sales", fmt(livestockSales)],
+        ["Agri-Environment Scheme Payments", fmt(agriEnvIncome)],
+        ["Grants & Subsidies", fmt(grantIncome)],
+        ["Other Income", fmt(otherIncome)],
+        ["Total Farm Output", fmt(totalOutput)],
+        [],
+        ["VARIABLE COSTS", ""],
+        ...VARIABLE_COST_CATS.filter(c => varCosts[c] > 0).map(c => [c, fmt(varCosts[c])]),
+        ["Total Variable Costs", `(${fmt(totalVarCosts)})`],
+        ["Gross Margin", fmt(grossMargin)],
+        [],
+        ["FIXED COSTS / OVERHEADS", ""],
+        ["Labour", fmt(labour)],
+        ["Fuel", fmt(fuel)],
+        ["Machinery & Equipment", fmt(machinery)],
+        ["Other Overhead Costs", fmt(otherExp)],
+        ["Total Fixed Costs", `(${fmt(totalFixed)})`],
+        ["Net Farm Income", fmt(netFarmIncome)],
+      ];
+      downloadCsv(`pl-statement-${year}.csv`, rows);
+    });
+  }, [data, totalOutput, totalVarCosts, grossMargin, totalFixed, netFarmIncome, year, onRegisterExport]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
   if (costs.length === 0) return <EmptyState icon={PoundSterling} message="Add financial transactions to generate the income statement." />;
@@ -264,7 +331,7 @@ function PLTab({ farmId, year }: { farmId: number; year: number }) {
 }
 
 // ── Input Cost Breakdown Tab ─────────────────────────────────────────────────
-function InputCostsTab({ farmId, year }: { farmId: number; year: number }) {
+function InputCostsTab({ farmId, year, onRegisterExport }: { farmId: number; year: number; onRegisterExport: (fn: ExportFn) => void }) {
   const { data, isLoading } = useQuery({
     queryKey: ["report-gross-margin", farmId, year],
     queryFn: () => fetch(`/api/farms/${farmId}/reports/gross-margin?year=${year}`).then(r => r.json()),
@@ -291,6 +358,18 @@ function InputCostsTab({ farmId, year }: { farmId: number; year: number }) {
     }
     return Object.entries(m);
   }, [costs]);
+
+  useEffect(() => {
+    onRegisterExport(() => {
+      const rows: (string | number)[][] = [["Category", "Total Cost", "% of Spend"]];
+      for (const [cat, amt] of byCat) {
+        const pct = totalExpenses > 0 ? ((amt / totalExpenses) * 100).toFixed(1) : "0.0";
+        rows.push([cat, fmt(amt), `${pct}%`]);
+      }
+      rows.push(["TOTAL", fmt(totalExpenses), "100.0%"]);
+      downloadCsv(`input-costs-${year}.csv`, rows);
+    });
+  }, [data, byCat, totalExpenses, year, onRegisterExport]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
   if (costs.length === 0) return <EmptyState icon={BarChart3} message="Add expense transactions to see your input cost breakdown." />;
@@ -336,7 +415,7 @@ function InputCostsTab({ farmId, year }: { farmId: number; year: number }) {
 }
 
 // ── Grain Position Tab ───────────────────────────────────────────────────────
-function GrainPositionTab({ farmId, year }: { farmId: number; year: number }) {
+function GrainPositionTab({ farmId, year, onRegisterExport }: { farmId: number; year: number; onRegisterExport: (fn: ExportFn) => void }) {
   const { data, isLoading } = useQuery({
     queryKey: ["report-grain-position", farmId, year],
     queryFn: () => fetch(`/api/farms/${farmId}/reports/grain-position?year=${year}`).then(r => r.json()),
@@ -357,6 +436,36 @@ function GrainPositionTab({ farmId, year }: { farmId: number; year: number }) {
   const totalHaulageOut = haulage.reduce((s, h) => s + parseFloat(h.weightTonnes ?? 0), 0);
   const inStore = Math.max(0, totalHarvested - totalHaulageOut);
   const totalSalesValue = cropSales.reduce((s, t) => s + (t.amountPence ?? 0), 0);
+
+  useEffect(() => {
+    onRegisterExport(() => {
+      const rows: (string | number)[][] = [
+        ["HARVEST BY CROP", "", ""],
+        ["Crop", "Harvested (t)", "% of Total"],
+        ...Object.entries(harvestedByCrop).map(([crop, tonnes]) => [
+          crop, fmtN(tonnes), totalHarvested > 0 ? `${((tonnes / totalHarvested) * 100).toFixed(1)}%` : "—"
+        ]),
+        ["TOTAL", fmtN(totalHarvested), "100.0%"],
+        [],
+        ["HAULAGE MOVEMENTS", "", "", "", ""],
+        ["Date", "Load", "Destination", "Weight (t)", "Haulier"],
+        ...haulage.map((h: any) => [
+          new Date(h.departureDate).toLocaleDateString("en-GB"),
+          h.loadDescription || h.loadType || "—",
+          h.destination || "—",
+          fmtN(parseFloat(h.weightTonnes ?? 0)),
+          h.haulierCompany || "—",
+        ]),
+        [],
+        ["SUMMARY", ""],
+        ["Total Harvested", `${fmtN(totalHarvested)} t`],
+        ["Total Moved / Sold", `${fmtN(totalHaulageOut)} t`],
+        ["Est. In Store / Unsold", `${fmtN(inStore)} t`],
+        ["Crop Sales Income", fmt(totalSalesValue)],
+      ];
+      downloadCsv(`grain-position-${year}.csv`, rows);
+    });
+  }, [data, harvestedByCrop, haulage, totalHarvested, totalHaulageOut, inStore, totalSalesValue, year, onRegisterExport]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
   if (harvests.length === 0) return <EmptyState icon={Package} message="Add harvest records to track your grain position." />;
@@ -426,7 +535,7 @@ function GrainPositionTab({ farmId, year }: { farmId: number; year: number }) {
 }
 
 // ── Subsidies Tab ────────────────────────────────────────────────────────────
-function SubsidiesTab({ farmId, year }: { farmId: number; year: number }) {
+function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year: number; onRegisterExport: (fn: ExportFn) => void }) {
   const { data, isLoading } = useQuery({
     queryKey: ["report-subsidies", farmId, year],
     queryFn: () => fetch(`/api/farms/${farmId}/reports/subsidies?year=${year}`).then(r => r.json()),
@@ -439,6 +548,36 @@ function SubsidiesTab({ farmId, year }: { farmId: number; year: number }) {
   const activeSchemes = schemes.filter(s => s.status === "active");
   const totalAnnualSchemes = activeSchemes.reduce((s, sc) => s + (sc.annualPaymentPence ?? 0), 0);
   const totalSubsidyReceived = subsidyTx.reduce((s, t) => s + (t.amountPence ?? 0), 0);
+
+  useEffect(() => {
+    onRegisterExport(() => {
+      const rows: (string | number)[][] = [
+        ["SCHEME AGREEMENTS", "", "", "", "", ""],
+        ["Scheme", "Agreement No.", "Start Date", "End Date", "Annual Payment", "Status"],
+        ...schemes.map((s: any) => [
+          s.schemeName,
+          s.agreementNumber || "—",
+          s.startDate ? new Date(s.startDate).toLocaleDateString("en-GB") : "—",
+          s.endDate ? new Date(s.endDate).toLocaleDateString("en-GB") : "Ongoing",
+          s.annualPaymentPence != null ? fmt(s.annualPaymentPence) : "—",
+          s.status,
+        ]),
+        [],
+        ["SUBSIDY PAYMENTS RECEIVED", "", "", ""],
+        ["Date", "Description", "Category", "Amount"],
+        ...subsidyTx.map((t: any) => [
+          new Date(t.transactionDate).toLocaleDateString("en-GB"),
+          t.description || "—",
+          t.category || "—",
+          fmt(t.amountPence),
+        ]),
+        [],
+        ["Annual Scheme Value", fmt(totalAnnualSchemes)],
+        ["Total Received", fmt(totalSubsidyReceived)],
+      ];
+      downloadCsv(`subsidies-${year}.csv`, rows);
+    });
+  }, [data, schemes, subsidyTx, totalAnnualSchemes, totalSubsidyReceived, year, onRegisterExport]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
   if (schemes.length === 0 && subsidyTx.length === 0) return <EmptyState icon={Leaf} message="Add agri-environment scheme agreements and subsidy transactions to see this report." />;
@@ -515,7 +654,7 @@ function SubsidiesTab({ farmId, year }: { farmId: number; year: number }) {
 }
 
 // ── Year-on-Year Tab ─────────────────────────────────────────────────────────
-function YearOnYearTab({ farmId }: { farmId: number }) {
+function YearOnYearTab({ farmId, onRegisterExport }: { farmId: number; onRegisterExport: (fn: ExportFn) => void }) {
   const { data, isLoading } = useQuery({
     queryKey: ["report-year-on-year", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/reports/year-on-year`).then(r => r.json()),
@@ -558,6 +697,28 @@ function YearOnYearTab({ farmId }: { farmId: number }) {
     const netPos = totalIncome - totalExpense;
     return { year: y, totalYield, totalArea, yieldPerHa: totalArea > 0 ? totalYield / totalArea : 0, totalIncome, totalExpense, netPos };
   }), [years, allHarvests, allTx]);
+
+  useEffect(() => {
+    onRegisterExport(() => {
+      const header = ["Metric", ...byYear.map(r => String(r.year))];
+      const dataRows = [
+        ["Area Harvested (ha)", ...byYear.map(r => fmtN(r.totalArea))],
+        ["Total Yield (t)", ...byYear.map(r => fmtN(r.totalYield))],
+        ["Average Yield (t/ha)", ...byYear.map(r => fmtN(r.yieldPerHa, 2))],
+        ["Total Income", ...byYear.map(r => fmt(r.totalIncome))],
+        ["Total Expenditure", ...byYear.map(r => fmt(r.totalExpense))],
+        ["Net Position", ...byYear.map(r => fmt(r.netPos))],
+      ];
+      const cropHeader = ["Crop", ...byYear.map(r => String(r.year))];
+      const cropRows: (string | number)[][] = [...new Set(allHarvests.map((h: any) => h.cropName))].map(crop =>
+        [String(crop), ...byYear.map(r => {
+          const t = allHarvests.filter((h: any) => h.cropName === crop && new Date(h.harvestDate).getFullYear() === r.year).reduce((s: number, h: any) => s + parseFloat(h.yieldTonnes ?? 0), 0);
+          return t > 0 ? fmtN(t) : "—";
+        })]
+      );
+      downloadCsv("year-on-year.csv", [header, ...dataRows, [], ["CROP MIX BY YEAR (t)"], cropHeader, ...cropRows]);
+    });
+  }, [data, byYear, allHarvests, onRegisterExport]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
   if (availableYears.length === 0) return <EmptyState icon={Calendar} message="Add harvest records and financial transactions across multiple years to see trends." />;
@@ -658,7 +819,7 @@ function YearOnYearTab({ farmId }: { farmId: number }) {
 }
 
 // ── Asset Register Tab ───────────────────────────────────────────────────────
-function AssetRegisterTab({ farmId }: { farmId: number }) {
+function AssetRegisterTab({ farmId, onRegisterExport }: { farmId: number; onRegisterExport: (fn: ExportFn) => void }) {
   const { data, isLoading } = useQuery({
     queryKey: ["report-assets", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/reports/assets`).then(r => r.json()),
@@ -684,6 +845,28 @@ function AssetRegisterTab({ farmId }: { farmId: number }) {
   const totalPurchaseValue = assetRows.filter(r => r.purchasePricePence).reduce((s, r) => s + r.purchasePricePence, 0);
   const totalNbv = assetRows.filter(r => r.nbv != null).reduce((s, r) => s + r.nbv, 0);
   const totalMaint = assetRows.reduce((s, r) => s + r.maintCost, 0);
+
+  useEffect(() => {
+    onRegisterExport(() => {
+      const rows: (string | number)[][] = [
+        ["Asset", "Type", "Purchase Year", "Age (yrs)", "Purchase Price", "Annual Depreciation", "Net Book Value", "Maintenance Spend", "Status"],
+        ...assetRows.map(r => [
+          r.name,
+          r.type?.replace(/_/g, " ") || "—",
+          r.purchaseYear ?? "—",
+          r.age != null ? r.age : "—",
+          r.purchasePricePence ? fmt(r.purchasePricePence) : "—",
+          r.annualDeprn ? fmt(r.annualDeprn) : "—",
+          r.nbv != null ? (r.nbv === 0 ? "Fully depreciated" : fmt(r.nbv)) : "—",
+          r.maintCost > 0 ? fmt(r.maintCost) : "—",
+          r.status,
+        ]),
+        [],
+        ["TOTALS", "", "", "", fmt(totalPurchaseValue), "", fmt(totalNbv), fmt(totalMaint)],
+      ];
+      downloadCsv("asset-register.csv", rows);
+    });
+  }, [data, assetRows, totalPurchaseValue, totalNbv, totalMaint, onRegisterExport]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
   if (equipment.length === 0) return <EmptyState icon={Tractor} message="Add equipment records with purchase prices to generate your asset register." />;
@@ -742,6 +925,15 @@ export default function BusinessReportsPage() {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 6 }, (_, i) => currentYear - i);
 
+  const [exportFn, setExportFn] = useState<ExportFn | null>(null);
+
+  const onRegisterExport = useCallback((fn: ExportFn) => {
+    setExportFn(() => fn);
+  }, []);
+
+  // Reset export fn when tab changes so the button isn't stale
+  useEffect(() => { setExportFn(null); }, [tab]);
+
   if (!farmId) {
     return (
       <AppLayout title="Business Reports">
@@ -758,39 +950,71 @@ export default function BusinessReportsPage() {
 
   return (
     <AppLayout title="Business Reports">
+      {/* Print-only styles */}
+      <style>{`
+        @media print {
+          aside, nav, header, [data-sidebar], .sidebar, [class*="sidebar"] { display: none !important; }
+          body { background: white !important; }
+          .print-hide { display: none !important; }
+        }
+      `}</style>
+
       <p style={{ color: "#6b7280", fontSize: "0.9rem", marginBottom: "1.25rem" }}>
         Financial performance reports, grain position, subsidy income and asset register — all derived from data recorded across your farm modules.
       </p>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem", marginBottom: "0.5rem" }}>
-        <TabBar>
-          <TabButton active={tab === "gross-margin"} onClick={() => setTab("gross-margin")}>Gross Margin</TabButton>
-          <TabButton active={tab === "pl"} onClick={() => setTab("pl")}>P&amp;L Statement</TabButton>
-          <TabButton active={tab === "input-costs"} onClick={() => setTab("input-costs")}>Input Costs</TabButton>
-          <TabButton active={tab === "grain-position"} onClick={() => setTab("grain-position")}>Grain Position</TabButton>
-          <TabButton active={tab === "subsidies"} onClick={() => setTab("subsidies")}>Subsidies</TabButton>
-          <TabButton active={tab === "year-on-year"} onClick={() => setTab("year-on-year")}>Year-on-Year</TabButton>
-          <TabButton active={tab === "assets"} onClick={() => setTab("assets")}>Asset Register</TabButton>
-        </TabBar>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", flex: 1 }}>
+          <TabBar>
+            <TabButton active={tab === "gross-margin"} onClick={() => setTab("gross-margin")}>Gross Margin</TabButton>
+            <TabButton active={tab === "pl"} onClick={() => setTab("pl")}>P&amp;L Statement</TabButton>
+            <TabButton active={tab === "input-costs"} onClick={() => setTab("input-costs")}>Input Costs</TabButton>
+            <TabButton active={tab === "grain-position"} onClick={() => setTab("grain-position")}>Grain Position</TabButton>
+            <TabButton active={tab === "subsidies"} onClick={() => setTab("subsidies")}>Subsidies</TabButton>
+            <TabButton active={tab === "year-on-year"} onClick={() => setTab("year-on-year")}>Year-on-Year</TabButton>
+            <TabButton active={tab === "assets"} onClick={() => setTab("assets")}>Asset Register</TabButton>
+          </TabBar>
+        </div>
 
-        {showYearSelector && (
-          <Select value={String(year)} onValueChange={v => setYear(parseInt(v))}>
-            <SelectTrigger style={{ width: 120 }}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        )}
+        <div className="print-hide" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+          {showYearSelector && (
+            <Select value={String(year)} onValueChange={v => setYear(parseInt(v))}>
+              <SelectTrigger style={{ width: 110 }}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.print()}
+            style={{ gap: "0.375rem", display: "flex", alignItems: "center" }}
+          >
+            <Printer size={14} />
+            Print
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportFn?.()}
+            disabled={!exportFn}
+            style={{ gap: "0.375rem", display: "flex", alignItems: "center" }}
+          >
+            <Download size={14} />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <div style={{ marginTop: "1.25rem" }}>
-        {tab === "gross-margin" && <GrossMarginTab farmId={farmId} year={year} />}
-        {tab === "pl" && <PLTab farmId={farmId} year={year} />}
-        {tab === "input-costs" && <InputCostsTab farmId={farmId} year={year} />}
-        {tab === "grain-position" && <GrainPositionTab farmId={farmId} year={year} />}
-        {tab === "subsidies" && <SubsidiesTab farmId={farmId} year={year} />}
-        {tab === "year-on-year" && <YearOnYearTab farmId={farmId} />}
-        {tab === "assets" && <AssetRegisterTab farmId={farmId} />}
+        {tab === "gross-margin" && <GrossMarginTab farmId={farmId} year={year} onRegisterExport={onRegisterExport} />}
+        {tab === "pl" && <PLTab farmId={farmId} year={year} onRegisterExport={onRegisterExport} />}
+        {tab === "input-costs" && <InputCostsTab farmId={farmId} year={year} onRegisterExport={onRegisterExport} />}
+        {tab === "grain-position" && <GrainPositionTab farmId={farmId} year={year} onRegisterExport={onRegisterExport} />}
+        {tab === "subsidies" && <SubsidiesTab farmId={farmId} year={year} onRegisterExport={onRegisterExport} />}
+        {tab === "year-on-year" && <YearOnYearTab farmId={farmId} onRegisterExport={onRegisterExport} />}
+        {tab === "assets" && <AssetRegisterTab farmId={farmId} onRegisterExport={onRegisterExport} />}
       </div>
     </AppLayout>
   );
