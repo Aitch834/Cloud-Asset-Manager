@@ -119,3 +119,7 @@ overrides:
   rollup>@rollup/rollup-win32-ia32-msvc: '-'
   rollup>@rollup/rollup-win32-x64-gnu: '-'
   rollup>@rollup/rollup-win32-x64-msvc: '-'
+
+patchedDependencies:
+  '@radix-ui/react-select@2.2.6': patches/@radix-ui__react-select@2.2.6.patch
+  '@radix-ui/react-slot@1.2.4': patches/@radix-ui__react-slot@1.2.4.patch

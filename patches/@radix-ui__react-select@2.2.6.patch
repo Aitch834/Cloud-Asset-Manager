@@ -1,0 +1,32 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index f9b94f39dfddef678ef3086354f8d7413ae27e52..198d24e7ba63b2fcae8c0984c00bf4c2bdcb7dd4 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -808,9 +808,10 @@ var SelectItem = React.forwardRef(
+     const isSelected = context.value === value;
+     const [textValue, setTextValue] = React.useState(textValueProp ?? "");
+     const [isFocused, setIsFocused] = React.useState(false);
++    const stableItemRefCb = React.useCallback((node) => contentContext.itemRefCallback?.(node, value, disabled), [contentContext.itemRefCallback, value, disabled]);
+     const composedRefs = useComposedRefs(
+       forwardedRef,
+-      (node) => contentContext.itemRefCallback?.(node, value, disabled)
++      stableItemRefCb
+     );
+     const textId = useId();
+     const pointerTypeRef = React.useRef("touch");
+@@ -904,11 +905,13 @@ var SelectItemText = React.forwardRef(
+     const itemContext = useSelectItemContext(ITEM_TEXT_NAME, __scopeSelect);
+     const nativeOptionsContext = useSelectNativeOptionsContext(ITEM_TEXT_NAME, __scopeSelect);
+     const [itemTextNode, setItemTextNode] = React.useState(null);
++    const stableSetItemText = React.useCallback((node) => setItemTextNode(node), []);
++    const stableItemTextRefCb = React.useCallback((node) => contentContext.itemTextRefCallback?.(node, itemContext.value, itemContext.disabled), [contentContext.itemTextRefCallback, itemContext.value, itemContext.disabled]);
+     const composedRefs = useComposedRefs(
+       forwardedRef,
+-      (node) => setItemTextNode(node),
++      stableSetItemText,
+       itemContext.onItemTextChange,
+-      (node) => contentContext.itemTextRefCallback?.(node, itemContext.value, itemContext.disabled)
++      stableItemTextRefCb
+     );
+     const textContent = itemTextNode?.textContent;
+     const nativeOption = React.useMemo(

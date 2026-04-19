@@ -1,0 +1,27 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index d7ea37463aa39e6b9f27e9ab6882d3ed6e61ffe1..805da2f23cad38bee9353033ae71766ed523bd13 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -45,11 +45,20 @@ function createSlotClone(ownerName) {
+     if (isLazyComponent(children) && typeof use === "function") {
+       children = use(children._payload);
+     }
++    // Hoist childrenRef computation so useMemo can be called unconditionally (Rules of Hooks).
++    const childrenRef = React.isValidElement(children) ? getElementRef(children) : null;
++    // Memoize the composed ref function. Without this, SlotClone creates a new composeRefs
++    // function on every render, which causes React to call the old ref with null and the new
++    // ref with the DOM node on every re-render. Combined with PopperAnchor's no-deps useEffect
++    // (which calls setAnchor on any anchor change), this creates an infinite update loop.
++    const stableRef = React.useMemo(
++      () => (forwardedRef && childrenRef) ? composeRefs(forwardedRef, childrenRef) : (forwardedRef || childrenRef),
++      [forwardedRef, childrenRef]
++    );
+     if (React.isValidElement(children)) {
+-      const childrenRef = getElementRef(children);
+       const props2 = mergeProps(slotProps, children.props);
+       if (children.type !== React.Fragment) {
+-        props2.ref = forwardedRef ? composeRefs(forwardedRef, childrenRef) : childrenRef;
++        props2.ref = stableRef;
+       }
+       return React.cloneElement(children, props2);
+     }
