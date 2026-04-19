@@ -764,7 +764,10 @@ function TransfersTab({ farmId }: { farmId: number }) {
 }
 
 // ─── Grain Position Tab ─────────────────────────────────────────────────────
-function GrainPositionTab({ farmId }: { farmId: number }) {
+function GrainPositionTab({ farmId, onGoToDispatches }: { farmId: number; onGoToDispatches: () => void }) {
+  const curYear = new Date().getFullYear();
+  const [yearFilter, setYearFilter] = useState(curYear);
+
   const stockQ = useQuery({
     queryKey: ["crop-stock-levels", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/crop-stock-levels`).then(r => r.json()),
@@ -772,37 +775,102 @@ function GrainPositionTab({ farmId }: { farmId: number }) {
     select: d => d.records ?? [],
   });
 
-  // Fallback: calculate from haulage records if stock levels empty
   const haulageQ = useQuery({
     queryKey: ["haulage", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/haulage`).then(r => r.json()),
     enabled: !!farmId,
-    select: d => (d.records ?? []).filter((r: any) => r.movementType !== "on_farm_transfer" && r.commodity),
+    select: d => (d.records ?? []).filter((r: any) => r.movementType !== "on_farm_transfer"),
   });
 
   const stockLevels: any[] = stockQ.data ?? [];
-  const haulageRecords: any[] = haulageQ.data ?? [];
+  const allHaulageRecords: any[] = haulageQ.data ?? [];
+
+  const dispatchYears = useMemo(() => {
+    const ys = new Set(allHaulageRecords.map(r => r.departureDate?.slice(0, 4)).filter(Boolean).map(Number));
+    ys.add(curYear);
+    return Array.from(ys).sort((a, b) => b - a);
+  }, [allHaulageRecords, curYear]);
+
+  const haulageInYear = useMemo(
+    () => allHaulageRecords.filter(r => r.departureDate?.startsWith(String(yearFilter))),
+    [allHaulageRecords, yearFilter],
+  );
+
+  const confirmedInYear = useMemo(() => haulageInYear.filter(r => r.deliveryConfirmedAt), [haulageInYear]);
+  const pendingInYear   = useMemo(() => haulageInYear.filter(r => !r.deliveryConfirmedAt), [haulageInYear]);
+
+  const totalDispatchedT = useMemo(() => confirmedInYear.reduce((s, r) => s + parseFloat(r.weightTonnes ?? "0"), 0), [confirmedInYear]);
+  const totalPendingT    = useMemo(() => pendingInYear.reduce((s, r) => s + parseFloat(r.weightTonnes ?? "0"), 0), [pendingInYear]);
 
   const totalStockTonnes = stockLevels.reduce((s, r) => s + parseFloat(r.quantityTonnes ?? "0"), 0);
-  const totalDispatched = haulageRecords.filter(r => r.deliveryConfirmedAt).reduce((s, r) => s + parseFloat(r.weightTonnes ?? "0"), 0);
+
+  const commodityTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of stockLevels) {
+      const key = r.commodity || "Unknown";
+      map.set(key, (map.get(key) ?? 0) + parseFloat(r.quantityTonnes ?? "0"));
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [stockLevels]);
+
+  const cardClick: React.CSSProperties = { cursor: "pointer", transition: "box-shadow 0.15s" };
 
   return (
     <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, marginBottom: "0.75rem" }}>
+        <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>Dispatch year:</span>
+        <Select value={String(yearFilter)} onValueChange={v => setYearFilter(Number(v))}>
+          <SelectTrigger style={{ width: 100, height: 32, fontSize: "0.85rem" }}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {dispatchYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: "1.5rem" }}>
         <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "1rem" }}>
           <p style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", color: "#16a34a", marginBottom: 4 }}>Live Stock in Store</p>
           <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#14532d" }}>{totalStockTonnes.toFixed(1)} t</p>
-          <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>across {stockLevels.length} bin/commodity rows</p>
+          {commodityTotals.length > 1 ? (
+            <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 2 }}>
+              {commodityTotals.map(([commodity, tonnes]) => (
+                <div key={commodity} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", color: "#374151" }}>
+                  <span>{commodity}</span>
+                  <span style={{ fontWeight: 600 }}>{tonnes.toFixed(1)} t</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 4 }}>
+              {stockLevels.length === 0 ? "No stock records yet" : `across ${stockLevels.length} bin/commodity row${stockLevels.length !== 1 ? "s" : ""}`}
+            </p>
+          )}
         </div>
-        <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem" }}>
-          <p style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", color: "#92400e", marginBottom: 4 }}>Total Dispatched (confirmed)</p>
-          <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#78350f" }}>{totalDispatched.toFixed(1)} t</p>
-          <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>from {haulageRecords.filter(r => r.deliveryConfirmedAt).length} dispatch records</p>
+
+        <div
+          style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem", ...cardClick }}
+          onClick={onGoToDispatches}
+          title="Click to view confirmed dispatches"
+        >
+          <p style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", color: "#92400e", marginBottom: 4 }}>
+            Total Dispatched (confirmed)
+          </p>
+          <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#78350f" }}>{totalDispatchedT.toFixed(1)} t</p>
+          <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+            {confirmedInYear.length} confirmed in {yearFilter} — click to view ↗
+          </p>
         </div>
-        <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "1rem" }}>
+
+        <div
+          style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "1rem", ...cardClick }}
+          onClick={onGoToDispatches}
+          title="Click to view pending dispatches"
+        >
           <p style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", color: "#1e40af", marginBottom: 4 }}>Pending Dispatches</p>
-          <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#1e3a8a" }}>{haulageRecords.filter(r => !r.deliveryConfirmedAt).reduce((s, r) => s + parseFloat(r.weightTonnes ?? "0"), 0).toFixed(1)} t</p>
-          <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>booked but not yet confirmed</p>
+          <p style={{ fontSize: "1.75rem", fontWeight: 700, color: "#1e3a8a" }}>{totalPendingT.toFixed(1)} t</p>
+          <p style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+            {pendingInYear.length} booked/in-transit in {yearFilter} — click to view ↗
+          </p>
         </div>
       </div>
 
@@ -950,7 +1018,7 @@ export default function HaulagePageFull() {
       <div style={{ marginTop: 20 }}>
         {farmId && tab === "dispatches" && <DispatchesTab farmId={farmId} />}
         {farmId && tab === "transfers" && <TransfersTab farmId={farmId} />}
-        {farmId && tab === "grain-position" && <GrainPositionTab farmId={farmId} />}
+        {farmId && tab === "grain-position" && <GrainPositionTab farmId={farmId} onGoToDispatches={() => setTab("dispatches")} />}
         {farmId && tab === "directory" && <HaulierDirectoryTab farmId={farmId} />}
       </div>
     </AppLayout>
