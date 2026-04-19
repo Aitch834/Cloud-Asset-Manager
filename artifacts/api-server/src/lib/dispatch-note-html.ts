@@ -101,6 +101,7 @@ const CSS = `
   .panel-body.dest{grid-template-columns:1fr 1fr}
   .divider{height:1px;background:#d1d5db;margin:6px 20px}
   .checkbox-row{display:flex;gap:24px;margin-bottom:6px;align-items:flex-start}
+  .checkbox-col{display:flex;flex-direction:column;gap:5px}
   .cb{display:flex;align-items:flex-start;gap:5px;font-size:10.5px;color:#1a1a1a}
   .cb-box{width:11px;height:11px;min-width:11px;border:1px solid #6b7280;display:inline-block;margin-top:1px}
   .write-line{border-bottom:1px solid #d1d5db;height:18px;margin-bottom:4px}
@@ -137,13 +138,27 @@ export function generateDispatchNoteHtml(data: DispatchNoteData): string {
     </div>
     <div class="divider"></div>` : "";
 
+  const isLivestock = docTitle(data.loadType, data.commodity) === "Livestock Dispatch Note";
+
   const treatmentContent = data.postHarvestTreatments
-    ? `<p style="font-size:8.5px;color:#1a1a1a;margin-bottom:4px">${data.postHarvestTreatments}</p>`
+    ? `<p style="font-size:10.5px;color:#1a1a1a;margin-bottom:4px">${data.postHarvestTreatments}</p>`
     : `<div class="checkbox-row">
         <div class="cb"><span class="cb-box"></span><span>No post-harvest treatments have been applied to this lot.</span></div>
         <div class="cb"><span class="cb-box"></span><span>Treatments were applied — details below / attached:</span></div>
       </div>
       <div class="write-line"></div>`;
+
+  const livestockDeclarations = `
+    <div class="cb"><span class="cb-box"></span><span>Food Chain Information (FCI) / Vendor Declaration has been completed and issued with this consignment.</span></div>
+    <div class="cb"><span class="cb-box"></span><span>All animals are fit to travel and show no signs of injury, illness, or distress at time of loading.</span></div>
+    <div class="cb"><span class="cb-box"></span><span>Estimated journey time is within legal welfare limits — feed, water and rest provisions are in place if journey exceeds 8 hours.</span></div>
+    <div class="cb"><span class="cb-box"></span><span>No TB movement restriction, FMD restriction, or other disease / standstill notice is in force on this holding at time of dispatch.</span></div>
+    <div class="cb"><span class="cb-box"></span><span>Movement has been notified to BCMS / eAML2 or the relevant devolved nation portal prior to or at time of departure.</span></div>
+    <div class="cb"><span class="cb-box"></span><span>Number of animals loaded matches the accompanying movement document, ear tag records, and herd / flock register.</span></div>
+    <div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:4px 16px">
+      <div class="kv"><label>BCMS / Portal Submission Ref.</label><span class="empty">________________________________</span></div>
+      <div class="kv"><label>FCI / Vendor Declaration Ref.</label><span class="empty">________________________________</span></div>
+    </div>`;
 
   return `<!DOCTYPE html>
 <html>
@@ -188,6 +203,19 @@ export function generateDispatchNoteHtml(data: DispatchNoteData): string {
       ${kv("Waybill / Consignment No.", data.waybillNumber)}
       ${kv("Weighbridge Ticket No.", data.weighbridgeTicketNo)}
     </div>
+    ${isLivestock ? `
+    <div class="row4">
+      ${kv("Species / Type", data.commodity || data.loadType)}
+      ${kv("Breed / Category", data.variety)}
+      ${kv("Class / Grade", data.grade)}
+      ${kv("Number of Animals", data.cropYear)}
+    </div>
+    <div class="row4">
+      ${kv("Estimated Live Weight", fmtWeight(data.weightTonnes))}
+      ${kv("Holding of Origin (CPH)", data.cphNumber)}
+      ${kv("Destination CPH / Abattoir", data.destination)}
+      ${kv("Movement Doc. Type", data.storageLocation)}
+    </div>` : `
     <div class="row4">
       ${kv("Commodity / Load", data.commodity || data.loadType)}
       ${kv("Variety", data.variety)}
@@ -199,7 +227,7 @@ export function generateDispatchNoteHtml(data: DispatchNoteData): string {
       ${kv("Moisture %", data.moisturePercent != null ? `${data.moisturePercent}%` : null)}
       ${kv("Specific Weight (kg/hl)", data.specificWeightKgHl != null ? String(data.specificWeightKgHl) : null)}
       ${kv("Source Store / Bin", data.binName || data.storageLocation)}
-    </div>
+    </div>`}
   </div>
 
   <div class="divider"></div>
@@ -227,8 +255,12 @@ export function generateDispatchNoteHtml(data: DispatchNoteData): string {
   <div class="divider"></div>
 
   <div class="section-wrap">
-    <div class="sec-hdr amber">Post-Harvest Treatment Declaration — Red Tractor Requirement</div>
-    ${treatmentContent}
+    ${isLivestock
+      ? `<div class="sec-hdr amber">Livestock Compliance Declarations — Red Tractor &amp; BCMS Requirement</div>
+         <div class="checkbox-col">${livestockDeclarations}</div>`
+      : `<div class="sec-hdr amber">Post-Harvest Treatment Declaration — Red Tractor Requirement</div>
+         ${treatmentContent}`
+    }
   </div>
 
   <div class="divider"></div>
@@ -236,14 +268,22 @@ export function generateDispatchNoteHtml(data: DispatchNoteData): string {
   ${confirmedSection}
 
   <div class="section-wrap">
-    <div class="sec-hdr">Merchant Receipt — to be completed at destination</div>
-    <div class="receipt-row">
-      ${kv("Weighbridge Net Weight (t)", "")}
-      ${kv("Date / Time Received", "")}
-      ${kv("Receiver Name", "")}
-    </div>
+    ${isLivestock
+      ? `<div class="sec-hdr">Receiving Holding / Abattoir Receipt — to be completed on arrival</div>
+         <div class="receipt-row">
+           ${kv("Animals Received (count)", "")}
+           ${kv("Date / Time of Arrival", "")}
+           ${kv("Received By (name)", "")}
+         </div>`
+      : `<div class="sec-hdr">Merchant Receipt — to be completed at destination</div>
+         <div class="receipt-row">
+           ${kv("Weighbridge Net Weight (t)", "")}
+           ${kv("Date / Time Received", "")}
+           ${kv("Receiver Name", "")}
+         </div>`
+    }
     <div class="sig-box">
-      <p>Authorised Signature (merchant / receiver):</p>
+      <p>Authorised Signature (${isLivestock ? "receiving keeper / abattoir operative" : "merchant / receiver"}):</p>
       <p>Date:</p>
     </div>
   </div>
