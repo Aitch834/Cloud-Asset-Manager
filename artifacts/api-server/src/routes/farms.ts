@@ -9898,7 +9898,7 @@ router.get(
     const [nvzApps, sprayApps, harvestRecs, deliverySummary] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int`, total: sql<string>`coalesce(sum(total_nitrogen_kg), 0)::text` }).from(nvzFertiliserApplicationsTable).where(eq(nvzFertiliserApplicationsTable.farmId, farmId)),
       db.select({ count: sql<number>`count(*)::int` }).from(sprayApplicationsTable).where(eq(sprayApplicationsTable.farmId, farmId)),
-      db.select({ count: sql<number>`count(*)::int`, total: sql<string>`coalesce(sum(yield_tonnes), 0)::text` }).from(harvestRecordsTable).where(eq(harvestRecordsTable.farmId, farmId)),
+      db.select({ count: sql<number>`count(*)::int`, total: sql<string>`coalesce(sum(yield_tonnes), 0)::text` }).from(harvestRecordsTable).where(sql`field_crop_assignment_id IN (SELECT id FROM field_crop_assignments WHERE field_id IN (SELECT id FROM fields WHERE farm_id = ${farmId}))`),
       db.select({ count: sql<number>`count(*)::int`, total: sql<string>`coalesce(sum(quantity_tonnes), 0)::text` }).from(biofuelDeliveriesTable).where(eq(biofuelDeliveriesTable.farmId, farmId)),
     ]);
 
@@ -10031,7 +10031,7 @@ router.get("/farms/:farmId/biofuel/ghg-summary", requireAuth, requireTenant, req
   const [nvzApps, sprayApps, harvestRecs, deliveries] = await Promise.all([
     db.select({ count: sql<number>`count(*)::int`, totalNKgHa: sql<string>`coalesce(sum(total_nitrogen_kg), 0)::text` }).from(nvzFertiliserApplicationsTable).where(eq(nvzFertiliserApplicationsTable.farmId, farmId)),
     db.select({ count: sql<number>`count(*)::int` }).from(sprayApplicationsTable).where(eq(sprayApplicationsTable.farmId, farmId)),
-    db.select({ count: sql<number>`count(*)::int`, totalYield: sql<string>`coalesce(sum(yield_tonnes), 0)::text` }).from(harvestRecordsTable).where(eq(harvestRecordsTable.farmId, farmId)),
+    db.select({ count: sql<number>`count(*)::int`, totalYield: sql<string>`coalesce(sum(yield_tonnes), 0)::text` }).from(harvestRecordsTable).where(sql`field_crop_assignment_id IN (SELECT id FROM field_crop_assignments WHERE field_id IN (SELECT id FROM fields WHERE farm_id = ${farmId}))`),
     db.select({ count: sql<number>`count(*)::int`, totalTonnes: sql<string>`coalesce(sum(quantity_tonnes), 0)::text` }).from(biofuelDeliveriesTable).where(eq(biofuelDeliveriesTable.farmId, farmId)),
   ]);
   res.json({
