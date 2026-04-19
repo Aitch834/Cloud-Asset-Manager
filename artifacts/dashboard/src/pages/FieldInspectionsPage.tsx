@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardCheck, Search, CheckCircle2, AlertTriangle, AlertCircle, Eye, Filter, Camera, File, Trash2, Loader2, Plus, Pencil } from "lucide-react";
+import { ClipboardCheck, Search, CheckCircle2, AlertTriangle, AlertCircle, Eye, Filter, Camera, File, Trash2, Loader2, Plus, Pencil, UserPlus, ClipboardList } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
 type ActionRequired = "none" | "monitor" | "treat" | "urgent";
@@ -106,6 +106,127 @@ function ActionBadge({ action, resolved }: { action: ActionRequired; resolved: b
   return <Badge variant="outline">No Action</Badge>;
 }
 
+type StaffMember = { id: number; firstName: string; lastName: string; isActive: boolean; phone?: string | null };
+
+function RaiseTaskDialog({
+  inspection, farmId, staff, onClose, onRaised,
+}: {
+  inspection: FieldInspection; farmId: number; staff: StaffMember[];
+  onClose: () => void; onRaised: () => void;
+}) {
+  const { toast } = useToast();
+  const [memberId, setMemberId] = useState("");
+  const [dueDate, setDueDate] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() + 3);
+    return d.toISOString().slice(0, 10);
+  });
+  const [note, setNote] = useState("");
+  const [titleOverride, setTitleOverride] = useState(
+    `${ACTION_LABELS[inspection.actionRequired]} — ${inspection.fieldName}${inspection.cropType ? ` (${inspection.cropType})` : ""}`
+  );
+  const [error, setError] = useState("");
+
+  const mut = useMutation({
+    mutationFn: (body: object) =>
+      fetch(`/api/farms/${farmId}/task-assignments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then(r => r.json()),
+    onSuccess: (data) => {
+      const member = staff.find(s => s.id === Number(memberId));
+      const name = member ? `${member.firstName} ${member.lastName}` : "staff member";
+      if (data.smsSent) {
+        toast({ title: "Task raised & assigned", description: `${name} has been notified by SMS.` });
+      } else {
+        toast({ title: "Task raised & assigned", description: `${name} has been assigned. (No phone number on file — SMS not sent.)` });
+      }
+      onRaised();
+      onClose();
+    },
+    onError: () => setError("Failed to raise task. Please try again."),
+  });
+
+  const activeStaff = staff.filter(s => s.isActive);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!memberId) { setError("Please select a staff member."); return; }
+    if (!titleOverride.trim()) { setError("Please enter a task title."); return; }
+    setError("");
+    mut.mutate({
+      assignedToMemberId: Number(memberId),
+      title: titleOverride.trim(),
+      description: [
+        inspection.recommendedAction ? `Recommended action: ${inspection.recommendedAction}` : null,
+        inspection.pestDiseaseObservations ? `Observations: ${inspection.pestDiseaseObservations}` : null,
+      ].filter(Boolean).join("\n\n") || null,
+      dueDate: dueDate || null,
+      module: "Field Inspections",
+      href: "/field-inspections",
+      taskType: "field-inspection",
+      taskSourceId: String(inspection.id),
+      assignmentNote: note.trim() || null,
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent style={{ maxWidth: "32rem" }}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserPlus className="w-5 h-5 text-indigo-600" />
+            Raise Task from Inspection
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-sm text-amber-800">
+            <p className="font-semibold mb-0.5 flex items-center gap-1.5">
+              <ActionBadge action={inspection.actionRequired} resolved={false} />
+              {inspection.fieldName}{inspection.cropType ? ` — ${inspection.cropType}` : ""}
+            </p>
+            {inspection.recommendedAction && <p className="text-xs mt-1">{inspection.recommendedAction}</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Label>Task title</Label>
+            <Input value={titleOverride} onChange={e => setTitleOverride(e.target.value)} placeholder="Task title…" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Assign to <span className="text-red-500">*</span></Label>
+              <select
+                value={memberId}
+                onChange={e => setMemberId(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              >
+                <option value="">Select staff member…</option>
+                {activeStaff.map(s => (
+                  <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Due date</Label>
+              <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Note for staff member <span className="text-xs text-gray-400">(optional)</span></Label>
+            <Input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Check North Field after rain…" />
+          </div>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={mut.isPending} className="bg-indigo-700 hover:bg-indigo-800 text-white">
+              {mut.isPending ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Raising…</> : <><UserPlus className="w-3.5 h-3.5 mr-1.5" />Raise &amp; Assign Task</>}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function FieldInspectionsPage() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
@@ -162,6 +283,32 @@ export default function FieldInspectionsPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["field-inspections", farmId] }); toast({ title: "Inspection deleted" }); },
     onError: () => toast({ title: "Failed to delete inspection", variant: "destructive" }),
   });
+
+  const [raiseTaskRecord, setRaiseTaskRecord] = useState<FieldInspection | null>(null);
+
+  const { data: staffData } = useQuery<{ members: StaffMember[] }>({
+    queryKey: ["farm-members", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+  const staff: StaffMember[] = staffData?.members ?? [];
+
+  const { data: tasksData } = useQuery<{ records: Array<{ taskType: string; taskSourceId: string | null; status: string }> }>({
+    queryKey: ["task-assignments", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/task-assignments`).then(r => r.json()),
+    enabled: !!farmId,
+  });
+
+  const inspectionTaskMap = useMemo(() => {
+    const map: Record<number, number> = {};
+    for (const t of (tasksData?.records ?? [])) {
+      if (t.taskType === "field-inspection" && t.taskSourceId && t.status !== "cancelled") {
+        const id = Number(t.taskSourceId);
+        map[id] = (map[id] ?? 0) + 1;
+      }
+    }
+    return map;
+  }, [tasksData]);
 
   function submitInspectionForm() {
     if (!form.fieldName || !form.inspectionDate) { toast({ title: "Field name and date are required", variant: "destructive" }); return; }
@@ -412,7 +559,14 @@ export default function FieldInspectionsPage() {
                       <span className="line-clamp-2">{r.pestDiseaseObservations || "—"}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <ActionBadge action={r.actionRequired} resolved={r.isResolved} />
+                      <div className="flex flex-col gap-1">
+                        <ActionBadge action={r.actionRequired} resolved={r.isResolved} />
+                        {!r.isResolved && (inspectionTaskMap[r.id] ?? 0) > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 w-fit">
+                            <ClipboardList className="w-2.5 h-2.5" />{inspectionTaskMap[r.id]} task{inspectionTaskMap[r.id] !== 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{r.inspector || "—"}</td>
                     <td className="px-4 py-3 text-right">
@@ -424,9 +578,14 @@ export default function FieldInspectionsPage() {
                           <Pencil className="w-3.5 h-3.5 mr-1" />Edit
                         </Button>
                         {!r.isResolved && (r.actionRequired === "treat" || r.actionRequired === "urgent" || r.actionRequired === "monitor") && (
-                          <Button size="sm" variant="outline" className="text-green-700 border-green-300 hover:bg-green-50" onClick={() => openResolve(r)}>
-                            Resolve
-                          </Button>
+                          <>
+                            <Button size="sm" variant="outline" className="text-indigo-700 border-indigo-300 hover:bg-indigo-50" onClick={() => setRaiseTaskRecord(r)}>
+                              <UserPlus className="w-3 h-3 mr-1" />Raise Task
+                            </Button>
+                            <Button size="sm" variant="outline" className="text-green-700 border-green-300 hover:bg-green-50" onClick={() => openResolve(r)}>
+                              Resolve
+                            </Button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -494,11 +653,22 @@ export default function FieldInspectionsPage() {
               )}
             </div>
             {farmId && <InspectionPhotoPanel recordId={detailRecord.id} farmId={farmId} photos={detailRecord.photos ?? []} />}
+            {!detailRecord.isResolved && (inspectionTaskMap[detailRecord.id] ?? 0) > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-md px-3 py-2 mb-1">
+                <ClipboardList className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>{inspectionTaskMap[detailRecord.id]} task{inspectionTaskMap[detailRecord.id] !== 1 ? "s" : ""} already raised — visible on the Task Board.</span>
+              </div>
+            )}
             <DialogFooter>
               {!detailRecord.isResolved && (detailRecord.actionRequired === "treat" || detailRecord.actionRequired === "urgent" || detailRecord.actionRequired === "monitor") && (
-                <Button variant="outline" className="text-green-700 border-green-300 hover:bg-green-50" onClick={() => { setResolveOpen(true); }}>
-                  Mark as Resolved
-                </Button>
+                <>
+                  <Button variant="outline" className="text-indigo-700 border-indigo-300 hover:bg-indigo-50" onClick={() => { setRaiseTaskRecord(detailRecord); setDetailRecord(null); }}>
+                    <UserPlus className="w-3.5 h-3.5 mr-1" />Raise Task
+                  </Button>
+                  <Button variant="outline" className="text-green-700 border-green-300 hover:bg-green-50" onClick={() => { setResolveOpen(true); }}>
+                    Mark as Resolved
+                  </Button>
+                </>
               )}
               <Button variant="outline" onClick={() => { openEditInspection(detailRecord); setDetailRecord(null); }}>
                 <Pencil className="w-3.5 h-3.5 mr-1" />Edit
@@ -621,6 +791,19 @@ export default function FieldInspectionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskRecord && farmId && (
+        <RaiseTaskDialog
+          inspection={raiseTaskRecord}
+          farmId={farmId}
+          staff={staff}
+          onClose={() => setRaiseTaskRecord(null)}
+          onRaised={() => {
+            qc.invalidateQueries({ queryKey: ["task-assignments", farmId] });
+            qc.invalidateQueries({ queryKey: ["field-inspections", farmId] });
+          }}
+        />
+      )}
     </AppLayout>
   );
 }

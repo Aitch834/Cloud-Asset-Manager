@@ -4,8 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Redirect, useSearch } from "wouter";
 import {
   ClipboardList, CheckCircle2, Clock, XCircle, Loader2, Trash2, ChevronDown,
-  UserCheck, AlertTriangle, MessageSquare, Send, History, ArrowRight,
+  UserCheck, AlertTriangle, MessageSquare, Send, History, ArrowRight, Search,
 } from "lucide-react";
+import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useRef } from "react";
@@ -150,6 +151,13 @@ function AssignmentCard({ a, farmId, autoExpand }: { a: Assignment; farmId: numb
                 {isOverdue && <AlertTriangle className="w-3 h-3" />}
                 Due {fmtDate(a.dueDate)}
               </span>
+            )}
+            {a.taskType === "field-inspection" && (
+              <Link href="/field-inspections">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 cursor-pointer hover:bg-amber-100 flex items-center gap-1 w-fit">
+                  <Search className="w-2.5 h-2.5" />From Field Inspection
+                </span>
+              </Link>
             )}
             {a.smsSent && (
               <span className="text-xs text-emerald-600 flex items-center gap-1">
