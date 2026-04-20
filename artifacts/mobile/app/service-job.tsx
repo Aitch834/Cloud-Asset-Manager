@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { SignaturePad } from "@/components/ui/SignaturePad";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -65,6 +66,7 @@ export default function ServiceJobScreen() {
   const [fieldOrLocation, setFieldOrLocation] = useState("");
   const [notes, setNotes] = useState("");
   const [recordedBy, setRecordedBy] = useState(user?.name || "");
+  const [customerSig, setCustomerSig] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (!customerName.trim()) {
@@ -92,6 +94,7 @@ export default function ServiceJobScreen() {
       fieldOrLocation: fieldOrLocation.trim(),
       notes: notes.trim(),
       recordedBy: recordedBy.trim(),
+      customerSignature: customerSig ?? undefined,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -212,6 +215,20 @@ export default function ServiceJobScreen() {
             placeholder="Additional details, access instructions, issues encountered…"
             multiline
             numberOfLines={3}
+          />
+
+          <Text style={styles.sectionTitle}>Customer Sign-Off</Text>
+          <View style={styles.infoCard}>
+            <Feather name="edit-3" size={14} color={colors.primary} />
+            <Text style={styles.infoText}>
+              Hand the device to the customer to sign below, confirming the work has been completed to their satisfaction.
+            </Text>
+          </View>
+          <SignaturePad
+            onCapture={setCustomerSig}
+            onClear={() => setCustomerSig(null)}
+            captured={!!customerSig}
+            height={140}
           />
 
           <View style={styles.infoCard}>

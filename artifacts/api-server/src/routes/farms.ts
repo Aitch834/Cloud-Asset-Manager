@@ -5258,9 +5258,27 @@ router.delete("/farms/:farmId/hauliers/:recordId", requireAuth, requireTenant, r
 router.get("/farms/:farmId/dispatch-plans", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(dispatchPlansTable)
+  const plans = await db.select().from(dispatchPlansTable)
     .where(eq(dispatchPlansTable.farmId, farmId))
     .orderBy(desc(dispatchPlansTable.plannedDate));
+  if (plans.length === 0) { res.json({ records: [] }); return; }
+  // Attach live load counts per plan in a single query
+  const planIds = plans.map(p => p.id);
+  const countRows = await db
+    .select({
+      planId: haulageRecordsTable.dispatchPlanId,
+      total: sql<number>`count(*)::int`,
+      confirmed: sql<number>`count(*) filter (where ${haulageRecordsTable.deliveryConfirmedAt} is not null)::int`,
+      totalTonnes: sql<number>`coalesce(sum(${haulageRecordsTable.weightTonnes}::numeric), 0)`,
+    })
+    .from(haulageRecordsTable)
+    .where(and(eq(haulageRecordsTable.farmId, farmId), inArray(haulageRecordsTable.dispatchPlanId, planIds)))
+    .groupBy(haulageRecordsTable.dispatchPlanId);
+  const countMap: Record<number, { total: number; confirmed: number; totalTonnes: number }> = {};
+  for (const row of countRows) {
+    if (row.planId != null) countMap[row.planId] = { total: row.total, confirmed: row.confirmed, totalTonnes: Number(row.totalTonnes) };
+  }
+  const records = plans.map(p => ({ ...p, loadCount: countMap[p.id]?.total ?? 0, confirmedLoadCount: countMap[p.id]?.confirmed ?? 0, actualTonnes: countMap[p.id]?.totalTonnes ?? 0 }));
   res.json({ records });
 });
 

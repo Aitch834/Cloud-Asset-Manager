@@ -1226,6 +1226,7 @@ export interface AccidentReport {
   reportableRiddor: boolean;
   immediateActionsTaken: string;
   reportedBy: string;
+  injuredPersonSignature?: string;
   photoUris: string[];
   latitude?: number;
   longitude?: number;
@@ -1254,6 +1255,7 @@ export interface HaulageConfirmation {
   longitude?: number;
   dispatchPlanId?: number;
   dispatchPlanRef?: string;
+  driverSignature?: string;
   createdAt: string;
   synced: boolean;
 }
@@ -1437,6 +1439,7 @@ export interface ServiceJobRecord {
   fieldOrLocation: string;
   notes: string;
   recordedBy: string;
+  customerSignature?: string;
   createdAt: string;
   synced: boolean;
 }

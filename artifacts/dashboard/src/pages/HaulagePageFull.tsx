@@ -1382,12 +1382,30 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
                         <span style={{ background: lt.bg, color: lt.color, fontSize: "0.7rem", fontWeight: 600, padding: "1px 8px", borderRadius: 10 }}>{plan.loadType}</span>
                         <p style={{ fontWeight: 600, fontSize: "0.9rem", color: "#111827" }}>{plan.title}</p>
                       </div>
-                      {/* Row 2: commodity · loads · vehicles · tonnes */}
-                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: "0.8rem", color: "#6b7280" }}>
+                      {/* Row 2: commodity · loads progress · vehicles · tonnes */}
+                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: "0.8rem", color: "#6b7280", alignItems: "center" }}>
                         {plan.commodity && <span style={{ fontWeight: 500, color: "#374151" }}>{plan.commodity}</span>}
-                        {plan.estimatedLoads && <span>{plan.estimatedLoads} load{plan.estimatedLoads !== 1 ? "s" : ""}</span>}
+                        {plan.estimatedLoads
+                          ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <span style={{ fontWeight: 600, color: plan.loadCount >= plan.estimatedLoads ? "#166534" : "#374151" }}>
+                                {plan.loadCount ?? 0}
+                              </span>
+                              <span style={{ color: "#9ca3af" }}>/ {plan.estimatedLoads}</span>
+                              <span>load{plan.estimatedLoads !== 1 ? "s" : ""}</span>
+                              {plan.loadCount >= plan.estimatedLoads && plan.estimatedLoads > 0 && <CheckCircle2 size={12} style={{ color: "#16a34a" }} />}
+                            </span>
+                          : plan.loadCount > 0
+                            ? <span>{plan.loadCount} load{plan.loadCount !== 1 ? "s" : ""} recorded</span>
+                            : null
+                        }
                         {plan.estimatedVehicles && <span><Truck size={11} style={{ display: "inline", marginRight: 2 }} />{plan.estimatedVehicles} vehicle{plan.estimatedVehicles !== 1 ? "s" : ""}</span>}
-                        {plan.estimatedTonnes && <span>{parseFloat(plan.estimatedTonnes).toFixed(1)} t est.</span>}
+                        {(plan.actualTonnes > 0 || plan.estimatedTonnes)
+                          ? <span>
+                              {plan.actualTonnes > 0 && <><strong style={{ color: "#374151" }}>{plan.actualTonnes.toFixed(1)} t</strong> {plan.estimatedTonnes ? `of ${parseFloat(plan.estimatedTonnes).toFixed(1)} t est.` : "dispatched"}</>}
+                              {!plan.actualTonnes && plan.estimatedTonnes && <span>{parseFloat(plan.estimatedTonnes).toFixed(1)} t est.</span>}
+                            </span>
+                          : null
+                        }
                       </div>
                       {/* Row 3: haulier → destination */}
                       {(haulierLabel || plan.destination) && (

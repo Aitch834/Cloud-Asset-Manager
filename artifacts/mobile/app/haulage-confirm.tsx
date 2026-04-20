@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { SignaturePad } from "@/components/ui/SignaturePad";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -157,6 +158,7 @@ export default function HaulageConfirmScreen() {
   const [dispatchNotes, setDispatchNotes] = useState("");
   const [confirmedBy, setConfirmedBy] = useState(user?.name || "");
   const [photoUris, setPhotoUris] = useState<string[]>([]);
+  const [driverSig, setDriverSig] = useState<string | null>(null);
 
   const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -233,6 +235,7 @@ export default function HaulageConfirmScreen() {
       longitude,
       dispatchPlanId: linkedPlanId,
       dispatchPlanRef: linkedPlanRef,
+      driverSignature: driverSig ?? undefined,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -484,6 +487,26 @@ export default function HaulageConfirmScreen() {
             onChangeText={setConfirmedBy}
             placeholder="Your name — person authorising this confirmation"
           />
+
+          <View style={styles.sectionLabel}>
+            <Feather name="edit-3" size={14} color="#0284c7" />
+            <Text style={styles.sectionTitle}>Driver Sign-Off</Text>
+          </View>
+          <Text style={styles.lookupHint}>
+            Hand the device to the driver. They sign below to confirm collection of the load as described.
+          </Text>
+          <SignaturePad
+            onCapture={setDriverSig}
+            onClear={() => setDriverSig(null)}
+            captured={!!driverSig}
+            height={140}
+          />
+          {driverSig && (
+            <View style={[styles.infoBanner, { backgroundColor: "#f0fdf4", borderColor: "#86efac", marginTop: spacing.sm }]}>
+              <Feather name="check-circle" size={14} color="#16a34a" />
+              <Text style={[styles.infoText, { color: "#15803d" }]}>Driver signature captured — will be embedded in the PDF docket.</Text>
+            </View>
+          )}
 
           <Button
             title="Confirm Dispatch"

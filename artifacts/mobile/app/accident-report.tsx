@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { SignaturePad } from "@/components/ui/SignaturePad";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -71,6 +72,7 @@ export default function AccidentReportScreen() {
   const [immediateActionsTaken, setImmediateActionsTaken] = useState("");
   const [reportedBy, setReportedBy] = useState(user?.name || "");
   const [photoUris, setPhotoUris] = useState<string[]>([]);
+  const [injuredPersonSig, setInjuredPersonSig] = useState<string | null>(null);
 
   const isRiddorSeverity = severityLevel === "over_3_day" || severityLevel === "major" || severityLevel === "fatal";
 
@@ -149,6 +151,7 @@ export default function AccidentReportScreen() {
       reportableRiddor: reportableRiddor || isRiddorSeverity,
       immediateActionsTaken: immediateActionsTaken.trim(),
       reportedBy: reportedBy.trim(),
+      injuredPersonSignature: injuredPersonSig ?? undefined,
       photoUris,
       latitude,
       longitude,
@@ -397,6 +400,23 @@ export default function AccidentReportScreen() {
             value={reportedBy}
             onChangeText={setReportedBy}
             placeholder="Name of person completing this form"
+          />
+
+          <View style={styles.sectionLabel}>
+            <Feather name="edit-3" size={14} color={colors.error} />
+            <Text style={styles.sectionTitle}>Injured Person / Witness Sign-Off</Text>
+          </View>
+          <View style={[styles.urgencyBanner, { marginBottom: 8 }]}>
+            <Feather name="info" size={13} color={colors.error} />
+            <Text style={styles.urgencyText}>
+              If the injured person is able to sign, hand the device to them to confirm the account is accurate. A witness signature is also acceptable.
+            </Text>
+          </View>
+          <SignaturePad
+            onCapture={setInjuredPersonSig}
+            onClear={() => setInjuredPersonSig(null)}
+            captured={!!injuredPersonSig}
+            height={140}
           />
 
           <Button
