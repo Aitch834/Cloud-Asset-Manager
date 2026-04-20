@@ -155,6 +155,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["field-crop-management"],
   },
   {
+    id: "dispatch-plans",
+    title: "Dispatch Plans",
+    description: "View today's and upcoming dispatch plans — start movements, mark complete and log loads against a plan",
+    icon: "calendar",
+    color: "#0284c7",
+    bgColor: "#e0f2fe",
+    route: "/dispatch-plans",
+    moduleKeys: ["haulage-transport"],
+  },
+  {
     id: "haulage-confirm",
     title: "Confirm Crop Dispatch",
     description: "Confirm a haulier collecting crop — store/bin, commodity, quantity, buyer, destination, dispatch docket and sign-off",
@@ -162,7 +172,7 @@ const recordOptions: RecordOption[] = [
     color: "#0284c7",
     bgColor: "#e0f2fe",
     route: "/haulage-confirm",
-    moduleKeys: ["field-crop-management"],
+    moduleKeys: ["haulage-transport", "field-crop-management"],
   },
   {
     id: "service-job",

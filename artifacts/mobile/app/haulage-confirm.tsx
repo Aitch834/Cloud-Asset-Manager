@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -126,6 +126,17 @@ export default function HaulageConfirmScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const params = useLocalSearchParams<{
+    planId?: string;
+    planRef?: string;
+    planCommodity?: string;
+    planDestination?: string;
+    planHaulierName?: string;
+    planSourceLocation?: string;
+  }>();
+  const linkedPlanId = params.planId ? parseInt(params.planId) : undefined;
+  const linkedPlanRef = params.planRef;
+
   const cropTypes = useMobileLookup("commodity_types", CROP_TYPES_FALLBACK);
   const registeredHauliers = useHaulierLookup(currentFarm?.id);
   const grainBins = useGrainBinLookup(currentFarm?.id);
@@ -133,14 +144,14 @@ export default function HaulageConfirmScreen() {
   const [saving, setSaving] = useState(false);
   const [selectedHaulierId, setSelectedHaulierId] = useState<number | null>(null);
   const [selectedBinId, setSelectedBinId] = useState<number | null>(null);
-  const [storageLocationName, setStorageLocationName] = useState("");
+  const [storageLocationName, setStorageLocationName] = useState(params.planSourceLocation ?? "");
 
-  const [haulierName, setHaulierName] = useState("");
+  const [haulierName, setHaulierName] = useState(params.planHaulierName ?? "");
   const [vehicleReg, setVehicleReg] = useState("");
   const [driverName, setDriverName] = useState("");
-  const [cropType, setCropType] = useState("");
+  const [cropType, setCropType] = useState(params.planCommodity ?? "");
   const [quantityTonnes, setQuantityTonnes] = useState("");
-  const [destination, setDestination] = useState("");
+  const [destination, setDestination] = useState(params.planDestination ?? "");
   const [customerName, setCustomerName] = useState("");
   const [customerRef, setCustomerRef] = useState("");
   const [dispatchNotes, setDispatchNotes] = useState("");
@@ -220,6 +231,8 @@ export default function HaulageConfirmScreen() {
       photoUris,
       latitude,
       longitude,
+      dispatchPlanId: linkedPlanId,
+      dispatchPlanRef: linkedPlanRef,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -248,12 +261,21 @@ export default function HaulageConfirmScreen() {
           contentContainerStyle={styles.form}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.infoBanner}>
-            <Feather name="truck" size={16} color="#0284c7" />
-            <Text style={styles.infoText}>
-              Use this form when a lorry arrives to collect crop. Your confirmation is logged against the haulage record.
-            </Text>
-          </View>
+          {linkedPlanId && linkedPlanRef ? (
+            <View style={[styles.infoBanner, { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }]}>
+              <Feather name="link" size={16} color="#1d4ed8" />
+              <Text style={[styles.infoText, { color: "#1e40af" }]}>
+                Logging against plan <Text style={{ fontWeight: "700" }}>{linkedPlanRef}</Text>. Fields pre-filled from plan — edit as needed.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.infoBanner}>
+              <Feather name="truck" size={16} color="#0284c7" />
+              <Text style={styles.infoText}>
+                Use this form when a lorry arrives to collect crop. Your confirmation is logged against the haulage record.
+              </Text>
+            </View>
+          )}
 
           <View style={styles.sectionLabel}>
             <Feather name="truck" size={14} color="#0284c7" />

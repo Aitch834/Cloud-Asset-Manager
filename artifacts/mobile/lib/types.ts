@@ -1252,6 +1252,8 @@ export interface HaulageConfirmation {
   photoUris: string[];
   latitude?: number;
   longitude?: number;
+  dispatchPlanId?: number;
+  dispatchPlanRef?: string;
   createdAt: string;
   synced: boolean;
 }

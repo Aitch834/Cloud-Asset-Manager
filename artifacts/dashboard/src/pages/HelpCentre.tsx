@@ -94,7 +94,7 @@ const CATEGORY_TO_MODULE: Record<string, string | string[]> = {
   "Crop Trials": "crop-trials",
   "Compliance & Plans": "biosecurity",
   "Fuel & Energy": ["equipment-workshop", "fuel-management"],
-  "Haulage": "field-crop-management",
+  "Haulage": "haulage-transport",
 };
 
 function categoryColor(cat: string) {

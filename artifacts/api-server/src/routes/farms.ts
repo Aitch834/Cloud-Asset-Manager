@@ -3250,6 +3250,7 @@ router.post("/farms/:farmId/haulage-mobile", requireAuth, requireTenant, require
     confirmationDate,
     latitude,
     longitude,
+    dispatchPlanId,
   } = req.body;
 
   const qty = quantityTonnes ? parseFloat(String(quantityTonnes)) : null;
@@ -3260,7 +3261,7 @@ router.post("/farms/:farmId/haulage-mobile", requireAuth, requireTenant, require
     farmId,
     movementType: "farm_exit_dispatch",
     haulierName: haulierName ?? null,
-    vehicleReg: vehicleReg ?? null,
+    vehicleRegistration: vehicleReg ?? null,
     driverName: driverName ?? null,
     commodity: cropType ?? null,
     weightTonnes: qty != null ? String(qty) : null,
@@ -3271,8 +3272,9 @@ router.post("/farms/:farmId/haulage-mobile", requireAuth, requireTenant, require
     deliveryConfirmedAt: now,
     deliveryConfirmedBy: confirmedBy ?? null,
     deliveryConfirmationNotes: dispatchNotes ?? null,
-    loadingDate: now,
+    departureDate: now,
     notes: dispatchNotes ?? null,
+    dispatchPlanId: dispatchPlanId ? parseInt(String(dispatchPlanId)) : null,
   }).returning();
 
   // If we have a bin and crop type and quantity, deduct stock
@@ -7812,6 +7814,151 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 
 <h3>Full Trial Report</h3>
 <p>When a trial is complete, click <strong>Full Trial Report</strong> from the trial's detail view. This generates a print-ready A4 document containing the trial overview (crop, season, protocol, dates), a full plot table with GPS coordinates and treatment labels (control plots marked with a green indicator), and the complete chronological observation log for every plot. The report is suitable for submission to a trial sponsor, agronomist, or Red Tractor assessor as evidence of structured on-farm research.</p>`,
+    },
+    {
+      id: 64,
+      title: "Haulage & Transport — Module Overview",
+      category: "Haulage",
+      content: `<img src="/api/help-images/dashboard-overview.png" alt="Haulage & Transport" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The <strong>Haulage & Transport</strong> module is BDE Farm Trac's full traceability layer for crop movements. It covers every stage from planning to dispatch to delivery confirmation — creating an auditable chain of custody that satisfies Red Tractor, RTFO, and retailer traceability requirements.</p>
+
+<h3>Module Tabs</h3>
+<ul>
+<li><strong>Dispatch Plans</strong> — the upstream planning layer. Create a plan for each movement event: the commodity, source location, destination, haulier, planned date, and estimated loads. Plans progress through status stages (Draft → Confirmed → In Progress → Complete) and appear as orange tasks in your Week Ahead planner.</li>
+<li><strong>Dispatch Records</strong> — individual load records. Each dispatch record captures the vehicle registration, driver name, weighbridge ticket number, weight, departure date and time, and the delivery destination. Records can be linked to a Dispatch Plan and automatically feed grain position calculations.</li>
+<li><strong>On-Farm Transfers</strong> — internal stock movements between stores or bins. Logged as a separate movement type so that internal redistribution is clearly distinguished from farm exits in the audit trail.</li>
+<li><strong>Haulier Directory</strong> — a register of haulage companies and contractors. Storing haulier details here means that selecting a haulier on a dispatch plan or record auto-fills contact details, reducing data entry errors.</li>
+<li><strong>Grain Position</strong> — a live summary of all crop stocks by commodity and storage location, taking into account harvest inputs, dispatch outputs, and on-farm transfers. See the <em>Grain Position</em> article for full detail.</li>
+<li><strong>Invoices</strong> — log haulage invoices received from contractors and match them against dispatch records for cost reconciliation.</li>
+</ul>
+
+<h3>Traceability Principle</h3>
+<p>The module is built around the principle of farm-exit traceability: every tonne of crop leaving the farm is linked to the field it came from (via harvest records), the store it was held in (via grain stock), and the buyer or destination it was sent to (via dispatch records). This chain satisfies the traceability questions in a Red Tractor Combinable Crops audit without manual document retrieval.</p>
+
+<h3>Mobile App</h3>
+<p>The BDE Farm Trac mobile app includes two haulage screens under the <strong>Record</strong> tab:</p>
+<ul>
+<li><strong>Dispatch Plans</strong> — view today's and upcoming plans, update status to In Progress or Complete, and tap "Log a Load" to open the dispatch form with plan details pre-filled.</li>
+<li><strong>Confirm Crop Dispatch</strong> — a standalone form for logging a dispatch without a pre-existing plan. Useful for ad-hoc collections.</li>
+</ul>`,
+    },
+    {
+      id: 65,
+      title: "Dispatch Plans — Planning and Managing Crop Movements",
+      category: "Haulage",
+      content: `<img src="/api/help-images/dashboard-overview.png" alt="Dispatch Plans" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>A <strong>Dispatch Plan</strong> is the pre-movement record that authorises and organises a crop haulage event before any lorries move. Creating a plan gives you a reference number (e.g. <strong>DP-2025-0042</strong>), keeps your haulier informed, and links individual loads to a single movement decision — creating a clear audit trail.</p>
+
+<h3>Creating a Dispatch Plan</h3>
+<p>Go to <strong>Haulage &amp; Transport</strong> → <strong>Dispatch Plans</strong> and click <strong>New Plan</strong>. Complete the following fields:</p>
+<ul>
+<li><strong>Title</strong> — a short name for the movement, e.g. "April wheat to Heygates".</li>
+<li><strong>Load Type</strong> — the nature of the movement: Farm Exit Dispatch, On-Farm Transfer, or Contractor Collection.</li>
+<li><strong>Commodity</strong> — the crop being moved. Selecting a commodity enables grain position integration.</li>
+<li><strong>Source Location</strong> — the store, bin, or yard the crop is moving from. You can select a registered grain store or enter a free-text description.</li>
+<li><strong>Destination</strong> — the delivery address or merchant name.</li>
+<li><strong>Haulier</strong> — select from your registered haulier directory or enter a company name manually. If a registered haulier is selected, the system can send them an SMS notification from within the plan.</li>
+<li><strong>Planned Date</strong> — when the movement is scheduled. Use the end date field for multi-day movements.</li>
+<li><strong>Estimated Loads / Tonnes</strong> — planning figures used to calculate loads progress once dispatch records are linked.</li>
+<li><strong>Linked Contract</strong> — optionally link the plan to a forward contract from Sales &amp; Trading. The contract reference appears as a blue badge on the plan card.</li>
+</ul>
+
+<h3>Status Flow</h3>
+<p>Plans move through four stages:</p>
+<ul>
+<li><strong>Draft</strong> — plan is being prepared; not yet confirmed with the haulier.</li>
+<li><strong>Confirmed</strong> — haulier has been informed and the movement is locked in. Plans in Confirmed status appear in the Week Ahead planner as orange tasks.</li>
+<li><strong>In Progress</strong> — lorries are moving; at least one load has been dispatched. Advance status from the plan card or the mobile app.</li>
+<li><strong>Complete</strong> — all loads have been dispatched and the movement is closed.</li>
+</ul>
+
+<h3>Notifying the Haulier</h3>
+<p>If your haulier is registered in the Haulier Directory and has a phone number saved, click <strong>Notify Haulier by SMS</strong> on the plan card. The system sends a text message with the plan reference, planned date, load count, commodity, and destination. A "Notified" badge appears on the plan card once sent.</p>
+
+<h3>Linked Loads</h3>
+<p>Each dispatch record that is associated with this plan appears in the <strong>Loads</strong> section below the plan card. The plan header shows a load progress indicator, e.g. <em>3 / 5 loads dispatched</em>. To link a record, select the plan in the Dispatch Plan dropdown when creating or editing a dispatch record. On the mobile app, tap <strong>Log a Load</strong> on the plan card to open the dispatch form with the plan's details pre-filled.</p>
+
+<h3>Week Ahead Integration</h3>
+<p>Confirmed and In Progress dispatch plans appear as orange task entries on the <strong>Week Ahead</strong> planner on your dashboard home screen. The task shows the plan reference, commodity, and haulier. Click the task to navigate directly to the Dispatch Plans tab in Haulage &amp; Transport.</p>`,
+    },
+    {
+      id: 66,
+      title: "Forward Contracts — Managing Grain Sales & Pricing",
+      category: "Sales & Trading",
+      content: `<img src="/api/help-images/dashboard-overview.png" alt="Forward Contracts" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The <strong>Sales &amp; Trading</strong> module's <strong>Grain Contracts</strong> tab manages your forward and pool pricing agreements with merchants, co-operatives, and buyers. Forward contracts let you lock in a price for a specific quantity of a commodity before or during the growing season, providing income certainty against volatile spot markets.</p>
+
+<h3>Contract Types</h3>
+<ul>
+<li><strong>Forward Contract</strong> — a fixed-price agreement to deliver a set tonnage of a commodity on or before a specific date. The price per tonne is fixed at the point of contracting. This eliminates market risk for the contracted tonnage but means you cannot benefit from any subsequent price rise.</li>
+<li><strong>Pool Contract</strong> — you deliver grain into a merchant's pool and receive an averaged price across all deliveries into that pool over a defined period. Often used for OSR and malting barley. Your final price is unknown until pool closure.</li>
+</ul>
+
+<h3>Creating a Contract</h3>
+<p>Navigate to <strong>Sales &amp; Trading</strong> → <strong>Grain Contracts</strong> → <strong>Add Contract</strong>. Key fields include:</p>
+<ul>
+<li><strong>Contract Reference</strong> — your merchant's reference number. Used on all call-off and delivery documentation.</li>
+<li><strong>Commodity &amp; Grade</strong> — the crop and specification (e.g. Feed Wheat, Group 1 Milling Wheat, OSR 40% oil minimum).</li>
+<li><strong>Contracted Tonnes</strong> — the total tonnage committed under this contract.</li>
+<li><strong>Price</strong> — £/tonne for forward contracts. For pool contracts, enter the provisional price if known and update it once the pool closes.</li>
+<li><strong>Delivery Period</strong> — start and end dates between which deliveries must be made. For old crop/new crop splits, enter separate contracts for each period.</li>
+<li><strong>Merchant / Buyer</strong> — select from your Suppliers register or enter a name manually.</li>
+<li><strong>Haulage Responsibility</strong> — Farm carriage or Ex-farm collection; affects whether a haulage plan is required.</li>
+</ul>
+
+<h3>Call-Offs</h3>
+<p>A <strong>call-off</strong> is an individual delivery instruction against a contract — the merchant calls off a specific tonnage for a specific delivery date. Record each call-off in the Call-Offs sub-tab. The contract header shows total tonnage called off versus contracted, so you can see at a glance how much remains to be called off. Linking a <strong>Dispatch Plan</strong> to the contract (via the Dispatch Plan form) connects the physical movement to the contractual obligation.</p>
+
+<h3>Grain Position Integration</h3>
+<p>Contracted tonnages are included in the Grain Position calculation under <strong>Committed Stock</strong>. The position shows you: total stock held → minus contracted but not yet delivered → equals your free (uncommitted) stock. This prevents over-selling by making clear how much grain is already spoken for.</p>
+
+<h3>Alerts</h3>
+<p>BDE Farm Trac raises a compliance flag if a forward contract's delivery end date is approaching and the full contracted tonnage has not yet been called off or dispatched. The flag appears in the notification panel and, if SMS Text Alerts are active and the commodity threshold is set, as a text message.</p>`,
+    },
+    {
+      id: 67,
+      title: "Grain Position — Tracking Your Crop Stock",
+      category: "Sales & Trading",
+      content: `<img src="/api/help-images/dashboard-overview.png" alt="Grain Position" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>The <strong>Grain Position</strong> tab gives you a live view of your crop stocks by commodity — how much you have in store, how much is committed to contracts, and how much is free to sell. It pulls data from three sources: harvest records, dispatch records, and forward contracts.</p>
+
+<h3>How the Position is Calculated</h3>
+<p>For each commodity (e.g. Feed Wheat), the position is built as follows:</p>
+<ul>
+<li><strong>Opening Stock</strong> — either carried over from last season or entered as a manual opening balance.</li>
+<li><strong>+ Harvest In</strong> — tonnes harvested and logged in the Field &amp; Crop module, allocated to each grain bin or storage location.</li>
+<li><strong>+ Purchases / Transfers In</strong> — any bought-in crop or inter-farm transfers credited to this farm.</li>
+<li><strong>− Dispatches Out</strong> — tonnes dispatched as logged in the Haulage &amp; Transport module. Each dispatch record deducts from the relevant bin.</li>
+<li><strong>= Physical Stock</strong> — the actual tonnes currently held across all stores.</li>
+<li><strong>− Contracted (Undelivered)</strong> — tonnes committed under forward contracts that have not yet been dispatched.</li>
+<li><strong>= Free Position</strong> — uncommitted stock available to sell, contract, or carry.</li>
+</ul>
+
+<h3>Viewing by Location</h3>
+<p>The position table can be viewed in two ways:</p>
+<ul>
+<li><strong>By Commodity</strong> — totals for each crop across all stores. Use this for a trading or financial overview.</li>
+<li><strong>By Bin / Store</strong> — breakdown showing which bins hold what. Use this for physical stock management and bin allocation when loading lorries.</li>
+</ul>
+
+<h3>Keeping the Position Accurate</h3>
+<p>The grain position is only as accurate as the underlying records. To maintain accuracy:</p>
+<ul>
+<li>Log harvest records promptly after combining and allocate tonnage to the correct bin.</li>
+<li>Create dispatch records for every lorry that leaves the farm, even if no formal dispatch plan exists.</li>
+<li>Record on-farm transfers when crop is moved between stores — these are separate movement types so stock doesn't disappear and reappear incorrectly.</li>
+<li>Perform a physical stock check at the start or end of each season and enter an adjusted opening balance if there are discrepancies.</li>
+</ul>
+
+<h3>Reconciliation</h3>
+<p>The position page includes a <strong>Reconciliation</strong> view that shows the variance between physical stock (weighbridge-confirmed dispatches) and contract book (contracted tonnes). A positive variance means you have more physical stock than contracted — you are long the market. A negative variance means you are short — you have contracted more than you hold in store and may need to buy in or negotiate contract adjustments with your merchant.</p>
+
+<h3>Printing and Exporting</h3>
+<p>Click <strong>Export</strong> at the top of the Grain Position tab to download a CSV of the full position table with all movement detail. This is suitable for sharing with your grain merchant, accountant, or bank, or for use as evidence in an agri-environment or scheme audit.</p>`,
     },
     {
       id: 10001,
