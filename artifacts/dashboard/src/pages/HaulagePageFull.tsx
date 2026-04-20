@@ -16,7 +16,7 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Trash2, Truck, Building2, Wheat, BarChart3, Pencil, Eye, CheckCircle2, ArrowLeftRight, ArrowUpRight, Paperclip, X, FileText, Image, FileDown, Receipt, ChevronDown, ChevronUp, ClipboardList, ArrowRight } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 
-type Tab = "plans" | "contracts" | "dispatches" | "transfers" | "grain-position" | "invoices" | "directory";
+type Tab = "plans" | "dispatches" | "transfers" | "grain-position" | "invoices" | "directory";
 
 const DISPATCH_STATUSES = [
   { value: "booked", label: "Booked", bg: "#eff6ff", color: "#1e40af" },
@@ -1402,8 +1402,14 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
                         <p style={{ fontSize: "0.78rem", color: "#9ca3af", margin: 0 }}>
                           Planned: <strong style={{ color: "#374151" }}>{plan.plannedDate}</strong>
                           {plan.plannedDateEnd && plan.plannedDateEnd !== plan.plannedDate ? ` — ${plan.plannedDateEnd}` : ""}
-                          {plan.buyerRef && <span style={{ marginLeft: 10 }}>Ref: <strong style={{ color: "#374151" }}>{plan.buyerRef}</strong></span>}
+                          {plan.buyerRef && !plan.linkedContractId && <span style={{ marginLeft: 10 }}>Ref: <strong style={{ color: "#374151" }}>{plan.buyerRef}</strong></span>}
                         </p>
+                        {plan.linkedContractId && plan.buyerRef && (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.72rem", color: "#1e40af", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "1px 8px", borderRadius: 10 }}>
+                            <FileText size={10} />
+                            Contract: {plan.buyerRef}
+                          </span>
+                        )}
                         {plan.haulierNotifiedAt
                           ? <span style={{ fontSize: "0.72rem", color: "#166534", background: "#dcfce7", padding: "1px 8px", borderRadius: 10 }}>
                               <CheckCircle2 size={10} style={{ display: "inline", marginRight: 3 }} />
@@ -2412,333 +2418,13 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
   );
 }
 
-// ─── Contracts Tab ──────────────────────────────────────────────────────────
-const CONTRACT_STATUSES = [
-  { value: "open",      label: "Open",      bg: "#eff6ff", color: "#1e40af" },
-  { value: "active",    label: "Active",    bg: "#dcfce7", color: "#166534" },
-  { value: "pending",   label: "Pending",   bg: "#fef3c7", color: "#92400e" },
-  { value: "fulfilled", label: "Fulfilled", bg: "#f1f5f9", color: "#475569" },
-  { value: "cancelled", label: "Cancelled", bg: "#fee2e2", color: "#991b1b" },
-  { value: "disputed",  label: "Disputed",  bg: "#fff7ed", color: "#9a3412" },
-];
-const CONTRACT_TYPES = [{ value: "forward", label: "Forward Contract" }, { value: "pool", label: "Pool Scheme" }];
-const currentCropYear = (() => { const y = new Date().getFullYear(); return new Date().getMonth() >= 7 ? `${y} Harvest` : `${y - 1} Harvest`; })();
-
-interface CForm {
-  contractReference: string; contractType: string; cropYear: string;
-  buyerId: string; buyer: string; commodity: string; variety: string; qualitySpec: string;
-  quantityTonnes: string; contractedPriceGBP: string;
-  deliveryWindowStart: string; deliveryWindowEnd: string; deliveryLocation: string;
-  callOffWindowNotes: string; status: string; notes: string;
-}
-const emptyCForm = (): CForm => ({
-  contractReference: "", contractType: "forward", cropYear: currentCropYear,
-  buyerId: "", buyer: "", commodity: "", variety: "", qualitySpec: "",
-  quantityTonnes: "", contractedPriceGBP: "",
-  deliveryWindowStart: "", deliveryWindowEnd: "", deliveryLocation: "",
-  callOffWindowNotes: "", status: "open", notes: "",
-});
-function contractToForm(c: any): CForm {
-  return {
-    contractReference: c.contractReference ?? "",
-    contractType: c.contractType ?? "forward",
-    cropYear: c.cropYear ?? currentCropYear,
-    buyerId: c.buyerId ? String(c.buyerId) : "",
-    buyer: c.buyer ?? "",
-    commodity: c.commodity ?? "",
-    variety: c.variety ?? "",
-    qualitySpec: c.qualitySpec ?? "",
-    quantityTonnes: c.quantityTonnes != null ? String(parseFloat(c.quantityTonnes).toFixed(2)) : "",
-    contractedPriceGBP: c.contractedPricePence != null ? String((c.contractedPricePence / 100).toFixed(2)) : "",
-    deliveryWindowStart: c.deliveryWindowStart ? c.deliveryWindowStart.slice(0, 10) : "",
-    deliveryWindowEnd: c.deliveryWindowEnd ? c.deliveryWindowEnd.slice(0, 10) : "",
-    deliveryLocation: c.deliveryLocation ?? "",
-    callOffWindowNotes: c.callOffWindowNotes ?? "",
-    status: c.status ?? "open",
-    notes: c.notes ?? "",
-  };
-}
-
-function ContractsTab({ farmId }: { farmId: number }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [addOpen, setAddOpen] = useState(false);
-  const [editContract, setEditContract] = useState<any | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
-  const [showAll, setShowAll] = useState(false);
-  const [form, setForm] = useState<CForm>(emptyCForm());
-
-  const contractsQ = useQuery({
-    queryKey: ["crop-contracts", farmId, showAll],
-    queryFn: () => fetch(`/api/farms/${farmId}/crop-contracts${showAll ? "" : "?status=open,active"}`).then(r => r.json()),
-    enabled: !!farmId,
-    select: d => d.records ?? [],
-  });
-  const buyersQ = useQuery({
-    queryKey: ["buyers-directory", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/buyers?types=buyer,trader,merchant,grain_merchant,customer`).then(r => r.json()),
-    enabled: !!farmId,
-    select: d => d.records ?? [],
-  });
-
-  const saveMut = useMutation({
-    mutationFn: (body: any) => {
-      if (editContract) return fetch(`/api/farms/${farmId}/crop-contracts/${editContract.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
-      return fetch(`/api/farms/${farmId}/crop-contracts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
-    },
-    onSuccess: () => {
-      toast({ title: editContract ? "Contract updated" : "Contract registered" });
-      qc.invalidateQueries({ queryKey: ["crop-contracts", farmId] });
-      qc.invalidateQueries({ queryKey: ["crop-contracts-for-buyer", farmId] });
-      setAddOpen(false); setEditContract(null); setForm(emptyCForm());
-    },
-    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
-  });
-  const deleteMut = useMutation({
-    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/crop-contracts/${id}`, { method: "DELETE" }),
-    onSuccess: () => { toast({ title: "Contract deleted" }); qc.invalidateQueries({ queryKey: ["crop-contracts", farmId] }); qc.invalidateQueries({ queryKey: ["crop-contracts-for-buyer", farmId] }); setDeleteTarget(null); },
-    onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
-  });
-
-  const contracts: any[] = contractsQ.data ?? [];
-  const buyers: any[] = buyersQ.data ?? [];
-
-  const handleSave = () => {
-    const b = buyers.find((x: any) => String(x.id) === form.buyerId);
-    saveMut.mutate({
-      contractReference: form.contractReference || null,
-      contractType: form.contractType,
-      cropYear: form.cropYear || null,
-      buyerId: form.buyerId ? parseInt(form.buyerId) : null,
-      buyer: form.buyer || b?.name || "",
-      commodity: form.commodity,
-      variety: form.variety || null,
-      qualitySpec: form.qualitySpec || null,
-      quantityTonnes: form.quantityTonnes || null,
-      contractedPricePence: form.contractedPriceGBP ? Math.round(parseFloat(form.contractedPriceGBP) * 100) : null,
-      deliveryWindowStart: form.deliveryWindowStart || null,
-      deliveryWindowEnd: form.deliveryWindowEnd || null,
-      deliveryLocation: form.deliveryLocation || null,
-      callOffWindowNotes: form.callOffWindowNotes || null,
-      status: form.status,
-      notes: form.notes || null,
-    });
-  };
-
-  const openAdd = () => { setEditContract(null); setForm(emptyCForm()); setAddOpen(true); };
-  const openEdit = (c: any) => { setEditContract(c); setForm(contractToForm(c)); setAddOpen(true); };
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div>
-          <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#111827", margin: 0 }}>Forward Contracts</h2>
-          <p style={{ fontSize: "0.8rem", color: "#6b7280", margin: "2px 0 0" }}>Register open contracts against buyers to link dispatch plans and track call-off progress</p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button type="button" onClick={() => setShowAll(s => !s)} style={{ fontSize: "0.78rem", color: "#1a6b3a", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
-            {showAll ? "Show open only" : "Show all"}
-          </button>
-          <Button size="sm" onClick={openAdd}><Plus size={14} className="mr-1" />Register Contract</Button>
-        </div>
-      </div>
-
-      {/* Contract cards */}
-      {contractsQ.isLoading && <p style={{ color: "#9ca3af", fontSize: "0.875rem" }}>Loading contracts…</p>}
-      {contractsQ.isFetched && contracts.length === 0 && (
-        <div style={{ textAlign: "center", padding: "40px 20px", color: "#9ca3af" }}>
-          <FileText size={32} style={{ margin: "0 auto 8px", opacity: 0.4 }} />
-          <p style={{ fontSize: "0.875rem" }}>No {showAll ? "" : "open "}contracts registered</p>
-          <p style={{ fontSize: "0.78rem", marginTop: 4 }}>Register a forward contract to link dispatch plans and track call-off tonnage</p>
-          <Button size="sm" variant="outline" className="mt-3" onClick={openAdd}>Register first contract</Button>
-        </div>
-      )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {contracts.map((c: any) => {
-          const statusInfo = CONTRACT_STATUSES.find(s => s.value === c.status) ?? CONTRACT_STATUSES[0];
-          const typeInfo = CONTRACT_TYPES.find(t => t.value === c.contractType);
-          const qty = parseFloat(c.quantityTonnes ?? "0");
-          const calledOff = parseFloat(c.calledOffTonnes ?? "0");
-          const remaining = parseFloat(c.remainingTonnes ?? String(qty));
-          const pct = qty > 0 ? Math.min(100, (calledOff / qty) * 100) : 0;
-          return (
-            <div key={c.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "14px 16px", background: "#fff" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* Row 1: ref + badges */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-                    <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "#111827" }}>{c.contractReference || "(no ref)"}</span>
-                    <span style={{ fontSize: "0.72rem", background: statusInfo.bg, color: statusInfo.color, padding: "1px 8px", borderRadius: 10 }}>{statusInfo.label}</span>
-                    {typeInfo && <span style={{ fontSize: "0.72rem", background: "#f1f5f9", color: "#475569", padding: "1px 8px", borderRadius: 10 }}>{typeInfo.label}</span>}
-                  </div>
-                  {/* Row 2: buyer + commodity */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.85rem", color: "#374151", marginBottom: 6 }}>
-                    <span style={{ fontWeight: 600 }}>{c.buyer}</span>
-                    {c.commodity && <><ArrowRight size={11} style={{ color: "#9ca3af" }} /><span>{c.commodity}{c.variety ? ` (${c.variety})` : ""}</span></>}
-                    {c.cropYear && <span style={{ color: "#9ca3af", fontSize: "0.78rem" }}>· {c.cropYear}</span>}
-                    {c.contractedPricePence && <span style={{ color: "#166534", fontWeight: 600 }}>· £{(c.contractedPricePence / 100).toFixed(2)}/t</span>}
-                  </div>
-                  {/* Row 3: tonnage progress */}
-                  {qty > 0 && (
-                    <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", color: "#6b7280", marginBottom: 3 }}>
-                        <span>{calledOff.toFixed(1)}t called off of {qty.toFixed(1)}t contracted</span>
-                        <span style={{ fontWeight: 600, color: remaining > 0 ? "#1e40af" : "#166534" }}>{remaining.toFixed(1)}t remaining</span>
-                      </div>
-                      <div style={{ height: 6, background: "#e5e7eb", borderRadius: 3, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${pct}%`, background: pct >= 100 ? "#166534" : "#3b82f6", borderRadius: 3, transition: "width 0.3s" }} />
-                      </div>
-                    </div>
-                  )}
-                  {/* Row 4: delivery window */}
-                  {(c.deliveryWindowStart || c.deliveryWindowEnd) && (
-                    <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 6, margin: "6px 0 0" }}>
-                      Delivery window: <strong style={{ color: "#374151" }}>{c.deliveryWindowStart ? fmt(c.deliveryWindowStart) : "—"}</strong>
-                      {" → "}
-                      <strong style={{ color: "#374151" }}>{c.deliveryWindowEnd ? fmt(c.deliveryWindowEnd) : "—"}</strong>
-                      {c.deliveryLocation && <span> · {c.deliveryLocation}</span>}
-                    </p>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-                  <Button size="sm" variant="ghost" title="Edit" onClick={() => openEdit(c)}><Pencil size={14} /></Button>
-                  <Button size="sm" variant="ghost" title="Delete" style={{ color: "#ef4444" }} onClick={() => setDeleteTarget(c)}><Trash2 size={14} /></Button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* ── Add / Edit Dialog ── */}
-      <Dialog open={addOpen} onOpenChange={o => { if (!o) { setAddOpen(false); setEditContract(null); setForm(emptyCForm()); } }}>
-        <DialogContent style={{ maxWidth: 600, maxHeight: "90vh", overflowY: "auto" }}>
-          <DialogHeader><DialogTitle>{editContract ? "Edit Contract" : "Register Forward Contract"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-
-            {/* Core identity */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Contract Ref (TASQ / Merchant Ref)</Label>
-                <Input placeholder="e.g. TASQ-001234" value={form.contractReference} onChange={e => setForm(f => ({ ...f, contractReference: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Contract Type</Label>
-                <Select value={form.contractType} onValueChange={v => setForm(f => ({ ...f, contractType: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{CONTRACT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Buyer + crop year */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Buyer / Merchant <span style={{ color: "#ef4444" }}>*</span></Label>
-                <Select
-                  value={form.buyerId || "__none__"}
-                  onValueChange={v => {
-                    const b = buyers.find((bx: any) => String(bx.id) === v);
-                    setForm(f => ({ ...f, buyerId: v === "__none__" ? "" : v, buyer: b?.name ?? f.buyer }));
-                  }}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select buyer…" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— Select —</SelectItem>
-                    {buyers.map((b: any) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {!form.buyerId && <Input className="mt-1" placeholder="Or type buyer name" value={form.buyer} onChange={e => setForm(f => ({ ...f, buyer: e.target.value }))} />}
-              </div>
-              <div>
-                <Label>Crop Year</Label>
-                <Input placeholder={`e.g. ${currentCropYear}`} value={form.cropYear} onChange={e => setForm(f => ({ ...f, cropYear: e.target.value }))} />
-              </div>
-            </div>
-
-            {/* Commodity */}
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Commodity <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Feed Wheat" value={form.commodity} onChange={e => setForm(f => ({ ...f, commodity: e.target.value }))} /></div>
-              <div><Label>Variety (optional)</Label><Input placeholder="e.g. Skyfall" value={form.variety} onChange={e => setForm(f => ({ ...f, variety: e.target.value }))} /></div>
-            </div>
-
-            {/* Quantity & Price */}
-            <div>
-              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 4 }}>Quantity & Price</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div><Label>Contracted Quantity (t)</Label><Input type="number" step="0.01" min="0" placeholder="e.g. 500.00" value={form.quantityTonnes} onChange={e => setForm(f => ({ ...f, quantityTonnes: e.target.value }))} /></div>
-                <div><Label>Contract Price (£/t)</Label><Input type="number" step="0.01" min="0" placeholder="e.g. 195.00" value={form.contractedPriceGBP} onChange={e => setForm(f => ({ ...f, contractedPriceGBP: e.target.value }))} /></div>
-                <div><Label>Quality / Spec</Label><Input placeholder="e.g. Milling spec" value={form.qualitySpec} onChange={e => setForm(f => ({ ...f, qualitySpec: e.target.value }))} /></div>
-              </div>
-            </div>
-
-            {/* Delivery window */}
-            <div>
-              <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 4 }}>Delivery Window</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Earliest delivery</Label><Input type="date" value={form.deliveryWindowStart} onChange={e => setForm(f => ({ ...f, deliveryWindowStart: e.target.value }))} /></div>
-                <div><Label>Latest delivery</Label><Input type="date" value={form.deliveryWindowEnd} onChange={e => setForm(f => ({ ...f, deliveryWindowEnd: e.target.value }))} /></div>
-              </div>
-              <div style={{ marginTop: "0.75rem" }}>
-                <Label>Delivery Location</Label>
-                <Input placeholder="e.g. Frontier Grain, Stowmarket" value={form.deliveryLocation} onChange={e => setForm(f => ({ ...f, deliveryLocation: e.target.value }))} />
-              </div>
-              <div style={{ marginTop: "0.75rem" }}>
-                <Label>Call-off window / schedule notes</Label>
-                <Textarea rows={2} placeholder="e.g. 100t per month Oct–Jan, balanced through Feb" value={form.callOffWindowNotes} onChange={e => setForm(f => ({ ...f, callOffWindowNotes: e.target.value }))} />
-              </div>
-            </div>
-
-            {/* Status + notes */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Status</Label>
-                <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{CONTRACT_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddOpen(false); setEditContract(null); setForm(emptyCForm()); }}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!form.commodity || (!form.buyer && !form.buyerId) || saveMut.isPending}>
-              {saveMut.isPending ? "Saving…" : editContract ? "Save Changes" : "Register Contract"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Delete Confirmation ── */}
-      <Dialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}>
-        <DialogContent style={{ maxWidth: 420 }}>
-          <DialogHeader><DialogTitle>Delete Contract</DialogTitle></DialogHeader>
-          <p style={{ fontSize: "0.875rem", color: "#374151" }}>
-            Delete contract <strong>{deleteTarget?.contractReference || `(${deleteTarget?.buyer} — ${deleteTarget?.commodity})`}</strong>?
-            Any dispatch plans linked to it will lose their contract link.
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteMut.mutate(deleteTarget.id)} disabled={deleteMut.isPending}>
-              {deleteMut.isPending ? "Deleting…" : "Delete Contract"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
 // ─── Page Shell ─────────────────────────────────────────────────────────────
 export default function HaulagePageFull() {
   const { farmId } = useAppStore();
   const initialTab = (): Tab => {
     if (typeof window !== "undefined") {
       const p = new URLSearchParams(window.location.search).get("tab");
-      const valid: Tab[] = ["plans", "contracts", "dispatches", "transfers", "grain-position", "invoices", "directory"];
+      const valid: Tab[] = ["plans", "dispatches", "transfers", "grain-position", "invoices", "directory"];
       if (p && valid.includes(p as Tab)) return p as Tab;
     }
     return "dispatches";
@@ -2749,7 +2435,6 @@ export default function HaulagePageFull() {
     <AppLayout title="Haulage & Transport">
       <TabBar>
         <TabButton active={tab === "plans"} onClick={() => setTab("plans")}><ClipboardList size={14} className="mr-1" />Dispatch Plans</TabButton>
-        <TabButton active={tab === "contracts"} onClick={() => setTab("contracts")}><FileText size={14} className="mr-1" />Contracts</TabButton>
         <TabButton active={tab === "dispatches"} onClick={() => setTab("dispatches")}><ArrowUpRight size={14} className="mr-1" />Dispatches</TabButton>
         <TabButton active={tab === "transfers"} onClick={() => setTab("transfers")}><ArrowLeftRight size={14} className="mr-1" />On-Farm Transfers</TabButton>
         <TabButton active={tab === "grain-position"} onClick={() => setTab("grain-position")}><Wheat size={14} className="mr-1" />Grain Position</TabButton>
@@ -2759,7 +2444,6 @@ export default function HaulagePageFull() {
 
       <div style={{ marginTop: 20 }}>
         {farmId && tab === "plans" && <DispatchPlansTab farmId={farmId} />}
-        {farmId && tab === "contracts" && <ContractsTab farmId={farmId} />}
         {farmId && tab === "dispatches" && <DispatchesTab farmId={farmId} />}
         {farmId && tab === "transfers" && <TransfersTab farmId={farmId} />}
         {farmId && tab === "grain-position" && <GrainPositionTab farmId={farmId} onGoToDispatches={() => setTab("dispatches")} />}
