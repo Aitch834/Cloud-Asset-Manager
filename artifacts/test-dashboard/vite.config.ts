@@ -46,14 +46,14 @@ export default defineConfig({
     }),
     tailwindcss(),
     runtimeErrorOverlay(),
+    // NOTE: cartographer plugin intentionally omitted for test-dashboard.
+    // The cartographer adds data-replit-metadata to JSX elements (including
+    // React.Fragment), which corrupts React's hook dispatcher in large
+    // components like CompliancePage, causing "Invalid hook call" errors.
+    // The test-dashboard is a dev testing tool and does not need visual editing.
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer({
-              root: path.resolve(import.meta.dirname, ".."),
-            }),
-          ),
           await import("@replit/vite-plugin-dev-banner").then((m) =>
             m.devBanner(),
           ),
