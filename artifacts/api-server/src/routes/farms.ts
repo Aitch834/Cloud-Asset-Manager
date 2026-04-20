@@ -3483,6 +3483,7 @@ router.get("/farms/:farmId/buyers", requireAuth, requireTenant, requireModuleByK
       contactName: suppliersTable.contactName,
       phone: suppliersTable.phone,
       email: suppliersTable.email,
+      address: suppliersTable.address,
       accountNumber: suppliersTable.accountNumber,
     })
     .from(suppliersTable)

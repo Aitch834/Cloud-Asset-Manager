@@ -1147,6 +1147,13 @@ function planLoadTypeBadge(t: string): { bg: string; color: string } {
   return { bg: "#f1f5f9", color: "#475569" };
 }
 
+// Load type → preferred storage location types (for source filtering)
+const LOAD_TYPE_STORAGE_TYPES: Record<string, string[]> = {
+  "Grain":         ["grain_store"],
+  "Straw / Forage": ["grain_store"],
+  // Livestock, Machinery, Other → no filter, show all
+};
+
 // Commodity suggestions keyed by load type
 const COMMODITY_SUGGESTIONS: Record<string, string[]> = {
   "Grain": ["Feed Wheat", "Milling Wheat", "Premium Wheat", "Distilling Wheat", "Winter Barley", "Spring Barley", "Feed Barley", "Malting Barley", "Oilseed Rape (OSR)", "Winter Beans", "Spring Beans", "Peas", "Oats", "Linseed", "Rye"],
@@ -1219,9 +1226,9 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
     select: d => d.records ?? [],
   });
-  const suppliersQ = useQuery({
-    queryKey: ["suppliers", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}/suppliers`).then(r => r.json()),
+  const buyersQ = useQuery({
+    queryKey: ["buyers-directory", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/buyers?types=buyer,trader,merchant,grain_merchant,customer`).then(r => r.json()),
     enabled: !!farmId,
     select: d => d.records ?? [],
   });
@@ -1281,14 +1288,27 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
 
   const plans: any[] = plansQ.data ?? [];
   const hauliers: any[] = hauliersQ.data ?? [];
-  const suppliers: any[] = suppliersQ.data ?? [];
+  const buyers: any[] = buyersQ.data ?? [];
   const members: any[] = membersQ.data ?? [];
   const storageLocations: any[] = storageQ.data ?? [];
+
+  // Filter storage locations to those relevant to the current load type
+  const filteredStorageLocations = (() => {
+    const preferredTypes = LOAD_TYPE_STORAGE_TYPES[form.loadType];
+    if (!preferredTypes || preferredTypes.length === 0) return storageLocations;
+    const preferred = storageLocations.filter((s: any) => preferredTypes.includes(s.type));
+    return preferred.length > 0 ? preferred : storageLocations; // fallback to all if no matches
+  })();
 
   const openAdd = () => { setEditPlan(null); setForm(emptyPlanForm()); setAddOpen(true); };
   const openEdit = (p: any) => { setEditPlan(p); setForm(planToForm(p)); setAddOpen(true); };
 
   const resolvedCommodity = form.commodity === "__custom__" ? form.commodityCustom : form.commodity;
+
+  // Destination field helpers (computed outside JSX to avoid IIFE-in-render issues)
+  const destIsKnownBuyer = !!buyers.find((b: any) => b.name === form.destination);
+  const destSelectVal = destIsKnownBuyer ? form.destination : (form.destination ? "__custom__" : "__none__");
+  const destShowTextInput = destSelectVal === "__custom__" || (!!form.destination && !destIsKnownBuyer && form.destination !== "__custom__");
 
   const handleSave = () => {
     saveMut.mutate({
@@ -1297,7 +1317,7 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
       commodity: resolvedCommodity || null,
       sourceLocation: form.sourceLocation || null,
       binId: form.binId ? parseInt(form.binId) : null,
-      destination: form.destination || null,
+      destination: (form.destination && form.destination !== "__custom__") ? form.destination : null,
       haulierId: form.useHaulierDir && form.haulierId ? parseInt(form.haulierId) : null,
       haulierName: (!form.useHaulierDir && form.haulierName) ? form.haulierName : (form.useHaulierDir && form.haulierId ? hauliers.find((h: any) => String(h.id) === form.haulierId)?.companyName : null),
       buyerId: form.buyerId ? parseInt(form.buyerId) : null,
@@ -1519,12 +1539,21 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>From (source location)</Label>
-                  {storageLocations.length > 0 ? (
+                  {filteredStorageLocations.length > 0 ? (
                     <>
                       <Select value={form.sourceLocation || "__custom__"} onValueChange={v => setForm(f => ({ ...f, sourceLocation: v === "__custom__" ? "" : v }))}>
                         <SelectTrigger><SelectValue placeholder="Select farm location…" /></SelectTrigger>
                         <SelectContent>
-                          {storageLocations.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}{s.storageType ? ` (${s.storageType})` : ""}</SelectItem>)}
+                          {filteredStorageLocations.map((s: any) => (
+                            <SelectItem key={s.id} value={s.name}>
+                              {s.name}{s.binType ? ` — ${s.binType}` : ""}{s.capacityTonnes ? ` (${parseFloat(s.capacityTonnes).toFixed(0)}t)` : ""}
+                            </SelectItem>
+                          ))}
+                          {filteredStorageLocations.length < storageLocations.length && (
+                            storageLocations.filter((s: any) => !filteredStorageLocations.includes(s)).map((s: any) => (
+                              <SelectItem key={`other-${s.id}`} value={s.name} style={{ color: "#6b7280" }}>{s.name} (other)</SelectItem>
+                            ))
+                          )}
                           <SelectItem value="__custom__">Other / type manually…</SelectItem>
                         </SelectContent>
                       </Select>
@@ -1536,7 +1565,47 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
                     <Input placeholder="e.g. Home Farm, Barn 2, Field 7" value={form.sourceLocation} onChange={e => setForm(f => ({ ...f, sourceLocation: e.target.value }))} />
                   )}
                 </div>
-                <div><Label>To (destination)</Label><Input placeholder="e.g. Frontier Grain, Stowmarket" value={form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))} /></div>
+                <div>
+                  <Label>To (destination)</Label>
+                  {buyers.length > 0 ? (
+                    <>
+                      <Select
+                        value={destSelectVal}
+                        onValueChange={v => {
+                          if (v === "__none__") { setForm(f => ({ ...f, destination: "" })); return; }
+                          if (v === "__custom__") { setForm(f => ({ ...f, destination: "__custom__" })); return; }
+                          const b = buyers.find((bx: any) => bx.name === v);
+                          setForm(f => ({
+                            ...f,
+                            destination: v,
+                            buyerId: f.buyerId || (b ? String(b.id) : f.buyerId),
+                          }));
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select known trader / merchant…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— None —</SelectItem>
+                          {buyers.map((b: any) => (
+                            <SelectItem key={b.id} value={b.name}>
+                              {b.name}{b.address ? ` — ${b.address.split(",")[0]}` : ""}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__custom__">Other / type manually…</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {destShowTextInput && (
+                        <Input
+                          className="mt-1"
+                          placeholder="e.g. Frontier Grain, Stowmarket"
+                          value={form.destination === "__custom__" ? "" : form.destination}
+                          onChange={e => setForm(f => ({ ...f, destination: e.target.value }))}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <Input placeholder="e.g. Frontier Grain, Stowmarket" value={form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))} />
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1565,11 +1634,22 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Buyer / Merchant</Label>
-                <Select value={form.buyerId || "__none__"} onValueChange={v => setForm(f => ({ ...f, buyerId: v === "__none__" ? "" : v }))}>
+                <Select
+                  value={form.buyerId || "__none__"}
+                  onValueChange={v => {
+                    const b = v === "__none__" ? null : buyers.find((bx: any) => String(bx.id) === v);
+                    setForm(f => ({
+                      ...f,
+                      buyerId: v === "__none__" ? "" : v,
+                      // Auto-fill destination if it's empty or was "None"
+                      destination: (!f.destination || f.destination === "__custom__") && b ? b.name : f.destination,
+                    }));
+                  }}
+                >
                   <SelectTrigger><SelectValue placeholder="Select or leave blank" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— None —</SelectItem>
-                    {suppliers.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name || s.companyName}</SelectItem>)}
+                    {buyers.map((b: any) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
