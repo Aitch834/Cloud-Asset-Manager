@@ -1148,7 +1148,7 @@ function planLoadTypeBadge(t: string): { bg: string; color: string } {
 }
 
 interface PlanForm {
-  planRef: string; title: string; loadType: string; commodity: string;
+  title: string; loadType: string; commodity: string;
   sourceLocation: string; binId: string; destination: string;
   haulierId: string; haulierName: string; useHaulierDir: boolean;
   buyerId: string; buyerRef: string;
@@ -1157,7 +1157,7 @@ interface PlanForm {
   status: string; notes: string; createdBy: string;
 }
 const emptyPlanForm = (): PlanForm => ({
-  planRef: "", title: "", loadType: "Grain", commodity: "",
+  title: "", loadType: "Grain", commodity: "",
   sourceLocation: "", binId: "", destination: "",
   haulierId: "", haulierName: "", useHaulierDir: true,
   buyerId: "", buyerRef: "",
@@ -1168,7 +1168,7 @@ const emptyPlanForm = (): PlanForm => ({
 
 function planToForm(p: any): PlanForm {
   return {
-    planRef: p.planRef ?? "", title: p.title ?? "", loadType: p.loadType ?? "Grain",
+    title: p.title ?? "", loadType: p.loadType ?? "Grain",
     commodity: p.commodity ?? "", sourceLocation: p.sourceLocation ?? "",
     binId: p.binId ? String(p.binId) : "", destination: p.destination ?? "",
     haulierId: p.haulierId ? String(p.haulierId) : "", haulierName: p.haulierName ?? "",
@@ -1249,7 +1249,6 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
 
   const handleSave = () => {
     saveMut.mutate({
-      planRef: form.planRef || null,
       title: form.title,
       loadType: form.loadType,
       commodity: form.commodity || null,
@@ -1416,10 +1415,14 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
           <div className="space-y-4 py-2">
 
             {/* Identity */}
-            <div className="grid grid-cols-3 gap-3">
-              <div><Label>Plan Ref</Label><Input placeholder="e.g. DP-001" value={form.planRef} onChange={e => setForm(f => ({ ...f, planRef: e.target.value }))} style={{ fontFamily: "monospace" }} /></div>
-              <div className="col-span-2"><Label>Title <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Feed wheat to Frontier — 5 loads" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></div>
-            </div>
+            {editPlan?.planRef && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6 }}>
+                <span style={{ fontSize: "0.72rem", color: "#64748b" }}>Plan Ref</span>
+                <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#1e40af", fontSize: "0.9rem", letterSpacing: "0.04em" }}>{editPlan.planRef}</span>
+                <span style={{ fontSize: "0.7rem", color: "#94a3b8", marginLeft: 4 }}>— assigned by system, cannot be changed</span>
+              </div>
+            )}
+            <div><Label>Title <span style={{ color: "#ef4444" }}>*</span></Label><Input placeholder="e.g. Feed wheat to Frontier — 5 loads" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></div>
 
             {/* Load type + commodity */}
             <div className="grid grid-cols-2 gap-3">

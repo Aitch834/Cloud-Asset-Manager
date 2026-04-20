@@ -5260,9 +5260,23 @@ router.get("/farms/:farmId/dispatch-plans", requireAuth, requireTenant, requireM
 router.post("/farms/:farmId/dispatch-plans", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { id, farmId: _fid, createdAt, ...body } = req.body;
+  const { id, farmId: _fid, createdAt, planRef: _ignored, ...body } = req.body;
+  // Auto-generate plan ref: DP-YYYY-NNNN scoped to farm + year
+  const year = new Date().getFullYear();
+  const yearStart = `${year}-01-01`;
+  const yearEnd = `${year + 1}-01-01`;
+  const [{ count: existingCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(dispatchPlansTable)
+    .where(and(
+      eq(dispatchPlansTable.farmId, farmId),
+      gte(dispatchPlansTable.createdAt, new Date(yearStart)),
+      lt(dispatchPlansTable.createdAt, new Date(yearEnd)),
+    ));
+  const seq = (existingCount ?? 0) + 1;
+  const planRef = `DP-${year}-${String(seq).padStart(4, "0")}`;
   const [record] = await db.insert(dispatchPlansTable).values({
-    ...body, farmId,
+    ...body, farmId, planRef,
     haulierId: body.haulierId ? parseInt(body.haulierId) : null,
     buyerId: body.buyerId ? parseInt(body.buyerId) : null,
     binId: body.binId ? parseInt(body.binId) : null,
@@ -5276,7 +5290,7 @@ router.put("/farms/:farmId/dispatch-plans/:recordId", requireAuth, requireTenant
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { id, farmId: _fid, createdAt, ...body } = req.body;
+  const { id, farmId: _fid, createdAt, planRef: _nochange, ...body } = req.body;
   const [record] = await db.update(dispatchPlansTable).set({
     ...body,
     haulierId: body.haulierId ? parseInt(body.haulierId) : null,
