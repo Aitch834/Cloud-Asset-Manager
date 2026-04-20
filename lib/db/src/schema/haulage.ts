@@ -120,10 +120,13 @@ export const dispatchPlansTable = pgTable("dispatch_plans", {
   plannedDate: date("planned_date").notNull(),
   plannedDateEnd: date("planned_date_end"), // optional end of window for multi-day moves
   estimatedLoads: integer("estimated_loads"),
+  estimatedVehicles: integer("estimated_vehicles"),
   estimatedTonnes: numeric("estimated_tonnes", { precision: 10, scale: 2 }),
   status: text("status").notNull().default("draft"),
   notes: text("notes"),
-  createdBy: text("created_by"),
+  createdBy: text("created_by"),                    // legacy free-text fallback
+  decisionMadeByMemberId: integer("decision_made_by_member_id"), // FK to farm_members
+  haulierNotifiedAt: timestamp("haulier_notified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

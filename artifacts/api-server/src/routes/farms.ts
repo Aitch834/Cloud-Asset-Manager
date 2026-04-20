@@ -5281,6 +5281,8 @@ router.post("/farms/:farmId/dispatch-plans", requireAuth, requireTenant, require
     buyerId: body.buyerId ? parseInt(body.buyerId) : null,
     binId: body.binId ? parseInt(body.binId) : null,
     estimatedLoads: body.estimatedLoads ? parseInt(body.estimatedLoads) : null,
+    estimatedVehicles: body.estimatedVehicles ? parseInt(body.estimatedVehicles) : null,
+    decisionMadeByMemberId: body.decisionMadeByMemberId ? parseInt(body.decisionMadeByMemberId) : null,
   }).returning();
   res.status(201).json({ record });
 });
@@ -5290,13 +5292,15 @@ router.put("/farms/:farmId/dispatch-plans/:recordId", requireAuth, requireTenant
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { id, farmId: _fid, createdAt, planRef: _nochange, ...body } = req.body;
+  const { id, farmId: _fid, createdAt, planRef: _nochange, haulierNotifiedAt: _nonotify, ...body } = req.body;
   const [record] = await db.update(dispatchPlansTable).set({
     ...body,
     haulierId: body.haulierId ? parseInt(body.haulierId) : null,
     buyerId: body.buyerId ? parseInt(body.buyerId) : null,
     binId: body.binId ? parseInt(body.binId) : null,
     estimatedLoads: body.estimatedLoads ? parseInt(body.estimatedLoads) : null,
+    estimatedVehicles: body.estimatedVehicles ? parseInt(body.estimatedVehicles) : null,
+    decisionMadeByMemberId: body.decisionMadeByMemberId ? parseInt(body.decisionMadeByMemberId) : null,
   }).where(and(eq(dispatchPlansTable.id, recordId), eq(dispatchPlansTable.farmId, farmId))).returning();
   res.json({ record });
 });
@@ -5313,6 +5317,46 @@ router.delete("/farms/:farmId/dispatch-plans/:recordId", requireAuth, requireTen
 });
 
 // Returns haulage records linked to a dispatch plan
+// Notify haulier — set timestamp and optionally send SMS
+router.post("/farms/:farmId/dispatch-plans/:recordId/notify-haulier", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  const [plan] = await db.select().from(dispatchPlansTable)
+    .where(and(eq(dispatchPlansTable.id, recordId), eq(dispatchPlansTable.farmId, farmId)));
+  if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
+
+  const notifiedAt = new Date();
+  const [updated] = await db.update(dispatchPlansTable)
+    .set({ haulierNotifiedAt: notifiedAt })
+    .where(eq(dispatchPlansTable.id, recordId))
+    .returning();
+
+  // Send SMS if haulier has contacts with a phone number
+  const smsSent: boolean[] = [];
+  if (plan.haulierId) {
+    const [haulier] = await db.select({ contacts: hauliersTable.contacts, companyName: hauliersTable.companyName })
+      .from(hauliersTable).where(eq(hauliersTable.id, plan.haulierId));
+    if (haulier) {
+      const contacts: any[] = Array.isArray(haulier.contacts) ? haulier.contacts : [];
+      const primaryContact = contacts.find((c: any) => c.phone) ?? contacts[0];
+      if (primaryContact?.phone) {
+        const loadsDesc = plan.estimatedLoads ? `${plan.estimatedLoads} load${plan.estimatedLoads !== 1 ? "s" : ""}` : "loads";
+        const vehiclesDesc = (plan as any).estimatedVehicles ? `, ${(plan as any).estimatedVehicles} vehicle${(plan as any).estimatedVehicles !== 1 ? "s" : ""} required` : "";
+        const msg = `Dispatch plan ${plan.planRef}: ${plan.title}. Date: ${plan.plannedDate}. ${loadsDesc}${vehiclesDesc}. Commodity: ${plan.commodity || plan.loadType}. Destination: ${plan.destination || "TBC"}. Please confirm. — BDE Farm Trac`;
+        try {
+          await sendSms(primaryContact.phone, msg);
+          smsSent.push(true);
+        } catch (e) { /* SMS failed — notification still logged */ }
+      }
+    }
+  }
+
+  res.json({ record: updated, smsSent: smsSent.length > 0 });
+});
+
 router.get("/farms/:farmId/dispatch-plans/:recordId/loads", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;

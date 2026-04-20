@@ -1147,37 +1147,54 @@ function planLoadTypeBadge(t: string): { bg: string; color: string } {
   return { bg: "#f1f5f9", color: "#475569" };
 }
 
+// Commodity suggestions keyed by load type
+const COMMODITY_SUGGESTIONS: Record<string, string[]> = {
+  "Grain": ["Feed Wheat", "Milling Wheat", "Premium Wheat", "Distilling Wheat", "Winter Barley", "Spring Barley", "Feed Barley", "Malting Barley", "Oilseed Rape (OSR)", "Winter Beans", "Spring Beans", "Peas", "Oats", "Linseed", "Rye"],
+  "Livestock": ["Finished Beef Cattle", "Store Cattle", "Dairy Heifers", "Beef Cows", "Finished Lambs", "Store Lambs", "Breeding Ewes", "Rams", "Finished Pigs", "Weaners", "Breeding Sows", "Broilers", "Point-of-Lay Hens"],
+  "Straw / Forage": ["Wheat Straw", "Barley Straw", "Oat Straw", "Big Bale Silage", "Wholecrop Silage", "Grass Silage", "Hay", "Haylage", "Maize Silage"],
+  "Machinery / Equipment": ["Combine Harvester", "Tractor", "Baler", "Sprayer", "Drill", "Plough", "Cultivator", "Trailer", "Loader", "Mower", "Forager"],
+  "Other": [],
+};
+
 interface PlanForm {
-  title: string; loadType: string; commodity: string;
+  title: string; loadType: string; commodity: string; commodityCustom: string;
   sourceLocation: string; binId: string; destination: string;
   haulierId: string; haulierName: string; useHaulierDir: boolean;
   buyerId: string; buyerRef: string;
   plannedDate: string; plannedDateEnd: string;
-  estimatedLoads: string; estimatedTonnes: string;
-  status: string; notes: string; createdBy: string;
+  estimatedLoads: string; estimatedVehicles: string; estimatedTonnes: string;
+  status: string; notes: string;
+  decisionMadeByMemberId: string;
 }
 const emptyPlanForm = (): PlanForm => ({
-  title: "", loadType: "Grain", commodity: "",
+  title: "", loadType: "Grain", commodity: "", commodityCustom: "",
   sourceLocation: "", binId: "", destination: "",
   haulierId: "", haulierName: "", useHaulierDir: true,
   buyerId: "", buyerRef: "",
   plannedDate: "", plannedDateEnd: "",
-  estimatedLoads: "", estimatedTonnes: "",
-  status: "draft", notes: "", createdBy: "",
+  estimatedLoads: "", estimatedVehicles: "", estimatedTonnes: "",
+  status: "draft", notes: "",
+  decisionMadeByMemberId: "",
 });
 
 function planToForm(p: any): PlanForm {
+  const suggestions = COMMODITY_SUGGESTIONS[p.loadType ?? "Grain"] ?? [];
+  const isCustom = p.commodity && !suggestions.includes(p.commodity);
   return {
     title: p.title ?? "", loadType: p.loadType ?? "Grain",
-    commodity: p.commodity ?? "", sourceLocation: p.sourceLocation ?? "",
+    commodity: isCustom ? "__custom__" : (p.commodity ?? ""),
+    commodityCustom: isCustom ? (p.commodity ?? "") : "",
+    sourceLocation: p.sourceLocation ?? "",
     binId: p.binId ? String(p.binId) : "", destination: p.destination ?? "",
     haulierId: p.haulierId ? String(p.haulierId) : "", haulierName: p.haulierName ?? "",
     useHaulierDir: !!p.haulierId,
     buyerId: p.buyerId ? String(p.buyerId) : "", buyerRef: p.buyerRef ?? "",
     plannedDate: p.plannedDate ?? "", plannedDateEnd: p.plannedDateEnd ?? "",
     estimatedLoads: p.estimatedLoads != null ? String(p.estimatedLoads) : "",
+    estimatedVehicles: p.estimatedVehicles != null ? String(p.estimatedVehicles) : "",
     estimatedTonnes: p.estimatedTonnes != null ? String(parseFloat(p.estimatedTonnes).toFixed(2)) : "",
-    status: p.status ?? "draft", notes: p.notes ?? "", createdBy: p.createdBy ?? "",
+    status: p.status ?? "draft", notes: p.notes ?? "",
+    decisionMadeByMemberId: p.decisionMadeByMemberId ? String(p.decisionMadeByMemberId) : "",
   };
 }
 
@@ -1214,18 +1231,40 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
     enabled: !!expandedId,
     select: d => d.loads ?? [],
   });
+  const membersQ = useQuery({
+    queryKey: ["farm-members", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => (d.members ?? []).filter((m: any) => m.isActive !== false),
+  });
+  const storageQ = useQuery({
+    queryKey: ["storage-locations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/storage-locations`).then(r => r.json()),
+    enabled: !!farmId,
+    select: d => d.records ?? [],
+  });
 
   const saveMut = useMutation({
     mutationFn: (body: any) => {
-      if (editPlan) return fetch(`/api/farms/${farmId}/dispatch-plans/${editPlan.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      return fetch(`/api/farms/${farmId}/dispatch-plans`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (editPlan) return fetch(`/api/farms/${farmId}/dispatch-plans/${editPlan.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+      return fetch(`/api/farms/${farmId}/dispatch-plans`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
     },
-    onSuccess: () => {
-      toast({ title: editPlan ? "Dispatch plan updated" : "Dispatch plan created" });
+    onSuccess: (data: any) => {
+      const ref = data?.record?.planRef;
+      toast({ title: editPlan ? "Dispatch plan updated" : `Dispatch plan created${ref ? ` — ${ref}` : ""}` });
       qc.invalidateQueries({ queryKey: ["dispatch-plans", farmId] });
       setAddOpen(false); setEditPlan(null); setForm(emptyPlanForm());
     },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+
+  const notifyMut = useMutation({
+    mutationFn: (planId: number) => fetch(`/api/farms/${farmId}/dispatch-plans/${planId}/notify-haulier`, { method: "POST" }).then(r => r.json()),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["dispatch-plans", farmId] });
+      toast({ title: data?.smsSent ? "Haulier notified — SMS sent" : "Haulier marked as notified" });
+    },
+    onError: () => toast({ title: "Failed to notify haulier", variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -1243,15 +1282,19 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
   const plans: any[] = plansQ.data ?? [];
   const hauliers: any[] = hauliersQ.data ?? [];
   const suppliers: any[] = suppliersQ.data ?? [];
+  const members: any[] = membersQ.data ?? [];
+  const storageLocations: any[] = storageQ.data ?? [];
 
   const openAdd = () => { setEditPlan(null); setForm(emptyPlanForm()); setAddOpen(true); };
   const openEdit = (p: any) => { setEditPlan(p); setForm(planToForm(p)); setAddOpen(true); };
+
+  const resolvedCommodity = form.commodity === "__custom__" ? form.commodityCustom : form.commodity;
 
   const handleSave = () => {
     saveMut.mutate({
       title: form.title,
       loadType: form.loadType,
-      commodity: form.commodity || null,
+      commodity: resolvedCommodity || null,
       sourceLocation: form.sourceLocation || null,
       binId: form.binId ? parseInt(form.binId) : null,
       destination: form.destination || null,
@@ -1262,10 +1305,11 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
       plannedDate: form.plannedDate,
       plannedDateEnd: form.plannedDateEnd || null,
       estimatedLoads: form.estimatedLoads ? parseInt(form.estimatedLoads) : null,
+      estimatedVehicles: form.estimatedVehicles ? parseInt(form.estimatedVehicles) : null,
       estimatedTonnes: form.estimatedTonnes || null,
       status: form.status,
       notes: form.notes || null,
-      createdBy: form.createdBy || null,
+      decisionMadeByMemberId: form.decisionMadeByMemberId ? parseInt(form.decisionMadeByMemberId) : null,
     });
   };
 
@@ -1308,10 +1352,11 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
                         <span style={{ background: lt.bg, color: lt.color, fontSize: "0.7rem", fontWeight: 600, padding: "1px 8px", borderRadius: 10 }}>{plan.loadType}</span>
                         <p style={{ fontWeight: 600, fontSize: "0.9rem", color: "#111827" }}>{plan.title}</p>
                       </div>
-                      {/* Row 2: commodity · loads · tonnes */}
+                      {/* Row 2: commodity · loads · vehicles · tonnes */}
                       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: "0.8rem", color: "#6b7280" }}>
-                        {plan.commodity && <span>{plan.commodity}</span>}
+                        {plan.commodity && <span style={{ fontWeight: 500, color: "#374151" }}>{plan.commodity}</span>}
                         {plan.estimatedLoads && <span>{plan.estimatedLoads} load{plan.estimatedLoads !== 1 ? "s" : ""}</span>}
+                        {plan.estimatedVehicles && <span><Truck size={11} style={{ display: "inline", marginRight: 2 }} />{plan.estimatedVehicles} vehicle{plan.estimatedVehicles !== 1 ? "s" : ""}</span>}
                         {plan.estimatedTonnes && <span>{parseFloat(plan.estimatedTonnes).toFixed(1)} t est.</span>}
                       </div>
                       {/* Row 3: haulier → destination */}
@@ -1322,12 +1367,25 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
                           {plan.destination && <span style={{ color: "#374151" }}>{plan.destination}</span>}
                         </div>
                       )}
-                      {/* Row 4: dates */}
-                      <p style={{ fontSize: "0.78rem", color: "#9ca3af", marginTop: 4 }}>
-                        Planned: <strong style={{ color: "#374151" }}>{plan.plannedDate}</strong>
-                        {plan.plannedDateEnd && plan.plannedDateEnd !== plan.plannedDate ? ` — ${plan.plannedDateEnd}` : ""}
-                        {plan.buyerRef && <span style={{ marginLeft: 10 }}>Ref: <strong style={{ color: "#374151" }}>{plan.buyerRef}</strong></span>}
-                      </p>
+                      {/* Row 4: dates + haulier notified */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
+                        <p style={{ fontSize: "0.78rem", color: "#9ca3af", margin: 0 }}>
+                          Planned: <strong style={{ color: "#374151" }}>{plan.plannedDate}</strong>
+                          {plan.plannedDateEnd && plan.plannedDateEnd !== plan.plannedDate ? ` — ${plan.plannedDateEnd}` : ""}
+                          {plan.buyerRef && <span style={{ marginLeft: 10 }}>Ref: <strong style={{ color: "#374151" }}>{plan.buyerRef}</strong></span>}
+                        </p>
+                        {plan.haulierNotifiedAt
+                          ? <span style={{ fontSize: "0.72rem", color: "#166534", background: "#dcfce7", padding: "1px 8px", borderRadius: 10 }}>
+                              <CheckCircle2 size={10} style={{ display: "inline", marginRight: 3 }} />
+                              Haulier notified {new Date(plan.haulierNotifiedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          : (plan.haulierId || plan.haulierName) && plan.status !== "draft" && plan.status !== "cancelled" && plan.status !== "complete"
+                            ? <button type="button" onClick={() => notifyMut.mutate(plan.id)} disabled={notifyMut.isPending} style={{ fontSize: "0.72rem", color: "#1e40af", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "1px 8px", borderRadius: 10, cursor: "pointer" }}>
+                                Notify haulier
+                              </button>
+                            : null
+                        }
+                      </div>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end", flexShrink: 0 }}>
                       <div style={{ display: "flex", gap: 2 }}>
@@ -1428,20 +1486,57 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Load Type</Label>
-                <Select value={form.loadType} onValueChange={v => setForm(f => ({ ...f, loadType: v }))}>
+                <Select value={form.loadType} onValueChange={v => setForm(f => ({ ...f, loadType: v, commodity: "", commodityCustom: "" }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{PLAN_LOAD_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Commodity / Description</Label><Input placeholder="e.g. Feed Wheat, Hereford steers, Claas Lexion" value={form.commodity} onChange={e => setForm(f => ({ ...f, commodity: e.target.value }))} /></div>
+              <div>
+                <Label>Commodity</Label>
+                {(COMMODITY_SUGGESTIONS[form.loadType] ?? []).length > 0 ? (
+                  <>
+                    <Select value={form.commodity || "__none__"} onValueChange={v => setForm(f => ({ ...f, commodity: v, commodityCustom: "" }))}>
+                      <SelectTrigger><SelectValue placeholder="Select commodity…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Select —</SelectItem>
+                        {(COMMODITY_SUGGESTIONS[form.loadType] ?? []).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        <SelectItem value="__custom__">Other / enter manually…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {form.commodity === "__custom__" && (
+                      <Input className="mt-1" placeholder={`Describe the ${form.loadType.toLowerCase()} being moved`} value={form.commodityCustom} onChange={e => setForm(f => ({ ...f, commodityCustom: e.target.value }))} />
+                    )}
+                  </>
+                ) : (
+                  <Input placeholder="Describe what's being moved" value={form.commodityCustom} onChange={e => setForm(f => ({ ...f, commodityCustom: e.target.value }))} />
+                )}
+              </div>
             </div>
 
             {/* Source + Destination */}
             <div>
               <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 4 }}>Movement</p>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>From (source location)</Label><Input placeholder="e.g. Home Farm, Barn 2, Field 7" value={form.sourceLocation} onChange={e => setForm(f => ({ ...f, sourceLocation: e.target.value }))} /></div>
-                <div><Label>To (destination)</Label><Input placeholder="e.g. Frontier Gain, Stowmarket" value={form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))} /></div>
+                <div>
+                  <Label>From (source location)</Label>
+                  {storageLocations.length > 0 ? (
+                    <>
+                      <Select value={form.sourceLocation || "__custom__"} onValueChange={v => setForm(f => ({ ...f, sourceLocation: v === "__custom__" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select farm location…" /></SelectTrigger>
+                        <SelectContent>
+                          {storageLocations.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}{s.storageType ? ` (${s.storageType})` : ""}</SelectItem>)}
+                          <SelectItem value="__custom__">Other / type manually…</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {(!form.sourceLocation || form.sourceLocation === "__custom__") && (
+                        <Input className="mt-1" placeholder="e.g. Home Farm, Barn 2, Field 7" value={form.sourceLocation === "__custom__" ? "" : form.sourceLocation} onChange={e => setForm(f => ({ ...f, sourceLocation: e.target.value }))} />
+                      )}
+                    </>
+                  ) : (
+                    <Input placeholder="e.g. Home Farm, Barn 2, Field 7" value={form.sourceLocation} onChange={e => setForm(f => ({ ...f, sourceLocation: e.target.value }))} />
+                  )}
+                </div>
+                <div><Label>To (destination)</Label><Input placeholder="e.g. Frontier Grain, Stowmarket" value={form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))} /></div>
               </div>
             </div>
 
@@ -1488,8 +1583,18 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
                 <div><Label>Planned Date <span style={{ color: "#ef4444" }}>*</span></Label><Input type="date" value={form.plannedDate} onChange={e => setForm(f => ({ ...f, plannedDate: e.target.value }))} /></div>
                 <div><Label>End Date (if multi-day)</Label><Input type="date" value={form.plannedDateEnd} onChange={e => setForm(f => ({ ...f, plannedDateEnd: e.target.value }))} /></div>
               </div>
-              <div className="grid grid-cols-3 gap-3" style={{ marginTop: "0.75rem" }}>
-                <div><Label>Est. Loads</Label><Input type="number" min="1" step="1" placeholder="e.g. 5" value={form.estimatedLoads} onChange={e => setForm(f => ({ ...f, estimatedLoads: e.target.value }))} /></div>
+              <div className="grid grid-cols-4 gap-3" style={{ marginTop: "0.75rem" }}>
+                <div>
+                  <Label>Est. Loads (trips)</Label>
+                  <Input type="number" min="1" step="1" placeholder="e.g. 20" value={form.estimatedLoads} onChange={e => setForm(f => ({ ...f, estimatedLoads: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Est. Vehicles</Label>
+                  <Input type="number" min="1" step="1" placeholder="e.g. 4" value={form.estimatedVehicles} onChange={e => setForm(f => ({ ...f, estimatedVehicles: e.target.value }))} />
+                  {form.estimatedLoads && form.estimatedVehicles && parseInt(form.estimatedVehicles) > 0 && (
+                    <p style={{ fontSize: "0.68rem", color: "#6b7280", marginTop: 2 }}>≈ {Math.ceil(parseInt(form.estimatedLoads) / parseInt(form.estimatedVehicles))} trips/vehicle</p>
+                  )}
+                </div>
                 <div><Label>Est. Tonnes</Label><Input type="number" min="0" step="0.01" placeholder="e.g. 250.00" value={form.estimatedTonnes} onChange={e => setForm(f => ({ ...f, estimatedTonnes: e.target.value }))} /></div>
                 <div>
                   <Label>Status</Label>
@@ -1501,9 +1606,22 @@ function DispatchPlansTab({ farmId }: { farmId: number }) {
               </div>
             </div>
 
-            {/* Decided by + notes */}
+            {/* Decision made by + notes */}
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Decision made by</Label><Input placeholder="e.g. James Barnett" value={form.createdBy} onChange={e => setForm(f => ({ ...f, createdBy: e.target.value }))} /></div>
+              <div>
+                <Label>Decision made by</Label>
+                {members.length > 0 ? (
+                  <Select value={form.decisionMadeByMemberId || "__none__"} onValueChange={v => setForm(f => ({ ...f, decisionMadeByMemberId: v === "__none__" ? "" : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select team member…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Not specified —</SelectItem>
+                      {members.map((m: any) => <SelectItem key={m.id} value={String(m.id)}>{m.firstName} {m.lastName}{m.jobTitle ? ` (${m.jobTitle})` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input placeholder="e.g. James Barnett" value={form.decisionMadeByMemberId} onChange={e => setForm(f => ({ ...f, decisionMadeByMemberId: e.target.value }))} />
+                )}
+              </div>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
