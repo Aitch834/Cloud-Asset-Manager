@@ -4394,10 +4394,14 @@ router.get("/farms/:farmId/crop-contracts", requireAuth, requireTenant, requireM
   // Optional filters
   const contractType = req.query.contractType ? String(req.query.contractType) : null;
   const cropYear = req.query.cropYear ? String(req.query.cropYear) : null;
+  const buyerIdFilter = req.query.buyerId ? parseInt(String(req.query.buyerId)) : null;
+  const statusFilter = req.query.status ? String(req.query.status).split(",").map(s => s.trim()).filter(Boolean) : null;
 
   const conditions = [eq(cropContractsTable.farmId, farmId)];
   if (contractType) conditions.push(eq(cropContractsTable.contractType, contractType));
   if (cropYear) conditions.push(eq(cropContractsTable.cropYear, cropYear));
+  if (buyerIdFilter) conditions.push(eq(cropContractsTable.buyerId, buyerIdFilter));
+  if (statusFilter && statusFilter.length > 0) conditions.push(inArray(cropContractsTable.status, statusFilter));
 
   const records = await db.select().from(cropContractsTable)
     .where(and(...conditions))
@@ -5284,6 +5288,7 @@ router.post("/farms/:farmId/dispatch-plans", requireAuth, requireTenant, require
     estimatedLoads: body.estimatedLoads ? parseInt(body.estimatedLoads) : null,
     estimatedVehicles: body.estimatedVehicles ? parseInt(body.estimatedVehicles) : null,
     decisionMadeByMemberId: body.decisionMadeByMemberId ? parseInt(body.decisionMadeByMemberId) : null,
+    linkedContractId: body.linkedContractId ? parseInt(body.linkedContractId) : null,
   }).returning();
   res.status(201).json({ record });
 });
@@ -5302,6 +5307,7 @@ router.put("/farms/:farmId/dispatch-plans/:recordId", requireAuth, requireTenant
     estimatedLoads: body.estimatedLoads ? parseInt(body.estimatedLoads) : null,
     estimatedVehicles: body.estimatedVehicles ? parseInt(body.estimatedVehicles) : null,
     decisionMadeByMemberId: body.decisionMadeByMemberId ? parseInt(body.decisionMadeByMemberId) : null,
+    linkedContractId: body.linkedContractId !== undefined ? (body.linkedContractId ? parseInt(body.linkedContractId) : null) : undefined,
   }).where(and(eq(dispatchPlansTable.id, recordId), eq(dispatchPlansTable.farmId, farmId))).returning();
   res.json({ record });
 });

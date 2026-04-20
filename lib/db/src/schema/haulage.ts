@@ -127,6 +127,7 @@ export const dispatchPlansTable = pgTable("dispatch_plans", {
   createdBy: text("created_by"),                    // legacy free-text fallback
   decisionMadeByMemberId: integer("decision_made_by_member_id"), // FK to farm_members
   haulierNotifiedAt: timestamp("haulier_notified_at", { withTimezone: true }),
+  linkedContractId: integer("linked_contract_id"), // FK → crop_contracts.id (no Drizzle ref — avoids circular import with financial.ts)
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
