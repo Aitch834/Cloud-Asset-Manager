@@ -3091,7 +3091,15 @@ interface AnimalProfile {
   calvings: Array<{ id: number; calvingDate: string; calvingEaseScore: number | null; numberOfCalves: number; calfOutcome: string | null; calfSex: string | null; calfEarTag: string | null; sireBreed: string | null; cowComplications: string | null; assistanceRequired: boolean; vetAttended: boolean; bcmsPassportApplied: boolean; notes: string | null }>;
   mastitis: Array<{ id: number; onsetDate: string; quartersAffected: string | null; clinicalGrade: string | null; treatmentProduct: string | null; outcome: string | null; vetConsulted: boolean; notes: string | null }>;
   mortality: { dateOfDeath: string; causeOfDeath: string; disposalMethod: string } | null;
-  stats: { medicineCount: number; movementCount: number; calvingCount: number; mastitisCount: number };
+  diseaseIncidents: Array<{
+    id: number; incidentDate: string; incidentType: string; symptomsObserved: string;
+    suspectedDiagnosis: string | null; confirmedDiagnosis: string | null;
+    vetCalled: boolean; vetName: string | null; vetVisitDate: string | null;
+    treatmentGiven: string | null; prescriptionRef: string | null;
+    status: string; mortalityCount: number | null;
+    _involvedAs: "affected" | "mortality";
+  }>;
+  stats: { medicineCount: number; movementCount: number; calvingCount: number; mastitisCount: number; diseaseIncidentCount: number };
 }
 
 // ─── Animal Quick View Dialog ──────────────────────────────────────────────────
@@ -3145,7 +3153,7 @@ function AnimalQuickViewDialog({ animal, herds, onClose, onEdit, onProfile }: {
 function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
   animal: Animal; farmId: number; onClose: () => void; onEdit: (a: Animal) => void;
 }) {
-  const [tab, setTab] = useState<"overview" | "medicines" | "movements" | "breeding" | "documents">("overview");
+  const [tab, setTab] = useState<"overview" | "medicines" | "movements" | "breeding" | "health" | "documents">("overview");
 
   const { data, isLoading } = useQuery<AnimalProfile>({
     queryKey: ["animal-profile", farmId, animal.id],
@@ -3198,6 +3206,7 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
     { key: "medicines", label: "Medicines", icon: Stethoscope, count: data?.stats.medicineCount },
     { key: "movements", label: "Movements", icon: FileText, count: data?.stats.movementCount },
     ...(showBreeding ? [{ key: "breeding", label: "Calving", icon: CheckCircle2, count: data?.stats.calvingCount }] : []),
+    { key: "health", label: "Health Incidents", icon: AlertTriangle, count: data?.stats.diseaseIncidentCount },
     { key: "documents", label: "Documents", icon: Paperclip, count: docsData?.documents.length },
   ] as const;
 
@@ -3233,15 +3242,16 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
 
           {/* Stats row */}
           {data && (
-            <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
               {[
                 { label: "Medicine records", val: data.stats.medicineCount },
                 { label: "Movements", val: data.stats.movementCount },
                 { label: "Calvings", val: data.stats.calvingCount },
                 { label: "Mastitis episodes", val: data.stats.mastitisCount },
+                { label: "Health incidents", val: data.stats.diseaseIncidentCount, alert: data.stats.diseaseIncidentCount > 0 },
               ].map(s => (
                 <div key={s.label} style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: "1.3rem", fontWeight: 700, lineHeight: 1, color: s.val > 0 ? "#166534" : "#9ca3af" }}>{s.val}</div>
+                  <div style={{ fontSize: "1.3rem", fontWeight: 700, lineHeight: 1, color: (s as { alert?: boolean }).alert ? "#b45309" : s.val > 0 ? "#166534" : "#9ca3af" }}>{s.val}</div>
                   <div style={{ fontSize: "0.65rem", color: "#9ca3af", marginTop: 2 }}>{s.label}</div>
                 </div>
               ))}
@@ -3425,6 +3435,61 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
                     {!c.bcmsPassportApplied && isCattle && <p style={{ margin: "4px 0 0", fontSize: "0.72rem", color: "#ef4444", fontWeight: 600 }}>⚠ BCMS passport not yet applied for</p>}
                   </div>
                 ))}
+              </div>
+            )
+          ) : tab === "health" ? (
+            !data.diseaseIncidents || data.diseaseIncidents.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "#9ca3af" }}>
+                <AlertTriangle size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
+                <p>No health or disease incidents recorded for this animal.</p>
+                <p style={{ fontSize: "0.78rem" }}>Incidents appear here when this animal is listed in a Disease &amp; Incident Log entry as affected or a mortality.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {data.diseaseIncidents.map(inc => {
+                  const isMortality = inc._involvedAs === "mortality";
+                  const statusColors: Record<string, { bg: string; color: string; border: string }> = {
+                    open: { bg: "#fef2f2", color: "#991b1b", border: "#fecaca" },
+                    monitoring: { bg: "#fffbeb", color: "#92400e", border: "#fde68a" },
+                    resolved: { bg: "#f0fdf4", color: "#166534", border: "#bbf7d0" },
+                  };
+                  const sc = statusColors[inc.status] ?? statusColors.open;
+                  return (
+                    <div key={inc.id} style={{ background: isMortality ? "#fef2f2" : "#fff", border: `1px solid ${isMortality ? "#fca5a5" : "#e5e7eb"}`, borderRadius: 8, padding: "10px 14px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+                            <span style={{ fontWeight: 700, fontSize: "0.88rem", color: "#111827", textTransform: "capitalize" }}>{inc.incidentType?.replace(/_/g, " ")}</span>
+                            <span style={{ fontSize: "0.7rem", background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, padding: "1px 6px", borderRadius: 4, fontWeight: 700, textTransform: "uppercase" }}>{inc.status}</span>
+                            {isMortality && <span style={{ fontSize: "0.7rem", background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>MORTALITY</span>}
+                          </div>
+                          <p style={{ margin: 0, fontSize: "0.75rem", color: "#6b7280" }}>
+                            {new Date(inc.incidentDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                          </p>
+                        </div>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          {inc.vetCalled && (
+                            <span style={{ fontSize: "0.65rem", fontWeight: 700, background: "#dbeafe", color: "#1e40af", border: "1px solid #bfdbfe", padding: "1px 6px", borderRadius: 4 }}>
+                              Vet called{inc.vetName ? ` — ${inc.vetName}` : ""}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p style={{ margin: "5px 0 0", fontSize: "0.8rem", color: "#374151" }}>{inc.symptomsObserved}</p>
+                      {(inc.confirmedDiagnosis || inc.suspectedDiagnosis) && (
+                        <p style={{ margin: "3px 0 0", fontSize: "0.76rem", color: "#374151" }}>
+                          {inc.confirmedDiagnosis ? <><strong>Confirmed:</strong> {inc.confirmedDiagnosis}</> : <><strong>Suspected:</strong> {inc.suspectedDiagnosis}</>}
+                        </p>
+                      )}
+                      {inc.treatmentGiven && (
+                        <p style={{ margin: "3px 0 0", fontSize: "0.76rem", color: "#166534" }}><strong>Treatment:</strong> {inc.treatmentGiven}</p>
+                      )}
+                      {inc.vetVisitDate && (
+                        <p style={{ margin: "3px 0 0", fontSize: "0.72rem", color: "#6b7280" }}>Vet visit: {new Date(inc.vetVisitDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )
           ) : tab === "documents" ? (

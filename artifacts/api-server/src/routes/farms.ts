@@ -3241,6 +3241,7 @@ router.post("/farms/:farmId/haulage", requireAuth, requireTenant, requireModuleB
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.insert(haulageRecordsTable).values({ ...req.body, farmId }).returning();
+  if (record.dispatchPlanId) await maybeAdvanceDispatchPlan(farmId, record.dispatchPlanId);
   res.status(201).json({ record });
 });
 
@@ -3323,6 +3324,7 @@ router.post("/farms/:farmId/haulage-mobile", requireAuth, requireTenant, require
     }
   }
 
+  if (record && record.dispatchPlanId) await maybeAdvanceDispatchPlan(farmId, record.dispatchPlanId);
   res.status(201).json({ record });
 });
 
@@ -3332,6 +3334,8 @@ router.put("/farms/:farmId/haulage/:recordId", requireAuth, requireTenant, requi
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.update(haulageRecordsTable).set(req.body).where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId))).returning();
+  const _planId = record?.dispatchPlanId ?? (req.body.dispatchPlanId ? parseInt(String(req.body.dispatchPlanId)) : null);
+  if (_planId) await maybeAdvanceDispatchPlan(farmId, _planId);
   res.json({ record });
 });
 
@@ -10480,6 +10484,18 @@ router.post("/farms/:farmId/dairy/mastitis-records", requireAuth, requireTenant,
   if (!farmId) return;
   const { herdId, animalId, earTagNumber, onsetDate, quartersAffected, clinicalGrade, bacterialCultureResult, treatmentProduct, treatmentStartDate, treatmentDurationDays, withdrawalEndDate, outcome, outcomeDate, vetConsulted, vetName, sccAtOnset, notes } = req.body;
   const [record] = await db.insert(dairyMastitisRecordsTable).values({ farmId, herdId: herdId || null, animalId: animalId || null, earTagNumber, onsetDate: new Date(onsetDate), quartersAffected, clinicalGrade, bacterialCultureResult, treatmentProduct, treatmentStartDate: treatmentStartDate ? new Date(treatmentStartDate) : null, treatmentDurationDays, withdrawalEndDate: withdrawalEndDate ? new Date(withdrawalEndDate) : null, outcome, outcomeDate: outcomeDate ? new Date(outcomeDate) : null, vetConsulted: !!vetConsulted, vetName, sccAtOnset, notes }).returning();
+  if (vetConsulted && vetName?.trim()) {
+    const visitDateStr = onsetDate ? String(onsetDate).substring(0, 10) : new Date().toISOString().substring(0, 10);
+    const gradeLabel = clinicalGrade ? " (Grade " + clinicalGrade + ")" : "";
+    await db.insert(vetVisitsTable).values({
+      farmId,
+      visitDate: visitDateStr,
+      vetName: vetName.trim(),
+      reasonForVisit: "Mastitis" + (earTagNumber ? " — Animal " + earTagNumber : "") + gradeLabel,
+      treatmentsCarriedOut: treatmentProduct || null,
+      animalIds: animalId ? JSON.stringify([animalId]) : null,
+    });
+  }
   res.json({ record });
 });
 
@@ -10512,6 +10528,16 @@ router.post("/farms/:farmId/dairy/calving-records", requireAuth, requireTenant, 
   if (!farmId) return;
   const { herdId, cowAnimalId, cowEarTag, calvingDate, calvingEaseScore, numberOfCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, colostrumGivenWithin2Hours, colostrumGivenWithin6Hours, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired, vetAttended, vetName, calfDisposition, bcmsPassportApplied, notes } = req.body;
   const [record] = await db.insert(dairyCalvingRecordsTable).values({ farmId, herdId: herdId || null, cowAnimalId: cowAnimalId || null, cowEarTag, calvingDate: new Date(calvingDate), calvingEaseScore, numberOfCalves: numberOfCalves || 1, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, colostrumGivenWithin2Hours: !!colostrumGivenWithin2Hours, colostrumGivenWithin6Hours: !!colostrumGivenWithin6Hours, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired: !!assistanceRequired, vetAttended: !!vetAttended, vetName, calfDisposition, bcmsPassportApplied: !!bcmsPassportApplied, notes }).returning();
+  if (vetAttended && vetName?.trim()) {
+    const visitDateStr = calvingDate ? String(calvingDate).substring(0, 10) : new Date().toISOString().substring(0, 10);
+    await db.insert(vetVisitsTable).values({
+      farmId,
+      visitDate: visitDateStr,
+      vetName: vetName.trim(),
+      reasonForVisit: "Calving assistance" + (cowEarTag ? " — " + cowEarTag : "") + (calfOutcome ? " · " + calfOutcome : ""),
+      animalIds: cowAnimalId ? JSON.stringify([cowAnimalId]) : null,
+    });
+  }
   res.json({ record });
 });
 
@@ -10643,6 +10669,17 @@ router.post("/farms/:farmId/dairy/dct-records", requireAuth, requireTenant, requ
   if (!farmId) return;
   const { herdId, animalId, cowEarTag, dryOffDate, protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation, vetName, expectedCalvingDate, notes } = req.body;
   const [record] = await db.insert(dairyDctRecordsTable).values({ farmId, herdId: herdId || null, animalId: animalId || null, cowEarTag, dryOffDate: new Date(dryOffDate), protocol, antibioticTubeProduct, antibioticTubeBatch, antibioticTubeWithdrawalMilkDays, antibioticTubeWithdrawalMeatDays, teatSealantProduct, teatSealantBatch, treatmentJustification, sccAtDryOff, mastitisEpisodes12Months, administeredBy, vetAuthorisation: !!vetAuthorisation, vetName, expectedCalvingDate: expectedCalvingDate ? new Date(expectedCalvingDate) : null, notes }).returning();
+  if (vetAuthorisation && vetName?.trim()) {
+    const visitDateStr = dryOffDate ? String(dryOffDate).substring(0, 10) : new Date().toISOString().substring(0, 10);
+    await db.insert(vetVisitsTable).values({
+      farmId,
+      visitDate: visitDateStr,
+      vetName: vetName.trim(),
+      reasonForVisit: "DCT prescription authorisation" + (cowEarTag ? " — " + cowEarTag : "") + (antibioticTubeProduct ? " · " + antibioticTubeProduct : ""),
+      prescriptionsIssued: antibioticTubeProduct || null,
+      animalIds: animalId ? JSON.stringify([animalId]) : null,
+    });
+  }
   res.json({ record });
 });
 
@@ -16599,7 +16636,32 @@ router.delete("/farms/:farmId/feed-recalls/:id", requireAuth, requireTenant, req
 });
 
 // ─── Disease Incident Log helpers ────────────────────────────────────────────
-function parseMortalityIds(raw: unknown): number[] {
+// ── Dispatch Plan status auto-advance ────────────────────────────────────────
+  // Called after any haulage record is created/updated with a dispatchPlanId.
+  // Transitions: confirmed → in_progress (first load) → complete (all loads done)
+  async function maybeAdvanceDispatchPlan(farmId: number, planId: number): Promise<void> {
+    const [plan] = await db.select({
+      id: dispatchPlansTable.id,
+      status: dispatchPlansTable.status,
+      estimatedLoads: dispatchPlansTable.estimatedLoads,
+    }).from(dispatchPlansTable)
+      .where(and(eq(dispatchPlansTable.id, planId), eq(dispatchPlansTable.farmId, farmId)));
+    if (!plan || plan.status === "complete" || plan.status === "cancelled") return;
+
+    const [{ linkedLoads }] = await db.select({
+      linkedLoads: sql<number>`count(*)::int`,
+    }).from(haulageRecordsTable)
+      .where(and(eq(haulageRecordsTable.farmId, farmId), eq(haulageRecordsTable.dispatchPlanId, planId)));
+
+    let newStatus: string | null = null;
+    if (linkedLoads >= 1 && plan.status === "confirmed") newStatus = "in_progress";
+    if (plan.estimatedLoads && linkedLoads >= plan.estimatedLoads) newStatus = "complete";
+    if (newStatus) {
+      await db.update(dispatchPlansTable).set({ status: newStatus }).where(eq(dispatchPlansTable.id, planId));
+    }
+  }
+
+  function parseMortalityIds(raw: unknown): number[] {
   if (!raw) return [];
   try {
     const arr = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -16650,6 +16712,24 @@ router.post("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requ
         diseaseIncidentId: record.id,
       });
     }
+  // Auto-create a vet visit ledger entry when vet was called — for invoice reconciliation
+    if (req.body.vetCalled === true) {
+      const vetVisitDate = req.body.vetVisitDate || (req.body.incidentDate ? String(req.body.incidentDate).substring(0, 10) : new Date().toISOString().substring(0, 10));
+      const vetNameForLedger = req.body.vetName?.trim() || "Vet called (name not recorded)";
+      const reasonText = "Disease incident: " + (req.body.incidentType ?? "") + " — " + (req.body.symptomsObserved?.substring(0, 200) ?? "see incident log");
+      await db.insert(vetVisitsTable).values({
+        farmId,
+        visitDate: vetVisitDate,
+        vetName: vetNameForLedger,
+        vetPractice: req.body.vetPractice ?? null,
+        reasonForVisit: reasonText,
+        diagnoses: req.body.confirmedDiagnosis || req.body.suspectedDiagnosis || null,
+        treatmentsCarriedOut: req.body.treatmentGiven || null,
+        prescriptionsIssued: req.body.prescriptionRef || null,
+        animalIds: req.body.affectedAnimalIds ?? null,
+        diseaseIncidentId: record.id,
+      });
+    }
     res.status(201).json({ record });
   });
   router.put("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -16693,6 +16773,41 @@ router.post("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requ
       });
     }
   }
+
+    // Upsert vet visit ledger entry when vet is called — for invoice reconciliation
+    if (req.body.vetCalled === true) {
+      const vetVisitDate = req.body.vetVisitDate || (req.body.incidentDate ? String(req.body.incidentDate).substring(0, 10) : new Date().toISOString().substring(0, 10));
+      const vetNameForLedger = req.body.vetName?.trim() || "Vet called (name not recorded)";
+      const reasonText = "Disease incident: " + (req.body.incidentType ?? "") + " — " + (req.body.symptomsObserved?.substring(0, 200) ?? "see incident log");
+      const [existingVetVisit] = await db.select({ id: vetVisitsTable.id })
+        .from(vetVisitsTable)
+        .where(and(eq(vetVisitsTable.farmId, farmId), eq(vetVisitsTable.diseaseIncidentId, record.id)))
+        .limit(1);
+      if (existingVetVisit) {
+        await db.update(vetVisitsTable).set({
+          visitDate: vetVisitDate,
+          vetName: vetNameForLedger,
+          reasonForVisit: reasonText,
+          diagnoses: req.body.confirmedDiagnosis || req.body.suspectedDiagnosis || null,
+          treatmentsCarriedOut: req.body.treatmentGiven || null,
+          prescriptionsIssued: req.body.prescriptionRef || null,
+          animalIds: req.body.affectedAnimalIds ?? null,
+        }).where(eq(vetVisitsTable.id, existingVetVisit.id));
+      } else {
+        await db.insert(vetVisitsTable).values({
+          farmId,
+          visitDate: vetVisitDate,
+          vetName: vetNameForLedger,
+          vetPractice: req.body.vetPractice ?? null,
+          reasonForVisit: reasonText,
+          diagnoses: req.body.confirmedDiagnosis || req.body.suspectedDiagnosis || null,
+          treatmentsCarriedOut: req.body.treatmentGiven || null,
+          prescriptionsIssued: req.body.prescriptionRef || null,
+          animalIds: req.body.affectedAnimalIds ?? null,
+          diseaseIncidentId: record.id,
+        });
+      }
+    }
   res.json({ record });
 });
 router.delete("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
