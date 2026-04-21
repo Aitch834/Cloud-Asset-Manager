@@ -134,8 +134,9 @@ export const livestockMedicineRecordsTable = pgTable("livestock_medicine_records
   treatedAnimalTags: text("treated_animal_tags"),
   treatedAnimalCount: integer("treated_animal_count"),
   notes: text("notes"),
-  source: text("source").default("manual"),           // 'manual' | 'vet_ledger'
+  source: text("source").default("manual"),           // 'manual' | 'vet_ledger' | 'disease_incident'
   vetVisitMedicineId: integer("vet_visit_medicine_id"), // FK to vet_visit_medicines.id (when source='vet_ledger')
+  diseaseIncidentId: integer("disease_incident_id"),    // FK to disease_incident_log (when source='disease_incident')
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

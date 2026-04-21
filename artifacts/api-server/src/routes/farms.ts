@@ -1968,7 +1968,7 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
     ? (await db.select().from(herdFlockRegisterTable).where(eq(herdFlockRegisterTable.id, animal.herdId)).limit(1))[0] ?? null
     : null;
 
-  const [directMedicines, herdMedicines, movements, calvings, mastitis, mortalityRows] = await Promise.all([
+  const [directMedicines, herdMedicines, movements, calvings, mastitis, mortalityRows, allFarmIncidents] = await Promise.all([
     // Direct: medicine records linked to this specific animal
     db.select().from(livestockMedicineRecordsTable)
       .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), eq(livestockMedicineRecordsTable.animalId, recordId)))
@@ -1999,7 +1999,21 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
     db.select().from(livestockMortalityTable)
       .where(and(eq(livestockMortalityTable.farmId, farmId), eq(livestockMortalityTable.animalId, recordId)))
       .limit(1),
+    // All disease incidents for the farm — filtered below by animal ID
+    db.select().from(diseaseIncidentLogTable)
+      .where(eq(diseaseIncidentLogTable.farmId, farmId))
+      .orderBy(desc(diseaseIncidentLogTable.incidentDate)),
   ]);
+
+  // Disease incidents this specific animal was involved in (affected or mortality)
+  const diseaseIncidents = allFarmIncidents.filter(i => {
+    const affected = parseMortalityIds(i.affectedAnimalIds);
+    const mortality = parseMortalityIds(i.mortalityAnimalIds);
+    return affected.includes(recordId) || mortality.includes(recordId);
+  }).map(i => ({
+    ...i,
+    _involvedAs: parseMortalityIds(i.mortalityAnimalIds).includes(recordId) ? "mortality" : "affected",
+  }));
 
   // For group-scope herd records, only include this animal if its ear tag appears
   // in the verified treatedAnimalTags list (these are validated tags saved by the UI).
@@ -2033,11 +2047,13 @@ router.get("/farms/:farmId/animals/:recordId/profile", requireAuth, requireTenan
     calvings,
     mastitis,
     mortality: mortalityRows[0] ?? null,
+    diseaseIncidents,
     stats: {
       medicineCount: medicines.length,
       movementCount: movements.length,
       calvingCount: calvings.length,
       mastitisCount: mastitis.length,
+      diseaseIncidentCount: diseaseIncidents.length,
     },
   });
 });
@@ -16617,9 +16633,26 @@ router.post("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requ
   if (mortalityIds.length > 0) {
     await markAnimalsDeceased(farmId, mortalityIds);
   }
-  res.status(201).json({ record });
-});
-router.put("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
+  // Auto-create a linked medicine record when vet treatment was given
+    if (req.body.vetCalled === true && req.body.treatmentGiven?.trim()) {
+      const affectedIds = parseMortalityIds(req.body.affectedAnimalIds);
+      const administeredDate = req.body.vetVisitDate ? new Date(req.body.vetVisitDate) : new Date(req.body.incidentDate ?? record.incidentDate);
+      await db.insert(livestockMedicineRecordsTable).values({
+        farmId,
+        animalId: affectedIds.length === 1 ? affectedIds[0] : null,
+        medicineName: req.body.treatmentGiven,
+        administeredDate,
+        vetName: req.body.vetName ?? null,
+        treatmentScope: affectedIds.length === 1 ? "individual" : "group",
+        treatedAnimalCount: affectedIds.length > 0 ? affectedIds.length : null,
+        reason: "Disease incident: " + (req.body.incidentType ?? "") + " — " + (req.body.confirmedDiagnosis || req.body.suspectedDiagnosis || "see incident log"),
+        source: "disease_incident",
+        diseaseIncidentId: record.id,
+      });
+    }
+    res.status(201).json({ record });
+  });
+  router.put("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const [record] = await db.update(diseaseIncidentLogTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(diseaseIncidentLogTable.id, parseInt(req.params.id)), eq(diseaseIncidentLogTable.farmId, farmId))).returning();
@@ -16627,6 +16660,38 @@ router.put("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, r
   const mortalityIds = parseMortalityIds(req.body.mortalityAnimalIds);
   if (mortalityIds.length > 0) {
     await markAnimalsDeceased(farmId, mortalityIds);
+  }
+  // Upsert linked medicine record if vet treatment was given
+  if (req.body.vetCalled === true && req.body.treatmentGiven?.trim()) {
+    const affectedIds = parseMortalityIds(req.body.affectedAnimalIds);
+    const administeredDate = req.body.vetVisitDate ? new Date(req.body.vetVisitDate) : new Date(req.body.incidentDate ?? record.incidentDate);
+    const [existingMed] = await db.select({ id: livestockMedicineRecordsTable.id })
+      .from(livestockMedicineRecordsTable)
+      .where(and(eq(livestockMedicineRecordsTable.farmId, farmId), eq(livestockMedicineRecordsTable.diseaseIncidentId, record.id)))
+      .limit(1);
+    if (existingMed) {
+      await db.update(livestockMedicineRecordsTable)
+        .set({
+          medicineName: req.body.treatmentGiven,
+          administeredDate,
+          vetName: req.body.vetName ?? null,
+          reason: "Disease incident: " + (req.body.incidentType ?? "") + " — " + (req.body.confirmedDiagnosis || req.body.suspectedDiagnosis || "see incident log"),
+        })
+        .where(eq(livestockMedicineRecordsTable.id, existingMed.id));
+    } else {
+      await db.insert(livestockMedicineRecordsTable).values({
+        farmId,
+        animalId: affectedIds.length === 1 ? affectedIds[0] : null,
+        medicineName: req.body.treatmentGiven,
+        administeredDate,
+        vetName: req.body.vetName ?? null,
+        treatmentScope: affectedIds.length === 1 ? "individual" : "group",
+        treatedAnimalCount: affectedIds.length > 0 ? affectedIds.length : null,
+        reason: "Disease incident: " + (req.body.incidentType ?? "") + " — " + (req.body.confirmedDiagnosis || req.body.suspectedDiagnosis || "see incident log"),
+        source: "disease_incident",
+        diseaseIncidentId: record.id,
+      });
+    }
   }
   res.json({ record });
 });
