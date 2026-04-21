@@ -4,6 +4,7 @@ import {
   Users, FileText, Wheat, Receipt, Plus, Pencil, Trash2, CheckCircle, XCircle,
   ChevronDown, ChevronUp, Building2, Phone, Mail, MapPin, Loader2,
   ClipboardList, TrendingUp, Package, AlertTriangle, Calendar, ArrowRight, Eye, RefreshCw, Printer,
+  Briefcase, Clock, User, CheckSquare, Circle,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { printHtml } from "@/lib/utils";
 
-type Tab = "customers" | "agreements" | "grain" | "invoices";
+type Tab = "customers" | "agreements" | "grain" | "invoices" | "work-orders";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -71,6 +72,20 @@ interface ServiceInvoice {
 interface FarmRecord {
   id: number; name: string; address?: string | null; postcode?: string | null;
   contactEmail?: string | null; contactPhone?: string | null; bcmsHoldingNumber?: string | null;
+}
+
+interface FarmMember {
+  id: number; firstName: string; lastName: string; jobTitle?: string | null;
+  phone?: string | null; email?: string | null;
+}
+
+interface WorkOrder {
+  id: number; farmId: number; workOrderRef: string | null; title: string;
+  description?: string | null; staffName: string; assignedToMemberId: number;
+  dueDate?: string | null; estimatedHours?: string | null;
+  assignmentNote?: string | null; completionNote?: string | null;
+  status: string; serviceInvoiceId?: number | null; invoiceNumber?: string | null;
+  createdAt: string; completedAt?: string | null;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -1387,6 +1402,291 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
 
 // ─── Invoices Tab ─────────────────────────────────────────────────────────────
 
+// ─── Work Orders Tab ──────────────────────────────────────────────────────────
+
+const WO_STATUSES = [
+  { value: "pending",     label: "Scheduled",   colour: "bg-blue-100 text-blue-800 border-blue-200" },
+  { value: "in_progress", label: "In Progress",  colour: "bg-amber-100 text-amber-800 border-amber-200" },
+  { value: "completed",   label: "Completed",    colour: "bg-green-100 text-green-800 border-green-200" },
+  { value: "cancelled",   label: "Cancelled",    colour: "bg-gray-100 text-gray-600 border-gray-200" },
+];
+function woBadge(status: string) {
+  const s = WO_STATUSES.find((x) => x.value === status) ?? { label: status, colour: "bg-gray-100 text-gray-600 border-gray-200" };
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${s.colour}`}>{s.label}</span>;
+}
+
+function WorkOrdersTab({ farmId }: { farmId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [filter, setFilter] = useState<"open" | "all">("open");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editWo, setEditWo] = useState<WorkOrder | null>(null);
+  const [completionNote, setCompletionNote] = useState("");
+  const [completingId, setCompletingId] = useState<number | null>(null);
+
+  const emptyWoForm = () => ({
+    title: "", description: "", assignedToMemberId: "", dueDate: new Date().toISOString().slice(0, 10),
+    estimatedHours: "", assignmentNote: "",
+  });
+  const [woForm, setWoForm] = useState(emptyWoForm());
+
+  const workOrdersQ = useQuery<{ records: WorkOrder[] }>({
+    queryKey: ["work-orders", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/work-orders`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const allOrders = workOrdersQ.data?.records ?? [];
+
+  const membersQ = useQuery<{ records: FarmMember[] }>({
+    queryKey: ["farm-members", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const members = membersQ.data?.records ?? [];
+
+  const orders = filter === "open"
+    ? allOrders.filter((w) => w.status !== "completed" && w.status !== "cancelled")
+    : allOrders;
+
+  const createMut = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      fetch(`/api/farms/${farmId}/task-assignments`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then((r) => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["work-orders", farmId] }); setDialogOpen(false); toast({ title: "Work order created" }); },
+    onError: () => toast({ title: "Failed to create work order", variant: "destructive" }),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      fetch(`/api/farms/${farmId}/task-assignments/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then((r) => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["work-orders", farmId] }); setCompletingId(null); setCompletionNote(""); toast({ title: "Work order updated" }); },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/task-assignments/${id}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["work-orders", farmId] }); toast({ title: "Work order deleted" }); },
+  });
+
+  function openCreate() { setEditWo(null); setWoForm(emptyWoForm()); setDialogOpen(true); }
+  function openEdit(wo: WorkOrder) {
+    setEditWo(wo);
+    setWoForm({
+      title: wo.title, description: wo.description ?? "",
+      assignedToMemberId: String(wo.assignedToMemberId), dueDate: wo.dueDate ?? "",
+      estimatedHours: wo.estimatedHours ?? "", assignmentNote: wo.assignmentNote ?? "",
+    });
+    setDialogOpen(true);
+  }
+
+  function handleSave() {
+    if (!woForm.title || !woForm.assignedToMemberId) { toast({ title: "Title and assignee are required", variant: "destructive" }); return; }
+    if (editWo) {
+      updateMut.mutate({ id: editWo.id, body: {
+        title: woForm.title, description: woForm.description || null,
+        dueDate: woForm.dueDate || null, estimatedHours: woForm.estimatedHours || null,
+        assignmentNote: woForm.assignmentNote || null, assignedToMemberId: parseInt(woForm.assignedToMemberId),
+      }});
+    } else {
+      createMut.mutate({
+        title: woForm.title, description: woForm.description || null,
+        assignedToMemberId: parseInt(woForm.assignedToMemberId), dueDate: woForm.dueDate || null,
+        estimatedHours: woForm.estimatedHours || null, assignmentNote: woForm.assignmentNote || null,
+        isWorkOrder: true,
+      });
+    }
+  }
+
+  const openCount = allOrders.filter((w) => w.status !== "completed" && w.status !== "cancelled").length;
+  const memberName = (id: number) => { const m = members.find((x) => x.id === id); return m ? `${m.firstName} ${m.lastName}` : `Member #${id}`; };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setFilter("open")}
+            className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${filter === "open" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
+          >Open {openCount > 0 && <span className="ml-1 bg-white/20 text-inherit rounded-full px-1.5 text-xs">{openCount}</span>}</button>
+          <button
+            onClick={() => setFilter("all")}
+            className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${filter === "all" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
+          >All</button>
+        </div>
+        <Button size="sm" className="gap-1.5" onClick={openCreate} disabled={members.length === 0}>
+          <Plus className="h-4 w-4" /> New Work Order
+        </Button>
+      </div>
+
+      {workOrdersQ.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+
+      {!workOrdersQ.isLoading && orders.length === 0 && (
+        <div className="border rounded-xl p-12 text-center text-muted-foreground">
+          <Briefcase className="h-10 w-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium">{filter === "open" ? "No open work orders" : "No work orders yet"}</p>
+          <p className="text-xs mt-1">
+            {filter === "open"
+              ? "All caught up — or switch to 'All' to see completed orders."
+              : "Raise a work order when scheduling contract work for another farmer, or attach one when creating an invoice."}
+          </p>
+          {members.length === 0 && (
+            <p className="text-xs mt-3 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 inline-block">
+              Add staff members first so you can assign work orders to them.
+            </p>
+          )}
+        </div>
+      )}
+
+      {orders.length > 0 && (
+        <div className="border rounded-xl overflow-hidden divide-y">
+          {orders.map((wo) => {
+            const isExpanded = expandedId === wo.id;
+            const isCompleting = completingId === wo.id;
+            return (
+              <div key={wo.id} className="bg-white">
+                <button
+                  className="w-full flex items-start gap-3 px-4 py-3.5 text-left hover:bg-muted/30 transition-colors"
+                  onClick={() => setExpandedId(isExpanded ? null : wo.id)}
+                >
+                  <div className="mt-0.5 text-primary/60">
+                    {wo.status === "completed" ? <CheckSquare className="h-4.5 w-4.5 text-green-600" /> : <Circle className="h-4.5 w-4.5" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {wo.workOrderRef && <span className="text-xs font-mono text-muted-foreground">{wo.workOrderRef}</span>}
+                      <span className="font-medium text-sm truncate">{wo.title}</span>
+                      {woBadge(wo.status)}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                      <span className="flex items-center gap-1"><User className="h-3 w-3" /> {wo.staffName}</span>
+                      {wo.dueDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {wo.dueDate}</span>}
+                      {wo.estimatedHours && <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {wo.estimatedHours}h est.</span>}
+                      {wo.invoiceNumber && <span className="flex items-center gap-1"><Receipt className="h-3 w-3" /> {wo.invoiceNumber}</span>}
+                    </div>
+                  </div>
+                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />}
+                </button>
+
+                {isExpanded && (
+                  <div className="px-4 pb-4 space-y-3 bg-muted/20 border-t">
+                    {wo.description && <p className="text-sm text-muted-foreground pt-3">{wo.description}</p>}
+                    {wo.assignmentNote && (
+                      <div className="text-sm bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                        <span className="font-medium text-blue-800">Instructions: </span>
+                        <span className="text-blue-700">{wo.assignmentNote}</span>
+                      </div>
+                    )}
+                    {wo.completionNote && (
+                      <div className="text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                        <span className="font-medium text-green-800">Completion note: </span>
+                        <span className="text-green-700">{wo.completionNote}</span>
+                      </div>
+                    )}
+                    {wo.completedAt && (
+                      <p className="text-xs text-muted-foreground">Completed: {new Date(wo.completedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-1 flex-wrap">
+                      {wo.status === "pending" && (
+                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 text-amber-700 border-amber-300"
+                          onClick={() => updateMut.mutate({ id: wo.id, body: { status: "in_progress" } })} disabled={updateMut.isPending}>
+                          <Clock className="h-3 w-3" /> Mark In Progress
+                        </Button>
+                      )}
+                      {(wo.status === "pending" || wo.status === "in_progress") && !isCompleting && (
+                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 text-green-700 border-green-300"
+                          onClick={() => setCompletingId(wo.id)}>
+                          <CheckCircle className="h-3 w-3" /> Mark Complete
+                        </Button>
+                      )}
+                      {isCompleting && (
+                        <div className="flex items-center gap-2 w-full">
+                          <Input className="h-8 text-xs flex-1" placeholder="Completion note (optional)…"
+                            value={completionNote} onChange={(e) => setCompletionNote(e.target.value)} />
+                          <Button size="sm" className="h-8 text-xs gap-1" disabled={updateMut.isPending}
+                            onClick={() => updateMut.mutate({ id: wo.id, body: { status: "completed", completionNote: completionNote || null } })}>
+                            {updateMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />} Confirm
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setCompletingId(null); setCompletionNote(""); }}>Cancel</Button>
+                        </div>
+                      )}
+                      <div className="ml-auto flex items-center gap-1.5">
+                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openEdit(wo)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          onClick={() => { if (confirm(`Delete work order ${wo.workOrderRef ?? wo.title}?`)) deleteMut.mutate(wo.id); }}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>{editWo ? `Edit ${editWo.workOrderRef ?? "Work Order"}` : "New Work Order"}</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-1">
+            <div className="space-y-1">
+              <Label>Job title <span className="text-destructive">*</span></Label>
+              <Input placeholder="e.g. Hedge trimming — North Field boundary" value={woForm.title} onChange={(e) => setWoForm((f) => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label>Description</Label>
+              <Textarea rows={2} placeholder="Brief description of the work to be done…" value={woForm.description} onChange={(e) => setWoForm((f) => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Assign to <span className="text-destructive">*</span></Label>
+                <Select value={woForm.assignedToMemberId} onValueChange={(v) => setWoForm((f) => ({ ...f, assignedToMemberId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select staff member" /></SelectTrigger>
+                  <SelectContent>
+                    {members.map((m) => (
+                      <SelectItem key={m.id} value={String(m.id)}>
+                        {m.firstName} {m.lastName}{m.jobTitle ? ` · ${m.jobTitle}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Scheduled date</Label>
+                <Input type="date" value={woForm.dueDate} onChange={(e) => setWoForm((f) => ({ ...f, dueDate: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Estimated hours</Label>
+                <Input type="number" step="0.5" min="0" placeholder="e.g. 3.5" value={woForm.estimatedHours} onChange={(e) => setWoForm((f) => ({ ...f, estimatedHours: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Instructions for assignee</Label>
+              <Textarea rows={2} placeholder="Specific instructions, access codes, safety notes…" value={woForm.assignmentNote} onChange={(e) => setWoForm((f) => ({ ...f, assignmentNote: e.target.value }))} />
+            </div>
+            {members.length === 0 && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                No staff registered — add staff members in the Staff directory first.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button disabled={createMut.isPending || updateMut.isPending || !woForm.title || !woForm.assignedToMemberId} onClick={handleSave}>
+              {(createMut.isPending || updateMut.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : editWo ? "Save Changes" : "Create Work Order"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCustomer[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -1399,6 +1699,17 @@ function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCus
     dueDate: "", status: "draft", vatRatePercent: "20", notes: "",
   });
   const [form, setForm] = useState(emptyForm());
+
+  const emptyWoForm = () => ({ title: "", assignedToMemberId: "", scheduledDate: new Date().toISOString().slice(0, 10), estimatedHours: "", instructions: "" });
+  const [woEnabled, setWoEnabled] = useState(false);
+  const [woForm, setWoForm] = useState(emptyWoForm());
+
+  const membersQ = useQuery<{ records: FarmMember[] }>({
+    queryKey: ["farm-members", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const members = membersQ.data?.records ?? [];
 
   const invoicesQ = useQuery<{ records: ServiceInvoice[] }>({
     queryKey: ["service-invoices", farmId],
@@ -1482,7 +1793,33 @@ function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCus
   const saveMut = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       fetch(`/api/farms/${farmId}/service-invoices`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then((r) => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["service-invoices", farmId] }); setOpen(false); toast({ title: "Invoice created" }); },
+    onSuccess: async (data: { record?: ServiceInvoice }) => {
+      qc.invalidateQueries({ queryKey: ["service-invoices", farmId] });
+      setOpen(false);
+      if (woEnabled && woForm.assignedToMemberId && woForm.title) {
+        const invoiceId = data?.record?.id;
+        const firstLine = lines.find((l) => l.description)?.description ?? "";
+        const woTitle = woForm.title || firstLine || "Ad-hoc work order";
+        await fetch(`/api/farms/${farmId}/task-assignments`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+          body: JSON.stringify({
+            isWorkOrder: true,
+            title: woTitle,
+            assignedToMemberId: parseInt(woForm.assignedToMemberId),
+            dueDate: woForm.scheduledDate || null,
+            estimatedHours: woForm.estimatedHours || null,
+            assignmentNote: woForm.instructions || null,
+            serviceInvoiceId: invoiceId ?? null,
+          }),
+        });
+        qc.invalidateQueries({ queryKey: ["work-orders", farmId] });
+        toast({ title: "Invoice created + work order raised", description: `${woTitle} has been assigned.` });
+      } else {
+        toast({ title: "Invoice created" });
+      }
+      setWoEnabled(false);
+      setWoForm(emptyWoForm());
+    },
     onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
@@ -1520,7 +1857,7 @@ function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCus
     saveMut.mutate({ ...form, customerId: parseInt(form.customerId), agreementId: form.agreementId ? parseInt(form.agreementId) : null, lines: processedLines });
   }
 
-  function openAdd() { setForm(emptyForm()); setLines([{ description: "", quantity: "", unit: "tonnes", unitPricePence: "", lineTotalPence: 0 }]); setOpen(true); }
+  function openAdd() { setForm(emptyForm()); setLines([{ description: "", quantity: "", unit: "tonnes", unitPricePence: "", lineTotalPence: 0 }]); setWoEnabled(false); setWoForm(emptyWoForm()); setOpen(true); }
   function customerName(id: number) { return customers.find((c) => c.id === id)?.name ?? "—"; }
 
   const subtotal = lines.reduce((s, l) => s + l.lineTotalPence, 0);
@@ -1710,11 +2047,68 @@ function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCus
             </div>
             <div className="space-y-1"><Label>Notes</Label>
               <Textarea rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} /></div>
+
+            {/* Schedule Work Order panel */}
+            <div className="border rounded-xl overflow-hidden">
+              <button
+                type="button"
+                className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium hover:bg-muted/40 transition-colors"
+                onClick={() => { setWoEnabled((v) => !v); if (!woEnabled) setWoForm((f) => ({ ...f, title: lines.find((l) => l.description)?.description ?? "" })); }}
+              >
+                <Briefcase className="h-4 w-4 text-primary" />
+                <span className="flex-1 text-left">Schedule a Work Order with this invoice</span>
+                {woEnabled ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                {woEnabled && <span className="text-xs text-primary font-semibold">On</span>}
+              </button>
+              {woEnabled && (
+                <div className="border-t px-4 py-4 space-y-3 bg-muted/20">
+                  <p className="text-xs text-muted-foreground">
+                    A work order will be raised, assigned to a staff member, and appear in their task list and the Week Ahead planner. It's linked to this invoice for full traceability.
+                  </p>
+                  <div className="space-y-1">
+                    <Label>Work description <span className="text-destructive">*</span></Label>
+                    <Input placeholder="e.g. Hedge trimming — North Field" value={woForm.title}
+                      onChange={(e) => setWoForm((f) => ({ ...f, title: e.target.value }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label>Assign to <span className="text-destructive">*</span></Label>
+                      <Select value={woForm.assignedToMemberId} onValueChange={(v) => setWoForm((f) => ({ ...f, assignedToMemberId: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select staff member" /></SelectTrigger>
+                        <SelectContent>
+                          {members.map((m) => (
+                            <SelectItem key={m.id} value={String(m.id)}>{m.firstName} {m.lastName}</SelectItem>
+                          ))}
+                          {members.length === 0 && <SelectItem value="" disabled>No staff registered</SelectItem>}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Scheduled date</Label>
+                      <Input type="date" value={woForm.scheduledDate}
+                        onChange={(e) => setWoForm((f) => ({ ...f, scheduledDate: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label>Estimated hours</Label>
+                      <Input type="number" step="0.5" min="0" placeholder="e.g. 4" value={woForm.estimatedHours}
+                        onChange={(e) => setWoForm((f) => ({ ...f, estimatedHours: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Instructions for assignee</Label>
+                    <Textarea rows={2} placeholder="Access info, safety notes, specific tasks…" value={woForm.instructions}
+                      onChange={(e) => setWoForm((f) => ({ ...f, instructions: e.target.value }))} />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button disabled={saveMut.isPending || !form.customerId || lines.filter((l) => l.description).length === 0} onClick={handleCreate}>
-              {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Invoice"}
+            <Button disabled={saveMut.isPending || !form.customerId || lines.filter((l) => l.description).length === 0 || (woEnabled && (!woForm.title || !woForm.assignedToMemberId))} onClick={handleCreate}>
+              {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : woEnabled ? "Create Invoice + Work Order" : "Create Invoice"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1752,7 +2146,7 @@ export default function FarmServicesPage() {
   const [tab, setTab] = useState<Tab>(() => {
     const p = new URLSearchParams(window.location.search);
     const t = p.get("tab") as Tab | null;
-    const valid: Tab[] = ["customers", "agreements", "grain", "invoices"];
+    const valid: Tab[] = ["customers", "agreements", "grain", "invoices", "work-orders"];
     return t && valid.includes(t) ? t : "customers";
   });
 
@@ -1801,12 +2195,16 @@ export default function FarmServicesPage() {
           <TabButton active={tab === "invoices"} onClick={() => setTab("invoices")}>
             <span className="flex items-center gap-1.5"><Receipt className="h-3.5 w-3.5" /> Invoices</span>
           </TabButton>
+          <TabButton active={tab === "work-orders"} onClick={() => setTab("work-orders")}>
+            <span className="flex items-center gap-1.5"><Briefcase className="h-3.5 w-3.5" /> Work Orders</span>
+          </TabButton>
         </TabBar>
 
         {tab === "customers" && farmId && <CustomersTab farmId={farmId} customers={customers} isLoading={customersQ.isLoading} />}
         {tab === "agreements" && farmId && <AgreementsTab farmId={farmId} customers={customers} />}
         {tab === "grain" && farmId && <GrainIntakeTab farmId={farmId} customers={customers} />}
         {tab === "invoices" && farmId && <InvoicesTab farmId={farmId} customers={customers} />}
+        {tab === "work-orders" && farmId && <WorkOrdersTab farmId={farmId} />}
       </div>
     </AppLayout>
   );

@@ -5878,7 +5878,7 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
   const farmId = req.tenantId!;
   const userId = req.userId ?? "unknown";
   const tenantId = farmId;
-  const { assignedToMemberId, title, description, dueDate, module: mod, href, assignmentNote, taskType, taskSourceId } = req.body;
+  const { assignedToMemberId, title, description, dueDate, module: mod, href, assignmentNote, taskType, taskSourceId, isWorkOrder, serviceInvoiceId, estimatedHours } = req.body;
   if (!assignedToMemberId || !title) { res.status(400).json({ error: "assignedToMemberId and title are required" }); return; }
   const [member] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone })
     .from(farmMembersTable).where(and(eq(farmMembersTable.id, Number(assignedToMemberId)), eq(farmMembersTable.farmId, farmId)));
@@ -5889,19 +5889,27 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
     farmId, tenantId: typeof tenantId === "number" ? tenantId : farmId,
     assignedToMemberId: Number(assignedToMemberId),
     assignedByUserId: userId,
-    taskType: taskType || "custom",
+    taskType: isWorkOrder ? "work_order" : (taskType || "custom"),
     taskSourceId: taskSourceId || null,
     title: title.trim(),
     description: description?.trim() || null,
     dueDate: dueDate || null,
-    module: mod || null,
-    href: href || null,
+    module: mod || (isWorkOrder ? "Farm Services" : null),
+    href: href || (isWorkOrder ? "/farm-services?tab=work-orders" : null),
     staffName,
     staffPhone,
     assignmentNote: assignmentNote?.trim() || null,
     status: "pending",
     smsSent: false,
+    serviceInvoiceId: serviceInvoiceId ? Number(serviceInvoiceId) : null,
+    estimatedHours: estimatedHours ? String(estimatedHours) : null,
   }).returning();
+  // Auto-generate work order ref after insert (WO-0001 format)
+  if (isWorkOrder && !record.workOrderRef) {
+    const woRef = `WO-${String(record.id).padStart(4, "0")}`;
+    const [updated] = await db.update(farmTaskAssignmentsTable).set({ workOrderRef: woRef }).where(eq(farmTaskAssignmentsTable.id, record.id)).returning();
+    Object.assign(record, updated);
+  }
   let smsSent = false;
   let smsReason: string | undefined;
   if (staffPhone) {
@@ -5990,6 +5998,9 @@ router.patch("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant, 
     return;
   }
 
+  const patchTitle = req.body.title;
+  const patchDesc = req.body.description;
+  const patchHours = req.body.estimatedHours;
   const allowed: Record<string, unknown> = {};
   if (status !== undefined) {
     allowed.status = status;
@@ -5998,6 +6009,9 @@ router.patch("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant, 
   if (completionNote !== undefined) allowed.completionNote = completionNote;
   if (assignmentNote !== undefined) allowed.assignmentNote = assignmentNote;
   if (dueDate !== undefined) allowed.dueDate = dueDate;
+  if (patchTitle !== undefined) allowed.title = patchTitle;
+  if (patchDesc !== undefined) allowed.description = patchDesc;
+  if (patchHours !== undefined) allowed.estimatedHours = patchHours ? String(patchHours) : null;
   const [record] = await db.update(farmTaskAssignmentsTable).set(allowed).where(and(eq(farmTaskAssignmentsTable.id, id), eq(farmTaskAssignmentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
@@ -6009,6 +6023,24 @@ router.delete("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant,
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(farmTaskAssignmentsTable).where(and(eq(farmTaskAssignmentsTable.id, id), eq(farmTaskAssignmentsTable.farmId, farmId)));
   res.json({ success: true });
+});
+
+// ─── Work Orders (task assignments with a workOrderRef) ────────────────────────
+router.get("/farms/:farmId/work-orders", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const records = await db.select().from(farmTaskAssignmentsTable)
+    .where(and(eq(farmTaskAssignmentsTable.farmId, farmId), isNotNull(farmTaskAssignmentsTable.workOrderRef)))
+    .orderBy(desc(farmTaskAssignmentsTable.createdAt));
+  // Fetch linked invoice numbers for any that have serviceInvoiceId
+  const invoiceIds = [...new Set(records.filter((r) => r.serviceInvoiceId).map((r) => r.serviceInvoiceId!))];
+  let invoiceMap: Record<number, string> = {};
+  if (invoiceIds.length > 0) {
+    const invRows = await db.select({ id: serviceInvoicesTable.id, invoiceNumber: serviceInvoicesTable.invoiceNumber })
+      .from(serviceInvoicesTable).where(inArray(serviceInvoicesTable.id, invoiceIds));
+    for (const inv of invRows) invoiceMap[inv.id] = inv.invoiceNumber || `INV-${String(inv.id).padStart(4, "0")}`;
+  }
+  const enriched = records.map((r) => ({ ...r, invoiceNumber: r.serviceInvoiceId ? (invoiceMap[r.serviceInvoiceId] ?? null) : null }));
+  res.json({ records: enriched });
 });
 
 // ─── Grants & Funding ──────────────────────────────
@@ -11292,8 +11324,8 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       .from(horticultureWaterTestsTable)
       .where(and(eq(horticultureWaterTestsTable.farmId, farmId), isNotNull(horticultureWaterTestsTable.nextTestDueDate), gte(horticultureWaterTestsTable.nextTestDueDate, overdueStart), lt(horticultureWaterTestsTable.nextTestDueDate, rangeEnd))),
 
-    // ── Pending/in-progress task assignments ──
-    db.select({ id: farmTaskAssignmentsTable.id, title: farmTaskAssignmentsTable.title, dueDate: farmTaskAssignmentsTable.dueDate, staffName: farmTaskAssignmentsTable.staffName, module: farmTaskAssignmentsTable.module, href: farmTaskAssignmentsTable.href, status: farmTaskAssignmentsTable.status, assignedToMemberId: farmTaskAssignmentsTable.assignedToMemberId })
+    // ── Pending/in-progress task assignments (incl. work orders) ──
+    db.select({ id: farmTaskAssignmentsTable.id, title: farmTaskAssignmentsTable.title, dueDate: farmTaskAssignmentsTable.dueDate, staffName: farmTaskAssignmentsTable.staffName, module: farmTaskAssignmentsTable.module, href: farmTaskAssignmentsTable.href, status: farmTaskAssignmentsTable.status, assignedToMemberId: farmTaskAssignmentsTable.assignedToMemberId, workOrderRef: farmTaskAssignmentsTable.workOrderRef })
       .from(farmTaskAssignmentsTable)
       .where(and(eq(farmTaskAssignmentsTable.farmId, farmId), inArray(farmTaskAssignmentsTable.status, ["pending", "in_progress"]), isNotNull(farmTaskAssignmentsTable.dueDate), gte(farmTaskAssignmentsTable.dueDate, overdueStart), lt(farmTaskAssignmentsTable.dueDate, rangeEnd))),
 
@@ -11554,8 +11586,12 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   }
   for (const r of taskAssignmentRows) {
     if (!r.dueDate) continue;
-    const colour = r.status === "in_progress" ? "amber" : "emerald";
-    tasks.push({ id: `assign-${r.id}`, type: "task_assignment", title: r.title, description: `Assigned to ${r.staffName || "a staff member"} — ${r.status === "in_progress" ? "in progress" : "pending"}`, dueDate: typeof r.dueDate === "string" ? new Date(r.dueDate + "T00:00:00Z").toISOString() : (r.dueDate as Date).toISOString(), module: r.module || "Tasks", href: r.href || "/task-board", colour, assignedToMemberId: r.assignedToMemberId });
+    const isWO = !!r.workOrderRef;
+    const colour = isWO ? "purple" : (r.status === "in_progress" ? "amber" : "emerald");
+    const type = isWO ? "work_order" : "task_assignment";
+    const prefix = isWO ? `${r.workOrderRef} · ` : "";
+    const statusLabel = r.status === "in_progress" ? "in progress" : "scheduled";
+    tasks.push({ id: `assign-${r.id}`, type, title: `${prefix}${r.title}`, description: `Assigned to ${r.staffName || "a staff member"} — ${statusLabel}`, dueDate: typeof r.dueDate === "string" ? new Date(r.dueDate + "T00:00:00Z").toISOString() : (r.dueDate as Date).toISOString(), module: r.module || "Farm Services", href: r.href || "/farm-services?tab=work-orders", colour, assignedToMemberId: r.assignedToMemberId });
   }
 
   for (const r of vetFollowUpRows) {
