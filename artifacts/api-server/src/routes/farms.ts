@@ -5878,7 +5878,7 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
   const farmId = req.tenantId!;
   const userId = req.userId ?? "unknown";
   const tenantId = farmId;
-  const { assignedToMemberId, title, description, dueDate, module: mod, href, assignmentNote, taskType, taskSourceId, isWorkOrder, serviceInvoiceId, estimatedHours } = req.body;
+  const { assignedToMemberId, title, description, dueDate, module: mod, href, assignmentNote, taskType, taskSourceId, isWorkOrder, serviceInvoiceId, customerId, estimatedHours } = req.body;
   if (!assignedToMemberId || !title) { res.status(400).json({ error: "assignedToMemberId and title are required" }); return; }
   const [member] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone })
     .from(farmMembersTable).where(and(eq(farmMembersTable.id, Number(assignedToMemberId)), eq(farmMembersTable.farmId, farmId)));
@@ -5902,6 +5902,7 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
     status: "pending",
     smsSent: false,
     serviceInvoiceId: serviceInvoiceId ? Number(serviceInvoiceId) : null,
+    customerId: customerId ? Number(customerId) : null,
     estimatedHours: estimatedHours ? String(estimatedHours) : null,
   }).returning();
   // Auto-generate work order ref after insert (WO-0001 format)
@@ -6012,6 +6013,8 @@ router.patch("/farms/:farmId/task-assignments/:id", requireAuth, requireTenant, 
   if (patchTitle !== undefined) allowed.title = patchTitle;
   if (patchDesc !== undefined) allowed.description = patchDesc;
   if (patchHours !== undefined) allowed.estimatedHours = patchHours ? String(patchHours) : null;
+  const patchCustomerId = req.body.customerId;
+  if (patchCustomerId !== undefined) allowed.customerId = patchCustomerId ? Number(patchCustomerId) : null;
   const [record] = await db.update(farmTaskAssignmentsTable).set(allowed).where(and(eq(farmTaskAssignmentsTable.id, id), eq(farmTaskAssignmentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
@@ -6031,7 +6034,7 @@ router.get("/farms/:farmId/work-orders", requireAuth, requireTenant, async (req:
   const records = await db.select().from(farmTaskAssignmentsTable)
     .where(and(eq(farmTaskAssignmentsTable.farmId, farmId), isNotNull(farmTaskAssignmentsTable.workOrderRef)))
     .orderBy(desc(farmTaskAssignmentsTable.createdAt));
-  // Fetch linked invoice numbers for any that have serviceInvoiceId
+  // Fetch linked invoice numbers
   const invoiceIds = [...new Set(records.filter((r) => r.serviceInvoiceId).map((r) => r.serviceInvoiceId!))];
   let invoiceMap: Record<number, string> = {};
   if (invoiceIds.length > 0) {
@@ -6039,7 +6042,19 @@ router.get("/farms/:farmId/work-orders", requireAuth, requireTenant, async (req:
       .from(serviceInvoicesTable).where(inArray(serviceInvoicesTable.id, invoiceIds));
     for (const inv of invRows) invoiceMap[inv.id] = inv.invoiceNumber || `INV-${String(inv.id).padStart(4, "0")}`;
   }
-  const enriched = records.map((r) => ({ ...r, invoiceNumber: r.serviceInvoiceId ? (invoiceMap[r.serviceInvoiceId] ?? null) : null }));
+  // Fetch customer names
+  const customerIds = [...new Set(records.filter((r) => r.customerId).map((r) => r.customerId!))];
+  let customerMap: Record<number, string> = {};
+  if (customerIds.length > 0) {
+    const custRows = await db.select({ id: farmCustomersTable.id, name: farmCustomersTable.name })
+      .from(farmCustomersTable).where(inArray(farmCustomersTable.id, customerIds));
+    for (const c of custRows) customerMap[c.id] = c.name;
+  }
+  const enriched = records.map((r) => ({
+    ...r,
+    invoiceNumber: r.serviceInvoiceId ? (invoiceMap[r.serviceInvoiceId] ?? null) : null,
+    customerName: r.customerId ? (customerMap[r.customerId] ?? null) : null,
+  }));
   res.json({ records: enriched });
 });
 

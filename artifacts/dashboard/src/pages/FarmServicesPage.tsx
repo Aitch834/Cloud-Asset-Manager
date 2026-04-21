@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users, FileText, Wheat, Receipt, Plus, Pencil, Trash2, CheckCircle, XCircle,
@@ -85,8 +85,11 @@ interface WorkOrder {
   dueDate?: string | null; estimatedHours?: string | null;
   assignmentNote?: string | null; completionNote?: string | null;
   status: string; serviceInvoiceId?: number | null; invoiceNumber?: string | null;
+  customerId?: number | null; customerName?: string | null;
   createdAt: string; completedAt?: string | null;
 }
+
+interface InvoicePrefill { customerId: number; customerName: string; title: string; }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -1415,7 +1418,7 @@ function woBadge(status: string) {
   return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${s.colour}`}>{s.label}</span>;
 }
 
-function WorkOrdersTab({ farmId }: { farmId: number }) {
+function WorkOrdersTab({ farmId, customers, onRaiseInvoice }: { farmId: number; customers: FarmCustomer[]; onRaiseInvoice: (prefill: InvoicePrefill) => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [filter, setFilter] = useState<"open" | "all">("open");
@@ -1427,7 +1430,7 @@ function WorkOrdersTab({ farmId }: { farmId: number }) {
 
   const emptyWoForm = () => ({
     title: "", description: "", assignedToMemberId: "", dueDate: new Date().toISOString().slice(0, 10),
-    estimatedHours: "", assignmentNote: "",
+    estimatedHours: "", assignmentNote: "", customerId: "",
   });
   const [woForm, setWoForm] = useState(emptyWoForm());
 
@@ -1475,6 +1478,7 @@ function WorkOrdersTab({ farmId }: { farmId: number }) {
       title: wo.title, description: wo.description ?? "",
       assignedToMemberId: String(wo.assignedToMemberId), dueDate: wo.dueDate ?? "",
       estimatedHours: wo.estimatedHours ?? "", assignmentNote: wo.assignmentNote ?? "",
+      customerId: wo.customerId ? String(wo.customerId) : "",
     });
     setDialogOpen(true);
   }
@@ -1486,12 +1490,14 @@ function WorkOrdersTab({ farmId }: { farmId: number }) {
         title: woForm.title, description: woForm.description || null,
         dueDate: woForm.dueDate || null, estimatedHours: woForm.estimatedHours || null,
         assignmentNote: woForm.assignmentNote || null, assignedToMemberId: parseInt(woForm.assignedToMemberId),
+        customerId: woForm.customerId ? parseInt(woForm.customerId) : null,
       }});
     } else {
       createMut.mutate({
         title: woForm.title, description: woForm.description || null,
         assignedToMemberId: parseInt(woForm.assignedToMemberId), dueDate: woForm.dueDate || null,
         estimatedHours: woForm.estimatedHours || null, assignmentNote: woForm.assignmentNote || null,
+        customerId: woForm.customerId ? parseInt(woForm.customerId) : null,
         isWorkOrder: true,
       });
     }
@@ -1558,6 +1564,7 @@ function WorkOrdersTab({ farmId }: { farmId: number }) {
                       {woBadge(wo.status)}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                      {wo.customerName && <span className="flex items-center gap-1 font-medium text-foreground/70"><Building2 className="h-3 w-3" /> {wo.customerName}</span>}
                       <span className="flex items-center gap-1"><User className="h-3 w-3" /> {wo.staffName}</span>
                       {wo.dueDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {wo.dueDate}</span>}
                       {wo.estimatedHours && <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {wo.estimatedHours}h est.</span>}
@@ -1611,6 +1618,15 @@ function WorkOrdersTab({ farmId }: { farmId: number }) {
                         </div>
                       )}
                       <div className="ml-auto flex items-center gap-1.5">
+                        {!wo.invoiceNumber && (
+                          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
+                            onClick={() => onRaiseInvoice({ customerId: wo.customerId ?? 0, customerName: wo.customerName ?? "", title: wo.title })}>
+                            <Receipt className="h-3 w-3" /> Raise Invoice
+                          </Button>
+                        )}
+                        {wo.invoiceNumber && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1 px-2"><Receipt className="h-3 w-3" /> {wo.invoiceNumber}</span>
+                        )}
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openEdit(wo)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -1635,6 +1651,19 @@ function WorkOrdersTab({ farmId }: { farmId: number }) {
             <div className="space-y-1">
               <Label>Job title <span className="text-destructive">*</span></Label>
               <Input placeholder="e.g. Hedge trimming — North Field boundary" value={woForm.title} onChange={(e) => setWoForm((f) => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label>Customer / farm this work is for</Label>
+              <Select value={woForm.customerId} onValueChange={(v) => setWoForm((f) => ({ ...f, customerId: v === "none" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="Select customer (optional)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— None / internal work —</SelectItem>
+                  {customers.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {customers.length === 0 && <p className="text-xs text-muted-foreground">Add customers in the Customers tab to link work orders to them.</p>}
             </div>
             <div className="space-y-1">
               <Label>Description</Label>
@@ -1687,7 +1716,7 @@ function WorkOrdersTab({ farmId }: { farmId: number }) {
   );
 }
 
-function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCustomer[] }) {
+function InvoicesTab({ farmId, customers, prefill }: { farmId: number; customers: FarmCustomer[]; prefill?: InvoicePrefill | null }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -1699,6 +1728,17 @@ function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCus
     dueDate: "", status: "draft", vatRatePercent: "20", notes: "",
   });
   const [form, setForm] = useState(emptyForm());
+
+  // Auto-open new invoice dialog when navigated from a Work Order "Raise Invoice" button
+  const prevPrefillRef = useRef<InvoicePrefill | null | undefined>(undefined);
+  useEffect(() => {
+    if (prefill && prefill !== prevPrefillRef.current) {
+      prevPrefillRef.current = prefill;
+      setForm((f) => ({ ...f, customerId: prefill.customerId ? String(prefill.customerId) : "" }));
+      setLines(prefill.title ? [{ description: prefill.title, quantity: "1", unit: "", unitPricePence: "0", lineTotalPence: 0 }] : []);
+      setOpen(true);
+    }
+  }, [prefill]);
 
   const emptyWoForm = () => ({ title: "", assignedToMemberId: "", scheduledDate: new Date().toISOString().slice(0, 10), estimatedHours: "", instructions: "" });
   const [woEnabled, setWoEnabled] = useState(false);
@@ -2149,6 +2189,12 @@ export default function FarmServicesPage() {
     const valid: Tab[] = ["customers", "agreements", "grain", "invoices", "work-orders"];
     return t && valid.includes(t) ? t : "customers";
   });
+  const [invoicePrefill, setInvoicePrefill] = useState<InvoicePrefill | null>(null);
+
+  function handleRaiseInvoice(prefill: InvoicePrefill) {
+    setInvoicePrefill({ ...prefill });
+    setTab("invoices");
+  }
 
   const customersQ = useQuery<{ records: FarmCustomer[] }>({
     queryKey: ["farm-customers", farmId],
@@ -2203,8 +2249,8 @@ export default function FarmServicesPage() {
         {tab === "customers" && farmId && <CustomersTab farmId={farmId} customers={customers} isLoading={customersQ.isLoading} />}
         {tab === "agreements" && farmId && <AgreementsTab farmId={farmId} customers={customers} />}
         {tab === "grain" && farmId && <GrainIntakeTab farmId={farmId} customers={customers} />}
-        {tab === "invoices" && farmId && <InvoicesTab farmId={farmId} customers={customers} />}
-        {tab === "work-orders" && farmId && <WorkOrdersTab farmId={farmId} />}
+        {tab === "invoices" && farmId && <InvoicesTab farmId={farmId} customers={customers} prefill={invoicePrefill} />}
+        {tab === "work-orders" && farmId && <WorkOrdersTab farmId={farmId} customers={customers} onRaiseInvoice={handleRaiseInvoice} />}
       </div>
     </AppLayout>
   );

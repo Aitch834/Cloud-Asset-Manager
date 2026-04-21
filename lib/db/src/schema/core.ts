@@ -247,6 +247,7 @@ export const farmTaskAssignmentsTable = pgTable("farm_task_assignments", {
   completionNote: text("completion_note"),
   workOrderRef: text("work_order_ref"),
   serviceInvoiceId: integer("service_invoice_id"),
+  customerId: integer("customer_id"),
   estimatedHours: numeric("estimated_hours", { precision: 5, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
