@@ -63,6 +63,9 @@ export const thirdPartyGrainIntakesTable = pgTable("third_party_grain_intakes", 
   deliveryNoteRef: text("delivery_note_ref"),
   vehicleReg: text("vehicle_reg"),
   haulier: text("haulier"),
+  // transportArrangedBy: "customer" = customer organised their own lorry; "holding" = we booked a haulier on their behalf
+  transportArrangedBy: text("transport_arranged_by").notNull().default("customer"),
+  haulierId: integer("haulier_id"), // FK to hauliers.id — set when holding arranges transport
   bayOrBin: text("bay_or_bin"),
   status: text("status").notNull().default("in_store"),
   notes: text("notes"),
@@ -79,6 +82,9 @@ export const thirdPartyGrainMovementsTable = pgTable("third_party_grain_movement
   destination: text("destination"),
   vehicleReg: text("vehicle_reg"),
   haulier: text("haulier"),
+  // transportArrangedBy: "customer" = customer's lorry; "holding" = we booked the haulier
+  transportArrangedBy: text("transport_arranged_by").notNull().default("customer"),
+  haulierId: integer("haulier_id"), // FK to hauliers.id — set when holding arranges transport
   deliveryNoteRef: text("delivery_note_ref"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

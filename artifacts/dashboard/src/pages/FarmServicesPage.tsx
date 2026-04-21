@@ -45,14 +45,19 @@ interface GrainIntake {
   quantityTonnes: string; moisturePercent?: string | null; screeningsPercent?: string | null;
   specificWeightKgHl?: string | null; grade?: string | null; lotReference?: string | null;
   deliveryNoteRef?: string | null; vehicleReg?: string | null; haulier?: string | null;
+  transportArrangedBy?: string | null; haulierId?: number | null;
   bayOrBin?: string | null; status: string; notes?: string | null; createdAt: string;
 }
 
 interface GrainMovement {
   id: number; intakeId: number; movementDate: string; movementType: string;
   quantityTonnes: string; destination?: string | null; vehicleReg?: string | null;
-  haulier?: string | null; deliveryNoteRef?: string | null; notes?: string | null;
+  haulier?: string | null; transportArrangedBy?: string | null; haulierId?: number | null;
+  deliveryNoteRef?: string | null; notes?: string | null;
 }
+
+interface StorageLocation { id: number; name: string; storageCode?: string | null; capacityTonnes?: string | null; }
+interface Haulier { id: number; companyName: string; }
 
 interface ServiceInvoice {
   id: number; farmId: number; customerId: number; agreementId?: number | null;
@@ -626,12 +631,19 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
   const [edit, setEdit] = useState<GrainIntake | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [movementOpen, setMovementOpen] = useState<number | null>(null);
-  const [mvForm, setMvForm] = useState({ movementDate: new Date().toISOString().slice(0, 10), movementType: "outloading", quantityTonnes: "", destination: "", vehicleReg: "", haulier: "", notes: "" });
+  const emptyMvForm = () => ({
+    movementDate: new Date().toISOString().slice(0, 10), movementType: "outloading",
+    quantityTonnes: "", destination: "", vehicleReg: "", haulier: "", haulierId: "",
+    transportArrangedBy: "customer", notes: "",
+  });
+  const [mvForm, setMvForm] = useState(emptyMvForm());
 
   const emptyForm = () => ({
     customerId: "", agreementId: "", storageLocationId: "", intakeDate: new Date().toISOString().slice(0, 10),
     commodity: "Winter Wheat", variety: "", quantityTonnes: "", moisturePercent: "", screeningsPercent: "",
-    specificWeightKgHl: "", grade: "", lotReference: "", deliveryNoteRef: "", vehicleReg: "", haulier: "", bayOrBin: "", status: "in_store", notes: "",
+    specificWeightKgHl: "", grade: "", lotReference: "", deliveryNoteRef: "",
+    vehicleReg: "", haulier: "", haulierId: "", transportArrangedBy: "customer",
+    bayOrBin: "", status: "in_store", notes: "",
   });
   const [form, setForm] = useState(emptyForm());
 
@@ -648,6 +660,22 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
     enabled: !!farmId,
   });
   const agreements = agreementsQ.data?.records ?? [];
+
+  // Storage locations — needed for the "which bay/bin" dropdown on intake
+  const storageLocsQ = useQuery<{ records: StorageLocation[] }>({
+    queryKey: ["storage-locations", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/storage-locations`, { credentials: "include" }).then((r) => r.ok ? r.json() : { records: [] }),
+    enabled: !!farmId,
+  });
+  const storageLocs = storageLocsQ.data?.records ?? [];
+
+  // Hauliers directory — used when the holding arranges transport
+  const hauliersQ = useQuery<{ records: Haulier[] }>({
+    queryKey: ["hauliers", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/hauliers`, { credentials: "include" }).then((r) => r.ok ? r.json() : { records: [] }),
+    enabled: !!farmId,
+  });
+  const hauliers = hauliersQ.data?.records ?? [];
 
   const movementsQ = useQuery<{ records: GrainMovement[] }>({
     queryKey: ["grain-movements", farmId, expandedId],
@@ -685,7 +713,18 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
   function openAdd() { setEdit(null); setForm(emptyForm()); setOpen(true); }
   function openEdit(i: GrainIntake) {
     setEdit(i);
-    setForm({ customerId: String(i.customerId), agreementId: i.agreementId ? String(i.agreementId) : "", storageLocationId: i.storageLocationId ? String(i.storageLocationId) : "", intakeDate: i.intakeDate, commodity: i.commodity, variety: i.variety ?? "", quantityTonnes: i.quantityTonnes, moisturePercent: i.moisturePercent ?? "", screeningsPercent: i.screeningsPercent ?? "", specificWeightKgHl: i.specificWeightKgHl ?? "", grade: i.grade ?? "", lotReference: i.lotReference ?? "", deliveryNoteRef: i.deliveryNoteRef ?? "", vehicleReg: i.vehicleReg ?? "", haulier: i.haulier ?? "", bayOrBin: i.bayOrBin ?? "", status: i.status, notes: i.notes ?? "" });
+    setForm({
+      customerId: String(i.customerId), agreementId: i.agreementId ? String(i.agreementId) : "",
+      storageLocationId: i.storageLocationId ? String(i.storageLocationId) : "",
+      intakeDate: i.intakeDate, commodity: i.commodity, variety: i.variety ?? "",
+      quantityTonnes: i.quantityTonnes, moisturePercent: i.moisturePercent ?? "",
+      screeningsPercent: i.screeningsPercent ?? "", specificWeightKgHl: i.specificWeightKgHl ?? "",
+      grade: i.grade ?? "", lotReference: i.lotReference ?? "", deliveryNoteRef: i.deliveryNoteRef ?? "",
+      vehicleReg: i.vehicleReg ?? "", haulier: i.haulier ?? "",
+      haulierId: i.haulierId ? String(i.haulierId) : "",
+      transportArrangedBy: i.transportArrangedBy || "customer",
+      bayOrBin: i.bayOrBin ?? "", status: i.status, notes: i.notes ?? "",
+    });
     setOpen(true);
   }
 
@@ -757,7 +796,7 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
                               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                                 <ArrowRight className="h-3.5 w-3.5 text-amber-600" /> Grain Movements
                               </div>
-                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setMovementOpen(i.id); setMvForm({ movementDate: new Date().toISOString().slice(0, 10), movementType: "outloading", quantityTonnes: "", destination: "", vehicleReg: "", haulier: "", notes: "" }); }}>
+                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setMovementOpen(i.id); setMvForm(emptyMvForm()); }}>
                                 <Plus className="h-3.5 w-3.5" /> Record Movement
                               </Button>
                             </div>
@@ -854,10 +893,6 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
                 <Input placeholder="e.g. LOT-ATK-2024-001" value={form.lotReference} onChange={(e) => setForm((f) => ({ ...f, lotReference: e.target.value }))} /></div>
               <div className="space-y-1"><Label>Delivery note ref</Label>
                 <Input placeholder="e.g. DN-2024-1041" value={form.deliveryNoteRef} onChange={(e) => setForm((f) => ({ ...f, deliveryNoteRef: e.target.value }))} /></div>
-              <div className="space-y-1"><Label>Vehicle reg</Label>
-                <Input placeholder="AB12 CDE" value={form.vehicleReg} onChange={(e) => setForm((f) => ({ ...f, vehicleReg: e.target.value }))} /></div>
-              <div className="space-y-1"><Label>Bay / Bin</Label>
-                <Input placeholder="e.g. Bay A, North end" value={form.bayOrBin} onChange={(e) => setForm((f) => ({ ...f, bayOrBin: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1"><Label>Status</Label>
@@ -876,13 +911,87 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
                 </Select>
               </div>
             </div>
+
+            {/* Storage location + Bay/Bin */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Storage location</Label>
+                {storageLocs.length > 0 ? (
+                  <Select value={form.storageLocationId || "__none__"} onValueChange={(v) => setForm((f) => ({ ...f, storageLocationId: v === "__none__" ? "" : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not specified</SelectItem>
+                      {storageLocs.map((loc) => <SelectItem key={loc.id} value={String(loc.id)}>{loc.name}{loc.storageCode ? ` (${loc.storageCode})` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input placeholder="e.g. North Barn" value={form.bayOrBin} onChange={(e) => setForm((f) => ({ ...f, bayOrBin: e.target.value }))} />
+                )}
+              </div>
+              {storageLocs.length > 0 && (
+                <div className="space-y-1"><Label>Bay / Bin (within location)</Label>
+                  <Input placeholder="e.g. Bay A, North end" value={form.bayOrBin} onChange={(e) => setForm((f) => ({ ...f, bayOrBin: e.target.value }))} /></div>
+              )}
+            </div>
+
+            {/* Transport arrangement */}
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+              <div className="space-y-1">
+                <Label>Transport arranged by</Label>
+                <div className="flex gap-2 mt-1">
+                  {[{ v: "customer", label: "Customer's lorry" }, { v: "holding", label: "Holding arranged" }].map(({ v, label }) => (
+                    <button key={v} type="button"
+                      onClick={() => setForm((f) => ({ ...f, transportArrangedBy: v, haulierId: v === "customer" ? "" : f.haulierId }))}
+                      className={`text-sm px-3 py-1.5 rounded-lg border transition-colors ${form.transportArrangedBy === v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:border-primary/50"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {form.transportArrangedBy === "customer" ? "Customer organised their own haulier — record the vehicle that arrived." : "Holding booked a haulier from your directory on the customer's behalf."}
+                </p>
+              </div>
+              {form.transportArrangedBy === "holding" && hauliers.length > 0 ? (
+                <div className="space-y-1">
+                  <Label>Haulier (from directory)</Label>
+                  <Select value={form.haulierId || "__none__"} onValueChange={(v) => {
+                    const h = hauliers.find((x) => String(x.id) === v);
+                    setForm((f) => ({ ...f, haulierId: v === "__none__" ? "" : v, haulier: h ? h.companyName : f.haulier }));
+                  }}>
+                    <SelectTrigger><SelectValue placeholder="Select haulier" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not in directory</SelectItem>
+                      {hauliers.map((h) => <SelectItem key={h.id} value={String(h.id)}>{h.companyName}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1"><Label>Vehicle reg</Label>
+                  <Input placeholder="AB12 CDE" value={form.vehicleReg} onChange={(e) => setForm((f) => ({ ...f, vehicleReg: e.target.value }))} /></div>
+                {(form.transportArrangedBy === "customer" || !hauliers.length) && (
+                  <div className="space-y-1"><Label>Haulier {form.transportArrangedBy === "customer" ? "(if known)" : ""}</Label>
+                    <Input placeholder="Haulier name" value={form.haulier} onChange={(e) => setForm((f) => ({ ...f, haulier: e.target.value }))} /></div>
+                )}
+              </div>
+            </div>
             <div className="space-y-1"><Label>Notes</Label>
               <Textarea rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button disabled={saveMut.isPending || !form.customerId || !form.intakeDate || !form.quantityTonnes}
-              onClick={() => saveMut.mutate({ ...form, customerId: parseInt(form.customerId), agreementId: form.agreementId ? parseInt(form.agreementId) : null, quantityTonnes: form.quantityTonnes, moisturePercent: form.moisturePercent || null, screeningsPercent: form.screeningsPercent || null, specificWeightKgHl: form.specificWeightKgHl || null })}>
+              onClick={() => saveMut.mutate({
+                ...form,
+                customerId: parseInt(form.customerId),
+                agreementId: form.agreementId ? parseInt(form.agreementId) : null,
+                storageLocationId: form.storageLocationId ? parseInt(form.storageLocationId) : null,
+                haulierId: form.haulierId ? parseInt(form.haulierId) : null,
+                quantityTonnes: form.quantityTonnes,
+                moisturePercent: form.moisturePercent || null,
+                screeningsPercent: form.screeningsPercent || null,
+                specificWeightKgHl: form.specificWeightKgHl || null,
+              })}>
               {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : edit ? "Save Changes" : "Book In"}
             </Button>
           </DialogFooter>
@@ -891,7 +1000,7 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
 
       {/* Movement dialog */}
       <Dialog open={movementOpen !== null} onOpenChange={(o) => { if (!o) setMovementOpen(null); }}>
-        <DialogContent style={{ maxWidth: 480 }} aria-describedby={undefined}>
+        <DialogContent style={{ maxWidth: 520 }} aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Record Grain Movement</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-1">
             <div className="grid grid-cols-2 gap-3">
@@ -909,18 +1018,64 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
                 <Input type="number" step="0.01" placeholder="150.00" value={mvForm.quantityTonnes} onChange={(e) => setMvForm((f) => ({ ...f, quantityTonnes: e.target.value }))} /></div>
               <div className="space-y-1"><Label>Destination / buyer</Label>
                 <Input placeholder="e.g. Frontier Ag Lincoln" value={mvForm.destination} onChange={(e) => setMvForm((f) => ({ ...f, destination: e.target.value }))} /></div>
-              <div className="space-y-1"><Label>Vehicle reg</Label>
-                <Input placeholder="AB12 CDE" value={mvForm.vehicleReg} onChange={(e) => setMvForm((f) => ({ ...f, vehicleReg: e.target.value }))} /></div>
-              <div className="space-y-1"><Label>Haulier</Label>
-                <Input placeholder="Haulier name" value={mvForm.haulier} onChange={(e) => setMvForm((f) => ({ ...f, haulier: e.target.value }))} /></div>
             </div>
+
+            {/* Transport arrangement for movements */}
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+              <div className="space-y-1">
+                <Label>Transport arranged by</Label>
+                <div className="flex gap-2 mt-1">
+                  {[{ v: "customer", label: "Customer's lorry" }, { v: "holding", label: "Holding arranged" }].map(({ v, label }) => (
+                    <button key={v} type="button"
+                      onClick={() => setMvForm((f) => ({ ...f, transportArrangedBy: v, haulierId: v === "customer" ? "" : f.haulierId }))}
+                      className={`text-sm px-3 py-1.5 rounded-lg border transition-colors ${mvForm.transportArrangedBy === v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:border-primary/50"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {mvForm.transportArrangedBy === "holding" && hauliers.length > 0 ? (
+                <div className="space-y-1">
+                  <Label>Haulier (from directory)</Label>
+                  <Select value={mvForm.haulierId || "__none__"} onValueChange={(v) => {
+                    const h = hauliers.find((x) => String(x.id) === v);
+                    setMvForm((f) => ({ ...f, haulierId: v === "__none__" ? "" : v, haulier: h ? h.companyName : f.haulier }));
+                  }}>
+                    <SelectTrigger><SelectValue placeholder="Select haulier" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not in directory</SelectItem>
+                      {hauliers.map((h) => <SelectItem key={h.id} value={String(h.id)}>{h.companyName}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1"><Label>Vehicle reg</Label>
+                  <Input placeholder="AB12 CDE" value={mvForm.vehicleReg} onChange={(e) => setMvForm((f) => ({ ...f, vehicleReg: e.target.value }))} /></div>
+                {(mvForm.transportArrangedBy === "customer" || !hauliers.length) && (
+                  <div className="space-y-1"><Label>Haulier {mvForm.transportArrangedBy === "customer" ? "(if known)" : ""}</Label>
+                    <Input placeholder="Haulier name" value={mvForm.haulier} onChange={(e) => setMvForm((f) => ({ ...f, haulier: e.target.value }))} /></div>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-1"><Label>Notes</Label>
               <Input value={mvForm.notes} onChange={(e) => setMvForm((f) => ({ ...f, notes: e.target.value }))} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setMovementOpen(null)}>Cancel</Button>
             <Button disabled={saveMv.isPending || !mvForm.quantityTonnes}
-              onClick={() => movementOpen !== null && saveMv.mutate({ intakeId: movementOpen, body: { ...mvForm, quantityTonnes: mvForm.quantityTonnes, destination: mvForm.destination || null, vehicleReg: mvForm.vehicleReg || null, haulier: mvForm.haulier || null, notes: mvForm.notes || null } })}>
+              onClick={() => movementOpen !== null && saveMv.mutate({
+                intakeId: movementOpen,
+                body: {
+                  ...mvForm,
+                  haulierId: mvForm.haulierId ? parseInt(mvForm.haulierId) : null,
+                  destination: mvForm.destination || null,
+                  vehicleReg: mvForm.vehicleReg || null,
+                  haulier: mvForm.haulier || null,
+                  notes: mvForm.notes || null,
+                },
+              })}>
               {saveMv.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Record Movement"}
             </Button>
           </DialogFooter>
