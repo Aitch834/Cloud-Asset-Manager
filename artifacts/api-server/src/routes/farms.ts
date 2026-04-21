@@ -11096,6 +11096,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     vetFollowUpRows,
     dispatchPlanRows,
     serviceInvoiceRows,
+    serviceAgreementRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -11321,6 +11322,17 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: serviceInvoicesTable.id, invoiceNumber: serviceInvoicesTable.invoiceNumber, customerId: serviceInvoicesTable.customerId, dueDate: serviceInvoicesTable.dueDate, totalPence: serviceInvoicesTable.totalPence, status: serviceInvoicesTable.status })
       .from(serviceInvoicesTable)
       .where(and(eq(serviceInvoicesTable.farmId, farmId), inArray(serviceInvoicesTable.status, ["sent", "overdue"]), isNotNull(serviceInvoicesTable.dueDate), gte(serviceInvoicesTable.dueDate, overdueStart.toISOString().split("T")[0]), lt(serviceInvoicesTable.dueDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Service Agreements: active agreements expiring within 30 days ──
+    db.select({ id: serviceAgreementsTable.id, title: serviceAgreementsTable.title, agreementType: serviceAgreementsTable.agreementType, endDate: serviceAgreementsTable.endDate, referenceNumber: serviceAgreementsTable.referenceNumber, status: serviceAgreementsTable.status })
+      .from(serviceAgreementsTable)
+      .where(and(
+        eq(serviceAgreementsTable.farmId, farmId),
+        eq(serviceAgreementsTable.status, "active"),
+        isNotNull(serviceAgreementsTable.endDate),
+        gte(serviceAgreementsTable.endDate, now.toISOString().split("T")[0]),
+        lt(serviceAgreementsTable.endDate, new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]),
+      )),
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -11584,6 +11596,25 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       module: "Farm Services",
       href: "/farm-services?tab=invoices",
       colour: isOverdue ? "red" : "amber",
+    });
+  }
+
+  for (const r of serviceAgreementRows) {
+    if (!r.endDate) continue;
+    const endMs = new Date(r.endDate + "T00:00:00Z").getTime();
+    const daysUntil = Math.round((endMs - now.getTime()) / (24 * 60 * 60 * 1000));
+    const typeLabel = r.agreementType ? r.agreementType.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) : "Service Agreement";
+    const refLabel = r.referenceNumber ? ` [${r.referenceNumber}]` : "";
+    const urgency = daysUntil <= 7 ? "Expiring imminently" : daysUntil <= 14 ? "Expiring soon" : "Expiring in 30 days";
+    tasks.push({
+      id: `service-agreement-${r.id}`,
+      type: "service_agreement_expiry",
+      title: `${urgency}: ${typeLabel}${refLabel} — ${r.title}`,
+      description: `This service agreement expires on ${r.endDate} (${daysUntil} day${daysUntil !== 1 ? "s" : ""} away). Review and renew in Farm Services \u2192 Agreements.`,
+      dueDate: new Date(r.endDate + "T00:00:00Z").toISOString(),
+      module: "Farm Services",
+      href: "/farm-services?tab=agreements",
+      colour: daysUntil <= 7 ? "red" : "amber",
     });
   }
 
