@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users, FileText, Wheat, Receipt, Plus, Pencil, Trash2, CheckCircle, XCircle,
   ChevronDown, ChevronUp, Building2, Phone, Mail, MapPin, Loader2,
-  ClipboardList, TrendingUp, Package, AlertTriangle, Calendar, ArrowRight, Eye, RefreshCw,
+  ClipboardList, TrendingUp, Package, AlertTriangle, Calendar, ArrowRight, Eye, RefreshCw, Printer,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
+import { printHtml } from "@/lib/utils";
 
 type Tab = "customers" | "agreements" | "grain" | "invoices";
 
@@ -65,6 +66,11 @@ interface ServiceInvoice {
   subtotalPence: number; vatRatePercent: string; vatPence: number; totalPence: number;
   paymentDate?: string | null; paymentMethod?: string | null; paymentReference?: string | null;
   notes?: string | null; createdAt: string;
+}
+
+interface FarmRecord {
+  id: number; name: string; address?: string | null; postcode?: string | null;
+  contactEmail?: string | null; contactPhone?: string | null; bcmsHoldingNumber?: string | null;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -121,6 +127,50 @@ function statusBadge(val: string, list: { value: string; label: string; colour: 
   return <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${s?.colour ?? "bg-muted"}`}>{s?.label ?? val}</span>;
 }
 function agreementTypeLabel(v: string) { return AGREEMENT_TYPES.find((t) => t.value === v)?.label ?? v; }
+
+// ─── Print document helpers ───────────────────────────────────────────────────
+
+function docStyles() {
+  return `<style>
+    *{box-sizing:border-box}
+    body{font-family:'Segoe UI',Arial,sans-serif;font-size:11.5px;color:#1a1a1a;padding:32px;max-width:820px;margin:0 auto}
+    h2{font-size:15px;font-weight:600;margin:0 0 12px}
+    .doc-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:3px solid #2d5a27;margin-bottom:20px}
+    .farm-name{font-size:18px;font-weight:700;color:#1a1a1a}
+    .farm-meta{font-size:11px;color:#555;margin-top:3px;line-height:1.6}
+    .doc-meta{text-align:right;font-size:11px;color:#666;line-height:1.6}
+    .doc-title{font-size:20px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#2d5a27;margin:0 0 16px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th{background:#f0f5ef;text-align:left;padding:7px 10px;border-bottom:2px solid #2d5a27;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#2d5a27}
+    td{padding:7px 10px;border-bottom:1px solid #e8eee8;vertical-align:top}
+    tr:last-child td{border-bottom:none}
+    .tr-total td{border-top:2px solid #2d5a27;font-weight:700;background:#f0f5ef}
+    .amount{text-align:right;font-variant-numeric:tabular-nums}
+    .section{margin-top:20px}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#888;margin-bottom:2px}
+    .val{font-weight:500}
+    .footer{margin-top:28px;padding-top:10px;border-top:1px solid #ddd;font-size:10px;color:#888;display:flex;justify-content:space-between}
+    .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600;background:#f0f5ef;color:#2d5a27;border:1px solid #c5d9c2}
+    .highlight{background:#fffbeb;border-left:3px solid #d97706;padding:8px 12px;margin:12px 0;font-size:11px}
+    @media print{body{padding:20px}}
+  </style>`;
+}
+
+function docHeader(farm: FarmRecord | undefined) {
+  const now = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  return `<div class="doc-header">
+    <div>
+      <div class="farm-name">${farm?.name ?? "BDE Farm Trac"}</div>
+      <div class="farm-meta">${farm?.address ? farm.address + "<br>" : ""}${farm?.postcode ? farm.postcode + "<br>" : ""}${farm?.bcmsHoldingNumber ? "CPH No: " + farm.bcmsHoldingNumber : ""}</div>
+    </div>
+    <div class="doc-meta">
+      <div style="font-weight:700;color:#2d5a27;font-size:13px;margin-bottom:4px">BDE Farm Trac</div>
+      <div>Barnett Davies Enterprises Ltd</div>
+      <div>Produced: ${now}</div>
+    </div>
+  </div>`;
+}
 
 // ─── Customers Tab ────────────────────────────────────────────────────────────
 
@@ -310,6 +360,69 @@ function AgreementsTab({ farmId, customers }: { farmId: number; customers: FarmC
   });
   const agreements = agreementsQ.data?.records ?? [];
 
+  const farmQ = useQuery<{ record: FarmRecord }>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const farm = farmQ.data?.record;
+
+  function printAgreementSummary(a: ServiceAgreement) {
+    const custName = customers.find((c) => c.id === a.customerId)?.name ?? "—";
+    const custAddr = customers.find((c) => c.id === a.customerId)?.address ?? "";
+    const custHolding = customers.find((c) => c.id === a.customerId)?.holdingNumber ?? "";
+    const isLand = a.agreementType === "land_rental";
+    const isStore = ["grain_storage", "drying_service"].includes(a.agreementType);
+    const isContract = ["contract_farming", "machinery_hire", "haulage"].includes(a.agreementType);
+    const row = (label: string, val: string | null | undefined) =>
+      val ? `<tr><td class="lbl" style="width:200px;padding-right:16px">${label}</td><td class="val">${val}</td></tr>` : "";
+    const termRows = [
+      isStore && a.maxTonnesContracted ? row("Max Tonnes", `${a.maxTonnesContracted} t`) : "",
+      isStore && a.storageRatePptWeek ? row("Storage Rate", `£${parseFloat(a.storageRatePptWeek).toFixed(4)}/t/week`) : "",
+      isStore && a.intakeChargePpt ? row("Intake Charge", `£${parseFloat(a.intakeChargePpt).toFixed(4)}/t`) : "",
+      isStore && a.outloadingChargePpt ? row("Outloading Charge", `£${parseFloat(a.outloadingChargePpt).toFixed(4)}/t`) : "",
+      isStore && a.dryingChargePpt ? row("Drying Charge", `£${parseFloat(a.dryingChargePpt).toFixed(4)}/t`) : "",
+      isLand && a.areaHa ? row("Area", `${a.areaHa} ha`) : "",
+      isLand && a.annualRentPence ? row("Annual Rent", fmtPence(a.annualRentPence)) : "",
+      isLand && a.paymentFrequency ? row("Payment Frequency", a.paymentFrequency.charAt(0).toUpperCase() + a.paymentFrequency.slice(1)) : "",
+      isLand && a.nextPaymentDate ? row("Next Payment Due", a.nextPaymentDate) : "",
+      isContract && a.dayRatePence ? row("Day Rate", fmtPence(a.dayRatePence)) : "",
+    ].join("");
+    const statusLabel = AGREEMENT_STATUS.find((s) => s.value === a.status)?.label ?? a.status;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Agreement — ${a.title}</title>${docStyles()}</head><body>
+      ${docHeader(farm)}
+      <div class="doc-title">Service Agreement Summary</div>
+      <div class="grid-2" style="margin-bottom:20px">
+        <div>
+          <div class="lbl">Agreement Party</div>
+          <div class="val" style="font-size:13px">${custName}</div>
+          ${custAddr ? `<div style="font-size:11px;color:#555;margin-top:2px">${custAddr}</div>` : ""}
+          ${custHolding ? `<div style="font-size:11px;color:#555">CPH: ${custHolding}</div>` : ""}
+        </div>
+        <div style="text-align:right">
+          <span class="badge">${statusLabel}</span>
+          ${a.referenceNumber ? `<div style="margin-top:6px;font-variant-numeric:tabular-nums;font-weight:600;font-size:13px;color:#2d5a27">${a.referenceNumber}</div>` : ""}
+        </div>
+      </div>
+      <table style="margin-bottom:0">
+        <tbody>
+          ${row("Agreement Title", a.title)}
+          ${row("Agreement Type", agreementTypeLabel(a.agreementType))}
+          ${row("Start Date", a.startDate)}
+          ${row("End Date", a.endDate)}
+          ${termRows}
+          ${a.notes ? row("Notes", a.notes) : ""}
+        </tbody>
+      </table>
+      <div class="highlight" style="margin-top:20px">
+        This agreement summary is for reference only. It is not a legally binding document in isolation. 
+        Both parties should retain signed copies of the full agreement. This document was produced by BDE Farm Trac.
+      </div>
+      <div class="footer"><span>Agreement: ${a.title} — ${custName}</span><span>Produced by BDE Farm Trac</span></div>
+    </body></html>`;
+    printHtml(html);
+  }
+
   const saveMut = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
       const url = edit ? `/api/farms/${farmId}/service-agreements/${edit.id}` : `/api/farms/${farmId}/service-agreements`;
@@ -460,6 +573,7 @@ function AgreementsTab({ farmId, customers }: { farmId: number; customers: FarmC
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" title="Print agreement summary" onClick={() => printAgreementSummary(a)}><Printer className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => setViewRecord(a)}><Eye className="h-4 w-4" /></Button>
                     {isHistoric ? (
                       <Button variant="ghost" size="sm" className="text-xs gap-1 h-8 px-2 text-green-700 hover:text-green-800 hover:bg-green-50" onClick={() => openRenew(a)} title="Create a new agreement based on this one">
@@ -512,6 +626,7 @@ function AgreementsTab({ farmId, customers }: { farmId: number; customers: FarmC
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
             </div>
             <DialogFooter>
+              <Button variant="outline" className="gap-1.5 mr-auto" onClick={() => printAgreementSummary(viewRecord)}><Printer className="h-4 w-4" /> Print</Button>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
@@ -684,6 +799,183 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
   });
   const movements = movementsQ.data?.records ?? [];
 
+  const farmQ = useQuery<{ record: FarmRecord }>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const farm = farmQ.data?.record;
+
+  function printLotCertificate(i: GrainIntake, lotMovements: GrainMovement[]) {
+    const custName = customers.find((c) => c.id === i.customerId)?.name ?? "—";
+    const custAddr = customers.find((c) => c.id === i.customerId)?.address ?? "";
+    const custHolding = customers.find((c) => c.id === i.customerId)?.holdingNumber ?? "";
+    const agr = agreements.find((a) => a.id === i.agreementId);
+    const storageLoc = storageLocs.find((l) => l.id === i.storageLocationId);
+    const lotRef = i.lotReference || `LOT-${String(i.id).padStart(5, "0")}`;
+    const statusLabel = GRAIN_STATUSES.find((s) => s.value === i.status)?.label ?? i.status;
+    const totalOut = lotMovements.filter((m) => m.movementType === "outloading").reduce((s, m) => s + parseFloat(m.quantityTonnes), 0);
+    const balance = parseFloat(i.quantityTonnes) - totalOut;
+    const mvRows = lotMovements.length > 0 ? lotMovements.map((m) =>
+      `<tr>
+        <td>${m.movementDate}</td>
+        <td>${MOVEMENT_TYPES.find((t) => t.value === m.movementType)?.label ?? m.movementType}</td>
+        <td class="amount">${parseFloat(m.quantityTonnes).toFixed(3)} t</td>
+        <td>${m.destination ?? "—"}</td>
+        <td>${m.vehicleReg ?? "—"}</td>
+        <td>${m.haulier ?? "—"}</td>
+      </tr>`).join("") : `<tr><td colspan="6" style="color:#888;font-style:italic">No movements recorded</td></tr>`;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Lot Certificate ${lotRef}</title>${docStyles()}</head><body>
+      ${docHeader(farm)}
+      <div class="doc-title">Grain Intake / Lot Certificate</div>
+      <div class="grid-2" style="margin-bottom:20px">
+        <div>
+          <div class="lbl">Lot Reference</div>
+          <div style="font-size:20px;font-weight:700;color:#2d5a27;font-variant-numeric:tabular-nums">${lotRef}</div>
+          <div style="margin-top:8px"><div class="lbl">Customer / Supplier</div>
+          <div class="val">${custName}</div>
+          ${custAddr ? `<div style="font-size:11px;color:#555">${custAddr}</div>` : ""}
+          ${custHolding ? `<div style="font-size:11px;color:#555">CPH: ${custHolding}</div>` : ""}</div>
+        </div>
+        <div style="text-align:right">
+          <span class="badge">${statusLabel}</span>
+          ${agr ? `<div style="margin-top:6px;font-size:11px;color:#555">Agreement: ${agr.title}</div>` : ""}
+        </div>
+      </div>
+      <table>
+        <thead><tr><th colspan="2">Intake Details</th></tr></thead>
+        <tbody>
+          <tr><td style="width:50%" class="lbl">Intake Date</td><td class="val">${i.intakeDate}</td></tr>
+          <tr><td class="lbl">Commodity</td><td class="val">${i.commodity}${i.variety ? " — " + i.variety : ""}</td></tr>
+          <tr><td class="lbl">Quantity on Intake</td><td class="val" style="font-weight:700">${parseFloat(i.quantityTonnes).toFixed(3)} t</td></tr>
+          ${i.moisturePercent ? `<tr><td class="lbl">Moisture</td><td class="val">${i.moisturePercent}%</td></tr>` : ""}
+          ${i.specificWeightKgHl ? `<tr><td class="lbl">Specific Weight</td><td class="val">${i.specificWeightKgHl} kg/hl</td></tr>` : ""}
+          ${i.screeningsPercent ? `<tr><td class="lbl">Screenings</td><td class="val">${i.screeningsPercent}%</td></tr>` : ""}
+          ${i.grade ? `<tr><td class="lbl">Grade</td><td class="val">${i.grade}</td></tr>` : ""}
+          ${i.deliveryNoteRef ? `<tr><td class="lbl">Delivery Note Ref</td><td class="val">${i.deliveryNoteRef}</td></tr>` : ""}
+          ${i.vehicleReg ? `<tr><td class="lbl">Vehicle Reg (intake)</td><td class="val">${i.vehicleReg}</td></tr>` : ""}
+          ${i.haulier ? `<tr><td class="lbl">Haulier (intake)</td><td class="val">${i.haulier}</td></tr>` : ""}
+          ${storageLoc ? `<tr><td class="lbl">Storage Location</td><td class="val">${storageLoc.name}${storageLoc.storageCode ? " (" + storageLoc.storageCode + ")" : ""}</td></tr>` : ""}
+          ${i.bayOrBin ? `<tr><td class="lbl">Bay / Bin</td><td class="val">${i.bayOrBin}</td></tr>` : ""}
+          ${i.notes ? `<tr><td class="lbl">Notes</td><td class="val">${i.notes}</td></tr>` : ""}
+        </tbody>
+      </table>
+      <div class="section">
+        <h2>Movement History</h2>
+        <table>
+          <thead><tr><th>Date</th><th>Type</th><th class="amount">Quantity</th><th>Destination</th><th>Vehicle</th><th>Haulier</th></tr></thead>
+          <tbody>${mvRows}</tbody>
+          <tfoot>
+            <tr class="tr-total">
+              <td colspan="2">Balance Remaining</td>
+              <td class="amount">${balance.toFixed(3)} t</td>
+              <td colspan="3"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="footer"><span>Lot Certificate: ${lotRef} — ${custName}</span><span>Produced by BDE Farm Trac · Red Tractor Scheme</span></div>
+    </body></html>`;
+    printHtml(html);
+  }
+
+  function printMovementCertificate(i: GrainIntake, m: GrainMovement) {
+    const custName = customers.find((c) => c.id === i.customerId)?.name ?? "—";
+    const lotRef = i.lotReference || `LOT-${String(i.id).padStart(5, "0")}`;
+    const mvTypeLabel = MOVEMENT_TYPES.find((t) => t.value === m.movementType)?.label ?? m.movementType;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Movement Certificate</title>${docStyles()}</head><body>
+      ${docHeader(farm)}
+      <div class="doc-title">${mvTypeLabel} Certificate</div>
+      <div class="grid-2" style="margin-bottom:20px">
+        <div>
+          <div class="lbl">Customer</div>
+          <div class="val" style="font-size:13px">${custName}</div>
+          <div style="margin-top:8px"><div class="lbl">Lot Reference</div>
+          <div style="font-weight:700;color:#2d5a27">${lotRef}</div></div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:22px;font-weight:700;color:#2d5a27">${m.movementDate}</div>
+          <div style="font-size:11px;color:#888">Movement Date</div>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th colspan="2">Movement Details</th></tr></thead>
+        <tbody>
+          <tr><td style="width:50%" class="lbl">Movement Type</td><td class="val">${mvTypeLabel}</td></tr>
+          <tr><td class="lbl">Commodity</td><td class="val">${i.commodity}${i.variety ? " — " + i.variety : ""}</td></tr>
+          <tr><td class="lbl">Quantity</td><td class="val" style="font-weight:700;font-size:14px">${parseFloat(m.quantityTonnes).toFixed(3)} t</td></tr>
+          ${m.destination ? `<tr><td class="lbl">Destination / Buyer</td><td class="val">${m.destination}</td></tr>` : ""}
+          ${m.vehicleReg ? `<tr><td class="lbl">Vehicle Registration</td><td class="val" style="font-family:monospace">${m.vehicleReg}</td></tr>` : ""}
+          ${m.haulier ? `<tr><td class="lbl">Haulier</td><td class="val">${m.haulier}</td></tr>` : ""}
+          ${m.deliveryNoteRef ? `<tr><td class="lbl">Delivery Note Ref</td><td class="val">${m.deliveryNoteRef}</td></tr>` : ""}
+          <tr><td class="lbl">Quantity on Original Intake</td><td class="val">${parseFloat(i.quantityTonnes).toFixed(3)} t</td></tr>
+          ${m.notes ? `<tr><td class="lbl">Notes</td><td class="val">${m.notes}</td></tr>` : ""}
+        </tbody>
+      </table>
+      <div class="highlight" style="margin-top:20px">
+        This document confirms the ${mvTypeLabel.toLowerCase()} of <strong>${parseFloat(m.quantityTonnes).toFixed(3)} tonnes</strong> of
+        <strong>${i.commodity}</strong> from lot <strong>${lotRef}</strong> belonging to <strong>${custName}</strong>
+        on <strong>${m.movementDate}</strong>.
+      </div>
+      <div class="footer"><span>Movement Certificate — ${lotRef} — ${m.movementDate}</span><span>Produced by BDE Farm Trac · Red Tractor Scheme</span></div>
+    </body></html>`;
+    printHtml(html);
+  }
+
+  function printStorageStatement() {
+    const activeIntakes = intakes.filter((i) => i.status !== "removed");
+    const byCustomer = customers.map((c) => ({
+      customer: c,
+      lots: activeIntakes.filter((i) => i.customerId === c.id),
+    })).filter((g) => g.lots.length > 0);
+    const totalInStoreAll = activeIntakes.reduce((s, i) => s + parseFloat(i.quantityTonnes), 0);
+    const custSections = byCustomer.map(({ customer: c, lots }) => {
+      const custTotal = lots.reduce((s, i) => s + parseFloat(i.quantityTonnes), 0);
+      const rows = lots.map((i) => {
+        const loc = storageLocs.find((l) => l.id === i.storageLocationId);
+        return `<tr>
+          <td>${i.lotReference || `LOT-${String(i.id).padStart(5, "0")}`}</td>
+          <td>${i.intakeDate}</td>
+          <td>${i.commodity}${i.variety ? " — " + i.variety : ""}</td>
+          <td class="amount">${parseFloat(i.quantityTonnes).toFixed(3)}</td>
+          <td>${loc ? loc.name : (i.bayOrBin || "—")}</td>
+          <td><span style="font-size:10px;padding:2px 6px;border-radius:9px;background:${i.status === "in_store" ? "#dcfce7" : "#fef9c3"};color:${i.status === "in_store" ? "#166534" : "#713f12"}">${GRAIN_STATUSES.find((s) => s.value === i.status)?.label ?? i.status}</span></td>
+        </tr>`;
+      }).join("");
+      return `<div style="margin-bottom:24px">
+        <h2 style="font-size:13px;font-weight:700;margin:0 0 4px;color:#1a1a1a">${c.name}</h2>
+        ${c.holdingNumber ? `<div style="font-size:11px;color:#888;margin-bottom:6px">CPH: ${c.holdingNumber}</div>` : ""}
+        <table>
+          <thead><tr>
+            <th>Lot Reference</th><th>Intake Date</th><th>Commodity</th>
+            <th class="amount">Quantity (t)</th><th>Location</th><th>Status</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr class="tr-total">
+              <td colspan="3">Total in Store — ${c.name}</td>
+              <td class="amount">${custTotal.toFixed(3)}</td>
+              <td colspan="2"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
+    }).join("");
+    const emptyNote = byCustomer.length === 0 ? `<p style="color:#888;font-style:italic;text-align:center;padding:24px">No third-party grain currently in store.</p>` : "";
+    const now = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Grain Storage Statement — ${now}</title>${docStyles()}</head><body>
+      ${docHeader(farm)}
+      <div class="doc-title">Grain Storage Statement</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px">
+        <div style="font-size:12px;color:#555">Statement date: <strong>${now}</strong></div>
+        <div style="font-size:16px;font-weight:700;color:#2d5a27">Total: ${totalInStoreAll.toFixed(3)} t</div>
+      </div>
+      ${custSections}${emptyNote}
+      <div class="footer"><span>Grain Storage Statement — ${farm?.name ?? ""} — ${now}</span><span>Produced by BDE Farm Trac · Red Tractor Scheme</span></div>
+    </body></html>`;
+    printHtml(html);
+  }
+
   const saveMut = useMutation({
     mutationFn: (body: Record<string, unknown>) => {
       const url = edit ? `/api/farms/${farmId}/grain-intakes/${edit.id}` : `/api/farms/${farmId}/grain-intakes`;
@@ -740,7 +1032,12 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
             <span className="font-medium text-foreground">{totalInStore.toFixed(1)}t</span> third-party grain currently in store
           </div>
         )}
-        <Button size="sm" className="gap-1.5 ml-auto" onClick={openAdd} disabled={customers.length === 0}><Plus className="h-4 w-4" /> Book In Grain</Button>
+        <div className="flex items-center gap-2 ml-auto">
+          {intakes.length > 0 && (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={printStorageStatement} title="Print grain storage statement"><Printer className="h-4 w-4" /> Storage Statement</Button>
+          )}
+          <Button size="sm" className="gap-1.5" onClick={openAdd} disabled={customers.length === 0}><Plus className="h-4 w-4" /> Book In Grain</Button>
+        </div>
       </div>
       {customers.length === 0 && <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">Add a customer first.</p>}
 
@@ -783,6 +1080,7 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
                           <Button variant="ghost" size="icon" title={isExp ? "Collapse" : "Movements"} onClick={() => setExpandedId(isExp ? null : i.id)} className="text-amber-600">
                             {isExp ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </Button>
+                          <Button variant="ghost" size="icon" title="Print lot certificate" onClick={() => printLotCertificate(i, isExp ? movements : [])}><Printer className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="icon" onClick={() => setViewRecord(i)}><Eye className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="icon" onClick={() => openEdit(i)}><Pencil className="h-4 w-4" /></Button>
                         </div>
@@ -809,7 +1107,8 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
                                 <span className="font-medium text-foreground">{parseFloat(m.quantityTonnes).toFixed(1)}t</span>
                                 {m.destination && <span><ArrowRight className="h-3 w-3 inline" /> {m.destination}</span>}
                                 {m.vehicleReg && <span className="font-mono">{m.vehicleReg}</span>}
-                                <button onClick={() => deleteMv.mutate({ intakeId: i.id, mvId: m.id })} className="ml-auto text-destructive hover:opacity-70"><Trash2 className="h-3.5 w-3.5" /></button>
+                                <button title="Print movement certificate" onClick={() => printMovementCertificate(i, m)} className="ml-auto text-muted-foreground hover:text-foreground"><Printer className="h-3.5 w-3.5" /></button>
+                                <button onClick={() => deleteMv.mutate({ intakeId: i.id, mvId: m.id })} className="text-destructive hover:opacity-70"><Trash2 className="h-3.5 w-3.5" /></button>
                               </div>
                             ))}
                           </div>
@@ -844,6 +1143,7 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium whitespace-pre-wrap">{String(viewRecord.notes ?? "—")}</p></div>
             </div>
             <DialogFooter>
+              <Button variant="outline" className="gap-1.5 mr-auto" onClick={() => printLotCertificate(viewRecord, expandedId === viewRecord.id ? movements : [])}><Printer className="h-4 w-4" /> Lot Certificate</Button>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
               <Button onClick={() => setViewRecord(null)}>Close</Button>
             </DialogFooter>
@@ -1120,6 +1420,65 @@ function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCus
   });
   const agreements = agreementsQ.data?.records ?? [];
 
+  const farmQ = useQuery<{ record: FarmRecord }>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+  const farm = farmQ.data?.record;
+
+  function printInvoice(inv: ServiceInvoice & { effectiveStatus: string }) {
+    const invLines = linesQ.data?.records ?? [];
+    const invNumber = inv.invoiceNumber || `INV-${String(inv.id).padStart(4, "0")}`;
+    const customer = customers.find((c) => c.id === inv.customerId);
+    const agr = agreements.find((a) => a.id === inv.agreementId);
+    const statusLabel = INVOICE_STATUSES.find((s) => s.value === inv.effectiveStatus)?.label ?? inv.effectiveStatus;
+    const lineRows = invLines.map((l) =>
+      `<tr>
+        <td>${l.description}</td>
+        <td class="amount">${l.quantity ? (l.quantity + " " + (l.unit ?? "")).trim() : "—"}</td>
+        <td class="amount">${fmtPence(l.unitPricePence)}</td>
+        <td class="amount">${fmtPence(l.lineTotalPence)}</td>
+      </tr>`
+    ).join("") || `<tr><td colspan="4" style="color:#888;font-style:italic">No line items</td></tr>`;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ${invNumber}</title>${docStyles()}</head><body>
+      ${docHeader(farm)}
+      <div class="doc-title">Invoice</div>
+      <div class="grid-2" style="margin-bottom:24px">
+        <div>
+          <div class="lbl">Invoice To</div>
+          <div class="val" style="font-size:14px">${customer?.name ?? "—"}</div>
+          ${customer?.address ? `<div style="font-size:11px;color:#555;margin-top:2px">${customer.address}</div>` : ""}
+          ${customer?.holdingNumber ? `<div style="font-size:11px;color:#555">CPH: ${customer.holdingNumber}</div>` : ""}
+          ${customer?.vatNumber ? `<div style="font-size:11px;color:#555">VAT No: ${customer.vatNumber}</div>` : ""}
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:20px;font-weight:700;color:#2d5a27;font-variant-numeric:tabular-nums">${invNumber}</div>
+          <div style="margin-top:8px"><div class="lbl">Invoice Date</div><div class="val">${inv.invoiceDate}</div></div>
+          ${inv.dueDate ? `<div style="margin-top:4px"><div class="lbl">Due Date</div><div class="val">${inv.dueDate}</div></div>` : ""}
+          <div style="margin-top:6px"><span class="badge">${statusLabel}</span></div>
+          ${agr ? `<div style="margin-top:6px;font-size:11px;color:#555">Agreement: ${agr.title}</div>` : ""}
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Description</th><th class="amount">Qty</th><th class="amount">Unit Price</th><th class="amount">Total</th></tr></thead>
+        <tbody>${lineRows}</tbody>
+        <tfoot>
+          <tr><td colspan="3" class="amount" style="color:#888;padding-top:10px">Subtotal</td><td class="amount">${fmtPence(inv.subtotalPence)}</td></tr>
+          <tr><td colspan="3" class="amount" style="color:#888">VAT (${inv.vatRatePercent}%)</td><td class="amount">${fmtPence(inv.vatPence)}</td></tr>
+          <tr class="tr-total"><td colspan="3" class="amount">Total Due</td><td class="amount" style="font-size:15px">${fmtPence(inv.totalPence)}</td></tr>
+          ${inv.paymentDate ? `<tr><td colspan="3" class="amount" style="color:#888;font-size:11px">Paid ${inv.paymentDate}${inv.paymentMethod ? " via " + inv.paymentMethod : ""}${inv.paymentReference ? " (Ref: " + inv.paymentReference + ")" : ""}</td><td class="amount" style="color:#2d5a27;font-weight:700">✓ Settled</td></tr>` : ""}
+        </tfoot>
+      </table>
+      ${inv.notes ? `<p style="margin-top:16px;color:#555;font-size:11px"><strong>Notes:</strong> ${inv.notes}</p>` : ""}
+      <div class="footer">
+        <span>Invoice ${invNumber} — ${customer?.name ?? ""}</span>
+        <span>Produced by BDE Farm Trac · Barnett Davies Enterprises Ltd</span>
+      </div>
+    </body></html>`;
+    printHtml(html);
+  }
+
   const saveMut = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       fetch(`/api/farms/${farmId}/service-invoices`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then((r) => r.json()),
@@ -1276,7 +1635,10 @@ function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCus
                   </table>
                 )}
               </div>
-              <DialogFooter><Button variant="outline" onClick={() => setViewId(null)}>Close</Button></DialogFooter>
+              <DialogFooter>
+                {(() => { const inv = invoicesWithStatus.find((i) => i.id === viewId); return inv ? <Button variant="outline" className="gap-1.5 mr-auto" onClick={() => printInvoice(inv)}><Printer className="h-4 w-4" /> Print Invoice</Button> : null; })()}
+                <Button variant="outline" onClick={() => setViewId(null)}>Close</Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         );
