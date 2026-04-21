@@ -1438,12 +1438,12 @@ function WorkOrdersTab({ farmId }: { farmId: number }) {
   });
   const allOrders = workOrdersQ.data?.records ?? [];
 
-  const membersQ = useQuery<{ records: FarmMember[] }>({
+  const membersQ = useQuery<{ members: FarmMember[] }>({
     queryKey: ["farm-members", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/members`, { credentials: "include" }).then((r) => r.json()),
     enabled: !!farmId,
   });
-  const members = membersQ.data?.records ?? [];
+  const members = membersQ.data?.members ?? [];
 
   const orders = filter === "open"
     ? allOrders.filter((w) => w.status !== "completed" && w.status !== "cancelled")
@@ -1704,12 +1704,12 @@ function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCus
   const [woEnabled, setWoEnabled] = useState(false);
   const [woForm, setWoForm] = useState(emptyWoForm());
 
-  const membersQ = useQuery<{ records: FarmMember[] }>({
+  const membersQ = useQuery<{ members: FarmMember[] }>({
     queryKey: ["farm-members", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/members`, { credentials: "include" }).then((r) => r.json()),
     enabled: !!farmId,
   });
-  const members = membersQ.data?.records ?? [];
+  const members = membersQ.data?.members ?? [];
 
   const invoicesQ = useQuery<{ records: ServiceInvoice[] }>({
     queryKey: ["service-invoices", farmId],
