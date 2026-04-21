@@ -2128,6 +2128,9 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [form, setForm] = useState<InvoiceForm>(emptyInvoiceForm());
   const [useDirectory, setUseDirectory] = useState(true);
+  // Assign loads modal
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [selectedLoadIds, setSelectedLoadIds] = useState<Set<number>>(new Set());
 
   const invQ = useQuery({
     queryKey: ["haulier-invoices", farmId],
@@ -2145,6 +2148,12 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
     queryKey: ["haulier-invoice-loads", farmId, expandedId],
     queryFn: () => fetch(`/api/farms/${farmId}/haulier-invoices/${expandedId}/loads`).then(r => r.json()),
     enabled: !!expandedId,
+    select: d => d.loads ?? [],
+  });
+  const eligibleLoadsQ = useQuery({
+    queryKey: ["haulier-invoice-eligible-loads", farmId, expandedId],
+    queryFn: () => fetch(`/api/farms/${farmId}/haulier-invoices/${expandedId}/eligible-loads`).then(r => r.json()),
+    enabled: !!expandedId && assignOpen,
     select: d => d.loads ?? [],
   });
 
@@ -2169,6 +2178,33 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
       setDeleteTarget(null);
     },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const assignMut = useMutation({
+    mutationFn: ({ invId, loadIds }: { invId: number; loadIds: number[] }) =>
+      fetch(`/api/farms/${farmId}/haulier-invoices/${invId}/assign-loads`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ loadIds }),
+      }).then(r => r.json()),
+    onSuccess: (_, { loadIds }) => {
+      toast({ title: `${loadIds.length} load${loadIds.length !== 1 ? "s" : ""} assigned to invoice` });
+      qc.invalidateQueries({ queryKey: ["haulier-invoice-loads", farmId, expandedId] });
+      qc.invalidateQueries({ queryKey: ["haulier-invoice-eligible-loads", farmId, expandedId] });
+      setAssignOpen(false); setSelectedLoadIds(new Set());
+    },
+    onError: () => toast({ title: "Failed to assign loads", variant: "destructive" }),
+  });
+
+  const unassignMut = useMutation({
+    mutationFn: ({ invId, loadIds }: { invId: number; loadIds: number[] }) =>
+      fetch(`/api/farms/${farmId}/haulier-invoices/${invId}/unassign-loads`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ loadIds }),
+      }).then(r => r.json()),
+    onSuccess: () => {
+      toast({ title: "Load removed from invoice" });
+      qc.invalidateQueries({ queryKey: ["haulier-invoice-loads", farmId, expandedId] });
+      qc.invalidateQueries({ queryKey: ["haulier-invoice-eligible-loads", farmId, expandedId] });
+    },
+    onError: () => toast({ title: "Failed to remove load", variant: "destructive" }),
   });
 
   const invoices: any[] = invQ.data ?? [];
@@ -2265,17 +2301,17 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
 
                 {isExpanded && (
                   <div style={{ borderTop: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 16px" }}>
+                    {/* ── Matched loads ── */}
                     {loadsQ.isLoading ? (
                       <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>Loading loads…</p>
                     ) : (loadsQ.data ?? []).length === 0 ? (
-                      <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>
-                        No loads have been tagged with invoice reference <strong>{inv.invoiceNumber}</strong> yet.
-                        Set the "Invoice Ref" field on individual dispatch records to link them here.
+                      <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 10 }}>
+                        No dispatch records linked to this invoice yet.
                       </p>
                     ) : (
-                      <div>
+                      <div style={{ marginBottom: 12 }}>
                         <p style={{ fontSize: "0.75rem", color: "#374151", fontWeight: 600, marginBottom: 6 }}>
-                          {(loadsQ.data ?? []).length} load{(loadsQ.data ?? []).length !== 1 ? "s" : ""} matched to this invoice
+                          {(loadsQ.data ?? []).length} load{(loadsQ.data ?? []).length !== 1 ? "s" : ""} linked to this invoice
                         </p>
                         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
                           <thead>
@@ -2285,6 +2321,7 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
                               <th style={{ textAlign: "left", padding: "3px 8px" }}>Destination</th>
                               <th style={{ textAlign: "right", padding: "3px 8px" }}>Weight (t)</th>
                               <th style={{ textAlign: "right", padding: "3px 8px" }}>Cost</th>
+                              <th style={{ width: 28 }} />
                             </tr>
                           </thead>
                           <tbody>
@@ -2295,23 +2332,60 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
                                 <td style={{ padding: "4px 8px" }}>{load.destination || "—"}</td>
                                 <td style={{ padding: "4px 8px", textAlign: "right" }}>{load.weightTonnes ? parseFloat(load.weightTonnes).toFixed(2) : "—"}</td>
                                 <td style={{ padding: "4px 8px", textAlign: "right" }}>{fmtGBP(load.costPence)}</td>
+                                <td style={{ padding: "4px 4px", textAlign: "center" }}>
+                                  <button
+                                    title="Remove from invoice"
+                                    onClick={() => unassignMut.mutate({ invId: inv.id, loadIds: [load.id] })}
+                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", lineHeight: 1 }}
+                                  >×</button>
+                                </td>
                               </tr>
                             ))}
                           </tbody>
                           <tfoot>
                             <tr style={{ borderTop: "2px solid #e5e7eb", fontWeight: 600 }}>
-                              <td colSpan={3} style={{ padding: "4px 8px" }}>Total matched</td>
+                              <td colSpan={3} style={{ padding: "4px 8px" }}>Total linked</td>
                               <td style={{ padding: "4px 8px", textAlign: "right" }}>
                                 {(loadsQ.data ?? []).reduce((s: number, l: any) => s + parseFloat(l.weightTonnes ?? "0"), 0).toFixed(2)} t
                               </td>
                               <td style={{ padding: "4px 8px", textAlign: "right" }}>
                                 {fmtGBP((loadsQ.data ?? []).reduce((s: number, l: any) => s + (l.costPence ?? 0), 0))}
                               </td>
+                              <td />
                             </tr>
+                            {/* Variance row — compare matched cost vs invoice gross */}
+                            {inv.amountGrossPence != null && (
+                              <tr style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+                                <td colSpan={4} style={{ padding: "2px 8px" }}>Invoice gross</td>
+                                <td style={{ padding: "2px 8px", textAlign: "right" }}>{fmtGBP(inv.amountGrossPence)}</td>
+                                <td />
+                              </tr>
+                            )}
+                            {inv.amountGrossPence != null && (() => {
+                              const matched = (loadsQ.data ?? []).reduce((s: number, l: any) => s + (l.costPence ?? 0), 0);
+                              const diff = matched - inv.amountGrossPence;
+                              if (diff === 0) return null;
+                              return (
+                                <tr style={{ fontSize: "0.75rem", color: diff > 0 ? "#b45309" : "#dc2626" }}>
+                                  <td colSpan={4} style={{ padding: "2px 8px" }}>Variance</td>
+                                  <td style={{ padding: "2px 8px", textAlign: "right" }}>{diff > 0 ? "+" : ""}{fmtGBP(Math.abs(diff))}{diff > 0 ? " over" : " under"}</td>
+                                  <td />
+                                </tr>
+                              );
+                            })()}
                           </tfoot>
                         </table>
                       </div>
                     )}
+                    {/* ── Assign unlinked loads ── */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: (loadsQ.data ?? []).length > 0 ? 8 : 0, borderTop: (loadsQ.data ?? []).length > 0 ? "1px dashed #e5e7eb" : "none" }}>
+                      <Button size="sm" variant="outline" onClick={() => { setAssignOpen(true); }}>
+                        <Plus size={13} className="mr-1" />Find loads to assign
+                      </Button>
+                      <p style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                        {inv.haulierId || inv.haulierName ? "Shows dispatch records from this haulier not yet linked to any invoice." : "Set the Invoice Ref on individual dispatch records to link them manually."}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2432,6 +2506,125 @@ function HaulierInvoicesTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Assign Loads Modal ── */}
+      {expandedId && (() => {
+        const inv = invoices.find((i: any) => i.id === expandedId);
+        if (!inv) return null;
+        const eligible: any[] = eligibleLoadsQ.data ?? [];
+        const allSelected = eligible.length > 0 && eligible.every((l: any) => selectedLoadIds.has(l.id));
+        return (
+          <Dialog open={assignOpen} onOpenChange={o => { if (!o) { setAssignOpen(false); setSelectedLoadIds(new Set()); } }}>
+            <DialogContent style={{ maxWidth: 680, maxHeight: "85vh", overflowY: "auto" }}>
+              <DialogHeader>
+                <DialogTitle>Assign dispatch loads — {inv.invoiceNumber}</DialogTitle>
+              </DialogHeader>
+              <p style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                Showing unlinked dispatch records from {inv.haulierName || (hauliers.find((h: any) => h.id === inv.haulierId)?.companyName) || "this haulier"}
+                {(inv.periodFrom || inv.periodTo) ? ` between ${inv.periodFrom ?? "?"} and ${inv.periodTo ?? "?"}` : ""}.
+                Tick the loads covered by this invoice, then click Assign.
+              </p>
+              {eligibleLoadsQ.isLoading ? (
+                <p style={{ fontSize: "0.85rem", color: "#6b7280", padding: "1rem 0" }}>Searching for loads…</p>
+              ) : eligible.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "2rem", color: "#9ca3af" }}>
+                  <p style={{ fontWeight: 600, color: "#374151" }}>No unlinked loads found</p>
+                  <p style={{ fontSize: "0.8rem", marginTop: 4 }}>
+                    {inv.haulierId || inv.haulierName
+                      ? "All loads from this haulier in the billing period are already linked to an invoice."
+                      : "Add a haulier to this invoice to find matching dispatch records automatically."}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  {/* Select all toggle */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid #e5e7eb", marginBottom: 6 }}>
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={() => {
+                        if (allSelected) setSelectedLoadIds(new Set());
+                        else setSelectedLoadIds(new Set(eligible.map((l: any) => l.id)));
+                      }}
+                      style={{ accentColor: "#1a6b3a", width: 15, height: 15 }}
+                    />
+                    <span style={{ fontSize: "0.8rem", color: "#374151", fontWeight: 600 }}>
+                      Select all ({eligible.length} load{eligible.length !== 1 ? "s" : ""})
+                    </span>
+                    {selectedLoadIds.size > 0 && (
+                      <span style={{ marginLeft: "auto", fontSize: "0.75rem", background: "#dcfce7", color: "#166534", padding: "1px 8px", borderRadius: 10, fontWeight: 600 }}>
+                        {selectedLoadIds.size} selected
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "grid", gap: 4 }}>
+                    {eligible.map((load: any) => {
+                      const checked = selectedLoadIds.has(load.id);
+                      return (
+                        <label
+                          key={load.id}
+                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", background: checked ? "#f0fdf4" : "#fff", border: `1px solid ${checked ? "#86efac" : "#e5e7eb"}`, borderRadius: 8, cursor: "pointer" }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setSelectedLoadIds(prev => {
+                              const next = new Set(prev);
+                              if (next.has(load.id)) next.delete(load.id); else next.add(load.id);
+                              return next;
+                            })}
+                            style={{ accentColor: "#1a6b3a", width: 15, height: 15, flexShrink: 0 }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", gap: 10, fontSize: "0.82rem", fontWeight: 500, color: "#111827" }}>
+                              <span>{load.departureDate?.slice(0, 10) ?? "—"}</span>
+                              <span>{load.commodity || load.loadType || "—"}</span>
+                              {load.destination && <span style={{ color: "#6b7280" }}>→ {load.destination}</span>}
+                            </div>
+                            <div style={{ display: "flex", gap: 10, fontSize: "0.75rem", color: "#6b7280", marginTop: 1 }}>
+                              {load.weightTonnes && <span>{parseFloat(load.weightTonnes).toFixed(2)} t</span>}
+                              {load.costPence != null && <span>{fmtGBP(load.costPence)}</span>}
+                              {load.waybillNumber && <span>Waybill {load.waybillNumber}</span>}
+                              {load.invoiceRef && <span style={{ color: "#b45309" }}>Currently on: {load.invoiceRef}</span>}
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {/* Selected totals */}
+                  {selectedLoadIds.size > 0 && (() => {
+                    const sel = eligible.filter((l: any) => selectedLoadIds.has(l.id));
+                    const totalT = sel.reduce((s: number, l: any) => s + parseFloat(l.weightTonnes ?? "0"), 0);
+                    const totalCost = sel.reduce((s: number, l: any) => s + (l.costPence ?? 0), 0);
+                    return (
+                      <div style={{ display: "flex", gap: 16, padding: "8px 10px", marginTop: 8, background: "#f9fafb", borderRadius: 8, fontSize: "0.8rem", color: "#374151" }}>
+                        <span><strong>{selectedLoadIds.size}</strong> loads selected</span>
+                        <span><strong>{totalT.toFixed(2)} t</strong></span>
+                        <span><strong>{fmtGBP(totalCost)}</strong></span>
+                        {inv.amountGrossPence != null && totalCost !== inv.amountGrossPence && (
+                          <span style={{ marginLeft: "auto", color: totalCost > inv.amountGrossPence ? "#b45309" : "#6b7280" }}>
+                            vs invoice {fmtGBP(inv.amountGrossPence)} ({totalCost > inv.amountGrossPence ? "+" : ""}{fmtGBP(Math.abs(totalCost - inv.amountGrossPence))} {totalCost > inv.amountGrossPence ? "over" : "under"})
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setAssignOpen(false); setSelectedLoadIds(new Set()); }}>Cancel</Button>
+                <Button
+                  onClick={() => assignMut.mutate({ invId: inv.id, loadIds: Array.from(selectedLoadIds) })}
+                  disabled={selectedLoadIds.size === 0 || assignMut.isPending}
+                >
+                  {assignMut.isPending ? "Assigning…" : `Assign ${selectedLoadIds.size > 0 ? selectedLoadIds.size + " load" + (selectedLoadIds.size !== 1 ? "s" : "") : "loads"} to invoice`}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }

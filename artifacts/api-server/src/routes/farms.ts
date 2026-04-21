@@ -5478,6 +5478,86 @@ router.get("/farms/:farmId/haulier-invoices/:recordId/loads", requireAuth, requi
   res.json({ loads });
 });
 
+// Returns unlinked haulage records from the same haulier that could belong to this invoice.
+// Matches by haulierId (FK) or haulierCompany name, filtered by invoice billing period if set.
+// Excludes records already linked to THIS invoice; includes records with no invoiceRef or a different one.
+router.get("/farms/:farmId/haulier-invoices/:recordId/eligible-loads", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [inv] = await db.select().from(haulierInvoicesTable).where(and(eq(haulierInvoicesTable.id, recordId), eq(haulierInvoicesTable.farmId, farmId)));
+  if (!inv) { res.status(404).json({ error: "Invoice not found" }); return; }
+
+  // Build haulier match condition
+  const haulierCondition = inv.haulierId
+    ? eq(haulageRecordsTable.haulierRegisteredId, inv.haulierId)
+    : inv.haulierName
+      ? sql`lower(${haulageRecordsTable.haulierCompany}) = lower(${inv.haulierName})`
+      : sql`false`;
+
+  // Exclude loads already linked to this invoice
+  const notLinkedCondition = or(
+    isNull(haulageRecordsTable.invoiceRef),
+    ne(haulageRecordsTable.invoiceRef, inv.invoiceNumber)
+  )!;
+
+  // Date range filter (if invoice has a billing period set)
+  const conditions: any[] = [
+    eq(haulageRecordsTable.farmId, farmId),
+    haulierCondition,
+    notLinkedCondition,
+  ];
+  if (inv.periodFrom) {
+    conditions.push(gte(haulageRecordsTable.departureDate, new Date(inv.periodFrom)));
+  }
+  if (inv.periodTo) {
+    // Include the entire periodTo day
+    const toDate = new Date(inv.periodTo);
+    toDate.setDate(toDate.getDate() + 1);
+    conditions.push(lt(haulageRecordsTable.departureDate, toDate));
+  }
+
+  const loads = await db.select().from(haulageRecordsTable)
+    .where(and(...conditions))
+    .orderBy(desc(haulageRecordsTable.departureDate));
+  res.json({ loads });
+});
+
+// Bulk-assigns haulage records to an invoice by setting their invoiceRef to the invoice number.
+router.post("/farms/:farmId/haulier-invoices/:recordId/assign-loads", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [inv] = await db.select().from(haulierInvoicesTable).where(and(eq(haulierInvoicesTable.id, recordId), eq(haulierInvoicesTable.farmId, farmId)));
+  if (!inv) { res.status(404).json({ error: "Invoice not found" }); return; }
+  const { loadIds } = req.body;
+  if (!Array.isArray(loadIds) || loadIds.length === 0) { res.status(400).json({ error: "loadIds array required" }); return; }
+  const ids = loadIds.map((id: any) => parseInt(id)).filter(Boolean);
+  await db.update(haulageRecordsTable)
+    .set({ invoiceRef: inv.invoiceNumber })
+    .where(and(eq(haulageRecordsTable.farmId, farmId), inArray(haulageRecordsTable.id, ids)));
+  res.json({ assigned: ids.length });
+});
+
+// Removes the invoiceRef link from haulage records (unlinks them from an invoice).
+router.post("/farms/:farmId/haulier-invoices/:recordId/unassign-loads", requireAuth, requireTenant, requireModuleByKey("haulage-transport", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [inv] = await db.select().from(haulierInvoicesTable).where(and(eq(haulierInvoicesTable.id, recordId), eq(haulierInvoicesTable.farmId, farmId)));
+  if (!inv) { res.status(404).json({ error: "Invoice not found" }); return; }
+  const { loadIds } = req.body;
+  if (!Array.isArray(loadIds) || loadIds.length === 0) { res.status(400).json({ error: "loadIds array required" }); return; }
+  const ids = loadIds.map((id: any) => parseInt(id)).filter(Boolean);
+  await db.update(haulageRecordsTable)
+    .set({ invoiceRef: null })
+    .where(and(eq(haulageRecordsTable.farmId, farmId), inArray(haulageRecordsTable.id, ids), eq(haulageRecordsTable.invoiceRef, inv.invoiceNumber)));
+  res.json({ unassigned: ids.length });
+});
+
 router.put("/farms/:farmId/stock-items/:recordId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
