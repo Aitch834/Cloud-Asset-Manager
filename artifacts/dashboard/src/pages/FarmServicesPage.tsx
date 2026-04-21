@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users, FileText, Wheat, Receipt, Plus, Pencil, Trash2, CheckCircle, XCircle,
   ChevronDown, ChevronUp, Building2, Phone, Mail, MapPin, Loader2,
-  ClipboardList, TrendingUp, Package, AlertTriangle, Calendar, ArrowRight, Eye,
+  ClipboardList, TrendingUp, Package, AlertTriangle, Calendar, ArrowRight, Eye, RefreshCw,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -287,6 +287,7 @@ function AgreementsTab({ farmId, customers }: { farmId: number; customers: FarmC
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<ServiceAgreement | null>(null);
   const [edit, setEdit] = useState<ServiceAgreement | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   const emptyForm = () => ({
     customerId: "", agreementType: "grain_storage", title: "", referenceNumber: "",
@@ -335,6 +336,24 @@ function AgreementsTab({ farmId, customers }: { farmId: number; customers: FarmC
     setOpen(true);
   }
 
+  // Renew: open a new-agreement form pre-filled with the previous agreement's terms,
+  // but with blank dates and status reset to "active". Reference is cleared so the
+  // user assigns a fresh number. The original agreement stays on record as the audit trail.
+  function openRenew(a: ServiceAgreement) {
+    setEdit(null);
+    setForm({
+      customerId: String(a.customerId), agreementType: a.agreementType, title: a.title,
+      referenceNumber: "", startDate: "", endDate: "",
+      status: "active", areaHa: a.areaHa ?? "", annualRentPence: a.annualRentPence != null ? String(a.annualRentPence / 100) : "",
+      paymentFrequency: a.paymentFrequency ?? "annual", nextPaymentDate: "",
+      maxTonnesContracted: a.maxTonnesContracted ?? "", storageRatePptWeek: a.storageRatePptWeek ?? "",
+      intakeChargePpt: a.intakeChargePpt ?? "", outloadingChargePpt: a.outloadingChargePpt ?? "",
+      dryingChargePpt: a.dryingChargePpt ?? "", dayRatePence: a.dayRatePence != null ? String(a.dayRatePence / 100) : "",
+      notes: a.notes ?? "",
+    });
+    setOpen(true);
+  }
+
   function handleSave() {
     const isLandRental = form.agreementType === "land_rental";
     const isStorage = ["grain_storage", "drying_service"].includes(form.agreementType);
@@ -363,53 +382,93 @@ function AgreementsTab({ farmId, customers }: { farmId: number; customers: FarmC
   const isStorage = ["grain_storage", "drying_service"].includes(form.agreementType);
   const isContracting = ["contract_farming", "machinery_hire", "haulage"].includes(form.agreementType);
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const activeAgreements = agreements.filter((a) => a.status === "active");
+  const historicAgreements = agreements.filter((a) => a.status !== "active");
+  const visibleAgreements = showHistory ? agreements : activeAgreements;
+
+  function expiryInfo(a: ServiceAgreement): { daysUntil: number; label: string; colour: string } | null {
+    if (!a.endDate || a.status !== "active") return null;
+    const daysUntil = Math.round((new Date(a.endDate + "T00:00:00Z").getTime() - new Date(todayStr + "T00:00:00Z").getTime()) / (24 * 60 * 60 * 1000));
+    if (daysUntil > 30) return null;
+    if (daysUntil < 0) return { daysUntil, label: "Expired", colour: "text-red-600 bg-red-50 border-red-200" };
+    if (daysUntil <= 7) return { daysUntil, label: `Expires in ${daysUntil}d`, colour: "text-red-600 bg-red-50 border-red-200" };
+    return { daysUntil, label: `Expires in ${daysUntil}d`, colour: "text-amber-700 bg-amber-50 border-amber-200" };
+  }
+
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          {historicAgreements.length > 0 && (
+            <button
+              onClick={() => setShowHistory((v) => !v)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${showHistory ? "bg-muted border-border text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            >
+              {showHistory ? "Hide history" : `Show history (${historicAgreements.length} ended)`}
+            </button>
+          )}
+        </div>
         <Button size="sm" onClick={openAdd} className="gap-1.5" disabled={customers.length === 0}><Plus className="h-4 w-4" /> New Agreement</Button>
       </div>
       {customers.length === 0 && <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">Add a customer first before creating agreements.</p>}
 
       {agreementsQ.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
-      {!agreementsQ.isLoading && agreements.length === 0 && (
+      {!agreementsQ.isLoading && activeAgreements.length === 0 && !showHistory && (
         <div className="border rounded-xl p-10 text-center text-muted-foreground">
           <FileText className="h-10 w-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No service agreements yet — land rentals, storage contracts, drying services and contract farming.</p>
+          <p className="text-sm">{historicAgreements.length > 0 ? "No active agreements — use the history toggle to view past ones." : "No service agreements yet — land rentals, storage contracts, drying services and contract farming."}</p>
         </div>
       )}
 
-      {agreements.length > 0 && (
+      {visibleAgreements.length > 0 && (
         <div className="space-y-2">
-          {agreements.map((a) => (
-            <div key={a.id} className="border rounded-xl p-4 hover:bg-muted/20">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium">{a.title}</span>
-                    {statusBadge(a.status, AGREEMENT_STATUS)}
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{agreementTypeLabel(a.agreementType)}</span>
+          {showHistory && historicAgreements.length > 0 && (
+            <p className="text-xs text-muted-foreground px-1 pb-1 border-b">Showing {activeAgreements.length} active + {historicAgreements.length} historic agreement{historicAgreements.length !== 1 ? "s" : ""}</p>
+          )}
+          {visibleAgreements.map((a) => {
+            const expiry = expiryInfo(a);
+            const isHistoric = a.status !== "active";
+            return (
+              <div key={a.id} className={`border rounded-xl p-4 hover:bg-muted/20 ${isHistoric ? "opacity-60" : ""}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`font-medium ${isHistoric ? "text-muted-foreground" : ""}`}>{a.title}</span>
+                      {statusBadge(a.status, AGREEMENT_STATUS)}
+                      <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{agreementTypeLabel(a.agreementType)}</span>
+                      {expiry && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${expiry.colour}`}>{expiry.label}</span>
+                      )}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                      <Building2 className="h-3.5 w-3.5" />{customerName(a.customerId)}
+                      {a.referenceNumber && <span className="ml-2 font-mono text-xs">{a.referenceNumber}</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted-foreground">
+                      {a.startDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{a.startDate}{a.endDate ? ` → ${a.endDate}` : ""}</span>}
+                      {a.annualRentPence && <span className="font-medium text-foreground">{fmtPence(a.annualRentPence)}/year rent</span>}
+                      {a.maxTonnesContracted && <span>{a.maxTonnesContracted}t contracted</span>}
+                      {a.storageRatePptWeek && <span>Storage £{parseFloat(a.storageRatePptWeek).toFixed(4)}/t/wk</span>}
+                      {a.dayRatePence && <span>{fmtPence(a.dayRatePence)}/day</span>}
+                      {a.areaHa && <span>{a.areaHa} ha</span>}
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-                    <Building2 className="h-3.5 w-3.5" />{customerName(a.customerId)}
-                    {a.referenceNumber && <span className="ml-2 font-mono text-xs">{a.referenceNumber}</span>}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" onClick={() => setViewRecord(a)}><Eye className="h-4 w-4" /></Button>
+                    {isHistoric ? (
+                      <Button variant="ghost" size="sm" className="text-xs gap-1 h-8 px-2 text-green-700 hover:text-green-800 hover:bg-green-50" onClick={() => openRenew(a)} title="Create a new agreement based on this one">
+                        <RefreshCw className="h-3.5 w-3.5" /> Renew
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(a)} title="Edit / extend agreement"><Pencil className="h-4 w-4" /></Button>
+                    )}
+                    <Button variant="ghost" size="icon" onClick={() => deleteMut.mutate(a.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </div>
-                  <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted-foreground">
-                    {a.startDate && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{a.startDate}{a.endDate ? ` → ${a.endDate}` : ""}</span>}
-                    {a.annualRentPence && <span className="font-medium text-foreground">{fmtPence(a.annualRentPence)}/year rent</span>}
-                    {a.maxTonnesContracted && <span>{a.maxTonnesContracted}t contracted</span>}
-                    {a.storageRatePptWeek && <span>Storage £{parseFloat(a.storageRatePptWeek).toFixed(4)}/t/wk</span>}
-                    {a.dayRatePence && <span>{fmtPence(a.dayRatePence)}/day</span>}
-                    {a.areaHa && <span>{a.areaHa} ha</span>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" onClick={() => setViewRecord(a)}><Eye className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(a)}><Pencil className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => deleteMut.mutate(a.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
