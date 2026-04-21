@@ -954,12 +954,28 @@ function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCus
   const vatAmount = Math.round(subtotal * parseFloat(form.vatRatePercent || "20") / 100);
   const total = subtotal + vatAmount;
 
-  const totalOutstanding = invoices.filter((i) => i.status !== "paid" && i.status !== "cancelled").reduce((s, i) => s + i.totalPence, 0);
+  const today = new Date().toISOString().slice(0, 10);
+  // Compute effective status client-side — catches "sent" invoices whose dueDate has passed
+  const invoicesWithStatus = invoices.map((inv) => ({
+    ...inv,
+    effectiveStatus: (inv.status === "sent" && inv.dueDate && inv.dueDate < today) ? "overdue" : inv.status,
+  }));
+  const totalOutstanding = invoicesWithStatus.filter((i) => i.effectiveStatus !== "paid" && i.effectiveStatus !== "cancelled").reduce((s, i) => s + i.totalPence, 0);
+  const overdueInvoices = invoicesWithStatus.filter((i) => i.effectiveStatus === "overdue");
+  const overdueTotal = overdueInvoices.reduce((s, i) => s + i.totalPence, 0);
 
   return (
     <div className="space-y-3">
+      {overdueInvoices.length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-800">{overdueInvoices.length} overdue invoice{overdueInvoices.length !== 1 ? "s" : ""} — {fmtPence(overdueTotal)} outstanding</p>
+            <p className="text-xs text-red-600 mt-0.5">Payment is past the due date. Chase customers or mark as paid once received.</p>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
-        {invoices.length > 0 && totalOutstanding > 0 && (
+        {invoicesWithStatus.length > 0 && totalOutstanding > 0 && overdueInvoices.length === 0 && (
           <div className="text-sm text-muted-foreground">
             Outstanding: <span className="font-semibold text-amber-700">{fmtPence(totalOutstanding)}</span>
           </div>
@@ -968,14 +984,14 @@ function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCus
       </div>
 
       {invoicesQ.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
-      {!invoicesQ.isLoading && invoices.length === 0 && (
+      {!invoicesQ.isLoading && invoicesWithStatus.length === 0 && (
         <div className="border rounded-xl p-10 text-center text-muted-foreground">
           <Receipt className="h-10 w-10 mx-auto mb-3 opacity-30" />
           <p className="text-sm">No invoices yet — raise invoices to customers for storage, drying, land rent or contract work.</p>
         </div>
       )}
 
-      {invoices.length > 0 && (
+      {invoicesWithStatus.length > 0 && (
         <div className="border rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
@@ -989,19 +1005,21 @@ function InvoicesTab({ farmId, customers }: { farmId: number; customers: FarmCus
               </tr>
             </thead>
             <tbody className="divide-y">
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="hover:bg-muted/30">
+              {invoicesWithStatus.map((inv) => (
+                <tr key={inv.id} className={`hover:bg-muted/30 ${inv.effectiveStatus === "overdue" ? "bg-red-50" : ""}`}>
                   <td className="px-4 py-3 font-mono text-xs">{inv.invoiceNumber || `INV-${String(inv.id).padStart(4, "0")}`}</td>
                   <td className="px-4 py-3 font-medium">{customerName(inv.customerId)}</td>
-                  <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{inv.invoiceDate}{inv.dueDate ? ` · due ${inv.dueDate}` : ""}</td>
+                  <td className={`px-4 py-3 hidden md:table-cell ${inv.effectiveStatus === "overdue" ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
+                    {inv.invoiceDate}{inv.dueDate ? ` · due ${inv.dueDate}${inv.effectiveStatus === "overdue" ? " ⚠" : ""}` : ""}
+                  </td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums">{fmtPence(inv.totalPence)}</td>
-                  <td className="px-4 py-3">{statusBadge(inv.status, INVOICE_STATUSES)}</td>
+                  <td className="px-4 py-3">{statusBadge(inv.effectiveStatus, INVOICE_STATUSES)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 justify-end">
                       <Button variant="ghost" size="icon" title="View lines" onClick={() => setViewId(inv.id)}><FileText className="h-4 w-4" /></Button>
-                      {inv.status !== "paid" && (
+                      {inv.effectiveStatus !== "paid" && inv.effectiveStatus !== "cancelled" && (
                         <Button variant="ghost" size="icon" title="Mark paid" onClick={() => markPaid.mutate({ id: inv.id, paymentDate: new Date().toISOString().slice(0, 10) })}>
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <CheckCircle className={`h-4 w-4 ${inv.effectiveStatus === "overdue" ? "text-red-500" : "text-green-600"}`} />
                         </Button>
                       )}
                       <Button variant="ghost" size="icon" onClick={() => deleteMut.mutate(inv.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>

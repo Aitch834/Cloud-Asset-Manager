@@ -11095,6 +11095,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     feedStockStatusRows,
     vetFollowUpRows,
     dispatchPlanRows,
+    serviceInvoiceRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -11315,6 +11316,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     db.select({ id: dispatchPlansTable.id, planRef: dispatchPlansTable.planRef, title: dispatchPlansTable.title, loadType: dispatchPlansTable.loadType, commodity: dispatchPlansTable.commodity, destination: dispatchPlansTable.destination, haulierName: dispatchPlansTable.haulierName, haulierId: dispatchPlansTable.haulierId, plannedDate: dispatchPlansTable.plannedDate, estimatedLoads: dispatchPlansTable.estimatedLoads, status: dispatchPlansTable.status })
       .from(dispatchPlansTable)
       .where(and(eq(dispatchPlansTable.farmId, farmId), inArray(dispatchPlansTable.status, ["confirmed", "in_progress"]), gte(dispatchPlansTable.plannedDate, overdueStart.toISOString().split("T")[0]), lt(dispatchPlansTable.plannedDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Farm Services invoices: sent/overdue invoices with due dates in range ──
+    db.select({ id: serviceInvoicesTable.id, invoiceNumber: serviceInvoicesTable.invoiceNumber, customerId: serviceInvoicesTable.customerId, dueDate: serviceInvoicesTable.dueDate, totalPence: serviceInvoicesTable.totalPence, status: serviceInvoicesTable.status })
+      .from(serviceInvoicesTable)
+      .where(and(eq(serviceInvoicesTable.farmId, farmId), inArray(serviceInvoicesTable.status, ["sent", "overdue"]), isNotNull(serviceInvoicesTable.dueDate), gte(serviceInvoicesTable.dueDate, overdueStart.toISOString().split("T")[0]), lt(serviceInvoicesTable.dueDate, rangeEnd.toISOString().split("T")[0]))),
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -11561,6 +11567,23 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       module: "Haulage & Transport",
       href: "/haulage?tab=plans",
       colour: "orange",
+    });
+  }
+
+  for (const r of serviceInvoiceRows) {
+    if (!r.dueDate) continue;
+    const invRef = r.invoiceNumber ? `Invoice ${r.invoiceNumber}` : `Invoice #${r.id}`;
+    const total = r.totalPence ? ` \u2014 \xa3${(r.totalPence / 100).toFixed(2)}` : "";
+    const isOverdue = new Date(r.dueDate + "T00:00:00Z") < now;
+    tasks.push({
+      id: `service-inv-${r.id}`,
+      type: "service_invoice_due",
+      title: `${isOverdue ? "Overdue: " : "Payment due: "}${invRef}`,
+      description: `Farm services invoice${total} is ${isOverdue ? "overdue for payment" : "due for payment"}. Mark as paid in Farm Services \u2192 Invoices.`,
+      dueDate: new Date(r.dueDate + "T00:00:00Z").toISOString(),
+      module: "Farm Services",
+      href: "/farm-services?tab=invoices",
+      colour: isOverdue ? "red" : "amber",
     });
   }
 
@@ -17355,10 +17378,13 @@ router.delete("/farms/:farmId/grain-intakes/:intakeId/movements/:id", requireAut
 router.get("/farms/:farmId/service-invoices", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
   const invoices = await db.select().from(serviceInvoicesTable).where(eq(serviceInvoicesTable.farmId, farmId)).orderBy(serviceInvoicesTable.invoiceDate);
-  const lines = await db.select().from(serviceInvoiceLinesTable).where(
-    eq(serviceInvoiceLinesTable.invoiceId, serviceInvoiceLinesTable.invoiceId)
-  );
-  res.json({ records: invoices });
+  const today = new Date().toISOString().split("T")[0];
+  // Auto-compute overdue: any "sent" invoice whose dueDate has passed is overdue
+  const annotated = invoices.map(inv => {
+    if (inv.status === "sent" && inv.dueDate && String(inv.dueDate) < today) return { ...inv, status: "overdue" };
+    return inv;
+  });
+  res.json({ records: annotated });
 });
 
 router.post("/farms/:farmId/service-invoices", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
