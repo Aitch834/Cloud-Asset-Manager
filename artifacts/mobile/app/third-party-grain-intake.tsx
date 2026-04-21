@@ -16,11 +16,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { SignaturePad } from "@/components/ui/SignaturePad";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { grainIntakeDocketHtml } from "@/lib/printTemplates";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { ThirdPartyGrainIntakeMobile } from "@/lib/types";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
@@ -39,6 +42,7 @@ export default function ThirdPartyGrainIntakeScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const commodities = useMobileLookup("commodity_types", COMMODITIES_FALLBACK);
   const [saving, setSaving] = useState(false);
 
@@ -61,6 +65,7 @@ export default function ThirdPartyGrainIntakeScreen() {
   const [bayOrBin, setBayOrBin] = useState("");
   const [notes, setNotes] = useState("");
   const [recordedBy, setRecordedBy] = useState(user?.name ?? "");
+  const [customerSignature, setCustomerSignature] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (!customerName.trim()) {
@@ -99,6 +104,7 @@ export default function ThirdPartyGrainIntakeScreen() {
       transportArrangedBy,
       notes: notes.trim(),
       recordedBy: recordedBy.trim(),
+      customerSignature: customerSignature ?? undefined,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -106,10 +112,21 @@ export default function ThirdPartyGrainIntakeScreen() {
     try {
       await appendToList(STORAGE_KEYS.THIRD_PARTY_GRAIN_INTAKES, record);
       await refreshPendingCount();
+      const farmName = currentFarm?.name ?? "Unknown Farm";
       Alert.alert(
         "Intake Recorded",
-        "Third-party grain intake saved and queued for sync. It will appear in Farm Services on the dashboard once connected.",
-        [{ text: "OK", onPress: () => router.back() }],
+        "Third-party grain intake saved and queued for sync.",
+        [
+          {
+            text: "Print Docket",
+            onPress: async () => { await print(grainIntakeDocketHtml(record, farmName)); router.back(); },
+          },
+          {
+            text: "Share PDF",
+            onPress: async () => { await savePdf(grainIntakeDocketHtml(record, farmName), "Grain Intake Docket"); router.back(); },
+          },
+          { text: "Done", onPress: () => router.back() },
+        ],
       );
     } catch {
       Alert.alert("Error", "Failed to save intake record. Please try again.");
@@ -297,6 +314,28 @@ export default function ThirdPartyGrainIntakeScreen() {
             multiline
             numberOfLines={3}
           />
+
+          <Text style={styles.sectionTitle}>Driver / Customer Sign-Off</Text>
+          <View style={styles.infoCard}>
+            <Feather name="edit-3" size={14} color={colors.primary} />
+            <Text style={styles.infoText}>
+              Hand the device to the driver or customer's representative to sign below, confirming the delivery details are correct.
+            </Text>
+          </View>
+          <SignaturePad
+            onCapture={setCustomerSignature}
+            onClear={() => setCustomerSignature(null)}
+            captured={!!customerSignature}
+            height={140}
+          />
+          {customerSignature && (
+            <View style={[styles.infoCard, { borderColor: "#86efac", backgroundColor: "#f0fdf4" }]}>
+              <Feather name="check-circle" size={14} color="#16a34a" />
+              <Text style={[styles.infoText, { color: "#15803d" }]}>
+                Signature captured — it will be embedded in the PDF docket.
+              </Text>
+            </View>
+          )}
 
           <View style={styles.infoCard}>
             <Feather name="info" size={14} color={colors.primary} />

@@ -764,6 +764,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["field-crop-management"],
   },
   {
+    id: "grain-lots",
+    title: "Grain Lots in Store",
+    description: "View all active third-party lots — customer, commodity, balance, bay and movement history at a glance",
+    icon: "layers",
+    color: "#059669",
+    bgColor: "#d1fae5",
+    route: "/grain-lots",
+    moduleKeys: ["field-crop-management"],
+  },
+  {
     id: "third-party-grain-intake",
     title: "Third-Party Grain Intake",
     description: "Book in a customer's grain delivery at the weighbridge — commodity, quality, vehicle reg, lot reference and bay allocation",

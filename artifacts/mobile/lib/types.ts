@@ -1696,6 +1696,7 @@ export interface ThirdPartyGrainIntakeMobile {
   transportArrangedBy: "customer" | "holding";
   notes: string;
   recordedBy: string;
+  customerSignature?: string;
   createdAt: string;
   synced: boolean;
 }

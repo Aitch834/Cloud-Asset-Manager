@@ -25,6 +25,8 @@ import { useSync } from "@/lib/context/SyncContext";
 import { kvGet, kvSet } from "@/lib/database";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { ThirdPartyGrainOutloadingMobile } from "@/lib/types";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { grainOutloadingDocketHtml } from "@/lib/printTemplates";
 
 async function getAuthToken(): Promise<string | null> {
   try {
@@ -72,6 +74,7 @@ export default function ThirdPartyGrainOutloadingScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const [saving, setSaving] = useState(false);
 
   const [intakes, setIntakes] = useState<ActiveIntake[]>([]);
@@ -175,12 +178,24 @@ export default function ThirdPartyGrainOutloadingScreen() {
     try {
       await appendToList(STORAGE_KEYS.THIRD_PARTY_GRAIN_OUTLOADINGS, record);
       await refreshPendingCount();
-      const syncMsg = intakeId
-        ? "Movement saved and queued to sync against the linked lot."
-        : "Movement saved offline. Connect to sync — the lot reference will be matched on the server.";
-      Alert.alert("Outloading Recorded", syncMsg, [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      const farmName = currentFarm?.name ?? "Unknown Farm";
+      Alert.alert(
+        "Outloading Recorded",
+        intakeId
+          ? "Movement saved and queued to sync against the linked lot."
+          : "Movement saved offline. Connect to sync — the lot reference will be matched on the server.",
+        [
+          {
+            text: "Print Docket",
+            onPress: async () => { await print(grainOutloadingDocketHtml(record, farmName)); router.back(); },
+          },
+          {
+            text: "Share PDF",
+            onPress: async () => { await savePdf(grainOutloadingDocketHtml(record, farmName), "Grain Outloading Docket"); router.back(); },
+          },
+          { text: "Done", onPress: () => router.back() },
+        ],
+      );
     } catch {
       Alert.alert("Error", "Failed to save outloading record. Please try again.");
     } finally {
