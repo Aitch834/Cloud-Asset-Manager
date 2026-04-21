@@ -223,7 +223,7 @@ async function uploadSyncItem(item: {
   }
 
   const data = JSON.parse(item.data_json);
-  const endpoint = getSyncEndpoint(item.record_type, data.farmId);
+  const endpoint = getSyncEndpoint(item.record_type, data.farmId, data);
   if (!endpoint) {
     await simulateUpload();
     return;
@@ -252,7 +252,10 @@ async function uploadSyncItem(item: {
   }
 }
 
-function getSyncEndpoint(recordType: string, farmId: string): string | null {
+function getSyncEndpoint(recordType: string, farmId: string, data?: Record<string, unknown>): string | null {
+  if (recordType === "bde_third_party_grain_outloadings" && data?.intakeId) {
+    return `/farms/${farmId}/grain-intakes/${data.intakeId}/movements`;
+  }
   const typeMap: Record<string, string> = {
     bde_spray_records: `/farms/${farmId}/spray-applications`,
     bde_weather_entries: `/farms/${farmId}/weather-readings`,
@@ -327,6 +330,7 @@ function getSyncEndpoint(recordType: string, farmId: string): string | null {
     bde_coshh_assessments: `/farms/${farmId}/coshh-assessments`,
     bde_seed_drilling_records: `/farms/${farmId}/seed-drilling`,
     bde_haulage_confirmations: `/farms/${farmId}/haulage-mobile`,
+    bde_third_party_grain_intakes: `/farms/${farmId}/grain-intakes`,
   };
   return typeMap[recordType] || null;
 }

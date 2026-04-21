@@ -1675,3 +1675,47 @@ export interface PoultryBroilerWelfare {
   createdAt: string;
   synced: boolean;
 }
+
+export interface ThirdPartyGrainIntakeMobile {
+  id: string;
+  farmId: string;
+  intakeDate: string;
+  customerName: string;
+  lotReference: string;
+  commodity: string;
+  variety: string;
+  quantityTonnes: string;
+  moisturePercent: string;
+  screeningsPercent: string;
+  specificWeightKgHl: string;
+  grade: string;
+  deliveryNoteRef: string;
+  vehicleReg: string;
+  haulier: string;
+  bayOrBin: string;
+  transportArrangedBy: "customer" | "holding";
+  notes: string;
+  recordedBy: string;
+  createdAt: string;
+  synced: boolean;
+}
+
+export interface ThirdPartyGrainOutloadingMobile {
+  id: string;
+  farmId: string;
+  intakeId: number | null;
+  intakeLotRef: string;
+  intakeCustomerName: string;
+  movementDate: string;
+  movementType: "outloading" | "sample" | "return" | "transfer";
+  quantityTonnes: string;
+  destination: string;
+  vehicleReg: string;
+  haulier: string;
+  transportArrangedBy: "customer" | "holding";
+  deliveryNoteRef: string;
+  notes: string;
+  recordedBy: string;
+  createdAt: string;
+  synced: boolean;
+}

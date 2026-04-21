@@ -196,4 +196,6 @@ export const STORAGE_KEYS = {
   EQUINE_HEALTH_EVENTS: "bde_equine_health_events",
   SHOOTING_RECORDS: "bde_shooting_records",
   FOOD_HYGIENE_INSPECTIONS: "bde_food_hygiene_inspections",
+  THIRD_PARTY_GRAIN_INTAKES: "bde_third_party_grain_intakes",
+  THIRD_PARTY_GRAIN_OUTLOADINGS: "bde_third_party_grain_outloadings",
 } as const;
