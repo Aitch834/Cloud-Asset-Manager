@@ -15,7 +15,7 @@ import {
 import { useAppStore } from "@/hooks/use-app-store";
 import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/use-fields";
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
-import { getListFieldCropAssignmentsQueryKey } from "@workspace/api-client-react/src/generated/api";
+import { getListFieldCropAssignmentsQueryKey, getListFieldsQueryKey } from "@workspace/api-client-react/src/generated/api";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 import {
@@ -384,6 +384,8 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
   );
 }
 
+const FIELD_LABEL_CSS = `@page{size:62mm 90mm;margin:0}body{font-family:'Segoe UI',Arial,sans-serif;padding:10px 12px;text-align:center;background:#fff;margin:0}.brand{font-size:9px;color:#0f766e;font-weight:700;letter-spacing:.06em}.divider{border-color:#e5e7eb}.farm{font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px}svg{display:block;margin:0 auto}.code{font-family:monospace;font-size:17px;font-weight:700;color:#0f766e;margin-top:7px;letter-spacing:.1em}.iname{font-size:11px;font-weight:600;color:#374151;margin-top:3px}.hint{font-size:8px;color:#d1d5db;margin-top:4px}`;
+
 function FieldCardMenu({
   field, farmId, crops, currentCrop, onAssignCrop, onBoundaryUpdated,
 }: {
@@ -399,37 +401,41 @@ function FieldCardMenu({
   const [boundaryOpen, setBoundaryOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [isSavingCode, setIsSavingCode] = useState(false);
+  const [savedCode, setSavedCode] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
   const { mutate: updateField, isPending: isUpdating } = useUpdateField(farmId);
   const { mutate: deleteField, isPending: isDeleting } = useDeleteField(farmId);
 
   const autoCode = `FLD-${String(field.id).padStart(4, "0")}`;
-  const displayCode = (field as any).fieldCode || null;
+  const displayCode = savedCode || (field as any).fieldCode || null;
   const qrRef = useRef<HTMLDivElement>(null);
   const { data: fData } = useQuery<{ record: { name: string } }>({
     queryKey: ["farm", farmId],
     queryFn: async () => (await fetch(`/api/farms/${farmId}`)).json(),
   });
   const farmName = fData?.record?.name ?? "BDE Farm";
-  const qrValue = displayCode ? `BDE:F${farmId}:${displayCode}` : `BDE:F${farmId}:${autoCode}`;
+  const qrValue = `BDE:F${farmId}:${displayCode ?? autoCode}`;
   function handleQrPrint() {
-    const LCSS = `@page{size:62mm 90mm;margin:0}body{font-family:'Segoe UI',Arial,sans-serif;padding:10px 12px;text-align:center;background:#fff;margin:0}.brand{font-size:9px;color:#0f766e;font-weight:700;letter-spacing:.06em}.farm{font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px}svg{display:block;margin:0 auto}.code{font-family:monospace;font-size:17px;font-weight:700;color:#0f766e;margin-top:7px;letter-spacing:.1em}.iname{font-size:11px;font-weight:600;color:#374151;margin-top:3px}.hint{font-size:8px;color:#d1d5db;margin-top:4px}`;
     const win = window.open("", "_blank");
     if (!win || !qrRef.current) return;
-    win.document.write(`<html><head><title>Field Label</title><style>${LCSS}</style></head><body>${qrRef.current.innerHTML}</body></html>`);
+    win.document.write(`<html><head><title>Field Label — ${displayCode}</title><style>${FIELD_LABEL_CSS}</style></head><body>${qrRef.current.innerHTML}</body></html>`);
     win.document.close(); win.focus(); win.print(); win.close();
   }
 
   const saveFieldCode = async (code: string) => {
     setIsSavingCode(true);
     try {
-      await fetch(`/api/farms/${farmId}/fields/${field.id}`, {
+      const res = await fetch(`/api/farms/${farmId}/fields/${field.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fieldCode: code }),
+        credentials: "include",
       });
-      queryClient.invalidateQueries({ queryKey: ["farms", farmId, "fields"] });
+      if (res.ok) {
+        setSavedCode(code);
+        queryClient.invalidateQueries({ queryKey: getListFieldsQueryKey(farmId) });
+      }
     } finally {
       setIsSavingCode(false);
     }
@@ -493,14 +499,14 @@ function FieldCardMenu({
           </DialogHeader>
           {displayCode ? (
             <>
-              <div className="flex flex-col items-center gap-1.5 border rounded-xl bg-white px-5 py-3 shadow-sm" ref={qrRef}>
-                <p className="text-[11px] font-bold text-teal-700 tracking-widest mt-1">🌿 BDE Farm Trac</p>
-                <hr className="w-full border-gray-200" />
-                <p className="text-sm font-bold text-gray-900 uppercase tracking-wider">{farmName}</p>
+              <div className="flex flex-col items-center gap-1.5 py-2 border rounded-xl bg-white px-5 shadow-sm" ref={qrRef}>
+                <p className="brand text-[11px] font-bold text-teal-700 tracking-widest mt-1">🌿 BDE Farm Trac</p>
+                <hr className="divider w-full border-gray-200" />
+                <p className="farm text-sm font-bold text-gray-900 uppercase tracking-wider">{farmName}</p>
                 <QRCodeSVG value={qrValue} size={180} bgColor="#ffffff" fgColor="#0f766e" level="M" />
-                <p className="font-mono text-xl font-bold tracking-widest text-teal-700 mt-1">{displayCode}</p>
-                <p className="text-sm font-semibold text-gray-700">{field.name}</p>
-                <p className="text-[10px] text-gray-300 mb-1">Scan to view field record</p>
+                <p className="code font-mono text-xl font-bold tracking-widest text-teal-700 mt-1">{displayCode}</p>
+                <p className="iname text-sm font-semibold text-gray-700">{field.name}</p>
+                <p className="hint text-[10px] text-gray-300 mb-1">Scan to view field record</p>
               </div>
               <DialogFooter>
                 <Button variant="outline" size="sm" onClick={() => setQrOpen(false)}>Close</Button>
