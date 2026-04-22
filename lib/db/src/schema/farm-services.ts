@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, timestamp, boolean, numeric, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { storageLocationsTable } from "./fields-crops";
+import { equipmentTable } from "./equipment";
 
 export const farmCustomersTable = pgTable("farm_customers", {
   id: serial("id").primaryKey(),
@@ -118,5 +119,72 @@ export const serviceInvoiceLinesTable = pgTable("service_invoice_lines", {
   unit: text("unit"),
   unitPricePence: integer("unit_price_pence").notNull(),
   lineTotalPence: integer("line_total_pence").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ─── Equipment Hire ───────────────────────────────────────────────────────────
+
+export const equipmentHireBookingsTable = pgTable("equipment_hire_bookings", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  customerId: integer("customer_id").notNull().references(() => farmCustomersTable.id),
+  equipmentId: integer("equipment_id").notNull().references(() => equipmentTable.id),
+  agreementId: integer("agreement_id").references(() => serviceAgreementsTable.id),
+  bookingRef: text("booking_ref"),
+  startDate: date("start_date").notNull(),
+  plannedEndDate: date("planned_end_date"),
+  actualEndDate: date("actual_end_date"),
+  // rateType: daily | hourly | weekly | fixed
+  rateType: text("rate_type").notNull().default("daily"),
+  ratePence: integer("rate_pence"),
+  depositPence: integer("deposit_pence"),
+  // operatorType: customer_operated | farm_operator
+  operatorType: text("operator_type").notNull().default("customer_operated"),
+  operatorName: text("operator_name"),
+  // fuelPolicy: customer_supplied | included_in_rate | billed_back
+  fuelPolicy: text("fuel_policy").notNull().default("customer_supplied"),
+  insuranceVerified: boolean("insurance_verified").notNull().default(false),
+  insuranceNotes: text("insurance_notes"),
+  depositPaid: boolean("deposit_paid").notNull().default(false),
+  depositPaidDate: date("deposit_paid_date"),
+  // status: booked | active | returned | cancelled | invoiced
+  status: text("status").notNull().default("booked"),
+  totalHireCostPence: integer("total_hire_cost_pence"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const equipmentHireConditionLogsTable = pgTable("equipment_hire_condition_logs", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  bookingId: integer("booking_id").notNull().references(() => equipmentHireBookingsTable.id),
+  // logType: hire_out | return
+  logType: text("log_type").notNull(),
+  logDate: date("log_date").notNull(),
+  logTime: text("log_time"),
+  hoursReading: integer("hours_reading"),
+  fuelLevelPercent: integer("fuel_level_percent"),
+  // conditionOverall: good | acceptable | poor
+  conditionOverall: text("condition_overall"),
+  conditionNotes: text("condition_notes"),
+  damageNotes: text("damage_notes"),
+  tyreConditionNotes: text("tyre_condition_notes"),
+  attachmentNotes: text("attachment_notes"),
+  signedOffBy: text("signed_off_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const equipmentHireFuelIssuesTable = pgTable("equipment_hire_fuel_issues", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  bookingId: integer("booking_id").notNull().references(() => equipmentHireBookingsTable.id),
+  issueDate: date("issue_date").notNull(),
+  litres: numeric("litres", { precision: 8, scale: 2 }).notNull(),
+  pricePerLitrePence: integer("price_per_litre_pence"),
+  totalCostPence: integer("total_cost_pence"),
+  billedToCustomer: boolean("billed_to_customer").notNull().default(true),
+  issuedBy: text("issued_by"),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

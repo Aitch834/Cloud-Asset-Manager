@@ -248,6 +248,9 @@ import {
   vetVisitMedicinesTable,
   vetInvoicesTable,
   vetInvoiceLinesTable,
+  equipmentHireBookingsTable,
+  equipmentHireConditionLogsTable,
+  equipmentHireFuelIssuesTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification } from "../lib/alertingJob";
@@ -17963,6 +17966,199 @@ router.get("/farms/:farmId/reports/season-report", requireAuth, requireTenant, a
   };
 
   res.json({ year, farm, farmSummary, arableFields, livestockHerds });
+});
+
+// ═══════════════════════════════════════════════════════════
+// EQUIPMENT HIRE — Bookings, Condition Logs, Fuel Issues
+// ═══════════════════════════════════════════════════════════
+
+// ── Hire Bookings ───────────────────────────────────────────
+router.get("/farms/:farmId/equipment-hire", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const records = await db
+    .select({
+      booking: equipmentHireBookingsTable,
+      customerName: farmCustomersTable.name,
+      equipmentName: equipmentTable.name,
+      equipmentMake: equipmentTable.make,
+      equipmentModel: equipmentTable.model,
+      equipmentRegistration: equipmentTable.registrationNumber,
+    })
+    .from(equipmentHireBookingsTable)
+    .leftJoin(farmCustomersTable, eq(equipmentHireBookingsTable.customerId, farmCustomersTable.id))
+    .leftJoin(equipmentTable, eq(equipmentHireBookingsTable.equipmentId, equipmentTable.id))
+    .where(eq(equipmentHireBookingsTable.farmId, farmId))
+    .orderBy(desc(equipmentHireBookingsTable.startDate));
+  res.json({ records });
+});
+
+router.get("/farms/:farmId/equipment-hire/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [row] = await db
+    .select({
+      booking: equipmentHireBookingsTable,
+      customer: farmCustomersTable,
+      equipmentName: equipmentTable.name,
+      equipmentMake: equipmentTable.make,
+      equipmentModel: equipmentTable.model,
+      equipmentRegistration: equipmentTable.registrationNumber,
+      equipmentCurrentHours: equipmentTable.currentHours,
+    })
+    .from(equipmentHireBookingsTable)
+    .leftJoin(farmCustomersTable, eq(equipmentHireBookingsTable.customerId, farmCustomersTable.id))
+    .leftJoin(equipmentTable, eq(equipmentHireBookingsTable.equipmentId, equipmentTable.id))
+    .where(and(eq(equipmentHireBookingsTable.id, id), eq(equipmentHireBookingsTable.farmId, farmId)));
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  const conditionLogs = await db.select().from(equipmentHireConditionLogsTable).where(eq(equipmentHireConditionLogsTable.bookingId, id)).orderBy(equipmentHireConditionLogsTable.logDate);
+  const fuelIssues = await db.select().from(equipmentHireFuelIssuesTable).where(eq(equipmentHireFuelIssuesTable.bookingId, id)).orderBy(equipmentHireFuelIssuesTable.issueDate);
+  res.json({ ...row, conditionLogs, fuelIssues });
+});
+
+router.post("/farms/:farmId/equipment-hire", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const [record] = await db.insert(equipmentHireBookingsTable).values({ ...req.body, farmId }).returning();
+  res.json({ record });
+});
+
+router.put("/farms/:farmId/equipment-hire/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.update(equipmentHireBookingsTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(equipmentHireBookingsTable.id, id), eq(equipmentHireBookingsTable.farmId, farmId))).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/equipment-hire/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.update(equipmentHireBookingsTable).set({ status: "cancelled", updatedAt: new Date() }).where(and(eq(equipmentHireBookingsTable.id, id), eq(equipmentHireBookingsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ── Insurance check for hire dates ─────────────────────────
+router.get("/farms/:farmId/equipment-hire/insurance-check", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+  const today = new Date().toISOString().split("T")[0];
+  const checkFrom = startDate || today;
+  const checkTo = endDate || checkFrom;
+  const policies = await db.select().from(farmInsuranceTable).where(eq(farmInsuranceTable.farmId, farmId));
+  const relevant = policies.filter(p => p.coversContractWork || p.coversThirdPartyGoods);
+  const warnings: string[] = [];
+  for (const p of relevant) {
+    const expiry = p.expiryDate;
+    if (expiry && expiry < checkTo) {
+      warnings.push(`${p.policyType} policy (${p.policyNumber || "no ref"}) with ${p.insurer || "unknown insurer"} expires ${expiry} — before end of hire period`);
+    }
+  }
+  if (relevant.length === 0) {
+    warnings.push("No insurance policy found that covers contract work or third-party goods");
+  }
+  res.json({ ok: warnings.length === 0, warnings, policies: relevant });
+});
+
+// ── Condition Logs ──────────────────────────────────────────
+router.get("/farms/:farmId/equipment-hire/:bookingId/conditions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const bookingId = parseInt(req.params.bookingId);
+  if (isNaN(bookingId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const records = await db.select().from(equipmentHireConditionLogsTable).where(and(eq(equipmentHireConditionLogsTable.bookingId, bookingId), eq(equipmentHireConditionLogsTable.farmId, farmId))).orderBy(equipmentHireConditionLogsTable.logDate);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/equipment-hire/:bookingId/conditions", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const bookingId = parseInt(req.params.bookingId);
+  if (isNaN(bookingId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const [record] = await db.insert(equipmentHireConditionLogsTable).values({ ...req.body, bookingId, farmId }).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/equipment-hire/:bookingId/conditions/:conditionId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const conditionId = parseInt(req.params.conditionId);
+  if (isNaN(conditionId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(equipmentHireConditionLogsTable).where(and(eq(equipmentHireConditionLogsTable.id, conditionId), eq(equipmentHireConditionLogsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ── Fuel Issues ─────────────────────────────────────────────
+router.get("/farms/:farmId/equipment-hire/:bookingId/fuel", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const bookingId = parseInt(req.params.bookingId);
+  if (isNaN(bookingId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const records = await db.select().from(equipmentHireFuelIssuesTable).where(and(eq(equipmentHireFuelIssuesTable.bookingId, bookingId), eq(equipmentHireFuelIssuesTable.farmId, farmId))).orderBy(equipmentHireFuelIssuesTable.issueDate);
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/equipment-hire/:bookingId/fuel", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const bookingId = parseInt(req.params.bookingId);
+  if (isNaN(bookingId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const body = req.body;
+  if (body.litres && body.pricePerLitrePence) {
+    body.totalCostPence = Math.round(parseFloat(body.litres) * body.pricePerLitrePence);
+  }
+  const [record] = await db.insert(equipmentHireFuelIssuesTable).values({ ...body, bookingId, farmId }).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/equipment-hire/:bookingId/fuel/:fuelId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const fuelId = parseInt(req.params.fuelId);
+  if (isNaN(fuelId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(equipmentHireFuelIssuesTable).where(and(eq(equipmentHireFuelIssuesTable.id, fuelId), eq(equipmentHireFuelIssuesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ── Revenue summary for hire ────────────────────────────────
+router.get("/farms/:farmId/equipment-hire-summary", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = req.tenantId!;
+  const bookings = await db
+    .select({
+      booking: equipmentHireBookingsTable,
+      customerName: farmCustomersTable.name,
+      equipmentName: equipmentTable.name,
+    })
+    .from(equipmentHireBookingsTable)
+    .leftJoin(farmCustomersTable, eq(equipmentHireBookingsTable.customerId, farmCustomersTable.id))
+    .leftJoin(equipmentTable, eq(equipmentHireBookingsTable.equipmentId, equipmentTable.id))
+    .where(and(eq(equipmentHireBookingsTable.farmId, farmId)));
+
+  const fuelIssues = await db.select().from(equipmentHireFuelIssuesTable).where(eq(equipmentHireFuelIssuesTable.farmId, farmId));
+  const fuelByBooking: Record<number, number> = {};
+  for (const f of fuelIssues) {
+    fuelByBooking[f.bookingId] = (fuelByBooking[f.bookingId] || 0) + (f.totalCostPence || 0);
+  }
+
+  const byMachine: Record<string, { equipmentName: string; bookingCount: number; totalHirePence: number; totalFuelPence: number }> = {};
+  for (const r of bookings) {
+    const key = r.equipmentName || "Unknown";
+    if (!byMachine[key]) byMachine[key] = { equipmentName: key, bookingCount: 0, totalHirePence: 0, totalFuelPence: 0 };
+    byMachine[key].bookingCount++;
+    byMachine[key].totalHirePence += r.booking.totalHireCostPence || 0;
+    byMachine[key].totalFuelPence += fuelByBooking[r.booking.id] || 0;
+  }
+
+  const byCustomer: Record<string, { customerName: string; bookingCount: number; totalHirePence: number }> = {};
+  for (const r of bookings) {
+    const key = r.customerName || "Unknown";
+    if (!byCustomer[key]) byCustomer[key] = { customerName: key, bookingCount: 0, totalHirePence: 0 };
+    byCustomer[key].bookingCount++;
+    byCustomer[key].totalHirePence += r.booking.totalHireCostPence || 0;
+  }
+
+  res.json({
+    totalBookings: bookings.length,
+    activeBookings: bookings.filter(b => b.booking.status === "active").length,
+    totalRevenuePence: bookings.reduce((s, b) => s + (b.booking.totalHireCostPence || 0), 0),
+    totalFuelRevenuePence: fuelIssues.filter(f => f.billedToCustomer).reduce((s, f) => s + (f.totalCostPence || 0), 0),
+    byMachine: Object.values(byMachine),
+    byCustomer: Object.values(byCustomer),
+  });
 });
 
 export default router;

@@ -4,7 +4,8 @@ import {
   Users, FileText, Wheat, Receipt, Plus, Pencil, Trash2, CheckCircle, XCircle,
   ChevronDown, ChevronUp, Building2, Phone, Mail, MapPin, Loader2,
   ClipboardList, TrendingUp, Package, AlertTriangle, Calendar, ArrowRight, Eye, RefreshCw, Printer,
-  Briefcase, Clock, User, CheckSquare, Circle,
+  Briefcase, Clock, User, CheckSquare, Circle, Tractor, Fuel, ShieldCheck, ShieldAlert,
+  ClipboardCheck, BarChart3, ArrowLeft, Wrench, X, ChevronRight,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { printHtml } from "@/lib/utils";
 
-type Tab = "customers" | "agreements" | "grain" | "invoices" | "work-orders";
+type Tab = "customers" | "agreements" | "grain" | "invoices" | "work-orders" | "hire";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -91,6 +92,63 @@ interface WorkOrder {
 
 interface InvoicePrefill { customerId: number; customerName: string; title: string; }
 
+// ─── Hire Types ──────────────────────────────────────────────────────────────
+
+interface HireBooking {
+  id: number; farmId: number; customerId: number; equipmentId: number;
+  agreementId?: number | null; bookingRef?: string | null; startDate: string;
+  plannedEndDate?: string | null; actualEndDate?: string | null;
+  rateType: string; ratePence?: number | null; depositPence?: number | null;
+  operatorType: string; operatorName?: string | null; fuelPolicy: string;
+  insuranceVerified: boolean; insuranceNotes?: string | null;
+  depositPaid: boolean; depositPaidDate?: string | null;
+  status: string; totalHireCostPence?: number | null; notes?: string | null;
+  createdAt: string; updatedAt?: string;
+}
+
+interface HireBookingRow {
+  booking: HireBooking;
+  customerName: string | null;
+  equipmentName: string | null;
+  equipmentMake: string | null;
+  equipmentModel: string | null;
+  equipmentRegistration: string | null;
+}
+
+interface HireBookingDetail {
+  booking: HireBooking;
+  customer: FarmCustomer | null;
+  equipmentName: string | null;
+  equipmentMake: string | null;
+  equipmentModel: string | null;
+  equipmentRegistration: string | null;
+  equipmentCurrentHours: number | null;
+  conditionLogs: HireConditionLog[];
+  fuelIssues: HireFuelIssue[];
+}
+
+interface HireConditionLog {
+  id: number; bookingId: number; logType: string; logDate: string;
+  logTime?: string | null; hoursReading?: number | null; fuelLevelPercent?: number | null;
+  conditionOverall?: string | null; conditionNotes?: string | null;
+  damageNotes?: string | null; tyreConditionNotes?: string | null;
+  attachmentNotes?: string | null; signedOffBy?: string | null; createdAt: string;
+}
+
+interface HireFuelIssue {
+  id: number; bookingId: number; issueDate: string; litres: string;
+  pricePerLitrePence?: number | null; totalCostPence?: number | null;
+  billedToCustomer: boolean; issuedBy?: string | null; notes?: string | null;
+  createdAt: string;
+}
+
+interface EquipmentItem {
+  id: number; name: string; make?: string | null; model?: string | null;
+  registrationNumber?: string | null; currentHours?: number | null;
+}
+
+interface InsuranceWarning { ok: boolean; warnings: string[]; }
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const AGREEMENT_TYPES = [
@@ -136,6 +194,38 @@ const COMMODITIES = ["Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Ba
 const PAYMENT_FREQS = [
   { value: "annual", label: "Annual" }, { value: "biannual", label: "Bi-annual" },
   { value: "quarterly", label: "Quarterly" }, { value: "monthly", label: "Monthly" },
+];
+
+const HIRE_STATUSES = [
+  { value: "booked", label: "Booked", colour: "bg-blue-100 text-blue-800" },
+  { value: "active", label: "Active", colour: "bg-green-100 text-green-800" },
+  { value: "returned", label: "Returned", colour: "bg-purple-100 text-purple-800" },
+  { value: "invoiced", label: "Invoiced", colour: "bg-amber-100 text-amber-800" },
+  { value: "cancelled", label: "Cancelled", colour: "bg-muted text-muted-foreground" },
+];
+
+const HIRE_RATE_TYPES = [
+  { value: "daily", label: "Daily" },
+  { value: "hourly", label: "Hourly" },
+  { value: "weekly", label: "Weekly" },
+  { value: "fixed", label: "Fixed Price" },
+];
+
+const HIRE_OPERATOR_TYPES = [
+  { value: "customer_operated", label: "Customer Operated" },
+  { value: "farm_operator", label: "Farm Operator Provided" },
+];
+
+const HIRE_FUEL_POLICIES = [
+  { value: "customer_supplied", label: "Customer Supplies Own Fuel" },
+  { value: "included_in_rate", label: "Fuel Included in Rate" },
+  { value: "billed_back", label: "Fuel Billed Back to Customer" },
+];
+
+const HIRE_CONDITION_RATINGS = [
+  { value: "good", label: "Good", colour: "bg-green-100 text-green-800" },
+  { value: "acceptable", label: "Acceptable", colour: "bg-amber-100 text-amber-800" },
+  { value: "poor", label: "Poor — Damage Noted", colour: "bg-red-100 text-red-800" },
 ];
 
 function fmtPence(p: number) { return `£${(p / 100).toFixed(2)}`; }
@@ -2157,6 +2247,1113 @@ function InvoicesTab({ farmId, customers, prefill }: { farmId: number; customers
   );
 }
 
+// ─── Equipment Hire Tab ───────────────────────────────────────────────────────
+
+function printHireAgreement(
+  detail: HireBookingDetail,
+  farm: FarmRecord | undefined,
+) {
+  const b = detail.booking;
+  const eq = [detail.equipmentName, detail.equipmentMake, detail.equipmentModel].filter(Boolean).join(" — ");
+  const reg = detail.equipmentRegistration ? ` (Reg: ${detail.equipmentRegistration})` : "";
+  const rateLabel = HIRE_RATE_TYPES.find((r) => r.value === b.rateType)?.label ?? b.rateType;
+  const fuelLabel = HIRE_FUEL_POLICIES.find((f) => f.value === b.fuelPolicy)?.label ?? b.fuelPolicy;
+  const opLabel = HIRE_OPERATOR_TYPES.find((o) => o.value === b.operatorType)?.label ?? b.operatorType;
+  const rate = b.ratePence ? `£${(b.ratePence / 100).toFixed(2)} per ${rateLabel.toLowerCase()}` : "Rate TBC";
+  const deposit = b.depositPence ? `£${(b.depositPence / 100).toFixed(2)}` : "None";
+
+  const html = `<!DOCTYPE html><html><head><title>Hire Agreement — ${b.bookingRef || `#${b.id}`}</title>
+  ${docStyles()}</head><body>
+  ${docHeader(farm)}
+  <h2>Equipment Hire Agreement</h2>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600;width:38%">Booking Reference</td><td style="padding:5px 8px;border:1px solid #ddd">${b.bookingRef || `HIRE-${b.id}`}</td></tr>
+    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Hire Date (Start)</td><td style="padding:5px 8px;border:1px solid #ddd">${b.startDate}</td></tr>
+    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Planned Return Date</td><td style="padding:5px 8px;border:1px solid #ddd">${b.plannedEndDate || "Open"}</td></tr>
+    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Customer</td><td style="padding:5px 8px;border:1px solid #ddd">${detail.customer?.name || "—"}</td></tr>
+    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Customer Contact</td><td style="padding:5px 8px;border:1px solid #ddd">${detail.customer?.contactName || "—"}  ${detail.customer?.contactPhone || ""}</td></tr>
+    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Machine</td><td style="padding:5px 8px;border:1px solid #ddd">${eq}${reg}</td></tr>
+    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Operator</td><td style="padding:5px 8px;border:1px solid #ddd">${opLabel}${b.operatorName ? ` — ${b.operatorName}` : ""}</td></tr>
+    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Hire Rate</td><td style="padding:5px 8px;border:1px solid #ddd">${rate}</td></tr>
+    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Deposit</td><td style="padding:5px 8px;border:1px solid #ddd">${deposit}${b.depositPaid ? " — PAID" : " — Awaiting"}</td></tr>
+    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Fuel Arrangement</td><td style="padding:5px 8px;border:1px solid #ddd">${fuelLabel}</td></tr>
+    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Insurance Verified</td><td style="padding:5px 8px;border:1px solid #ddd">${b.insuranceVerified ? "✓ Yes — operator has confirmed valid insurance" : "✗ Not yet verified"}${b.insuranceNotes ? ` — ${b.insuranceNotes}` : ""}</td></tr>
+    ${b.notes ? `<tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Notes</td><td style="padding:5px 8px;border:1px solid #ddd">${b.notes}</td></tr>` : ""}
+  </table>
+  <h2 style="margin-top:24px">Terms &amp; Conditions</h2>
+  <ol style="font-size:11px;line-height:1.7;padding-left:16px;color:#444">
+    <li>The hirer shall take full responsibility for the safe operation of the equipment during the hire period.</li>
+    <li>The hirer shall return the equipment in the same condition as received, fair wear and tear excepted.</li>
+    <li>Any damage beyond fair wear and tear shall be charged to the hirer at cost of repair.</li>
+    <li>The hirer must hold valid public liability insurance covering the use of hired agricultural equipment. Evidence of insurance must be provided on request.</li>
+    <li>The hire rate is payable as agreed above. Late payment may attract a surcharge of 2% per month.</li>
+    <li>Fuel charges (if applicable) will be invoiced at the prevailing farm pump rate at the date of issue.</li>
+    <li>The equipment owner reserves the right to recover the equipment immediately in the event of misuse or non-payment.</li>
+    <li>Hours meter readings at hire-out and return shall be recorded on the handover checklist and signed by both parties.</li>
+  </ol>
+  <div style="margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:40px">
+    <div>
+      <p style="font-weight:600;margin-bottom:4px">Equipment Owner / Agent</p>
+      <div style="border-bottom:1px solid #333;margin-bottom:6px;padding-bottom:40px"></div>
+      <p style="font-size:10px;color:#666">Signature &amp; Date</p>
+    </div>
+    <div>
+      <p style="font-weight:600;margin-bottom:4px">Hirer (Customer)</p>
+      <div style="border-bottom:1px solid #333;margin-bottom:6px;padding-bottom:40px"></div>
+      <p style="font-size:10px;color:#666">Signature &amp; Date</p>
+    </div>
+  </div>
+  </body></html>`;
+  printHtml(html);
+}
+
+function printHandoverChecklist(
+  detail: HireBookingDetail,
+  farm: FarmRecord | undefined,
+  logType: "hire_out" | "return",
+) {
+  const b = detail.booking;
+  const eq = [detail.equipmentName, detail.equipmentMake, detail.equipmentModel].filter(Boolean).join(" — ");
+  const reg = detail.equipmentRegistration ? ` (Reg: ${detail.equipmentRegistration})` : "";
+  const existing = detail.conditionLogs.find((l) => l.logType === logType);
+  const title = logType === "hire_out" ? "Pre-Hire Handover Checklist" : "Return Condition Checklist";
+
+  function row(label: string, value?: string | null) {
+    return `<tr><td style="padding:6px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600;width:35%">${label}</td><td style="padding:6px 8px;border:1px solid #ddd">${value || "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"}</td></tr>`;
+  }
+
+  function checkItem(label: string) {
+    return `<tr><td style="padding:6px 8px;border:1px solid #ddd">${label}</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:center;width:80px">☐ OK</td><td style="padding:6px 8px;border:1px solid #ddd;text-align:center;width:80px">☐ Issue</td><td style="padding:6px 8px;border:1px solid #ddd;width:200px">Notes:</td></tr>`;
+  }
+
+  const html = `<!DOCTYPE html><html><head><title>${title} — ${b.bookingRef || `#${b.id}`}</title>
+  ${docStyles()}</head><body>
+  ${docHeader(farm)}
+  <h2>${title}</h2>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+    ${row("Booking Ref", b.bookingRef || `HIRE-${b.id}`)}
+    ${row("Date", existing?.logDate || "")}
+    ${row("Time", existing?.logTime || "")}
+    ${row("Machine", `${eq}${reg}`)}
+    ${row("Customer", detail.customer?.name || "")}
+    ${row("Hours Meter Reading", existing?.hoursReading?.toString() || "")}
+    ${row("Fuel Level", existing?.fuelLevelPercent ? `${existing.fuelLevelPercent}%` : "")}
+    ${row("Overall Condition", existing?.conditionOverall ? (HIRE_CONDITION_RATINGS.find(r => r.value === existing.conditionOverall)?.label || existing.conditionOverall) : "")}
+  </table>
+  <h2 style="margin-top:18px">Inspection Checklist</h2>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">
+    <thead><tr style="background:#2d5a27;color:#fff">
+      <th style="padding:6px 8px;text-align:left;border:1px solid #ddd">Item</th>
+      <th style="padding:6px 8px;text-align:center;border:1px solid #ddd;width:80px">OK</th>
+      <th style="padding:6px 8px;text-align:center;border:1px solid #ddd;width:80px">Issue</th>
+      <th style="padding:6px 8px;border:1px solid #ddd;width:200px">Notes</th>
+    </tr></thead>
+    <tbody>
+      ${checkItem("Tyres — condition and pressure")}
+      ${checkItem("Lights and indicators")}
+      ${checkItem("Hydraulic hoses and connections")}
+      ${checkItem("Engine oil level")}
+      ${checkItem("Coolant level")}
+      ${checkItem("Fuel level")}
+      ${checkItem("PTO shaft and guards")}
+      ${checkItem("Safety devices and guards")}
+      ${checkItem("Cab / ROPS condition")}
+      ${checkItem("Attachments / implements")}
+      ${checkItem("Seat belts")}
+      ${checkItem("Fire extinguisher present")}
+      ${checkItem("Operator manual present")}
+      ${checkItem("Visible damage / scratches")}
+    </tbody>
+  </table>
+  ${existing?.conditionNotes ? `<p><strong>Condition Notes:</strong> ${existing.conditionNotes}</p>` : ""}
+  ${existing?.damageNotes ? `<p><strong>Damage Notes:</strong> ${existing.damageNotes}</p>` : ""}
+  ${existing?.attachmentNotes ? `<p><strong>Attachments:</strong> ${existing.attachmentNotes}</p>` : ""}
+  <div style="margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:40px">
+    <div>
+      <p style="font-weight:600;margin-bottom:4px">Equipment Owner / Agent</p>
+      <div style="border-bottom:1px solid #333;margin-bottom:6px;padding-bottom:40px"></div>
+      <p style="font-size:10px;color:#666">Name, Signature &amp; Date</p>
+    </div>
+    <div>
+      <p style="font-weight:600;margin-bottom:4px">Hirer (Customer)</p>
+      <div style="border-bottom:1px solid #333;margin-bottom:6px;padding-bottom:40px"></div>
+      <p style="font-size:10px;color:#666">Name, Signature &amp; Date</p>
+    </div>
+  </div>
+  </body></html>`;
+  printHtml(html);
+}
+
+// ── Booking Form Dialog ──────────────────────────────────────────────────────
+
+function HireBookingDialog({
+  farmId, customers, equipment, open, onClose, editBooking,
+}: {
+  farmId: number;
+  customers: FarmCustomer[];
+  equipment: EquipmentItem[];
+  open: boolean;
+  onClose: () => void;
+  editBooking?: HireBookingRow | null;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const isEdit = !!editBooking;
+
+  const empty = {
+    customerId: "", equipmentId: "", bookingRef: "", startDate: new Date().toISOString().split("T")[0],
+    plannedEndDate: "", rateType: "daily", ratePence: "", depositPence: "", operatorType: "customer_operated",
+    operatorName: "", fuelPolicy: "customer_supplied", insuranceVerified: false, insuranceNotes: "",
+    depositPaid: false, notes: "", status: "booked",
+  };
+
+  const [form, setForm] = useState({ ...empty });
+  const [insWarning, setInsWarning] = useState<InsuranceWarning | null>(null);
+  const [checkingIns, setCheckingIns] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      if (isEdit) {
+        const b = editBooking!.booking;
+        setForm({
+          customerId: String(b.customerId), equipmentId: String(b.equipmentId),
+          bookingRef: b.bookingRef || "", startDate: b.startDate,
+          plannedEndDate: b.plannedEndDate || "", rateType: b.rateType,
+          ratePence: b.ratePence ? String(b.ratePence / 100) : "",
+          depositPence: b.depositPence ? String(b.depositPence / 100) : "",
+          operatorType: b.operatorType, operatorName: b.operatorName || "",
+          fuelPolicy: b.fuelPolicy, insuranceVerified: b.insuranceVerified,
+          insuranceNotes: b.insuranceNotes || "", depositPaid: b.depositPaid,
+          notes: b.notes || "", status: b.status,
+        });
+      } else {
+        setForm({ ...empty });
+      }
+      setInsWarning(null);
+    }
+  }, [open, isEdit]);
+
+  async function checkInsurance(startDate: string, endDate: string) {
+    if (!startDate) return;
+    setCheckingIns(true);
+    try {
+      const params = new URLSearchParams({ startDate });
+      if (endDate) params.set("endDate", endDate);
+      const r = await fetch(`/api/farms/${farmId}/equipment-hire/insurance-check?${params}`, { credentials: "include" });
+      if (r.ok) setInsWarning(await r.json());
+    } finally {
+      setCheckingIns(false);
+    }
+  }
+
+  const saveMut = useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      fetch(
+        isEdit
+          ? `/api/farms/${farmId}/equipment-hire/${editBooking!.booking.id}`
+          : `/api/farms/${farmId}/equipment-hire`,
+        { method: isEdit ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) },
+      ).then((r) => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["equipment-hire", farmId] });
+      toast({ title: isEdit ? "Booking updated" : "Booking created" });
+      onClose();
+    },
+  });
+
+  function handleSave() {
+    const data: Record<string, unknown> = {
+      customerId: parseInt(form.customerId),
+      equipmentId: parseInt(form.equipmentId),
+      bookingRef: form.bookingRef || null,
+      startDate: form.startDate,
+      plannedEndDate: form.plannedEndDate || null,
+      rateType: form.rateType,
+      ratePence: form.ratePence ? Math.round(parseFloat(form.ratePence) * 100) : null,
+      depositPence: form.depositPence ? Math.round(parseFloat(form.depositPence) * 100) : null,
+      operatorType: form.operatorType,
+      operatorName: form.operatorName || null,
+      fuelPolicy: form.fuelPolicy,
+      insuranceVerified: form.insuranceVerified,
+      insuranceNotes: form.insuranceNotes || null,
+      depositPaid: form.depositPaid,
+      notes: form.notes || null,
+    };
+    if (isEdit) data.status = form.status;
+    if (!data.customerId || !data.equipmentId || !form.startDate) {
+      toast({ title: "Please fill in customer, machine and start date", variant: "destructive" });
+      return;
+    }
+    saveMut.mutate(data);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Edit Hire Booking" : "New Hire Booking"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Customer *</Label>
+              <Select value={form.customerId} onValueChange={(v) => setForm((f) => ({ ...f, customerId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
+                <SelectContent>
+                  {customers.filter((c) => c.isActive).map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Machine *</Label>
+              <Select value={form.equipmentId} onValueChange={(v) => setForm((f) => ({ ...f, equipmentId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select equipment" /></SelectTrigger>
+                <SelectContent>
+                  {equipment.map((e) => (
+                    <SelectItem key={e.id} value={String(e.id)}>
+                      {e.name}{e.make ? ` — ${e.make}` : ""}{e.registrationNumber ? ` (${e.registrationNumber})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label>Booking Ref</Label>
+              <Input value={form.bookingRef} onChange={(e) => setForm((f) => ({ ...f, bookingRef: e.target.value }))} placeholder="e.g. HIRE-2025-001" />
+            </div>
+            <div className="space-y-1">
+              <Label>Start Date *</Label>
+              <Input type="date" value={form.startDate} onChange={(e) => {
+                setForm((f) => ({ ...f, startDate: e.target.value }));
+                checkInsurance(e.target.value, form.plannedEndDate);
+              }} />
+            </div>
+            <div className="space-y-1">
+              <Label>Planned Return Date</Label>
+              <Input type="date" value={form.plannedEndDate} onChange={(e) => {
+                setForm((f) => ({ ...f, plannedEndDate: e.target.value }));
+                checkInsurance(form.startDate, e.target.value);
+              }} />
+            </div>
+          </div>
+
+          {/* Insurance warning */}
+          {checkingIns && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Checking insurance…</div>}
+          {insWarning && !checkingIns && (
+            insWarning.ok
+              ? <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2"><ShieldCheck className="h-4 w-4 shrink-0" />Insurance coverage confirmed for hire period.</div>
+              : <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-medium text-red-800"><ShieldAlert className="h-4 w-4 shrink-0" />Insurance Warning</div>
+                  {insWarning.warnings.map((w, i) => <p key={i} className="text-xs text-red-700">{w}</p>)}
+                </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label>Rate Type</Label>
+              <Select value={form.rateType} onValueChange={(v) => setForm((f) => ({ ...f, rateType: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{HIRE_RATE_TYPES.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Rate (£)</Label>
+              <Input type="number" step="0.01" min="0" value={form.ratePence} onChange={(e) => setForm((f) => ({ ...f, ratePence: e.target.value }))} placeholder="0.00" />
+            </div>
+            <div className="space-y-1">
+              <Label>Deposit (£)</Label>
+              <Input type="number" step="0.01" min="0" value={form.depositPence} onChange={(e) => setForm((f) => ({ ...f, depositPence: e.target.value }))} placeholder="0.00" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Operator</Label>
+              <Select value={form.operatorType} onValueChange={(v) => setForm((f) => ({ ...f, operatorType: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{HIRE_OPERATOR_TYPES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Operator Name (if farm-provided)</Label>
+              <Input value={form.operatorName} onChange={(e) => setForm((f) => ({ ...f, operatorName: e.target.value }))} placeholder="Staff member name" />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label>Fuel Policy</Label>
+            <Select value={form.fuelPolicy} onValueChange={(v) => setForm((f) => ({ ...f, fuelPolicy: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{HIRE_FUEL_POLICIES.map((fp) => <SelectItem key={fp.value} value={fp.value}>{fp.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex gap-6">
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input type="checkbox" checked={form.insuranceVerified} onChange={(e) => setForm((f) => ({ ...f, insuranceVerified: e.target.checked }))} />
+              Insurance verified by customer
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input type="checkbox" checked={form.depositPaid} onChange={(e) => setForm((f) => ({ ...f, depositPaid: e.target.checked }))} />
+              Deposit paid
+            </label>
+          </div>
+
+          <div className="space-y-1">
+            <Label>Insurance Notes</Label>
+            <Input value={form.insuranceNotes} onChange={(e) => setForm((f) => ({ ...f, insuranceNotes: e.target.value }))} placeholder="e.g. Zurich NFU policy ZP-2024-1234 confirmed" />
+          </div>
+
+          <div className="space-y-1">
+            <Label>Notes</Label>
+            <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} />
+          </div>
+
+          {isEdit && (
+            <div className="space-y-1">
+              <Label>Status</Label>
+              <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{HIRE_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saveMut.isPending}>
+            {saveMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+            {isEdit ? "Save Changes" : "Create Booking"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Condition Check Form ─────────────────────────────────────────────────────
+
+function ConditionCheckForm({
+  farmId, bookingId, logType, onSaved,
+}: { farmId: number; bookingId: number; logType: "hire_out" | "return"; onSaved: () => void }) {
+  const { toast } = useToast();
+  const today = new Date().toISOString().split("T")[0];
+  const now = new Date().toTimeString().slice(0, 5);
+  const [form, setForm] = useState({
+    logDate: today, logTime: now, hoursReading: "", fuelLevelPercent: "",
+    conditionOverall: "good", conditionNotes: "", damageNotes: "", tyreConditionNotes: "",
+    attachmentNotes: "", signedOffBy: "",
+  });
+  const mut = useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      fetch(`/api/farms/${farmId}/equipment-hire/${bookingId}/conditions`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data),
+      }).then((r) => r.json()),
+    onSuccess: () => { toast({ title: `${logType === "hire_out" ? "Pre-hire" : "Return"} check saved` }); onSaved(); },
+  });
+  function handleSave() {
+    mut.mutate({
+      logType, logDate: form.logDate, logTime: form.logTime || null,
+      hoursReading: form.hoursReading ? parseInt(form.hoursReading) : null,
+      fuelLevelPercent: form.fuelLevelPercent ? parseInt(form.fuelLevelPercent) : null,
+      conditionOverall: form.conditionOverall, conditionNotes: form.conditionNotes || null,
+      damageNotes: form.damageNotes || null, tyreConditionNotes: form.tyreConditionNotes || null,
+      attachmentNotes: form.attachmentNotes || null, signedOffBy: form.signedOffBy || null,
+    });
+  }
+  return (
+    <div className="bg-muted/40 border rounded-lg p-4 space-y-3">
+      <h4 className="font-medium text-sm">{logType === "hire_out" ? "Pre-hire Condition Check" : "Return Condition Check"}</h4>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="space-y-1"><Label className="text-xs">Date</Label><Input type="date" value={form.logDate} onChange={(e) => setForm((f) => ({ ...f, logDate: e.target.value }))} /></div>
+        <div className="space-y-1"><Label className="text-xs">Time</Label><Input type="time" value={form.logTime} onChange={(e) => setForm((f) => ({ ...f, logTime: e.target.value }))} /></div>
+        <div className="space-y-1"><Label className="text-xs">Hours Meter</Label><Input type="number" min="0" value={form.hoursReading} onChange={(e) => setForm((f) => ({ ...f, hoursReading: e.target.value }))} placeholder="e.g. 1450" /></div>
+        <div className="space-y-1"><Label className="text-xs">Fuel Level %</Label><Input type="number" min="0" max="100" value={form.fuelLevelPercent} onChange={(e) => setForm((f) => ({ ...f, fuelLevelPercent: e.target.value }))} placeholder="0–100" /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-xs">Overall Condition</Label>
+          <Select value={form.conditionOverall} onValueChange={(v) => setForm((f) => ({ ...f, conditionOverall: v }))}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{HIRE_CONDITION_RATINGS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1"><Label className="text-xs">Signed Off By</Label><Input value={form.signedOffBy} onChange={(e) => setForm((f) => ({ ...f, signedOffBy: e.target.value }))} placeholder="Name" /></div>
+      </div>
+      <div className="space-y-1"><Label className="text-xs">Condition Notes</Label><Textarea value={form.conditionNotes} onChange={(e) => setForm((f) => ({ ...f, conditionNotes: e.target.value }))} rows={2} placeholder="General condition remarks…" /></div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1"><Label className="text-xs">Damage Notes</Label><Input value={form.damageNotes} onChange={(e) => setForm((f) => ({ ...f, damageNotes: e.target.value }))} placeholder="Any existing or new damage" /></div>
+        <div className="space-y-1"><Label className="text-xs">Tyre Condition</Label><Input value={form.tyreConditionNotes} onChange={(e) => setForm((f) => ({ ...f, tyreConditionNotes: e.target.value }))} placeholder="Tyre condition notes" /></div>
+      </div>
+      <div className="space-y-1"><Label className="text-xs">Attachments / Implements</Label><Input value={form.attachmentNotes} onChange={(e) => setForm((f) => ({ ...f, attachmentNotes: e.target.value }))} placeholder="List of attachments included" /></div>
+      <div className="flex justify-end gap-2">
+        <Button size="sm" onClick={handleSave} disabled={mut.isPending}>
+          {mut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}Save Check
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Fuel Issue Form ───────────────────────────────────────────────────────────
+
+function FuelIssueForm({
+  farmId, bookingId, onSaved,
+}: { farmId: number; bookingId: number; onSaved: () => void }) {
+  const { toast } = useToast();
+  const today = new Date().toISOString().split("T")[0];
+  const [form, setForm] = useState({ issueDate: today, litres: "", pricePerLitrePence: "", billedToCustomer: true, issuedBy: "", notes: "" });
+  const mut = useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      fetch(`/api/farms/${farmId}/equipment-hire/${bookingId}/fuel`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data),
+      }).then((r) => r.json()),
+    onSuccess: () => { toast({ title: "Fuel issue logged" }); onSaved(); setForm({ issueDate: today, litres: "", pricePerLitrePence: "", billedToCustomer: true, issuedBy: "", notes: "" }); },
+  });
+  function handleSave() {
+    if (!form.litres || parseFloat(form.litres) <= 0) { toast({ title: "Enter litres issued", variant: "destructive" }); return; }
+    mut.mutate({
+      issueDate: form.issueDate, litres: parseFloat(form.litres),
+      pricePerLitrePence: form.pricePerLitrePence ? Math.round(parseFloat(form.pricePerLitrePence) * 100) : null,
+      billedToCustomer: form.billedToCustomer, issuedBy: form.issuedBy || null, notes: form.notes || null,
+    });
+  }
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+      <h4 className="font-medium text-sm flex items-center gap-1.5"><Fuel className="h-4 w-4 text-amber-600" />Log Fuel Issue</h4>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="space-y-1"><Label className="text-xs">Date</Label><Input type="date" value={form.issueDate} onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))} /></div>
+        <div className="space-y-1"><Label className="text-xs">Litres Issued</Label><Input type="number" step="0.1" min="0" value={form.litres} onChange={(e) => setForm((f) => ({ ...f, litres: e.target.value }))} placeholder="0.0" /></div>
+        <div className="space-y-1"><Label className="text-xs">Price per Litre (£)</Label><Input type="number" step="0.001" min="0" value={form.pricePerLitrePence} onChange={(e) => setForm((f) => ({ ...f, pricePerLitrePence: e.target.value }))} placeholder="0.000" /></div>
+        <div className="space-y-1"><Label className="text-xs">Issued By</Label><Input value={form.issuedBy} onChange={(e) => setForm((f) => ({ ...f, issuedBy: e.target.value }))} placeholder="Name" /></div>
+      </div>
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" checked={form.billedToCustomer} onChange={(e) => setForm((f) => ({ ...f, billedToCustomer: e.target.checked }))} />
+          Bill to customer
+        </label>
+        {form.litres && form.pricePerLitrePence && (
+          <span className="text-sm text-muted-foreground">
+            Total: £{(parseFloat(form.litres) * parseFloat(form.pricePerLitrePence)).toFixed(2)}
+          </span>
+        )}
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button size="sm" onClick={handleSave} disabled={mut.isPending}>
+          {mut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}Log Fuel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Booking Detail Panel ──────────────────────────────────────────────────────
+
+function BookingDetailPanel({
+  farmId, bookingId, customers, equipment, onBack, onEditBooking, onRaiseInvoice,
+}: {
+  farmId: number;
+  bookingId: number;
+  customers: FarmCustomer[];
+  equipment: EquipmentItem[];
+  onBack: () => void;
+  onEditBooking: (row: HireBookingRow) => void;
+  onRaiseInvoice: (prefill: InvoicePrefill) => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [innerTab, setInnerTab] = useState<"overview" | "conditions" | "fuel" | "revenue">("overview");
+  const [showPreHireForm, setShowPreHireForm] = useState(false);
+  const [showReturnForm, setShowReturnForm] = useState(false);
+  const [showFuelForm, setShowFuelForm] = useState(false);
+
+  const detailQ = useQuery<HireBookingDetail>({
+    queryKey: ["hire-booking-detail", farmId, bookingId],
+    queryFn: () => fetch(`/api/farms/${farmId}/equipment-hire/${bookingId}`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!bookingId,
+  });
+
+  const farmQ = useQuery<{ farm: FarmRecord }>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" }).then((r) => r.json()),
+  });
+
+  const updateStatusMut = useMutation({
+    mutationFn: (status: string) =>
+      fetch(`/api/farms/${farmId}/equipment-hire/${bookingId}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ status }),
+      }).then((r) => r.json()),
+    onSuccess: (_, status) => {
+      qc.invalidateQueries({ queryKey: ["hire-booking-detail", farmId, bookingId] });
+      qc.invalidateQueries({ queryKey: ["equipment-hire", farmId] });
+      toast({ title: `Booking status updated to ${HIRE_STATUSES.find((s) => s.value === status)?.label || status}` });
+    },
+  });
+
+  const deleteCondMut = useMutation({
+    mutationFn: (condId: number) =>
+      fetch(`/api/farms/${farmId}/equipment-hire/${bookingId}/conditions/${condId}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hire-booking-detail", farmId, bookingId] }); toast({ title: "Condition log removed" }); },
+  });
+
+  const deleteFuelMut = useMutation({
+    mutationFn: (fuelId: number) =>
+      fetch(`/api/farms/${farmId}/equipment-hire/${bookingId}/fuel/${fuelId}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hire-booking-detail", farmId, bookingId] }); toast({ title: "Fuel issue removed" }); },
+  });
+
+  const updateCostMut = useMutation({
+    mutationFn: (totalHireCostPence: number) =>
+      fetch(`/api/farms/${farmId}/equipment-hire/${bookingId}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ totalHireCostPence }),
+      }).then((r) => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hire-booking-detail", farmId, bookingId] }); toast({ title: "Hire cost updated" }); },
+  });
+
+  const [costInput, setCostInput] = useState("");
+
+  if (detailQ.isLoading) return <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (!detailQ.data) return null;
+  const detail = detailQ.data;
+  const b = detail.booking;
+  const farm = farmQ.data?.farm;
+  const eq = [detail.equipmentName, detail.equipmentMake, detail.equipmentModel].filter(Boolean).join(" — ");
+
+  const preHireLog = detail.conditionLogs.find((l) => l.logType === "hire_out");
+  const returnLog = detail.conditionLogs.find((l) => l.logType === "return");
+  const totalFuel = detail.fuelIssues.reduce((s, f) => s + (f.totalCostPence || 0), 0);
+  const billedFuel = detail.fuelIssues.filter((f) => f.billedToCustomer).reduce((s, f) => s + (f.totalCostPence || 0), 0);
+  const totalLitres = detail.fuelIssues.reduce((s, f) => s + parseFloat(f.litres), 0);
+  const hireRevenue = b.totalHireCostPence || 0;
+  const totalRevenue = hireRevenue + billedFuel;
+
+  const bookingRow: HireBookingRow = {
+    booking: b,
+    customerName: detail.customer?.name || null,
+    equipmentName: detail.equipmentName,
+    equipmentMake: detail.equipmentMake,
+    equipmentModel: detail.equipmentModel,
+    equipmentRegistration: detail.equipmentRegistration,
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5 text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" />Back
+        </Button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-lg leading-tight">{b.bookingRef || `Booking #${b.id}`}</h3>
+            {statusBadge(b.status, HIRE_STATUSES)}
+          </div>
+          <p className="text-sm text-muted-foreground">{detail.customer?.name || "—"} · {eq}{detail.equipmentRegistration ? ` (${detail.equipmentRegistration})` : ""}</p>
+        </div>
+        <div className="flex gap-2 flex-wrap justify-end">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => printHireAgreement(detail, farm)}>
+            <Printer className="h-3.5 w-3.5" />Agreement
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => printHandoverChecklist(detail, farm, "hire_out")}>
+            <Printer className="h-3.5 w-3.5" />Pre-hire Checklist
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => printHandoverChecklist(detail, farm, "return")}>
+            <Printer className="h-3.5 w-3.5" />Return Checklist
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onEditBooking(bookingRow)}>
+            <Pencil className="h-3.5 w-3.5" />Edit
+          </Button>
+        </div>
+      </div>
+
+      {/* Status actions */}
+      {b.status === "booked" && (
+        <div className="flex gap-2">
+          <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white gap-1.5" onClick={() => updateStatusMut.mutate("active")}>
+            <CheckCircle className="h-3.5 w-3.5" />Mark as Active (Machine Out)
+          </Button>
+        </div>
+      )}
+      {b.status === "active" && (
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white gap-1.5" onClick={() => updateStatusMut.mutate("returned")}>
+            <CheckCircle className="h-3.5 w-3.5" />Mark as Returned
+          </Button>
+        </div>
+      )}
+      {b.status === "returned" && (
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5" onClick={() => {
+            onRaiseInvoice({ customerId: b.customerId, customerName: detail.customer?.name || "", title: `Equipment hire — ${b.bookingRef || `Booking #${b.id}`}` });
+          }}>
+            <Receipt className="h-3.5 w-3.5" />Raise Invoice
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => updateStatusMut.mutate("invoiced")}>Mark as Invoiced</Button>
+        </div>
+      )}
+
+      {/* Inner tab bar */}
+      <div className="flex gap-1 border-b">
+        {[
+          { id: "overview", label: "Overview", icon: <FileText className="h-3.5 w-3.5" /> },
+          { id: "conditions", label: "Condition Checks", icon: <ClipboardCheck className="h-3.5 w-3.5" /> },
+          { id: "fuel", label: "Fuel Issues", icon: <Fuel className="h-3.5 w-3.5" /> },
+          { id: "revenue", label: "Revenue", icon: <BarChart3 className="h-3.5 w-3.5" /> },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setInnerTab(t.id as typeof innerTab)}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 transition-colors ${innerTab === t.id ? "border-green-700 text-green-800 font-medium" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            {t.icon}{t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Overview */}
+      {innerTab === "overview" && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {[
+            { label: "Start Date", value: b.startDate },
+            { label: "Planned Return", value: b.plannedEndDate || "Open-ended" },
+            { label: "Actual Return", value: b.actualEndDate || "—" },
+            { label: "Rate", value: b.ratePence ? `${fmtPence(b.ratePence)} per ${HIRE_RATE_TYPES.find((r) => r.value === b.rateType)?.label.toLowerCase() || b.rateType}` : "—" },
+            { label: "Deposit", value: b.depositPence ? `${fmtPence(b.depositPence)}${b.depositPaid ? " (Paid)" : " (Awaiting)"}` : "—" },
+            { label: "Operator", value: `${HIRE_OPERATOR_TYPES.find((o) => o.value === b.operatorType)?.label || b.operatorType}${b.operatorName ? ` — ${b.operatorName}` : ""}` },
+            { label: "Fuel Policy", value: HIRE_FUEL_POLICIES.find((f) => f.value === b.fuelPolicy)?.label || b.fuelPolicy },
+            { label: "Insurance", value: b.insuranceVerified ? `Verified${b.insuranceNotes ? ` — ${b.insuranceNotes}` : ""}` : "Not verified" },
+            { label: "Machine Hours (current)", value: detail.equipmentCurrentHours ? `${detail.equipmentCurrentHours} hrs` : "—" },
+          ].map((row) => (
+            <div key={row.label} className="bg-muted/40 rounded-lg p-3">
+              <div className="text-[11px] text-muted-foreground">{row.label}</div>
+              <div className="font-medium text-sm mt-0.5">{row.value}</div>
+            </div>
+          ))}
+          {b.notes && (
+            <div className="col-span-full bg-muted/40 rounded-lg p-3">
+              <div className="text-[11px] text-muted-foreground">Notes</div>
+              <div className="font-medium text-sm mt-0.5">{b.notes}</div>
+            </div>
+          )}
+          {!b.insuranceVerified && (
+            <div className="col-span-full flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <ShieldAlert className="h-4 w-4 shrink-0" />Customer insurance has not been verified — obtain and note their policy details before releasing the machine.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Condition Checks */}
+      {innerTab === "conditions" && (
+        <div className="space-y-4">
+          <div className="flex justify-end gap-2">
+            {!preHireLog && <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowPreHireForm(true)}><Plus className="h-3.5 w-3.5" />Pre-hire Check</Button>}
+            {!returnLog && <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowReturnForm(true)}><Plus className="h-3.5 w-3.5" />Return Check</Button>}
+          </div>
+
+          {showPreHireForm && !preHireLog && (
+            <ConditionCheckForm farmId={farmId} bookingId={bookingId} logType="hire_out" onSaved={() => {
+              setShowPreHireForm(false);
+              qc.invalidateQueries({ queryKey: ["hire-booking-detail", farmId, bookingId] });
+            }} />
+          )}
+          {showReturnForm && !returnLog && (
+            <ConditionCheckForm farmId={farmId} bookingId={bookingId} logType="return" onSaved={() => {
+              setShowReturnForm(false);
+              qc.invalidateQueries({ queryKey: ["hire-booking-detail", farmId, bookingId] });
+            }} />
+          )}
+
+          {detail.conditionLogs.length === 0 && !showPreHireForm && !showReturnForm && (
+            <div className="text-center py-8 text-muted-foreground text-sm">No condition logs yet — add a pre-hire check before releasing the machine.</div>
+          )}
+
+          {detail.conditionLogs.map((log) => {
+            const rating = HIRE_CONDITION_RATINGS.find((r) => r.value === log.conditionOverall);
+            return (
+              <div key={log.id} className="border rounded-lg p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${log.logType === "hire_out" ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"}`}>
+                      {log.logType === "hire_out" ? "Pre-hire" : "Return"}
+                    </span>
+                    {rating && <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${rating.colour}`}>{rating.label}</span>}
+                    <span className="text-sm">{log.logDate}{log.logTime ? ` at ${log.logTime}` : ""}</span>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => deleteCondMut.mutate(log.id)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                  {log.hoursReading !== null && <div><span className="text-muted-foreground">Hours:</span> {log.hoursReading}</div>}
+                  {log.fuelLevelPercent !== null && <div><span className="text-muted-foreground">Fuel:</span> {log.fuelLevelPercent}%</div>}
+                  {log.signedOffBy && <div><span className="text-muted-foreground">Signed:</span> {log.signedOffBy}</div>}
+                </div>
+                {log.conditionNotes && <p className="text-sm"><span className="font-medium">Condition:</span> {log.conditionNotes}</p>}
+                {log.damageNotes && <p className="text-sm text-red-700"><span className="font-medium">Damage:</span> {log.damageNotes}</p>}
+                {log.tyreConditionNotes && <p className="text-sm"><span className="font-medium">Tyres:</span> {log.tyreConditionNotes}</p>}
+                {log.attachmentNotes && <p className="text-sm"><span className="font-medium">Attachments:</span> {log.attachmentNotes}</p>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Fuel Issues */}
+      {innerTab === "fuel" && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowFuelForm((v) => !v)}>
+              <Fuel className="h-3.5 w-3.5" />{showFuelForm ? "Cancel" : "Log Fuel Issue"}
+            </Button>
+          </div>
+          {showFuelForm && (
+            <FuelIssueForm farmId={farmId} bookingId={bookingId} onSaved={() => {
+              setShowFuelForm(false);
+              qc.invalidateQueries({ queryKey: ["hire-booking-detail", farmId, bookingId] });
+            }} />
+          )}
+          {detail.fuelIssues.length > 0 ? (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-amber-800">{totalLitres.toFixed(1)}L</div>
+                  <div className="text-xs text-amber-700">Total Fuel Issued</div>
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-green-800">{fmtPence(billedFuel)}</div>
+                  <div className="text-xs text-green-700">Billed to Customer</div>
+                </div>
+                <div className="bg-muted rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold">{fmtPence(totalFuel)}</div>
+                  <div className="text-xs text-muted-foreground">Total Fuel Cost</div>
+                </div>
+              </div>
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Date</th>
+                      <th className="px-3 py-2 text-right font-medium">Litres</th>
+                      <th className="px-3 py-2 text-right font-medium">p/L</th>
+                      <th className="px-3 py-2 text-right font-medium">Total</th>
+                      <th className="px-3 py-2 text-center font-medium">Billed</th>
+                      <th className="px-3 py-2 text-left font-medium">Issued By</th>
+                      <th className="px-3 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.fuelIssues.map((f) => (
+                      <tr key={f.id} className="border-t">
+                        <td className="px-3 py-2">{f.issueDate}</td>
+                        <td className="px-3 py-2 text-right">{parseFloat(f.litres).toFixed(1)}</td>
+                        <td className="px-3 py-2 text-right">{f.pricePerLitrePence ? `${(f.pricePerLitrePence / 100).toFixed(3)}` : "—"}</td>
+                        <td className="px-3 py-2 text-right font-medium">{f.totalCostPence ? fmtPence(f.totalCostPence) : "—"}</td>
+                        <td className="px-3 py-2 text-center">{f.billedToCustomer ? <CheckCircle className="h-4 w-4 text-green-600 mx-auto" /> : <XCircle className="h-4 w-4 text-muted-foreground mx-auto" />}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{f.issuedBy || "—"}</td>
+                        <td className="px-3 py-2">
+                          <Button variant="ghost" size="icon" onClick={() => deleteFuelMut.mutate(f.id)}><Trash2 className="h-3.5 w-3.5 text-red-400" /></Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : !showFuelForm ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">No fuel issues logged yet.</div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Revenue */}
+      {innerTab === "revenue" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-green-800">{fmtPence(hireRevenue)}</div>
+              <div className="text-xs text-green-700 mt-1">Hire Revenue</div>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-amber-800">{fmtPence(billedFuel)}</div>
+              <div className="text-xs text-amber-700 mt-1">Fuel Billed</div>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-blue-800">{fmtPence(totalRevenue)}</div>
+              <div className="text-xs text-blue-700 mt-1">Total Revenue</div>
+            </div>
+          </div>
+
+          <div className="bg-muted/40 rounded-lg p-4 space-y-3">
+            <h4 className="font-medium text-sm">Set Total Hire Cost</h4>
+            <p className="text-xs text-muted-foreground">Enter the final agreed hire cost for this booking. This will be used in revenue summaries and invoice generation.</p>
+            <div className="flex gap-2">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">£</span>
+                <Input
+                  type="number" step="0.01" min="0" className="pl-6 w-40"
+                  value={costInput || (b.totalHireCostPence ? String(b.totalHireCostPence / 100) : "")}
+                  onChange={(e) => setCostInput(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <Button variant="outline" size="sm" onClick={() => {
+                if (costInput) updateCostMut.mutate(Math.round(parseFloat(costInput) * 100));
+              }}>Save Cost</Button>
+            </div>
+          </div>
+
+          {b.status === "returned" && (
+            <Button className="gap-1.5" onClick={() => {
+              onRaiseInvoice({ customerId: b.customerId, customerName: detail.customer?.name || "", title: `Equipment hire — ${b.bookingRef || `Booking #${b.id}`}` });
+            }}>
+              <Receipt className="h-4 w-4" />Raise Invoice for This Booking
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Equipment Hire Tab ───────────────────────────────────────────────────────
+
+function EquipmentHireTab({
+  farmId, customers, onRaiseInvoice,
+}: {
+  farmId: number;
+  customers: FarmCustomer[];
+  onRaiseInvoice: (prefill: InvoicePrefill) => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editRow, setEditRow] = useState<HireBookingRow | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [showSummary, setShowSummary] = useState(false);
+
+  const bookingsQ = useQuery<{ records: HireBookingRow[] }>({
+    queryKey: ["equipment-hire", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/equipment-hire`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+
+  const equipmentQ = useQuery<{ records: EquipmentItem[] }>({
+    queryKey: ["equipment", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/equipment`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!farmId,
+  });
+
+  const summaryQ = useQuery<{
+    totalBookings: number; activeBookings: number; totalRevenuePence: number; totalFuelRevenuePence: number;
+    byMachine: { equipmentName: string; bookingCount: number; totalHirePence: number; totalFuelPence: number }[];
+    byCustomer: { customerName: string; bookingCount: number; totalHirePence: number }[];
+  }>({
+    queryKey: ["equipment-hire-summary", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/equipment-hire-summary`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!farmId && showSummary,
+  });
+
+  const cancelMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/farms/${farmId}/equipment-hire/${id}`, { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["equipment-hire", farmId] }); toast({ title: "Booking cancelled" }); },
+  });
+
+  const bookings = bookingsQ.data?.records ?? [];
+  const equipment = equipmentQ.data?.records ?? [];
+  const filtered = filterStatus === "all" ? bookings : bookings.filter((b) => b.booking.status === filterStatus);
+
+  const active = bookings.filter((b) => ["booked", "active"].includes(b.booking.status)).length;
+  const returned = bookings.filter((b) => b.booking.status === "returned").length;
+  const totalRevenue = bookings.reduce((s, b) => s + (b.booking.totalHireCostPence || 0), 0);
+
+  if (selectedId !== null) {
+    return (
+      <BookingDetailPanel
+        farmId={farmId}
+        bookingId={selectedId}
+        customers={customers}
+        equipment={equipment}
+        onBack={() => setSelectedId(null)}
+        onEditBooking={(row) => { setEditRow(row); setDialogOpen(true); }}
+        onRaiseInvoice={(prefill) => { setSelectedId(null); onRaiseInvoice(prefill); }}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Stats bar */}
+      <div className="grid grid-cols-4 gap-3">
+        <div className="bg-muted/40 rounded-lg p-3 text-center">
+          <div className="text-xl font-bold">{bookings.length}</div>
+          <div className="text-xs text-muted-foreground">Total Bookings</div>
+        </div>
+        <div className="bg-green-50 rounded-lg p-3 text-center">
+          <div className="text-xl font-bold text-green-800">{active}</div>
+          <div className="text-xs text-green-700">Active / Booked</div>
+        </div>
+        <div className="bg-purple-50 rounded-lg p-3 text-center">
+          <div className="text-xl font-bold text-purple-800">{returned}</div>
+          <div className="text-xs text-purple-700">Awaiting Invoice</div>
+        </div>
+        <div className="bg-blue-50 rounded-lg p-3 text-center">
+          <div className="text-xl font-bold text-blue-800">{fmtPence(totalRevenue)}</div>
+          <div className="text-xs text-blue-700">Hire Revenue</div>
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex gap-2 flex-wrap">
+          {["all", ...HIRE_STATUSES.map((s) => s.value)].map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filterStatus === s ? "bg-green-700 text-white border-green-700" : "border-border text-muted-foreground hover:border-green-400"}`}
+            >
+              {s === "all" ? "All" : HIRE_STATUSES.find((h) => h.value === s)?.label || s}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowSummary((v) => !v)}>
+            <BarChart3 className="h-3.5 w-3.5" />{showSummary ? "Hide" : "Revenue"} Summary
+          </Button>
+          <Button size="sm" className="gap-1.5 bg-green-700 hover:bg-green-800 text-white" onClick={() => { setEditRow(null); setDialogOpen(true); }}>
+            <Plus className="h-3.5 w-3.5" />New Booking
+          </Button>
+        </div>
+      </div>
+
+      {/* Revenue Summary */}
+      {showSummary && (
+        <div className="border rounded-xl p-4 space-y-4 bg-muted/20">
+          {summaryQ.isLoading ? <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin" /></div> : summaryQ.data ? (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="text-center"><div className="text-xl font-bold">{summaryQ.data.totalBookings}</div><div className="text-xs text-muted-foreground">Total Bookings</div></div>
+                <div className="text-center"><div className="text-xl font-bold text-green-700">{summaryQ.data.activeBookings}</div><div className="text-xs text-muted-foreground">Active Now</div></div>
+                <div className="text-center"><div className="text-xl font-bold">{fmtPence(summaryQ.data.totalRevenuePence)}</div><div className="text-xs text-muted-foreground">Hire Revenue</div></div>
+                <div className="text-center"><div className="text-xl font-bold">{fmtPence(summaryQ.data.totalFuelRevenuePence)}</div><div className="text-xs text-muted-foreground">Fuel Revenue</div></div>
+              </div>
+              {summaryQ.data.byMachine.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium mb-2">By Machine</h4>
+                  <div className="space-y-1">
+                    {summaryQ.data.byMachine.map((m) => (
+                      <div key={m.equipmentName} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
+                        <span>{m.equipmentName}</span>
+                        <span className="text-muted-foreground">{m.bookingCount} hire{m.bookingCount !== 1 ? "s" : ""} · {fmtPence(m.totalHirePence)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {summaryQ.data.byCustomer.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium mb-2">By Customer</h4>
+                  <div className="space-y-1">
+                    {summaryQ.data.byCustomer.map((c) => (
+                      <div key={c.customerName} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
+                        <span>{c.customerName}</span>
+                        <span className="text-muted-foreground">{c.bookingCount} hire{c.bookingCount !== 1 ? "s" : ""} · {fmtPence(c.totalHirePence)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {/* Bookings List */}
+      {bookingsQ.isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-14 space-y-3">
+          <Tractor className="h-10 w-10 mx-auto text-muted-foreground/50" />
+          <p className="text-muted-foreground">{bookings.length === 0 ? "No hire bookings yet — create your first booking." : "No bookings match the selected filter."}</p>
+          {bookings.length === 0 && (
+            <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white gap-1.5" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-3.5 w-3.5" />New Booking
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="border rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="px-3 py-2.5 text-left font-medium">Booking</th>
+                <th className="px-3 py-2.5 text-left font-medium">Machine</th>
+                <th className="px-3 py-2.5 text-left font-medium hidden sm:table-cell">Customer</th>
+                <th className="px-3 py-2.5 text-left font-medium hidden md:table-cell">Start</th>
+                <th className="px-3 py-2.5 text-left font-medium hidden md:table-cell">Return</th>
+                <th className="px-3 py-2.5 text-left font-medium">Status</th>
+                <th className="px-3 py-2.5 text-right font-medium">Revenue</th>
+                <th className="px-3 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((row) => {
+                const b = row.booking;
+                const insWarn = !b.insuranceVerified && ["booked", "active"].includes(b.status);
+                return (
+                  <tr key={b.id} className="border-t hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setSelectedId(b.id)}>
+                    <td className="px-3 py-2.5 font-medium">
+                      {b.bookingRef || `#${b.id}`}
+                      {insWarn && <span className="ml-1.5 text-red-500" title="Insurance not verified"><ShieldAlert className="h-3.5 w-3.5 inline" /></span>}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div>{row.equipmentName || "—"}</div>
+                      {(row.equipmentMake || row.equipmentModel) && (
+                        <div className="text-xs text-muted-foreground">{[row.equipmentMake, row.equipmentModel].filter(Boolean).join(" ")}</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 hidden sm:table-cell">{row.customerName || "—"}</td>
+                    <td className="px-3 py-2.5 hidden md:table-cell">{b.startDate}</td>
+                    <td className="px-3 py-2.5 hidden md:table-cell">{b.actualEndDate || b.plannedEndDate || "Open"}</td>
+                    <td className="px-3 py-2.5">{statusBadge(b.status, HIRE_STATUSES)}</td>
+                    <td className="px-3 py-2.5 text-right">{b.totalHireCostPence ? fmtPence(b.totalHireCostPence) : "—"}</td>
+                    <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex gap-1 justify-end">
+                        <Button variant="ghost" size="icon" title="View" onClick={() => setSelectedId(b.id)}><Eye className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditRow(row); setDialogOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
+                        {!["cancelled", "invoiced"].includes(b.status) && (
+                          <Button variant="ghost" size="icon" title="Cancel" onClick={() => { if (confirm("Cancel this booking?")) cancelMut.mutate(b.id); }}>
+                            <X className="h-3.5 w-3.5 text-red-500" />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <HireBookingDialog
+        farmId={farmId}
+        customers={customers}
+        equipment={equipment}
+        open={dialogOpen}
+        onClose={() => { setDialogOpen(false); setEditRow(null); }}
+        editBooking={editRow}
+      />
+    </div>
+  );
+}
+
 // ─── Compliance Banner ────────────────────────────────────────────────────────
 
 function ComplianceBanner() {
@@ -2186,7 +3383,7 @@ export default function FarmServicesPage() {
   const [tab, setTab] = useState<Tab>(() => {
     const p = new URLSearchParams(window.location.search);
     const t = p.get("tab") as Tab | null;
-    const valid: Tab[] = ["customers", "agreements", "grain", "invoices", "work-orders"];
+    const valid: Tab[] = ["customers", "agreements", "grain", "invoices", "work-orders", "hire"];
     return t && valid.includes(t) ? t : "customers";
   });
   const [invoicePrefill, setInvoicePrefill] = useState<InvoicePrefill | null>(null);
@@ -2244,6 +3441,9 @@ export default function FarmServicesPage() {
           <TabButton active={tab === "work-orders"} onClick={() => setTab("work-orders")}>
             <span className="flex items-center gap-1.5"><Briefcase className="h-3.5 w-3.5" /> Work Orders</span>
           </TabButton>
+          <TabButton active={tab === "hire"} onClick={() => setTab("hire")}>
+            <span className="flex items-center gap-1.5"><Tractor className="h-3.5 w-3.5" /> Equipment Hire</span>
+          </TabButton>
         </TabBar>
 
         {tab === "customers" && farmId && <CustomersTab farmId={farmId} customers={customers} isLoading={customersQ.isLoading} />}
@@ -2251,6 +3451,7 @@ export default function FarmServicesPage() {
         {tab === "grain" && farmId && <GrainIntakeTab farmId={farmId} customers={customers} />}
         {tab === "invoices" && farmId && <InvoicesTab farmId={farmId} customers={customers} prefill={invoicePrefill} />}
         {tab === "work-orders" && farmId && <WorkOrdersTab farmId={farmId} customers={customers} onRaiseInvoice={handleRaiseInvoice} />}
+        {tab === "hire" && farmId && <EquipmentHireTab farmId={farmId} customers={customers} onRaiseInvoice={handleRaiseInvoice} />}
       </div>
     </AppLayout>
   );
