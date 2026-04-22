@@ -123,6 +123,18 @@ export default function MoreScreen() {
           />
         </View>
 
+        <SectionHeader title="Tasks" />
+        <View style={styles.section}>
+          <ListItem
+            title="My Task Inbox"
+            subtitle="View and complete tasks assigned to you"
+            icon="check-square"
+            iconColor="#22c55e"
+            iconBgColor="#f0fdf4"
+            onPress={() => router.push("/task-inbox")}
+          />
+        </View>
+
         <SectionHeader title="App" />
         <View style={styles.section}>
           <ListItem

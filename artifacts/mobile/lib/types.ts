@@ -415,7 +415,7 @@ export interface EquipmentDefect {
   reportedDate: string;
   reportedBy: string;
   defectDescription: string;
-  severity: "minor" | "major" | "unsafe";
+  severity: "low" | "medium" | "high" | "critical";
   actionTaken: string;
   notes: string;
   latitude?: number;

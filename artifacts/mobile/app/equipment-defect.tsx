@@ -29,9 +29,10 @@ import type { EquipmentDefect } from "@/lib/types";
 type Severity = EquipmentDefect["severity"];
 
 const SEVERITIES: { key: Severity; label: string; sub: string; color: string; icon: keyof typeof Feather.glyphMap }[] = [
-  { key: "minor", label: "Minor", sub: "Can still work", color: colors.accent, icon: "alert-circle" },
-  { key: "major", label: "Major", sub: "Needs repair soon", color: colors.error, icon: "alert-triangle" },
-  { key: "unsafe", label: "Unsafe", sub: "Take out of service immediately", color: "#7C3AED", icon: "x-circle" },
+  { key: "low", label: "Low", sub: "Monitor — repair at next service", color: "#22c55e", icon: "alert-circle" },
+  { key: "medium", label: "Medium", sub: "Repair before next use", color: colors.accent, icon: "alert-triangle" },
+  { key: "high", label: "High", sub: "Do not use until repaired", color: colors.error, icon: "alert-octagon" },
+  { key: "critical", label: "Critical", sub: "Immediate safety risk — remove from service now", color: "#7C3AED", icon: "x-circle" },
 ];
 
 const COMMON_EQUIPMENT = [
@@ -50,7 +51,7 @@ export default function EquipmentDefectScreen() {
   const [equipmentName, setEquipmentName] = useState(params.assetName ?? "");
   const [reportedBy, setReportedBy] = useState(user?.name || "");
   const [defectDescription, setDefectDescription] = useState("");
-  const [severity, setSeverity] = useState<Severity>("minor");
+  const [severity, setSeverity] = useState<Severity>("low");
   const [actionTaken, setActionTaken] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -96,9 +97,11 @@ export default function EquipmentDefectScreen() {
     await refreshPendingCount();
     setSaving(false);
 
-    const msg = severity === "unsafe"
-      ? "Defect reported. This item has been flagged as UNSAFE — remove from service immediately."
-      : "Equipment defect report saved successfully.";
+    const msg = severity === "critical"
+      ? "Defect reported. This item has been flagged as CRITICAL — remove from service immediately."
+      : severity === "high"
+        ? "Defect reported. Equipment must not be used until this defect is repaired."
+        : "Equipment defect report saved successfully.";
     Alert.alert("Saved", msg, [{ text: "OK", onPress: () => router.back() }]);
   };
 
@@ -181,11 +184,13 @@ export default function EquipmentDefectScreen() {
             ))}
           </View>
 
-          {severity === "unsafe" && (
-            <View style={styles.unsafeBanner}>
-              <Feather name="x-circle" size={16} color="#7C3AED" />
-              <Text style={styles.unsafeBannerText}>
-                Unsafe equipment must be taken out of service immediately and tagged. Do not use until repaired and inspected.
+          {(severity === "critical" || severity === "high") && (
+            <View style={[styles.unsafeBanner, severity === "high" && { backgroundColor: "#FEE2E2" }]}>
+              <Feather name={severity === "critical" ? "x-circle" : "alert-octagon"} size={16} color={severity === "critical" ? "#7C3AED" : colors.error} />
+              <Text style={[styles.unsafeBannerText, severity === "high" && { color: colors.error }]}>
+                {severity === "critical"
+                  ? "Critical defect — remove from service immediately and tag the equipment. Do not use until fully repaired and inspected."
+                  : "High severity defect — equipment must not be used until this defect has been repaired."}
               </Text>
             </View>
           )}
@@ -304,11 +309,12 @@ const styles = StyleSheet.create({
   },
   severityGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm,
     marginBottom: spacing.md,
   },
   severityCard: {
-    flex: 1,
+    width: "48%",
     alignItems: "center",
     gap: spacing.xs,
     padding: spacing.md,

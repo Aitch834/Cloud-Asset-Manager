@@ -60,6 +60,19 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+const MODULE_LABELS: Record<string, string> = {
+  equipment_defect: "Equipment Defect",
+  risk_assessment: "Risk Assessment",
+  medicine_followup: "Medicine",
+  vet_followup: "Vet Follow-up",
+  spray_assignment: "Spray",
+  feed_bin: "Feed Bin",
+  farm_services: "Farm Services",
+  work_order: "Work Order",
+  field_inspection: "Field Inspection",
+  planner: "Planner",
+};
+
 function AssignmentCard({
   item, farmId, onUpdated,
 }: {
@@ -130,7 +143,7 @@ function AssignmentCard({
               </Text>
             )}
             {item.module && (
-              <Text style={styles.cardModule}>{item.module}</Text>
+              <Text style={styles.cardModule}>{MODULE_LABELS[item.module] ?? item.module}</Text>
             )}
           </View>
         </View>

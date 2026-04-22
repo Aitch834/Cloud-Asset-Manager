@@ -175,6 +175,13 @@ export default function HomeScreen() {
           contentContainerStyle={styles.quickActions}
         >
           <QuickAction
+            title="My Tasks"
+            icon="check-square"
+            color="#22c55e"
+            bgColor="#f0fdf4"
+            onPress={() => router.push("/task-inbox")}
+          />
+          <QuickAction
             title="Spray Record"
             icon="droplet"
             color={colors.info}
