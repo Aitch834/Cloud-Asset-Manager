@@ -13,10 +13,39 @@ interface ComplianceCardProps {
   completedForms: number;
   totalForms: number;
   overdueItems: number;
+  loading?: boolean;
 }
 
-export function ComplianceCard({ score, completedForms, totalForms, overdueItems }: ComplianceCardProps) {
+export function ComplianceCard({ score, completedForms, totalForms, overdueItems, loading }: ComplianceCardProps) {
   const scoreColor = score >= 80 ? colors.compliant : score >= 60 ? colors.warning : colors.nonCompliant;
+
+  if (loading) {
+    return (
+      <Card style={styles.card}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.label}>Red Tractor Compliance</Text>
+            <View style={[styles.skeletonBlock, { width: 80, height: 36, marginTop: 4 }]} />
+          </View>
+          <View style={[styles.scoreBadge, { backgroundColor: colors.borderLight }]} />
+        </View>
+        <View style={[styles.progressTrack, { marginBottom: spacing.lg }]}>
+          <View style={[styles.progressFill, { width: "40%", backgroundColor: colors.borderLight }]} />
+        </View>
+        <View style={styles.stats}>
+          {[0, 1, 2].map((i) => (
+            <React.Fragment key={i}>
+              {i > 0 && <View style={styles.statDivider} />}
+              <View style={styles.stat}>
+                <View style={[styles.skeletonBlock, { width: 32, height: 22, marginBottom: 4 }]} />
+                <View style={[styles.skeletonBlock, { width: 56, height: 12 }]} />
+              </View>
+            </React.Fragment>
+          ))}
+        </View>
+      </Card>
+    );
+  }
 
   return (
     <Card style={styles.card}>
@@ -45,7 +74,7 @@ export function ComplianceCard({ score, completedForms, totalForms, overdueItems
         </View>
         <View style={styles.statDivider} />
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{totalForms - completedForms}</Text>
+          <Text style={styles.statValue}>{Math.max(0, totalForms - completedForms)}</Text>
           <Text style={styles.statLabel}>Remaining</Text>
         </View>
         <View style={styles.statDivider} />
@@ -121,5 +150,9 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  skeletonBlock: {
+    backgroundColor: colors.borderLight,
+    borderRadius: 4,
   },
 });

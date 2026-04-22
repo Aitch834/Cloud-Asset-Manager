@@ -22,6 +22,7 @@ import { spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiFarmDashboard } from "@/lib/hooks/useApiFarmDashboard";
 import { getList, STORAGE_KEYS } from "@/lib/storage";
 
 interface RecentActivity {
@@ -37,6 +38,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, farms, setCurrentFarm, user } = useFarm();
   const { pendingCount, isSyncing, triggerSync } = useSync();
+  const { data: dashboardData } = useApiFarmDashboard(currentFarm?.id);
   const [refreshing, setRefreshing] = useState(false);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [recordCounts, setRecordCounts] = useState({
@@ -162,10 +164,11 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         <ComplianceCard
-          score={72}
-          completedForms={18}
-          totalForms={25}
-          overdueItems={3}
+          score={dashboardData?.complianceScore ?? 0}
+          completedForms={dashboardData?.completedForms ?? 0}
+          totalForms={dashboardData?.totalForms ?? 0}
+          overdueItems={dashboardData?.overdueActions ?? 0}
+          loading={dashboardData === null}
         />
 
         <SectionHeader title="Quick Actions" />

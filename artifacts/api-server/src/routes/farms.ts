@@ -418,20 +418,80 @@ router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: R
     })),
   ];
 
-  const moduleStats = activeSubs.map((s) => ({
-    moduleKey: s.moduleKey,
-    moduleName: s.moduleName,
-    recordCount: 0,
-    lastActivity: null as string | null,
-    hasOverdue: false,
-  }));
+  const today = new Date().toISOString().slice(0, 10);
 
-  const totalOverdue = ncCount.count + overdueInspCount.count;
-  const complianceScore = totalOverdue === 0 ? 95 : Math.max(50, 95 - totalOverdue * 5);
+  const [
+    [totalTasksRow],
+    [completedTasksRow],
+    [overdueTasksRow],
+    moduleTaskRows,
+  ] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(farmTaskAssignmentsTable)
+      .where(eq(farmTaskAssignmentsTable.farmId, farmId)),
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(farmTaskAssignmentsTable)
+      .where(and(
+        eq(farmTaskAssignmentsTable.farmId, farmId),
+        eq(farmTaskAssignmentsTable.status, "completed"),
+      )),
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(farmTaskAssignmentsTable)
+      .where(and(
+        eq(farmTaskAssignmentsTable.farmId, farmId),
+        eq(farmTaskAssignmentsTable.status, "pending"),
+        sql`${farmTaskAssignmentsTable.dueDate} < ${today}`,
+      )),
+    db.select({
+      module: farmTaskAssignmentsTable.module,
+      total: sql<number>`count(*)::int`,
+      completed: sql<number>`count(*) filter (where ${farmTaskAssignmentsTable.status} = 'completed')::int`,
+      lastActivity: sql<string | null>`max(${farmTaskAssignmentsTable.completedAt})::text`,
+      hasOverdue: sql<boolean>`bool_or(${farmTaskAssignmentsTable.status} = 'pending' and ${farmTaskAssignmentsTable.dueDate} < ${today})`,
+    })
+      .from(farmTaskAssignmentsTable)
+      .where(and(
+        eq(farmTaskAssignmentsTable.farmId, farmId),
+        sql`${farmTaskAssignmentsTable.module} is not null`,
+      ))
+      .groupBy(farmTaskAssignmentsTable.module),
+  ]);
+
+  const totalForms = totalTasksRow?.count ?? 0;
+  const completedForms = completedTasksRow?.count ?? 0;
+  const taskOverdue = overdueTasksRow?.count ?? 0;
+
+  const moduleTaskMap = new Map(moduleTaskRows.map((r) => [r.module, r]));
+
+  const moduleStats = activeSubs.map((s) => {
+    const taskStats = moduleTaskMap.get(s.moduleKey);
+    return {
+      moduleKey: s.moduleKey,
+      moduleName: s.moduleName,
+      recordCount: taskStats?.total ?? 0,
+      completedCount: taskStats?.completed ?? 0,
+      lastActivity: taskStats?.lastActivity ?? null,
+      hasOverdue: taskStats?.hasOverdue ?? false,
+    };
+  });
+
+  let complianceScore: number;
+  if (totalForms > 0) {
+    const completionRate = completedForms / totalForms;
+    const overduePenalty = Math.min(taskOverdue * 4, 25);
+    complianceScore = Math.max(0, Math.min(95, Math.round(completionRate * 100) - overduePenalty));
+  } else {
+    const ncOverdue = ncCount.count + overdueInspCount.count;
+    complianceScore = ncOverdue === 0 ? 90 : Math.max(50, 90 - ncOverdue * 5);
+  }
+
+  const totalOverdue = taskOverdue + ncCount.count + overdueInspCount.count;
 
   res.json({
     farm,
     complianceScore,
+    totalForms,
+    completedForms,
     overdueActions: totalOverdue,
     overdueItems,
     upcomingInspection: inspResult?.nextDue || null,
