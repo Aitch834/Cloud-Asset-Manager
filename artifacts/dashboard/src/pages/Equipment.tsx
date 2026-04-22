@@ -14,7 +14,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useEquipment, useAddEquipment } from "@/hooks/use-equipment";
-import { Plus, Search, Tractor, Camera, X, Pencil, Loader2, Printer, Trash2, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown, PackageX, RotateCcw, Eye, EyeOff, QrCode } from "lucide-react";
+import { Plus, Search, Tractor, Camera, X, Pencil, Loader2, Printer, Trash2, Wrench, AlertTriangle, CheckCircle2, Clock, ChevronDown, PackageX, RotateCcw, Eye, EyeOff, QrCode, ClipboardList } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -289,6 +290,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
   const [formOpen, setFormOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [form, setForm] = useState<typeof DEFECT_EMPTY>(DEFECT_EMPTY);
+  const [raiseTaskDefect, setRaiseTaskDefect] = useState<DefectReport | null>(null);
 
   const equipQ = useQuery<{ records: EquipmentRecord[] }>({
     queryKey: ["equipment-for-defects", farmId],
@@ -397,7 +399,11 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
                     </div>
                   </div>
                   {d.status !== "resolved" && (
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0 flex items-center gap-2">
+                      <Button variant="outline" size="sm" className="gap-1 text-xs text-primary border-primary/30 hover:bg-primary/5" onClick={() => setRaiseTaskDefect(d)}>
+                        <ClipboardList className="w-3 h-3" />
+                        Raise Task
+                      </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="outline" size="sm" disabled={updatingId === d.id} className="gap-1 text-xs">
@@ -469,6 +475,18 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
           </form>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskDefect && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskDefect}
+          onClose={() => setRaiseTaskDefect(null)}
+          defaultTitle={`Fix defect: ${raiseTaskDefect.defectRef || "Equipment defect"} — ${equipList.find(e => e.id === raiseTaskDefect.equipmentId)?.name || "Equipment"}`}
+          defaultDescription={raiseTaskDefect.description || ""}
+          taskType="equipment_defect"
+          module="Equipment"
+        />
+      )}
     </>
   );
 }

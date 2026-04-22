@@ -13,8 +13,9 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Stethoscope, Plus, Edit2, Trash2, Eye, Receipt,
   CheckCircle2, Clock, AlertCircle, X, ExternalLink,
-  ChevronRight, Package,
+  ChevronRight, Package, ClipboardList,
 } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -149,6 +150,7 @@ export default function VetLedgerPage() {
   type VetTab = "visits" | "invoices";
   const [tab, setTab] = useState<VetTab>("visits");
   const [search, setSearch] = useState("");
+  const [raiseTaskVisit, setRaiseTaskVisit] = useState<Record<string, unknown> | null>(null);
 
   // ── Queries ─────────────────────────────────────────────
   const visitsQ = useQuery({
@@ -499,7 +501,13 @@ export default function VetLedgerPage() {
                       {!!v.estimatedTotalGbp && <span>Est. {fmtGbp(v.estimatedTotalGbp)}</span>}
                     </div>
                   </div>
-                  <div className="flex gap-1 shrink-0">
+                  <div className="flex gap-1 shrink-0 flex-wrap justify-end">
+                    {(v.followUpDueDate || v.followUpRequired) && (
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/5" onClick={() => setRaiseTaskVisit(v)}>
+                        <ClipboardList className="w-3 h-3" />
+                        Raise Task
+                      </Button>
+                    )}
                     <Button size="sm" variant="ghost" title="View" onClick={() => { setViewVisit(v); setShowViewVisitDialog(true); }} className="h-7 px-2 text-gray-500"><Eye className="w-3 h-3" /></Button>
                     <Button size="sm" variant="ghost" title="Edit" onClick={() => openVisitEdit(v)} className="h-7 px-2"><Edit2 className="w-3 h-3" /></Button>
                     <Button size="sm" variant="ghost" title="Delete" onClick={() => { if (confirm("Delete this visit record?")) delVisitMut.mutate(Number(v.id)); }} className="h-7 px-2 text-red-600"><Trash2 className="w-3 h-3" /></Button>
@@ -940,6 +948,19 @@ export default function VetLedgerPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskVisit && farmId && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskVisit}
+          onClose={() => setRaiseTaskVisit(null)}
+          defaultTitle={`Vet follow-up: ${String(raiseTaskVisit.reasonForVisit ?? "Visit")}`}
+          defaultDescription={raiseTaskVisit.clinicalFindings ? `Clinical findings: ${String(raiseTaskVisit.clinicalFindings)}` : ""}
+          defaultDueDate={raiseTaskVisit.followUpDueDate ? String(raiseTaskVisit.followUpDueDate).slice(0, 10) : ""}
+          taskType="vet_followup"
+          module="Vet Ledger"
+        />
+      )}
     </div>
     </AppLayout>
   );

@@ -13,8 +13,9 @@ import { Redirect } from "wouter";
 import {
   Plus, Search, Loader2, Pencil, Trash2, HeartPulse, Printer,
   AlertTriangle, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp, Eye,
-  Tag, Users, User, RefreshCw, ShieldAlert, ShieldCheck, BadgeCheck, Info,
+  Tag, Users, User, RefreshCw, ShieldAlert, ShieldCheck, BadgeCheck, Info, ClipboardList,
 } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -300,9 +301,10 @@ function treatmentTraceDetail(record: MedicineRecord, herds: Herd[], animals: An
   return "—";
 }
 
-function RecordCard({ record, herds, animals, onEdit, onDelete, onView }: {
+function RecordCard({ record, herds, animals, onEdit, onDelete, onView, onRaiseTask }: {
   record: MedicineRecord; herds: Herd[]; animals: Animal[];
   onEdit: (r: MedicineRecord) => void; onDelete: (id: number) => void; onView: (r: MedicineRecord) => void;
+  onRaiseTask?: (r: MedicineRecord) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const status = getRecordStatus(record);
@@ -334,6 +336,12 @@ function RecordCard({ record, herds, animals, onEdit, onDelete, onView }: {
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          {status === "in_withdrawal" && onRaiseTask && (
+            <button onClick={() => onRaiseTask(record)} className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/10" title="Raise withdrawal check task">
+              <ClipboardList className="w-3 h-3" />
+              Raise Task
+            </button>
+          )}
           <button onClick={() => onView(record)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/30 hover:text-blue-600"><Eye className="w-3.5 h-3.5" /></button>
           <button onClick={() => onEdit(record)} className="p-1.5 rounded-md hover:bg-black/5 text-foreground/30 hover:text-primary"><Pencil className="w-3.5 h-3.5" /></button>
           <button onClick={() => onDelete(record.id)} className="p-1.5 rounded-md hover:bg-red-50 text-foreground/30 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -544,6 +552,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<MedicineRecord | null>(null);
   const [form, setForm] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [raiseTaskRecord, setRaiseTaskRecord] = useState<MedicineRecord | null>(null);
 
   // Tag validation state — used only when treatmentScope === "group"
   const [tagValidations, setTagValidations] = useState<TagValidation[]>([]);
@@ -821,7 +830,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
           ) : (
             <div className="space-y-3">
               {filtered.map(r => (
-                <RecordCard key={r.id} record={r} herds={herds} animals={animals} onEdit={openEdit} onDelete={setDeleteId} onView={setViewRecord} />
+                <RecordCard key={r.id} record={r} herds={herds} animals={animals} onEdit={openEdit} onDelete={setDeleteId} onView={setViewRecord} onRaiseTask={setRaiseTaskRecord} />
               ))}
             </div>
           )}
@@ -1263,6 +1272,19 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskRecord && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskRecord}
+          onClose={() => setRaiseTaskRecord(null)}
+          defaultTitle={`Withdrawal check: ${raiseTaskRecord.medicineName} — due ${raiseTaskRecord.withdrawalEndDate ? new Date(raiseTaskRecord.withdrawalEndDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "TBC"}`}
+          defaultDescription={`Verify animals treated with ${raiseTaskRecord.medicineName} have completed their withdrawal period before slaughter or milk use.`}
+          defaultDueDate={raiseTaskRecord.withdrawalEndDate?.slice(0, 10) ?? ""}
+          taskType="medicine_followup"
+          module="Medicine Register"
+        />
+      )}
     </>
   );
 }

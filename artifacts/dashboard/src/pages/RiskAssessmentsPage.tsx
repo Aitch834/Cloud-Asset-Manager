@@ -13,7 +13,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown, Flame, Loader2, Paperclip, File as FileIcon, Printer } from "lucide-react";
+import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown, Flame, Loader2, Paperclip, File as FileIcon, Printer, ClipboardList } from "lucide-react";
+import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 
 type Tab = "risk" | "coshh" | "pat" | "fire";
 type RiskLevel = "low" | "medium" | "high" | "critical";
@@ -142,6 +143,7 @@ function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number
   const [viewRecord, setViewRecord] = useState<RiskAssessment | null>(null);
   const [editing, setEditing] = useState<RiskAssessment | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [raiseTaskRisk, setRaiseTaskRisk] = useState<RiskAssessment | null>(null);
   const [form, setForm] = useState<Partial<RiskAssessment>>(EMPTY);
   const [showTemplates, setShowTemplates] = useState(false);
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
@@ -345,6 +347,10 @@ function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <Button variant="ghost" size="sm" onClick={() => setViewRecord(r)}>View</Button>
+                      <Button variant="outline" size="sm" className="gap-1 text-xs text-primary border-primary/30 hover:bg-primary/5" onClick={() => setRaiseTaskRisk(r)}>
+                        <ClipboardList className="w-3 h-3" />
+                        Raise Task
+                      </Button>
                       <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => setDeleteId(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </td>
@@ -504,6 +510,18 @@ function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {raiseTaskRisk && (
+        <RaiseTaskDialog
+          farmId={farmId}
+          open={!!raiseTaskRisk}
+          onClose={() => setRaiseTaskRisk(null)}
+          defaultTitle={`Address risk: ${raiseTaskRisk.title}`}
+          defaultDescription={raiseTaskRisk.hazardDescription || raiseTaskRisk.controlMeasures || ""}
+          taskType="risk_assessment"
+          module="Health & Safety"
+        />
+      )}
     </div>
   );
 }
