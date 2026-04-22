@@ -44,7 +44,7 @@ export default function HomeScreen() {
   const { pendingCount, isSyncing, triggerSync } = useSync();
   const { data: dashboardData, loading: dashboardLoading } = useApiFarmDashboard(currentFarm?.id);
   const { data: taskSummary, loading: taskSummaryLoading } = useApiMyTasksSummary(currentFarm?.id);
-  const { heroCard, setHeroCard, loaded: prefLoaded } = useHomePreference();
+  const { heroCard, setHeroCard, loaded: prefLoaded } = useHomePreference(user?.id);
   const [personaliseVisible, setPersonaliseVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
