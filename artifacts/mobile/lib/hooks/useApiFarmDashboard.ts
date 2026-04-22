@@ -41,14 +41,20 @@ async function getTenantSlug(): Promise<string> {
 
 export function useApiFarmDashboard(farmId: string | undefined) {
   const [data, setData] = useState<FarmDashboardData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!farmId) return;
+    if (!farmId) {
+      setLoading(false);
+      return;
+    }
 
     const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
-    if (!apiDomain) return;
+    if (!apiDomain) {
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
 

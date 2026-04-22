@@ -38,7 +38,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, farms, setCurrentFarm, user } = useFarm();
   const { pendingCount, isSyncing, triggerSync } = useSync();
-  const { data: dashboardData } = useApiFarmDashboard(currentFarm?.id);
+  const { data: dashboardData, loading: dashboardLoading } = useApiFarmDashboard(currentFarm?.id);
   const [refreshing, setRefreshing] = useState(false);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [recordCounts, setRecordCounts] = useState({
@@ -168,7 +168,7 @@ export default function HomeScreen() {
           completedForms={dashboardData?.completedForms ?? 0}
           totalForms={dashboardData?.totalForms ?? 0}
           overdueItems={dashboardData?.overdueActions ?? 0}
-          loading={dashboardData === null}
+          loading={dashboardLoading}
         />
 
         <SectionHeader title="Quick Actions" />
