@@ -12,6 +12,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ComplianceCard } from "@/components/home/ComplianceCard";
+import { HomePersonaliseSheet } from "@/components/home/HomePersonaliseSheet";
+import { MyTasksCard } from "@/components/home/MyTasksCard";
 import { QuickAction } from "@/components/home/QuickAction";
 import { WeatherWidget } from "@/components/home/WeatherWidget";
 import { Badge } from "@/components/ui/Badge";
@@ -23,6 +25,8 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmDashboard } from "@/lib/hooks/useApiFarmDashboard";
+import { useApiMyTasksSummary } from "@/lib/hooks/useApiMyTasksSummary";
+import { useHomePreference } from "@/lib/hooks/useHomePreference";
 import { getList, STORAGE_KEYS } from "@/lib/storage";
 
 interface RecentActivity {
@@ -39,6 +43,9 @@ export default function HomeScreen() {
   const { currentFarm, farms, setCurrentFarm, user } = useFarm();
   const { pendingCount, isSyncing, triggerSync } = useSync();
   const { data: dashboardData, loading: dashboardLoading } = useApiFarmDashboard(currentFarm?.id);
+  const { data: taskSummary, loading: taskSummaryLoading } = useApiMyTasksSummary(currentFarm?.id);
+  const { heroCard, setHeroCard, loaded: prefLoaded } = useHomePreference();
+  const [personaliseVisible, setPersonaliseVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [recordCounts, setRecordCounts] = useState({
@@ -134,21 +141,30 @@ export default function HomeScreen() {
             )}
           </Pressable>
         </View>
-        <Pressable
-          style={styles.syncButton}
-          onPress={triggerSync}
-        >
-          {pendingCount > 0 && (
-            <View style={styles.syncBadge}>
-              <Text style={styles.syncBadgeText}>{pendingCount}</Text>
-            </View>
-          )}
-          <Feather
-            name={isSyncing ? "loader" : "refresh-cw"}
-            size={20}
-            color={colors.primary}
-          />
-        </Pressable>
+        <View style={styles.headerButtons}>
+          <Pressable
+            style={styles.syncButton}
+            onPress={() => setPersonaliseVisible(true)}
+            hitSlop={8}
+          >
+            <Feather name="sliders" size={18} color={colors.primary} />
+          </Pressable>
+          <Pressable
+            style={styles.syncButton}
+            onPress={triggerSync}
+          >
+            {pendingCount > 0 && (
+              <View style={styles.syncBadge}>
+                <Text style={styles.syncBadgeText}>{pendingCount}</Text>
+              </View>
+            )}
+            <Feather
+              name={isSyncing ? "loader" : "refresh-cw"}
+              size={20}
+              color={colors.primary}
+            />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -163,13 +179,20 @@ export default function HomeScreen() {
         }
         contentContainerStyle={styles.scrollContent}
       >
-        <ComplianceCard
-          score={dashboardData?.complianceScore ?? 0}
-          completedForms={dashboardData?.completedForms ?? 0}
-          totalForms={dashboardData?.totalForms ?? 0}
-          overdueItems={dashboardData?.overdueActions ?? 0}
-          loading={dashboardLoading}
-        />
+        {(!prefLoaded || heroCard === "compliance") ? (
+          <ComplianceCard
+            score={dashboardData?.complianceScore ?? 0}
+            completedForms={dashboardData?.completedForms ?? 0}
+            totalForms={dashboardData?.totalForms ?? 0}
+            overdueItems={dashboardData?.overdueActions ?? 0}
+            loading={dashboardLoading || !prefLoaded}
+          />
+        ) : (
+          <MyTasksCard
+            data={taskSummary}
+            loading={taskSummaryLoading}
+          />
+        )}
 
         <SectionHeader title="Quick Actions" />
         <ScrollView
@@ -279,6 +302,13 @@ export default function HomeScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <HomePersonaliseSheet
+        visible={personaliseVisible}
+        current={heroCard}
+        onSelect={setHeroCard}
+        onClose={() => setPersonaliseVisible(false)}
+      />
     </View>
   );
 }
@@ -317,6 +347,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
     color: colors.primary,
+  },
+  headerButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   syncButton: {
     width: 44,
