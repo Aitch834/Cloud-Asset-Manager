@@ -52,8 +52,10 @@ export default function SeedDrillingScreen() {
   const [treatmentProduct, setTreatmentProduct] = useState("");
   const [operator, setOperator] = useState(user?.name || "");
   const [areaSeededHa, setAreaSeededHa] = useState("");
+  const [areaAutoFilled, setAreaAutoFilled] = useState(false);
   const [soilConditions, setSoilConditions] = useState("");
   const [weatherNotes, setWeatherNotes] = useState("");
+  const [weatherSource, setWeatherSource] = useState<"manual" | "open_meteo" | "davis_station" | "vehicle_station" | "third_party">("manual");
   const [notes, setNotes] = useState("");
 
   const handleCropSelect = (name: string) => {
@@ -63,6 +65,14 @@ export default function SeedDrillingScreen() {
     );
     if (matched?.variety) {
       setVariety(matched.variety);
+    }
+  };
+
+  const handleFieldChange = (field: import("@/lib/hooks/useApiFields").ApiField) => {
+    if (field.areaSqMetres && !areaAutoFilled && !areaSeededHa) {
+      const ha = (field.areaSqMetres / 10000).toFixed(2);
+      setAreaSeededHa(ha);
+      setAreaAutoFilled(true);
     }
   };
 
@@ -113,6 +123,7 @@ export default function SeedDrillingScreen() {
       areaSeededHa: areaSeededHa.trim(),
       soilConditions: soilConditions || undefined,
       weatherNotes: weatherNotes.trim() || undefined,
+      weatherSource: weatherNotes.trim() ? weatherSource : undefined,
       notes: notes.trim(),
       latitude,
       longitude,
@@ -177,6 +188,8 @@ export default function SeedDrillingScreen() {
                 loading={fieldsLoading}
                 value={fieldName}
                 onChange={(name) => setFieldName(name)}
+                onChangeField={handleFieldChange}
+                error={null}
                 placeholder="Select or type field name…"
               />
             </View>
@@ -186,9 +199,12 @@ export default function SeedDrillingScreen() {
               <Input
                 placeholder="e.g. 14.5"
                 value={areaSeededHa}
-                onChangeText={setAreaSeededHa}
+                onChangeText={(v) => { setAreaSeededHa(v); setAreaAutoFilled(false); }}
                 keyboardType="decimal-pad"
               />
+              {areaAutoFilled && (
+                <Text style={styles.hint}>Auto-filled from field register — edit if drilling only part of the field</Text>
+              )}
             </View>
           </View>
 
@@ -364,11 +380,29 @@ export default function SeedDrillingScreen() {
 
             <View style={styles.field}>
               <Text style={styles.label}>Weather at Drilling</Text>
+              <View style={styles.chipWrap}>
+                <Pressable
+                  style={[styles.chip, weatherSource === "manual" && styles.chipSelected]}
+                  onPress={() => setWeatherSource("manual")}
+                >
+                  <Text style={[styles.chipText, weatherSource === "manual" && styles.chipTextSelected]}>
+                    Enter manually
+                  </Text>
+                </Pressable>
+                <View style={[styles.chip, styles.chipDisabled]}>
+                  <Text style={[styles.chipText, styles.chipTextDisabled]}>
+                    Station / API  (coming soon)
+                  </Text>
+                </View>
+              </View>
               <Input
                 placeholder="e.g. Dry, light wind, 8°C"
                 value={weatherNotes}
                 onChangeText={setWeatherNotes}
               />
+              <Text style={styles.hint}>
+                Future: auto-fetch from farm weather station, Open-Meteo, or vehicle-mounted sensor
+              </Text>
             </View>
           </View>
 
@@ -507,6 +541,12 @@ const styles = StyleSheet.create({
   },
   chipTextSelected: {
     color: colors.textInverse,
+  },
+  chipDisabled: {
+    opacity: 0.4,
+  },
+  chipTextDisabled: {
+    color: colors.textSecondary,
   },
   unitGroup: {
     flexDirection: "row",

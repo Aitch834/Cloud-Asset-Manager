@@ -384,6 +384,7 @@ export interface SeedDrillingRecord {
   areaSeededHa: string;
   soilConditions?: string;
   weatherNotes?: string;
+  weatherSource?: "manual" | "open_meteo" | "davis_station" | "vehicle_station" | "third_party";
   notes: string;
   latitude?: number;
   longitude?: number;

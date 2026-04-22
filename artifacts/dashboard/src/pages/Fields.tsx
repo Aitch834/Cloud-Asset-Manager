@@ -30,6 +30,7 @@ import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { printProReport } from "@/lib/print-report";
+import { cropYearOptions, cropYearLabel, currentCropYear, isInCropYear } from "@/lib/cropYear";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -642,6 +643,7 @@ const EMPTY_SEED = {
 function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: FieldRecord[] }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [cropYear, setCropYear] = useState<number>(() => currentCropYear());
   const { data: membersData } = useFarmMembers(farmId);
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<SeedRecord | null>(null);
@@ -686,12 +688,15 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
   });
 
   const records: SeedRecord[] = data?.records ?? [];
-  const filtered = records.filter(r =>
-    !search ||
-    r.cropName?.toLowerCase().includes(search.toLowerCase()) ||
-    r.variety?.toLowerCase().includes(search.toLowerCase()) ||
-    r.seedLotNumber?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = records.filter(r => {
+    if (!isInCropYear(r.drillingDate, cropYear)) return false;
+    if (!search) return true;
+    return (
+      r.cropName?.toLowerCase().includes(search.toLowerCase()) ||
+      r.variety?.toLowerCase().includes(search.toLowerCase()) ||
+      r.seedLotNumber?.toLowerCase().includes(search.toLowerCase())
+    );
+  });
 
   const fieldNameById = Object.fromEntries(fields.map(f => [f.id, f.name]));
 
@@ -755,9 +760,21 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
         </Button>
       </div>
 
-      <div className="relative w-full sm:w-80 mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
-        <Input placeholder="Search crop, variety, lot..." className="pl-9 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
+        <select
+          className="h-10 rounded-lg border border-border bg-white px-3 py-1.5 text-sm font-medium focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 shrink-0"
+          value={cropYear}
+          onChange={e => setCropYear(Number(e.target.value))}
+        >
+          <option value={0}>All years</option>
+          {cropYearOptions(7).map(y => (
+            <option key={y} value={y}>{cropYearLabel(y)}</option>
+          ))}
+        </select>
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
+          <Input placeholder="Search crop, variety, lot..." className="pl-9 bg-white h-10" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
       </div>
 
       {showForm && (
@@ -775,14 +792,30 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Field</label>
-                  <select className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50" value={formData.fieldId} onChange={e => setField("fieldId", e.target.value)}>
+                  <select
+                    className="w-full h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={formData.fieldId}
+                    onChange={e => {
+                      const id = e.target.value;
+                      setField("fieldId", id);
+                      if (id && !formData.areaSeededHa) {
+                        const f = fields.find(f => String(f.id) === id);
+                        if (f?.areaHectares) {
+                          setField("areaSeededHa", parseFloat(String(f.areaHectares)).toFixed(2));
+                        }
+                      }
+                    }}
+                  >
                     <option value="">— All / No specific field —</option>
-                    {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    {fields.map(f => <option key={f.id} value={f.id}>{f.name}{f.areaHectares ? ` (${parseFloat(String(f.areaHectares)).toFixed(1)} ha)` : ""}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Area Seeded (ha)</label>
                   <Input type="number" step="0.01" placeholder="e.g. 12.50" value={formData.areaSeededHa} onChange={e => setField("areaSeededHa", e.target.value)} />
+                  {formData.fieldId && formData.areaSeededHa && (
+                    <p className="text-[11px] text-muted-foreground mt-1">Auto-filled from field register — edit if drilling only part of the field</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground/70 mb-1 block">Crop <span className="text-red-500">*</span></label>
@@ -879,7 +912,13 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
                 <Wheat className="w-8 h-8 text-primary/40" />
               </div>
               <h3 className="text-lg font-semibold text-foreground/80 mb-1">No seed drilling records yet</h3>
-              <p className="text-foreground/50 text-sm">{search ? "No records match your search." : "Record each drilling operation to build your establishment history."}</p>
+              <p className="text-foreground/50 text-sm">
+                {search
+                  ? "No records match your search."
+                  : cropYear !== 0
+                  ? `No records for crop year ${cropYearLabel(cropYear)}. Try selecting a different year.`
+                  : "Record each drilling operation to build your establishment history."}
+              </p>
             </div>
           ) : (
             <table className="w-full">
@@ -931,8 +970,13 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
           )}
         </div>
         {filtered.length > 0 && (
-          <div className="px-4 py-3 border-t border-border text-sm text-foreground/50">
-            Showing {filtered.length} of {records.length} records
+          <div className="px-4 py-3 border-t border-border text-sm text-foreground/50 flex items-center justify-between flex-wrap gap-2">
+            <span>Showing {filtered.length} of {records.length} records</span>
+            {cropYear !== 0 && (
+              <span className="text-xs bg-primary/5 text-primary px-2 py-0.5 rounded-full font-medium">
+                Crop year {cropYearLabel(cropYear)}
+              </span>
+            )}
           </div>
         )}
       </Card>
