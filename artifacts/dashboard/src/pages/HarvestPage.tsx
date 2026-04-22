@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { Link } from "wouter";
 import { printFromRef } from "@/lib/print-report";
+import { QUALITY_GRADE_OPTIONS, gradeLabel, gradeColors } from "@/lib/harvestGrades";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
@@ -44,8 +45,6 @@ const fmtDateTime = (d: string | null | undefined) => {
   if (!d) return "—";
   return new Date(d).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 };
-
-const QUALITY_GRADES = ["Grade 1 (Premium)", "Grade 2 (Standard)", "Grade 3 (Feed)", "Rejected", "Pending Assessment"];
 
 type TabKey = "log" | "dayview" | "transport" | "storage" | "print";
 
@@ -540,7 +539,7 @@ function HarvestLogTab({ harvests, equipment, fieldCrops, farmId, loading, onRef
                 <Select value={form.qualityGrade} onValueChange={v => setForm((f: any) => ({ ...f, qualityGrade: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select grade..." /></SelectTrigger>
                   <SelectContent>
-                    {QUALITY_GRADES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                    {QUALITY_GRADE_OPTIONS.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -1028,8 +1027,8 @@ function PrintTab({ harvests, transports, storages, farm }: any) {
                     #{idx + 1} &nbsp;{fmt(r.harvestDate)} — {r.field?.name || "Unknown Field"} — {r.crop?.name || "Unknown Crop"}{r.crop?.variety ? ` (${r.crop.variety})` : ""}
                   </span>
                   {r.qualityGrade && (
-                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "1px 8px", borderRadius: 10, background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0" }}>
-                      Grade: {r.qualityGrade}
+                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "1px 8px", borderRadius: 10, background: gradeColors(r.qualityGrade).bg, color: gradeColors(r.qualityGrade).color, border: "1px solid #e5e7eb" }}>
+                      Grade: {gradeLabel(r.qualityGrade)}
                     </span>
                   )}
                 </div>
@@ -1063,7 +1062,7 @@ function PrintTab({ harvests, transports, storages, farm }: any) {
                         ["Start Time", r.startTime || "—"],
                         ["End Time", r.endTime || "—"],
                         ["Moisture %", r.moisturePercent ? `${r.moisturePercent}%` : "—"],
-                        ["Quality Grade", r.qualityGrade || "—"],
+                        ["Quality Grade", gradeLabel(r.qualityGrade)],
                       ].map(([label, value]) => (
                         <div key={label}>
                           <span style={FIELD_LABEL}>{label}</span>
@@ -1135,7 +1134,7 @@ function PrintTab({ harvests, transports, storages, farm }: any) {
                   <td style={{ padding: "4px 8px", border: "1px solid #e5e7eb" }}>{r.yieldTonnes || "—"}</td>
                   <td style={{ padding: "4px 8px", border: "1px solid #e5e7eb" }}>{r.areaHarvestedHa || "—"}</td>
                   <td style={{ padding: "4px 8px", border: "1px solid #e5e7eb" }}>{r.moisturePercent ? `${r.moisturePercent}%` : "—"}</td>
-                  <td style={{ padding: "4px 8px", border: "1px solid #e5e7eb" }}>{r.qualityGrade || "—"}</td>
+                  <td style={{ padding: "4px 8px", border: "1px solid #e5e7eb" }}>{gradeLabel(r.qualityGrade)}</td>
                   <td style={{ padding: "4px 8px", border: "1px solid #e5e7eb" }}>{r.recordedBy || "—"}</td>
                 </tr>
               ))}
@@ -1327,11 +1326,10 @@ function DayViewTab({ harvests, fieldCrops, loading }: { harvests: any[]; fieldC
 }
 
 function GradeBadge({ grade }: { grade: string }) {
-  const color = grade.includes("Premium") ? "#166534" : grade.includes("Standard") ? "#1d4ed8" : grade.includes("Feed") ? "#92400e" : grade.includes("Rejected") ? "#991b1b" : "#6b7280";
-  const bg = grade.includes("Premium") ? "#dcfce7" : grade.includes("Standard") ? "#dbeafe" : grade.includes("Feed") ? "#fef3c7" : grade.includes("Rejected") ? "#fee2e2" : "#f3f4f6";
+  const { bg, color } = gradeColors(grade);
   return (
     <Badge style={{ background: bg, color, border: "none", fontSize: "0.72rem" }}>
-      {grade.replace(" (Premium)", "").replace(" (Standard)", "").replace(" (Feed)", "")}
+      {gradeLabel(grade)}
     </Badge>
   );
 }

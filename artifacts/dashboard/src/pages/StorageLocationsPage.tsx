@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { gradeLabel } from "@/lib/harvestGrades";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Warehouse, Plus, Pencil, Trash2, CheckCircle, XCircle, MapPin, QrCode,
@@ -373,7 +374,7 @@ function LinkedRecordDetailDialog({
               <Row label="Yield" value={r.yieldTonnes ? `${r.yieldTonnes} t` : null} />
               <Row label="Area harvested" value={r.areaHarvestedHa ? `${r.areaHarvestedHa} ha` : null} />
               <Row label="Moisture" value={r.moisturePercent ? `${r.moisturePercent}%` : null} />
-              <Row label="Grade" value={r.qualityGrade} />
+              <Row label="Grade" value={gradeLabel(r.qualityGrade)} />
             </div>
           );
         })()}

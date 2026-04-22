@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { gradeLabel } from "@/lib/harvestGrades";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -187,7 +188,7 @@ function FieldCard({ fieldData, defaultOpen = false }: { fieldData: any; default
                   ah > 0 ? fmt2(ah, 2) : "—",
                   yt > 0 && ah > 0 ? fmt2(yt / ah, 2) : "—",
                   h.moisturePercent ? `${fmt2(parseFloat(h.moisturePercent), 1)}%` : "—",
-                  h.qualityGrade ?? "—",
+                  gradeLabel(h.qualityGrade),
                   h.operatorName ?? "—",
                 ];
               })}
