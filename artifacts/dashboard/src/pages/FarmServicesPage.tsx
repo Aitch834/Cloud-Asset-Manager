@@ -617,6 +617,8 @@ function AgreementsTab({ farmId, customers }: { farmId: number; customers: FarmC
   const activeAgreements = agreements.filter((a) => a.status === "active");
   const historicAgreements = agreements.filter((a) => a.status !== "active");
   const visibleAgreements = showHistory ? agreements : activeAgreements;
+  const expiringCount = activeAgreements.filter((a) => expiryInfo(a) !== null).length;
+  const landRentalAnnualPence = activeAgreements.filter((a) => a.agreementType === "land_rental").reduce((s, a) => s + (a.annualRentPence || 0), 0);
 
   function expiryInfo(a: ServiceAgreement): { daysUntil: number; label: string; colour: string } | null {
     if (!a.endDate || a.status !== "active") return null;
@@ -629,6 +631,26 @@ function AgreementsTab({ farmId, customers }: { farmId: number; customers: FarmC
 
   return (
     <div className="space-y-3">
+      {agreements.length > 0 && (
+        <div className="grid grid-cols-4 gap-3">
+          <div className="bg-muted/40 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold">{agreements.length}</div>
+            <div className="text-xs text-muted-foreground">Total Agreements</div>
+          </div>
+          <div className="bg-green-50 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-green-800">{activeAgreements.length}</div>
+            <div className="text-xs text-green-700">Active</div>
+          </div>
+          <div className={`rounded-lg p-3 text-center ${expiringCount > 0 ? "bg-amber-50" : "bg-muted/40"}`}>
+            <div className={`text-xl font-bold ${expiringCount > 0 ? "text-amber-800" : ""}`}>{expiringCount}</div>
+            <div className={`text-xs ${expiringCount > 0 ? "text-amber-700" : "text-muted-foreground"}`}>Expiring ≤30 days</div>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-blue-800">{landRentalAnnualPence ? fmtPence(landRentalAnnualPence) : "—"}</div>
+            <div className="text-xs text-blue-700">Annual Land Rent</div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           {historicAgreements.length > 0 && (
@@ -1136,13 +1158,36 @@ function GrainIntakeTab({ farmId, customers }: { farmId: number; customers: Farm
   function customerName(id: number) { return customers.find((c) => c.id === id)?.name ?? "—"; }
 
   const totalInStore = intakes.filter((i) => i.status !== "removed").reduce((s, i) => s + parseFloat(i.quantityTonnes), 0);
+  const lotsInStore = intakes.filter((i) => i.status !== "removed").length;
+  const totalReceivedTonnes = intakes.reduce((s, i) => s + parseFloat(i.quantityTonnes), 0);
+  const commoditiesInStore = [...new Set(intakes.filter((i) => i.status !== "removed").map((i) => i.commodity))].length;
 
   return (
     <div className="space-y-3">
+      {intakes.length > 0 && (
+        <div className="grid grid-cols-4 gap-3">
+          <div className="bg-muted/40 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold">{intakes.length}</div>
+            <div className="text-xs text-muted-foreground">Total Intakes</div>
+          </div>
+          <div className="bg-green-50 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-green-800">{lotsInStore}</div>
+            <div className="text-xs text-green-700">Lots in Store</div>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-blue-800">{totalInStore.toFixed(1)}t</div>
+            <div className="text-xs text-blue-700">Tonnes in Store</div>
+          </div>
+          <div className="bg-muted/40 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold">{totalReceivedTonnes.toFixed(1)}t</div>
+            <div className="text-xs text-muted-foreground">Total Received</div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         {intakes.length > 0 && (
           <div className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{totalInStore.toFixed(1)}t</span> third-party grain currently in store
+            <span className="font-medium text-foreground">{commoditiesInStore}</span> commodity type{commoditiesInStore !== 1 ? "s" : ""} currently in store
           </div>
         )}
         <div className="flex items-center gap-2 ml-auto">
@@ -1600,9 +1645,33 @@ function WorkOrdersTab({ farmId, customers, onRaiseInvoice }: { farmId: number; 
 
   const openCount = allOrders.filter((w) => w.status !== "completed" && w.status !== "cancelled").length;
   const memberName = (id: number) => { const m = members.find((x) => x.id === id); return m ? `${m.firstName} ${m.lastName}` : `Member #${id}`; };
+  const todayWo = new Date().toISOString().slice(0, 10);
+  const thisMonthWo = new Date().toISOString().slice(0, 7);
+  const overdueWoCount = allOrders.filter((w) => w.status !== "completed" && w.status !== "cancelled" && w.dueDate && w.dueDate < todayWo).length;
+  const completedThisMonth = allOrders.filter((w) => w.status === "completed" && w.completedAt && w.completedAt.startsWith(thisMonthWo)).length;
 
   return (
     <div className="space-y-4">
+      {allOrders.length > 0 && (
+        <div className="grid grid-cols-4 gap-3">
+          <div className="bg-muted/40 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold">{allOrders.length}</div>
+            <div className="text-xs text-muted-foreground">Total Orders</div>
+          </div>
+          <div className="bg-green-50 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-green-800">{openCount}</div>
+            <div className="text-xs text-green-700">Open</div>
+          </div>
+          <div className={`rounded-lg p-3 text-center ${overdueWoCount > 0 ? "bg-red-50" : "bg-muted/40"}`}>
+            <div className={`text-xl font-bold ${overdueWoCount > 0 ? "text-red-700" : ""}`}>{overdueWoCount}</div>
+            <div className={`text-xs ${overdueWoCount > 0 ? "text-red-600" : "text-muted-foreground"}`}>Overdue</div>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-blue-800">{completedThisMonth}</div>
+            <div className="text-xs text-blue-700">Completed This Month</div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button
@@ -2012,6 +2081,9 @@ function InvoicesTab({ farmId, customers, prefill }: { farmId: number; customers
   const totalOutstanding = invoicesWithStatus.filter((i) => i.effectiveStatus !== "paid" && i.effectiveStatus !== "cancelled").reduce((s, i) => s + i.totalPence, 0);
   const overdueInvoices = invoicesWithStatus.filter((i) => i.effectiveStatus === "overdue");
   const overdueTotal = overdueInvoices.reduce((s, i) => s + i.totalPence, 0);
+  const paidInvoices = invoicesWithStatus.filter((i) => i.effectiveStatus === "paid");
+  const paidTotal = paidInvoices.reduce((s, i) => s + i.totalPence, 0);
+  const draftCount = invoicesWithStatus.filter((i) => i.effectiveStatus === "draft").length;
 
   return (
     <div className="space-y-3">
@@ -2023,10 +2095,30 @@ function InvoicesTab({ farmId, customers, prefill }: { farmId: number; customers
           </div>
         </div>
       )}
+      {invoicesWithStatus.length > 0 && (
+        <div className="grid grid-cols-4 gap-3">
+          <div className="bg-muted/40 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold">{invoicesWithStatus.length}</div>
+            <div className="text-xs text-muted-foreground">Total Invoices</div>
+          </div>
+          <div className={`rounded-lg p-3 text-center ${totalOutstanding > 0 ? "bg-amber-50" : "bg-muted/40"}`}>
+            <div className={`text-xl font-bold ${totalOutstanding > 0 ? "text-amber-800" : ""}`}>{fmtPence(totalOutstanding)}</div>
+            <div className={`text-xs ${totalOutstanding > 0 ? "text-amber-700" : "text-muted-foreground"}`}>Outstanding</div>
+          </div>
+          <div className={`rounded-lg p-3 text-center ${overdueInvoices.length > 0 ? "bg-red-50" : "bg-muted/40"}`}>
+            <div className={`text-xl font-bold ${overdueInvoices.length > 0 ? "text-red-700" : ""}`}>{overdueInvoices.length > 0 ? fmtPence(overdueTotal) : "—"}</div>
+            <div className={`text-xs ${overdueInvoices.length > 0 ? "text-red-600" : "text-muted-foreground"}`}>Overdue{overdueInvoices.length > 0 ? ` (${overdueInvoices.length})` : ""}</div>
+          </div>
+          <div className="bg-green-50 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-green-800">{fmtPence(paidTotal)}</div>
+            <div className="text-xs text-green-700">Paid ({paidInvoices.length})</div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
-        {invoicesWithStatus.length > 0 && totalOutstanding > 0 && overdueInvoices.length === 0 && (
+        {draftCount > 0 && (
           <div className="text-sm text-muted-foreground">
-            Outstanding: <span className="font-semibold text-amber-700">{fmtPence(totalOutstanding)}</span>
+            {draftCount} draft{draftCount !== 1 ? "s" : ""} not yet sent
           </div>
         )}
         <Button size="sm" className="gap-1.5 ml-auto" onClick={openAdd} disabled={customers.length === 0}><Plus className="h-4 w-4" /> New Invoice</Button>
