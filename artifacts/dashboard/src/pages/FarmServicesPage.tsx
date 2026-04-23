@@ -2419,7 +2419,7 @@ function HireBookingDialog({
   const empty = {
     customerId: "", equipmentId: "", startDate: new Date().toISOString().split("T")[0],
     plannedEndDate: "", rateType: "daily", ratePence: "", depositPence: "",
-    operatorName: "", fuelPolicy: "customer_supplied", insuranceVerified: false, insuranceNotes: "",
+    operatorName: "customer_operated", fuelPolicy: "customer_supplied", insuranceVerified: false, insuranceNotes: "",
     depositPaid: false, notes: "", status: "booked",
   };
 
@@ -2437,7 +2437,7 @@ function HireBookingDialog({
           rateType: b.rateType,
           ratePence: b.ratePence ? String(b.ratePence / 100) : "",
           depositPence: b.depositPence ? String(b.depositPence / 100) : "",
-          operatorName: b.operatorType === "customer_operated" ? "" : (b.operatorName || ""),
+          operatorName: b.operatorType === "customer_operated" ? "customer_operated" : (b.operatorName || "customer_operated"),
           fuelPolicy: b.fuelPolicy, insuranceVerified: b.insuranceVerified,
           insuranceNotes: b.insuranceNotes || "", depositPaid: b.depositPaid,
           notes: b.notes || "", status: b.status,
@@ -2478,7 +2478,7 @@ function HireBookingDialog({
   });
 
   function handleSave() {
-    const isCustomerOperated = !form.operatorName;
+    const isCustomerOperated = form.operatorName === "customer_operated";
     const data: Record<string, unknown> = {
       customerId: parseInt(form.customerId),
       equipmentId: parseInt(form.equipmentId),
@@ -2488,7 +2488,7 @@ function HireBookingDialog({
       ratePence: form.ratePence ? Math.round(parseFloat(form.ratePence) * 100) : null,
       depositPence: form.depositPence ? Math.round(parseFloat(form.depositPence) * 100) : null,
       operatorType: isCustomerOperated ? "customer_operated" : "farm_operator",
-      operatorName: form.operatorName || null,
+      operatorName: isCustomerOperated ? null : form.operatorName,
       fuelPolicy: form.fuelPolicy,
       insuranceVerified: form.insuranceVerified,
       insuranceNotes: form.insuranceNotes || null,
@@ -2588,7 +2588,7 @@ function HireBookingDialog({
             <Select value={form.operatorName} onValueChange={(v) => setForm((f) => ({ ...f, operatorName: v }))}>
               <SelectTrigger><SelectValue placeholder="Select operator" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Customer Operated</SelectItem>
+                <SelectItem value="customer_operated">Customer Operated</SelectItem>
                 {members.map((m) => (
                   <SelectItem key={m.id} value={`${m.firstName} ${m.lastName}`}>
                     {m.firstName} {m.lastName}{m.jobTitle ? ` — ${m.jobTitle}` : ""}
