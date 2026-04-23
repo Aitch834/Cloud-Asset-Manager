@@ -5,7 +5,7 @@ import {
   ChevronDown, ChevronUp, Building2, Phone, Mail, MapPin, Loader2,
   ClipboardList, TrendingUp, Package, AlertTriangle, Calendar, ArrowRight, Eye, RefreshCw, Printer,
   Briefcase, Clock, User, CheckSquare, Circle, Tractor, Fuel, ShieldCheck, ShieldAlert,
-  ClipboardCheck, BarChart3, ArrowLeft, Wrench, X, ChevronRight,
+  ClipboardCheck, BarChart3, ArrowLeft, Wrench, X, ChevronRight, CalendarDays,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -2284,7 +2284,7 @@ function printHireAgreement(
     <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Machine</td><td style="padding:5px 8px;border:1px solid #ddd">${eq}${reg}</td></tr>
     <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Operator</td><td style="padding:5px 8px;border:1px solid #ddd">${opLabel}${b.operatorName ? ` — ${b.operatorName}` : ""}</td></tr>
     <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Hire Rate</td><td style="padding:5px 8px;border:1px solid #ddd">${rate}</td></tr>
-    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Deposit</td><td style="padding:5px 8px;border:1px solid #ddd">${deposit}${b.depositPaid ? " — PAID" : " — Awaiting"}</td></tr>
+    <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Deposit</td><td style="padding:5px 8px;border:1px solid #ddd">${deposit}${b.depositPaidDate ? ` — Received ${b.depositPaidDate}` : " — Awaiting"}</td></tr>
     <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Fuel Arrangement</td><td style="padding:5px 8px;border:1px solid #ddd">${fuelLabel}</td></tr>
     <tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Insurance Verified</td><td style="padding:5px 8px;border:1px solid #ddd">${b.insuranceVerified ? "✓ Yes — operator has confirmed valid insurance" : "✗ Not yet verified"}${b.insuranceNotes ? ` — ${b.insuranceNotes}` : ""}</td></tr>
     ${b.notes ? `<tr><td style="padding:5px 8px;border:1px solid #ddd;background:#f9f9f9;font-weight:600">Notes</td><td style="padding:5px 8px;border:1px solid #ddd">${b.notes}</td></tr>` : ""}
@@ -2420,7 +2420,7 @@ function HireBookingDialog({
     customerId: "", equipmentId: "", startDate: new Date().toISOString().split("T")[0],
     plannedEndDate: "", rateType: "daily", ratePence: "", depositPence: "",
     operatorName: "customer_operated", fuelPolicy: "customer_supplied", insuranceVerified: false, insuranceNotes: "",
-    depositPaid: false, notes: "", status: "booked",
+    depositPaidDate: "", notes: "", status: "booked",
   };
 
   const [form, setForm] = useState({ ...empty });
@@ -2439,7 +2439,7 @@ function HireBookingDialog({
           depositPence: b.depositPence ? String(b.depositPence / 100) : "",
           operatorName: b.operatorType === "customer_operated" ? "customer_operated" : (b.operatorName || "customer_operated"),
           fuelPolicy: b.fuelPolicy, insuranceVerified: b.insuranceVerified,
-          insuranceNotes: b.insuranceNotes || "", depositPaid: b.depositPaid,
+          insuranceNotes: b.insuranceNotes || "", depositPaidDate: b.depositPaidDate || "",
           notes: b.notes || "", status: b.status,
         });
       } else {
@@ -2492,7 +2492,8 @@ function HireBookingDialog({
       fuelPolicy: form.fuelPolicy,
       insuranceVerified: form.insuranceVerified,
       insuranceNotes: form.insuranceNotes || null,
-      depositPaid: form.depositPaid,
+      depositPaid: !!form.depositPaidDate,
+      depositPaidDate: form.depositPaidDate || null,
       notes: form.notes || null,
     };
     if (isEdit) data.status = form.status;
@@ -2606,15 +2607,18 @@ function HireBookingDialog({
             </Select>
           </div>
 
-          <div className="flex gap-6">
-            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-              <input type="checkbox" checked={form.insuranceVerified} onChange={(e) => setForm((f) => ({ ...f, insuranceVerified: e.target.checked }))} />
-              Insurance verified by customer
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-              <input type="checkbox" checked={form.depositPaid} onChange={(e) => setForm((f) => ({ ...f, depositPaid: e.target.checked }))} />
-              Deposit paid
-            </label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Deposit Received Date</Label>
+              <Input type="date" value={form.depositPaidDate} onChange={(e) => setForm((f) => ({ ...f, depositPaidDate: e.target.value }))} />
+              <p className="text-xs text-muted-foreground">Leave blank if deposit not yet received</p>
+            </div>
+            <div className="flex items-end pb-6">
+              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input type="checkbox" checked={form.insuranceVerified} onChange={(e) => setForm((f) => ({ ...f, insuranceVerified: e.target.checked }))} />
+                Insurance verified by customer
+              </label>
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -2784,6 +2788,8 @@ function BookingDetailPanel({
   const [showPreHireForm, setShowPreHireForm] = useState(false);
   const [showReturnForm, setShowReturnForm] = useState(false);
   const [showFuelForm, setShowFuelForm] = useState(false);
+  const [plannerPrompt, setPlannerPrompt] = useState(false);
+  const [plannerCreating, setPlannerCreating] = useState(false);
 
   const detailQ = useQuery<HireBookingDetail>({
     queryKey: ["hire-booking-detail", farmId, bookingId],
@@ -2796,18 +2802,59 @@ function BookingDetailPanel({
     queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" }).then((r) => r.json()),
   });
 
+  const membersQ = useQuery<{ members: FarmMember[] }>({
+    queryKey: ["farm-members", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`, { credentials: "include" }).then((r) => r.json()),
+  });
+  const members = membersQ.data?.members ?? [];
+
   const updateStatusMut = useMutation({
-    mutationFn: (status: string) =>
+    mutationFn: ({ status }: { status: string; triggerPlanner?: boolean }) =>
       fetch(`/api/farms/${farmId}/equipment-hire/${bookingId}`, {
         method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({ status }),
       }).then((r) => r.json()),
-    onSuccess: (_, status) => {
+    onSuccess: (_, { status, triggerPlanner }) => {
       qc.invalidateQueries({ queryKey: ["hire-booking-detail", farmId, bookingId] });
       qc.invalidateQueries({ queryKey: ["equipment-hire", farmId] });
       toast({ title: `Booking status updated to ${HIRE_STATUSES.find((s) => s.value === status)?.label || status}` });
+      if (triggerPlanner) setPlannerPrompt(true);
     },
   });
+
+  async function addToPlanner(b: HireBooking) {
+    const member = members.find((m) => `${m.firstName} ${m.lastName}` === b.operatorName);
+    if (!member) {
+      toast({ title: "Could not find staff member to assign", variant: "destructive" });
+      setPlannerPrompt(false);
+      return;
+    }
+    setPlannerCreating(true);
+    try {
+      const equipName = detailQ.data?.equipmentName || `Booking #${b.id}`;
+      const custName = detailQ.data?.customer?.name || "";
+      await fetch(`/api/farms/${farmId}/task-assignments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          title: `Operate ${equipName}${custName ? ` — ${custName}` : ""}`,
+          description: `Equipment hire${b.bookingRef ? ` ${b.bookingRef}` : ""}. Machine out from ${b.startDate}${b.plannedEndDate ? ` — planned return ${b.plannedEndDate}` : ""}.`,
+          assignedToMemberId: member.id,
+          dueDate: b.startDate,
+          customerId: b.customerId || null,
+          isWorkOrder: true,
+        }),
+      });
+      qc.invalidateQueries({ queryKey: ["work-orders", farmId] });
+      toast({ title: `Work order added to planner for ${b.operatorName}` });
+    } catch {
+      toast({ title: "Failed to add to planner", variant: "destructive" });
+    } finally {
+      setPlannerCreating(false);
+      setPlannerPrompt(false);
+    }
+  }
 
   const deleteCondMut = useMutation({
     mutationFn: (condId: number) =>
@@ -2889,14 +2936,15 @@ function BookingDetailPanel({
       {/* Status actions */}
       {b.status === "booked" && (
         <div className="flex gap-2">
-          <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white gap-1.5" onClick={() => updateStatusMut.mutate("active")}>
+          <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white gap-1.5"
+            onClick={() => updateStatusMut.mutate({ status: "active", triggerPlanner: b.operatorType === "farm_operator" })}>
             <CheckCircle className="h-3.5 w-3.5" />Mark as Active (Machine Out)
           </Button>
         </div>
       )}
       {b.status === "active" && (
         <div className="flex gap-2 flex-wrap">
-          <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white gap-1.5" onClick={() => updateStatusMut.mutate("returned")}>
+          <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white gap-1.5" onClick={() => updateStatusMut.mutate({ status: "returned" })}>
             <CheckCircle className="h-3.5 w-3.5" />Mark as Returned
           </Button>
         </div>
@@ -2911,13 +2959,32 @@ function BookingDetailPanel({
               title: `Equipment hire — ${label}`,
               suggestedLines: [
                 { description: `Equipment hire — ${label}`, quantity: "1", unit: "", unitPricePence: "0", lineTotalPence: 0 },
-                ...(b.depositPaid && b.depositPence ? [{ description: `Less: deposit received`, quantity: "1", unit: "", unitPricePence: String(-(b.depositPence / 100)), lineTotalPence: -b.depositPence }] : []),
+                ...(b.depositPaidDate && b.depositPence ? [{ description: `Less: deposit received${b.depositPaidDate ? ` (${b.depositPaidDate})` : ""}`, quantity: "1", unit: "", unitPricePence: String(-(b.depositPence / 100)), lineTotalPence: -b.depositPence }] : []),
               ],
             });
           }}>
             <Receipt className="h-3.5 w-3.5" />Raise Invoice
           </Button>
-          <Button size="sm" variant="outline" onClick={() => updateStatusMut.mutate("invoiced")}>Mark as Invoiced</Button>
+          <Button size="sm" variant="outline" onClick={() => updateStatusMut.mutate({ status: "invoiced" })}>Mark as Invoiced</Button>
+        </div>
+      )}
+
+      {/* Add to Planner prompt — shown after activating with a farm operator */}
+      {plannerPrompt && b.operatorType === "farm_operator" && b.operatorName && (
+        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+          <CalendarDays className="h-4 w-4 text-blue-700 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-blue-900">Add to Work Planner?</p>
+            <p className="text-xs text-blue-700 mt-0.5">
+              Create a planner entry for <strong>{b.operatorName}</strong> so they can see this job in the Work Orders tab.
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button size="sm" className="bg-blue-700 hover:bg-blue-800 text-white" disabled={plannerCreating} onClick={() => addToPlanner(b)}>
+              {plannerCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><CalendarDays className="h-3.5 w-3.5" />Add to Planner</>}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setPlannerPrompt(false)}>Skip</Button>
+          </div>
         </div>
       )}
 
@@ -2947,7 +3014,7 @@ function BookingDetailPanel({
             { label: "Planned Return", value: b.plannedEndDate || "Open-ended" },
             { label: "Actual Return", value: b.actualEndDate || "—" },
             { label: "Rate", value: b.ratePence ? `${fmtPence(b.ratePence)} per ${HIRE_RATE_TYPES.find((r) => r.value === b.rateType)?.label.toLowerCase() || b.rateType}` : "—" },
-            { label: "Deposit", value: b.depositPence ? `${fmtPence(b.depositPence)}${b.depositPaid ? " (Paid)" : " (Awaiting)"}` : "—" },
+            { label: "Deposit", value: b.depositPence ? `${fmtPence(b.depositPence)}${b.depositPaidDate ? ` (Received ${b.depositPaidDate})` : " (Awaiting)"}` : "—" },
             { label: "Operator", value: `${HIRE_OPERATOR_TYPES.find((o) => o.value === b.operatorType)?.label || b.operatorType}${b.operatorName ? ` — ${b.operatorName}` : ""}` },
             { label: "Fuel Policy", value: HIRE_FUEL_POLICIES.find((f) => f.value === b.fuelPolicy)?.label || b.fuelPolicy },
             { label: "Insurance", value: b.insuranceVerified ? `Verified${b.insuranceNotes ? ` — ${b.insuranceNotes}` : ""}` : "Not verified" },
@@ -3139,7 +3206,7 @@ function BookingDetailPanel({
                 title: `Equipment hire — ${label}`,
                 suggestedLines: [
                   { description: `Equipment hire — ${label}`, quantity: "1", unit: "", unitPricePence: "0", lineTotalPence: 0 },
-                  ...(b.depositPaid && b.depositPence ? [{ description: `Less: deposit received`, quantity: "1", unit: "", unitPricePence: String(-(b.depositPence / 100)), lineTotalPence: -b.depositPence }] : []),
+                  ...(b.depositPaidDate && b.depositPence ? [{ description: `Less: deposit received${b.depositPaidDate ? ` (${b.depositPaidDate})` : ""}`, quantity: "1", unit: "", unitPricePence: String(-(b.depositPence / 100)), lineTotalPence: -b.depositPence }] : []),
                 ],
               });
             }}>
