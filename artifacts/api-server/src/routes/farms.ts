@@ -18018,7 +18018,10 @@ router.get("/farms/:farmId/equipment-hire/:id", requireAuth, requireTenant, asyn
 
 router.post("/farms/:farmId/equipment-hire", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
-  const [record] = await db.insert(equipmentHireBookingsTable).values({ ...req.body, farmId }).returning();
+  const [inserted] = await db.insert(equipmentHireBookingsTable).values({ ...req.body, farmId }).returning();
+  const year = new Date().getFullYear();
+  const ref = `HIRE-${year}-${inserted.id.toString().padStart(4, "0")}`;
+  const [record] = await db.update(equipmentHireBookingsTable).set({ bookingRef: ref }).where(eq(equipmentHireBookingsTable.id, inserted.id)).returning();
   res.json({ record });
 });
 

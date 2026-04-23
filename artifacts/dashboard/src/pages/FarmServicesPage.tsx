@@ -90,7 +90,12 @@ interface WorkOrder {
   createdAt: string; completedAt?: string | null;
 }
 
-interface InvoicePrefill { customerId: number; customerName: string; title: string; }
+interface InvoicePrefill {
+  customerId: number;
+  customerName: string;
+  title: string;
+  suggestedLines?: Array<{ description: string; quantity: string; unit: string; unitPricePence: string; lineTotalPence: number }>;
+}
 
 // ─── Hire Types ──────────────────────────────────────────────────────────────
 
@@ -1825,7 +1830,11 @@ function InvoicesTab({ farmId, customers, prefill }: { farmId: number; customers
     if (prefill && prefill !== prevPrefillRef.current) {
       prevPrefillRef.current = prefill;
       setForm((f) => ({ ...f, customerId: prefill.customerId ? String(prefill.customerId) : "" }));
-      setLines(prefill.title ? [{ description: prefill.title, quantity: "1", unit: "", unitPricePence: "0", lineTotalPence: 0 }] : []);
+      if (prefill.suggestedLines?.length) {
+        setLines(prefill.suggestedLines);
+      } else {
+        setLines(prefill.title ? [{ description: prefill.title, quantity: "1", unit: "", unitPricePence: "0", lineTotalPence: 0 }] : []);
+      }
       setOpen(true);
     }
   }, [prefill]);
@@ -2400,9 +2409,16 @@ function HireBookingDialog({
   const { toast } = useToast();
   const isEdit = !!editBooking;
 
+  const membersQ = useQuery<{ members: FarmMember[] }>({
+    queryKey: ["farm-members", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/members`, { credentials: "include" }).then((r) => r.json()),
+    enabled: open,
+  });
+  const members = membersQ.data?.members ?? [];
+
   const empty = {
-    customerId: "", equipmentId: "", bookingRef: "", startDate: new Date().toISOString().split("T")[0],
-    plannedEndDate: "", rateType: "daily", ratePence: "", depositPence: "", operatorType: "customer_operated",
+    customerId: "", equipmentId: "", startDate: new Date().toISOString().split("T")[0],
+    plannedEndDate: "", rateType: "daily", ratePence: "", depositPence: "",
     operatorName: "", fuelPolicy: "customer_supplied", insuranceVerified: false, insuranceNotes: "",
     depositPaid: false, notes: "", status: "booked",
   };
@@ -2417,11 +2433,11 @@ function HireBookingDialog({
         const b = editBooking!.booking;
         setForm({
           customerId: String(b.customerId), equipmentId: String(b.equipmentId),
-          bookingRef: b.bookingRef || "", startDate: b.startDate,
-          plannedEndDate: b.plannedEndDate || "", rateType: b.rateType,
+          startDate: b.startDate, plannedEndDate: b.plannedEndDate || "",
+          rateType: b.rateType,
           ratePence: b.ratePence ? String(b.ratePence / 100) : "",
           depositPence: b.depositPence ? String(b.depositPence / 100) : "",
-          operatorType: b.operatorType, operatorName: b.operatorName || "",
+          operatorName: b.operatorType === "customer_operated" ? "" : (b.operatorName || ""),
           fuelPolicy: b.fuelPolicy, insuranceVerified: b.insuranceVerified,
           insuranceNotes: b.insuranceNotes || "", depositPaid: b.depositPaid,
           notes: b.notes || "", status: b.status,
@@ -2462,16 +2478,16 @@ function HireBookingDialog({
   });
 
   function handleSave() {
+    const isCustomerOperated = !form.operatorName;
     const data: Record<string, unknown> = {
       customerId: parseInt(form.customerId),
       equipmentId: parseInt(form.equipmentId),
-      bookingRef: form.bookingRef || null,
       startDate: form.startDate,
       plannedEndDate: form.plannedEndDate || null,
       rateType: form.rateType,
       ratePence: form.ratePence ? Math.round(parseFloat(form.ratePence) * 100) : null,
       depositPence: form.depositPence ? Math.round(parseFloat(form.depositPence) * 100) : null,
-      operatorType: form.operatorType,
+      operatorType: isCustomerOperated ? "customer_operated" : "farm_operator",
       operatorName: form.operatorName || null,
       fuelPolicy: form.fuelPolicy,
       insuranceVerified: form.insuranceVerified,
@@ -2521,11 +2537,7 @@ function HireBookingDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label>Booking Ref</Label>
-              <Input value={form.bookingRef} onChange={(e) => setForm((f) => ({ ...f, bookingRef: e.target.value }))} placeholder="e.g. HIRE-2025-001" />
-            </div>
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Start Date *</Label>
               <Input type="date" value={form.startDate} onChange={(e) => {
@@ -2571,18 +2583,19 @@ function HireBookingDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Operator</Label>
-              <Select value={form.operatorType} onValueChange={(v) => setForm((f) => ({ ...f, operatorType: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{HIRE_OPERATOR_TYPES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Operator Name (if farm-provided)</Label>
-              <Input value={form.operatorName} onChange={(e) => setForm((f) => ({ ...f, operatorName: e.target.value }))} placeholder="Staff member name" />
-            </div>
+          <div className="space-y-1">
+            <Label>Operator</Label>
+            <Select value={form.operatorName} onValueChange={(v) => setForm((f) => ({ ...f, operatorName: v }))}>
+              <SelectTrigger><SelectValue placeholder="Select operator" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Customer Operated</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.id} value={`${m.firstName} ${m.lastName}`}>
+                    {m.firstName} {m.lastName}{m.jobTitle ? ` — ${m.jobTitle}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1">
@@ -2891,7 +2904,16 @@ function BookingDetailPanel({
       {b.status === "returned" && (
         <div className="flex gap-2 flex-wrap">
           <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5" onClick={() => {
-            onRaiseInvoice({ customerId: b.customerId, customerName: detail.customer?.name || "", title: `Equipment hire — ${b.bookingRef || `Booking #${b.id}`}` });
+            const label = b.bookingRef || `Booking #${b.id}`;
+            onRaiseInvoice({
+              customerId: b.customerId,
+              customerName: detail.customer?.name || "",
+              title: `Equipment hire — ${label}`,
+              suggestedLines: [
+                { description: `Equipment hire — ${label}`, quantity: "1", unit: "", unitPricePence: "0", lineTotalPence: 0 },
+                ...(b.depositPaid && b.depositPence ? [{ description: `Less: deposit received`, quantity: "1", unit: "", unitPricePence: String(-(b.depositPence / 100)), lineTotalPence: -b.depositPence }] : []),
+              ],
+            });
           }}>
             <Receipt className="h-3.5 w-3.5" />Raise Invoice
           </Button>
@@ -3110,7 +3132,16 @@ function BookingDetailPanel({
 
           {b.status === "returned" && (
             <Button className="gap-1.5" onClick={() => {
-              onRaiseInvoice({ customerId: b.customerId, customerName: detail.customer?.name || "", title: `Equipment hire — ${b.bookingRef || `Booking #${b.id}`}` });
+              const label = b.bookingRef || `Booking #${b.id}`;
+              onRaiseInvoice({
+                customerId: b.customerId,
+                customerName: detail.customer?.name || "",
+                title: `Equipment hire — ${label}`,
+                suggestedLines: [
+                  { description: `Equipment hire — ${label}`, quantity: "1", unit: "", unitPricePence: "0", lineTotalPence: 0 },
+                  ...(b.depositPaid && b.depositPence ? [{ description: `Less: deposit received`, quantity: "1", unit: "", unitPricePence: String(-(b.depositPence / 100)), lineTotalPence: -b.depositPence }] : []),
+                ],
+              });
             }}>
               <Receipt className="h-4 w-4" />Raise Invoice for This Booking
             </Button>
