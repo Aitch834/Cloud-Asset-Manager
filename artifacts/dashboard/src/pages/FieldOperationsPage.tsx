@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Shovel, Plus, Search, Trash2, Pencil, Eye, Filter, CalendarDays, MapPin, Wrench, Printer, Tractor, Clock, PoundSterling, UserCheck, ChevronDown, ChevronUp } from "lucide-react";
@@ -132,6 +132,31 @@ function unitsForType(opType: string): string[] {
   return UNITS_FOR_TYPE[opType] ?? UNITS;
 }
 
+// Maps each operation type to the set of equipment categories that are most relevant
+const IMPLEMENTS_FOR_OP: Record<string, string[]> = {
+  ploughing:           ["plough"],
+  subsoiling:          ["cultivator"],
+  mole_ploughing:      ["plough", "cultivator"],
+  discing:             ["cultivator"],
+  power_harrowing:     ["power_harrow"],
+  rotovating:          ["cultivator", "power_harrow"],
+  tine_harrowing:      ["cultivator", "power_harrow"],
+  stubble_cultivation: ["cultivator", "plough"],
+  rolling:             ["roller"],
+  cambridge_rolling:   ["roller"],
+  bed_forming:         ["roller", "cultivator"],
+  lime_spreading:      ["fertiliser_spreader", "muck_spreader"],
+  gypsum:              ["fertiliser_spreader"],
+  compost:             ["muck_spreader", "fertiliser_spreader"],
+  cover_crop_seeding:  ["drill"],
+  cover_crop_rolling:  ["roller"],
+  slug_pellets:        ["fertiliser_spreader", "other_implement"],
+  irrigation:          ["other_implement"],
+  desiccation:         ["trailed_sprayer"],
+  mole_drainage:       ["plough", "cultivator"],
+  drainage_repair:     ["other_implement"],
+};
+
 function computeOpCost(r: any): number {
   let cost = 0;
   if (r.isContractor && r.contractorCostPence) {
@@ -231,6 +256,14 @@ export default function FieldOperationsPage() {
   const equipmentList: any[] = equipmentQ.data ?? [];
   const vehicleEquipment   = equipmentList.filter(e => VEHICLE_TYPES.has(e.type));
   const implementEquipment = equipmentList.filter(e => IMPLEMENT_TYPES.has(e.type));
+
+  // Smart implement grouping: prioritise relevant types for the selected operation
+  const suggestedTypes = form.operationType ? (IMPLEMENTS_FOR_OP[form.operationType] ?? []) : [];
+  const suggestedImplements = suggestedTypes.length > 0
+    ? implementEquipment.filter((e: any) => suggestedTypes.includes(e.type))
+    : [];
+  const suggestedIds = new Set(suggestedImplements.map((e: any) => e.id));
+  const otherImplements = implementEquipment.filter((e: any) => !suggestedIds.has(e.id));
 
   const records: any[] = opsQ.data ?? [];
 
@@ -933,7 +966,14 @@ export default function FieldOperationsPage() {
             {/* Implement + Operator */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div className="space-y-1.5">
-                <Label>Implement / Machinery</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Implement / Machinery</Label>
+                  {suggestedImplements.length > 0 && (
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                      {suggestedImplements.length} suggested
+                    </span>
+                  )}
+                </div>
                 <Select
                   value={form.implementId || "__none__"}
                   onValueChange={(v) => {
@@ -951,11 +991,42 @@ export default function FieldOperationsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">None / N/A</SelectItem>
-                    {implementEquipment.map((e: any) => (
-                      <SelectItem key={e.id} value={e.id.toString()}>
-                        {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
-                      </SelectItem>
-                    ))}
+                    {suggestedImplements.length > 0 ? (
+                      <>
+                        <SelectSeparator />
+                        <SelectGroup>
+                          <SelectLabel className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide px-2 py-1">
+                            Suggested for {labelForType(form.operationType)}
+                          </SelectLabel>
+                          {suggestedImplements.map((e: any) => (
+                            <SelectItem key={e.id} value={e.id.toString()}>
+                              {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                        {otherImplements.length > 0 && (
+                          <>
+                            <SelectSeparator />
+                            <SelectGroup>
+                              <SelectLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 py-1">
+                                Other Implements
+                              </SelectLabel>
+                              {otherImplements.map((e: any) => (
+                                <SelectItem key={e.id} value={e.id.toString()}>
+                                  {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      implementEquipment.map((e: any) => (
+                        <SelectItem key={e.id} value={e.id.toString()}>
+                          {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
