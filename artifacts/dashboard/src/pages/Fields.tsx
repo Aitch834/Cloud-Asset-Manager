@@ -21,7 +21,7 @@ import { StaffSelect } from "@/components/ui/staff-select";
 import {
   Plus, PlusCircle, Search, Map as MapIcon, MoreVertical, Pencil, Trash2, AlertTriangle,
   Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote,
-  Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2, Paperclip, Download,
+  Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2, Paperclip, Download, Key,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { QRCodeSVG } from "qrcode.react";
@@ -1254,6 +1254,23 @@ export default function FieldsPage() {
                       <h3 className="text-lg font-bold text-foreground leading-snug">{field.name || `Field #${field.id}`}</h3>
                       <History className="w-4 h-4 text-green-600/50 group-hover/header:text-green-700 transition-colors flex-shrink-0" />
                     </div>
+                    {field.tenureType && field.tenureType !== "owned" && (() => {
+                      const tenureBadgeMap: Record<string, { label: string; cls: string }> = {
+                        fbt:              { label: "FBT",              cls: "bg-amber-100 text-amber-800 border-amber-300" },
+                        aha:              { label: "AHA Tenancy",      cls: "bg-amber-100 text-amber-800 border-amber-300" },
+                        contract_farming: { label: "Contract Farming", cls: "bg-violet-100 text-violet-800 border-violet-300" },
+                        grazing_licence:  { label: "Grazing Licence",  cls: "bg-sky-100 text-sky-800 border-sky-300" },
+                        seasonal_licence: { label: "Seasonal Licence", cls: "bg-blue-100 text-blue-800 border-blue-300" },
+                        other:            { label: "Tenanted",         cls: "bg-slate-100 text-slate-700 border-slate-300" },
+                      };
+                      const b = tenureBadgeMap[field.tenureType] ?? { label: field.tenureType, cls: "bg-slate-100 text-slate-700 border-slate-300" };
+                      return (
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border mt-1.5 uppercase tracking-wide ${b.cls}`}>
+                          <Key className="w-2.5 h-2.5" />
+                          {b.label}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   <div className="p-5">
