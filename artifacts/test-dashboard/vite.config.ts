@@ -197,6 +197,23 @@ export default defineConfig({
     port,
     host: "0.0.0.0",
     allowedHosts: true,
+    proxy: {
+      // Forward BASE-prefixed API calls to the API server.
+      // DairyPage (and any other page using the `api()` helper with BASE_URL)
+      // constructs URLs like /test-dashboard/api/farms/... which the Vite server
+      // itself cannot serve.  This proxy rewrites the prefix and forwards to the
+      // API server so those pages work the same as pages that use raw /api/ paths.
+      [`${basePath}api`]: {
+        target: "http://localhost:8080",
+        rewrite: (p: string) => p.replace(new RegExp(`^${basePath}api`), "/api"),
+        changeOrigin: true,
+        configure: (proxy: any) => {
+          proxy.on("error", (err: Error) => {
+            console.error("[test-dashboard proxy] API proxy error:", err.message);
+          });
+        },
+      },
+    },
     fs: {
       allow: [path.resolve(import.meta.dirname, "../..")],
       strict: true,
