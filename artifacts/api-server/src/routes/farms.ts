@@ -12,6 +12,7 @@ import {
   fieldBoundariesTable,
   cropsTable,
   fieldCropAssignmentsTable,
+  fieldSeasonLandUseTable,
   harvestRecordsTable,
   cropTransportRecordsTable,
   cropStorageRecordsTable,
@@ -835,6 +836,80 @@ router.patch("/farms/:farmId/field-crops/:id", requireAuth, requireTenant, requi
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
   const [record] = await db.update(fieldCropAssignmentsTable).set(allowed).where(eq(fieldCropAssignmentsTable.id, id)).returning();
   res.json({ record });
+});
+
+// ─── Field Season Land Use ───────────────────────────────────────
+router.get("/farms/:farmId/field-season-land-use", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db
+    .select({
+      id: fieldSeasonLandUseTable.id,
+      fieldId: fieldSeasonLandUseTable.fieldId,
+      fieldName: fieldsTable.name,
+      fieldReference: fieldsTable.fieldReference,
+      fieldAreaHectares: fieldsTable.areaHectares,
+      year: fieldSeasonLandUseTable.year,
+      season: fieldSeasonLandUseTable.season,
+      landUse: fieldSeasonLandUseTable.landUse,
+      schemeActionCode: fieldSeasonLandUseTable.schemeActionCode,
+      schemeReference: fieldSeasonLandUseTable.schemeReference,
+      areaHectares: fieldSeasonLandUseTable.areaHectares,
+      startDate: fieldSeasonLandUseTable.startDate,
+      endDate: fieldSeasonLandUseTable.endDate,
+      managementNotes: fieldSeasonLandUseTable.managementNotes,
+      createdAt: fieldSeasonLandUseTable.createdAt,
+    })
+    .from(fieldSeasonLandUseTable)
+    .innerJoin(fieldsTable, eq(fieldSeasonLandUseTable.fieldId, fieldsTable.id))
+    .where(eq(fieldSeasonLandUseTable.farmId, farmId))
+    .orderBy(desc(fieldSeasonLandUseTable.year), desc(fieldSeasonLandUseTable.createdAt));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/field-season-land-use", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { fieldId, year, season, landUse, schemeActionCode, schemeReference, areaHectares, startDate, endDate, managementNotes } = req.body;
+  if (!fieldId || !year || !landUse) { res.status(400).json({ error: "fieldId, year and landUse are required" }); return; }
+  const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, Number(fieldId)), eq(fieldsTable.farmId, farmId))).limit(1);
+  if (!field) { res.status(400).json({ error: "Field not found on this farm" }); return; }
+  const [record] = await db.insert(fieldSeasonLandUseTable).values({
+    farmId, fieldId: Number(fieldId), year: Number(year), season: season || null, landUse,
+    schemeActionCode: schemeActionCode || null, schemeReference: schemeReference || null,
+    areaHectares: areaHectares || null, startDate: startDate || null, endDate: endDate || null,
+    managementNotes: managementNotes || null,
+  }).returning();
+  res.status(201).json({ record });
+});
+
+router.patch("/farms/:farmId/field-season-land-use/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [existing] = await db.select({ id: fieldSeasonLandUseTable.id }).from(fieldSeasonLandUseTable)
+    .where(and(eq(fieldSeasonLandUseTable.id, id), eq(fieldSeasonLandUseTable.farmId, farmId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  const allowed: Record<string, unknown> = {};
+  const fields = ["year", "season", "landUse", "schemeActionCode", "schemeReference", "areaHectares", "startDate", "endDate", "managementNotes"];
+  for (const f of fields) { if (req.body[f] !== undefined) allowed[f] = req.body[f] || null; }
+  if (req.body.year !== undefined) allowed.year = Number(req.body.year);
+  if (req.body.landUse) allowed.landUse = req.body.landUse;
+  const [record] = await db.update(fieldSeasonLandUseTable).set(allowed).where(eq(fieldSeasonLandUseTable.id, id)).returning();
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/field-season-land-use/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [existing] = await db.select({ id: fieldSeasonLandUseTable.id }).from(fieldSeasonLandUseTable)
+    .where(and(eq(fieldSeasonLandUseTable.id, id), eq(fieldSeasonLandUseTable.farmId, farmId))).limit(1);
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  await db.delete(fieldSeasonLandUseTable).where(eq(fieldSeasonLandUseTable.id, id));
+  res.json({ success: true });
 });
 
 // ─── Harvests ───────────────────────────────────────

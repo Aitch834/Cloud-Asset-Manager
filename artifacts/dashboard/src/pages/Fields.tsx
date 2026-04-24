@@ -22,6 +22,7 @@ import {
   Plus, PlusCircle, Search, Map as MapIcon, MoreVertical, Pencil, Trash2, AlertTriangle,
   Sprout, Leaf, CalendarDays, Wheat, ChevronRight, X, History, ChevronDown, Printer, FlaskConical, Loader2, QrCode, StickyNote,
   Landmark, Phone, MapPin, BadgePoundSterling, RefreshCw, FileText, CheckCircle2, Paperclip, Download, Key,
+  TreePine, Layers3,
 } from "lucide-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { QRCodeSVG } from "qrcode.react";
@@ -77,6 +78,58 @@ interface FieldCropAssignment {
 interface FieldFormData { name: string; areaHectares: number; soilType: string; fieldReference?: string; }
 interface CropFormData { name: string; variety: string; category: string; }
 interface AssignCropFormData { cropId: number; plantingDate: string; expectedHarvestDate: string; season: string; }
+
+interface LandUseRecord {
+  id: number;
+  fieldId: number;
+  fieldName?: string;
+  fieldReference?: string;
+  fieldAreaHectares?: string | number | null;
+  year: number;
+  season?: string | null;
+  landUse: string;
+  schemeActionCode?: string | null;
+  schemeReference?: string | null;
+  areaHectares?: string | number | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  managementNotes?: string | null;
+  createdAt: string;
+}
+interface LandUseFormData {
+  landUse: string;
+  year: string;
+  season: string;
+  schemeActionCode: string;
+  schemeReference: string;
+  areaHectares: string;
+  startDate: string;
+  endDate: string;
+  managementNotes: string;
+}
+
+const LAND_USE_OPTIONS = [
+  { value: "fallow",                   label: "Fallow",                    icon: "🌾" },
+  { value: "sfi",                      label: "SFI Action",                icon: "🌿" },
+  { value: "countryside_stewardship",  label: "Countryside Stewardship",   icon: "🦋" },
+  { value: "permanent_grassland",      label: "Permanent Grassland",       icon: "🌱" },
+  { value: "woodland",                 label: "Woodland",                  icon: "🌳" },
+  { value: "set_aside",                label: "Set-aside",                 icon: "⏸️" },
+  { value: "out_of_production",        label: "Out of Production",         icon: "🚫" },
+  { value: "other",                    label: "Other",                     icon: "📋" },
+];
+const LAND_USE_LABEL: Record<string, string> = Object.fromEntries(LAND_USE_OPTIONS.map(o => [o.value, o.label]));
+const LAND_USE_BADGE: Record<string, string> = {
+  fallow:                  "bg-amber-100 text-amber-800 border-amber-300",
+  sfi:                     "bg-teal-100 text-teal-800 border-teal-300",
+  countryside_stewardship: "bg-purple-100 text-purple-800 border-purple-300",
+  permanent_grassland:     "bg-green-100 text-green-700 border-green-300",
+  woodland:                "bg-emerald-100 text-emerald-800 border-emerald-300",
+  set_aside:               "bg-stone-100 text-stone-700 border-stone-300",
+  out_of_production:       "bg-red-100 text-red-700 border-red-300",
+  other:                   "bg-slate-100 text-slate-700 border-slate-300",
+};
+const SCHEME_CODES_NEEDED = new Set(["sfi", "countryside_stewardship"]);
 
 function formatDate(dateStr?: string | null) {
   if (!dateStr) return null;
@@ -195,12 +248,13 @@ function HarvestNoteEditor({ assignmentId, farmId, initialNote }: {
 interface Farm { name?: string; address?: string; postcode?: string; cphNumber?: string; redTractorId?: string | null; }
 interface PrintableAssignment extends FieldCropAssignment { fieldName?: string; soilType?: string; areaHectares?: string | number | null; fieldReference?: string; }
 
-function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }: {
+function PrintCropRegister({ farmId, year, fields, assignments, crops, landUseRecords, onClose }: {
   farmId: number;
   year: number;
   fields: FieldRecord[];
   assignments: FieldCropAssignment[];
   crops: CropRecord[];
+  landUseRecords: LandUseRecord[];
   onClose: () => void;
 }) {
   const { data: farmData } = useQuery<{ record: Farm }>({
@@ -212,34 +266,42 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
   });
   const farm = farmData?.record;
 
-  const isHistorical = year < CURRENT_YEAR;
+  type FieldUseRow = {
+    fieldId: number; fieldName?: string; fieldReference?: string;
+    soilType?: string; areaHectares?: string | number | null;
+    type: "crop" | "landuse" | "none";
+    cropName?: string; season?: string | null;
+    plantingDate?: string; expectedHarvestDate?: string; actualHarvestDate?: string | null;
+    notes?: string | null;
+    landUseLabel?: string; schemeActionCode?: string | null; schemeReference?: string | null;
+    startDate?: string | null; endDate?: string | null; managementNotes?: string | null;
+  };
 
-  const rows: PrintableAssignment[] = fields.map(f => {
+  const rows: FieldUseRow[] = fields.map(f => {
     const asgn = assignments.find(a => a.fieldId === f.id && (a.year === year || (!a.year && year === CURRENT_YEAR)));
-    const crop = asgn ? crops.find(c => c.id === asgn.cropId) : undefined;
-    return {
-      id: asgn?.id ?? 0,
-      fieldId: f.id,
-      cropId: asgn?.cropId ?? 0,
-      cropName: crop?.name ?? "—",
-      plantingDate: asgn?.plantingDate,
-      expectedHarvestDate: asgn?.expectedHarvestDate,
-      actualHarvestDate: asgn?.actualHarvestDate,
-      season: asgn?.season,
-      year: asgn?.year,
-      fieldName: f.name,
-      soilType: f.soilType,
-      areaHectares: f.areaHectares,
-      fieldReference: f.fieldReference,
-    };
+    if (asgn) {
+      const crop = crops.find(c => c.id === asgn.cropId);
+      return { fieldId: f.id, fieldName: f.name, fieldReference: f.fieldReference, soilType: f.soilType, areaHectares: f.areaHectares, type: "crop", cropName: crop?.name ?? "—", season: asgn.season, plantingDate: asgn.plantingDate, expectedHarvestDate: asgn.expectedHarvestDate, actualHarvestDate: asgn.actualHarvestDate, notes: asgn.notes };
+    }
+    const lu = landUseRecords.find(r => r.fieldId === f.id && r.year === year);
+    if (lu) {
+      return { fieldId: f.id, fieldName: f.name, fieldReference: f.fieldReference, soilType: f.soilType, areaHectares: f.areaHectares, type: "landuse", landUseLabel: LAND_USE_LABEL[lu.landUse] ?? lu.landUse, season: lu.season, schemeActionCode: lu.schemeActionCode, schemeReference: lu.schemeReference, startDate: lu.startDate, endDate: lu.endDate, managementNotes: lu.managementNotes };
+    }
+    return { fieldId: f.id, fieldName: f.name, fieldReference: f.fieldReference, soilType: f.soilType, areaHectares: f.areaHectares, type: "none" };
   });
 
   const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const hasActual = rows.some(r => r.actualHarvestDate);
+  const hasScheme = rows.some(r => r.schemeActionCode || r.schemeReference);
 
   const handlePrint = () => {
     const tableHtml = `<table><thead><tr>
-      <th>Field Name</th><th>Ref</th><th>Area (ha)</th><th>Soil Type</th><th>Crop</th><th>Season</th><th>Planted</th><th>Exp. Harvest</th>${rows.some(r => r.actualHarvestDate) ? "<th>Actual Harvest</th><th>Variance</th>" : ""}${rows.some(r => r.notes) ? "<th>Notes</th>" : ""}
+      <th>Field Name</th><th>Ref</th><th>Area (ha)</th><th>Soil Type</th><th>Crop / Land Use</th><th>Season</th>
+      <th>Planted / Start</th><th>Harvest / End</th>
+      ${hasActual ? "<th>Actual Harvest</th><th>Variance</th>" : ""}
+      ${hasScheme ? "<th>Scheme / Action Code</th>" : ""}
     </tr></thead><tbody>${rows.map(row => {
+      const useLabel = row.type === "crop" ? row.cropName ?? "—" : row.type === "landuse" ? (row.landUseLabel ?? "—") + (row.schemeActionCode ? ` (${row.schemeActionCode})` : "") : "Not recorded";
       const vd = harvestVarianceDays(row.expectedHarvestDate, row.actualHarvestDate);
       const varianceText = vd === null ? "—" : vd === 0 ? "On time" : vd > 0 ? `+${vd}d late` : `${vd}d early`;
       return `<tr>
@@ -247,21 +309,22 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
       <td style="color:#6b7280">${row.fieldReference || "—"}</td>
       <td>${row.areaHectares ? parseFloat(String(row.areaHectares)).toFixed(2) : "—"}</td>
       <td>${row.soilType || "—"}</td>
-      <td><strong>${row.cropName}</strong></td>
+      <td style="${row.type === "none" ? "color:#9ca3af;font-style:italic" : "font-weight:600"}">${useLabel}</td>
       <td>${row.season || "—"}</td>
-      <td style="white-space:nowrap">${formatDate(row.plantingDate) || "—"}</td>
-      <td style="white-space:nowrap">${formatDate(row.expectedHarvestDate) || "—"}</td>
-      ${rows.some(r => r.actualHarvestDate) ? `<td style="white-space:nowrap">${formatDate(row.actualHarvestDate) || "—"}</td><td>${varianceText}</td>` : ""}
-      ${rows.some(r => r.notes) ? `<td style="color:#6b7280;font-style:italic">${row.notes || "—"}</td>` : ""}
+      <td style="white-space:nowrap">${(row.type === "crop" ? formatDate(row.plantingDate) : formatDate(row.startDate)) || "—"}</td>
+      <td style="white-space:nowrap">${(row.type === "crop" ? formatDate(row.expectedHarvestDate) : formatDate(row.endDate)) || "—"}</td>
+      ${hasActual ? `<td style="white-space:nowrap">${formatDate(row.actualHarvestDate) || "—"}</td><td>${varianceText}</td>` : ""}
+      ${hasScheme ? `<td style="color:#6b7280">${row.schemeReference || row.schemeActionCode || "—"}</td>` : ""}
     </tr>`;
     }).join("")}</tbody></table>
     <p style="font-size:7px;color:#6b7280;margin:6px 0 0">
       <strong>${fields.length}</strong> field${fields.length !== 1 ? "s" : ""} total  ·
-      <strong>${rows.filter(r => r.cropId).length}</strong> with crop assigned  ·
-      <strong>${rows.filter(r => !r.cropId).length}</strong> unassigned
+      <strong>${rows.filter(r => r.type === "crop").length}</strong> with crop  ·
+      <strong>${rows.filter(r => r.type === "landuse").length}</strong> non-crop land use  ·
+      <strong>${rows.filter(r => r.type === "none").length}</strong> not recorded
     </p>`;
     printProReport({
-      title: "Crop Register",
+      title: "Field Use Register",
       farmName: farm?.name,
       cphNumber: farm?.cphNumber ?? undefined,
       redTractorId: farm?.redTractorId ?? undefined,
@@ -274,14 +337,14 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Printer className="w-5 h-5 text-green-600" />
-            Crop Register — {year} Season
+            Field Use Register — {year} Season
           </DialogTitle>
           <DialogDescription>
-            Review the record below, then click Print to produce a compliance document for Red Tractor audit.
+            Review the record below, then click Print to produce a compliance document for Red Tractor audit. Covers all fields with crops or non-crop land use recorded.
           </DialogDescription>
         </DialogHeader>
 
@@ -295,7 +358,7 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
               {farm?.redTractorId && <p className="text-xs text-foreground/60 mt-0.5">Red Tractor ID: <span className="font-mono font-semibold">{farm.redTractorId}</span></p>}
             </div>
             <div className="text-right text-xs text-foreground/50">
-              <p className="font-semibold text-foreground text-sm">Crop Register</p>
+              <p className="font-semibold text-foreground text-sm">Field Use Register</p>
               <p>Season: <strong className="text-foreground">{year}</strong></p>
               <p>Printed: {printedDate}</p>
             </div>
@@ -309,45 +372,54 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
                   <th className="border border-border/60 px-3 py-2 text-left font-semibold">Field Name</th>
                   <th className="border border-border/60 px-3 py-2 text-left font-semibold">Ref</th>
                   <th className="border border-border/60 px-3 py-2 text-left font-semibold">Area (ha)</th>
-                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Soil Type</th>
-                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Crop</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Soil</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Crop / Land Use</th>
                   <th className="border border-border/60 px-3 py-2 text-left font-semibold">Season</th>
-                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Planted</th>
-                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Exp. Harvest</th>
-                  {rows.some(r => r.actualHarvestDate) && (
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Planted / Start</th>
+                  <th className="border border-border/60 px-3 py-2 text-left font-semibold">Harvest / End</th>
+                  {hasActual && (
                     <>
                       <th className="border border-border/60 px-3 py-2 text-left font-semibold">Actual Harvest</th>
                       <th className="border border-border/60 px-3 py-2 text-left font-semibold">Variance</th>
                     </>
                   )}
-                  {rows.some(r => r.notes) && (
-                    <th className="border border-border/60 px-3 py-2 text-left font-semibold">Notes</th>
+                  {hasScheme && (
+                    <th className="border border-border/60 px-3 py-2 text-left font-semibold">Scheme / Ref</th>
                   )}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row, i) => {
                   const varianceDays = harvestVarianceDays(row.expectedHarvestDate, row.actualHarvestDate);
+                  const useCell = row.type === "crop"
+                    ? <span className="font-semibold">{row.cropName}</span>
+                    : row.type === "landuse"
+                    ? <span className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded border ${LAND_USE_BADGE[row.landUseLabel ? Object.keys(LAND_USE_BADGE)[LAND_USE_OPTIONS.findIndex(o => o.label === row.landUseLabel)] ?? "other" : "other"]}`}>{row.landUseLabel}</span>
+                    : <span className="text-foreground/30 italic text-[10px]">Not recorded</span>;
                   return (
                     <tr key={row.fieldId} className={i % 2 === 0 ? "bg-white" : "bg-black/[0.02]"}>
                       <td className="border border-border/60 px-3 py-2 font-medium">{row.fieldName || `Field #${row.fieldId}`}</td>
-                      <td className="border border-border/60 px-3 py-2 text-foreground/60">{row.fieldReference || "—"}</td>
+                      <td className="border border-border/60 px-3 py-2 text-foreground/60 font-mono text-[10px]">{row.fieldReference || "—"}</td>
                       <td className="border border-border/60 px-3 py-2">{row.areaHectares ? parseFloat(String(row.areaHectares)).toFixed(2) : "—"}</td>
                       <td className="border border-border/60 px-3 py-2">{row.soilType || "—"}</td>
-                      <td className="border border-border/60 px-3 py-2 font-medium">{row.cropName}</td>
+                      <td className="border border-border/60 px-3 py-2">{useCell}</td>
                       <td className="border border-border/60 px-3 py-2">{row.season || "—"}</td>
-                      <td className="border border-border/60 px-3 py-2">{formatDate(row.plantingDate) || "—"}</td>
-                      <td className="border border-border/60 px-3 py-2">{formatDate(row.expectedHarvestDate) || "—"}</td>
-                      {rows.some(r => r.actualHarvestDate) && (
+                      <td className="border border-border/60 px-3 py-2 whitespace-nowrap">{row.type === "crop" ? (formatDate(row.plantingDate) || "—") : (formatDate(row.startDate) || "—")}</td>
+                      <td className="border border-border/60 px-3 py-2 whitespace-nowrap">{row.type === "crop" ? (formatDate(row.expectedHarvestDate) || "—") : (formatDate(row.endDate) || "—")}</td>
+                      {hasActual && (
                         <>
-                          <td className="border border-border/60 px-3 py-2">{formatDate(row.actualHarvestDate) || "—"}</td>
+                          <td className="border border-border/60 px-3 py-2 whitespace-nowrap">{formatDate(row.actualHarvestDate) || "—"}</td>
                           <td className="border border-border/60 px-3 py-2">
                             {varianceDays !== null ? <VarianceBadge days={varianceDays} size="xs" /> : <span className="text-foreground/30">—</span>}
                           </td>
                         </>
                       )}
-                      {rows.some(r => r.notes) && (
-                        <td className="border border-border/60 px-3 py-2 text-foreground/60 italic">{row.notes || "—"}</td>
+                      {hasScheme && (
+                        <td className="border border-border/60 px-3 py-2 text-foreground/60">
+                          {row.schemeActionCode && <span className="font-mono font-semibold text-teal-700">{row.schemeActionCode}</span>}
+                          {row.schemeReference && <span className="block text-[10px] text-foreground/50">{row.schemeReference}</span>}
+                          {!row.schemeActionCode && !row.schemeReference && "—"}
+                        </td>
                       )}
                     </tr>
                   );
@@ -357,19 +429,21 @@ function PrintCropRegister({ farmId, year, fields, assignments, crops, onClose }
           </div>
 
           {/* Summary */}
-          <div className="flex gap-6 pt-2 text-xs text-foreground/60 border-t">
+          <div className="flex flex-wrap gap-4 pt-2 text-xs text-foreground/60 border-t">
             <span><strong className="text-foreground">{fields.length}</strong> field{fields.length !== 1 ? "s" : ""} total</span>
-            <span><strong className="text-foreground">{rows.filter(r => r.cropId).length}</strong> with crop assigned</span>
-            <span><strong className="text-foreground">{rows.filter(r => !r.cropId).length}</strong> unassigned</span>
+            <span><strong className="text-foreground">{rows.filter(r => r.type === "crop").length}</strong> with crop assigned</span>
+            <span><strong className="text-foreground">{rows.filter(r => r.type === "landuse").length}</strong> non-crop land use</span>
+            {rows.filter(r => r.type === "none").length > 0 && (
+              <span className="text-amber-600"><strong>{rows.filter(r => r.type === "none").length}</strong> not yet recorded</span>
+            )}
           </div>
 
           {/* Footer */}
           <div className="text-xs text-foreground/40 border-t pt-3 flex items-center justify-between">
             <span className="italic">
-              This is an on-farm record for Red Tractor compliance purposes.
-              Retain for a minimum of 3 years and make available for inspection at audit.
+              On-farm record for Red Tractor and RPA compliance. Retain for a minimum of 3 years and make available for inspection.
             </span>
-            <span className="font-medium not-italic text-foreground/50 ml-4 whitespace-nowrap">Powered by BDE Farm Trac · {printedDate}</span>
+            <span className="font-medium not-italic text-foreground/50 ml-4 whitespace-nowrap">BDE Farm Trac · {printedDate}</span>
           </div>
         </div>
 
@@ -1031,6 +1105,8 @@ export default function FieldsPage() {
   const [printOpen, setPrintOpen] = useState(false);
   const [expandedVarietyId, setExpandedVarietyId] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [landUseForField, setLandUseForField] = useState<FieldRecord | null>(null);
+  const [editingLandUseRecord, setEditingLandUseRecord] = useState<LandUseRecord | null>(null);
 
   // All hooks must be called unconditionally before any early return
   const safeFarmId = farmId ?? 0;
@@ -1057,6 +1133,29 @@ export default function FieldsPage() {
   });
   const landlordSuppliers: { id: number; name: string; contactName?: string | null; phone?: string | null; email?: string | null; address?: string | null }[] = landlordSuppliersQ.data ?? [];
 
+  const landUseQ = useQuery<LandUseRecord[]>({
+    queryKey: ["field-season-land-use", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}/field-season-land-use`).then(r => r.json()).then(d => d.records ?? []),
+    enabled: !!farmId,
+  });
+  const landUseRecords: LandUseRecord[] = landUseQ.data ?? [];
+
+  const createLandUseMut = useMutation({
+    mutationFn: (data: Partial<LandUseRecord> & { fieldId: number; year: number; landUse: string }) =>
+      fetch(`/api/farms/${safeFarmId}/field-season-land-use`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["field-season-land-use", safeFarmId] }); },
+  });
+  const updateLandUseMut = useMutation({
+    mutationFn: ({ id, ...data }: Partial<LandUseRecord> & { id: number }) =>
+      fetch(`/api/farms/${safeFarmId}/field-season-land-use/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["field-season-land-use", safeFarmId] }); },
+  });
+  const deleteLandUseMut = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/farms/${safeFarmId}/field-season-land-use/${id}`, { method: "DELETE" }).then(r => r.json()),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["field-season-land-use", safeFarmId] }); },
+  });
+
   const { uploadFile, isUploading: isUploadingTenureDoc } = useUpload();
 
   const { mutate: createField, isPending: creatingField } = useAddField(safeFarmId);
@@ -1066,6 +1165,9 @@ export default function FieldsPage() {
   const fieldForm = useForm<FieldFormData>();
   const cropForm = useForm<CropFormData>();
   const assignForm = useForm<AssignCropFormData>();
+  const landUseForm = useForm<LandUseFormData>({
+    defaultValues: { landUse: "fallow", year: String(CURRENT_YEAR), season: "", schemeActionCode: "", schemeReference: "", areaHectares: "", startDate: "", endDate: "", managementNotes: "" },
+  });
 
   const fields = (fieldsData?.records ?? []) as unknown as FieldRecord[];
   const crops = (cropsData?.records ?? []) as unknown as CropRecord[];
@@ -1075,7 +1177,10 @@ export default function FieldsPage() {
   if (!farmId) return <Redirect href="/select" />;
 
   const availableYears = Array.from(
-    new Set([CURRENT_YEAR, ...assignments.map(a => a.year).filter((y): y is number => !!y)])
+    new Set([CURRENT_YEAR,
+      ...assignments.map(a => a.year).filter((y): y is number => !!y),
+      ...landUseRecords.map(r => r.year),
+    ])
   ).sort((a, b) => b - a);
 
   const currentAssignments = assignments.filter(a =>
@@ -1085,6 +1190,10 @@ export default function FieldsPage() {
   const currentCropByField = Object.fromEntries(
     currentAssignments.map(a => [a.fieldId, a])
   ) as Record<number, FieldCropAssignment>;
+
+  const currentLandUseByField = Object.fromEntries(
+    landUseRecords.filter(r => r.year === selectedYear).map(r => [r.fieldId, r])
+  ) as Record<number, LandUseRecord>;
 
   const filteredFields = fields.filter(f =>
     !search || (f.name ?? "").toLowerCase().includes(search.toLowerCase())
@@ -1232,6 +1341,7 @@ export default function FieldsPage() {
               </div>
             ) : filteredFields.map((field) => {
               const crop = currentCropByField[field.id];
+              const fieldLandUse = !crop ? currentLandUseByField[field.id] : undefined;
               return (
                 <Card key={field.id} className="group relative overflow-visible">
                   <div className="absolute top-3 right-3 z-30">
@@ -1274,22 +1384,28 @@ export default function FieldsPage() {
                   </div>
 
                   <div className="p-5">
-                    {/* Crop badge */}
+                    {/* Crop / Land use badge */}
                     <div className="mb-3">
                       {crop ? (
                         <span className="inline-flex items-center gap-1.5 bg-green-700 text-white text-xs font-semibold px-2.5 py-1 rounded-full shadow">
                           <Wheat className="w-3 h-3" />
                           {crop.cropName}
                         </span>
+                      ) : fieldLandUse ? (
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${LAND_USE_BADGE[fieldLandUse.landUse] ?? "bg-slate-100 text-slate-700 border-slate-300"}`}>
+                          <TreePine className="w-3 h-3" />
+                          {LAND_USE_LABEL[fieldLandUse.landUse] ?? fieldLandUse.landUse}
+                          {fieldLandUse.schemeActionCode && <span className="font-mono ml-0.5 opacity-70">· {fieldLandUse.schemeActionCode}</span>}
+                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 bg-black/5 text-foreground/40 text-xs font-medium px-2.5 py-1 rounded-full">
                           <Leaf className="w-3 h-3" />
-                          No crop assigned
+                          Not recorded
                         </span>
                       )}
                     </div>
 
-                    {/* Crop details or assign prompt */}
+                    {/* Crop details / Land use details / assign prompt */}
                     {crop ? (
                       <div className="bg-green-50 border border-green-100 rounded-xl p-3 mb-3 space-y-1">
                         {crop.plantingDate && (
@@ -1322,14 +1438,50 @@ export default function FieldsPage() {
                           />
                         )}
                       </div>
+                    ) : fieldLandUse ? (
+                      <div className="bg-stone-50 border border-stone-100 rounded-xl p-3 mb-3 space-y-1">
+                        {fieldLandUse.season && (
+                          <div className="flex items-center gap-2 text-xs text-foreground/70">
+                            <CalendarDays className="w-3.5 h-3.5 text-stone-500 flex-shrink-0" />
+                            <span>{fieldLandUse.season}</span>
+                          </div>
+                        )}
+                        {fieldLandUse.schemeReference && (
+                          <div className="flex items-center gap-2 text-xs text-foreground/70">
+                            <FileText className="w-3.5 h-3.5 text-stone-500 flex-shrink-0" />
+                            <span className="font-mono">{fieldLandUse.schemeReference}</span>
+                          </div>
+                        )}
+                        {fieldLandUse.managementNotes && (
+                          <div className="flex items-start gap-2 text-xs text-foreground/60 italic">
+                            <StickyNote className="w-3.5 h-3.5 text-stone-400 flex-shrink-0 mt-0.5" />
+                            <span>{fieldLandUse.managementNotes}</span>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => { setEditingLandUseRecord(fieldLandUse); landUseForm.reset({ landUse: fieldLandUse.landUse, year: String(fieldLandUse.year), season: fieldLandUse.season ?? "", schemeActionCode: fieldLandUse.schemeActionCode ?? "", schemeReference: fieldLandUse.schemeReference ?? "", areaHectares: fieldLandUse.areaHectares ? String(fieldLandUse.areaHectares) : "", startDate: fieldLandUse.startDate ?? "", endDate: fieldLandUse.endDate ?? "", managementNotes: fieldLandUse.managementNotes ?? "" }); }}
+                          className="text-xs text-foreground/50 hover:text-foreground underline mt-1 cursor-pointer"
+                        >
+                          Edit record
+                        </button>
+                      </div>
                     ) : (
-                      <button
-                        onClick={() => { setAssignForField(field); assignForm.reset(); }}
-                        className="w-full mb-3 flex items-center justify-center gap-2 py-2 border-2 border-dashed border-green-200 rounded-xl text-xs text-green-700 font-medium hover:bg-green-50 transition-colors cursor-pointer"
-                      >
-                        <Sprout className="w-3.5 h-3.5" />
-                        Assign this season's crop
-                      </button>
+                      <div className="mb-3 space-y-1.5">
+                        <button
+                          onClick={() => { setAssignForField(field); assignForm.reset(); }}
+                          className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-green-200 rounded-xl text-xs text-green-700 font-medium hover:bg-green-50 transition-colors cursor-pointer"
+                        >
+                          <Sprout className="w-3.5 h-3.5" />
+                          Assign crop
+                        </button>
+                        <button
+                          onClick={() => { setLandUseForField(field); landUseForm.reset({ landUse: "fallow", year: String(selectedYear), season: "", schemeActionCode: "", schemeReference: "", areaHectares: field.areaHectares ? String(field.areaHectares) : "", startDate: "", endDate: "", managementNotes: "" }); }}
+                          className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-stone-200 rounded-xl text-xs text-stone-600 font-medium hover:bg-stone-50 transition-colors cursor-pointer"
+                        >
+                          <TreePine className="w-3.5 h-3.5" />
+                          Record land use
+                        </button>
+                      </div>
                     )}
 
                     {/* Field stats */}
@@ -1586,6 +1738,75 @@ export default function FieldsPage() {
               })}
             </div>
           )}
+
+          {/* Non-crop land use section */}
+          {(() => {
+            const seasonLandUse = landUseRecords.filter(r =>
+              selectedYear === CURRENT_YEAR ? r.year === CURRENT_YEAR : r.year === selectedYear
+            );
+            if (seasonLandUse.length === 0) return null;
+            return (
+              <div className="mt-8">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <TreePine className="w-4 h-4 text-stone-600" />
+                    <h3 className="font-semibold text-foreground">Non-Crop Land Use — {selectedYear} Season</h3>
+                    <span className="text-xs text-foreground/40 bg-muted px-2 py-0.5 rounded-full">{seasonLandUse.length} record{seasonLandUse.length !== 1 ? "s" : ""}</span>
+                  </div>
+                </div>
+                <div className="bg-white border border-border/50 rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-stone-50 border-b border-border/50">
+                      <tr>
+                        <th className="text-left px-4 py-2.5 font-medium text-foreground/60 text-xs uppercase tracking-wide">Field</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-foreground/60 text-xs uppercase tracking-wide">Land Use</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-foreground/60 text-xs uppercase tracking-wide hidden sm:table-cell">Scheme</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-foreground/60 text-xs uppercase tracking-wide hidden md:table-cell">Season</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-foreground/60 text-xs uppercase tracking-wide hidden sm:table-cell">Area (ha)</th>
+                        <th className="px-4 py-2.5 w-16" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/30">
+                      {seasonLandUse.map(r => {
+                        const field = fields.find(f => f.id === r.fieldId);
+                        return (
+                          <tr key={r.id} className="hover:bg-muted/20 transition-colors">
+                            <td className="px-4 py-3">
+                              <p className="font-medium">{r.fieldName || field?.name || `Field #${r.fieldId}`}</p>
+                              {r.fieldReference && <p className="text-xs text-foreground/40 font-mono">{r.fieldReference}</p>}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${LAND_USE_BADGE[r.landUse] ?? "bg-slate-100 text-slate-700 border-slate-300"}`}>
+                                <TreePine className="w-3 h-3" />
+                                {LAND_USE_LABEL[r.landUse] ?? r.landUse}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 hidden sm:table-cell">
+                              {r.schemeActionCode ? (
+                                <span className="font-mono font-semibold text-teal-700 text-xs">{r.schemeActionCode}</span>
+                              ) : <span className="text-foreground/30 text-xs">—</span>}
+                              {r.schemeReference && <p className="text-xs text-foreground/40 font-mono">{r.schemeReference}</p>}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-foreground/60 hidden md:table-cell">{r.season || "—"}</td>
+                            <td className="px-4 py-3 text-right text-xs text-foreground/60 hidden sm:table-cell">
+                              {r.areaHectares ? parseFloat(String(r.areaHectares)).toFixed(2) : field?.areaHectares ? `${parseFloat(String(field.areaHectares)).toFixed(2)} *` : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                onClick={() => { setEditingLandUseRecord(r); landUseForm.reset({ landUse: r.landUse, year: String(r.year), season: r.season ?? "", schemeActionCode: r.schemeActionCode ?? "", schemeReference: r.schemeReference ?? "", areaHectares: r.areaHectares ? String(r.areaHectares) : "", startDate: r.startDate ?? "", endDate: r.endDate ?? "", managementNotes: r.managementNotes ?? "" }); }}
+                                className="text-xs text-foreground/40 hover:text-foreground underline cursor-pointer"
+                              >Edit</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-foreground/40 mt-2 px-1">* Using full field area — no partial area recorded.</p>
+              </div>
+            );
+          })()}
         </>
       )}
 
@@ -1601,6 +1822,8 @@ export default function FieldsPage() {
               .filter(a => a.fieldId === f.id)
               .sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
             const currentCropForDrawer = currentCropByField[f.id];
+            const currentLandUseForDrawer = !currentCropForDrawer ? currentLandUseByField[f.id] : undefined;
+            const fieldLandUseHistory = landUseRecords.filter(r => r.fieldId === f.id).sort((a, b) => b.year - a.year);
             return (
               <>
               {/* header */}
@@ -1615,7 +1838,7 @@ export default function FieldsPage() {
                 {/* tabs */}
                 <TabBar className="mt-4">
                   <TabButton size="sm" active={drawerTab === "overview"} onClick={() => setDrawerTab("overview")}>Overview</TabButton>
-                  <TabButton size="sm" active={drawerTab === "history"} onClick={() => setDrawerTab("history")}>Crop History</TabButton>
+                  <TabButton size="sm" active={drawerTab === "history"} onClick={() => setDrawerTab("history")}>Season History</TabButton>
                   <TabButton size="sm" active={drawerTab === "nmp"} onClick={() => setDrawerTab("nmp")}>NMP</TabButton>
                   <TabButton size="sm" active={drawerTab === "tenure"} onClick={() => { setDrawerTab("tenure"); setTenureEditMode(false); }}>Land Tenure</TabButton>
                 </TabBar>
@@ -1688,11 +1911,69 @@ export default function FieldsPage() {
                             </div>
                           )}
                         </div>
+                      ) : currentLandUseForDrawer ? (
+                        <div className="bg-stone-50 border border-stone-100 rounded-xl p-4 space-y-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${LAND_USE_BADGE[currentLandUseForDrawer.landUse] ?? "bg-slate-100 text-slate-700 border-slate-300"}`}>
+                              <TreePine className="w-3 h-3" />
+                              {LAND_USE_LABEL[currentLandUseForDrawer.landUse] ?? currentLandUseForDrawer.landUse}
+                            </span>
+                            {currentLandUseForDrawer.season && <span className="text-xs text-foreground/50">{currentLandUseForDrawer.season}</span>}
+                          </div>
+                          {currentLandUseForDrawer.schemeActionCode && (
+                            <div className="flex items-center gap-2 text-sm text-foreground/70">
+                              <FileText className="w-4 h-4 text-teal-600 flex-shrink-0" />
+                              <span>Scheme action: <strong className="font-mono">{currentLandUseForDrawer.schemeActionCode}</strong></span>
+                            </div>
+                          )}
+                          {currentLandUseForDrawer.schemeReference && (
+                            <div className="flex items-center gap-2 text-sm text-foreground/70">
+                              <FileText className="w-4 h-4 text-stone-500 flex-shrink-0" />
+                              <span>Agreement ref: <strong className="font-mono">{currentLandUseForDrawer.schemeReference}</strong></span>
+                            </div>
+                          )}
+                          {(currentLandUseForDrawer.startDate || currentLandUseForDrawer.endDate) && (
+                            <div className="flex items-center gap-2 text-sm text-foreground/70">
+                              <CalendarDays className="w-4 h-4 text-stone-500 flex-shrink-0" />
+                              <span>{formatDate(currentLandUseForDrawer.startDate) ?? "—"} → {formatDate(currentLandUseForDrawer.endDate) ?? "—"}</span>
+                            </div>
+                          )}
+                          {currentLandUseForDrawer.managementNotes && (
+                            <p className="text-sm text-foreground/60 italic">{currentLandUseForDrawer.managementNotes}</p>
+                          )}
+                          <div className="flex gap-3 pt-1">
+                            <button
+                              onClick={() => { setEditingLandUseRecord(currentLandUseForDrawer); landUseForm.reset({ landUse: currentLandUseForDrawer.landUse, year: String(currentLandUseForDrawer.year), season: currentLandUseForDrawer.season ?? "", schemeActionCode: currentLandUseForDrawer.schemeActionCode ?? "", schemeReference: currentLandUseForDrawer.schemeReference ?? "", areaHectares: currentLandUseForDrawer.areaHectares ? String(currentLandUseForDrawer.areaHectares) : "", startDate: currentLandUseForDrawer.startDate ?? "", endDate: currentLandUseForDrawer.endDate ?? "", managementNotes: currentLandUseForDrawer.managementNotes ?? "" }); }}
+                              className="text-xs font-semibold text-stone-600 hover:text-stone-800 underline cursor-pointer"
+                            >Edit record</button>
+                            <button
+                              onClick={() => { if (confirm("Delete this land use record?")) deleteLandUseMut.mutate(currentLandUseForDrawer.id); }}
+                              className="text-xs font-semibold text-red-500 hover:text-red-700 underline cursor-pointer"
+                            >Delete</button>
+                          </div>
+                        </div>
                       ) : (
-                        <div className="border-2 border-dashed border-green-200 rounded-xl p-5 text-center">
-                          <Leaf className="w-8 h-8 mx-auto text-green-300 mb-2" />
-                          <p className="text-sm text-foreground/50">No crop assigned for {selectedYear}</p>
+                        <div className="border-2 border-dashed border-stone-200 rounded-xl p-5 text-center">
+                          <Leaf className="w-8 h-8 mx-auto text-stone-300 mb-2" />
+                          <p className="text-sm text-foreground/50">Nothing recorded for {selectedYear}</p>
                           {selectedYear === CURRENT_YEAR && (
+                            <div className="flex justify-center gap-3 mt-3">
+                              <button
+                                onClick={() => { setSelectedFieldForHistory(null); setAssignForField(f); assignForm.reset(); }}
+                                className="text-xs font-semibold text-green-700 hover:underline cursor-pointer"
+                              >
+                                + Assign a crop
+                              </button>
+                              <span className="text-foreground/30">·</span>
+                              <button
+                                onClick={() => { setLandUseForField(f); landUseForm.reset({ landUse: "fallow", year: String(CURRENT_YEAR), season: "", schemeActionCode: "", schemeReference: "", areaHectares: f.areaHectares ? String(f.areaHectares) : "", startDate: "", endDate: "", managementNotes: "" }); }}
+                                className="text-xs font-semibold text-stone-600 hover:underline cursor-pointer"
+                              >
+                                + Record land use
+                              </button>
+                            </div>
+                          )}
+                          {selectedYear !== CURRENT_YEAR && (
                             <button
                               onClick={() => { setSelectedFieldForHistory(null); setAssignForField(f); assignForm.reset(); }}
                               className="mt-3 text-xs font-semibold text-green-700 hover:underline cursor-pointer"
@@ -1705,14 +1986,14 @@ export default function FieldsPage() {
                     </div>
 
                     {/* quick link to history */}
-                    {fieldAssignments.length > 1 && (
+                    {(fieldAssignments.length + fieldLandUseHistory.length) > 1 && (
                       <button
                         onClick={() => setDrawerTab("history")}
                         className="w-full flex items-center justify-between text-sm text-foreground/60 hover:text-foreground border border-border/50 rounded-xl px-4 py-3 hover:bg-black/[0.02] transition-colors cursor-pointer"
                       >
                         <span className="flex items-center gap-2">
                           <History className="w-4 h-4" />
-                          View full crop rotation history
+                          View full season history
                         </span>
                         <ChevronRight className="w-4 h-4" />
                       </button>
@@ -2112,81 +2393,100 @@ export default function FieldsPage() {
                   );
                 })()}
 
-                {drawerTab === "history" && (
+                {drawerTab === "history" && (() => {
+                  type HistoryEntry =
+                    | { kind: "crop"; year: number; data: FieldCropAssignment }
+                    | { kind: "landuse"; year: number; data: LandUseRecord };
+                  const historyEntries: HistoryEntry[] = [
+                    ...fieldAssignments.map(a => ({ kind: "crop" as const, year: a.year ?? 0, data: a })),
+                    ...fieldLandUseHistory.map(r => ({ kind: "landuse" as const, year: r.year, data: r })),
+                  ].sort((a, b) => b.year - a.year);
+                  return (
                   <div>
                     <p className="text-sm text-foreground/50 mb-5">
-                      All recorded crop assignments for this field across all seasons.
+                      All recorded crop and non-crop land use entries for this field across all seasons.
                     </p>
-                    {fieldAssignments.length === 0 ? (
+                    {historyEntries.length === 0 ? (
                       <div className="py-12 text-center">
                         <History className="w-10 h-10 mx-auto text-foreground/20 mb-3" />
-                        <p className="text-foreground/40 text-sm">No crop history recorded yet.</p>
+                        <p className="text-foreground/40 text-sm">No season history recorded yet.</p>
+                        <button
+                          onClick={() => { setLandUseForField(f); landUseForm.reset({ landUse: "fallow", year: String(CURRENT_YEAR), season: "", schemeActionCode: "", schemeReference: "", areaHectares: f.areaHectares ? String(f.areaHectares) : "", startDate: "", endDate: "", managementNotes: "" }); }}
+                          className="mt-3 text-xs font-semibold text-stone-600 hover:underline cursor-pointer"
+                        >+ Record land use</button>
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        {fieldAssignments.map((a, i) => {
-                          const isCurrent = i === 0 && a.year === CURRENT_YEAR;
-                          return (
-                            <div key={a.id} className="flex items-start gap-3">
-                              {/* dot + connecting line */}
-                              <div className="flex flex-col items-center flex-shrink-0 pt-1.5">
-                                <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${isCurrent ? "bg-green-600 border-green-600" : "bg-white border-border"}`} />
-                                {i < fieldAssignments.length - 1 && (
-                                  <div className="w-0.5 flex-1 bg-border mt-1" style={{ minHeight: "24px" }} />
-                                )}
-                              </div>
-                              {/* card */}
-                              <div className={`flex-1 rounded-xl border p-4 mb-0 ${isCurrent ? "border-green-200 bg-green-50" : "border-border/50 bg-black/[0.01]"}`}>
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${isCurrent ? "bg-green-700 text-white" : "bg-black/5 text-foreground/70"}`}>
-                                    <Wheat className="w-3 h-3" />
-                                    {a.cropName}
-                                  </span>
-                                  <span className="text-xs font-bold text-foreground/40">
-                                    {a.year ?? "—"}{a.season ? ` · ${a.season}` : ""}
-                                  </span>
+                        {historyEntries.map((entry, i) => {
+                          const isCurrent = entry.year === CURRENT_YEAR;
+                          if (entry.kind === "crop") {
+                            const a = entry.data;
+                            return (
+                              <div key={`crop-${a.id}`} className="flex items-start gap-3">
+                                <div className="flex flex-col items-center flex-shrink-0 pt-1.5">
+                                  <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${isCurrent ? "bg-green-600 border-green-600" : "bg-white border-border"}`} />
+                                  {i < historyEntries.length - 1 && <div className="w-0.5 flex-1 bg-border mt-1" style={{ minHeight: "24px" }} />}
                                 </div>
-                                {a.plantingDate && (
-                                  <p className="text-xs text-foreground/60 flex items-center gap-1.5 mt-1">
-                                    <CalendarDays className="w-3 h-3 flex-shrink-0" />
-                                    Planted {formatDate(a.plantingDate)}
-                                  </p>
-                                )}
-                                {a.expectedHarvestDate && (
-                                  <p className="text-xs text-foreground/60 flex items-center gap-1.5 mt-0.5">
-                                    <Wheat className="w-3 h-3 flex-shrink-0 text-amber-500" />
-                                    Expected harvest {formatDate(a.expectedHarvestDate)}
-                                  </p>
-                                )}
-                                {a.actualHarvestDate && (() => {
-                                  const days = harvestVarianceDays(a.expectedHarvestDate, a.actualHarvestDate);
-                                  return (
-                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                      <p className="text-xs text-foreground/60 flex items-center gap-1.5">
-                                        <Wheat className="w-3 h-3 flex-shrink-0 text-green-700" />
-                                        Actual harvest {formatDate(a.actualHarvestDate)}
-                                      </p>
-                                      {days !== null && <VarianceBadge days={days} size="xs" />}
-                                    </div>
-                                  );
-                                })()}
-                                {a.actualHarvestDate && (
-                                  <div className="mt-1.5">
-                                    <HarvestNoteEditor
-                                      assignmentId={a.id}
-                                      farmId={farmId}
-                                      initialNote={a.notes}
-                                    />
+                                <div className={`flex-1 rounded-xl border p-4 mb-0 ${isCurrent ? "border-green-200 bg-green-50" : "border-border/50 bg-black/[0.01]"}`}>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${isCurrent ? "bg-green-700 text-white" : "bg-black/5 text-foreground/70"}`}>
+                                      <Wheat className="w-3 h-3" />
+                                      {a.cropName}
+                                    </span>
+                                    <span className="text-xs font-bold text-foreground/40">{a.year ?? "—"}{a.season ? ` · ${a.season}` : ""}</span>
                                   </div>
-                                )}
+                                  {a.plantingDate && <p className="text-xs text-foreground/60 flex items-center gap-1.5 mt-1"><CalendarDays className="w-3 h-3 flex-shrink-0" />Planted {formatDate(a.plantingDate)}</p>}
+                                  {a.expectedHarvestDate && <p className="text-xs text-foreground/60 flex items-center gap-1.5 mt-0.5"><Wheat className="w-3 h-3 flex-shrink-0 text-amber-500" />Expected harvest {formatDate(a.expectedHarvestDate)}</p>}
+                                  {a.actualHarvestDate && (() => {
+                                    const days = harvestVarianceDays(a.expectedHarvestDate, a.actualHarvestDate);
+                                    return <div className="flex items-center gap-2 mt-0.5 flex-wrap"><p className="text-xs text-foreground/60 flex items-center gap-1.5"><Wheat className="w-3 h-3 flex-shrink-0 text-green-700" />Actual harvest {formatDate(a.actualHarvestDate)}</p>{days !== null && <VarianceBadge days={days} size="xs" />}</div>;
+                                  })()}
+                                  {a.actualHarvestDate && <div className="mt-1.5"><HarvestNoteEditor assignmentId={a.id} farmId={farmId} initialNote={a.notes} /></div>}
+                                </div>
                               </div>
-                            </div>
-                          );
+                            );
+                          } else {
+                            const r = entry.data;
+                            const luBadgeCls = LAND_USE_BADGE[r.landUse] ?? "bg-slate-100 text-slate-700 border-slate-300";
+                            return (
+                              <div key={`lu-${r.id}`} className="flex items-start gap-3">
+                                <div className="flex flex-col items-center flex-shrink-0 pt-1.5">
+                                  <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${isCurrent ? "bg-stone-500 border-stone-500" : "bg-white border-border"}`} />
+                                  {i < historyEntries.length - 1 && <div className="w-0.5 flex-1 bg-border mt-1" style={{ minHeight: "24px" }} />}
+                                </div>
+                                <div className={`flex-1 rounded-xl border p-4 mb-0 ${isCurrent ? "border-stone-200 bg-stone-50" : "border-border/50 bg-black/[0.01]"}`}>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${luBadgeCls}`}>
+                                      <TreePine className="w-3 h-3" />
+                                      {LAND_USE_LABEL[r.landUse] ?? r.landUse}
+                                    </span>
+                                    <span className="text-xs font-bold text-foreground/40">{r.year}{r.season ? ` · ${r.season}` : ""}</span>
+                                  </div>
+                                  {r.schemeActionCode && <p className="text-xs text-foreground/60 flex items-center gap-1.5 mt-1"><FileText className="w-3 h-3 flex-shrink-0 text-teal-600" />Action: <span className="font-mono font-semibold">{r.schemeActionCode}</span></p>}
+                                  {r.schemeReference && <p className="text-xs text-foreground/60 flex items-center gap-1.5 mt-0.5"><FileText className="w-3 h-3 flex-shrink-0" />Ref: <span className="font-mono">{r.schemeReference}</span></p>}
+                                  {(r.startDate || r.endDate) && <p className="text-xs text-foreground/60 flex items-center gap-1.5 mt-0.5"><CalendarDays className="w-3 h-3 flex-shrink-0" />{formatDate(r.startDate) ?? "—"} → {formatDate(r.endDate) ?? "—"}</p>}
+                                  {r.managementNotes && <p className="text-xs text-foreground/50 italic mt-1">{r.managementNotes}</p>}
+                                  <div className="flex gap-3 mt-2">
+                                    <button onClick={() => { setEditingLandUseRecord(r); landUseForm.reset({ landUse: r.landUse, year: String(r.year), season: r.season ?? "", schemeActionCode: r.schemeActionCode ?? "", schemeReference: r.schemeReference ?? "", areaHectares: r.areaHectares ? String(r.areaHectares) : "", startDate: r.startDate ?? "", endDate: r.endDate ?? "", managementNotes: r.managementNotes ?? "" }); }} className="text-xs text-foreground/40 hover:text-foreground underline cursor-pointer">Edit</button>
+                                    <button onClick={() => { if (confirm("Delete this land use record?")) deleteLandUseMut.mutate(r.id); }} className="text-xs text-red-400 hover:text-red-600 underline cursor-pointer">Delete</button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
                         })}
+                        <button
+                          onClick={() => { setLandUseForField(f); landUseForm.reset({ landUse: "fallow", year: String(CURRENT_YEAR), season: "", schemeActionCode: "", schemeReference: "", areaHectares: f.areaHectares ? String(f.areaHectares) : "", startDate: "", endDate: "", managementNotes: "" }); }}
+                          className="w-full mt-1 flex items-center justify-center gap-2 py-2 border-2 border-dashed border-stone-200 rounded-xl text-xs text-stone-500 font-medium hover:bg-stone-50 transition-colors cursor-pointer"
+                        >
+                          <TreePine className="w-3.5 h-3.5" />
+                          Record another season's land use
+                        </button>
                       </div>
                     )}
                   </div>
-                )}
+                  );
+                })()}
 
               </div>
               </>
@@ -2203,6 +2503,7 @@ export default function FieldsPage() {
           fields={fields}
           assignments={assignments}
           crops={crops}
+          landUseRecords={landUseRecords}
           onClose={() => setPrintOpen(false)}
         />
       )}
@@ -2263,6 +2564,108 @@ export default function FieldsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── LAND USE DIALOG ── */}
+      {(() => {
+        const isEditing = !!editingLandUseRecord;
+        const targetField = isEditing
+          ? fields.find(f => f.id === editingLandUseRecord!.fieldId) ?? null
+          : landUseForField;
+        const isOpen = !!landUseForField || !!editingLandUseRecord;
+        const watchedLandUse = landUseForm.watch("landUse");
+        const onClose = () => { setLandUseForField(null); setEditingLandUseRecord(null); landUseForm.reset(); };
+        const onSubmitLandUse = (values: LandUseFormData) => {
+          const payload = {
+            fieldId: targetField!.id,
+            year: Number(values.year),
+            season: values.season || null,
+            landUse: values.landUse,
+            schemeActionCode: values.schemeActionCode || null,
+            schemeReference: values.schemeReference || null,
+            areaHectares: values.areaHectares || null,
+            startDate: values.startDate || null,
+            endDate: values.endDate || null,
+            managementNotes: values.managementNotes || null,
+          };
+          if (isEditing) {
+            updateLandUseMut.mutate({ id: editingLandUseRecord!.id, ...payload }, { onSuccess: onClose });
+          } else {
+            createLandUseMut.mutate(payload as any, { onSuccess: onClose });
+          }
+        };
+        return (
+          <Dialog open={isOpen} onOpenChange={o => { if (!o) onClose(); }}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <TreePine className="w-5 h-5 text-stone-600" />
+                  {isEditing ? "Edit Land Use Record" : `Record Land Use — ${targetField?.name || "Field"}`}
+                </DialogTitle>
+                <DialogDescription>
+                  Record how this field is being managed when not in arable or horticultural production — for example fallow, SFI or Countryside Stewardship options, permanent grassland or woodland.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={landUseForm.handleSubmit(onSubmitLandUse)} className="space-y-4 mt-2">
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Land Use Type <span className="text-red-500">*</span></label>
+                  <select {...landUseForm.register("landUse", { required: true })} className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white">
+                    {LAND_USE_OPTIONS.map(o => (
+                      <option key={o.value} value={o.value}>{o.icon} {o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                {SCHEME_CODES_NEEDED.has(watchedLandUse) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">Scheme Action Code</label>
+                      <Input {...landUseForm.register("schemeActionCode")} placeholder="e.g. CSAM1, AB8, OP1" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">Agreement Reference</label>
+                      <Input {...landUseForm.register("schemeReference")} placeholder="e.g. 23/12345/SFI" className="font-mono" />
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium mb-1.5 block">Year <span className="text-red-500">*</span></label>
+                    <Input type="number" min="2000" max="2099" {...landUseForm.register("year", { required: true })} />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1.5 block">Season Description</label>
+                    <Input {...landUseForm.register("season")} placeholder="e.g. Spring 2026" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium mb-1.5 block">Start Date</label>
+                    <Input type="date" {...landUseForm.register("startDate")} />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1.5 block">End Date</label>
+                    <Input type="date" {...landUseForm.register("endDate")} />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Area (ha)</label>
+                  <Input type="number" step="0.0001" {...landUseForm.register("areaHectares")} placeholder={targetField?.areaHectares ? String(parseFloat(String(targetField.areaHectares)).toFixed(2)) : "e.g. 12.40"} />
+                  <p className="text-xs text-foreground/40 mt-1">Leave blank to use full field area. Enter a partial area if only part of the field is in this use.</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Management Notes</label>
+                  <textarea {...landUseForm.register("managementNotes")} rows={3} placeholder="e.g. Wild bird seed mix sown April 2026. No cultivation or spraying until Aug." className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white resize-none" />
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+                  <Button type="submit" disabled={createLandUseMut.isPending || updateLandUseMut.isPending}>
+                    {(createLandUseMut.isPending || updateLandUseMut.isPending) ? "Saving..." : isEditing ? "Save Changes" : "Record Land Use"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* ── SEED RECORDS TAB ── */}
       {tab === "seed" && <SeedDrillingSection farmId={farmId} fields={fields} />}

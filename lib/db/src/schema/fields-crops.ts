@@ -70,6 +70,22 @@ export const fieldCropAssignmentsTable = pgTable("field_crop_assignments", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const fieldSeasonLandUseTable = pgTable("field_season_land_use", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  fieldId: integer("field_id").notNull().references(() => fieldsTable.id),
+  year: integer("year").notNull(),
+  season: text("season"),
+  landUse: text("land_use").notNull(),
+  schemeActionCode: text("scheme_action_code"),
+  schemeReference: text("scheme_reference"),
+  areaHectares: numeric("area_hectares", { precision: 10, scale: 4 }),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  managementNotes: text("management_notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const harvestRecordsTable = pgTable("harvest_records", {
   id: serial("id").primaryKey(),
   fieldCropAssignmentId: integer("field_crop_assignment_id").notNull().references(() => fieldCropAssignmentsTable.id),
