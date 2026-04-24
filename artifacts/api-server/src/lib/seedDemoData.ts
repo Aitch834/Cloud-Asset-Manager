@@ -72,7 +72,10 @@ export async function seedDemoData() {
   const [tenant] = await db.select().from(tenantsTable).where(eq(tenantsTable.slug, "oakfield-farms")).limit(1);
   if (!tenant) { console.error("[DEMO SEED] Dev tenant not found — start server first"); return; }
 
-  const [farm] = await db.select().from(farmsTable).where(eq(farmsTable.tenantId, tenant.id)).limit(1);
+  const [farm] = await db.select().from(farmsTable)
+    .where(eq(farmsTable.tenantId, tenant.id))
+    .orderBy(farmsTable.id)
+    .limit(1);
   if (!farm) { console.error("[DEMO SEED] Dev farm not found"); return; }
 
   await db.update(farmsTable).set({
@@ -107,6 +110,7 @@ export async function seedDemoData() {
   await seedNMP(farmId);
   await seedSoilTests(farmId);
   await seedEquipment(farmId);
+  await seedImplements(farmId);
   await seedWorkshopJobs(farmId);
   await seedSuppliers(farmId);
   await seedStock(farmId);
@@ -481,6 +485,7 @@ async function seedEquipment(farmId: number) {
     { equipmentId: machines[3]!.id, calibrationType: "seed_metering", calibrationDate: d(`${prevYr}-10-05`), nextDueDate: d(`${yr + 1}-09-30`), calibratedBy: "Horsch Dealer", resultPass: true, notes: "Wheat 180 kg/ha, barley 175 kg/ha — all coulters within 3%." },
   ]);
 
+
   await db.insert(workshopFireExtinguishersTable).values([
     { farmId, location: "Main Workshop — door", type: "CO2", capacityKg: "5", serialNumber: "FE-2019-0441", lastServiceDate: d(`${prevYr}-11-01`), nextServiceDue: d(`${yr}-11-01`), notes: "Annual service — Lincolnshire Fire Safety." },
     { farmId, location: "Grain Store — entrance", type: "Powder (ABC)", capacityKg: "9", serialNumber: "FE-2021-0892", lastServiceDate: d(`${prevYr}-11-01`), nextServiceDue: d(`${yr}-11-01`) },
@@ -490,6 +495,25 @@ async function seedEquipment(farmId: number) {
 }
 
 // ── WORKSHOP JOBS ────────────────────────────────────────────────────────
+// ── TILLAGE IMPLEMENTS (separate from main equipment seed to allow backfilling) ───
+async function seedImplements(farmId: number) {
+  const existing = await db.select({ id: equipmentTable.id })
+    .from(equipmentTable)
+    .where(and(eq(equipmentTable.farmId, farmId), eq(equipmentTable.type, "plough")))
+    .limit(1);
+  if (existing.length > 0) return;
+  await db.insert(equipmentTable).values([
+    { farmId, name: "Lemken Diamant 11 5-furrow", type: "plough", make: "Lemken", model: "Diamant 11", yearOfManufacture: 2019, serialNumber: "LK-D11-2019-0423", purchaseDate: d("2019-09-01"), purchasePricePence: 2850000, notes: "5-furrow semi-mounted plough. Min-till furrow press.", isActive: true },
+    { farmId, name: "Sumo Trio 6m", type: "cultivator", make: "Sumo", model: "Trio 6m", yearOfManufacture: 2021, serialNumber: "SUMO-T6-2021-0187", purchaseDate: d("2021-08-01"), purchasePricePence: 4200000, notes: "6m combination cultivator — discs, legs, rolls. Primary tillage.", isActive: true },
+    { farmId, name: "Simba SL Solo 7.3m", type: "cultivator", make: "Simba", model: "SL Solo 7.3m", yearOfManufacture: 2018, serialNumber: "SIM-SL73-2018-0091", purchaseDate: d("2018-09-15"), purchasePricePence: 3100000, notes: "Disc tillage — stubble cultivations and establishment. Wing subsoiler legs.", isActive: true },
+    { farmId, name: "Amazone KE 4000 Special Power Harrow", type: "power_harrow", make: "Amazone", model: "KE 4000 Special", yearOfManufacture: 2020, serialNumber: "AMZ-KE4K-2020-0312", purchaseDate: d("2020-03-01"), purchasePricePence: 1950000, notes: "4m power harrow. Packer roller. Spring barley seedbed preparation.", isActive: true },
+    { farmId, name: "Cambridge Rolls 6.1m", type: "roller", make: "Pottinger", model: "HIT 6.1m", yearOfManufacture: 2017, serialNumber: "POT-HIT61-2017-0055", purchaseDate: d("2017-04-01"), purchasePricePence: 980000, notes: "6.1m Cambridge rolls. Post-drilling consolidation and stone burial.", isActive: true },
+    { farmId, name: "Richard Western SD16 16t Grain Trailer", type: "trailer", make: "Richard Western", model: "SD16 16t", yearOfManufacture: 2021, serialNumber: "RW-SD16-2021-0614", purchaseDate: d("2021-07-01"), purchasePricePence: 3800000, notes: "16t bulk grain trailer. Rollover sheet. Used as harvest chaser.", isActive: true },
+    { farmId, name: "Richard Western SD16 16t Grain Trailer (2)", type: "trailer", make: "Richard Western", model: "SD16 16t", yearOfManufacture: 2022, serialNumber: "RW-SD16-2022-0891", purchaseDate: d("2022-07-01"), purchasePricePence: 3900000, notes: "Second 16t grain trailer. Paired with NH CR9.90 for harvest.", isActive: true },
+    { farmId, name: "New Holland RB180 Round Baler", type: "baler", make: "New Holland", model: "RB180 CropCutter", yearOfManufacture: 2020, serialNumber: "NH-RB180-2020-0774", purchaseDate: d("2020-06-01"), purchasePricePence: 3250000, notes: "Variable chamber round baler. Straw and hay. Net or twine wrap.", isActive: true },
+  ]);
+}
+
 async function seedWorkshopJobs(farmId: number) {
   const existing = await db.select().from(workshopJobsTable).where(eq(workshopJobsTable.farmId, farmId)).limit(1);
   if (existing.length > 0) return;

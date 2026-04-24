@@ -9,7 +9,7 @@ if (import.meta.env.VITE_DEV_BYPASS_AUTH === "true") {
     if (!stored?.state?.farmId) {
       localStorage.setItem(
         "farmtrac-storage",
-        JSON.stringify({ state: { tenantSlug: "demo", farmId: 1 }, version: 0 }),
+        JSON.stringify({ state: { tenantSlug: "demo", farmId: 2 }, version: 0 }),
       );
     }
   } catch {
