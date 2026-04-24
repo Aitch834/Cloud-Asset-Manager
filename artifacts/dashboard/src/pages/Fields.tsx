@@ -1006,7 +1006,7 @@ function SeedDrillingSection({ farmId, fields }: { farmId: number; fields: Field
 export default function FieldsPage() {
   const { farmId } = useAppStore();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<"fields" | "crops" | "seed">("fields");
+  const [tab, setTab] = useState<"fields" | "crops" | "seed" | "tenure">("fields");
   const [search, setSearch] = useState("");
   const [isAddFieldOpen, setIsAddFieldOpen] = useState(false);
   const [isAddCropOpen, setIsAddCropOpen] = useState(false);
@@ -1143,6 +1143,7 @@ export default function FieldsPage() {
         <TabButton active={tab === "fields"} onClick={() => setTab("fields")}>Fields</TabButton>
         <TabButton active={tab === "crops"} onClick={() => setTab("crops")}>Crops Register</TabButton>
         <TabButton active={tab === "seed"} onClick={() => setTab("seed")}>Seed Records</TabButton>
+        <TabButton active={tab === "tenure"} onClick={() => setTab("tenure")}>Land Tenure</TabButton>
       </TabBar>
 
       {/* ── FIELDS TAB ── */}
@@ -2248,6 +2249,201 @@ export default function FieldsPage() {
 
       {/* ── SEED RECORDS TAB ── */}
       {tab === "seed" && <SeedDrillingSection farmId={farmId} fields={fields} />}
+
+      {/* ── LAND TENURE REGISTER TAB ── */}
+      {tab === "tenure" && (() => {
+        const today = new Date().toISOString().slice(0, 10);
+        const in60 = new Date(Date.now() + 60 * 86400 * 1000).toISOString().slice(0, 10);
+        const rentedFields = fields.filter(f => f.tenureType && f.tenureType !== "owned" && f.isActive !== false);
+        const totalAreaHa = rentedFields.reduce((s, f) => s + (f.areaHectares ? parseFloat(String(f.areaHectares)) : 0), 0);
+        const totalAnnualRent = rentedFields.reduce((s, f) => s + (f.annualRentPounds ? parseFloat(String(f.annualRentPounds)) : 0), 0);
+        const reviewsDue = rentedFields.filter(f => f.rentReviewDate && f.rentReviewDate >= today && f.rentReviewDate <= in60).length;
+        const expiringSoon = rentedFields.filter(f => f.tenancyEndDate && f.tenancyEndDate >= today && f.tenancyEndDate <= in60).length;
+        const expiredCount = rentedFields.filter(f => f.tenancyEndDate && f.tenancyEndDate < today).length;
+        const alertCount = reviewsDue + expiringSoon + expiredCount;
+
+        const tenureLabels: Record<string, string> = { owned: "Owned", tenanted: "Tenanted", license: "Grazing Licence", seasonal: "Seasonal" };
+        const tenureColours: Record<string, string> = {
+          tenanted: "bg-blue-100 text-blue-800 border-blue-200",
+          license: "bg-amber-100 text-amber-800 border-amber-200",
+          seasonal: "bg-purple-100 text-purple-800 border-purple-200",
+        };
+
+        function fmtRent(val?: string | number | null) {
+          if (!val) return "—";
+          const n = parseFloat(String(val));
+          return isNaN(n) ? "—" : `£${n.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+        }
+
+        function openFieldTenure(f: FieldRecord) {
+          setTab("fields");
+          setSelectedFieldForHistory(f);
+          setDrawerTab("tenure");
+          setTenureEditMode(false);
+        }
+
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold">Land Tenure Register</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">All land held by the farm under tenancy, licence, or seasonal agreement — and the associated rent liability.</p>
+              </div>
+            </div>
+
+            {/* Stats bar */}
+            {rentedFields.length > 0 && (
+              <div className="grid grid-cols-4 gap-3">
+                <div className="bg-muted/40 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold">{rentedFields.length}</div>
+                  <div className="text-xs text-muted-foreground">Fields Rented In</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-green-800">{totalAreaHa.toFixed(1)} ha</div>
+                  <div className="text-xs text-green-700">Total Area Rented</div>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-3 text-center">
+                  <div className="text-xl font-bold text-blue-800">{totalAnnualRent > 0 ? `£${totalAnnualRent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "—"}</div>
+                  <div className="text-xs text-blue-700">Annual Rent Liability</div>
+                </div>
+                <div className={`rounded-lg p-3 text-center ${alertCount > 0 ? "bg-amber-50" : "bg-muted/40"}`}>
+                  <div className={`text-xl font-bold ${alertCount > 0 ? "text-amber-800" : ""}`}>{alertCount}</div>
+                  <div className={`text-xs ${alertCount > 0 ? "text-amber-700" : "text-muted-foreground"}`}>Upcoming Alerts</div>
+                </div>
+              </div>
+            )}
+
+            {/* Alert banners */}
+            {expiredCount > 0 && (
+              <div className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+                <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-red-800">{expiredCount} tenancy agreement{expiredCount !== 1 ? "s have" : " has"} passed their end date</p>
+                  <p className="text-xs text-red-600 mt-0.5">Review the highlighted rows below and renew or update the tenancy details.</p>
+                </div>
+              </div>
+            )}
+            {(reviewsDue > 0 || expiringSoon > 0) && (
+              <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <CalendarDays className="h-4 w-4 text-amber-700 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-amber-800">
+                  {reviewsDue > 0 && <p className="font-medium">{reviewsDue} rent review{reviewsDue !== 1 ? "s" : ""} due within 60 days — contact your landlord or agent to initiate.</p>}
+                  {expiringSoon > 0 && <p className={`font-medium ${reviewsDue > 0 ? "mt-0.5" : ""}`}>{expiringSoon} tenancy agreement{expiringSoon !== 1 ? "s expire" : " expires"} within 60 days — arrange renewal if continuing.</p>}
+                </div>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {rentedFields.length === 0 && (
+              <div className="border rounded-xl p-12 text-center text-muted-foreground">
+                <Landmark className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium">No tenanted or licensed land recorded</p>
+                <p className="text-xs mt-1 max-w-sm mx-auto">Open a field in the Fields tab and set its Land Tenure type to Tenanted, Grazing Licence, or Seasonal to see it here.</p>
+                <Button size="sm" variant="outline" className="mt-4 gap-1.5" onClick={() => setTab("fields")}>
+                  <MapIcon className="h-4 w-4" /> Go to Fields
+                </Button>
+              </div>
+            )}
+
+            {/* Table */}
+            {rentedFields.length > 0 && (
+              <div className="border rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium">Field</th>
+                      <th className="text-left px-4 py-3 font-medium">Type</th>
+                      <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Landlord</th>
+                      <th className="text-right px-4 py-3 font-medium hidden sm:table-cell">Area</th>
+                      <th className="text-right px-4 py-3 font-medium">Annual Rent</th>
+                      <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Tenancy End</th>
+                      <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Rent Review</th>
+                      <th className="px-4 py-3 w-20" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {rentedFields.map(f => {
+                      const landlord = f.landlordSupplierId ? landlordSuppliers.find(s => s.id === f.landlordSupplierId) : null;
+                      const isExpired = f.tenancyEndDate && f.tenancyEndDate < today;
+                      const isEndingSoon = !isExpired && f.tenancyEndDate && f.tenancyEndDate <= in60;
+                      const isReviewDue = f.rentReviewDate && f.rentReviewDate >= today && f.rentReviewDate <= in60;
+                      return (
+                        <tr key={f.id} className={`hover:bg-muted/30 transition-colors ${isExpired ? "bg-red-50" : ""}`}>
+                          <td className="px-4 py-3">
+                            <div className="font-medium">{f.name || `Field #${f.id}`}</div>
+                            {f.fieldReference && <div className="text-xs text-muted-foreground font-mono">{f.fieldReference}</div>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full border font-medium ${tenureColours[f.tenureType!] ?? "bg-muted text-foreground border-border"}`}>
+                              {tenureLabels[f.tenureType!] ?? f.tenureType}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 hidden md:table-cell">
+                            {landlord ? (
+                              <div>
+                                <div className="font-medium">{landlord.name}</div>
+                                {landlord.phone && <div className="text-xs text-muted-foreground">{landlord.phone}</div>}
+                              </div>
+                            ) : <span className="text-muted-foreground">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right hidden sm:table-cell text-muted-foreground">
+                            {f.areaHectares ? `${parseFloat(String(f.areaHectares)).toFixed(2)} ha` : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium">
+                            {fmtRent(f.annualRentPounds)}
+                            {f.annualRentPounds && (
+                              <div className="text-xs text-muted-foreground font-normal">per year</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 hidden lg:table-cell">
+                            {f.tenancyEndDate ? (
+                              <span className={`text-xs font-medium ${isExpired ? "text-red-700" : isEndingSoon ? "text-amber-700" : "text-foreground"}`}>
+                                {formatDate(f.tenancyEndDate)}
+                                {isExpired && <span className="ml-1 text-red-600">(expired)</span>}
+                                {isEndingSoon && <span className="ml-1 text-amber-600">(soon)</span>}
+                              </span>
+                            ) : <span className="text-muted-foreground text-xs">—</span>}
+                          </td>
+                          <td className="px-4 py-3 hidden lg:table-cell">
+                            {f.rentReviewDate ? (
+                              <span className={`text-xs font-medium ${isReviewDue ? "text-amber-700" : "text-foreground"}`}>
+                                {formatDate(f.rentReviewDate)}
+                                {isReviewDue && <span className="ml-1 text-amber-600">(due soon)</span>}
+                              </span>
+                            ) : <span className="text-muted-foreground text-xs">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Button size="sm" variant="outline" className="text-xs h-7 px-2.5 gap-1" onClick={() => openFieldTenure(f)}>
+                              <FileText className="h-3 w-3" /> Open
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  {rentedFields.length > 1 && totalAnnualRent > 0 && (
+                    <tfoot className="border-t bg-muted/30">
+                      <tr>
+                        <td colSpan={4} className="px-4 py-2.5 text-xs font-medium text-muted-foreground hidden sm:table-cell">Total</td>
+                        <td colSpan={4} className="px-4 py-2.5 text-xs font-medium sm:hidden">Total annual rent</td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-sm">£{totalAnnualRent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}<span className="text-xs font-normal text-muted-foreground ml-1">/ yr</span></td>
+                        <td colSpan={3} />
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            )}
+
+            {/* Per-hectare analysis */}
+            {rentedFields.length > 0 && totalAreaHa > 0 && totalAnnualRent > 0 && (
+              <p className="text-xs text-muted-foreground text-right px-1">
+                Blended average: <span className="font-medium text-foreground">£{(totalAnnualRent / totalAreaHa).toFixed(2)} / ha / yr</span> across {totalAreaHa.toFixed(1)} ha
+              </p>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Add New Landlord Dialog ── */}
       <Dialog open={showAddLandlordDialog} onOpenChange={setShowAddLandlordDialog}>
