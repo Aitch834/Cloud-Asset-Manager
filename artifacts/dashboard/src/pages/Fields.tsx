@@ -2299,6 +2299,24 @@ export default function FieldsPage() {
           setTenureEditMode(false);
         }
 
+        function openFieldTenureForEdit(f: FieldRecord) {
+          setTenureForm({
+            tenureType: f.tenureType ?? "owned",
+            landlordSupplierId: f.landlordSupplierId ? String(f.landlordSupplierId) : "__none__",
+            tenancyStartDate: f.tenancyStartDate ?? "",
+            tenancyEndDate: f.tenancyEndDate ?? "",
+            annualRentPounds: f.annualRentPounds ? String(f.annualRentPounds) : "",
+            rentReviewDate: f.rentReviewDate ?? "",
+            tenureNotes: f.tenureNotes ?? "",
+          });
+          setTab("fields");
+          setSelectedFieldForHistory(f);
+          setDrawerTab("tenure");
+          setTenureEditMode(true);
+        }
+
+        const fieldsWithoutTenure = fields.filter(f => f.isActive !== false && (!f.tenureType || f.tenureType === "owned"));
+
         return (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -2350,15 +2368,12 @@ export default function FieldsPage() {
               </div>
             )}
 
-            {/* Empty state */}
-            {rentedFields.length === 0 && (
+            {/* Empty state — no rented fields yet */}
+            {rentedFields.length === 0 && fieldsWithoutTenure.length === 0 && (
               <div className="border rounded-xl p-12 text-center text-muted-foreground">
                 <Landmark className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                <p className="text-sm font-medium">No tenanted or licensed land recorded</p>
-                <p className="text-xs mt-1 max-w-sm mx-auto">Open a field in the Fields tab and set its Land Tenure type to Tenanted, Grazing Licence, or Seasonal to see it here.</p>
-                <Button size="sm" variant="outline" className="mt-4 gap-1.5" onClick={() => setTab("fields")}>
-                  <MapIcon className="h-4 w-4" /> Go to Fields
-                </Button>
+                <p className="text-sm font-medium">No fields added yet</p>
+                <p className="text-xs mt-1">Add fields on the Fields tab first, then set tenure here.</p>
               </div>
             )}
 
@@ -2457,6 +2472,37 @@ export default function FieldsPage() {
               <p className="text-xs text-muted-foreground text-right px-1">
                 Blended average: <span className="font-medium text-foreground">£{(totalAnnualRent / totalAreaHa).toFixed(2)} / ha / yr</span> across {totalAreaHa.toFixed(1)} ha
               </p>
+            )}
+
+            {/* Fields without tenure — shown when any active field has no tenure set */}
+            {fieldsWithoutTenure.length > 0 && (
+              <div className="border rounded-xl overflow-hidden">
+                <div className="bg-muted/40 px-4 py-2.5 border-b flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      {fieldsWithoutTenure.length} field{fieldsWithoutTenure.length !== 1 ? "s" : ""} — no tenure recorded
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-0.5">Click "Set tenure" to record the ownership or tenancy basis for each field.</p>
+                  </div>
+                </div>
+                <div className="divide-y">
+                  {fieldsWithoutTenure.map(f => (
+                    <div key={f.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/20 transition-colors">
+                      <div>
+                        <p className="text-sm font-medium">{f.name || `Field #${f.id}`}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {f.areaHectares ? `${parseFloat(String(f.areaHectares)).toFixed(2)} ha` : "Area not set"}
+                          {(f as any).fieldReference ? ` · ${(f as any).fieldReference}` : ""}
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" className="gap-1.5 text-xs shrink-0" onClick={() => openFieldTenureForEdit(f)}>
+                        <Key className="h-3 w-3" />
+                        Set tenure
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         );
