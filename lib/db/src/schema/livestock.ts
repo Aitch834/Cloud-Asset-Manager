@@ -367,9 +367,20 @@ export const dairyMobilityScoringsTable = pgTable("dairy_mobility_scorings", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const dairyBulkTanksTable = pgTable("dairy_bulk_tanks", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  name: text("name").notNull(),
+  location: text("location"),
+  capacityLitres: numeric("capacity_litres", { precision: 10, scale: 0 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const dairyBulkTankRecordsTable = pgTable("dairy_bulk_tank_records", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  tankId: integer("tank_id").references(() => dairyBulkTanksTable.id),
   recordDate: timestamp("record_date", { withTimezone: true }).notNull(),
   recordType: text("record_type").notNull(),
   tankTemperatureCelsius: numeric("tank_temperature_celsius", { precision: 5, scale: 2 }),
@@ -380,6 +391,21 @@ export const dairyBulkTankRecordsTable = pgTable("dairy_bulk_tank_records", {
   antibioticResidueResult: text("antibiotic_residue_result"),
   tankerDriverName: text("tanker_driver_name"),
   collectionRef: text("collection_ref"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const dairyMilkCollectionsTable = pgTable("dairy_milk_collections", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  tankId: integer("tank_id").references(() => dairyBulkTanksTable.id),
+  collectionDate: timestamp("collection_date", { withTimezone: true }).notNull(),
+  volumeCollectedLitres: numeric("volume_collected_litres", { precision: 10, scale: 2 }),
+  milkBuyer: text("milk_buyer"),
+  tankerRegistration: text("tanker_registration"),
+  tankerDriverName: text("tanker_driver_name"),
+  collectionRef: text("collection_ref"),
+  abtResultBeforeCollection: text("abt_result_before_collection"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
