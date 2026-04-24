@@ -157,6 +157,10 @@ const IMPLEMENTS_FOR_OP: Record<string, string[]> = {
   drainage_repair:     ["other_implement"],
 };
 
+function eqDisplayName(e: { name?: string; make?: string; model?: string }): string {
+  return e.name || [e.make, e.model].filter(Boolean).join(" ") || "Unknown";
+}
+
 function computeOpCost(r: any): number {
   let cost = 0;
   if (r.isContractor && r.contractorCostPence) {
@@ -943,7 +947,7 @@ export default function FieldOperationsPage() {
                   }
                   const eq = equipmentList.find((e: any) => e.id.toString() === v);
                   const label = eq
-                    ? [eq.name, eq.make, eq.model].filter(Boolean).join(" — ") + (eq.registrationNumber ? ` (${eq.registrationNumber})` : "")
+                    ? eqDisplayName(eq) + (eq.registrationNumber ? ` (${eq.registrationNumber})` : "")
                     : "";
                   setForm((f) => ({ ...f, vehicleId: v, vehicleDescription: label }));
                 }}
@@ -955,8 +959,7 @@ export default function FieldOperationsPage() {
                   <SelectItem value="__none__">None / N/A</SelectItem>
                   {vehicleEquipment.map((e: any) => (
                     <SelectItem key={e.id} value={e.id.toString()}>
-                      {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
-                      {e.registrationNumber ? ` (${e.registrationNumber})` : ""}
+                      {eqDisplayName(e)}{e.registrationNumber ? ` (${e.registrationNumber})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -982,7 +985,7 @@ export default function FieldOperationsPage() {
                       return;
                     }
                     const eq = equipmentList.find((e: any) => e.id.toString() === v);
-                    const label = eq ? [eq.name, eq.make, eq.model].filter(Boolean).join(" — ") : "";
+                    const label = eq ? eqDisplayName(eq) : "";
                     setForm((f) => ({ ...f, implementId: v, implement: label }));
                   }}
                 >
@@ -1000,7 +1003,7 @@ export default function FieldOperationsPage() {
                           </SelectLabel>
                           {suggestedImplements.map((e: any) => (
                             <SelectItem key={e.id} value={e.id.toString()}>
-                              {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                              {eqDisplayName(e)}
                             </SelectItem>
                           ))}
                         </SelectGroup>
@@ -1013,7 +1016,7 @@ export default function FieldOperationsPage() {
                               </SelectLabel>
                               {otherImplements.map((e: any) => (
                                 <SelectItem key={e.id} value={e.id.toString()}>
-                                  {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                                  {eqDisplayName(e)}
                                 </SelectItem>
                               ))}
                             </SelectGroup>
@@ -1023,7 +1026,7 @@ export default function FieldOperationsPage() {
                     ) : (
                       implementEquipment.map((e: any) => (
                         <SelectItem key={e.id} value={e.id.toString()}>
-                          {[e.name, e.make, e.model].filter(Boolean).join(" — ")}
+                          {eqDisplayName(e)}
                         </SelectItem>
                       ))
                     )}
