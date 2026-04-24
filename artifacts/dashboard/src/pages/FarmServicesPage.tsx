@@ -107,7 +107,9 @@ interface HireBooking {
   operatorType: string; operatorName?: string | null; fuelPolicy: string;
   insuranceVerified: boolean; insuranceNotes?: string | null;
   depositPaid: boolean; depositPaidDate?: string | null;
-  status: string; totalHireCostPence?: number | null; notes?: string | null;
+  status: string; totalHireCostPence?: number | null;
+  jobReference?: string | null; fieldId?: number | null;
+  notes?: string | null;
   createdAt: string; updatedAt?: string;
 }
 
@@ -2508,11 +2510,18 @@ function HireBookingDialog({
   });
   const members = membersQ.data?.members ?? [];
 
+  const fieldsQ = useQuery<{ records: { id: number; name?: string | null; fieldReference?: string | null }[] }>({
+    queryKey: ["fields", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`, { credentials: "include" }).then((r) => r.json()),
+    enabled: open,
+  });
+  const fieldsList = fieldsQ.data?.records ?? [];
+
   const empty = {
     customerId: "", equipmentId: "", startDate: new Date().toISOString().split("T")[0],
     plannedEndDate: "", rateType: "daily", ratePence: "", depositPence: "",
     operatorName: "customer_operated", fuelPolicy: "customer_supplied", insuranceVerified: false, insuranceNotes: "",
-    depositPaidDate: "", notes: "", status: "booked",
+    depositPaidDate: "", jobReference: "", fieldId: "", notes: "", status: "booked",
   };
 
   const [form, setForm] = useState({ ...empty });
@@ -2532,6 +2541,7 @@ function HireBookingDialog({
           operatorName: b.operatorType === "customer_operated" ? "customer_operated" : (b.operatorName || "customer_operated"),
           fuelPolicy: b.fuelPolicy, insuranceVerified: b.insuranceVerified,
           insuranceNotes: b.insuranceNotes || "", depositPaidDate: b.depositPaidDate || "",
+          jobReference: b.jobReference || "", fieldId: b.fieldId ? String(b.fieldId) : "",
           notes: b.notes || "", status: b.status,
         });
       } else {
@@ -2586,6 +2596,8 @@ function HireBookingDialog({
       insuranceNotes: form.insuranceNotes || null,
       depositPaid: !!form.depositPaidDate,
       depositPaidDate: form.depositPaidDate || null,
+      jobReference: form.jobReference || null,
+      fieldId: form.fieldId ? parseInt(form.fieldId) : null,
       notes: form.notes || null,
     };
     if (isEdit) data.status = form.status;
@@ -2716,6 +2728,32 @@ function HireBookingDialog({
           <div className="space-y-1">
             <Label>Insurance Notes</Label>
             <Input value={form.insuranceNotes} onChange={(e) => setForm((f) => ({ ...f, insuranceNotes: e.target.value }))} placeholder="e.g. Zurich NFU policy ZP-2024-1234 confirmed" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Job / Operation Reference</Label>
+              <Input
+                value={form.jobReference}
+                onChange={(e) => setForm((f) => ({ ...f, jobReference: e.target.value }))}
+                placeholder="e.g. August combining — South Block"
+              />
+              <p className="text-xs text-muted-foreground">Links multiple machine bookings to the same operation</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Linked Field (optional)</Label>
+              <Select value={form.fieldId || "__none__"} onValueChange={(v) => setForm((f) => ({ ...f, fieldId: v === "__none__" ? "" : v }))}>
+                <SelectTrigger><SelectValue placeholder="No field linked" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No field linked</SelectItem>
+                  {fieldsList.map((f) => (
+                    <SelectItem key={f.id} value={String(f.id)}>
+                      {f.name || `Field #${f.id}`}{f.fieldReference ? ` (${f.fieldReference})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -2899,6 +2937,14 @@ function BookingDetailPanel({
     queryFn: () => fetch(`/api/farms/${farmId}/members`, { credentials: "include" }).then((r) => r.json()),
   });
   const members = membersQ.data?.members ?? [];
+
+  const detailFieldsQ = useQuery<{ records: { id: number; name?: string | null; fieldReference?: string | null }[] }>({
+    queryKey: ["fields", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/fields`, { credentials: "include" }).then((r) => r.json()),
+  });
+  const fieldsMap: Record<number, string> = Object.fromEntries(
+    (detailFieldsQ.data?.records ?? []).map((f) => [f.id, [f.name, f.fieldReference ? `(${f.fieldReference})` : ""].filter(Boolean).join(" ")])
+  );
 
   const updateStatusMut = useMutation({
     mutationFn: ({ status }: { status: string; triggerPlanner?: boolean }) =>
@@ -3111,6 +3157,8 @@ function BookingDetailPanel({
             { label: "Fuel Policy", value: HIRE_FUEL_POLICIES.find((f) => f.value === b.fuelPolicy)?.label || b.fuelPolicy },
             { label: "Insurance", value: b.insuranceVerified ? `Verified${b.insuranceNotes ? ` — ${b.insuranceNotes}` : ""}` : "Not verified" },
             { label: "Machine Hours (current)", value: detail.equipmentCurrentHours ? `${detail.equipmentCurrentHours} hrs` : "—" },
+            ...(b.jobReference ? [{ label: "Job / Operation", value: b.jobReference }] : []),
+            ...(b.fieldId ? [{ label: "Linked Field", value: fieldsMap[b.fieldId] || `Field #${b.fieldId}` }] : []),
           ].map((row) => (
             <div key={row.label} className="bg-muted/40 rounded-lg p-3">
               <div className="text-[11px] text-muted-foreground">{row.label}</div>
@@ -3499,8 +3547,11 @@ function EquipmentHireTab({
                 return (
                   <tr key={b.id} className="border-t hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setSelectedId(b.id)}>
                     <td className="px-3 py-2.5 font-medium">
-                      {b.bookingRef || `#${b.id}`}
-                      {insWarn && <span className="ml-1.5 text-red-500" title="Insurance not verified"><ShieldAlert className="h-3.5 w-3.5 inline" /></span>}
+                      <div className="flex items-center gap-1.5">
+                        {b.bookingRef || `#${b.id}`}
+                        {insWarn && <ShieldAlert className="h-3.5 w-3.5 text-red-500 shrink-0" title="Insurance not verified" />}
+                      </div>
+                      {b.jobReference && <div className="text-xs text-muted-foreground truncate max-w-[160px]">{b.jobReference}</div>}
                     </td>
                     <td className="px-3 py-2.5">
                       <div>{row.equipmentName || "—"}</div>

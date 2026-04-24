@@ -1,6 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, boolean, numeric, date } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
-import { storageLocationsTable } from "./fields-crops";
+import { storageLocationsTable, fieldsTable } from "./fields-crops";
 import { equipmentTable } from "./equipment";
 
 export const farmCustomersTable = pgTable("farm_customers", {
@@ -150,6 +150,8 @@ export const equipmentHireBookingsTable = pgTable("equipment_hire_bookings", {
   // status: booked | active | returned | cancelled | invoiced
   status: text("status").notNull().default("booked"),
   totalHireCostPence: integer("total_hire_cost_pence"),
+  jobReference: text("job_reference"),
+  fieldId: integer("field_id").references(() => fieldsTable.id),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
