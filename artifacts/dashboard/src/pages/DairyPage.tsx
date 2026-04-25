@@ -511,8 +511,9 @@ function CalvingTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(api(`farms/${farmId}/animals`), { credentials: "include" }).then(r => r.json()),
     enabled: open,
   });
+  const CATTLE_SPECIES = ["cattle", "bovine"];
   const cows = (animalsQ.data?.records ?? []).filter(a =>
-    a.species?.toLowerCase() === "cattle" && a.status === "active" && a.earTagNumber
+    CATTLE_SPECIES.includes(a.species?.toLowerCase()) && a.status === "active" && a.earTagNumber
   );
 
   const vetVisitsQ = useQuery<{ records: Array<{ id: number; vetName: string }> }>({
