@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Redirect, Link } from "wouter";
 import {
   AlertTriangle, Calendar, CheckCircle2, ArrowRight, Clock, Loader2,
-  Plus, Trash2, X, UserPlus, CheckCircle, LayoutList, CalendarDays,
+  Plus, Trash2, X, UserPlus, CheckCircle, LayoutList, CalendarDays, Baby,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -221,6 +221,7 @@ function TaskCard({
   const colours = COLOUR_MAP[task.colour] ?? COLOUR_MAP.slate;
   const isCustom = task.type === "planner_event";
   const isAssignment = task.type === "task_assignment";
+  const isBirthWatch = ["expected_calving", "expected_lambing", "expected_farrowing"].includes(task.type);
   const [showAssign, setShowAssign] = useState(false);
 
   const inner = (
@@ -272,6 +273,15 @@ function TaskCard({
             <Clock className="w-3 h-3" />Due today
           </p>
         )}
+        {isBirthWatch && !showAssign && (
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowAssign(true); }}
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors"
+          >
+            <Baby className="w-3.5 h-3.5" />
+            Raise birth-watch task
+          </button>
+        )}
         {showAssign && (
           <AssignDialog task={task} farmId={farmId} staff={staff} onClose={() => setShowAssign(false)} onAssigned={onAssigned} />
         )}
@@ -301,6 +311,7 @@ function TaskCardExpanded({
   const colours = COLOUR_MAP[task.colour] ?? COLOUR_MAP.slate;
   const isCustom = task.type === "planner_event";
   const isAssignment = task.type === "task_assignment";
+  const isBirthWatch = ["expected_calving", "expected_lambing", "expected_farrowing"].includes(task.type);
   const [showAssign, setShowAssign] = useState(false);
 
   const dueLabel = new Date(task.dueDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -372,6 +383,15 @@ function TaskCardExpanded({
                 >
                   Open record <ArrowRight className="w-3 h-3" />
                 </Link>
+              )}
+              {isBirthWatch && !showAssign && (
+                <button
+                  onClick={() => setShowAssign(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors"
+                >
+                  <Baby className="w-3.5 h-3.5" />
+                  Raise birth-watch task
+                </button>
               )}
               <button
                 onClick={() => setShowAssign(p => !p)}

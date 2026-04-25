@@ -742,6 +742,8 @@ export const lambingRecordsTable = pgTable("lambing_records", {
   // Fostering
   fosteringRequired: boolean("fostering_required").notNull().default(false),
   fosteringDetails: text("fostering_details"),
+  // Expected date (for week-ahead planner)
+  expectedLambingDate: date("expected_lambing_date"),
   // Sire / ram
   ramEarTag: text("ram_ear_tag"),
   ramBreed: text("ram_breed"),

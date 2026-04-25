@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
@@ -1994,6 +1995,9 @@ function MortalitySection({ farmId }: { farmId: number }) {
                 <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Vet Attended</p><p>{viewMortality.veterinaryAttended ? (viewMortality.vetName || "Yes") : "No"}</p></div>
               </div>
               {viewMortality.notes && <div><p className="text-xs text-gray-500 uppercase font-medium mb-1">Notes</p><p className="text-gray-700 whitespace-pre-line">{viewMortality.notes}</p></div>}
+              <div className="border-t pt-3">
+                <RecordAttachments farmId={farmId} recordType="mortality" recordId={viewMortality.id} />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewMortality); setViewMortality(null); }}><Pencil className="w-3.5 h-3.5 mr-1" />Edit</Button>
@@ -5037,6 +5041,7 @@ interface LambingRecord {
   eweAnimalId?: number | null;
   eweEarTag?: string | null;
   lambingDate: string;
+  expectedLambingDate?: string | null;
   lambingEaseScore?: number | null;
   expectedLitterSize?: number | null;
   numberOfLambs: number;
@@ -5337,6 +5342,7 @@ function LambingSection({ farmId }: { farmId: number }) {
             <DialogHeader><DialogTitle>Lambing Record — {viewRecord.eweEarTag || `Record #${viewRecord.id}`}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3 py-2 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lambing Date</p><p className="font-medium">{formatDate(viewRecord.lambingDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expected Lambing Date</p><p className="font-medium">{viewRecord.expectedLambingDate ? formatDate(viewRecord.expectedLambingDate) : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Ewe Ear Tag</p><p className="font-medium font-mono">{viewRecord.eweEarTag || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Ease Score</p><p className="font-medium">{viewRecord.lambingEaseScore ? ["", "1 — Unassisted", "2 — Easy assist", "3 — Hard assist", "4 — Vet/caesarean"][viewRecord.lambingEaseScore] ?? viewRecord.lambingEaseScore : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Number of Lambs</p><p className="font-medium">{viewRecord.numberOfLambs === 1 ? "Single" : viewRecord.numberOfLambs === 2 ? "Twins" : viewRecord.numberOfLambs === 3 ? "Triplets" : "Quads"} ({viewRecord.numberOfLambs})</p></div>
@@ -5359,6 +5365,9 @@ function LambingSection({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Colostrum ≤2h</p><p className="font-medium">{viewRecord.colostrumGivenWithin2Hours === true ? "Yes ✓" : viewRecord.colostrumGivenWithin2Hours === false ? "No" : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fostering Required</p><p className="font-medium">{viewRecord.fosteringRequired ? "Yes" : "No"}</p></div>
               {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
+              <div className="col-span-2 border-t pt-3">
+                <RecordAttachments farmId={farmId} recordType="lambing" recordId={viewRecord.id} />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
@@ -5394,6 +5403,13 @@ function LambingSection({ farmId }: { farmId: number }) {
                     <Label>Lambing Date *</Label>
                     <Input type="date" value={form.lambingDate?.slice(0, 10) || ""} onChange={e => set("lambingDate", e.target.value)} />
                   </div>
+                  <div>
+                    <Label>Expected Lambing Date</Label>
+                    <Input type="date" value={form.expectedLambingDate?.slice(0, 10) || ""} onChange={e => set("expectedLambingDate", e.target.value || null)} />
+                    <p className="text-xs text-muted-foreground mt-0.5">Set before birth to track in Week Ahead</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label>Ewe Ear Tag</Label>
                     {ewes.length > 0 && !showManualEwe ? (

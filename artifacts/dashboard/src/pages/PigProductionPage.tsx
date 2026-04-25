@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -881,6 +882,7 @@ function TailBitingRisksTab({ farmId }: { farmId: number }) {
 interface FarrowingRecord {
   id: number;
   farrowingDate: string;
+  expectedFarrowingDate?: string | null;
   sowEarTag: string;
   sowBreed?: string | null;
   parityNumber?: number | null;
@@ -1091,6 +1093,7 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
             <DialogHeader><DialogTitle>Farrowing Record — {viewRecord.sowEarTag}</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3 py-2 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Farrowing Date</p><p className="font-medium">{fmtDate(viewRecord.farrowingDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expected Farrowing Date</p><p className="font-medium">{viewRecord.expectedFarrowingDate ? fmtDate(viewRecord.expectedFarrowingDate) : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sow Ear Tag</p><p className="font-medium font-mono">{viewRecord.sowEarTag}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Breed</p><p className="font-medium">{viewRecord.sowBreed || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Parity</p><p className="font-medium">{viewRecord.parityNumber === 1 ? "1 — Gilt" : viewRecord.parityNumber ? `Parity ${viewRecord.parityNumber}` : "—"}</p></div>
@@ -1110,6 +1113,9 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Piglets Weaned</p><p className="font-medium">{viewRecord.pigletsWeanedCount ?? "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Weaning Weight</p><p className="font-medium">{viewRecord.averageWeaningWeightKg ? `${viewRecord.averageWeaningWeightKg} kg` : "—"}</p></div>
               {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
+              <div className="col-span-2 border-t pt-3">
+                <RecordAttachments farmId={farmId} recordType="farrowing" recordId={viewRecord.id} />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
@@ -1146,6 +1152,13 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
                 <div className="grid grid-cols-2 gap-2">
                   <div><Label>Farrowing Date *</Label><Input type="date" value={form.farrowingDate?.slice(0, 10) || ""} onChange={e => set("farrowingDate", e.target.value)} /></div>
                   <div><Label>Sow Ear Tag *</Label><Input value={form.sowEarTag || ""} onChange={e => set("sowEarTag", e.target.value)} placeholder="UK ear tag" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label>Expected Farrowing Date</Label>
+                    <Input type="date" value={form.expectedFarrowingDate?.slice(0, 10) || ""} onChange={e => set("expectedFarrowingDate", e.target.value || null)} />
+                    <p className="text-xs text-muted-foreground mt-0.5">Set before birth to track in Week Ahead</p>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div><Label>Sow Breed</Label><Input value={form.sowBreed || ""} onChange={e => set("sowBreed", e.target.value)} placeholder="e.g. Large White, Landrace" /></div>

@@ -264,3 +264,19 @@ export const taskAssignmentHistoryTable = pgTable("task_assignment_history", {
   reassignedAt: timestamp("reassigned_at", { withTimezone: true }).notNull().defaultNow(),
   reassignedByUserId: text("reassigned_by_user_id"),
 });
+
+// ── Generic record attachments (calving, lambing, farrowing, mortality, mastitis, DCT, AI) ──
+export const farmRecordAttachmentsTable = pgTable("farm_record_attachments", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull(),
+  recordType: varchar("record_type", { length: 100 }).notNull(),
+  recordId: integer("record_id").notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileKey: text("file_key").notNull(),
+  fileName: text("file_name").notNull(),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type", { length: 100 }),
+  notes: text("notes"),
+  uploadedByName: text("uploaded_by_name"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+});

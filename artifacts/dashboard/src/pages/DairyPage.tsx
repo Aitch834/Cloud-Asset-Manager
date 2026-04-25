@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
@@ -347,6 +348,9 @@ function MastitisTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Consulted</p><p className="font-medium">{viewRecord.vetConsulted ? "Yes" : "No"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Name</p><p className="font-medium">{String(viewRecord.vetName ?? "—")}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+              <div className="col-span-2 border-t pt-3">
+                <RecordAttachments farmId={farmId} recordType="mastitis" recordId={viewRecord.id} />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>
@@ -691,6 +695,35 @@ function CalvingTab({ farmId }: { farmId: number }) {
         </div>
       )}
         </>); })()}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "44rem" }} className="max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Calving Record — {viewRecord.cowEarTag || `Record #${viewRecord.id}`}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 py-2 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Calving Date</p><p className="font-medium">{formatDate(viewRecord.calvingDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Dam Ear Tag</p><p className="font-medium font-mono">{viewRecord.cowEarTag || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Ease Score</p><p className="font-medium">{viewRecord.calvingEaseScore ? ["", "1 — Unassisted", "2 — Easy assist", "3 — Hard assist", "4 — Vet/caesarean"][viewRecord.calvingEaseScore] ?? viewRecord.calvingEaseScore : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">No. of Calves</p><p className="font-medium">{viewRecord.numberOfCalves ?? 1}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Calf Outcome</p><p className="font-medium capitalize">{viewRecord.calfOutcome || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Calf Sex</p><p className="font-medium capitalize">{viewRecord.calfSex || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Calf Ear Tag</p><p className="font-medium font-mono">{viewRecord.calfEarTag || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Birth Weight (kg)</p><p className="font-medium">{viewRecord.calfBirthWeightKg || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assistance Required</p><p className="font-medium">{viewRecord.assistanceRequired ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Attended</p><p className="font-medium">{viewRecord.vetAttended ? viewRecord.vetName || "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Colostrum ≤2h</p><p className="font-medium">{viewRecord.colostrumGivenWithin2Hours === true ? "Yes ✓" : viewRecord.colostrumGivenWithin2Hours === false ? "No" : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">BCMS Passport</p><p className="font-medium">{viewRecord.bcmsPassportApplied ? "Applied ✓" : "Pending"}</p></div>
+              {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
+              <div className="col-span-2 border-t pt-3">
+                <RecordAttachments farmId={farmId} recordType="calving" recordId={viewRecord.id} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "62rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Calving Record" : "Add Calving Record"}</DialogTitle></DialogHeader>
@@ -1918,6 +1951,9 @@ function DctTab({ farmId }: { farmId: number }) {
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expected Calving</p><p className="font-medium">{formatDate(viewRecord.expectedCalvingDate)}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Justification</p><p className="font-medium">{String(viewRecord.treatmentJustification ?? "—")}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewRecord.notes ?? "—")}</p></div>
+              <div className="col-span-2 border-t pt-3">
+                <RecordAttachments farmId={farmId} recordType="dct" recordId={viewRecord.id} />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { openEdit(viewRecord); setViewRecord(null); }}>Edit</Button>

@@ -61,6 +61,7 @@ import {
   dairyMastitisRecordsTable,
   dairyCalvingRecordsTable,
   lambingRecordsTable,
+  farmRecordAttachmentsTable,
   dairyBcsRecordsTable,
   dairyMobilityScoringsTable,
   dairyBulkTanksTable,
@@ -10949,6 +10950,7 @@ router.post("/farms/:farmId/lambing-records", requireAuth, requireTenant, requir
     colostrumGivenWithin2Hours, colostrumSource,
     fosteringRequired, fosteringDetails,
     ramEarTag, ramBreed, sireRegisterId, conceptionMethod,
+    expectedLambingDate,
     eweComplications, notes } = req.body;
   const numLambs = numberOfLambs || 1;
 
@@ -10984,6 +10986,7 @@ router.post("/farms/:farmId/lambing-records", requireAuth, requireTenant, requir
   const [record] = await db.insert(lambingRecordsTable).values({
     farmId, herdId: herdId || null, eweAnimalId: eweAnimalId || null, eweEarTag,
     lambingDate, lambingEaseScore, expectedLitterSize, numberOfLambs: numLambs,
+    expectedLambingDate: expectedLambingDate || null,
     lambOutcome1, lambSex1, lambEarTag1, lambEidNumber1, lambBirthWeightKg1, lambAnimalId1: lambAnimalId1 || null,
     lambOutcome2: numLambs >= 2 ? lambOutcome2 : null, lambSex2: numLambs >= 2 ? lambSex2 : null, lambEarTag2: numLambs >= 2 ? lambEarTag2 : null, lambEidNumber2: numLambs >= 2 ? lambEidNumber2 : null, lambBirthWeightKg2: numLambs >= 2 ? lambBirthWeightKg2 : null, lambAnimalId2: lambAnimalId2 || null,
     lambOutcome3: numLambs >= 3 ? lambOutcome3 : null, lambSex3: numLambs >= 3 ? lambSex3 : null, lambEarTag3: numLambs >= 3 ? lambEarTag3 : null, lambEidNumber3: numLambs >= 3 ? lambEidNumber3 : null, lambBirthWeightKg3: numLambs >= 3 ? lambBirthWeightKg3 : null, lambAnimalId3: lambAnimalId3 || null,
@@ -11022,6 +11025,7 @@ router.put("/farms/:farmId/lambing-records/:recordId", requireAuth, requireTenan
     colostrumGivenWithin2Hours, colostrumSource,
     fosteringRequired, fosteringDetails,
     ramEarTag, ramBreed, sireRegisterId, conceptionMethod,
+    expectedLambingDate,
     eweComplications, notes } = req.body;
   const numLambs = numberOfLambs ?? 1;
 
@@ -11054,6 +11058,7 @@ router.put("/farms/:farmId/lambing-records/:recordId", requireAuth, requireTenan
   const [record] = await db.update(lambingRecordsTable).set({
     herdId: herdId || null, eweAnimalId: eweAnimalId || null, eweEarTag,
     lambingDate, lambingEaseScore, expectedLitterSize, numberOfLambs,
+    expectedLambingDate: expectedLambingDate || null,
     lambOutcome1, lambSex1, lambEarTag1, lambEidNumber1, lambBirthWeightKg1, lambAnimalId1: resolvedId1 ?? null,
     lambOutcome2: numLambs >= 2 ? lambOutcome2 : null, lambSex2: numLambs >= 2 ? lambSex2 : null, lambEarTag2: numLambs >= 2 ? lambEarTag2 : null, lambEidNumber2: numLambs >= 2 ? lambEidNumber2 : null, lambBirthWeightKg2: numLambs >= 2 ? lambBirthWeightKg2 : null, lambAnimalId2: resolvedId2 ?? null,
     lambOutcome3: numLambs >= 3 ? lambOutcome3 : null, lambSex3: numLambs >= 3 ? lambSex3 : null, lambEarTag3: numLambs >= 3 ? lambEarTag3 : null, lambEidNumber3: numLambs >= 3 ? lambEidNumber3 : null, lambBirthWeightKg3: numLambs >= 3 ? lambBirthWeightKg3 : null, lambAnimalId3: resolvedId3 ?? null,
@@ -11606,6 +11611,8 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     dispatchPlanRows,
     serviceInvoiceRows,
     serviceAgreementRows,
+    expectedLambingRows,
+    expectedFarrowingRows,
   ] = (await Promise.allSettled([
     db.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -11842,6 +11849,16 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
         gte(serviceAgreementsTable.endDate, now.toISOString().split("T")[0]),
         lt(serviceAgreementsTable.endDate, new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]),
       )),
+
+    // ── Expected Lambing: records with expectedLambingDate set and no actual lambingDate yet ──
+    db.select({ id: lambingRecordsTable.id, eweEarTag: lambingRecordsTable.eweEarTag, expectedLambingDate: lambingRecordsTable.expectedLambingDate, expectedLitterSize: lambingRecordsTable.expectedLitterSize, lambingDate: lambingRecordsTable.lambingDate })
+      .from(lambingRecordsTable)
+      .where(and(eq(lambingRecordsTable.farmId, farmId), isNotNull(lambingRecordsTable.expectedLambingDate), gte(lambingRecordsTable.expectedLambingDate, overdueStart.toISOString().split("T")[0]), lt(lambingRecordsTable.expectedLambingDate, rangeEnd.toISOString().split("T")[0]))),
+
+    // ── Expected Farrowing: records with expectedFarrowingDate set ──
+    db.select({ id: pigFarrowingRecordsTable.id, sowEarTag: pigFarrowingRecordsTable.sowEarTag, expectedFarrowingDate: pigFarrowingRecordsTable.expectedFarrowingDate, farrowingDate: pigFarrowingRecordsTable.farrowingDate, parityNumber: pigFarrowingRecordsTable.parityNumber })
+      .from(pigFarrowingRecordsTable)
+      .where(and(eq(pigFarrowingRecordsTable.farmId, farmId), isNotNull(pigFarrowingRecordsTable.expectedFarrowingDate), isNull(pigFarrowingRecordsTable.farrowingDate), gte(pigFarrowingRecordsTable.expectedFarrowingDate, overdueStart.toISOString().split("T")[0]), lt(pigFarrowingRecordsTable.expectedFarrowingDate, rangeEnd.toISOString().split("T")[0]))),
   ])).map((r, i) => { if (r.status === "rejected") console.error(`[week-ahead] query[${i}] failed:`, (r.reason as Error)?.message ?? r.reason); return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
   for (const r of pestRows) {
@@ -12128,6 +12145,42 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
       module: "Farm Services",
       href: "/farm-services?tab=agreements",
       colour: daysUntil <= 7 ? "red" : "amber",
+    });
+  }
+
+  for (const r of expectedLambingRows) {
+    if (!r.expectedLambingDate) continue;
+    const dueDate = new Date(r.expectedLambingDate + "T00:00:00Z").toISOString();
+    const daysUntil = Math.round((new Date(r.expectedLambingDate + "T00:00:00Z").getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+    const litterLabel = r.expectedLitterSize ? ` (expected ${r.expectedLitterSize} lambs)` : "";
+    const overdueLabel = daysUntil < 0 ? " — Overdue" : daysUntil === 0 ? " — Due today" : "";
+    tasks.push({
+      id: `expected-lambing-${r.id}`,
+      type: "expected_lambing",
+      title: `Expected Lambing: Ewe ${r.eweEarTag || "Unknown"}${overdueLabel}`,
+      description: `Ewe ${r.eweEarTag || "Unknown"} is due to lamb on ${r.expectedLambingDate}${litterLabel}. Set up a birth-watch or record outcome in Livestock \u2192 Lambing.`,
+      dueDate,
+      module: "Livestock",
+      href: `/livestock?tab=lambing&open=${r.id}`,
+      colour: daysUntil < 0 ? "red" : daysUntil <= 2 ? "amber" : "blue",
+    });
+  }
+
+  for (const r of expectedFarrowingRows) {
+    if (!r.expectedFarrowingDate) continue;
+    const dueDate = new Date(r.expectedFarrowingDate + "T00:00:00Z").toISOString();
+    const daysUntil = Math.round((new Date(r.expectedFarrowingDate + "T00:00:00Z").getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+    const parityLabel = r.parityNumber ? ` (Parity ${r.parityNumber})` : "";
+    const overdueLabel = daysUntil < 0 ? " — Overdue" : daysUntil === 0 ? " — Due today" : "";
+    tasks.push({
+      id: `expected-farrowing-${r.id}`,
+      type: "expected_farrowing",
+      title: `Expected Farrowing: Sow ${r.sowEarTag || "Unknown"}${overdueLabel}`,
+      description: `Sow ${r.sowEarTag || "Unknown"} is due to farrow on ${r.expectedFarrowingDate}${parityLabel}. Set up a birth-watch or record outcome in Pig Production \u2192 Farrowing.`,
+      dueDate,
+      module: "Pig Production",
+      href: `/pig-production?tab=farrowing&open=${r.id}`,
+      colour: daysUntil < 0 ? "red" : daysUntil <= 2 ? "amber" : "blue",
     });
   }
 
@@ -17915,6 +17968,42 @@ router.delete("/farms/:farmId/grain-intakes/:intakeId/movements/:id", requireAut
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(thirdPartyGrainMovementsTable).where(and(eq(thirdPartyGrainMovementsTable.id, id), eq(thirdPartyGrainMovementsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Record Attachments ──────────────────────────────────────────────────────
+router.get("/farms/:farmId/record-attachments", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { recordType, recordId } = req.query;
+  if (!recordType || !recordId) { res.status(400).json({ error: "recordType and recordId are required" }); return; }
+  const rows = await db.select().from(farmRecordAttachmentsTable)
+    .where(and(eq(farmRecordAttachmentsTable.farmId, farmId), eq(farmRecordAttachmentsTable.recordType, String(recordType)), eq(farmRecordAttachmentsTable.recordId, parseInt(String(recordId)))))
+    .orderBy(farmRecordAttachmentsTable.uploadedAt);
+  res.json(rows);
+});
+
+router.post("/farms/:farmId/record-attachments", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { recordType, recordId, fileUrl, fileKey, fileName, fileSize, mimeType, notes, uploadedByName } = req.body;
+  if (!recordType || !recordId || !fileUrl || !fileKey || !fileName) { res.status(400).json({ error: "recordType, recordId, fileUrl, fileKey, fileName are required" }); return; }
+  const [row] = await db.insert(farmRecordAttachmentsTable).values({
+    farmId, recordType, recordId: parseInt(String(recordId)),
+    fileUrl, fileKey, fileName,
+    fileSize: fileSize ? parseInt(String(fileSize)) : null,
+    mimeType: mimeType || null,
+    notes: notes || null,
+    uploadedByName: uploadedByName || null,
+  }).returning();
+  res.json(row);
+});
+
+router.delete("/farms/:farmId/record-attachments/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const id = parseInt(req.params.id);
+  await db.delete(farmRecordAttachmentsTable).where(and(eq(farmRecordAttachmentsTable.id, id), eq(farmRecordAttachmentsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

@@ -152,6 +152,7 @@ export const pigFarrowingRecordsTable = pgTable("pig_farrowing_records", {
   weaningDate: date("weaning_date"),
   pigletsWeanedCount: integer("piglets_weaned_count"),
   averageWeaningWeightKg: numeric("average_weaning_weight_kg", { precision: 5, scale: 2 }),
+  expectedFarrowingDate: date("expected_farrowing_date"),
   farrowingEase: text("farrowing_ease"),
   assistanceRequired: boolean("assistance_required").default(false),
   assistanceDetails: text("assistance_details"),
