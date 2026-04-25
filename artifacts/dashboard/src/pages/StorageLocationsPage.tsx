@@ -1,5 +1,4 @@
 import { useState, useRef } from "react";
-import { useLocation } from "wouter";
 import { gradeLabel } from "@/lib/harvestGrades";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -394,16 +393,15 @@ function LinkedRecordDetailDialog({
 
 // ─── Stock Movements Tab ─────────────────────────────────────────────────────
 
-const LINKED_RECORD_ROUTES: Record<string, { path: string; label: string }> = {
-  haulage_record: { path: "/haulage", label: "Haulage" },
-  grain_sale:     { path: "/sales-trading", label: "Sales & Trading" },
-  harvest_record: { path: "/harvest", label: "Harvest" },
+const LINKED_RECORD_LABELS: Record<string, string> = {
+  haulage_record: "Haulage",
+  grain_sale:     "Grain Sale",
+  harvest_record: "Harvest",
 };
 
 function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
 
   const [addOpen, setAddOpen] = useState(false);
   const [editMovement, setEditMovement] = useState<StockMovement | null>(null);
@@ -628,25 +626,21 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
                 <div><p className="text-xs text-muted-foreground">Variety</p><p>{viewMovement.variety || "—"}</p></div>
                 <div><p className="text-xs text-muted-foreground">Crop Year</p><p>{viewMovement.cropYear || "—"}</p></div>
                 <div><p className="text-xs text-muted-foreground">Reference</p><p>{viewMovement.reference || "—"}</p></div>
-                {viewMovement.linkedRecordId && viewMovement.linkedRecordType && (() => {
-                  const route = LINKED_RECORD_ROUTES[viewMovement.linkedRecordType];
-                  return (
-                    <div className="col-span-2">
-                      <p className="text-xs text-muted-foreground">Linked Record</p>
-                      {route ? (
-                        <button
-                          onClick={() => { setViewMovement(null); setLocation(route.path); }}
-                          className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2 mt-0.5"
-                        >
-                          <Link2 className="h-3.5 w-3.5 flex-shrink-0" />
-                          {route.label} #{viewMovement.linkedRecordId}
-                        </button>
-                      ) : (
-                        <p>{viewMovement.linkedRecordType} #{viewMovement.linkedRecordId}</p>
-                      )}
-                    </div>
-                  );
-                })()}
+                {viewMovement.linkedRecordId && viewMovement.linkedRecordType && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">Linked Record</p>
+                    <button
+                      onClick={() => {
+                        setViewMovement(null);
+                        setViewLinked({ type: viewMovement.linkedRecordType!, id: viewMovement.linkedRecordId! });
+                      }}
+                      className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2 mt-0.5"
+                    >
+                      <Link2 className="h-3.5 w-3.5 flex-shrink-0" />
+                      {LINKED_RECORD_LABELS[viewMovement.linkedRecordType] ?? viewMovement.linkedRecordType} #{viewMovement.linkedRecordId}
+                    </button>
+                  </div>
+                )}
                 {viewMovement.notes && (
                   <div className="col-span-2"><p className="text-xs text-muted-foreground">Notes</p><p>{viewMovement.notes}</p></div>
                 )}
