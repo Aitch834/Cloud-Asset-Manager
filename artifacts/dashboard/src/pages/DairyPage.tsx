@@ -483,7 +483,9 @@ interface CalvingRecord {
   id: number; herdId?: number | null; cowEarTag?: string | null; cowAnimalId?: number | null; calvingDate: string;
   calvingEaseScore?: number | null; numberOfCalves?: number; calfOutcome?: string | null;
   calfSex?: string | null; calfEarTag?: string | null; sireBreed?: string | null; calfBreed?: string | null;
-  calfBirthWeightKg?: string | null; colostrumGivenWithin2Hours?: boolean | null;
+  calfBirthWeightKg?: string | null;
+  calfOutcome2?: string | null; calfSex2?: string | null; calfEarTag2?: string | null; calfBirthWeightKg2?: string | null;
+  colostrumGivenWithin2Hours?: boolean | null;
   colostrumGivenWithin6Hours?: boolean | null; colostrumVolumeFirstFeedLitres?: string | null;
   colostrumQualityBrix?: string | null; colostrumSource?: string | null;
   cowComplications?: string | null; assistanceRequired?: boolean; assistanceType?: string | null;
@@ -586,7 +588,15 @@ function CalvingTab({ farmId }: { farmId: number }) {
                         {r.colostrumGivenWithin2Hours ? "Colostrum ≤2h ✓" : "Colostrum >2h"}
                       </span>
                     )}
-                    {r.bcmsPassportApplied && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Passport applied</span>}
+                    {r.bcmsPassportApplied
+                      ? <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Passport applied ✓</span>
+                      : (() => {
+                          const daysOld = Math.floor((Date.now() - new Date(r.calvingDate).getTime()) / 86400000);
+                          if (daysOld >= 27) return <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-medium">⚠ Passport overdue ({daysOld}d)</span>;
+                          if (daysOld >= 20) return <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">Passport due in {27 - daysOld}d</span>;
+                          return null;
+                        })()
+                    }
                   </div>
                   <div className="flex gap-1 ml-2">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
@@ -718,9 +728,13 @@ function CalvingTab({ farmId }: { farmId: number }) {
               <div className="rounded-md border p-3 space-y-2">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Calf Details</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <div><Label>Number of Calves</Label><Input type="number" min="1" max="4" value={form.numberOfCalves || 1} onChange={e => set("numberOfCalves", parseInt(e.target.value))} /></div>
+                  <div className="col-span-2"><Label>Number of Calves</Label><Input type="number" min="1" max="4" value={form.numberOfCalves || 1} onChange={e => { const n = parseInt(e.target.value); set("numberOfCalves", n); if (n < 2) { set("calfOutcome2", null); set("calfSex2", null); set("calfEarTag2", null); set("calfBirthWeightKg2", null); } }} /></div>
+                </div>
+                {/* Calf 1 */}
+                {(form.numberOfCalves ?? 1) >= 2 && <p className="text-xs font-medium text-gray-500">Calf 1</p>}
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label>Calf Outcome</Label>
+                    <Label>{(form.numberOfCalves ?? 1) >= 2 ? "Calf 1 Outcome" : "Calf Outcome"}</Label>
                     <Select value={form.calfOutcome || ""} onValueChange={v => set("calfOutcome", v)}>
                       <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                       <SelectContent>
@@ -731,7 +745,7 @@ function CalvingTab({ farmId }: { farmId: number }) {
                     </Select>
                   </div>
                   <div>
-                    <Label>Calf Sex</Label>
+                    <Label>{(form.numberOfCalves ?? 1) >= 2 ? "Calf 1 Sex" : "Calf Sex"}</Label>
                     <Select value={form.calfSex || ""} onValueChange={v => set("calfSex", v)}>
                       <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                       <SelectContent>
@@ -740,8 +754,41 @@ function CalvingTab({ farmId }: { farmId: number }) {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div><Label>Calf Ear Tag</Label><Input value={form.calfEarTag || ""} onChange={e => set("calfEarTag", e.target.value)} placeholder="BCMS tag applied at birth" /></div>
-                  <div><Label>Birth Weight (kg)</Label><Input type="number" step="0.1" value={form.calfBirthWeightKg || ""} onChange={e => set("calfBirthWeightKg", e.target.value)} /></div>
+                  <div><Label>{(form.numberOfCalves ?? 1) >= 2 ? "Calf 1 Ear Tag" : "Calf Ear Tag"}</Label><Input value={form.calfEarTag || ""} onChange={e => set("calfEarTag", e.target.value)} placeholder="BCMS tag — apply within 36 days" /></div>
+                  <div><Label>{(form.numberOfCalves ?? 1) >= 2 ? "Calf 1 Birth Weight (kg)" : "Birth Weight (kg)"}</Label><Input type="number" step="0.1" value={form.calfBirthWeightKg || ""} onChange={e => set("calfBirthWeightKg", e.target.value)} /></div>
+                </div>
+                {/* Calf 2 (twins) */}
+                {(form.numberOfCalves ?? 1) >= 2 && (
+                  <>
+                    <p className="text-xs font-medium text-gray-500 pt-1 border-t">Calf 2</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label>Calf 2 Outcome</Label>
+                        <Select value={form.calfOutcome2 || ""} onValueChange={v => set("calfOutcome2", v)}>
+                          <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="live">Live</SelectItem>
+                            <SelectItem value="stillborn">Stillborn</SelectItem>
+                            <SelectItem value="died-within-24h">Died within 24 hours</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Calf 2 Sex</Label>
+                        <Select value={form.calfSex2 || ""} onValueChange={v => set("calfSex2", v)}>
+                          <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="female">Heifer (Female)</SelectItem>
+                            <SelectItem value="male">Bull Calf (Male)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div><Label>Calf 2 Ear Tag</Label><Input value={form.calfEarTag2 || ""} onChange={e => set("calfEarTag2", e.target.value)} placeholder="BCMS tag — apply within 36 days" /></div>
+                      <div><Label>Calf 2 Birth Weight (kg)</Label><Input type="number" step="0.1" value={form.calfBirthWeightKg2 || ""} onChange={e => set("calfBirthWeightKg2", e.target.value)} /></div>
+                    </div>
+                  </>
+                )}
+                <div className="grid grid-cols-2 gap-2">
                   <div className="col-span-2">
                     <Label>Conception Method</Label>
                     <Select
@@ -827,20 +874,25 @@ function CalvingTab({ farmId }: { farmId: number }) {
                   )}
                 </div>
                 <div>
-                  <Label>Calf Disposition</Label>
-                  <Select value={form.calfDisposition || ""} onValueChange={v => set("calfDisposition", v)}>
-                    <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <Label>Calf Disposition <span className="font-normal text-gray-400">(optional — can be updated later)</span></Label>
+                  <Select value={form.calfDisposition || "__none__"} onValueChange={v => set("calfDisposition", v === "__none__" ? null : v)}>
+                    <SelectTrigger><SelectValue placeholder="Not yet decided..." /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__none__">Not yet decided</SelectItem>
                       <SelectItem value="retained">Retained on farm (rear)</SelectItem>
                       <SelectItem value="sold">Sold</SelectItem>
-                      <SelectItem value="market">To market</SelectItem>
-                      <SelectItem value="died">Died</SelectItem>
+                      <SelectItem value="market">To market / auction</SelectItem>
+                      <SelectItem value="died">Died post-birth</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-gray-400 mt-1">Disposition may not be decided at birth — edit this record once the decision is made.</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" id="bpp" checked={!!form.bcmsPassportApplied} onChange={e => set("bcmsPassportApplied", e.target.checked)} className="rounded" />
-                  <Label htmlFor="bpp">BCMS passport applied</Label>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="bpp" checked={!!form.bcmsPassportApplied} onChange={e => set("bcmsPassportApplied", e.target.checked)} className="rounded" />
+                    <Label htmlFor="bpp">BCMS passport applied</Label>
+                  </div>
+                  <p className="text-xs text-gray-400 ml-6">UK rules: passport must be applied within 36 days of birth (or within 7 days if the calf leaves the farm of birth before day 36). Tick once submitted to BCMS/CTS.</p>
                 </div>
               </div>
             </div>
