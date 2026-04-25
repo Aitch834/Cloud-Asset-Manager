@@ -878,88 +878,338 @@ function TailBitingRisksTab({ farmId }: { farmId: number }) {
   );
 }
 
+interface FarrowingRecord {
+  id: number;
+  farrowingDate: string;
+  sowEarTag: string;
+  sowBreed?: string | null;
+  parityNumber?: number | null;
+  flockId?: number | null;
+  totalBornAlive: number;
+  totalBornDead: number;
+  totalMummified: number;
+  fostersIn: number;
+  fostersOut: number;
+  averageBirthWeightKg?: string | null;
+  weaningDate?: string | null;
+  pigletsWeanedCount?: number | null;
+  averageWeaningWeightKg?: string | null;
+  farrowingEase?: string | null;
+  assistanceRequired?: boolean | null;
+  assistanceDetails?: string | null;
+  colostrumManaged?: boolean | null;
+  notes?: string | null;
+}
+
+function FarrowingEaseBadge({ v }: { v?: string | null }) {
+  if (!v) return null;
+  const n = parseInt(v.charAt(0));
+  const map: Record<number, { cls: string }> = {
+    1: { cls: "bg-green-100 text-green-700" },
+    2: { cls: "bg-yellow-100 text-yellow-700" },
+    3: { cls: "bg-orange-100 text-orange-700" },
+    4: { cls: "bg-red-100 text-red-700" },
+  };
+  const d = map[n];
+  if (!d) return null;
+  return <span className={`text-xs px-2 py-0.5 rounded font-medium ${d.cls}`}>{v}</span>;
+}
+
 function FarrowingRecordsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const EMPTY: Partial<FarrowingRecord> = {
+    totalBornAlive: 0, totalBornDead: 0, totalMummified: 0,
+    fostersIn: 0, fostersOut: 0, assistanceRequired: false, colostrumManaged: true,
+  };
+
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
-  const [form, setForm] = useState<Record<string, string | boolean>>({});
-  const { data: records = [], isLoading } = useQuery({ queryKey: ["pig-farrowing", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-farrowing-records`), { credentials: "include" }).then(r => r.json()) });
+  const [editing, setEditing] = useState<FarrowingRecord | null>(null);
+  const [form, setForm] = useState<Partial<FarrowingRecord>>(EMPTY);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery<FarrowingRecord[]>({
+    queryKey: ["pig-farrowing", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/pig-farrowing-records`), { credentials: "include" }).then(r => r.json()),
+  });
+  const records: FarrowingRecord[] = Array.isArray(data) ? data : [];
+
   const save = useMutation({
-    mutationFn: (body: Record<string, unknown>) => {
+    mutationFn: (body: Partial<FarrowingRecord>) => {
       const url = editing ? api(`farms/${farmId}/pig-farrowing-records/${editing.id}`) : api(`farms/${farmId}/pig-farrowing-records`);
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-farrowing", farmId] }); setOpen(false); setForm({}); setEditing(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-farrowing", farmId] }); closeDialog(); },
   });
-  const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-farrowing-records/${id}`), { method: "DELETE", credentials: "include" }), onSuccess: () => qc.invalidateQueries({ queryKey: ["pig-farrowing", farmId] }) });
-  const defaults = { totalBornAlive: "0", totalBornDead: "0", totalMummified: "0", fostersIn: "0", fostersOut: "0", assistanceRequired: false, colostrumManaged: true };
-  function openAdd() { setEditing(null); setForm({ ...defaults }); setOpen(true); }
-  function openEdit(r: Record<string, unknown>) { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : v as string | boolean]))); setOpen(true); }
-  const totalBorn = (r: Record<string, unknown>) => ((r.totalBornAlive as number || 0) + (r.totalBornDead as number || 0) + (r.totalMummified as number || 0));
+  const del = useMutation({
+    mutationFn: (id: number) => fetch(api(`farms/${farmId}/pig-farrowing-records/${id}`), { method: "DELETE", credentials: "include" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-farrowing", farmId] }); setConfirmDelete(null); },
+  });
+
+  function closeDialog() { setOpen(false); setEditing(null); setForm(EMPTY); }
+  function openAdd() { setEditing(null); setForm({ ...EMPTY, farrowingDate: todayStr }); setOpen(true); }
+  function openEdit(r: FarrowingRecord) { setEditing(r); setForm({ ...r }); setOpen(true); }
+  function set<K extends keyof FarrowingRecord>(k: K, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
+
+  const totalBorn = (r: FarrowingRecord) => (r.totalBornAlive || 0) + (r.totalBornDead || 0) + (r.totalMummified || 0);
+  const weaningRate = (r: FarrowingRecord) => {
+    const alive = r.totalBornAlive || 0;
+    const weaned = r.pigletsWeanedCount || 0;
+    if (!alive) return null;
+    return Math.round((weaned / alive) * 100);
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
+    <div>
+      <div className="flex justify-between items-center mb-4">
         <div>
-          <h3 className="font-semibold text-sm">Farrowing &amp; Sow Records</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Required for breeding herds — litter performance, weaning data and sow assistance records.</p>
+          <p className="text-sm text-gray-500 mb-1">Litter-level farrowing records — born alive/dead, fostering, avg birth weight, weaning performance, and sow assistance. Required for Red Tractor Pigs Standard compliance.</p>
         </div>
         <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Farrowing</Button>
       </div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
-        <DataTable
-          cols={[
-            { key: "farrowingDate", label: "Date", fmt: r => fmtDate(r.farrowingDate) },
-            { key: "sowEarTag", label: "Sow Ear Tag" },
-            { key: "parityNumber", label: "Parity" },
-            { key: "totalBornAlive", label: "Born Alive" },
-            { key: "totalBornDead", label: "Stillbirths" },
-            { key: "pigletsWeanedCount", label: "Weaned" },
-            { key: "weaningDate", label: "Weaning Date", fmt: r => fmtDate(r.weaningDate) },
-          ]}
-          rows={records}
-          onEdit={openEdit}
-          onDelete={r => del.mutate(r.id as number)}
-        />
+
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5 text-gray-400" /> : (
+        <div className="space-y-2">
+          {records.length === 0 && (
+            <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No farrowing records yet. Log the first farrowing above.</CardContent></Card>
+          )}
+          {records.map(r => {
+            const total = totalBorn(r);
+            const rate = weaningRate(r);
+            const parityLabel = r.parityNumber === 1 ? "Gilt (P1)" : r.parityNumber ? `Parity ${r.parityNumber}` : null;
+            const fostering = (r.fostersIn || 0) + (r.fostersOut || 0) > 0;
+            return (
+              <Card key={r.id}>
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="font-medium text-sm">{fmtDate(r.farrowingDate)}</span>
+                      <span className="text-sm text-gray-700 font-mono">Sow: {r.sowEarTag}</span>
+                      {parityLabel && <span className="text-xs text-gray-500">{parityLabel}</span>}
+                      <FarrowingEaseBadge v={r.farrowingEase} />
+
+                      {/* Litter outcome */}
+                      {total > 0 && (
+                        <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded">
+                          {total} born total
+                        </span>
+                      )}
+                      {(r.totalBornAlive > 0) && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                          {r.totalBornAlive} alive
+                        </span>
+                      )}
+                      {(r.totalBornDead > 0) && (
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
+                          {r.totalBornDead} stillborn
+                        </span>
+                      )}
+                      {(r.totalMummified > 0) && (
+                        <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">
+                          {r.totalMummified} mummified
+                        </span>
+                      )}
+
+                      {/* Avg birth weight */}
+                      {r.averageBirthWeightKg && (
+                        <span className="text-xs bg-purple-50 text-purple-700 border border-purple-100 px-2 py-0.5 rounded">
+                          Avg birth {r.averageBirthWeightKg} kg
+                        </span>
+                      )}
+
+                      {/* Fostering */}
+                      {fostering && (
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
+                          Fostered {r.fostersIn > 0 ? `+${r.fostersIn}` : ""}{r.fostersOut > 0 ? ` −${r.fostersOut}` : ""}
+                        </span>
+                      )}
+
+                      {/* Weaning */}
+                      {r.weaningDate ? (
+                        <span className="text-xs bg-teal-50 text-teal-700 border border-teal-200 px-2 py-0.5 rounded">
+                          Weaned {r.pigletsWeanedCount ?? "?"}{rate !== null ? ` (${rate}%)` : ""} · {fmtDate(r.weaningDate)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                          Not yet weaned
+                        </span>
+                      )}
+
+                      {/* Colostrum */}
+                      {r.colostrumManaged !== null && r.colostrumManaged !== undefined && (
+                        <span className={`text-xs px-2 py-0.5 rounded ${r.colostrumManaged ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                          {r.colostrumManaged ? "Colostrum ✓" : "Colostrum not confirmed"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-1 ml-2">
+                      <button className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></button>
+                      <button className="p-1 rounded hover:bg-gray-100 text-red-300 hover:text-red-600" onClick={() => setConfirmDelete(r.id)}><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                  </div>
+                  {r.notes && <p className="text-xs text-gray-400 mt-1.5">{r.notes}</p>}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent style={{ maxWidth: "44rem" }}>
-          <DialogHeader><DialogTitle>Farrowing Record</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-3 gap-3 max-h-[70vh] overflow-y-auto pr-1">
-            <div><Label>Farrowing Date *</Label><Input type="date" value={String(form.farrowingDate ?? "")} onChange={e => setForm(f => ({ ...f, farrowingDate: e.target.value }))} /></div>
-            <div><Label>Sow Ear Tag *</Label><Input value={String(form.sowEarTag ?? "")} onChange={e => setForm(f => ({ ...f, sowEarTag: e.target.value }))} placeholder="UK ear tag" /></div>
-            <div><Label>Sow Breed</Label><Input value={String(form.sowBreed ?? "")} onChange={e => setForm(f => ({ ...f, sowBreed: e.target.value }))} placeholder="e.g. Large White" /></div>
-            <div><Label>Parity Number</Label><Input type="number" value={String(form.parityNumber ?? "")} onChange={e => setForm(f => ({ ...f, parityNumber: e.target.value }))} placeholder="1 = gilt" /></div>
-            <div>
-              <Label>Farrowing Ease</Label>
-              <Select value={String(form.farrowingEase ?? "")} onValueChange={v => setForm(f => ({ ...f, farrowingEase: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{["1 — Unassisted", "2 — Minor assistance", "3 — Major assistance", "4 — Vet required"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2 mt-5">
-              <Checkbox id="assistanceRequired" checked={Boolean(form.assistanceRequired)} onCheckedChange={v => setForm(f => ({ ...f, assistanceRequired: Boolean(v) }))} />
-              <Label htmlFor="assistanceRequired" className="text-xs">Assistance required?</Label>
-            </div>
-            <div><Label>Born Alive *</Label><Input type="number" value={String(form.totalBornAlive ?? "0")} onChange={e => setForm(f => ({ ...f, totalBornAlive: e.target.value }))} /></div>
-            <div><Label>Born Dead (Stillbirths)</Label><Input type="number" value={String(form.totalBornDead ?? "0")} onChange={e => setForm(f => ({ ...f, totalBornDead: e.target.value }))} /></div>
-            <div><Label>Mummified</Label><Input type="number" value={String(form.totalMummified ?? "0")} onChange={e => setForm(f => ({ ...f, totalMummified: e.target.value }))} /></div>
-            <div><Label>Avg Birth Weight (kg)</Label><Input type="number" step="0.01" value={String(form.averageBirthWeightKg ?? "")} onChange={e => setForm(f => ({ ...f, averageBirthWeightKg: e.target.value }))} /></div>
-            <div><Label>Fosters In</Label><Input type="number" value={String(form.fostersIn ?? "0")} onChange={e => setForm(f => ({ ...f, fostersIn: e.target.value }))} /></div>
-            <div><Label>Fosters Out</Label><Input type="number" value={String(form.fostersOut ?? "0")} onChange={e => setForm(f => ({ ...f, fostersOut: e.target.value }))} /></div>
-            <div><Label>Weaning Date</Label><Input type="date" value={String(form.weaningDate ?? "")} onChange={e => setForm(f => ({ ...f, weaningDate: e.target.value }))} /></div>
-            <div><Label>Piglets Weaned</Label><Input type="number" value={String(form.pigletsWeanedCount ?? "")} onChange={e => setForm(f => ({ ...f, pigletsWeanedCount: e.target.value }))} /></div>
-            <div><Label>Avg Weaning Weight (kg)</Label><Input type="number" step="0.01" value={String(form.averageWeaningWeightKg ?? "")} onChange={e => setForm(f => ({ ...f, averageWeaningWeightKg: e.target.value }))} /></div>
-            <div className="flex items-center gap-2 mt-5">
-              <Checkbox id="colostrumManaged" checked={Boolean(form.colostrumManaged)} onCheckedChange={v => setForm(f => ({ ...f, colostrumManaged: Boolean(v) }))} />
-              <Label htmlFor="colostrumManaged" className="text-xs">Colostrum management confirmed</Label>
-            </div>
-            <div className="col-span-3"><Label>Assistance Details</Label><Textarea value={String(form.assistanceDetails ?? "")} onChange={e => setForm(f => ({ ...f, assistanceDetails: e.target.value }))} rows={2} placeholder="Details of any vet or manual assistance" /></div>
-            <div className="col-span-3"><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-          </div>
+
+      {/* Confirm delete */}
+      <Dialog open={confirmDelete !== null} onOpenChange={o => { if (!o) setConfirmDelete(null); }}>
+        <DialogContent style={{ maxWidth: "22rem" }}>
+          <DialogHeader><DialogTitle>Delete Farrowing Record</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">This will permanently remove this farrowing record. This action cannot be undone.</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={() => save.mutate(form)} disabled={save.isPending}>Save Record</Button>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => confirmDelete !== null && del.mutate(confirmDelete)}>Delete</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add / Edit dialog */}
+      <Dialog open={open} onOpenChange={o => { if (!o) closeDialog(); }}>
+        <DialogContent style={{ maxWidth: "58rem" }} className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing ? "Edit Farrowing Record" : "Log Farrowing"}</DialogTitle></DialogHeader>
+          <div className="flex gap-6 py-2">
+
+            {/* Left column: sow + litter data */}
+            <div className="flex-1 flex flex-col gap-3 min-w-0">
+
+              {/* Sow details */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sow Details</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label>Farrowing Date *</Label><Input type="date" value={form.farrowingDate?.slice(0, 10) || ""} onChange={e => set("farrowingDate", e.target.value)} /></div>
+                  <div><Label>Sow Ear Tag *</Label><Input value={form.sowEarTag || ""} onChange={e => set("sowEarTag", e.target.value)} placeholder="UK ear tag" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label>Sow Breed</Label><Input value={form.sowBreed || ""} onChange={e => set("sowBreed", e.target.value)} placeholder="e.g. Large White, Landrace" /></div>
+                  <div>
+                    <Label>Parity Number</Label>
+                    <Input type="number" min="1" value={form.parityNumber ?? ""} onChange={e => set("parityNumber", e.target.value ? parseInt(e.target.value) : null)} placeholder="1 = gilt" />
+                    <p className="text-xs text-gray-400 mt-0.5">1 = first litter (gilt)</p>
+                  </div>
+                </div>
+                <div>
+                  <Label>Farrowing Ease</Label>
+                  <Select value={form.farrowingEase || "__none__"} onValueChange={v => set("farrowingEase", v === "__none__" ? null : v)}>
+                    <SelectTrigger><SelectValue placeholder="Select ease score..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not recorded</SelectItem>
+                      <SelectItem value="1 — Unassisted">1 — Unassisted</SelectItem>
+                      <SelectItem value="2 — Minor assistance">2 — Minor assistance (1 person)</SelectItem>
+                      <SelectItem value="3 — Major assistance">3 — Major assistance</SelectItem>
+                      <SelectItem value="4 — Vet required">4 — Vet required</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Litter performance */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Litter Performance</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label>Born Alive *</Label>
+                    <Input type="number" min="0" value={form.totalBornAlive ?? 0} onChange={e => set("totalBornAlive", parseInt(e.target.value) || 0)} />
+                  </div>
+                  <div>
+                    <Label>Stillbirths</Label>
+                    <Input type="number" min="0" value={form.totalBornDead ?? 0} onChange={e => set("totalBornDead", parseInt(e.target.value) || 0)} />
+                  </div>
+                  <div>
+                    <Label>Mummified</Label>
+                    <Input type="number" min="0" value={form.totalMummified ?? 0} onChange={e => set("totalMummified", parseInt(e.target.value) || 0)} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label>Avg Birth Weight (kg)</Label>
+                    <Input type="number" step="0.01" min="0" value={form.averageBirthWeightKg ?? ""} onChange={e => set("averageBirthWeightKg", e.target.value || null)} placeholder="e.g. 1.35" />
+                    <p className="text-xs text-gray-400 mt-0.5">Recommended — weigh a sample if not all. Target ≥1.2 kg.</p>
+                  </div>
+                  <div className="pt-4">
+                    <p className="text-xs text-gray-500">
+                      Total born: <strong>{(form.totalBornAlive || 0) + (form.totalBornDead || 0) + (form.totalMummified || 0)}</strong>
+                    </p>
+                    {(form.totalBornAlive || 0) > 0 && (form.totalBornDead || 0) > 0 && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Stillbirth rate: <strong>{Math.round(((form.totalBornDead || 0) / ((form.totalBornAlive || 0) + (form.totalBornDead || 0) + (form.totalMummified || 0))) * 100)}%</strong>
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label>Fosters In</Label>
+                    <Input type="number" min="0" value={form.fostersIn ?? 0} onChange={e => set("fostersIn", parseInt(e.target.value) || 0)} />
+                    <p className="text-xs text-gray-400 mt-0.5">Piglets moved onto this sow</p>
+                  </div>
+                  <div>
+                    <Label>Fosters Out</Label>
+                    <Input type="number" min="0" value={form.fostersOut ?? 0} onChange={e => set("fostersOut", parseInt(e.target.value) || 0)} />
+                    <p className="text-xs text-gray-400 mt-0.5">Piglets moved off this sow</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Weaning */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Weaning</p>
+                <p className="text-xs text-gray-400">Can be completed later once the litter is weaned. Minimum weaning age is 28 days (21 days with dispensation).</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><Label>Weaning Date</Label><Input type="date" value={form.weaningDate?.slice(0, 10) || ""} onChange={e => set("weaningDate", e.target.value || null)} /></div>
+                  <div><Label>Piglets Weaned</Label><Input type="number" min="0" value={form.pigletsWeanedCount ?? ""} onChange={e => set("pigletsWeanedCount", e.target.value ? parseInt(e.target.value) : null)} /></div>
+                </div>
+                <div>
+                  <Label>Avg Weaning Weight (kg)</Label>
+                  <Input type="number" step="0.01" min="0" value={form.averageWeaningWeightKg ?? ""} onChange={e => set("averageWeaningWeightKg", e.target.value || null)} placeholder="e.g. 7.5" className="w-40" />
+                </div>
+              </div>
+            </div>
+
+            {/* Right column: assistance, colostrum, notes */}
+            <div className="w-64 flex-shrink-0 flex flex-col gap-3">
+
+              {/* Assistance */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Assistance</p>
+                <div className="flex items-center gap-2">
+                  <Checkbox id="farr-ar" checked={!!form.assistanceRequired} onCheckedChange={v => { set("assistanceRequired", !!v); if (!v) set("assistanceDetails", null); }} />
+                  <Label htmlFor="farr-ar" className="text-sm">Assistance required</Label>
+                </div>
+                {form.assistanceRequired && (
+                  <div>
+                    <Label>Assistance Details</Label>
+                    <Textarea value={form.assistanceDetails || ""} onChange={e => set("assistanceDetails", e.target.value)} rows={3} placeholder="e.g. 2 piglets presented incorrectly, manual repositioning required. Vet not needed." />
+                  </div>
+                )}
+              </div>
+
+              {/* Colostrum */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Colostrum</p>
+                <p className="text-xs text-gray-400">All piglets should receive colostrum within 12–24 hours of birth. Confirm management was completed.</p>
+                <div className="flex items-center gap-2">
+                  <Checkbox id="farr-col" checked={!!form.colostrumManaged} onCheckedChange={v => set("colostrumManaged", !!v)} />
+                  <Label htmlFor="farr-col" className="text-sm">Colostrum management confirmed</Label>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</p>
+                <Textarea value={form.notes || ""} onChange={e => set("notes", e.target.value)} placeholder="Any additional observations..." rows={4} />
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            <Button disabled={save.isPending || !form.sowEarTag || !form.farrowingDate} onClick={() => save.mutate(form)}>
+              {save.isPending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Saving…</> : editing ? "Save Changes" : "Log Farrowing"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
