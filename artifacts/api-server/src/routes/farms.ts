@@ -18007,6 +18007,21 @@ router.delete("/farms/:farmId/record-attachments/:id", requireAuth, requireTenan
   res.json({ success: true });
 });
 
+// GET /api/farms/:farmId/record-attachments/counts — attachment counts per record, grouped by type+id
+router.get("/farms/:farmId/record-attachments/counts", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db
+    .select({
+      recordType: farmRecordAttachmentsTable.recordType,
+      recordId: farmRecordAttachmentsTable.recordId,
+      count: sql<number>`cast(count(*) as int)`,
+    })
+    .from(farmRecordAttachmentsTable)
+    .where(eq(farmRecordAttachmentsTable.farmId, farmId))
+    .groupBy(farmRecordAttachmentsTable.recordType, farmRecordAttachmentsTable.recordId);
+  res.json(rows);
+});
+
 // ─── Service Invoices ────────────────────────────────────────────────────────
 router.get("/farms/:farmId/service-invoices", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;

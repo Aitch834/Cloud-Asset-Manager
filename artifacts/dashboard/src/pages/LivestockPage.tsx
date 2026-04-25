@@ -1859,6 +1859,13 @@ function MortalitySection({ farmId }: { farmId: number }) {
 
   const selectedContractor = activeContractors.find(c => String(c.id) === form.contractorId);
 
+  const { data: mortalityAttachCountsRaw = [] } = useQuery<Array<{recordType: string; recordId: number; count: number}>>({
+    queryKey: ["record-attachment-counts", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/record-attachments/counts`, { credentials: "include" }).then(r => r.json()),
+    staleTime: 30000,
+  });
+  const mortalityAttachMap = Object.fromEntries(mortalityAttachCountsRaw.filter(c => c.recordType === "mortality").map(c => [c.recordId, c.count]));
+
   const createMut = useMutation({
     mutationFn: (body: typeof EMPTY_MORTALITY) => fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => {
@@ -1964,7 +1971,12 @@ function MortalitySection({ farmId }: { farmId: number }) {
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{r.veterinaryAttended ? r.vetName || "Yes" : "—"}</td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-1">
+                    <div className="flex items-center gap-1">
+                      {(mortalityAttachMap[r.id] ?? 0) > 0 && (
+                        <span className="text-xs bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded flex items-center gap-1">
+                          <Paperclip className="w-3 h-3" />{mortalityAttachMap[r.id]}
+                        </span>
+                      )}
                       <Button size="sm" variant="ghost" onClick={() => setViewMortality(r)}><Eye className="h-3 w-3" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => setDeleteId(r.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3 w-3" /></Button>
@@ -4235,6 +4247,7 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [pendingConfirm, setPendingConfirm] = useState<{ msg: string; fn: () => void } | null>(null);
+  const [viewAIRecord, setViewAIRecord] = useState<Record<string, unknown> | null>(null);
 
   // Lookup data
   const { data: herdsData } = useQuery({
@@ -4254,6 +4267,13 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
     queryFn: () => fetch(`/api/farms/${farmId}/straws`, { credentials: "include" }).then(r => r.json()) as Promise<{ records: StrawInventory[] }>,
   });
   const { data: membersData } = useFarmMembers(farmId);
+
+  const { data: aiAttachCountsRaw = [] } = useQuery<Array<{recordType: string; recordId: number; count: number}>>({
+    queryKey: ["record-attachment-counts", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/record-attachments/counts`, { credentials: "include" }).then(r => r.json()),
+    staleTime: 30000,
+  });
+  const aiAttachMap = Object.fromEntries(aiAttachCountsRaw.filter(c => c.recordType === "ai_breeding").map(c => [c.recordId, c.count]));
 
   const herds: Herd[] = (herdsData?.records ?? []).filter((h: Herd) => h.isActive);
   const allAnimals: Animal[] = animalsData?.records ?? [];
@@ -4374,9 +4394,17 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
                     <td className="py-2 pr-4">{String(r.sireName ?? r.sireId ?? "—")}</td>
                     <td className="py-2 pr-4">{r.conceptionConfirmed ? "Yes" : "No"}</td>
                     <td className="py-2 pr-4">{r.expectedDueDate ? new Date(r.expectedDueDate as string).toLocaleDateString("en-GB") : "—"}</td>
-                    <td className="py-2 text-right space-x-1">
-                      <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this AI/Reproduction record? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                    <td className="py-2 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {(aiAttachMap[r.id as number] ?? 0) > 0 && (
+                          <span className="text-xs bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded flex items-center gap-1">
+                            <Paperclip className="w-3 h-3" />{aiAttachMap[r.id as number]}
+                          </span>
+                        )}
+                        <Button size="icon" variant="ghost" onClick={() => setViewAIRecord(r)}><Eye className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => setPendingConfirm({ msg: "Delete this AI/Reproduction record? This cannot be undone.", fn: () => del.mutate(r.id as number) })}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>
+                      </div>
                     </td>
                   </tr>
                 ))}</tbody>
@@ -4395,6 +4423,36 @@ function AIReproductionSection({ farmId }: { farmId: number }) {
         confirmLabel="Delete"
         confirmVariant="destructive"
       />
+
+      {viewAIRecord && (
+        <Dialog open onOpenChange={() => setViewAIRecord(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader><DialogTitle>AI / Reproduction Record — {String(viewAIRecord.animalTag || `Record #${viewAIRecord.id}`)}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm mt-2">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Event Date</p><p className="font-medium">{viewAIRecord.eventDate ? new Date(viewAIRecord.eventDate as string).toLocaleDateString("en-GB") : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Record Type</p><p className="font-medium">{String(viewAIRecord.recordType ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Animal Tag</p><p className="font-medium font-mono">{String(viewAIRecord.animalTag ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Herd / Flock</p><p className="font-medium">{String(viewAIRecord.herdName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Servicing Method</p><p className="font-medium">{String(viewAIRecord.servicingMethod ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Inseminator / Technician</p><p className="font-medium">{String(viewAIRecord.inseminatorName ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sire / Bull / Ram</p><p className="font-medium">{String(viewAIRecord.sireName ?? "—")}{viewAIRecord.sireBreed ? ` (${viewAIRecord.sireBreed})` : ""}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Straw Batch Ref</p><p className="font-medium font-mono">{String(viewAIRecord.strawBatchRef ?? "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Conception Confirmed</p><p className="font-medium">{viewAIRecord.conceptionConfirmed ? "Yes ✓" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Expected Due Date</p><p className="font-medium">{viewAIRecord.expectedDueDate ? new Date(viewAIRecord.expectedDueDate as string).toLocaleDateString("en-GB") : "—"}</p></div>
+              {viewAIRecord.pregnancyDiagDate && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Pregnancy Diag Date</p><p className="font-medium">{new Date(viewAIRecord.pregnancyDiagDate as string).toLocaleDateString("en-GB")}</p></div>}
+              {viewAIRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{String(viewAIRecord.notes)}</p></div>}
+            </div>
+            <div className="mt-4">
+              <RecordAttachments farmId={farmId} recordType="ai_breeding" recordId={viewAIRecord.id as number} />
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setViewAIRecord(null)}>Close</Button>
+              <Button onClick={() => { setEditing(viewAIRecord); setForm(Object.fromEntries(Object.entries(viewAIRecord).map(([k, v]) => [k, v ?? ""])) as Record<string, string | boolean>); setOpen(true); setViewAIRecord(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "44rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Record" : "Add AI / Reproduction Record"}</DialogTitle></DialogHeader>
@@ -5179,6 +5237,13 @@ function LambingSection({ farmId }: { farmId: number }) {
     (vetVisitsQ.data?.records ?? []).filter(v => v.vetName && v.vetPractice).map(v => [v.vetName, v.vetPractice])
   );
 
+  const { data: attachCountsRaw = [] } = useQuery<Array<{recordType: string; recordId: number; count: number}>>({
+    queryKey: ["record-attachment-counts", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/record-attachments/counts`, { credentials: "include" }).then(r => r.json()),
+    staleTime: 30000,
+  });
+  const lambingAttachMap = Object.fromEntries(attachCountsRaw.filter(c => c.recordType === "lambing").map(c => [c.recordId, c.count]));
+
   const save = useMutation({
     mutationFn: (body: Partial<LambingRecord>) => {
       const url = editing ? `/api/farms/${farmId}/lambing-records/${editing.id}` : `/api/farms/${farmId}/lambing-records`;
@@ -5320,6 +5385,15 @@ function LambingSection({ farmId }: { farmId: number }) {
                         </span>
                       )}
                       {r.vetAttended && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{r.vetName ? `Vet: ${r.vetName}` : "Vet attended"}</span>}
+                      {r.expectedLambingDate && (() => {
+                        const days = Math.floor((new Date(r.expectedLambingDate).getTime() - Date.now()) / 86400000);
+                        return <span className={`text-xs px-2 py-0.5 rounded border ${days >= 0 && days <= 7 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-600 border-blue-200"}`}>Expected: {formatDate(r.expectedLambingDate)}</span>;
+                      })()}
+                      {(lambingAttachMap[r.id] ?? 0) > 0 && (
+                        <span className="text-xs bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded flex items-center gap-1">
+                          <Paperclip className="w-3 h-3" />{lambingAttachMap[r.id]}
+                        </span>
+                      )}
                     </div>
                     <div className="flex gap-1 ml-2">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>

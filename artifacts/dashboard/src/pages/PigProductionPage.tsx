@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
-import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye, Paperclip } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -981,6 +981,13 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
     return Math.round((weaned / alive) * 100);
   };
 
+  const { data: attachCountsRaw = [] } = useQuery<Array<{recordType: string; recordId: number; count: number}>>({
+    queryKey: ["record-attachment-counts", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/record-attachments/counts`, { credentials: "include" }).then(r => r.json()),
+    staleTime: 30000,
+  });
+  const farrowingAttachMap = Object.fromEntries(attachCountsRaw.filter(c => c.recordType === "farrowing").map(c => [c.recordId, c.count]));
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4 gap-3">
@@ -1071,6 +1078,15 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
                         </span>
                       )}
                       {r.vetAttended && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Vet: {r.vetName || "attended"}</span>}
+                      {r.expectedFarrowingDate && (() => {
+                        const days = Math.floor((new Date(r.expectedFarrowingDate).getTime() - Date.now()) / 86400000);
+                        return <span className={`text-xs px-2 py-0.5 rounded border ${days >= 0 && days <= 7 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-600 border-blue-200"}`}>Expected: {fmtDate(r.expectedFarrowingDate)}</span>;
+                      })()}
+                      {(farrowingAttachMap[r.id] ?? 0) > 0 && (
+                        <span className="text-xs bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded flex items-center gap-1">
+                          <Paperclip className="w-3 h-3" />{farrowingAttachMap[r.id]}
+                        </span>
+                      )}
                     </div>
                     <div className="flex gap-1 ml-2">
                       <button className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></button>

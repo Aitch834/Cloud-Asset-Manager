@@ -10,7 +10,7 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Eye, Droplets, Thermometer, FileDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Eye, Droplets, Thermometer, FileDown, Paperclip } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { openPrintWindow } from "@/lib/print-report";
@@ -306,6 +306,13 @@ function MastitisTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(api(`farms/${farmId}/dairy/mastitis-records`), { credentials: "include" }).then(r => r.json()),
   });
 
+  const { data: attachCountsRaw = [] } = useQuery<Array<{recordType: string; recordId: number; count: number}>>({
+    queryKey: ["record-attachment-counts", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/record-attachments/counts`), { credentials: "include" }).then(r => r.json()),
+    staleTime: 30000,
+  });
+  const mastitisAttachMap = Object.fromEntries(attachCountsRaw.filter(c => c.recordType === "mastitis").map(c => [c.recordId, c.count]));
+
   const save = useMutation({
     mutationFn: async (body: Partial<MastitisRecord>) => {
       const url = editing ? api(`farms/${farmId}/dairy/mastitis-records/${editing.id}`) : api(`farms/${farmId}/dairy/mastitis-records`);
@@ -374,6 +381,11 @@ function MastitisTab({ farmId }: { farmId: number }) {
                     {r.treatmentProduct && <span className="text-xs text-gray-500">{r.treatmentProduct}</span>}
                     <OutcomeBadge v={r.outcome} />
                     {r.withdrawalEndDate && <span className="text-xs text-amber-600">Withdrawal ends {formatDate(r.withdrawalEndDate)}</span>}
+                    {(mastitisAttachMap[r.id] ?? 0) > 0 && (
+                      <span className="text-xs bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <Paperclip className="w-3 h-3" />{mastitisAttachMap[r.id]}
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-1 ml-2">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
@@ -549,6 +561,13 @@ function CalvingTab({ farmId }: { farmId: number }) {
   });
   const cattleStraws = (strawsQ.data?.records ?? []).filter(s => s.sireSpecies?.toLowerCase() === "cattle");
 
+  const { data: attachCountsRaw = [] } = useQuery<Array<{recordType: string; recordId: number; count: number}>>({
+    queryKey: ["record-attachment-counts", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/record-attachments/counts`), { credentials: "include" }).then(r => r.json()),
+    staleTime: 30000,
+  });
+  const calvingAttachMap = Object.fromEntries(attachCountsRaw.filter(c => c.recordType === "calving").map(c => [c.recordId, c.count]));
+
   const save = useMutation({
     mutationFn: async (body: Partial<CalvingRecord>) => {
       const url = editing ? api(`farms/${farmId}/dairy/calving-records/${editing.id}`) : api(`farms/${farmId}/dairy/calving-records`);
@@ -681,6 +700,11 @@ function CalvingTab({ farmId }: { farmId: number }) {
                           return null;
                         })()
                     }
+                    {(calvingAttachMap[r.id] ?? 0) > 0 && (
+                      <span className="text-xs bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <Paperclip className="w-3 h-3" />{calvingAttachMap[r.id]}
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-1 ml-2">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
@@ -1902,6 +1926,13 @@ function DctTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(api(`farms/${farmId}/dairy/dct-records`), { credentials: "include" }).then(r => r.json()),
   });
 
+  const { data: attachCountsRaw = [] } = useQuery<Array<{recordType: string; recordId: number; count: number}>>({
+    queryKey: ["record-attachment-counts", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/record-attachments/counts`), { credentials: "include" }).then(r => r.json()),
+    staleTime: 30000,
+  });
+  const dctAttachMap = Object.fromEntries(attachCountsRaw.filter(c => c.recordType === "dct").map(c => [c.recordId, c.count]));
+
   const save = useMutation({
     mutationFn: async (body: Partial<DctRecord>) => {
       const url = editing ? api(`farms/${farmId}/dairy/dct-records/${editing.id}`) : api(`farms/${farmId}/dairy/dct-records`);
@@ -1979,6 +2010,11 @@ function DctTab({ farmId }: { farmId: number }) {
                     {r.mastitisEpisodes12Months !== null && r.mastitisEpisodes12Months !== undefined && <span className="text-xs text-gray-500">{r.mastitisEpisodes12Months} mastitis episodes (12m)</span>}
                     {r.vetAuthorisation && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />Vet authorised</span>}
                     {r.expectedCalvingDate && <span className="text-xs text-gray-400 flex items-center gap-1"><ChevronRight className="h-3 w-3" />Expected calving {formatDate(r.expectedCalvingDate)}</span>}
+                    {(dctAttachMap[r.id] ?? 0) > 0 && (
+                      <span className="text-xs bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <Paperclip className="w-3 h-3" />{dctAttachMap[r.id]}
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-1 ml-2">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
