@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { gradeLabel } from "@/lib/harvestGrades";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Warehouse, Plus, Pencil, Trash2, CheckCircle, XCircle, MapPin, QrCode,
+  Warehouse, Plus, Pencil, Trash2, Eye, CheckCircle, XCircle, MapPin, QrCode,
   Loader2, Printer, Thermometer, FlaskConical, ChevronDown, ChevronUp,
   Banknote, Receipt, Calculator, Building2, Layers, Link2, Truck, ShoppingCart, Wheat,
 } from "lucide-react";
@@ -399,6 +399,7 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
 
   const [addOpen, setAddOpen] = useState(false);
   const [editMovement, setEditMovement] = useState<StockMovement | null>(null);
+  const [viewMovement, setViewMovement] = useState<StockMovement | null>(null);
   const [movForm, setMovForm] = useState(emptyMovement());
   const [deleteMovId, setDeleteMovId] = useState<number | null>(null);
   const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
@@ -592,8 +593,9 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
                   <td className="px-3 py-2 text-right font-medium tabular-nums">{parseFloat(m.quantityTonnes).toFixed(3)}</td>
                   <td className="px-2 py-2">
                     <div className="flex items-center gap-0.5 justify-end">
-                      <button onClick={() => openEdit(m)} className="p-1 rounded hover:bg-muted/50"><Pencil className="h-3 w-3" /></button>
-                      <button onClick={() => setDeleteMovId(m.id)} className="p-1 rounded hover:bg-muted/50 text-destructive"><Trash2 className="h-3 w-3" /></button>
+                      <button onClick={() => setViewMovement(m)} className="p-1 rounded hover:bg-muted/50 text-muted-foreground" title="View"><Eye className="h-3 w-3" /></button>
+                      <button onClick={() => openEdit(m)} className="p-1 rounded hover:bg-muted/50" title="Edit"><Pencil className="h-3 w-3" /></button>
+                      <button onClick={() => setDeleteMovId(m.id)} className="p-1 rounded hover:bg-muted/50 text-destructive" title="Delete"><Trash2 className="h-3 w-3" /></button>
                     </div>
                   </td>
                 </tr>
@@ -602,6 +604,36 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
           </table>
         </div>
       )}
+
+      {/* View (read-only) Dialog */}
+      <Dialog open={viewMovement !== null} onOpenChange={(o) => { if (!o) setViewMovement(null); }}>
+        <DialogContent style={{ maxWidth: 480 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Stock Movement</DialogTitle></DialogHeader>
+          {viewMovement && (
+            <div className="space-y-3 pt-1 text-sm">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div><p className="text-xs text-muted-foreground">Date</p><p className="font-medium">{viewMovement.movementDate}</p></div>
+                <div><p className="text-xs text-muted-foreground">Type</p><p className="font-medium">{MOVEMENT_TYPES.find((t) => t.value === viewMovement.movementType)?.label ?? viewMovement.movementType}</p></div>
+                <div><p className="text-xs text-muted-foreground">Direction</p><span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${viewMovement.direction === "in" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}>{viewMovement.direction === "in" ? "IN" : "OUT"}</span></div>
+                <div><p className="text-xs text-muted-foreground">Quantity (t)</p><p className="font-medium tabular-nums">{parseFloat(viewMovement.quantityTonnes).toFixed(3)}</p></div>
+                <div><p className="text-xs text-muted-foreground">Commodity</p><p>{viewMovement.commodity || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Variety</p><p>{viewMovement.variety || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Crop Year</p><p>{viewMovement.cropYear || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Reference</p><p>{viewMovement.reference || "—"}</p></div>
+                {viewMovement.linkedRecordId && (
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground">Linked Record</p><p>{viewMovement.linkedRecordType} #{viewMovement.linkedRecordId}</p></div>
+                )}
+                {viewMovement.notes && (
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground">Notes</p><p>{viewMovement.notes}</p></div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewMovement(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add / Edit Dialog */}
       <Dialog open={addOpen} onOpenChange={(o) => { if (!o) closeDialog(); else setAddOpen(true); }}>
@@ -1148,11 +1180,13 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
 
   const [testOpen, setTestOpen] = useState(false);
   const [editTest, setEditTest] = useState<QualityTest | null>(null);
+  const [viewTest, setViewTest] = useState<QualityTest | null>(null);
   const [testForm, setTestForm] = useState(emptyQualityTest());
   const [deleteTestId, setDeleteTestId] = useState<number | null>(null);
 
   const [tempOpen, setTempOpen] = useState(false);
   const [editTemp, setEditTemp] = useState<TempLog | null>(null);
+  const [viewTemp, setViewTemp] = useState<TempLog | null>(null);
   const [tempForm, setTempForm] = useState(emptyTempLog());
   const [deleteTempId, setDeleteTempId] = useState<number | null>(null);
 
@@ -1308,8 +1342,9 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
                             <td className="px-3 py-2.5 hidden lg:table-cell text-muted-foreground">{t.overallGrade || "—"}</td>
                             <td className="px-3 py-2.5">
                               <div className="flex items-center gap-1 justify-end">
-                                <Button variant="ghost" size="icon" onClick={() => openEditTest(t)}><Pencil className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" onClick={() => setDeleteTestId(t.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => setViewTest(t)} title="View"><Eye className="h-3.5 w-3.5 text-muted-foreground" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => openEditTest(t)} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => setDeleteTestId(t.id)} title="Delete"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                               </div>
                             </td>
                           </tr>
@@ -1361,8 +1396,9 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
                             </td>
                             <td className="px-3 py-2.5">
                               <div className="flex items-center gap-1 justify-end">
-                                <Button variant="ghost" size="icon" onClick={() => openEditTemp(l)}><Pencil className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" onClick={() => setDeleteTempId(l.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => setViewTemp(l)} title="View"><Eye className="h-3.5 w-3.5 text-muted-foreground" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => openEditTemp(l)} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => setDeleteTempId(l.id)} title="Delete"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                               </div>
                             </td>
                           </tr>
@@ -1378,6 +1414,64 @@ function GrainMonitoringPanel({ farmId, locationId, locationType }: { farmId: nu
           <StockMovementsTab farmId={farmId} locationId={locationId} />
         )}
       </div>
+
+      {/* View Quality Test (read-only) */}
+      <Dialog open={viewTest !== null} onOpenChange={(o) => { if (!o) setViewTest(null); }}>
+        <DialogContent style={{ maxWidth: 500 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Quality Test</DialogTitle></DialogHeader>
+          {viewTest && (
+            <div className="space-y-3 pt-1 text-sm max-h-[70vh] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div><p className="text-xs text-muted-foreground">Test Date</p><p className="font-medium">{viewTest.testDate}</p></div>
+                <div><p className="text-xs text-muted-foreground">Crop Type</p><p className="font-medium">{viewTest.cropType}</p></div>
+                <div><p className="text-xs text-muted-foreground">Variety</p><p>{viewTest.variety || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Harvest Year</p><p>{viewTest.harvestYear ?? "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Moisture (%)</p><p>{viewTest.moisturePercent ? `${viewTest.moisturePercent}%` : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Specific Weight (kg/hl)</p><p>{viewTest.specificWeightKgHl ?? "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Protein (%)</p><p>{viewTest.proteinPercent ? `${viewTest.proteinPercent}%` : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Hagberg Falling No.</p><p>{viewTest.hagbergFallingNumber ?? "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Screenings (%)</p><p>{viewTest.screeningsPercent ? `${viewTest.screeningsPercent}%` : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Overall Grade</p><p>{viewTest.overallGrade || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Testing Lab</p><p>{viewTest.testingLab || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Certificate Ref</p><p>{viewTest.certificateReference || "—"}</p></div>
+                {viewTest.notes && (
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground">Notes</p><p>{viewTest.notes}</p></div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewTest(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Temperature Log (read-only) */}
+      <Dialog open={viewTemp !== null} onOpenChange={(o) => { if (!o) setViewTemp(null); }}>
+        <DialogContent style={{ maxWidth: 460 }} aria-describedby={undefined}>
+          <DialogHeader><DialogTitle>Temperature Log</DialogTitle></DialogHeader>
+          {viewTemp && (
+            <div className="space-y-3 pt-1 text-sm">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div><p className="text-xs text-muted-foreground">Date</p><p className="font-medium">{viewTemp.logDate}</p></div>
+                <div><p className="text-xs text-muted-foreground">Time</p><p>{viewTemp.logTime || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Temperature (°C)</p><p className="font-semibold">{viewTemp.temperatureC}°C</p></div>
+                <div><p className="text-xs text-muted-foreground">Sensor Position</p><p>{viewTemp.sensorPosition || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Moisture (%)</p><p>{viewTemp.moisturePercent ? `${viewTemp.moisturePercent}%` : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Recorded By</p><p>{viewTemp.recordedBy || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Aeration Running</p><p>{viewTemp.aerationRunning ? "Yes" : "No"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Drying Running</p><p>{viewTemp.dryingRunning ? "Yes" : "No"}</p></div>
+                {viewTemp.notes && (
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground">Notes</p><p>{viewTemp.notes}</p></div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewTemp(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Quality Test Dialog */}
       <Dialog open={testOpen} onOpenChange={(o) => { setTestOpen(o); if (!o) { setEditTest(null); setTestForm(emptyQualityTest()); } }}>
