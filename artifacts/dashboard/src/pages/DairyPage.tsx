@@ -483,8 +483,8 @@ interface CalvingRecord {
   id: number; herdId?: number | null; cowEarTag?: string | null; cowAnimalId?: number | null; calvingDate: string;
   calvingEaseScore?: number | null; numberOfCalves?: number; calfOutcome?: string | null;
   calfSex?: string | null; calfEarTag?: string | null; sireBreed?: string | null; calfBreed?: string | null;
-  calfBirthWeightKg?: string | null;
-  calfOutcome2?: string | null; calfSex2?: string | null; calfEarTag2?: string | null; calfBirthWeightKg2?: string | null;
+  calfBirthWeightKg?: string | null; calfAnimalId?: number | null;
+  calfOutcome2?: string | null; calfSex2?: string | null; calfEarTag2?: string | null; calfBirthWeightKg2?: string | null; calfAnimalId2?: number | null;
   colostrumGivenWithin2Hours?: boolean | null;
   colostrumGivenWithin6Hours?: boolean | null; colostrumVolumeFirstFeedLitres?: string | null;
   colostrumQualityBrix?: string | null; colostrumSource?: string | null;
@@ -583,6 +583,7 @@ function CalvingTab({ farmId }: { farmId: number }) {
                     {r.calfOutcome && <span className={`text-xs px-2 py-0.5 rounded ${r.calfOutcome === "live" ? "bg-green-100 text-green-700" : r.calfOutcome === "stillborn" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"}`}>{r.calfOutcome.charAt(0).toUpperCase() + r.calfOutcome.slice(1)}</span>}
                     {r.calfSex && <span className="text-xs text-gray-500">{r.calfSex === "male" ? "Bull calf" : r.calfSex === "female" ? "Heifer calf" : r.calfSex}</span>}
                     {r.calfEarTag && <span className="text-xs text-gray-500 font-mono">Calf: {r.calfEarTag}</span>}
+                    {r.calfAnimalId && <span className="text-xs bg-teal-50 text-teal-700 border border-teal-200 px-2 py-0.5 rounded">In Livestock Register ✓</span>}
                     {r.colostrumGivenWithin2Hours !== null && r.colostrumGivenWithin2Hours !== undefined && (
                       <span className={`text-xs px-2 py-0.5 rounded ${r.colostrumGivenWithin2Hours ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
                         {r.colostrumGivenWithin2Hours ? "Colostrum ≤2h ✓" : "Colostrum >2h"}
@@ -754,7 +755,16 @@ function CalvingTab({ farmId }: { farmId: number }) {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div><Label>{(form.numberOfCalves ?? 1) >= 2 ? "Calf 1 Ear Tag" : "Calf Ear Tag"}</Label><Input value={form.calfEarTag || ""} onChange={e => set("calfEarTag", e.target.value)} placeholder="BCMS tag — apply within 36 days" /></div>
+                  <div>
+                    <Label>{(form.numberOfCalves ?? 1) >= 2 ? "Calf 1 Ear Tag" : "Calf Ear Tag"}</Label>
+                    <Input value={form.calfEarTag || ""} onChange={e => set("calfEarTag", e.target.value)} placeholder="BCMS ear tag number" />
+                    {form.calfOutcome === "live" && form.calfEarTag && !form.calfAnimalId && (
+                      <p className="text-xs text-teal-600 mt-1">Live calf will be auto-registered in the Livestock module on save — no double entry needed.</p>
+                    )}
+                    {form.calfAnimalId && (
+                      <p className="text-xs text-teal-600 mt-1">Already in Livestock Register (ID #{form.calfAnimalId}). Movements &amp; destination tracked there.</p>
+                    )}
+                  </div>
                   <div><Label>{(form.numberOfCalves ?? 1) >= 2 ? "Calf 1 Birth Weight (kg)" : "Birth Weight (kg)"}</Label><Input type="number" step="0.1" value={form.calfBirthWeightKg || ""} onChange={e => set("calfBirthWeightKg", e.target.value)} /></div>
                 </div>
                 {/* Calf 2 (twins) */}
@@ -783,7 +793,13 @@ function CalvingTab({ farmId }: { farmId: number }) {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div><Label>Calf 2 Ear Tag</Label><Input value={form.calfEarTag2 || ""} onChange={e => set("calfEarTag2", e.target.value)} placeholder="BCMS tag — apply within 36 days" /></div>
+                      <div>
+                        <Label>Calf 2 Ear Tag</Label>
+                        <Input value={form.calfEarTag2 || ""} onChange={e => set("calfEarTag2", e.target.value)} placeholder="BCMS ear tag number" />
+                        {form.calfOutcome2 === "live" && form.calfEarTag2 && !form.calfAnimalId2 && (
+                          <p className="text-xs text-teal-600 mt-1">Live calf will be auto-registered in the Livestock module on save.</p>
+                        )}
+                      </div>
                       <div><Label>Calf 2 Birth Weight (kg)</Label><Input type="number" step="0.1" value={form.calfBirthWeightKg2 || ""} onChange={e => set("calfBirthWeightKg2", e.target.value)} /></div>
                     </div>
                   </>
@@ -885,7 +901,7 @@ function CalvingTab({ farmId }: { farmId: number }) {
                       <SelectItem value="died">Died post-birth</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-gray-400 mt-1">Disposition may not be decided at birth — edit this record once the decision is made.</p>
+                  <p className="text-xs text-gray-400 mt-1">Only needed for calves leaving the holding (sold/market) or that die post-birth. Calves retained on farm have their movements tracked automatically through the Livestock module — no need to record disposition here.</p>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">

@@ -10795,7 +10795,36 @@ router.post("/farms/:farmId/dairy/calving-records", requireAuth, requireTenant, 
   if (!farmId) return;
   const { herdId, cowAnimalId, cowEarTag, calvingDate, calvingEaseScore, numberOfCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, calfOutcome2, calfSex2, calfEarTag2, calfBirthWeightKg2, colostrumGivenWithin2Hours, colostrumGivenWithin6Hours, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired, assistanceType, vetAttended, vetName, conceptionMethod, sireRegisterId, strawInventoryId, calfDisposition, bcmsPassportApplied, notes } = req.body;
   const numCalves = numberOfCalves || 1;
-  const [record] = await db.insert(dairyCalvingRecordsTable).values({ farmId, herdId: herdId || null, cowAnimalId: cowAnimalId || null, cowEarTag, calvingDate: new Date(calvingDate), calvingEaseScore, numberOfCalves: numCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, calfOutcome2: numCalves >= 2 ? calfOutcome2 : null, calfSex2: numCalves >= 2 ? calfSex2 : null, calfEarTag2: numCalves >= 2 ? calfEarTag2 : null, calfBirthWeightKg2: numCalves >= 2 ? calfBirthWeightKg2 : null, colostrumGivenWithin2Hours: !!colostrumGivenWithin2Hours, colostrumGivenWithin6Hours: !!colostrumGivenWithin6Hours, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired: !!assistanceRequired, assistanceType: assistanceRequired ? assistanceType : null, vetAttended: !!vetAttended, vetName, conceptionMethod: conceptionMethod || null, sireRegisterId: sireRegisterId || null, strawInventoryId: strawInventoryId || null, calfDisposition, bcmsPassportApplied: !!bcmsPassportApplied, notes }).returning();
+
+  // Auto-register live calves in the livestock animals table (avoids double-entry)
+  async function registerCalf(earTag: string | undefined, sex: string | undefined, outcome: string | undefined, birthWeightKg: string | undefined): Promise<number | null> {
+    if (!earTag?.trim() || outcome !== "live") return null;
+    const tag = earTag.trim();
+    const existing = await db.select({ id: livestockAnimalsTable.id }).from(livestockAnimalsTable)
+      .where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.earTagNumber, tag))).limit(1);
+    if (existing.length > 0) return existing[0].id;
+    const breed = calfBreed?.trim() || sireBreed?.trim() || null;
+    const [newAnimal] = await db.insert(livestockAnimalsTable).values({
+      farmId,
+      herdId: herdId || null,
+      earTagNumber: tag,
+      tagNumber: tag,
+      species: "bovine",
+      sex: sex || null,
+      breed: breed,
+      dateOfBirth: new Date(calvingDate),
+      damId: cowAnimalId || null,
+      acquisitionDate: new Date(calvingDate),
+      acquisitionSource: "Home bred",
+      status: "active",
+    }).returning({ id: livestockAnimalsTable.id });
+    return newAnimal?.id ?? null;
+  }
+
+  const calfAnimalId = await registerCalf(calfEarTag, calfSex, calfOutcome, calfBirthWeightKg);
+  const calfAnimalId2 = numCalves >= 2 ? await registerCalf(calfEarTag2, calfSex2, calfOutcome2, calfBirthWeightKg2) : null;
+
+  const [record] = await db.insert(dairyCalvingRecordsTable).values({ farmId, herdId: herdId || null, cowAnimalId: cowAnimalId || null, cowEarTag, calvingDate: new Date(calvingDate), calvingEaseScore, numberOfCalves: numCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, calfAnimalId: calfAnimalId || null, calfOutcome2: numCalves >= 2 ? calfOutcome2 : null, calfSex2: numCalves >= 2 ? calfSex2 : null, calfEarTag2: numCalves >= 2 ? calfEarTag2 : null, calfBirthWeightKg2: numCalves >= 2 ? calfBirthWeightKg2 : null, calfAnimalId2: calfAnimalId2 || null, colostrumGivenWithin2Hours: !!colostrumGivenWithin2Hours, colostrumGivenWithin6Hours: !!colostrumGivenWithin6Hours, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired: !!assistanceRequired, assistanceType: assistanceRequired ? assistanceType : null, vetAttended: !!vetAttended, vetName, conceptionMethod: conceptionMethod || null, sireRegisterId: sireRegisterId || null, strawInventoryId: strawInventoryId || null, calfDisposition, bcmsPassportApplied: !!bcmsPassportApplied, notes }).returning();
   if (vetAttended && vetName?.trim()) {
     const visitDateStr = calvingDate ? String(calvingDate).substring(0, 10) : new Date().toISOString().substring(0, 10);
     await db.insert(vetVisitsTable).values({
@@ -10806,7 +10835,7 @@ router.post("/farms/:farmId/dairy/calving-records", requireAuth, requireTenant, 
       animalIds: cowAnimalId ? JSON.stringify([cowAnimalId]) : null,
     });
   }
-  res.json({ record });
+  res.json({ record, calfRegistered: !!calfAnimalId, calfRegistered2: !!calfAnimalId2 });
 });
 
 router.put("/farms/:farmId/dairy/calving-records/:recordId", requireAuth, requireTenant, requireModuleByKey("dairy-management", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -10815,7 +10844,33 @@ router.put("/farms/:farmId/dairy/calving-records/:recordId", requireAuth, requir
   const recordId = parseInt(req.params.recordId);
   const { herdId, cowAnimalId, cowEarTag, calvingDate, calvingEaseScore, numberOfCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, calfOutcome2, calfSex2, calfEarTag2, calfBirthWeightKg2, colostrumGivenWithin2Hours, colostrumGivenWithin6Hours, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired, assistanceType, vetAttended, vetName, conceptionMethod, sireRegisterId, strawInventoryId, calfDisposition, bcmsPassportApplied, notes } = req.body;
   const numCalves = numberOfCalves ?? 1;
-  const [record] = await db.update(dairyCalvingRecordsTable).set({ herdId: herdId || null, cowAnimalId: cowAnimalId || null, cowEarTag, calvingDate: calvingDate ? new Date(calvingDate) : undefined, calvingEaseScore, numberOfCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, calfOutcome2: numCalves >= 2 ? calfOutcome2 : null, calfSex2: numCalves >= 2 ? calfSex2 : null, calfEarTag2: numCalves >= 2 ? calfEarTag2 : null, calfBirthWeightKg2: numCalves >= 2 ? calfBirthWeightKg2 : null, colostrumGivenWithin2Hours: colostrumGivenWithin2Hours !== undefined ? !!colostrumGivenWithin2Hours : undefined, colostrumGivenWithin6Hours: colostrumGivenWithin6Hours !== undefined ? !!colostrumGivenWithin6Hours : undefined, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired: assistanceRequired !== undefined ? !!assistanceRequired : undefined, assistanceType: assistanceRequired ? assistanceType : null, vetAttended: vetAttended !== undefined ? !!vetAttended : undefined, vetName, conceptionMethod: conceptionMethod || null, sireRegisterId: sireRegisterId || null, strawInventoryId: strawInventoryId || null, calfDisposition, bcmsPassportApplied: bcmsPassportApplied !== undefined ? !!bcmsPassportApplied : undefined, notes }).where(and(eq(dairyCalvingRecordsTable.id, recordId), eq(dairyCalvingRecordsTable.farmId, farmId))).returning();
+
+  // Fetch existing record to check if calves are already linked
+  const [existing] = await db.select({ calfAnimalId: dairyCalvingRecordsTable.calfAnimalId, calfAnimalId2: dairyCalvingRecordsTable.calfAnimalId2 })
+    .from(dairyCalvingRecordsTable).where(and(eq(dairyCalvingRecordsTable.id, recordId), eq(dairyCalvingRecordsTable.farmId, farmId))).limit(1);
+
+  // Auto-register if not already linked (back-fills on edit for records created before this feature)
+  async function registerCalfIfNeeded(earTag: string | undefined, sex: string | undefined, outcome: string | undefined, existingAnimalId: number | null | undefined): Promise<number | null | undefined> {
+    if (existingAnimalId) return existingAnimalId; // already linked — preserve
+    if (!earTag?.trim() || outcome !== "live") return null;
+    const tag = earTag.trim();
+    const found = await db.select({ id: livestockAnimalsTable.id }).from(livestockAnimalsTable)
+      .where(and(eq(livestockAnimalsTable.farmId, farmId), eq(livestockAnimalsTable.earTagNumber, tag))).limit(1);
+    if (found.length > 0) return found[0].id;
+    const effectiveDob = calvingDate ? new Date(calvingDate) : new Date();
+    const breed = calfBreed?.trim() || sireBreed?.trim() || null;
+    const [newAnimal] = await db.insert(livestockAnimalsTable).values({
+      farmId, herdId: herdId || null, earTagNumber: tag, tagNumber: tag, species: "bovine",
+      sex: sex || null, breed, dateOfBirth: effectiveDob, damId: cowAnimalId || null,
+      acquisitionDate: effectiveDob, acquisitionSource: "Home bred", status: "active",
+    }).returning({ id: livestockAnimalsTable.id });
+    return newAnimal?.id ?? null;
+  }
+
+  const resolvedAnimalId = await registerCalfIfNeeded(calfEarTag, calfSex, calfOutcome, existing?.calfAnimalId);
+  const resolvedAnimalId2 = numCalves >= 2 ? await registerCalfIfNeeded(calfEarTag2, calfSex2, calfOutcome2, existing?.calfAnimalId2) : null;
+
+  const [record] = await db.update(dairyCalvingRecordsTable).set({ herdId: herdId || null, cowAnimalId: cowAnimalId || null, cowEarTag, calvingDate: calvingDate ? new Date(calvingDate) : undefined, calvingEaseScore, numberOfCalves, calfOutcome, calfSex, calfEarTag, sireBreed, calfBreed, calfBirthWeightKg, calfAnimalId: resolvedAnimalId ?? null, calfOutcome2: numCalves >= 2 ? calfOutcome2 : null, calfSex2: numCalves >= 2 ? calfSex2 : null, calfEarTag2: numCalves >= 2 ? calfEarTag2 : null, calfBirthWeightKg2: numCalves >= 2 ? calfBirthWeightKg2 : null, calfAnimalId2: resolvedAnimalId2 ?? null, colostrumGivenWithin2Hours: colostrumGivenWithin2Hours !== undefined ? !!colostrumGivenWithin2Hours : undefined, colostrumGivenWithin6Hours: colostrumGivenWithin6Hours !== undefined ? !!colostrumGivenWithin6Hours : undefined, colostrumVolumeFirstFeedLitres, colostrumQualityBrix, colostrumSource, cowComplications, assistanceRequired: assistanceRequired !== undefined ? !!assistanceRequired : undefined, assistanceType: assistanceRequired ? assistanceType : null, vetAttended: vetAttended !== undefined ? !!vetAttended : undefined, vetName, conceptionMethod: conceptionMethod || null, sireRegisterId: sireRegisterId || null, strawInventoryId: strawInventoryId || null, calfDisposition, bcmsPassportApplied: bcmsPassportApplied !== undefined ? !!bcmsPassportApplied : undefined, notes }).where(and(eq(dairyCalvingRecordsTable.id, recordId), eq(dairyCalvingRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
