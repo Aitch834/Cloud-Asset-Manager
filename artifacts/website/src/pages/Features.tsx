@@ -122,6 +122,7 @@ const sections: Section[] = [
           "Withholding period alerts",
           "GRN-linked batch traceability — select a specific goods received delivery when logging an application to automatically populate batch and lot numbers, creating a full chain of custody from supplier batch to treated field",
           "Raise Task from spray application — assign any logged application to a named operator directly from the Applications Log; pre-fills the product and field so the task record is immediately traceable back to the spray event",
+          "Photo and document evidence capture — upload delivery note scans and sprayer calibration certificates from the dashboard to individual spray records; attach camera photos in the field using the mobile app for in-crop evidence such as target weed or pest confirmation; attachments are stored in cloud storage and linked permanently to the record for Red Tractor audit trail purposes",
         ],
       },
       {
@@ -184,6 +185,7 @@ const sections: Section[] = [
           "Service schedule — maintenance intervals, next-due-date tracking with Overdue / Due Soon / OK indicators",
           "Defect Report Register — a dedicated fault log for every piece of equipment; each report captures severity (Low / Medium / High / Critical), a description, reporting date and person, and follows an Open → In Progress → Resolved status workflow; critical and high-severity defects trigger a warning banner flagging the equipment as potentially unsafe to operate until resolved",
           "Raise Task from defect — on any open or in-progress defect report, a single click opens the task assignment panel pre-filled with the defect reference and equipment name; assign to a staff member, set a due date, and add repair instructions; the task appears on the Task Board with a direct link back to the defect for close-out tracking",
+          "Photo and document evidence capture — attach camera photos from the mobile app or upload documents (PDF, image) from the dashboard to defect reports and maintenance log entries; attachments are stored in cloud storage and linked permanently to the record for Red Tractor audit trail purposes",
           "QR code labels — generate and print unique EQ- codes for every piece of equipment",
           "Universal mobile QR scanner — scan any BDE Farm Trac label (fields, animals, equipment, storage) to instantly pull up the record",
           "Scan-to-action — quick-log defects, crop events, medicine treatments, or stock movements straight from the scan result",
@@ -239,6 +241,7 @@ const sections: Section[] = [
           "Vet Ledger — Invoices: record each invoice from your vet practice with invoice number, invoice date, line items typed by category (call-out, consultation, medicine, lab test, TB testing, scanning, procedure, or other), net amount per line, and a link to the specific visit each charge relates to",
           "Vet Ledger — Reconciliation: each invoice automatically calculates a reconciliation status (Unreconciled / Partially Reconciled / Reconciled) from how many of its line items have been matched to a logged visit; payment status (Unpaid / Paid / Part-Paid / Write-Off) is tracked independently so you can see both what has been reconciled and what has been paid",
           "Vet Ledger — Summary cards: live counts for visits this year, follow-ups due, outstanding invoice balance (£), and invoices awaiting reconciliation",
+          "Photo and document evidence capture — attach camera photos from the mobile app or upload documents (PDF, image) from the dashboard to vet visit records, medicine records, mortality reports, lambing and calving logs, and veterinary prescriptions; attachments are stored in cloud storage and linked permanently to the record, providing photographic evidence for Red Tractor welfare and medicines audit requirements",
         ],
       },
     ],
