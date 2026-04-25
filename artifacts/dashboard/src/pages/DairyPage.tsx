@@ -480,14 +480,16 @@ function MastitisTab({ farmId }: { farmId: number }) {
 // ─── Calving Records ───────────────────────────────────────────────────────────
 
 interface CalvingRecord {
-  id: number; herdId?: number | null; cowEarTag?: string | null; calvingDate: string;
+  id: number; herdId?: number | null; cowEarTag?: string | null; cowAnimalId?: number | null; calvingDate: string;
   calvingEaseScore?: number | null; numberOfCalves?: number; calfOutcome?: string | null;
   calfSex?: string | null; calfEarTag?: string | null; sireBreed?: string | null; calfBreed?: string | null;
   calfBirthWeightKg?: string | null; colostrumGivenWithin2Hours?: boolean | null;
   colostrumGivenWithin6Hours?: boolean | null; colostrumVolumeFirstFeedLitres?: string | null;
   colostrumQualityBrix?: string | null; colostrumSource?: string | null;
-  cowComplications?: string | null; assistanceRequired?: boolean; vetAttended?: boolean;
-  vetName?: string | null; calfDisposition?: string | null; bcmsPassportApplied?: boolean; notes?: string | null;
+  cowComplications?: string | null; assistanceRequired?: boolean; assistanceType?: string | null;
+  vetAttended?: boolean; vetName?: string | null;
+  conceptionMethod?: string | null; sireRegisterId?: number | null; strawInventoryId?: number | null;
+  calfDisposition?: string | null; bcmsPassportApplied?: boolean; notes?: string | null;
 }
 
 function CalvingTab({ farmId }: { farmId: number }) {
@@ -496,18 +498,50 @@ function CalvingTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<CalvingRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<CalvingRecord | null>(null);
   const [form, setForm] = useState<Partial<CalvingRecord>>({});
+  const [showManualEarTag, setShowManualEarTag] = useState(false);
+  const [showManualVet, setShowManualVet] = useState(false);
 
   const { data, isLoading } = useQuery<{ records: CalvingRecord[] }>({
     queryKey: ["dairy-calving", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/dairy/calving-records`), { credentials: "include" }).then(r => r.json()),
   });
 
+  const animalsQ = useQuery<{ records: Array<{ id: number; earTagNumber?: string | null; species: string; sex?: string | null; status: string }> }>({
+    queryKey: ["calving-animals", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/animals`), { credentials: "include" }).then(r => r.json()),
+    enabled: open,
+  });
+  const cows = (animalsQ.data?.records ?? []).filter(a =>
+    a.species?.toLowerCase() === "cattle" && a.status === "active" && a.earTagNumber
+  );
+
+  const vetVisitsQ = useQuery<{ records: Array<{ id: number; vetName: string }> }>({
+    queryKey: ["calving-vet-visits", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/vet-visits`), { credentials: "include" }).then(r => r.json()),
+    enabled: open && !!form.vetAttended,
+  });
+  const uniqueVetNames = [...new Set((vetVisitsQ.data?.records ?? []).map(v => v.vetName).filter(Boolean))] as string[];
+
+  const siresQ = useQuery<{ records: Array<{ id: number; name: string; breed?: string | null; tagNumber?: string | null; species: string; isActive?: boolean | null }> }>({
+    queryKey: ["calving-sires", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/sires`), { credentials: "include" }).then(r => r.json()),
+    enabled: open && form.conceptionMethod === "natural",
+  });
+  const activeSires = (siresQ.data?.records ?? []).filter(s => s.isActive !== false && s.species?.toLowerCase() === "cattle");
+
+  const strawsQ = useQuery<{ records: Array<{ id: number; sireName: string; sireBreed?: string | null; batchNumber: string; sireSpecies: string }> }>({
+    queryKey: ["calving-straws", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/straws`), { credentials: "include" }).then(r => r.json()),
+    enabled: open && form.conceptionMethod === "ai",
+  });
+  const cattleStraws = (strawsQ.data?.records ?? []).filter(s => s.sireSpecies?.toLowerCase() === "cattle");
+
   const save = useMutation({
     mutationFn: async (body: Partial<CalvingRecord>) => {
       const url = editing ? api(`farms/${farmId}/dairy/calving-records/${editing.id}`) : api(`farms/${farmId}/dairy/calving-records`);
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-calving", farmId] }); setOpen(false); setEditing(null); setForm({}); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-calving", farmId] }); setOpen(false); setEditing(null); setForm({}); setShowManualEarTag(false); setShowManualVet(false); },
   });
 
   const del = useMutation({
@@ -515,8 +549,14 @@ function CalvingTab({ farmId }: { farmId: number }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dairy-calving", farmId] }),
   });
 
-  function openAdd() { setEditing(null); setForm({ calvingDate: today(), numberOfCalves: 1 }); setOpen(true); }
-  function openEdit(r: CalvingRecord) { setEditing(r); setForm({ ...r, calvingDate: r.calvingDate.slice(0, 10) }); setOpen(true); }
+  function openAdd() { setEditing(null); setForm({ calvingDate: today(), numberOfCalves: 1 }); setShowManualEarTag(false); setShowManualVet(false); setOpen(true); }
+  function openEdit(r: CalvingRecord) {
+    setEditing(r);
+    setForm({ ...r, calvingDate: r.calvingDate.slice(0, 10) });
+    setShowManualEarTag(!r.cowAnimalId && !!r.cowEarTag);
+    setShowManualVet(!!r.vetAttended && !!r.vetName);
+    setOpen(true);
+  }
   function set(k: keyof CalvingRecord, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
 
   return (
@@ -569,7 +609,37 @@ function CalvingTab({ farmId }: { farmId: number }) {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cow Details</p>
                 <div className="grid grid-cols-2 gap-2">
                   <div><Label>Calving Date *</Label><Input type="date" value={form.calvingDate?.slice(0, 10) || ""} onChange={e => set("calvingDate", e.target.value)} /></div>
-                  <div><Label>Dam Ear Tag</Label><Input value={form.cowEarTag || ""} onChange={e => set("cowEarTag", e.target.value)} placeholder="Cow's BCMS ear tag" /></div>
+                  <div>
+                    <Label>Dam Ear Tag</Label>
+                    {cows.length > 0 && !showManualEarTag ? (
+                      <Select
+                        value={form.cowAnimalId ? String(form.cowAnimalId) : "__none__"}
+                        onValueChange={v => {
+                          if (v === "__manual__") { setShowManualEarTag(true); set("cowAnimalId", null); return; }
+                          const animal = cows.find(a => a.id === parseInt(v));
+                          set("cowAnimalId", v === "__none__" ? null : parseInt(v));
+                          set("cowEarTag", animal?.earTagNumber ?? null);
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select cow..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Not specified</SelectItem>
+                          {cows.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.earTagNumber!}</SelectItem>)}
+                          <SelectItem value="__manual__">Enter tag manually…</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex gap-1">
+                        <Input value={form.cowEarTag || ""} onChange={e => set("cowEarTag", e.target.value)} placeholder="Cow's BCMS ear tag" />
+                        {cows.length > 0 && (
+                          <Button type="button" variant="ghost" size="sm" className="shrink-0 text-xs" onClick={() => { setShowManualEarTag(false); set("cowAnimalId", null); set("cowEarTag", null); }}>↩</Button>
+                        )}
+                      </div>
+                    )}
+                    {cows.length === 0 && animalsQ.isSuccess && (
+                      <p className="text-xs text-amber-600 mt-1">No cattle registered. Add animals in the Livestock page, or type the ear tag above.</p>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <Label>Calving Ease Score *</Label>
@@ -584,17 +654,64 @@ function CalvingTab({ farmId }: { farmId: number }) {
                   </Select>
                 </div>
                 <div><Label>Cow Complications</Label><Input value={form.cowComplications || ""} onChange={e => set("cowComplications", e.target.value)} placeholder="e.g. retained placenta, hypocalcaemia" /></div>
-                <div className="flex gap-4">
+                <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <input type="checkbox" id="ar" checked={!!form.assistanceRequired} onChange={e => set("assistanceRequired", e.target.checked)} className="rounded" />
+                    <input type="checkbox" id="ar" checked={!!form.assistanceRequired} onChange={e => { set("assistanceRequired", e.target.checked); if (!e.target.checked) set("assistanceType", null); }} className="rounded" />
                     <Label htmlFor="ar">Assistance required</Label>
                   </div>
+                  {form.assistanceRequired && (
+                    <div className="pl-6">
+                      <Label>Type of Assistance</Label>
+                      <Select value={form.assistanceType || "__none__"} onValueChange={v => set("assistanceType", v === "__none__" ? null : v)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Not specified</SelectItem>
+                          <SelectItem value="manual-1-person">Manual — 1 person</SelectItem>
+                          <SelectItem value="manual-2-person">Manual — 2 persons</SelectItem>
+                          <SelectItem value="calving-aid">Calving aid / jack</SelectItem>
+                          <SelectItem value="vet-assisted">Vet-assisted delivery</SelectItem>
+                          <SelectItem value="caesarean">Caesarean section</SelectItem>
+                          <SelectItem value="embryotomy">Embryotomy</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
-                    <input type="checkbox" id="va" checked={!!form.vetAttended} onChange={e => set("vetAttended", e.target.checked)} className="rounded" />
+                    <input type="checkbox" id="va" checked={!!form.vetAttended} onChange={e => { set("vetAttended", e.target.checked); if (!e.target.checked) { set("vetName", null); setShowManualVet(false); } }} className="rounded" />
                     <Label htmlFor="va">Vet attended</Label>
                   </div>
+                  {form.vetAttended && (
+                    <div className="pl-6">
+                      <Label>Vet Name</Label>
+                      {uniqueVetNames.length > 0 && !showManualVet ? (
+                        <Select
+                          value={form.vetName && uniqueVetNames.includes(form.vetName) ? form.vetName : "__none__"}
+                          onValueChange={v => {
+                            if (v === "__manual__") { setShowManualVet(true); set("vetName", ""); return; }
+                            set("vetName", v === "__none__" ? null : v);
+                          }}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Select vet..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Not specified</SelectItem>
+                            {uniqueVetNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                            <SelectItem value="__manual__">Enter new vet name…</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="flex gap-1">
+                          <Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} placeholder="Vet's name" />
+                          {uniqueVetNames.length > 0 && (
+                            <Button type="button" variant="ghost" size="sm" className="shrink-0 text-xs" onClick={() => { setShowManualVet(false); set("vetName", null); }}>↩</Button>
+                          )}
+                        </div>
+                      )}
+                      {vetVisitsQ.isSuccess && uniqueVetNames.length === 0 && !showManualVet && (
+                        <p className="text-xs text-gray-400 mt-1">No previous vets on record — type the name above.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {form.vetAttended && <div><Label>Vet Name</Label><Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} /></div>}
               </div>
 
               <div className="rounded-md border p-3 space-y-2">
@@ -623,8 +740,90 @@ function CalvingTab({ farmId }: { farmId: number }) {
                     </Select>
                   </div>
                   <div><Label>Calf Ear Tag</Label><Input value={form.calfEarTag || ""} onChange={e => set("calfEarTag", e.target.value)} placeholder="BCMS tag applied at birth" /></div>
-                  <div><Label>Sire Breed</Label><Input value={form.sireBreed || ""} onChange={e => set("sireBreed", e.target.value)} /></div>
                   <div><Label>Birth Weight (kg)</Label><Input type="number" step="0.1" value={form.calfBirthWeightKg || ""} onChange={e => set("calfBirthWeightKg", e.target.value)} /></div>
+                  <div className="col-span-2">
+                    <Label>Conception Method</Label>
+                    <Select
+                      value={form.conceptionMethod || "__none__"}
+                      onValueChange={v => {
+                        const method = v === "__none__" ? null : v;
+                        set("conceptionMethod", method);
+                        set("sireRegisterId", null);
+                        set("strawInventoryId", null);
+                        set("sireBreed", "");
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not recorded</SelectItem>
+                        <SelectItem value="natural">Natural Service (bull)</SelectItem>
+                        <SelectItem value="ai">AI — Artificial Insemination</SelectItem>
+                        <SelectItem value="unknown">Unknown</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {form.conceptionMethod === "natural" && (
+                    <div className="col-span-2">
+                      <Label>Sire (from Sire Register)</Label>
+                      <Select
+                        value={form.sireRegisterId ? String(form.sireRegisterId) : "__none__"}
+                        onValueChange={v => {
+                          if (v === "__none__") { set("sireRegisterId", null); set("sireBreed", ""); return; }
+                          const sire = activeSires.find(s => s.id === parseInt(v));
+                          set("sireRegisterId", parseInt(v));
+                          set("sireBreed", sire?.breed ?? "");
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select sire..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Not specified</SelectItem>
+                          {activeSires.map(s => (
+                            <SelectItem key={s.id} value={String(s.id)}>
+                              {s.name}{s.breed ? ` (${s.breed})` : ""}{s.tagNumber ? ` — ${s.tagNumber}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {siresQ.isSuccess && activeSires.length === 0 && (
+                        <p className="text-xs text-amber-600 mt-1">No bulls in Sire Register. Add them via the Livestock → Breeding section.</p>
+                      )}
+                      {form.sireBreed && <p className="text-xs text-gray-500 mt-1">Breed auto-filled: {form.sireBreed}</p>}
+                    </div>
+                  )}
+                  {form.conceptionMethod === "ai" && (
+                    <div className="col-span-2">
+                      <Label>AI Straw (from Inventory)</Label>
+                      <Select
+                        value={form.strawInventoryId ? String(form.strawInventoryId) : "__none__"}
+                        onValueChange={v => {
+                          if (v === "__none__") { set("strawInventoryId", null); set("sireBreed", ""); return; }
+                          const straw = cattleStraws.find(s => s.id === parseInt(v));
+                          set("strawInventoryId", parseInt(v));
+                          set("sireBreed", straw?.sireBreed ?? "");
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select straw batch..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Not specified</SelectItem>
+                          {cattleStraws.map(s => (
+                            <SelectItem key={s.id} value={String(s.id)}>
+                              {s.sireName}{s.sireBreed ? ` (${s.sireBreed})` : ""} — Batch {s.batchNumber}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {strawsQ.isSuccess && cattleStraws.length === 0 && (
+                        <p className="text-xs text-amber-600 mt-1">No AI straws in inventory. Add them via the Livestock → Breeding section.</p>
+                      )}
+                      {form.sireBreed && <p className="text-xs text-gray-500 mt-1">Sire breed auto-filled: {form.sireBreed}</p>}
+                    </div>
+                  )}
+                  {(!form.conceptionMethod || form.conceptionMethod === "unknown") && (
+                    <div className="col-span-2">
+                      <Label>Sire Breed</Label>
+                      <Input value={form.sireBreed || ""} onChange={e => set("sireBreed", e.target.value)} placeholder="e.g. Aberdeen Angus" />
+                    </div>
+                  )}
                 </div>
                 <div>
                   <Label>Calf Disposition</Label>
