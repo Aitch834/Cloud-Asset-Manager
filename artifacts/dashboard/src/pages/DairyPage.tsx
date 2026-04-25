@@ -203,7 +203,10 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "56rem" }}>
-          <DialogHeader><DialogTitle>{editing ? "Edit Milk Record" : "Add Milk Record"}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Milk Record" : "Add Milk Record"}</DialogTitle>
+            <p className="text-xs text-muted-foreground pt-1">Record milk quality and yield data — SCC, TBC, composition, and ABR test results. For tanker collection logistics (volume, driver, buyer), use the <span className="font-medium">Bulk Tank</span> tab.</p>
+          </DialogHeader>
           <div className="flex gap-6 py-2">
             {/* ── Left column ── */}
             <div className="flex-1 flex flex-col gap-3">
@@ -213,7 +216,7 @@ function MilkRecordsTab({ farmId }: { farmId: number }) {
                 <Select value={form.recordType || "bulk-tank"} onValueChange={v => set("recordType", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="bulk-tank">Bulk Tank Collection</SelectItem>
+                    <SelectItem value="bulk-tank">Bulk Tank (Quality Sample)</SelectItem>
                     <SelectItem value="individual-cow">Individual Cow</SelectItem>
                     <SelectItem value="herd-total">Herd Total</SelectItem>
                   </SelectContent>
@@ -1208,8 +1211,19 @@ function BulkTankTab({ farmId }: { farmId: number }) {
             <h3 className="font-semibold text-sm text-gray-800">Tank Monitoring Records</h3>
             <p className="text-xs text-gray-500 mt-0.5">Daily temperature checks, cleaning, antibiotic residue tests, and maintenance logs.</p>
           </div>
-          <Button size="sm" onClick={openAddMon}><Plus className="h-4 w-4 mr-1" />Add Record</Button>
+          <Button size="sm" onClick={openAddMon} disabled={tanksQ.isLoading || tanks.length === 0}>
+            <Plus className="h-4 w-4 mr-1" />Add Record
+          </Button>
         </div>
+        {!tanksQ.isLoading && tanks.length === 0 && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md px-3 py-2.5 mb-3">
+            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800">
+              <span className="font-semibold">No tanks registered.</span> You must register at least one bulk tank before adding monitoring records.
+              Use the <span className="font-semibold">Registered Bulk Tanks</span> section above to add your first tank.
+            </p>
+          </div>
+        )}
         {monQ.isLoading
           ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
           : !monQ.data?.records?.length
@@ -1249,8 +1263,19 @@ function BulkTankTab({ farmId }: { farmId: number }) {
             <h3 className="font-semibold text-sm text-gray-800">Milk Collections</h3>
             <p className="text-xs text-gray-500 mt-0.5">Log each collection event — tanker arrival, volume drawn, driver, and collection reference from the milk buyer.</p>
           </div>
-          <Button size="sm" onClick={openAddColl}><Plus className="h-4 w-4 mr-1" /><Droplets className="h-3.5 w-3.5 mr-1" />Log Collection</Button>
+          <Button size="sm" onClick={openAddColl} disabled={tanksQ.isLoading || tanks.length === 0}>
+            <Plus className="h-4 w-4 mr-1" /><Droplets className="h-3.5 w-3.5 mr-1" />Log Collection
+          </Button>
         </div>
+        {!tanksQ.isLoading && tanks.length === 0 && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md px-3 py-2.5 mb-3">
+            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800">
+              <span className="font-semibold">No tanks registered.</span> You must register at least one bulk tank before logging a collection.
+              Use the <span className="font-semibold">Registered Bulk Tanks</span> section above to add your first tank.
+            </p>
+          </div>
+        )}
         {collQ.isLoading
           ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
           : !collQ.data?.collections?.length
