@@ -1,6 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { sendSms } from "../lib/sms";
+import { sanitiseBody } from "../lib/sanitise";
+import { encryptCredential, decryptCredential } from "../lib/encrypt";
 import {
   biofuelCertificationsTable,
   biofuelFieldDeclarationsTable,
@@ -623,7 +625,7 @@ router.put("/farms/:farmId/fields/:recordId", requireAuth, requireTenant, requir
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(fieldsTable).set(req.body).where(and(eq(fieldsTable.id, recordId), eq(fieldsTable.farmId, farmId))).returning();
+  const [record] = await db.update(fieldsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(fieldsTable.id, recordId), eq(fieldsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -760,7 +762,7 @@ router.put("/farms/:farmId/crops/:recordId", requireAuth, requireTenant, require
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(cropsTable).set(req.body).where(and(eq(cropsTable.id, recordId), eq(cropsTable.farmId, farmId))).returning();
+  const [record] = await db.update(cropsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(cropsTable.id, recordId), eq(cropsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -1201,7 +1203,7 @@ router.put("/farms/:farmId/spray-products/:recordId", requireAuth, requireTenant
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(sprayProductsTable).set(req.body).where(and(eq(sprayProductsTable.id, recordId), eq(sprayProductsTable.farmId, farmId))).returning();
+  const [record] = await db.update(sprayProductsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sprayProductsTable.id, recordId), eq(sprayProductsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -1300,7 +1302,7 @@ router.put("/farms/:farmId/spray-applications/:recordId", requireAuth, requireTe
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(sprayApplicationsTable).set(req.body).where(and(eq(sprayApplicationsTable.id, recordId), eq(sprayApplicationsTable.farmId, farmId))).returning();
+  const [record] = await db.update(sprayApplicationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sprayApplicationsTable.id, recordId), eq(sprayApplicationsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -1344,7 +1346,7 @@ router.put("/farms/:farmId/nmp-plans/:recordId", requireAuth, requireTenant, req
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(nutrientManagementPlansTable).set(req.body).where(and(eq(nutrientManagementPlansTable.id, recordId), eq(nutrientManagementPlansTable.farmId, farmId))).returning();
+  const [record] = await db.update(nutrientManagementPlansTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(nutrientManagementPlansTable.id, recordId), eq(nutrientManagementPlansTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -1867,7 +1869,7 @@ router.put("/farms/:farmId/equipment/:recordId", requireAuth, requireTenant, req
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(equipmentTable).set(req.body).where(and(eq(equipmentTable.id, recordId), eq(equipmentTable.farmId, farmId))).returning();
+  const [record] = await db.update(equipmentTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(equipmentTable.id, recordId), eq(equipmentTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -2024,7 +2026,7 @@ router.put("/farms/:farmId/herds/:recordId", requireAuth, requireTenant, require
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(herdFlockRegisterTable).set(req.body).where(and(eq(herdFlockRegisterTable.id, recordId), eq(herdFlockRegisterTable.farmId, farmId))).returning();
+  const [record] = await db.update(herdFlockRegisterTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(herdFlockRegisterTable.id, recordId), eq(herdFlockRegisterTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -2083,7 +2085,7 @@ router.put("/farms/:farmId/animals/:recordId", requireAuth, requireTenant, requi
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(livestockAnimalsTable).set(req.body).where(and(eq(livestockAnimalsTable.id, recordId), eq(livestockAnimalsTable.farmId, farmId))).returning();
+  const [record] = await db.update(livestockAnimalsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockAnimalsTable.id, recordId), eq(livestockAnimalsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -2619,7 +2621,7 @@ router.put("/farms/:farmId/visitors/:recordId", requireAuth, requireTenant, requ
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(visitorContractorLogTable).set(req.body).where(and(eq(visitorContractorLogTable.id, recordId), eq(visitorContractorLogTable.farmId, farmId))).returning();
+  const [record] = await db.update(visitorContractorLogTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(visitorContractorLogTable.id, recordId), eq(visitorContractorLogTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -2753,7 +2755,7 @@ router.put("/farms/:farmId/training-courses/:recordId", requireAuth, requireTena
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(trainingCoursesTable).set(req.body).where(and(eq(trainingCoursesTable.id, recordId), eq(trainingCoursesTable.farmId, farmId))).returning();
+  const [record] = await db.update(trainingCoursesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(trainingCoursesTable.id, recordId), eq(trainingCoursesTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -2795,7 +2797,7 @@ router.put("/farms/:farmId/certificates/:recordId", requireAuth, requireTenant, 
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(staffCertificatesTable).set(req.body).where(and(eq(staffCertificatesTable.id, recordId), eq(staffCertificatesTable.farmId, farmId))).returning();
+  const [record] = await db.update(staffCertificatesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(staffCertificatesTable.id, recordId), eq(staffCertificatesTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -2828,7 +2830,7 @@ router.put("/farms/:farmId/right-to-work/:recordId", requireAuth, requireTenant,
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(staffRightToWorkTable).set(req.body).where(and(eq(staffRightToWorkTable.id, recordId), eq(staffRightToWorkTable.farmId, farmId))).returning();
+  const [record] = await db.update(staffRightToWorkTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(staffRightToWorkTable.id, recordId), eq(staffRightToWorkTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -2929,7 +2931,7 @@ router.put("/farms/:farmId/risk-assessments/:recordId", requireAuth, requireTena
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(riskAssessmentsTable).set(req.body).where(and(eq(riskAssessmentsTable.id, recordId), eq(riskAssessmentsTable.farmId, farmId))).returning();
+  const [record] = await db.update(riskAssessmentsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(riskAssessmentsTable.id, recordId), eq(riskAssessmentsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -2962,7 +2964,7 @@ router.put("/farms/:farmId/coshh/:recordId", requireAuth, requireTenant, require
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(coshhRecordsTable).set(req.body).where(and(eq(coshhRecordsTable.id, recordId), eq(coshhRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(coshhRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(coshhRecordsTable.id, recordId), eq(coshhRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -3044,7 +3046,7 @@ router.put("/farms/:farmId/inspections/:recordId", requireAuth, requireTenant, r
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(inspectionRecordsTable).set(req.body).where(and(eq(inspectionRecordsTable.id, recordId), eq(inspectionRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(inspectionRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(inspectionRecordsTable.id, recordId), eq(inspectionRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -3085,7 +3087,7 @@ router.put("/farms/:farmId/nonconformances/:recordId", requireAuth, requireTenan
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(nonconformanceRecordsTable).set(req.body).where(and(eq(nonconformanceRecordsTable.id, recordId), eq(nonconformanceRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(nonconformanceRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(nonconformanceRecordsTable.id, recordId), eq(nonconformanceRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -3181,7 +3183,7 @@ router.put("/farms/:farmId/assurance-certs/:recordId", requireAuth, requireTenan
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(farmAssuranceCertsTable).set(req.body).where(and(eq(farmAssuranceCertsTable.id, recordId), eq(farmAssuranceCertsTable.farmId, farmId))).returning();
+  const [record] = await db.update(farmAssuranceCertsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(farmAssuranceCertsTable.id, recordId), eq(farmAssuranceCertsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -3215,7 +3217,7 @@ router.put("/farms/:farmId/risk-coshh/:recordId", requireAuth, requireTenant, re
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(coshhRecordsTable).set(req.body).where(and(eq(coshhRecordsTable.id, recordId), eq(coshhRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(coshhRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(coshhRecordsTable.id, recordId), eq(coshhRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -3249,7 +3251,7 @@ router.put("/farms/:farmId/environmental-features/:recordId", requireAuth, requi
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(environmentalFeaturesTable).set(req.body).where(and(eq(environmentalFeaturesTable.id, recordId), eq(environmentalFeaturesTable.farmId, farmId))).returning();
+  const [record] = await db.update(environmentalFeaturesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(environmentalFeaturesTable.id, recordId), eq(environmentalFeaturesTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -3282,7 +3284,7 @@ router.put("/farms/:farmId/agri-schemes/:recordId", requireAuth, requireTenant, 
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(agriEnvironmentSchemeRecordsTable).set(req.body).where(and(eq(agriEnvironmentSchemeRecordsTable.id, recordId), eq(agriEnvironmentSchemeRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(agriEnvironmentSchemeRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(agriEnvironmentSchemeRecordsTable.id, recordId), eq(agriEnvironmentSchemeRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -3315,7 +3317,7 @@ router.put("/farms/:farmId/environmental-assessments/:recordId", requireAuth, re
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(environmentalAssessmentsTable).set(req.body).where(and(eq(environmentalAssessmentsTable.id, recordId), eq(environmentalAssessmentsTable.farmId, farmId))).returning();
+  const [record] = await db.update(environmentalAssessmentsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(environmentalAssessmentsTable.id, recordId), eq(environmentalAssessmentsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -3348,7 +3350,7 @@ router.put("/farms/:farmId/environmental-management-events/:recordId", requireAu
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(environmentalManagementEventsTable).set(req.body).where(and(eq(environmentalManagementEventsTable.id, recordId), eq(environmentalManagementEventsTable.farmId, farmId))).returning();
+  const [record] = await db.update(environmentalManagementEventsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(environmentalManagementEventsTable.id, recordId), eq(environmentalManagementEventsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -3475,7 +3477,7 @@ router.put("/farms/:farmId/haulage/:recordId", requireAuth, requireTenant, requi
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(haulageRecordsTable).set(req.body).where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(haulageRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(haulageRecordsTable.id, recordId), eq(haulageRecordsTable.farmId, farmId))).returning();
   const _planId = record?.dispatchPlanId ?? (req.body.dispatchPlanId ? parseInt(String(req.body.dispatchPlanId)) : null);
   if (_planId) await maybeAdvanceDispatchPlan(farmId, _planId);
   res.json({ record });
@@ -3515,7 +3517,7 @@ router.put("/farms/:farmId/crop-stock-levels/:id", requireAuth, requireTenant, r
   if (!farmId) return;
   const id = getRecordId(req);
   if (!id) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(cropStockLevelsTable).set({ ...req.body, lastUpdated: new Date() }).where(and(eq(cropStockLevelsTable.id, id), eq(cropStockLevelsTable.farmId, farmId))).returning();
+  const [record] = await db.update(cropStockLevelsTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), lastUpdated: new Date() }).where(and(eq(cropStockLevelsTable.id, id), eq(cropStockLevelsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -3675,7 +3677,7 @@ router.put("/farms/:farmId/suppliers/:recordId", requireAuth, requireTenant, req
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(suppliersTable).set(req.body).where(and(eq(suppliersTable.id, recordId), eq(suppliersTable.farmId, farmId))).returning();
+  const [record] = await db.update(suppliersTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(suppliersTable.id, recordId), eq(suppliersTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -4308,7 +4310,7 @@ router.put("/farms/:farmId/financial-transactions/:recordId", requireAuth, requi
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(financialTransactionsTable).set(req.body).where(and(eq(financialTransactionsTable.id, recordId), eq(financialTransactionsTable.farmId, farmId))).returning();
+  const [record] = await db.update(financialTransactionsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(financialTransactionsTable.id, recordId), eq(financialTransactionsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -4471,7 +4473,9 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
 
   const csvEscape = (val: string | number | null | undefined): string => {
     if (val == null) return "";
-    const s = String(val);
+    // Sanitise formula-injection: prefix cells starting with =, +, -, @, |, % with a tab.
+    let s = String(val);
+    if (/^[=+\-@|%\t\r]/.test(s)) s = "\t" + s;
     if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
     return s;
   };
@@ -4521,7 +4525,9 @@ router.post("/farms/:farmId/financial-exports", requireAuth, requireTenant, requ
   if (format === "xero" || format === "csv") {
     const csvEscape = (val: string | null | undefined): string => {
       if (val == null) return "";
-      const s = String(val);
+      // Sanitise formula-injection: prefix cells starting with =, +, -, @, |, % with a tab.
+      let s = String(val);
+      if (/^[=+\-@|%\t\r]/.test(s)) s = "\t" + s;
       if (s.includes(",") || s.includes('"') || s.includes("\n")) {
         return `"${s.replace(/"/g, '""')}"`;
       }
@@ -4619,7 +4625,7 @@ router.put("/farms/:farmId/crop-contracts/:recordId", requireAuth, requireTenant
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(cropContractsTable).set(req.body).where(and(eq(cropContractsTable.id, recordId), eq(cropContractsTable.farmId, farmId))).returning();
+  const [record] = await db.update(cropContractsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(cropContractsTable.id, recordId), eq(cropContractsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -4677,7 +4683,7 @@ router.put("/farms/:farmId/weather-stations/:recordId", requireAuth, requireTena
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(weatherStationsTable).set(req.body).where(and(eq(weatherStationsTable.id, recordId), eq(weatherStationsTable.farmId, farmId))).returning();
+  const [record] = await db.update(weatherStationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(weatherStationsTable.id, recordId), eq(weatherStationsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -4753,7 +4759,7 @@ router.put("/farms/:farmId/movements/:recordId", requireAuth, requireTenant, req
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(livestockMovementsTable).set(req.body).where(and(eq(livestockMovementsTable.id, recordId), eq(livestockMovementsTable.farmId, farmId))).returning();
+  const [record] = await db.update(livestockMovementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockMovementsTable.id, recordId), eq(livestockMovementsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -4823,7 +4829,7 @@ router.put("/farms/:farmId/medicine-records/:recordId", requireAuth, requireTena
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(livestockMedicineRecordsTable).set(req.body).where(and(eq(livestockMedicineRecordsTable.id, recordId), eq(livestockMedicineRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(livestockMedicineRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockMedicineRecordsTable.id, recordId), eq(livestockMedicineRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -4844,7 +4850,7 @@ router.put("/farms/:farmId/feed-records/:recordId", requireAuth, requireTenant, 
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [old] = await db.select().from(livestockFeedRecordsTable).where(and(eq(livestockFeedRecordsTable.id, recordId), eq(livestockFeedRecordsTable.farmId, farmId))).limit(1);
   if (!old) { res.status(404).json({ error: "Not found" }); return; }
-  const [record] = await db.update(livestockFeedRecordsTable).set(req.body).where(and(eq(livestockFeedRecordsTable.id, recordId), eq(livestockFeedRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(livestockFeedRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockFeedRecordsTable.id, recordId), eq(livestockFeedRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   const oldBin = old.feedStockItemId;
   const newBin = record.feedStockItemId;
@@ -4871,7 +4877,7 @@ router.put("/farms/:farmId/water-records/:recordId", requireAuth, requireTenant,
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(livestockWaterRecordsTable).set(req.body).where(and(eq(livestockWaterRecordsTable.id, recordId), eq(livestockWaterRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(livestockWaterRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockWaterRecordsTable.id, recordId), eq(livestockWaterRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -4899,7 +4905,7 @@ router.put("/farms/:farmId/pest-control/:recordId", requireAuth, requireTenant, 
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(pestControlRecordsTable).set(req.body).where(and(eq(pestControlRecordsTable.id, recordId), eq(pestControlRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(pestControlRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pestControlRecordsTable.id, recordId), eq(pestControlRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -4938,7 +4944,7 @@ router.put("/farms/:farmId/cleaning/:recordId", requireAuth, requireTenant, requ
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(cleaningDisinfectionRecordsTable).set(req.body).where(and(eq(cleaningDisinfectionRecordsTable.id, recordId), eq(cleaningDisinfectionRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(cleaningDisinfectionRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(cleaningDisinfectionRecordsTable.id, recordId), eq(cleaningDisinfectionRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -4957,7 +4963,7 @@ router.put("/farms/:farmId/training/:recordId", requireAuth, requireTenant, requ
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(staffTrainingRecordsTable).set(req.body).where(and(eq(staffTrainingRecordsTable.id, recordId), eq(staffTrainingRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(staffTrainingRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(staffTrainingRecordsTable.id, recordId), eq(staffTrainingRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -5192,7 +5198,7 @@ router.put("/farms/:farmId/agri-schemes/:recordId", requireAuth, requireTenant, 
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(agriEnvironmentSchemeRecordsTable).set(req.body).where(and(eq(agriEnvironmentSchemeRecordsTable.id, recordId), eq(agriEnvironmentSchemeRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(agriEnvironmentSchemeRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(agriEnvironmentSchemeRecordsTable.id, recordId), eq(agriEnvironmentSchemeRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -5244,7 +5250,7 @@ router.put("/farms/:farmId/storage-locations/:recordId", requireAuth, requireTen
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(storageLocationsTable).set(req.body).where(and(eq(storageLocationsTable.id, recordId), eq(storageLocationsTable.farmId, farmId))).returning();
+  const [record] = await db.update(storageLocationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(storageLocationsTable.id, recordId), eq(storageLocationsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -5322,7 +5328,7 @@ router.put("/farms/:farmId/storage-locations/:locationId/charges/:chargeId", req
   if (!farmId) return;
   const chargeId = parseInt(req.params.chargeId);
   if (isNaN(chargeId)) { res.status(400).json({ error: "Invalid charge ID" }); return; }
-  const [record] = await db.update(merchantStorageChargesTable).set(req.body).where(and(eq(merchantStorageChargesTable.id, chargeId), eq(merchantStorageChargesTable.farmId, farmId))).returning();
+  const [record] = await db.update(merchantStorageChargesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(merchantStorageChargesTable.id, chargeId), eq(merchantStorageChargesTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -5363,7 +5369,7 @@ router.put("/farms/:farmId/storage-locations/:locationId/movements/:movementId",
   const movementId = parseInt(req.params.movementId);
   if (isNaN(locationId) || isNaN(movementId)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [record] = await db.update(storageLocationMovementsTable)
-    .set(req.body)
+    .set(sanitiseBody(req.body as Record<string, unknown>))
     .where(and(eq(storageLocationMovementsTable.id, movementId), eq(storageLocationMovementsTable.farmId, farmId), eq(storageLocationMovementsTable.locationId, locationId)))
     .returning();
   res.json({ record });
@@ -5705,7 +5711,7 @@ router.put("/farms/:farmId/stock-items/:recordId", requireAuth, requireTenant, r
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(stockItemsTable).set(req.body).where(and(eq(stockItemsTable.id, recordId), eq(stockItemsTable.farmId, farmId))).returning();
+  const [record] = await db.update(stockItemsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(stockItemsTable.id, recordId), eq(stockItemsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -5724,7 +5730,7 @@ router.put("/farms/:farmId/stock-deliveries/:recordId", requireAuth, requireTena
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(stockDeliveriesTable).set(req.body).where(and(eq(stockDeliveriesTable.id, recordId), eq(stockDeliveriesTable.farmId, farmId))).returning();
+  const [record] = await db.update(stockDeliveriesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(stockDeliveriesTable.id, recordId), eq(stockDeliveriesTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -5851,7 +5857,7 @@ router.put("/farms/:farmId/documents/:recordId", requireAuth, requireTenant, req
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(documentRecordsTable).set(req.body).where(and(eq(documentRecordsTable.id, recordId), eq(documentRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(documentRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(documentRecordsTable.id, recordId), eq(documentRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -5861,7 +5867,7 @@ router.put("/farms/:farmId/weather-readings/:recordId", requireAuth, requireTena
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(weatherReadingsTable).set(req.body).where(and(eq(weatherReadingsTable.id, recordId), eq(weatherReadingsTable.farmId, farmId))).returning();
+  const [record] = await db.update(weatherReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(weatherReadingsTable.id, recordId), eq(weatherReadingsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -5934,7 +5940,7 @@ router.post("/farms/:farmId/insurance", requireAuth, requireTenant, async (req: 
 router.put("/farms/:farmId/insurance/:recordId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = req.tenantId!;
   const recordId = Number(req.params.recordId);
-  const [record] = await db.update(farmInsuranceTable).set(req.body).where(and(eq(farmInsuranceTable.id, recordId), eq(farmInsuranceTable.farmId, farmId))).returning();
+  const [record] = await db.update(farmInsuranceTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(farmInsuranceTable.id, recordId), eq(farmInsuranceTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json(record);
 });
@@ -9975,10 +9981,17 @@ router.get("/farms/:farmId/compliance-export", requireAuth, requireTenant, async
   };
 
   if (req.query.format === "csv") {
+    const csvEscape = (val: string | number | null | undefined): string => {
+      const s = val === null || val === undefined ? "" : String(val);
+      if (/[",\n\r]/.test(s) || s.startsWith("=") || s.startsWith("+") || s.startsWith("-") || s.startsWith("@") || s.startsWith("\t") || s.startsWith("\r")) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
     const sections: string[] = [];
     sections.push("Red Tractor Compliance Export");
-    sections.push(`Farm: ${farm?.name || "Unknown"}`);
-    sections.push(`CPH Number: ${farm?.cphNumber || "N/A"}`);
+    sections.push(`Farm: ${csvEscape(farm?.name || "Unknown")}`);
+    sections.push(`CPH Number: ${csvEscape(farm?.cphNumber || "N/A")}`);
     sections.push(`Export Date: ${new Date().toLocaleDateString("en-GB")}`);
     sections.push(`Compliance Score: ${complianceScore}%`);
     sections.push("");
@@ -9988,12 +10001,12 @@ router.get("/farms/:farmId/compliance-export", requireAuth, requireTenant, async
       sections.push("Date,Type,Inspector,Body,Result,Notes");
       for (const i of inspections) {
         sections.push([
-          new Date(i.inspectionDate).toLocaleDateString("en-GB"),
-          i.inspectionType || "",
-          i.inspectorName || "",
-          i.inspectionBody || "",
-          i.overallResult || "",
-          (i.notes || "").replace(/,/g, ";"),
+          csvEscape(new Date(i.inspectionDate).toLocaleDateString("en-GB")),
+          csvEscape(i.inspectionType),
+          csvEscape(i.inspectorName),
+          csvEscape(i.inspectionBody),
+          csvEscape(i.overallResult),
+          csvEscape(i.notes),
         ].join(","));
       }
       sections.push("");
@@ -10004,11 +10017,11 @@ router.get("/farms/:farmId/compliance-export", requireAuth, requireTenant, async
       sections.push("Raised Date,Category,Severity,Status,Description");
       for (const nc of nonconformances) {
         sections.push([
-          new Date(nc.identifiedDate).toLocaleDateString("en-GB"),
-          nc.category || "",
-          nc.severity || "",
-          nc.status || "",
-          (nc.description || "").replace(/,/g, ";"),
+          csvEscape(new Date(nc.identifiedDate).toLocaleDateString("en-GB")),
+          csvEscape(nc.category),
+          csvEscape(nc.severity),
+          csvEscape(nc.status),
+          csvEscape(nc.description),
         ].join(","));
       }
       sections.push("");
@@ -10166,7 +10179,7 @@ router.put("/farms/:farmId/livestock-checks/:recordId", requireAuth, requireTena
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(livestockDailyChecksTable).set(req.body).where(and(eq(livestockDailyChecksTable.id, recordId), eq(livestockDailyChecksTable.farmId, farmId))).returning();
+  const [record] = await db.update(livestockDailyChecksTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockDailyChecksTable.id, recordId), eq(livestockDailyChecksTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -10194,7 +10207,7 @@ router.post("/farms/:farmId/vet-health-plans", requireAuth, requireTenant, requi
 router.put("/farms/:farmId/vet-health-plans/:recordId", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const recordId = Number(req.params.recordId);
-  const [record] = await db.update(vetHealthPlansTable).set(req.body).where(and(eq(vetHealthPlansTable.id, recordId), eq(vetHealthPlansTable.farmId, farmId))).returning();
+  const [record] = await db.update(vetHealthPlansTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vetHealthPlansTable.id, recordId), eq(vetHealthPlansTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -10334,7 +10347,7 @@ router.post("/farms/:farmId/seed-drilling", requireAuth, requireTenant, requireM
 router.put("/farms/:farmId/seed-drilling/:recordId", requireAuth, requireTenant, requireModuleByKey("crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const recordId = Number(req.params.recordId);
-  const [record] = await db.update(seedDrillingRecordsTable).set(req.body).where(and(eq(seedDrillingRecordsTable.id, recordId), eq(seedDrillingRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(seedDrillingRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(seedDrillingRecordsTable.id, recordId), eq(seedDrillingRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -10364,7 +10377,7 @@ router.put("/farms/:farmId/biofuel/certification/:recordId", requireAuth, requir
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
-  const [record] = await db.update(biofuelCertificationsTable).set(req.body).where(and(eq(biofuelCertificationsTable.id, recordId), eq(biofuelCertificationsTable.farmId, farmId))).returning();
+  const [record] = await db.update(biofuelCertificationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(biofuelCertificationsTable.id, recordId), eq(biofuelCertificationsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -10394,7 +10407,7 @@ router.put("/farms/:farmId/biofuel/field-declarations/:recordId", requireAuth, r
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
-  const [record] = await db.update(biofuelFieldDeclarationsTable).set(req.body).where(and(eq(biofuelFieldDeclarationsTable.id, recordId), eq(biofuelFieldDeclarationsTable.farmId, farmId))).returning();
+  const [record] = await db.update(biofuelFieldDeclarationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(biofuelFieldDeclarationsTable.id, recordId), eq(biofuelFieldDeclarationsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -10491,7 +10504,7 @@ router.put("/farms/:farmId/biofuel/deliveries/:recordId", requireAuth, requireTe
     }).returning();
     req.body.storageMovementId = mov.id;
   }
-  const [record] = await db.update(biofuelDeliveriesTable).set(req.body)
+  const [record] = await db.update(biofuelDeliveriesTable).set(sanitiseBody(req.body as Record<string, unknown>))
     .where(and(eq(biofuelDeliveriesTable.id, recordId), eq(biofuelDeliveriesTable.farmId, farmId))).returning();
   res.json({ record });
 });
@@ -10702,7 +10715,7 @@ router.put("/farms/:farmId/biofuel/buyers/:recordId", requireAuth, requireTenant
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = Number(req.params.recordId);
-  const [record] = await db.update(rtfoBuyersTable).set(req.body)
+  const [record] = await db.update(rtfoBuyersTable).set(sanitiseBody(req.body as Record<string, unknown>))
     .where(and(eq(rtfoBuyersTable.id, recordId), eq(rtfoBuyersTable.farmId, farmId)))
     .returning();
   res.json({ record });
@@ -11308,7 +11321,7 @@ router.put("/farms/:farmId/biosecurity-plan", requireAuth, requireTenant, requir
   const [existing] = await db.select({ id: biosecurityPlansTable.id }).from(biosecurityPlansTable).where(eq(biosecurityPlansTable.farmId, farmId));
   let plan;
   if (existing) {
-    [plan] = await db.update(biosecurityPlansTable).set({ ...req.body, farmId }).where(eq(biosecurityPlansTable.id, existing.id)).returning();
+    [plan] = await db.update(biosecurityPlansTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).where(eq(biosecurityPlansTable.id, existing.id)).returning();
   } else {
     [plan] = await db.insert(biosecurityPlansTable).values({ ...req.body, farmId }).returning();
   }
@@ -11334,7 +11347,7 @@ router.put("/farms/:farmId/nvz-risk-assessments/:recordId", requireAuth, require
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const recordId = parseInt(req.params.recordId);
-  const [record] = await db.update(nvzRiskAssessmentsTable).set(req.body).where(and(eq(nvzRiskAssessmentsTable.id, recordId), eq(nvzRiskAssessmentsTable.farmId, farmId))).returning();
+  const [record] = await db.update(nvzRiskAssessmentsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(nvzRiskAssessmentsTable.id, recordId), eq(nvzRiskAssessmentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -13142,7 +13155,7 @@ router.post("/farms/:farmId/pig-flocks", requireAuth, requireTenant, requireModu
 router.put("/farms/:farmId/pig-flocks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(pigFlocksTable).set(req.body).where(and(eq(pigFlocksTable.id, id), eq(pigFlocksTable.farmId, farmId))).returning();
+  const [row] = await db.update(pigFlocksTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigFlocksTable.id, id), eq(pigFlocksTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-flocks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13165,7 +13178,7 @@ router.post("/farms/:farmId/pig-movements", requireAuth, requireTenant, requireM
 router.put("/farms/:farmId/pig-movements/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(pigMovementsTable).set(req.body).where(and(eq(pigMovementsTable.id, id), eq(pigMovementsTable.farmId, farmId))).returning();
+  const [row] = await db.update(pigMovementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigMovementsTable.id, id), eq(pigMovementsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-movements/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13188,7 +13201,7 @@ router.post("/farms/:farmId/pig-fci-documents", requireAuth, requireTenant, requ
 router.put("/farms/:farmId/pig-fci-documents/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(pigFciDocumentsTable).set(req.body).where(and(eq(pigFciDocumentsTable.id, id), eq(pigFciDocumentsTable.farmId, farmId))).returning();
+  const [row] = await db.update(pigFciDocumentsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigFciDocumentsTable.id, id), eq(pigFciDocumentsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-fci-documents/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13230,7 +13243,7 @@ router.post("/farms/:farmId/pig-feed-consumption", requireAuth, requireTenant, r
 router.put("/farms/:farmId/pig-feed-consumption/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(pigFeedConsumptionTable).set(req.body).where(and(eq(pigFeedConsumptionTable.id, id), eq(pigFeedConsumptionTable.farmId, farmId))).returning();
+  const [row] = await db.update(pigFeedConsumptionTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigFeedConsumptionTable.id, id), eq(pigFeedConsumptionTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-feed-consumption/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13253,7 +13266,7 @@ router.post("/farms/:farmId/pig-vet-assessments", requireAuth, requireTenant, re
 router.put("/farms/:farmId/pig-vet-assessments/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(pigVetAssessmentsTable).set(req.body).where(and(eq(pigVetAssessmentsTable.id, id), eq(pigVetAssessmentsTable.farmId, farmId))).returning();
+  const [row] = await db.update(pigVetAssessmentsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigVetAssessmentsTable.id, id), eq(pigVetAssessmentsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-vet-assessments/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13276,7 +13289,7 @@ router.post("/farms/:farmId/pig-stockmanship-checks", requireAuth, requireTenant
 router.put("/farms/:farmId/pig-stockmanship-checks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(pigStockmanshipChecksTable).set(req.body).where(and(eq(pigStockmanshipChecksTable.id, id), eq(pigStockmanshipChecksTable.farmId, farmId))).returning();
+  const [row] = await db.update(pigStockmanshipChecksTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigStockmanshipChecksTable.id, id), eq(pigStockmanshipChecksTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-stockmanship-checks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13299,7 +13312,7 @@ router.post("/farms/:farmId/pig-tail-biting-risks", requireAuth, requireTenant, 
 router.put("/farms/:farmId/pig-tail-biting-risks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(pigTailBitingRisksTable).set(req.body).where(and(eq(pigTailBitingRisksTable.id, id), eq(pigTailBitingRisksTable.farmId, farmId))).returning();
+  const [row] = await db.update(pigTailBitingRisksTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigTailBitingRisksTable.id, id), eq(pigTailBitingRisksTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-tail-biting-risks/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13322,7 +13335,7 @@ router.post("/farms/:farmId/pig-farrowing-records", requireAuth, requireTenant, 
 router.put("/farms/:farmId/pig-farrowing-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(pigFarrowingRecordsTable).set(req.body).where(and(eq(pigFarrowingRecordsTable.id, id), eq(pigFarrowingRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(pigFarrowingRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigFarrowingRecordsTable.id, id), eq(pigFarrowingRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/pig-farrowing-records/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13384,7 +13397,7 @@ router.post("/farms/:farmId/poultry-houses", requireAuth, requireTenant, require
 router.put("/farms/:farmId/poultry-houses/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(poultryHousesTable).set(req.body).where(and(eq(poultryHousesTable.id, id), eq(poultryHousesTable.farmId, farmId))).returning();
+  const [row] = await db.update(poultryHousesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryHousesTable.id, id), eq(poultryHousesTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-houses/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13407,7 +13420,7 @@ router.post("/farms/:farmId/poultry-flocks", requireAuth, requireTenant, require
 router.put("/farms/:farmId/poultry-flocks/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(poultryFlocksTable).set(req.body).where(and(eq(poultryFlocksTable.id, id), eq(poultryFlocksTable.farmId, farmId))).returning();
+  const [row] = await db.update(poultryFlocksTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryFlocksTable.id, id), eq(poultryFlocksTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-flocks/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13455,7 +13468,7 @@ router.put("/farms/:farmId/poultry-daily-mortality/:id", requireAuth, requireTen
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const flockId = Number(req.body.flockId); const thisMortality = Number(req.body.mortalityCount ?? 0); const thisCulled = Number(req.body.culledCount ?? 0);
   const computed = flockId ? await calcMortalityTotals(farmId, flockId, thisMortality, thisCulled, id) : {};
-  const [row] = await db.update(poultryDailyMortalityTable).set({ ...req.body, ...computed }).where(and(eq(poultryDailyMortalityTable.id, id), eq(poultryDailyMortalityTable.farmId, farmId))).returning();
+  const [row] = await db.update(poultryDailyMortalityTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), ...computed }).where(and(eq(poultryDailyMortalityTable.id, id), eq(poultryDailyMortalityTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-daily-mortality/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13507,7 +13520,7 @@ router.post("/farms/:farmId/poultry-treatments", requireAuth, requireTenant, req
 router.put("/farms/:farmId/poultry-treatments/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(poultryTreatmentsTable).set(req.body).where(and(eq(poultryTreatmentsTable.id, id), eq(poultryTreatmentsTable.farmId, farmId))).returning();
+  const [row] = await db.update(poultryTreatmentsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryTreatmentsTable.id, id), eq(poultryTreatmentsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-treatments/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13543,7 +13556,7 @@ router.post("/farms/:farmId/poultry-house-cleanouts", requireAuth, requireTenant
 router.put("/farms/:farmId/poultry-house-cleanouts/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(poultryHouseCleanoutsTable).set(req.body).where(and(eq(poultryHouseCleanoutsTable.id, id), eq(poultryHouseCleanoutsTable.farmId, farmId))).returning();
+  const [row] = await db.update(poultryHouseCleanoutsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryHouseCleanoutsTable.id, id), eq(poultryHouseCleanoutsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-house-cleanouts/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13579,7 +13592,7 @@ router.post("/farms/:farmId/poultry-environmental-logs", requireAuth, requireTen
 router.put("/farms/:farmId/poultry-environmental-logs/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(poultryEnvironmentalLogsTable).set(req.body).where(and(eq(poultryEnvironmentalLogsTable.id, id), eq(poultryEnvironmentalLogsTable.farmId, farmId))).returning();
+  const [row] = await db.update(poultryEnvironmentalLogsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryEnvironmentalLogsTable.id, id), eq(poultryEnvironmentalLogsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-environmental-logs/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13615,7 +13628,7 @@ router.post("/farms/:farmId/poultry-fci-documents", requireAuth, requireTenant, 
 router.put("/farms/:farmId/poultry-fci-documents/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(poultryFciDocumentsTable).set(req.body).where(and(eq(poultryFciDocumentsTable.id, id), eq(poultryFciDocumentsTable.farmId, farmId))).returning();
+  const [row] = await db.update(poultryFciDocumentsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryFciDocumentsTable.id, id), eq(poultryFciDocumentsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-fci-documents/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13652,7 +13665,7 @@ router.post("/farms/:farmId/poultry-broiler-welfare", requireAuth, requireTenant
 router.put("/farms/:farmId/poultry-broiler-welfare/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(poultryBroilerWelfareTable).set(req.body).where(and(eq(poultryBroilerWelfareTable.id, id), eq(poultryBroilerWelfareTable.farmId, farmId))).returning();
+  const [row] = await db.update(poultryBroilerWelfareTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryBroilerWelfareTable.id, id), eq(poultryBroilerWelfareTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-broiler-welfare/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13688,7 +13701,7 @@ router.post("/farms/:farmId/poultry-thinning-records", requireAuth, requireTenan
 router.put("/farms/:farmId/poultry-thinning-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(poultryThinningRecordsTable).set(req.body).where(and(eq(poultryThinningRecordsTable.id, id), eq(poultryThinningRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(poultryThinningRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryThinningRecordsTable.id, id), eq(poultryThinningRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/poultry-thinning-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13714,7 +13727,7 @@ router.post("/farms/:farmId/horticulture-blocks", requireAuth, requireTenant, re
 router.put("/farms/:farmId/horticulture-blocks/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(horticultureBlocksTable).set(req.body).where(and(eq(horticultureBlocksTable.id, id), eq(horticultureBlocksTable.farmId, farmId))).returning();
+  const [row] = await db.update(horticultureBlocksTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(horticultureBlocksTable.id, id), eq(horticultureBlocksTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/horticulture-blocks/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13737,7 +13750,7 @@ router.post("/farms/:farmId/horticulture-crops", requireAuth, requireTenant, req
 router.put("/farms/:farmId/horticulture-crops/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(horticultureCropsTable).set(req.body).where(and(eq(horticultureCropsTable.id, id), eq(horticultureCropsTable.farmId, farmId))).returning();
+  const [row] = await db.update(horticultureCropsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(horticultureCropsTable.id, id), eq(horticultureCropsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/horticulture-crops/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13760,7 +13773,7 @@ router.post("/farms/:farmId/horticulture-water-tests", requireAuth, requireTenan
 router.put("/farms/:farmId/horticulture-water-tests/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(horticultureWaterTestsTable).set(req.body).where(and(eq(horticultureWaterTestsTable.id, id), eq(horticultureWaterTestsTable.farmId, farmId))).returning();
+  const [row] = await db.update(horticultureWaterTestsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(horticultureWaterTestsTable.id, id), eq(horticultureWaterTestsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/horticulture-water-tests/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13783,7 +13796,7 @@ router.post("/farms/:farmId/horticulture-harvest-records", requireAuth, requireT
 router.put("/farms/:farmId/horticulture-harvest-records/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(horticultureHarvestRecordsTable).set(req.body).where(and(eq(horticultureHarvestRecordsTable.id, id), eq(horticultureHarvestRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(horticultureHarvestRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(horticultureHarvestRecordsTable.id, id), eq(horticultureHarvestRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/horticulture-harvest-records/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13806,7 +13819,7 @@ router.post("/farms/:farmId/horticulture-packhouse-records", requireAuth, requir
 router.put("/farms/:farmId/horticulture-packhouse-records/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(horticulturePackhouseRecordsTable).set(req.body).where(and(eq(horticulturePackhouseRecordsTable.id, id), eq(horticulturePackhouseRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(horticulturePackhouseRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(horticulturePackhouseRecordsTable.id, id), eq(horticulturePackhouseRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/horticulture-packhouse-records/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13829,7 +13842,7 @@ router.post("/farms/:farmId/allergen-management", requireAuth, requireTenant, re
 router.put("/farms/:farmId/allergen-management/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(allergenManagementRecordsTable).set(req.body).where(and(eq(allergenManagementRecordsTable.id, id), eq(allergenManagementRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(allergenManagementRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(allergenManagementRecordsTable.id, id), eq(allergenManagementRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/allergen-management/:id", requireAuth, requireTenant, requireModuleByKey("horticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13855,7 +13868,7 @@ router.post("/farms/:farmId/carbon-audits", requireAuth, requireTenant, requireM
 router.put("/farms/:farmId/carbon-audits/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(carbonAuditsTable).set(req.body).where(and(eq(carbonAuditsTable.id, id), eq(carbonAuditsTable.farmId, farmId))).returning();
+  const [row] = await db.update(carbonAuditsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(carbonAuditsTable.id, id), eq(carbonAuditsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/carbon-audits/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13878,7 +13891,7 @@ router.post("/farms/:farmId/carbon-emissions", requireAuth, requireTenant, requi
 router.put("/farms/:farmId/carbon-emissions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(carbonEmissionsRecordsTable).set(req.body).where(and(eq(carbonEmissionsRecordsTable.id, id), eq(carbonEmissionsRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(carbonEmissionsRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(carbonEmissionsRecordsTable.id, id), eq(carbonEmissionsRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/carbon-emissions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13901,7 +13914,7 @@ router.post("/farms/:farmId/carbon-sequestration", requireAuth, requireTenant, r
 router.put("/farms/:farmId/carbon-sequestration/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(carbonSequestrationTable).set(req.body).where(and(eq(carbonSequestrationTable.id, id), eq(carbonSequestrationTable.farmId, farmId))).returning();
+  const [row] = await db.update(carbonSequestrationTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(carbonSequestrationTable.id, id), eq(carbonSequestrationTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/carbon-sequestration/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13924,7 +13937,7 @@ router.post("/farms/:farmId/carbon-reduction-actions", requireAuth, requireTenan
 router.put("/farms/:farmId/carbon-reduction-actions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(carbonReductionActionsTable).set(req.body).where(and(eq(carbonReductionActionsTable.id, id), eq(carbonReductionActionsTable.farmId, farmId))).returning();
+  const [row] = await db.update(carbonReductionActionsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(carbonReductionActionsTable.id, id), eq(carbonReductionActionsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/carbon-reduction-actions/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13947,7 +13960,7 @@ router.post("/farms/:farmId/sustainability-reports", requireAuth, requireTenant,
 router.put("/farms/:farmId/sustainability-reports/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(sustainabilityReportsTable).set(req.body).where(and(eq(sustainabilityReportsTable.id, id), eq(sustainabilityReportsTable.farmId, farmId))).returning();
+  const [row] = await db.update(sustainabilityReportsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sustainabilityReportsTable.id, id), eq(sustainabilityReportsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/sustainability-reports/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13973,7 +13986,7 @@ router.post("/farms/:farmId/diversification-activities", requireAuth, requireTen
 router.put("/farms/:farmId/diversification-activities/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(diversificationActivitiesTable).set(req.body).where(and(eq(diversificationActivitiesTable.id, id), eq(diversificationActivitiesTable.farmId, farmId))).returning();
+  const [row] = await db.update(diversificationActivitiesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(diversificationActivitiesTable.id, id), eq(diversificationActivitiesTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/diversification-activities/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -13996,7 +14009,7 @@ router.post("/farms/:farmId/farm-shop-products", requireAuth, requireTenant, req
 router.put("/farms/:farmId/farm-shop-products/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(farmShopProductsTable).set(req.body).where(and(eq(farmShopProductsTable.id, id), eq(farmShopProductsTable.farmId, farmId))).returning();
+  const [row] = await db.update(farmShopProductsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(farmShopProductsTable.id, id), eq(farmShopProductsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/farm-shop-products/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14019,7 +14032,7 @@ router.post("/farms/:farmId/farm-shop-hygiene-inspections", requireAuth, require
 router.put("/farms/:farmId/farm-shop-hygiene-inspections/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(farmShopHygieneInspectionsTable).set(req.body).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId))).returning();
+  const [row] = await db.update(farmShopHygieneInspectionsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/farm-shop-hygiene-inspections/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14440,7 +14453,7 @@ router.post("/farms/:farmId/equine-records", requireAuth, requireTenant, require
 router.put("/farms/:farmId/equine-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(equineRecordsTable).set(req.body).where(and(eq(equineRecordsTable.id, id), eq(equineRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(equineRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(equineRecordsTable.id, id), eq(equineRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/equine-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14463,7 +14476,7 @@ router.post("/farms/:farmId/equine-health-events", requireAuth, requireTenant, r
 router.put("/farms/:farmId/equine-health-events/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(equineHealthEventsTable).set(req.body).where(and(eq(equineHealthEventsTable.id, id), eq(equineHealthEventsTable.farmId, farmId))).returning();
+  const [row] = await db.update(equineHealthEventsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(equineHealthEventsTable.id, id), eq(equineHealthEventsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/equine-health-events/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14486,7 +14499,7 @@ router.post("/farms/:farmId/renewable-installations", requireAuth, requireTenant
 router.put("/farms/:farmId/renewable-installations/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(renewableEnergyInstallationsTable).set(req.body).where(and(eq(renewableEnergyInstallationsTable.id, id), eq(renewableEnergyInstallationsTable.farmId, farmId))).returning();
+  const [row] = await db.update(renewableEnergyInstallationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(renewableEnergyInstallationsTable.id, id), eq(renewableEnergyInstallationsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/renewable-installations/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14509,7 +14522,7 @@ router.post("/farms/:farmId/renewable-meter-readings", requireAuth, requireTenan
 router.put("/farms/:farmId/renewable-meter-readings/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(renewableEnergyMeterReadingsTable).set(req.body).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId))).returning();
+  const [row] = await db.update(renewableEnergyMeterReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/renewable-meter-readings/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14533,7 +14546,7 @@ router.post("/farms/:farmId/solar-installations", requireAuth, requireTenant, re
 router.put("/farms/:farmId/solar-installations/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(renewableEnergyInstallationsTable).set(req.body).where(and(eq(renewableEnergyInstallationsTable.id, id), eq(renewableEnergyInstallationsTable.farmId, farmId))).returning();
+  const [row] = await db.update(renewableEnergyInstallationsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(renewableEnergyInstallationsTable.id, id), eq(renewableEnergyInstallationsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/solar-installations/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14557,7 +14570,7 @@ router.post("/farms/:farmId/solar-generation", requireAuth, requireTenant, requi
 router.put("/farms/:farmId/solar-generation/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(renewableEnergyMeterReadingsTable).set(req.body).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId))).returning();
+  const [row] = await db.update(renewableEnergyMeterReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(renewableEnergyMeterReadingsTable.id, id), eq(renewableEnergyMeterReadingsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/solar-generation/:id", requireAuth, requireTenant, requireModuleByKey("fuel-energy", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14657,7 +14670,7 @@ router.post("/farms/:farmId/shooting-game-records", requireAuth, requireTenant, 
 router.put("/farms/:farmId/shooting-game-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(shootingAndGameRecordsTable).set(req.body).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(shootingAndGameRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/shooting-game-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14722,7 +14735,7 @@ router.post("/farms/:farmId/water-abstraction-licences", requireAuth, requireTen
 router.put("/farms/:farmId/water-abstraction-licences/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(waterAbstractionLicencesTable).set(req.body).where(and(eq(waterAbstractionLicencesTable.id, id), eq(waterAbstractionLicencesTable.farmId, farmId))).returning();
+  const [row] = await db.update(waterAbstractionLicencesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(waterAbstractionLicencesTable.id, id), eq(waterAbstractionLicencesTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/water-abstraction-licences/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14745,7 +14758,7 @@ router.post("/farms/:farmId/water-meter-readings", requireAuth, requireTenant, r
 router.put("/farms/:farmId/water-meter-readings/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(waterMeterReadingsTable).set(req.body).where(and(eq(waterMeterReadingsTable.id, id), eq(waterMeterReadingsTable.farmId, farmId))).returning();
+  const [row] = await db.update(waterMeterReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(waterMeterReadingsTable.id, id), eq(waterMeterReadingsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/water-meter-readings/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14768,7 +14781,7 @@ router.post("/farms/:farmId/borehole-tests", requireAuth, requireTenant, require
 router.put("/farms/:farmId/borehole-tests/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(boreholeTestsTable).set(req.body).where(and(eq(boreholeTestsTable.id, id), eq(boreholeTestsTable.farmId, farmId))).returning();
+  const [row] = await db.update(boreholeTestsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(boreholeTestsTable.id, id), eq(boreholeTestsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/borehole-tests/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14791,7 +14804,7 @@ router.post("/farms/:farmId/irrigation-records", requireAuth, requireTenant, req
 router.put("/farms/:farmId/irrigation-records/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(irrigationRecordsTable).set(req.body).where(and(eq(irrigationRecordsTable.id, id), eq(irrigationRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(irrigationRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(irrigationRecordsTable.id, id), eq(irrigationRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/irrigation-records/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14814,7 +14827,7 @@ router.post("/farms/:farmId/irrigation-equipment", requireAuth, requireTenant, r
 router.put("/farms/:farmId/irrigation-equipment/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(irrigationEquipmentTable).set(req.body).where(and(eq(irrigationEquipmentTable.id, id), eq(irrigationEquipmentTable.farmId, farmId))).returning();
+  const [row] = await db.update(irrigationEquipmentTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(irrigationEquipmentTable.id, id), eq(irrigationEquipmentTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/irrigation-equipment/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14840,7 +14853,7 @@ router.post("/farms/:farmId/grain-storage-bins", requireAuth, requireTenant, req
 router.put("/farms/:farmId/grain-storage-bins/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(grainStorageBinsTable).set(req.body).where(and(eq(grainStorageBinsTable.id, id), eq(grainStorageBinsTable.farmId, farmId))).returning();
+  const [row] = await db.update(grainStorageBinsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(grainStorageBinsTable.id, id), eq(grainStorageBinsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/grain-storage-bins/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14934,7 +14947,7 @@ router.put("/farms/:farmId/equipment-defect-reports/:recordId", requireAuth, req
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(equipmentDefectReportsTable).set(req.body).where(and(eq(equipmentDefectReportsTable.id, recordId), eq(equipmentDefectReportsTable.farmId, farmId))).returning();
+  const [record] = await db.update(equipmentDefectReportsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(equipmentDefectReportsTable.id, recordId), eq(equipmentDefectReportsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -14963,7 +14976,7 @@ router.post("/farms/:farmId/grain-quality-tests", requireAuth, requireTenant, re
 router.put("/farms/:farmId/grain-quality-tests/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(grainQualityTestsTable).set(req.body).where(and(eq(grainQualityTestsTable.id, id), eq(grainQualityTestsTable.farmId, farmId))).returning();
+  const [row] = await db.update(grainQualityTestsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(grainQualityTestsTable.id, id), eq(grainQualityTestsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/grain-quality-tests/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -14989,7 +15002,7 @@ router.post("/farms/:farmId/grain-temperature-logs", requireAuth, requireTenant,
 router.put("/farms/:farmId/grain-temperature-logs/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(grainTemperatureLogsTable).set(req.body).where(and(eq(grainTemperatureLogsTable.id, id), eq(grainTemperatureLogsTable.farmId, farmId))).returning();
+  const [row] = await db.update(grainTemperatureLogsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(grainTemperatureLogsTable.id, id), eq(grainTemperatureLogsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/grain-temperature-logs/:id", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -15015,7 +15028,7 @@ router.post("/farms/:farmId/ai-reproduction-records", requireAuth, requireTenant
 router.put("/farms/:farmId/ai-reproduction-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(aiReproductionRecordsTable).set(req.body).where(and(eq(aiReproductionRecordsTable.id, id), eq(aiReproductionRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(aiReproductionRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(aiReproductionRecordsTable.id, id), eq(aiReproductionRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/ai-reproduction-records/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -15041,7 +15054,7 @@ router.post("/farms/:farmId/vet-prescriptions", requireAuth, requireTenant, requ
 router.put("/farms/:farmId/vet-prescriptions/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(vetPrescriptionRecordsTable).set(req.body).where(and(eq(vetPrescriptionRecordsTable.id, id), eq(vetPrescriptionRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(vetPrescriptionRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vetPrescriptionRecordsTable.id, id), eq(vetPrescriptionRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/vet-prescriptions/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -15067,7 +15080,7 @@ router.post("/farms/:farmId/sires", requireAuth, requireTenant, requireModuleByK
 router.put("/farms/:farmId/sires/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(sireRegisterTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(sireRegisterTable.id, id), eq(sireRegisterTable.farmId, farmId))).returning();
+  const [row] = await db.update(sireRegisterTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(sireRegisterTable.id, id), eq(sireRegisterTable.farmId, farmId))).returning();
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/sires/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -15111,7 +15124,7 @@ router.post("/farms/:farmId/straws", requireAuth, requireTenant, requireModuleBy
 router.put("/farms/:farmId/straws/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(strawInventoryTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(strawInventoryTable.id, id), eq(strawInventoryTable.farmId, farmId))).returning();
+  const [row] = await db.update(strawInventoryTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(strawInventoryTable.id, id), eq(strawInventoryTable.farmId, farmId))).returning();
   res.json({ record: row });
 });
 router.delete("/farms/:farmId/straws/:id", requireAuth, requireTenant, requireModuleByKey("livestock-management", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -15137,7 +15150,7 @@ router.post("/farms/:farmId/sfi-agreements", requireAuth, requireTenant, require
 router.put("/farms/:farmId/sfi-agreements/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(sfiAgreementsTable).set(req.body).where(and(eq(sfiAgreementsTable.id, id), eq(sfiAgreementsTable.farmId, farmId))).returning();
+  const [row] = await db.update(sfiAgreementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sfiAgreementsTable.id, id), eq(sfiAgreementsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/sfi-agreements/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -15160,7 +15173,7 @@ router.post("/farms/:farmId/sfi-actions", requireAuth, requireTenant, requireMod
 router.put("/farms/:farmId/sfi-actions/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(sfiActionsTable).set(req.body).where(and(eq(sfiActionsTable.id, id), eq(sfiActionsTable.farmId, farmId))).returning();
+  const [row] = await db.update(sfiActionsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(sfiActionsTable.id, id), eq(sfiActionsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/sfi-actions/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -15186,7 +15199,7 @@ router.post("/farms/:farmId/slurry-stores", requireAuth, requireTenant, requireM
 router.put("/farms/:farmId/slurry-stores/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(slurryStoresTable).set(req.body).where(and(eq(slurryStoresTable.id, id), eq(slurryStoresTable.farmId, farmId))).returning();
+  const [row] = await db.update(slurryStoresTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(slurryStoresTable.id, id), eq(slurryStoresTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/slurry-stores/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -15209,7 +15222,7 @@ router.post("/farms/:farmId/slurry-spreading-records", requireAuth, requireTenan
 router.put("/farms/:farmId/slurry-spreading-records/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(slurrySpreadingRecordsTable).set(req.body).where(and(eq(slurrySpreadingRecordsTable.id, id), eq(slurrySpreadingRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(slurrySpreadingRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(slurrySpreadingRecordsTable.id, id), eq(slurrySpreadingRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/slurry-spreading-records/:id", requireAuth, requireTenant, requireModuleByKey("environmental", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -15371,7 +15384,7 @@ router.put("/farms/:farmId/fuel/tanks/:recordId", requireAuth, requireTenant, re
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(fuelTanksTable).set(req.body).where(and(eq(fuelTanksTable.id, recordId), eq(fuelTanksTable.farmId, farmId))).returning();
+  const [record] = await db.update(fuelTanksTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(fuelTanksTable.id, recordId), eq(fuelTanksTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -15546,7 +15559,7 @@ router.put("/farms/:farmId/energy/meters/:recordId", requireAuth, requireTenant,
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(gridEnergyMetersTable).set(req.body).where(and(eq(gridEnergyMetersTable.id, recordId), eq(gridEnergyMetersTable.farmId, farmId))).returning();
+  const [record] = await db.update(gridEnergyMetersTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(gridEnergyMetersTable.id, recordId), eq(gridEnergyMetersTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -15599,7 +15612,7 @@ router.put("/farms/:farmId/energy/readings/:recordId", requireAuth, requireTenan
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(gridEnergyReadingsTable).set(req.body).where(and(eq(gridEnergyReadingsTable.id, recordId), eq(gridEnergyReadingsTable.farmId, farmId))).returning();
+  const [record] = await db.update(gridEnergyReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(gridEnergyReadingsTable.id, recordId), eq(gridEnergyReadingsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -15663,7 +15676,7 @@ router.put("/farms/:farmId/feed-deliveries/:recordId", requireAuth, requireTenan
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(feedDeliveriesTable).set(req.body).where(and(eq(feedDeliveriesTable.id, recordId), eq(feedDeliveriesTable.farmId, farmId))).returning();
+  const [record] = await db.update(feedDeliveriesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(feedDeliveriesTable.id, recordId), eq(feedDeliveriesTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -15695,7 +15708,7 @@ router.put("/farms/:farmId/feed-stock/:recordId", requireAuth, requireTenant, re
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(feedStockLevelsTable).set(req.body).where(and(eq(feedStockLevelsTable.id, recordId), eq(feedStockLevelsTable.farmId, farmId))).returning();
+  const [record] = await db.update(feedStockLevelsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(feedStockLevelsTable.id, recordId), eq(feedStockLevelsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -15729,7 +15742,7 @@ router.put("/farms/:farmId/feed-stock-targets/:recordId", requireAuth, requireTe
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(feedStockTargetsTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(feedStockTargetsTable.id, recordId), eq(feedStockTargetsTable.farmId, farmId))).returning();
+  const [record] = await db.update(feedStockTargetsTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(feedStockTargetsTable.id, recordId), eq(feedStockTargetsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -15767,7 +15780,7 @@ router.put("/farms/:farmId/feed-purchase-orders/:recordId", requireAuth, require
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(feedPurchaseOrdersTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(feedPurchaseOrdersTable.id, recordId), eq(feedPurchaseOrdersTable.farmId, farmId))).returning();
+  const [record] = await db.update(feedPurchaseOrdersTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(feedPurchaseOrdersTable.id, recordId), eq(feedPurchaseOrdersTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -15966,7 +15979,7 @@ router.put("/farms/:farmId/crop-trials/:trialId/plots/:plotId", requireAuth, req
   if (!farmId) return;
   const plotId = parseInt(req.params.plotId, 10);
   if (isNaN(plotId)) { res.status(400).json({ error: "Invalid plot ID" }); return; }
-  const [record] = await db.update(cropTrialPlotsTable).set(req.body).where(and(eq(cropTrialPlotsTable.id, plotId), eq(cropTrialPlotsTable.farmId, farmId))).returning();
+  const [record] = await db.update(cropTrialPlotsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(cropTrialPlotsTable.id, plotId), eq(cropTrialPlotsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -16106,7 +16119,7 @@ router.put("/farms/:farmId/accident-book/:recordId", requireAuth, requireTenant,
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(accidentBookTable).set(req.body).where(and(eq(accidentBookTable.id, recordId), eq(accidentBookTable.farmId, farmId))).returning();
+  const [record] = await db.update(accidentBookTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(accidentBookTable.id, recordId), eq(accidentBookTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -16159,7 +16172,7 @@ router.post("/farms/:farmId/soil-moisture-readings", requireAuth, requireTenant,
 router.put("/farms/:farmId/soil-moisture-readings/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
   const id = parseInt(req.params.id);
-  const [record] = await db.update(soilMoistureReadingsTable).set(req.body).where(and(eq(soilMoistureReadingsTable.id, id), eq(soilMoistureReadingsTable.farmId, farmId))).returning();
+  const [record] = await db.update(soilMoistureReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(soilMoistureReadingsTable.id, id), eq(soilMoistureReadingsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/soil-moisture-readings/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -16181,7 +16194,7 @@ router.post("/farms/:farmId/drought-management-plans", requireAuth, requireTenan
 });
 router.put("/farms/:farmId/drought-management-plans/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(droughtManagementPlansTable).set(req.body).where(and(eq(droughtManagementPlansTable.id, parseInt(req.params.id)), eq(droughtManagementPlansTable.farmId, farmId))).returning();
+  const [record] = await db.update(droughtManagementPlansTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(droughtManagementPlansTable.id, parseInt(req.params.id)), eq(droughtManagementPlansTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/drought-management-plans/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -16203,7 +16216,7 @@ router.post("/farms/:farmId/cams-annual-returns", requireAuth, requireTenant, re
 });
 router.put("/farms/:farmId/cams-annual-returns/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(camsAnnualReturnsTable).set(req.body).where(and(eq(camsAnnualReturnsTable.id, parseInt(req.params.id)), eq(camsAnnualReturnsTable.farmId, farmId))).returning();
+  const [record] = await db.update(camsAnnualReturnsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(camsAnnualReturnsTable.id, parseInt(req.params.id)), eq(camsAnnualReturnsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/cams-annual-returns/:id", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -16225,7 +16238,7 @@ router.post("/farms/:farmId/renewable-energy-production", requireAuth, requireTe
 });
 router.put("/farms/:farmId/renewable-energy-production/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(renewableEnergyProductionTable).set(req.body).where(and(eq(renewableEnergyProductionTable.id, parseInt(req.params.id)), eq(renewableEnergyProductionTable.farmId, farmId))).returning();
+  const [record] = await db.update(renewableEnergyProductionTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(renewableEnergyProductionTable.id, parseInt(req.params.id)), eq(renewableEnergyProductionTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/renewable-energy-production/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -16247,7 +16260,7 @@ router.post("/farms/:farmId/biodiversity-net-gain", requireAuth, requireTenant, 
 });
 router.put("/farms/:farmId/biodiversity-net-gain/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(biodiversityNetGainTable).set(req.body).where(and(eq(biodiversityNetGainTable.id, parseInt(req.params.id)), eq(biodiversityNetGainTable.farmId, farmId))).returning();
+  const [record] = await db.update(biodiversityNetGainTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(biodiversityNetGainTable.id, parseInt(req.params.id)), eq(biodiversityNetGainTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/biodiversity-net-gain/:id", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -16269,7 +16282,7 @@ router.post("/farms/:farmId/vehicle-weather-readings", requireAuth, requireTenan
 });
 router.put("/farms/:farmId/vehicle-weather-readings/:id", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(vehicleWeatherReadingsTable).set(req.body).where(and(eq(vehicleWeatherReadingsTable.id, parseInt(req.params.id)), eq(vehicleWeatherReadingsTable.farmId, farmId))).returning();
+  const [record] = await db.update(vehicleWeatherReadingsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vehicleWeatherReadingsTable.id, parseInt(req.params.id)), eq(vehicleWeatherReadingsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/vehicle-weather-readings/:id", requireAuth, requireTenant, requireModuleByKey("weather-tracking", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -16572,7 +16585,7 @@ router.post("/farms/:farmId/poultry-biosecurity-checklists", requireAuth, requir
 });
 router.put("/farms/:farmId/poultry-biosecurity-checklists/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(poultryBiosecurityChecklistTable).set(req.body).where(and(eq(poultryBiosecurityChecklistTable.id, parseInt(req.params.id)), eq(poultryBiosecurityChecklistTable.farmId, farmId))).returning();
+  const [record] = await db.update(poultryBiosecurityChecklistTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryBiosecurityChecklistTable.id, parseInt(req.params.id)), eq(poultryBiosecurityChecklistTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/poultry-biosecurity-checklists/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -16594,7 +16607,7 @@ router.post("/farms/:farmId/poultry-scheme-records", requireAuth, requireTenant,
 });
 router.put("/farms/:farmId/poultry-scheme-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(poultrySchemeRecordsTable).set(req.body).where(and(eq(poultrySchemeRecordsTable.id, parseInt(req.params.id)), eq(poultrySchemeRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(poultrySchemeRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultrySchemeRecordsTable.id, parseInt(req.params.id)), eq(poultrySchemeRecordsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/poultry-scheme-records/:id", requireAuth, requireTenant, requireModuleByKey("poultry-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -16703,7 +16716,7 @@ router.post("/farms/:farmId/pig-red-tractor-checklists", requireAuth, requireTen
 });
 router.put("/farms/:farmId/pig-red-tractor-checklists/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = getFarmId(req); if (!farmId) return;
-  const [record] = await db.update(pigRedTractorChecklistTable).set(req.body).where(and(eq(pigRedTractorChecklistTable.id, parseInt(req.params.id)), eq(pigRedTractorChecklistTable.farmId, farmId))).returning();
+  const [record] = await db.update(pigRedTractorChecklistTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigRedTractorChecklistTable.id, parseInt(req.params.id)), eq(pigRedTractorChecklistTable.farmId, farmId))).returning();
   res.json({ record });
 });
 router.delete("/farms/:farmId/pig-red-tractor-checklists/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -16844,7 +16857,7 @@ router.post("/farms/:farmId/grain-sales", requireAuth, requireTenant, requireMod
 router.put("/farms/:farmId/grain-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(grainSalesTable).set(req.body).where(and(eq(grainSalesTable.id, parseInt(req.params.id)), eq(grainSalesTable.farmId, farmId))).returning();
+  const [record] = await db.update(grainSalesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(grainSalesTable.id, parseInt(req.params.id)), eq(grainSalesTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -16871,7 +16884,7 @@ router.post("/farms/:farmId/livestock-deadweight-sales", requireAuth, requireTen
 router.put("/farms/:farmId/livestock-deadweight-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(livestockDeadweightSalesTable).set(req.body).where(and(eq(livestockDeadweightSalesTable.id, parseInt(req.params.id)), eq(livestockDeadweightSalesTable.farmId, farmId))).returning();
+  const [record] = await db.update(livestockDeadweightSalesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockDeadweightSalesTable.id, parseInt(req.params.id)), eq(livestockDeadweightSalesTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -16898,7 +16911,7 @@ router.post("/farms/:farmId/livestock-mart-sales", requireAuth, requireTenant, r
 router.put("/farms/:farmId/livestock-mart-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(livestockMartSalesTable).set(req.body).where(and(eq(livestockMartSalesTable.id, parseInt(req.params.id)), eq(livestockMartSalesTable.farmId, farmId))).returning();
+  const [record] = await db.update(livestockMartSalesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(livestockMartSalesTable.id, parseInt(req.params.id)), eq(livestockMartSalesTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -16925,7 +16938,7 @@ router.post("/farms/:farmId/milk-statements", requireAuth, requireTenant, requir
 router.put("/farms/:farmId/milk-statements/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(milkStatementsTable).set(req.body).where(and(eq(milkStatementsTable.id, parseInt(req.params.id)), eq(milkStatementsTable.farmId, farmId))).returning();
+  const [record] = await db.update(milkStatementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(milkStatementsTable.id, parseInt(req.params.id)), eq(milkStatementsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -16952,7 +16965,7 @@ router.post("/farms/:farmId/poultry-batch-settlements", requireAuth, requireTena
 router.put("/farms/:farmId/poultry-batch-settlements/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(poultryBatchSettlementsTable).set(req.body).where(and(eq(poultryBatchSettlementsTable.id, parseInt(req.params.id)), eq(poultryBatchSettlementsTable.farmId, farmId))).returning();
+  const [record] = await db.update(poultryBatchSettlementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(poultryBatchSettlementsTable.id, parseInt(req.params.id)), eq(poultryBatchSettlementsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -16979,7 +16992,7 @@ router.post("/farms/:farmId/egg-sales", requireAuth, requireTenant, requireModul
 router.put("/farms/:farmId/egg-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(eggSalesTable).set(req.body).where(and(eq(eggSalesTable.id, parseInt(req.params.id)), eq(eggSalesTable.farmId, farmId))).returning();
+  const [record] = await db.update(eggSalesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(eggSalesTable.id, parseInt(req.params.id)), eq(eggSalesTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -17006,7 +17019,7 @@ router.post("/farms/:farmId/pig-kill-records", requireAuth, requireTenant, requi
 router.put("/farms/:farmId/pig-kill-records/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(pigKillRecordsTable).set(req.body).where(and(eq(pigKillRecordsTable.id, parseInt(req.params.id)), eq(pigKillRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(pigKillRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(pigKillRecordsTable.id, parseInt(req.params.id)), eq(pigKillRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -17033,7 +17046,7 @@ router.post("/farms/:farmId/direct-sales", requireAuth, requireTenant, requireMo
 router.put("/farms/:farmId/direct-sales/:id", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(directSalesRecordsTable).set(req.body).where(and(eq(directSalesRecordsTable.id, parseInt(req.params.id)), eq(directSalesRecordsTable.farmId, farmId))).returning();
+  const [record] = await db.update(directSalesRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(directSalesRecordsTable.id, parseInt(req.params.id)), eq(directSalesRecordsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -17301,7 +17314,7 @@ router.put("/farms/:farmId/feed-contingency-plan", requireAuth, requireTenant, r
   const [existing] = await db.select({ id: feedContingencyPlansTable.id }).from(feedContingencyPlansTable).where(eq(feedContingencyPlansTable.farmId, farmId));
   let plan;
   if (existing) {
-    [plan] = await db.update(feedContingencyPlansTable).set({ ...req.body, farmId, updatedAt: new Date() }).where(eq(feedContingencyPlansTable.id, existing.id)).returning();
+    [plan] = await db.update(feedContingencyPlansTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), farmId, updatedAt: new Date() }).where(eq(feedContingencyPlansTable.id, existing.id)).returning();
   } else {
     [plan] = await db.insert(feedContingencyPlansTable).values({ ...req.body, farmId }).returning();
   }
@@ -17324,7 +17337,7 @@ router.post("/farms/:farmId/feed-recalls", requireAuth, requireTenant, requireMo
 router.put("/farms/:farmId/feed-recalls/:id", requireAuth, requireTenant, requireModuleByKey("feed-management", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(feedRecallIncidentsTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(feedRecallIncidentsTable.id, parseInt(req.params.id)), eq(feedRecallIncidentsTable.farmId, farmId))).returning();
+  const [record] = await db.update(feedRecallIncidentsTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(feedRecallIncidentsTable.id, parseInt(req.params.id)), eq(feedRecallIncidentsTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
@@ -17435,7 +17448,7 @@ router.post("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requ
   router.put("/farms/:farmId/disease-incidents/:id", requireAuth, requireTenant, requireModuleByKey("biosecurity", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.update(diseaseIncidentLogTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(diseaseIncidentLogTable.id, parseInt(req.params.id)), eq(diseaseIncidentLogTable.farmId, farmId))).returning();
+  const [record] = await db.update(diseaseIncidentLogTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(diseaseIncidentLogTable.id, parseInt(req.params.id)), eq(diseaseIncidentLogTable.farmId, farmId))).returning();
   if (!record) { res.status(404).json({ error: "Not found" }); return; }
   const mortalityIds = parseMortalityIds(req.body.mortalityAnimalIds);
   if (mortalityIds.length > 0) {
@@ -17543,7 +17556,7 @@ router.put("/farms/:farmId/bcms-credentials", requireAuth, requireTenant, async 
   if (!farmId) return;
   const { ctwsUsername, ctwsPassword, holdingNumber } = req.body as { ctwsUsername?: string; ctwsPassword?: string; holdingNumber?: string };
   const [existing] = await db.select().from(bcmsFarmCredentialsTable).where(eq(bcmsFarmCredentialsTable.farmId, farmId));
-  const passwordToStore = ctwsPassword ? Buffer.from(ctwsPassword, "utf-8").toString("base64") : existing?.ctwsPasswordEncrypted;
+  const passwordToStore = ctwsPassword ? encryptCredential(ctwsPassword) : existing?.ctwsPasswordEncrypted;
   const data = {
     ctwsUsername: ctwsUsername ?? existing?.ctwsUsername,
     ctwsPasswordEncrypted: passwordToStore,
@@ -17575,7 +17588,7 @@ router.post("/farms/:farmId/bcms-credentials/test", requireAuth, requireTenant, 
   if (!farmId) return;
   const [creds] = await db.select().from(bcmsFarmCredentialsTable).where(eq(bcmsFarmCredentialsTable.farmId, farmId));
   if (!creds?.isConfigured) { res.status(400).json({ error: "No credentials configured" }); return; }
-  const password = Buffer.from(creds.ctwsPasswordEncrypted ?? "", "base64").toString("utf-8");
+  const password = decryptCredential(creds.ctwsPasswordEncrypted ?? "");
   const result = await testConnection({ ctwsUsername: creds.ctwsUsername!, ctwsPassword: password, holdingNumber: creds.holdingNumber! });
   const testStatus = result.success ? "ok" : "failed";
   await db.update(bcmsFarmCredentialsTable).set({ testStatus, testMessage: result.errorMessage ?? (result.sandbox ? "Sandbox test passed" : "Connection successful"), lastTestedAt: new Date() }).where(eq(bcmsFarmCredentialsTable.farmId, farmId));
@@ -17602,7 +17615,7 @@ router.post("/farms/:farmId/bcms-submit/:movementId", requireAuth, requireTenant
   const [creds] = await db.select().from(bcmsFarmCredentialsTable).where(eq(bcmsFarmCredentialsTable.farmId, farmId));
   if (!creds?.isConfigured) { res.status(400).json({ error: "BCMS credentials not configured. Go to Farm Settings → BCMS / CTS Integration to set up your credentials." }); return; }
 
-  const password = Buffer.from(creds.ctwsPasswordEncrypted ?? "", "base64").toString("utf-8");
+  const password = decryptCredential(creds.ctwsPasswordEncrypted ?? "");
   const typeMap: Record<string, "movement_on" | "movement_off" | "birth" | "death"> = { on: "movement_on", off: "movement_off", birth: "birth", death: "death" };
   const submissionType = typeMap[movement.movementType] ?? "movement_on";
 
@@ -17680,7 +17693,7 @@ router.put("/farms/:farmId/lis-credentials", requireAuth, requireTenant, async (
   if (!farmId) return;
   const { lisUsername, lisPassword } = req.body as { lisUsername?: string; lisPassword?: string };
   const [existing] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
-  const passwordToStore = lisPassword ? Buffer.from(lisPassword, "utf-8").toString("base64") : existing?.lisPasswordEncrypted;
+  const passwordToStore = lisPassword ? encryptCredential(lisPassword) : existing?.lisPasswordEncrypted;
   const data = {
     lisUsername: lisUsername ?? existing?.lisUsername,
     lisPasswordEncrypted: passwordToStore,
@@ -17714,7 +17727,7 @@ router.post("/farms/:farmId/lis-credentials/test", requireAuth, requireTenant, a
     res.status(400).json({ success: false, message: "LIS credentials not configured. Please enter your username and password first." });
     return;
   }
-  const password = Buffer.from(creds.lisPasswordEncrypted ?? "", "base64").toString("utf-8");
+  const password = decryptCredential(creds.lisPasswordEncrypted ?? "");
   const result = await testLisConnection(creds.lisUsername!, password);
 
   await db.update(lisFarmTokensTable).set({
@@ -17784,7 +17797,7 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
   const submissionType = typeMap[movement.movementType] ?? "movement_off";
   const movDate = movement.movementDate ? new Date(movement.movementDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
 
-  const password = creds?.lisPasswordEncrypted ? Buffer.from(creds.lisPasswordEncrypted, "base64").toString("utf-8") : "";
+  const password = creds?.lisPasswordEncrypted ? decryptCredential(creds.lisPasswordEncrypted) : "";
 
   // Refresh token if expired or not present
   let accessToken = creds?.accessToken ?? undefined;
@@ -17874,7 +17887,7 @@ router.put("/farms/:farmId/farm-customers/:id", requireAuth, requireTenant, asyn
   const farmId = req.tenantId!;
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(farmCustomersTable).set(req.body).where(and(eq(farmCustomersTable.id, id), eq(farmCustomersTable.farmId, farmId))).returning();
+  const [record] = await db.update(farmCustomersTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(farmCustomersTable.id, id), eq(farmCustomersTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -17903,7 +17916,7 @@ router.put("/farms/:farmId/service-agreements/:id", requireAuth, requireTenant, 
   const farmId = req.tenantId!;
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(serviceAgreementsTable).set(req.body).where(and(eq(serviceAgreementsTable.id, id), eq(serviceAgreementsTable.farmId, farmId))).returning();
+  const [record] = await db.update(serviceAgreementsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(serviceAgreementsTable.id, id), eq(serviceAgreementsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -17932,7 +17945,7 @@ router.put("/farms/:farmId/grain-intakes/:id", requireAuth, requireTenant, async
   const farmId = req.tenantId!;
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(thirdPartyGrainIntakesTable).set(req.body).where(and(eq(thirdPartyGrainIntakesTable.id, id), eq(thirdPartyGrainIntakesTable.farmId, farmId))).returning();
+  const [record] = await db.update(thirdPartyGrainIntakesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(thirdPartyGrainIntakesTable.id, id), eq(thirdPartyGrainIntakesTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -17978,7 +17991,7 @@ router.get("/farms/:farmId/record-attachments", requireAuth, requireTenant, asyn
   const { recordType, recordId } = req.query;
   if (!recordType || !recordId) { res.status(400).json({ error: "recordType and recordId are required" }); return; }
   const rows = await db.select().from(farmRecordAttachmentsTable)
-    .where(and(eq(farmRecordAttachmentsTable.farmId, farmId), eq(farmRecordAttachmentsTable.recordType, String(recordType)), eq(farmRecordAttachmentsTable.recordId, parseInt(String(recordId)))))
+    .where(and(eq(farmRecordAttachmentsTable.farmId, farmId), eq(farmRecordAttachmentsTable.recordType, String(recordType)), eq(farmRecordAttachmentsTable.recordId, parseInt(String(recordId))), isNull(farmRecordAttachmentsTable.deletedAt)))
     .orderBy(farmRecordAttachmentsTable.uploadedAt);
   res.json(rows);
 });
@@ -18003,7 +18016,7 @@ router.delete("/farms/:farmId/record-attachments/:id", requireAuth, requireTenan
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const id = parseInt(req.params.id);
-  await db.delete(farmRecordAttachmentsTable).where(and(eq(farmRecordAttachmentsTable.id, id), eq(farmRecordAttachmentsTable.farmId, farmId)));
+  await db.update(farmRecordAttachmentsTable).set({ deletedAt: new Date() }).where(and(eq(farmRecordAttachmentsTable.id, id), eq(farmRecordAttachmentsTable.farmId, farmId), isNull(farmRecordAttachmentsTable.deletedAt)));
   res.json({ success: true });
 });
 
@@ -18017,7 +18030,7 @@ router.get("/farms/:farmId/record-attachments/counts", requireAuth, requireTenan
       count: sql<number>`cast(count(*) as int)`,
     })
     .from(farmRecordAttachmentsTable)
-    .where(eq(farmRecordAttachmentsTable.farmId, farmId))
+    .where(and(eq(farmRecordAttachmentsTable.farmId, farmId), isNull(farmRecordAttachmentsTable.deletedAt)))
     .groupBy(farmRecordAttachmentsTable.recordType, farmRecordAttachmentsTable.recordId);
   res.json(rows);
 });
@@ -18054,7 +18067,7 @@ router.put("/farms/:farmId/service-invoices/:id", requireAuth, requireTenant, as
   const farmId = req.tenantId!;
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(serviceInvoicesTable).set(req.body).where(and(eq(serviceInvoicesTable.id, id), eq(serviceInvoicesTable.farmId, farmId))).returning();
+  const [record] = await db.update(serviceInvoicesTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(serviceInvoicesTable.id, id), eq(serviceInvoicesTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -18252,7 +18265,7 @@ router.post("/farms/:farmId/shooting-records", requireAuth, requireTenant, requi
 router.put("/farms/:farmId/shooting-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(shootingAndGameRecordsTable).set(req.body).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId))).returning();
+  const [row] = await db.update(shootingAndGameRecordsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(shootingAndGameRecordsTable.id, id), eq(shootingAndGameRecordsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/shooting-records/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -18275,7 +18288,7 @@ router.post("/farms/:farmId/food-hygiene-inspections", requireAuth, requireTenan
 router.put("/farms/:farmId/food-hygiene-inspections/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [row] = await db.update(farmShopHygieneInspectionsTable).set(req.body).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId))).returning();
+  const [row] = await db.update(farmShopHygieneInspectionsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(farmShopHygieneInspectionsTable.id, id), eq(farmShopHygieneInspectionsTable.farmId, farmId))).returning();
   res.json(row);
 });
 router.delete("/farms/:farmId/food-hygiene-inspections/:id", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "delete"), async (req: Request, res: Response): Promise<void> => {
@@ -18532,7 +18545,7 @@ router.put("/farms/:farmId/equipment-hire/:id", requireAuth, requireTenant, asyn
   const farmId = req.tenantId!;
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(equipmentHireBookingsTable).set({ ...req.body, updatedAt: new Date() }).where(and(eq(equipmentHireBookingsTable.id, id), eq(equipmentHireBookingsTable.farmId, farmId))).returning();
+  const [record] = await db.update(equipmentHireBookingsTable).set({ ...sanitiseBody(req.body as Record<string, unknown>), updatedAt: new Date() }).where(and(eq(equipmentHireBookingsTable.id, id), eq(equipmentHireBookingsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 

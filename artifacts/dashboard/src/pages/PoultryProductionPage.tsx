@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DocAttach } from "@/components/DocAttach";
 import { Plus, Pencil, Trash2, Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, Star, Truck, UtensilsCrossed, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, CheckCircle2, XCircle, Circle, Eye } from "lucide-react";
@@ -21,9 +22,15 @@ const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]) {
   if (!rows.length) return;
-  const header = cols.map(c => `"${c.label}"`).join(",");
-  const body = rows.map(r => cols.map(c => `"${String(c.fmt ? c.fmt(r) : (r[c.key] ?? "")).replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob([header + "\n" + body], { type: "text/csv" });
+  const header = cols.map(c => `"${c.label.replace(/"/g, '""')}"`).join(",");
+  const body = rows.map(r =>
+    cols.map(c => {
+      const raw = c.fmt ? c.fmt(r) : String(r[c.key] ?? "");
+      const safe = sanitiseCsvCell(raw);
+      return `"${safe.replace(/"/g, '""')}"`;
+    }).join(",")
+  ).join("\n");
+  const blob = new Blob(["\uFEFF" + header + "\n" + body], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
 }

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -27,9 +28,9 @@ type ExportFn = () => void;
 function downloadCsv(filename: string, rows: (string | number | null | undefined)[][]) {
   const content = rows.map(r =>
     r.map(cell => {
-      const s = String(cell ?? "");
-      return s.includes(",") || s.includes('"') || s.includes("\n")
-        ? `"${s.replace(/"/g, '""')}"` : s;
+      const safe = sanitiseCsvCell(cell);
+      return safe.includes(",") || safe.includes('"') || safe.includes("\n")
+        ? `"${safe.replace(/"/g, '""')}"` : safe;
     }).join(",")
   ).join("\n");
   const blob = new Blob(["\uFEFF" + content, ""], { type: "text/csv;charset=utf-8;" });

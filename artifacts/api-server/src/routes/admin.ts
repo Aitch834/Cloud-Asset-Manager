@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable } from "@workspace/db";
+import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable } from "@workspace/db";
 import { eq, and, count, desc, sql, asc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
@@ -7,6 +7,29 @@ import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../li
 import { fetchInbox, fetchEmail, markAsRead, markAsUnread, deleteEmail, isImapConfigured } from "../lib/imap";
 
 const router: IRouter = Router();
+
+// ─── Audit Log Helper ─────────────────────────────────────────────────────────
+
+async function writeAuditLog(
+  actorUserId: string,
+  action: string,
+  metadata?: Record<string, unknown>,
+  targetTenantId?: number,
+  targetFarmId?: number,
+): Promise<void> {
+  try {
+    await db.insert(platformAuditLogTable).values({
+      actorUserId,
+      action,
+      targetTenantId: targetTenantId ?? null,
+      targetFarmId: targetFarmId ?? null,
+      metadata: metadata ?? null,
+    });
+  } catch (err) {
+    // Never let audit log failures surface to the user — log and continue.
+    console.error("[audit] Failed to write audit log:", err);
+  }
+}
 
 async function checkPlatformAdmin(req: Request, res: Response): Promise<boolean> {
   if (req.isSuperAdmin) return true;
@@ -332,10 +355,17 @@ router.post("/admin/sql", requireAuth, async (req: Request, res: Response): Prom
     const rows = result.rows as Record<string, unknown>[];
     const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
 
+    // Audit every SQL query run by an admin — do not await, fire-and-forget.
+    void writeAuditLog(req.userId!, "sql_query", {
+      query: cleanQuery,
+      rowCount: rows.length,
+      durationMs,
+    });
+
     res.json({ columns, rows, rowCount: rows.length, durationMs, limited: rows.length === safeLimit });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Query failed.";
-    res.status(400).json({ error: msg });
+    console.error("[admin/sql] query error:", err);
+    res.status(400).json({ error: "Query failed. Check the server logs for details." });
   }
 });
 
@@ -353,6 +383,13 @@ router.post("/admin/impersonate", requireAuth, async (req: Request, res: Respons
     res.status(404).json({ error: "User not found" });
     return;
   }
+
+  // Audit the impersonation — this is a high-value event.
+  void writeAuditLog(req.userId!, "impersonate", {
+    impersonatedUserId: targetUser.id,
+    impersonatedEmail: targetUser.email,
+    tenantId,
+  }, typeof tenantId === "number" ? tenantId : undefined);
 
   res.json({
     impersonation: {
@@ -483,7 +520,7 @@ router.get("/admin/inbox", requireAuth, async (req: Request, res: Response): Pro
     res.json({ emails });
   } catch (err) {
     console.error("[IMAP] fetchInbox error:", err);
-    res.status(502).json({ error: `IMAP error: ${err instanceof Error ? err.message : String(err)}` });
+    res.status(502).json({ error: "Unable to connect to mail server. Check server logs for details." });
   }
 });
 
@@ -498,7 +535,7 @@ router.get("/admin/inbox/:uid", requireAuth, async (req: Request, res: Response)
     res.json({ email });
   } catch (err) {
     console.error("[IMAP] fetchEmail error:", err);
-    res.status(502).json({ error: `IMAP error: ${err instanceof Error ? err.message : String(err)}` });
+    res.status(502).json({ error: "Failed to fetch email. Check server logs for details." });
   }
 });
 
@@ -519,7 +556,7 @@ router.patch("/admin/inbox/:uid/read", requireAuth, async (req: Request, res: Re
     res.json({ ok: true });
   } catch (err) {
     console.error("[IMAP] markAsRead error:", err);
-    res.status(502).json({ error: `IMAP error: ${err instanceof Error ? err.message : String(err)}` });
+    res.status(502).json({ error: "Failed to update email status. Check server logs for details." });
   }
 });
 
@@ -531,10 +568,11 @@ router.delete("/admin/inbox/:uid", requireAuth, async (req: Request, res: Respon
 
   try {
     await deleteEmail(uid);
+    void writeAuditLog(req.userId!, "email_delete", { uid });
     res.json({ deleted: true });
   } catch (err) {
     console.error("[IMAP] deleteEmail error:", err);
-    res.status(502).json({ error: `IMAP error: ${err instanceof Error ? err.message : String(err)}` });
+    res.status(502).json({ error: "Failed to delete email. Check server logs for details." });
   }
 });
 
@@ -577,7 +615,7 @@ router.post("/admin/inbox/:uid/reply", requireAuth, async (req: Request, res: Re
     }
   } catch (err) {
     console.error("[IMAP] reply error:", err);
-    res.status(502).json({ error: `Error: ${err instanceof Error ? err.message : String(err)}` });
+    res.status(502).json({ error: "Failed to send reply. Check server logs for details." });
   }
 });
 

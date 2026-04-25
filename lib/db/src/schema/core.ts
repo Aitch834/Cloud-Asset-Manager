@@ -279,4 +279,23 @@ export const farmRecordAttachmentsTable = pgTable("farm_record_attachments", {
   notes: text("notes"),
   uploadedByName: text("uploaded_by_name"),
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+});
+
+// ── Platform admin audit log ──
+// Records every sensitive action taken in the admin portal.
+// Rows are append-only — no updates or deletes should ever be performed on this table.
+export const platformAuditLogTable = pgTable("platform_audit_log", {
+  id: serial("id").primaryKey(),
+  // The admin user who performed the action (Clerk userId).
+  actorUserId: text("actor_user_id").notNull(),
+  // Human-readable action name, e.g. "sql_query", "impersonate", "email_delete".
+  action: varchar("action", { length: 100 }).notNull(),
+  // Optional: which tenant or farm this action relates to.
+  targetTenantId: integer("target_tenant_id"),
+  targetFarmId: integer("target_farm_id"),
+  // Freeform metadata (SQL text, email UID, impersonated userId, etc.).
+  metadata: jsonb("metadata"),
+  // UTC timestamp of the action.
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
