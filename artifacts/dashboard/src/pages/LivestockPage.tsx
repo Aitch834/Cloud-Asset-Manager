@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle, FileText, Upload, Paperclip, QrCode, Eye, FlaskConical, ClipboardCheck, Clock, ListChecks, BookOpen, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import { Plus, Search, Loader2, Pencil, Trash2, ClipboardList, Stethoscope, CheckCircle2, Printer, AlertTriangle, Package, Droplets, XCircle, FileText, Upload, Paperclip, QrCode, Eye, FlaskConical, ClipboardCheck, Clock, ListChecks, BookOpen, ChevronDown, ChevronUp, RotateCcw, FileDown } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useUpload } from "@workspace/object-storage-web";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -5196,6 +5196,67 @@ function LambingSection({ farmId }: { farmId: number }) {
 
   const records = data?.records ?? [];
 
+  function generateLambingReport() {
+    const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const fmtD = (v: unknown) => v ? new Date(v as string).toLocaleDateString("en-GB") : "—";
+    const fv2 = (v: unknown) => (v === null || v === undefined || v === "") ? "—" : String(v);
+    const easeLabel = (n?: number | null) => n ? ["", "1 — Unassisted", "2 — Easy assist", "3 — Hard assist", "4 — Vet/caesarean"][n] ?? String(n) : "—";
+    const yesNo = (v: boolean | null | undefined) => v === true ? "Yes" : v === false ? "No" : "—";
+    const litterLabel = (n?: number | null) => n === 1 ? "Single" : n === 2 ? "Twins" : n === 3 ? "Triplets" : n === 4 ? "Quads" : fv2(n);
+
+    const tableRows = records.map(r => {
+      const outcomes = [
+        r.lambOutcome1 ? `${r.lambOutcome1} (${r.lambSex1 ?? "?"}) ${r.lambEarTag1 ? `[${r.lambEarTag1}]` : ""}` : null,
+        r.lambOutcome2 ? `${r.lambOutcome2} (${r.lambSex2 ?? "?"}) ${r.lambEarTag2 ? `[${r.lambEarTag2}]` : ""}` : null,
+        r.lambOutcome3 ? `${r.lambOutcome3} (${r.lambSex3 ?? "?"}) ${r.lambEarTag3 ? `[${r.lambEarTag3}]` : ""}` : null,
+        r.lambOutcome4 ? `${r.lambOutcome4} (${r.lambSex4 ?? "?"}) ${r.lambEarTag4 ? `[${r.lambEarTag4}]` : ""}` : null,
+      ].filter(Boolean).join("; ");
+      const liveCount = [r.lambOutcome1, r.lambOutcome2, r.lambOutcome3, r.lambOutcome4].filter(o => o === "live").length;
+      const deadCount = [r.lambOutcome1, r.lambOutcome2, r.lambOutcome3, r.lambOutcome4].filter(o => o === "stillborn" || o === "died-within-24h").length;
+      return `<tr>
+        <td>${fmtD(r.lambingDate)}</td>
+        <td>${fv2(r.eweEarTag)}</td>
+        <td>${easeLabel(r.lambingEaseScore)}</td>
+        <td>${litterLabel(r.numberOfLambs)}</td>
+        <td style="font-size:9px">${outcomes || "—"}</td>
+        <td>${liveCount} live${deadCount ? ` / ${deadCount} dead` : ""}</td>
+        <td>${yesNo(r.colostrumGivenWithin2Hours)}</td>
+        <td>${yesNo(r.assistanceRequired)}</td>
+        <td>${yesNo(r.vetAttended)}</td>
+        <td>${r.fosteringRequired ? `Yes — ${fv2(r.fosteringDetails).slice(0, 40)}` : "No"}</td>
+        <td style="color:#888;font-size:9px">${fv2(r.notes).slice(0, 60)}</td>
+      </tr>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html><html><head><title>Lambing Records — Red Tractor Sheep Assurance</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
+  h1{font-size:14px;margin:0 0 2px}h2{font-size:11px;margin:0 0 12px;color:#555}
+  .hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
+  .hdr-r{text-align:right;font-size:9px;color:#555;line-height:1.8}
+  table{width:100%;border-collapse:collapse;margin-bottom:16px}
+  th{background:#f9fafb;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #e5e7eb;text-align:left}
+  td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top;font-size:10px}
+  tr:nth-child(even) td{background:#fafafa}
+  .note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
+  @media print{@page{margin:1.5cm;size:landscape}}
+</style></head><body>
+<div class="hdr">
+  <div><h1>Lambing Records</h1><h2>Red Tractor Sheep Assurance — Compliance Report</h2></div>
+  <div class="hdr-r"><b>${records.length} record${records.length !== 1 ? "s" : ""}</b><br>Printed: ${printedDate}</div>
+</div>
+<table>
+  <thead><tr>
+    <th>Date</th><th>Ewe Tag</th><th>Ease Score</th><th>Litter</th><th>Lamb Outcomes / Tags</th>
+    <th>Alive/Dead</th><th>Colostrum ≤2h</th><th>Assisted</th><th>Vet</th><th>Fostering</th><th>Notes</th>
+  </tr></thead>
+  <tbody>${tableRows}</tbody>
+</table>
+<p class="note">This lambing records report is produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). Retain for a minimum of 3 years and make available for inspection at Red Tractor Sheep Assurance audit. Printed: ${printedDate}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -5203,7 +5264,10 @@ function LambingSection({ farmId }: { farmId: number }) {
           <p className="text-sm text-gray-500 mb-1">Lambing records including ease score, up to 4 lambs, colostrum, fostering, and automatic registration of live lambs in the flock register.</p>
           <p className="text-xs text-gray-400">Red Tractor Sheep Assurance: lambing performance must be recorded and available at audit.</p>
         </div>
-        <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Lambing</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={generateLambingReport}><FileDown className="h-4 w-4 mr-1" />Audit Report</Button>
+          <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Lambing</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">

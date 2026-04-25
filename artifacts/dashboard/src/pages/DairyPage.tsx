@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Eye, Droplets, Thermometer } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, Eye, Droplets, Thermometer, FileDown } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { openPrintWindow } from "@/lib/print-report";
 
 const BASE = import.meta.env.BASE_URL;
 const api = (path: string) => `${BASE}api/${path}`;
@@ -562,11 +563,71 @@ function CalvingTab({ farmId }: { farmId: number }) {
   }
   function set(k: keyof CalvingRecord, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
 
+  function generateCalvingReport() {
+    const records = data?.records ?? [];
+    const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const fmtD = (v: unknown) => v ? new Date(v as string).toLocaleDateString("en-GB") : "—";
+    const fv2 = (v: unknown) => (v === null || v === undefined || v === "") ? "—" : String(v);
+    const easeLabel = (n?: number | null) => n ? ["", "1 — Unassisted", "2 — Easy pull", "3 — Hard pull", "4 — Mech. assistance", "5 — C-section"][n] ?? String(n) : "—";
+    const yesNo = (v: boolean | null | undefined) => v === true ? "Yes" : v === false ? "No" : "—";
+
+    const rows = records.map(r => {
+      const calves = r.numberOfCalves && r.numberOfCalves > 1
+        ? `${r.calfOutcome ?? "—"} (${r.calfSex ?? "?"}) ${r.calfEarTag ?? ""} + ${r.calfOutcome2 ?? "—"} (${r.calfSex2 ?? "?"}) ${r.calfEarTag2 ?? ""}`
+        : `${r.calfOutcome ?? "—"} · ${r.calfSex === "male" ? "Bull" : r.calfSex === "female" ? "Heifer" : r.calfSex ?? "?"} · ${r.calfEarTag ?? "no tag"}`;
+      return `<tr>
+        <td>${fmtD(r.calvingDate)}</td>
+        <td>${fv2(r.cowEarTag)}</td>
+        <td>${easeLabel(r.calvingEaseScore)}</td>
+        <td>${r.numberOfCalves ?? 1} calf${(r.numberOfCalves ?? 1) > 1 ? "ves" : ""}</td>
+        <td>${calves}</td>
+        <td>${r.calfBirthWeightKg ? `${r.calfBirthWeightKg} kg` : "—"}</td>
+        <td>${yesNo(r.colostrumGivenWithin2Hours)} / ${yesNo(r.colostrumGivenWithin6Hours)}</td>
+        <td>${r.colostrumVolumeFirstFeedLitres ? `${r.colostrumVolumeFirstFeedLitres} L` : "—"}</td>
+        <td>${yesNo(r.assistanceRequired)}</td>
+        <td>${yesNo(r.vetAttended)}</td>
+        <td>${yesNo(r.bcmsPassportApplied)}</td>
+        <td style="color:#888;font-size:9px">${fv2(r.notes).slice(0, 80)}</td>
+      </tr>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html><html><head><title>Calving Records — Red Tractor Dairy Audit</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:20px}
+  h1{font-size:14px;margin:0 0 2px}h2{font-size:11px;margin:0 0 12px;color:#555}
+  .hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px}
+  .hdr-r{text-align:right;font-size:9px;color:#555;line-height:1.8}
+  table{width:100%;border-collapse:collapse;margin-bottom:16px}
+  th{background:#f9fafb;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border:1px solid #e5e7eb;text-align:left}
+  td{padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top;font-size:10px}
+  tr:nth-child(even) td{background:#fafafa}
+  .note{font-size:8px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
+  @media print{@page{margin:1.5cm;size:landscape}}
+</style></head><body>
+<div class="hdr">
+  <div><h1>Calving Records</h1><h2>Red Tractor Dairy Scheme — Compliance Report</h2></div>
+  <div class="hdr-r"><b>${records.length} record${records.length !== 1 ? "s" : ""}</b><br>Printed: ${printedDate}</div>
+</div>
+<table>
+  <thead><tr>
+    <th>Date</th><th>Dam Tag</th><th>Ease Score</th><th>No. Calves</th><th>Calf Outcome / Tag</th>
+    <th>Birth Wt</th><th>Colostrum ≤2h / ≤6h</th><th>Col. Volume</th><th>Assisted</th><th>Vet</th><th>BCMS Applied</th><th>Notes</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<p class="note">This calving records report is produced by BDE Farm Trac (Barnett Davies Enterprises Ltd). Retain for a minimum of 3 years and make available for inspection at Red Tractor Dairy audit. Printed: ${printedDate}</p>
+</body></html>`;
+    openPrintWindow(html);
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
         <p className="text-sm text-gray-500">Calving records including ease score, calf details, colostrum management, and BCMS passport application.</p>
-        <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Calving</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={generateCalvingReport}><FileDown className="h-4 w-4 mr-1" />Audit Report</Button>
+          <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Calving</Button>
+        </div>
       </div>
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">

@@ -1721,3 +1721,35 @@ export interface ThirdPartyGrainOutloadingMobile {
   createdAt: string;
   synced: boolean;
 }
+
+export interface LambingRecord {
+  id: string;
+  farmId: string;
+  eweEarTag: string;
+  lambingDate: string;
+  lambingEaseScore: number;
+  numberOfLambs: number;
+  lambOutcome1: string;
+  lambSex1: string;
+  lambEarTag1: string;
+  lambOutcome2: string;
+  lambSex2: string;
+  lambEarTag2: string;
+  lambOutcome3: string;
+  lambSex3: string;
+  lambEarTag3: string;
+  lambOutcome4: string;
+  lambSex4: string;
+  lambEarTag4: string;
+  colostrumGivenWithin2Hours: boolean;
+  assistanceRequired: boolean;
+  vetAttended: boolean;
+  fosteringRequired: boolean;
+  fosteringDetails: string;
+  attendedBy: string;
+  notes: string;
+  latitude: number | null;
+  longitude: number | null;
+  createdAt: string;
+  synced: boolean;
+}

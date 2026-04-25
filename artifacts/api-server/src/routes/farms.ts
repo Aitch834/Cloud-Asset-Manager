@@ -8904,6 +8904,51 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>Every AI record linked to a straw batch carries the batch number, supplier, and donor details. If a health concern arises with calves or lambs from a particular sire, you can immediately identify every animal served from that batch and the corresponding AI dates — satisfying the traceability requirements of both Red Tractor and Johne's disease control programmes.</p>`,
     },
     {
+      id: 10051,
+      title: "Lambing Records — Red Tractor Sheep Assurance",
+      category: "Livestock",
+      modules: ["livestock-management"],
+      content: `<img src="/api/help-images/livestock.png" alt="Lambing Records" style="width:100%;border-radius:8px;margin-bottom:20px;border:1px solid #e5e7eb;" />
+
+<p>Lambing records are a core requirement under <strong>Red Tractor Sheep Assurance</strong>. They demonstrate that lambing performance is being actively monitored, that colostrum management protocols are in place, and that welfare interventions (assistance, vet attendance, fostering) are being documented. Every lambing event — including stillbirths and assisted deliveries — must be recorded and retained for a minimum of three years.</p>
+
+<h3>Recording a Lambing Event</h3>
+<p>Open the <strong>Livestock</strong> page from the sidebar and select the <strong>Lambing</strong> tab. Click <em>Add Lambing</em>. Complete the following fields:</p>
+<ul>
+<li><strong>Ewe Ear Tag:</strong> The ewe's UK ear tag or flock-mark number.</li>
+<li><strong>Lambing Date:</strong> The actual date of birth.</li>
+<li><strong>Lambing Ease Score (1–4):</strong>
+  <ul>
+    <li>1 — Unassisted (ewe lambed without intervention)</li>
+    <li>2 — Easy assistance (minor repositioning, one person)</li>
+    <li>3 — Hard assistance (mechanical aid or multiple staff required)</li>
+    <li>4 — Vet required / caesarean section</li>
+  </ul>
+  Monitoring ease scores over time helps identify ewes with recurring difficulty and supports decisions about culling or mating management.
+</li>
+<li><strong>Litter Size:</strong> Single, Twins, Triplets, or Quads.</li>
+<li><strong>Per-lamb details:</strong> For each lamb, record the outcome (live, stillborn, died within 24 hours), sex, and ear tag (once applied). Lambs with a live outcome and an ear tag entered are automatically registered in the flock register.</li>
+</ul>
+
+<h3>Colostrum Management</h3>
+<p>All lambs must receive adequate colostrum within the first two hours of life. This is both a welfare best practice and a Red Tractor requirement. Record the <em>Colostrum given within 2 hours</em> toggle for every live lamb. Where colostrum cannot be obtained from the ewe (e.g. poor milk let-down, mastitis, death of ewe), record the alternative source in the notes.</p>
+
+<h3>Fostering Records</h3>
+<p>Where lambs are transferred to a foster ewe, use the <em>Fostering required</em> toggle and record the details. Foster records demonstrate that litter sizes are being managed to ensure adequate colostrum and milk access, which is assessed under welfare inspections. Both the donor litter and receiving ewe records should reference the fostering event.</p>
+
+<h3>Assistance and Vet Attendance</h3>
+<p>Use the <em>Assistance required</em> and <em>Vet attended</em> toggles to record interventions. Ewes that required score 3 or 4 assistance should be flagged for veterinary health plan review — especially if they are repeat offenders. High rates of difficult lambings may indicate poor ewe body condition, over-fat ewes, or breed selection issues.</p>
+
+<h3>Audit Report</h3>
+<p>Click the <strong>Audit Report</strong> button at the top of the Lambing tab to generate a printable PDF-ready lambing records report. The report is formatted for Red Tractor audit evidence and includes all ease scores, litter outcomes, colostrum management, fostering, and assistance data. Retain printed copies alongside your digital records.</p>
+
+<h3>Mobile App</h3>
+<p>The <strong>Lambing Record</strong> form in the mobile app's Record tab lets you capture all lambing data at the lambing pen or field, immediately after birth. Data saves offline and syncs to the dashboard once you have a connection.</p>
+
+<h3>Red Tractor Context</h3>
+<p>Red Tractor Sheep Assurance assessors review lambing records to confirm that ease scores are being recorded, that colostrum protocols are documented, and that veterinary interventions are noted. BDE Farm Trac's lambing records provide a timestamped, auditable log of every birth event with full litter, welfare, and management evidence attached.</p>`,
+    },
+    {
       id: 10027,
       title: "Vet Prescriptions & Medicines — Red Tractor Requirements",
       category: "Livestock",

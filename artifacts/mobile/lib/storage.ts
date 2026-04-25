@@ -159,6 +159,7 @@ export const STORAGE_KEYS = {
   FUEL_DRAWDOWNS: "bde_fuel_drawdowns",
   FUEL_TANK_DELIVERIES: "bde_fuel_tank_deliveries",
   PIG_FARROWING_RECORDS: "bde_pig_farrowing_records",
+  LAMBING_RECORDS: "bde_lambing_records",
   POULTRY_THINNING_RECORDS: "bde_poultry_thinning_records",
   AI_REPRODUCTION_RECORDS: "bde_ai_reproduction_records",
   VET_PRESCRIPTIONS: "bde_vet_prescriptions",

@@ -26,14 +26,14 @@ import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PigFarrowingRecord } from "@/lib/types";
 
-type FarrowingEase = PigFarrowingRecord["farrowingEase"];
+type FarrowingEase = string;
 type BCS = PigFarrowingRecord["sowConditionScore"];
 
 const FARROWING_EASE: { key: FarrowingEase; label: string; color: string }[] = [
-  { key: "easy", label: "Easy — unassisted", color: colors.success },
-  { key: "assisted", label: "Assisted — minor intervention", color: colors.primary },
-  { key: "difficult", label: "Difficult — significant intervention", color: colors.accent },
-  { key: "caesarean", label: "Caesarean section", color: colors.error },
+  { key: "1 — Unassisted", label: "1 — Unassisted (no help needed)", color: colors.success },
+  { key: "2 — Minor assistance", label: "2 — Minor assistance (1 person)", color: colors.primary },
+  { key: "3 — Major assistance", label: "3 — Major assistance (mechanical / multiple staff)", color: colors.accent },
+  { key: "4 — Vet required", label: "4 — Vet required / caesarean", color: colors.error },
 ];
 
 const BCS_OPTIONS: { key: BCS; label: string }[] = [
@@ -60,7 +60,7 @@ export default function PigFarrowingScreen() {
   const [stillborn, setStillborn] = useState("");
   const [mummified, setMummified] = useState("");
   const [avgBirthWeightKg, setAvgBirthWeightKg] = useState("");
-  const [farrowingEase, setFarrowingEase] = useState<FarrowingEase>("easy");
+  const [farrowingEase, setFarrowingEase] = useState<FarrowingEase>("1 — Unassisted");
   const [colostrum, setColostrum] = useState(true);
   const [sowBcs, setSowBcs] = useState<BCS>("3");
   const [attendedBy, setAttendedBy] = useState(user?.name || "");

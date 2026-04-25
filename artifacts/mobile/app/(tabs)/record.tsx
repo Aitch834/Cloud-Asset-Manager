@@ -280,6 +280,17 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["livestock"],
   },
   {
+    id: "lambing-record",
+    title: "Lambing Record",
+    description: "Record birth details, lambing ease score, up to 4 lambs, colostrum management, and fostering — Red Tractor Sheep Assurance required",
+    icon: "sun",
+    color: "#16a34a",
+    bgColor: "#d1fae5",
+    route: "/lambing-record",
+    moduleKeys: ["livestock-management"],
+    requiresSectors: ["livestock"],
+  },
+  {
     id: "mortality-record",
     title: "Animal Mortality Record",
     description: "Log individual animal deaths — cause, disposal method, BCMS notification and vet attendance",
