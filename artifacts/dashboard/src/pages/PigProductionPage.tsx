@@ -897,6 +897,8 @@ interface FarrowingRecord {
   farrowingEase?: string | null;
   assistanceRequired?: boolean | null;
   assistanceDetails?: string | null;
+  vetAttended?: boolean | null;
+  vetName?: string | null;
   colostrumManaged?: boolean | null;
   notes?: string | null;
 }
@@ -925,14 +927,32 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<FarrowingRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<FarrowingRecord | null>(null);
   const [form, setForm] = useState<Partial<FarrowingRecord>>(EMPTY);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [showManualVet, setShowManualVet] = useState(false);
+  const CURRENT_YEAR = new Date().getFullYear();
+  const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
 
   const { data, isLoading } = useQuery<FarrowingRecord[]>({
     queryKey: ["pig-farrowing", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/pig-farrowing-records`), { credentials: "include" }).then(r => r.json()),
   });
-  const records: FarrowingRecord[] = Array.isArray(data) ? data : [];
+  const allRecords: FarrowingRecord[] = Array.isArray(data) ? data : [];
+  const records = yearFilter === "all" ? allRecords : allRecords.filter(r => r.farrowingDate?.startsWith(yearFilter));
+
+  const vetVisitsQ = useQuery<{ records: Array<{ id: number; vetName: string; vetPractice?: string | null }> }>({
+    queryKey: ["farrowing-vet-visits", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}/vet-visits`), { credentials: "include" }).then(r => r.json()),
+    enabled: open && !!form.vetAttended,
+  });
+  const uniqueVetNames = [...new Set((vetVisitsQ.data?.records ?? []).map(v => v.vetName).filter(Boolean))] as string[];
+  const vetPracticeMap = Object.fromEntries(
+    (vetVisitsQ.data?.records ?? []).filter(v => v.vetName && v.vetPractice).map(v => [v.vetName, v.vetPractice])
+  );
+
+  const availableYears = [...new Set(allRecords.map(r => r.farrowingDate?.slice(0, 4)).filter(Boolean))].sort((a, b) => Number(b) - Number(a)) as string[];
+  if (!availableYears.includes(String(CURRENT_YEAR))) availableYears.unshift(String(CURRENT_YEAR));
 
   const save = useMutation({
     mutationFn: (body: Partial<FarrowingRecord>) => {
@@ -946,9 +966,9 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-farrowing", farmId] }); setConfirmDelete(null); },
   });
 
-  function closeDialog() { setOpen(false); setEditing(null); setForm(EMPTY); }
-  function openAdd() { setEditing(null); setForm({ ...EMPTY, farrowingDate: todayStr }); setOpen(true); }
-  function openEdit(r: FarrowingRecord) { setEditing(r); setForm({ ...r }); setOpen(true); }
+  function closeDialog() { setOpen(false); setEditing(null); setForm(EMPTY); setShowManualVet(false); }
+  function openAdd() { setEditing(null); setForm({ ...EMPTY, farrowingDate: todayStr }); setShowManualVet(false); setOpen(true); }
+  function openEdit(r: FarrowingRecord) { setEditing(r); setForm({ ...r }); setShowManualVet(!!(r.vetAttended && r.vetName && !uniqueVetNames.includes(r.vetName ?? ""))); setOpen(true); }
   function set<K extends keyof FarrowingRecord>(k: K, v: unknown) { setForm(f => ({ ...f, [k]: v })); }
 
   const totalBorn = (r: FarrowingRecord) => (r.totalBornAlive || 0) + (r.totalBornDead || 0) + (r.totalMummified || 0);
@@ -961,11 +981,18 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <p className="text-sm text-gray-500 mb-1">Litter-level farrowing records — born alive/dead, fostering, avg birth weight, weaning performance, and sow assistance. Required for Red Tractor Pigs Standard compliance.</p>
+      <div className="flex justify-between items-center mb-4 gap-3">
+        <p className="text-sm text-gray-500">Litter-level farrowing records — born alive/dead, fostering, avg birth weight, weaning performance, and sow assistance. Required for Red Tractor Pigs Standard compliance.</p>
+        <div className="flex items-center gap-2 shrink-0">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {availableYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+              <SelectItem value="all">All years</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Farrowing</Button>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Log Farrowing</Button>
       </div>
 
       {isLoading ? <Loader2 className="animate-spin w-5 h-5 text-gray-400" /> : (
@@ -1041,8 +1068,10 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
                           {r.colostrumManaged ? "Colostrum ✓" : "Colostrum not confirmed"}
                         </span>
                       )}
+                      {r.vetAttended && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Vet: {r.vetName || "attended"}</span>}
                     </div>
                     <div className="flex gap-1 ml-2">
+                      <button className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></button>
                       <button className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></button>
                       <button className="p-1 rounded hover:bg-gray-100 text-red-300 hover:text-red-600" onClick={() => setConfirmDelete(r.id)}><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
@@ -1053,6 +1082,41 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
             );
           })}
         </div>
+      )}
+
+      {/* View dialog */}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "44rem" }} className="max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Farrowing Record — {viewRecord.sowEarTag}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 py-2 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Farrowing Date</p><p className="font-medium">{fmtDate(viewRecord.farrowingDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Sow Ear Tag</p><p className="font-medium font-mono">{viewRecord.sowEarTag}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Breed</p><p className="font-medium">{viewRecord.sowBreed || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Parity</p><p className="font-medium">{viewRecord.parityNumber === 1 ? "1 — Gilt" : viewRecord.parityNumber ? `Parity ${viewRecord.parityNumber}` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Farrowing Ease</p><p className="font-medium">{viewRecord.farrowingEase || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Born Alive</p><p className="font-medium">{viewRecord.totalBornAlive}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Born Dead</p><p className="font-medium">{viewRecord.totalBornDead}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Mummified</p><p className="font-medium">{viewRecord.totalMummified}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fosters In</p><p className="font-medium">{viewRecord.fostersIn}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fosters Out</p><p className="font-medium">{viewRecord.fostersOut}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Birth Weight</p><p className="font-medium">{viewRecord.averageBirthWeightKg ? `${viewRecord.averageBirthWeightKg} kg` : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Colostrum Managed</p><p className="font-medium">{viewRecord.colostrumManaged === true ? "Yes ✓" : viewRecord.colostrumManaged === false ? "Not confirmed" : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assistance Required</p><p className="font-medium">{viewRecord.assistanceRequired ? "Yes" : "No"}</p></div>
+              {viewRecord.assistanceDetails && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Assistance Details</p><p className="font-medium">{viewRecord.assistanceDetails}</p></div>}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Attended</p><p className="font-medium">{viewRecord.vetAttended ? "Yes" : "No"}</p></div>
+              {viewRecord.vetAttended && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Name</p><p className="font-medium">{viewRecord.vetName || "—"}</p></div>}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Weaning Date</p><p className="font-medium">{viewRecord.weaningDate ? fmtDate(viewRecord.weaningDate) : "Not yet weaned"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Piglets Weaned</p><p className="font-medium">{viewRecord.pigletsWeanedCount ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Weaning Weight</p><p className="font-medium">{viewRecord.averageWeaningWeightKg ? `${viewRecord.averageWeaningWeightKg} kg` : "—"}</p></div>
+              {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Confirm delete */}
@@ -1183,6 +1247,40 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
                   <div>
                     <Label>Assistance Details</Label>
                     <Textarea value={form.assistanceDetails || ""} onChange={e => set("assistanceDetails", e.target.value)} rows={3} placeholder="e.g. 2 piglets presented incorrectly, manual repositioning required. Vet not needed." />
+                  </div>
+                )}
+              </div>
+
+              {/* Vet Attendance */}
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vet Attendance</p>
+                <div className="flex items-center gap-2">
+                  <Checkbox id="farr-vet" checked={!!form.vetAttended} onCheckedChange={v => { set("vetAttended", !!v); if (!v) { set("vetName", null); setShowManualVet(false); } }} />
+                  <Label htmlFor="farr-vet" className="text-sm">Vet attended this farrowing</Label>
+                </div>
+                {form.vetAttended && (
+                  <div className="space-y-2">
+                    <Label>Vet Name <span className="text-xs text-gray-400">(for invoice reconciliation)</span></Label>
+                    {!showManualVet && uniqueVetNames.length > 0 ? (
+                      <div className="flex gap-2">
+                        <Select value={form.vetName || "__none__"} onValueChange={v => set("vetName", v === "__none__" ? null : v)}>
+                          <SelectTrigger className="flex-1"><SelectValue placeholder="Select from Vet Ledger…" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— Select vet —</SelectItem>
+                            {uniqueVetNames.map(n => (
+                              <SelectItem key={n} value={n}>{n}{vetPracticeMap[n] ? ` — ${vetPracticeMap[n]}` : ""}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button variant="outline" size="sm" onClick={() => setShowManualVet(true)}>Enter manually</Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Input value={form.vetName || ""} onChange={e => set("vetName", e.target.value)} placeholder="Vet name…" className="flex-1" />
+                        {uniqueVetNames.length > 0 && <Button variant="outline" size="sm" onClick={() => setShowManualVet(false)}>Use ledger</Button>}
+                      </div>
+                    )}
+                    <p className="text-xs text-blue-600">Vet name is matched against the Vet Ledger for invoice reconciliation.</p>
                   </div>
                 )}
               </div>

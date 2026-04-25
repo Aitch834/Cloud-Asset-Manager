@@ -155,6 +155,8 @@ export const pigFarrowingRecordsTable = pgTable("pig_farrowing_records", {
   farrowingEase: text("farrowing_ease"),
   assistanceRequired: boolean("assistance_required").default(false),
   assistanceDetails: text("assistance_details"),
+  vetAttended: boolean("vet_attended").notNull().default(false),
+  vetName: text("vet_name"),
   colostrumManaged: boolean("colostrum_managed").default(true),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

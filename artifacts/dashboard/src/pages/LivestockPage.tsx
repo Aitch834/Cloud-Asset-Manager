@@ -5136,10 +5136,13 @@ function LambingSection({ farmId }: { farmId: number }) {
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<LambingRecord | null>(null);
+  const [viewRecord, setViewRecord] = useState<LambingRecord | null>(null);
   const [form, setForm] = useState<Partial<LambingRecord>>(EMPTY);
   const [showManualEwe, setShowManualEwe] = useState(false);
   const [showManualVet, setShowManualVet] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const CURRENT_YEAR = new Date().getFullYear();
+  const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
 
   const { data, isLoading } = useQuery<{ records: LambingRecord[] }>({
     queryKey: ["lambing-records", farmId],
@@ -5161,12 +5164,15 @@ function LambingSection({ farmId }: { farmId: number }) {
   });
   const ramSires = (siresQ.data?.records ?? []).filter(s => s.isActive !== false && ["sheep", "ovine"].includes(s.species?.toLowerCase()));
 
-  const vetVisitsQ = useQuery<{ records: Array<{ id: number; vetName: string }> }>({
+  const vetVisitsQ = useQuery<{ records: Array<{ id: number; vetName: string; vetPractice?: string | null }> }>({
     queryKey: ["lambing-vet-visits", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/vet-visits`, { credentials: "include" }).then(r => r.json()),
     enabled: open && !!form.vetAttended,
   });
   const uniqueVetNames = [...new Set((vetVisitsQ.data?.records ?? []).map(v => v.vetName).filter(Boolean))] as string[];
+  const vetPracticeMap = Object.fromEntries(
+    (vetVisitsQ.data?.records ?? []).filter(v => v.vetName && v.vetPractice).map(v => [v.vetName, v.vetPractice])
+  );
 
   const save = useMutation({
     mutationFn: (body: Partial<LambingRecord>) => {
@@ -5194,7 +5200,10 @@ function LambingSection({ farmId }: { farmId: number }) {
 
   const numLambs = form.numberOfLambs ?? 1;
 
-  const records = data?.records ?? [];
+  const allRecords = data?.records ?? [];
+  const records = yearFilter === "all" ? allRecords : allRecords.filter(r => r.lambingDate?.startsWith(yearFilter));
+  const availableYears = [...new Set(allRecords.map(r => r.lambingDate?.slice(0, 4)).filter(Boolean))].sort((a, b) => Number(b) - Number(a)) as string[];
+  if (!availableYears.includes(String(CURRENT_YEAR))) availableYears.unshift(String(CURRENT_YEAR));
 
   function generateLambingReport() {
     const printedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -5259,12 +5268,19 @@ function LambingSection({ farmId }: { farmId: number }) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 gap-3">
         <div>
           <p className="text-sm text-gray-500 mb-1">Lambing records including ease score, up to 4 lambs, colostrum, fostering, and automatic registration of live lambs in the flock register.</p>
           <p className="text-xs text-gray-400">Red Tractor Sheep Assurance: lambing performance must be recorded and available at audit.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {availableYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+              <SelectItem value="all">All years</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={generateLambingReport}><FileDown className="h-4 w-4 mr-1" />Audit Report</Button>
           <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Lambing</Button>
         </div>
@@ -5298,9 +5314,10 @@ function LambingSection({ farmId }: { farmId: number }) {
                           {r.colostrumGivenWithin2Hours ? "Colostrum ≤2h ✓" : "Colostrum >2h"}
                         </span>
                       )}
-                      {r.vetAttended && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Vet attended</span>}
+                      {r.vetAttended && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{r.vetName ? `Vet: ${r.vetName}` : "Vet attended"}</span>}
                     </div>
                     <div className="flex gap-1 ml-2">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewRecord(r)}><Eye className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => setConfirmDelete(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
@@ -5311,6 +5328,44 @@ function LambingSection({ farmId }: { farmId: number }) {
             );
           })}
         </div>
+      )}
+
+      {/* View dialog */}
+      {viewRecord && (
+        <Dialog open onOpenChange={() => setViewRecord(null)}>
+          <DialogContent style={{ maxWidth: "44rem" }} className="max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Lambing Record — {viewRecord.eweEarTag || `Record #${viewRecord.id}`}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-3 py-2 text-sm">
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Lambing Date</p><p className="font-medium">{formatDate(viewRecord.lambingDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Ewe Ear Tag</p><p className="font-medium font-mono">{viewRecord.eweEarTag || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Ease Score</p><p className="font-medium">{viewRecord.lambingEaseScore ? ["", "1 — Unassisted", "2 — Easy assist", "3 — Hard assist", "4 — Vet/caesarean"][viewRecord.lambingEaseScore] ?? viewRecord.lambingEaseScore : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Number of Lambs</p><p className="font-medium">{viewRecord.numberOfLambs === 1 ? "Single" : viewRecord.numberOfLambs === 2 ? "Twins" : viewRecord.numberOfLambs === 3 ? "Triplets" : "Quads"} ({viewRecord.numberOfLambs})</p></div>
+              {[1, 2, 3, 4].slice(0, viewRecord.numberOfLambs ?? 1).map(n => {
+                const outcome = viewRecord[`lambOutcome${n}` as keyof LambingRecord] as string | null;
+                const sex = viewRecord[`lambSex${n}` as keyof LambingRecord] as string | null;
+                const tag = viewRecord[`lambEarTag${n}` as keyof LambingRecord] as string | null;
+                const wt = viewRecord[`lambBirthWeightKg${n}` as keyof LambingRecord] as string | null;
+                if (!outcome) return null;
+                return (
+                  <div key={n} className="col-span-2 bg-gray-50 rounded p-2">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Lamb {n}</p>
+                    <p className="text-sm">{outcome}{sex ? ` · ${sex}` : ""}{tag ? ` · Tag: ${tag}` : ""}{wt ? ` · ${wt} kg` : ""}</p>
+                  </div>
+                );
+              })}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Assistance Required</p><p className="font-medium">{viewRecord.assistanceRequired ? "Yes" : "No"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Attended</p><p className="font-medium">{viewRecord.vetAttended ? "Yes" : "No"}</p></div>
+              {viewRecord.vetAttended && <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Vet Name</p><p className="font-medium">{viewRecord.vetName || "—"}</p></div>}
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Colostrum ≤2h</p><p className="font-medium">{viewRecord.colostrumGivenWithin2Hours === true ? "Yes ✓" : viewRecord.colostrumGivenWithin2Hours === false ? "No" : "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Fostering Required</p><p className="font-medium">{viewRecord.fosteringRequired ? "Yes" : "No"}</p></div>
+              {viewRecord.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes}</p></div>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Confirm delete */}
@@ -5460,7 +5515,7 @@ function LambingSection({ farmId }: { farmId: number }) {
                         <SelectTrigger><SelectValue placeholder="Select vet..." /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">Not specified</SelectItem>
-                          {uniqueVetNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                          {uniqueVetNames.map(n => <SelectItem key={n} value={n}>{n}{vetPracticeMap[n] ? ` — ${vetPracticeMap[n]}` : ""}</SelectItem>)}
                           <SelectItem value="__manual__">Enter name manually…</SelectItem>
                         </SelectContent>
                       </Select>

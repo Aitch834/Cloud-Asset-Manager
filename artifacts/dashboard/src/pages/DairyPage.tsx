@@ -503,6 +503,8 @@ function CalvingTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Partial<CalvingRecord>>({});
   const [showManualEarTag, setShowManualEarTag] = useState(false);
   const [showManualVet, setShowManualVet] = useState(false);
+  const CURRENT_YEAR = new Date().getFullYear();
+  const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
 
   const { data, isLoading } = useQuery<{ records: CalvingRecord[] }>({
     queryKey: ["dairy-calving", farmId],
@@ -519,12 +521,15 @@ function CalvingTab({ farmId }: { farmId: number }) {
     CATTLE_SPECIES.includes(a.species?.toLowerCase()) && a.status === "active" && a.earTagNumber
   );
 
-  const vetVisitsQ = useQuery<{ records: Array<{ id: number; vetName: string }> }>({
+  const vetVisitsQ = useQuery<{ records: Array<{ id: number; vetName: string; vetPractice?: string | null }> }>({
     queryKey: ["calving-vet-visits", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/vet-visits`), { credentials: "include" }).then(r => r.json()),
     enabled: open && !!form.vetAttended,
   });
   const uniqueVetNames = [...new Set((vetVisitsQ.data?.records ?? []).map(v => v.vetName).filter(Boolean))] as string[];
+  const vetPracticeMap = Object.fromEntries(
+    (vetVisitsQ.data?.records ?? []).filter(v => v.vetName && v.vetPractice).map(v => [v.vetName, v.vetPractice])
+  );
 
   const siresQ = useQuery<{ records: Array<{ id: number; name: string; breed?: string | null; tagNumber?: string | null; species: string; isActive?: boolean | null }> }>({
     queryKey: ["calving-sires", farmId],
@@ -622,17 +627,30 @@ function CalvingTab({ farmId }: { farmId: number }) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
+      {(() => {
+        const allCalvingRecords = data?.records ?? [];
+        const calvingRecords = yearFilter === "all" ? allCalvingRecords : allCalvingRecords.filter(r => r.calvingDate?.startsWith(yearFilter));
+        const calvingYears = [...new Set(allCalvingRecords.map(r => r.calvingDate?.slice(0, 4)).filter(Boolean))].sort((a, b) => Number(b) - Number(a)) as string[];
+        if (!calvingYears.includes(String(CURRENT_YEAR))) calvingYears.unshift(String(CURRENT_YEAR));
+        return (<>
+      <div className="flex justify-between items-center mb-4 gap-3">
         <p className="text-sm text-gray-500">Calving records including ease score, calf details, colostrum management, and BCMS passport application.</p>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {calvingYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+              <SelectItem value="all">All years</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={generateCalvingReport}><FileDown className="h-4 w-4 mr-1" />Audit Report</Button>
           <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" />Add Calving</Button>
         </div>
       </div>
       {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-gray-400" /> : (
         <div className="space-y-2">
-          {(!data?.records?.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No calving records yet.</CardContent></Card>}
-          {data?.records?.map(r => (
+          {(!calvingRecords.length) && <Card><CardContent className="py-8 text-center text-gray-400 text-sm">No calving records yet.</CardContent></Card>}
+          {calvingRecords.map(r => (
             <Card key={r.id}>
               <CardContent className="py-3 px-4">
                 <div className="flex items-center justify-between">
@@ -672,6 +690,7 @@ function CalvingTab({ farmId }: { farmId: number }) {
           ))}
         </div>
       )}
+        </>); })()}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent style={{ maxWidth: "62rem" }}>
           <DialogHeader><DialogTitle>{editing ? "Edit Calving Record" : "Add Calving Record"}</DialogTitle></DialogHeader>
@@ -767,7 +786,7 @@ function CalvingTab({ farmId }: { farmId: number }) {
                           <SelectTrigger><SelectValue placeholder="Select vet..." /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="__none__">Not specified</SelectItem>
-                            {uniqueVetNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                            {uniqueVetNames.map(n => <SelectItem key={n} value={n}>{n}{vetPracticeMap[n] ? ` — ${vetPracticeMap[n]}` : ""}</SelectItem>)}
                             <SelectItem value="__manual__">Enter new vet name…</SelectItem>
                           </SelectContent>
                         </Select>
