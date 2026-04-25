@@ -16,8 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink, ClipboardList } from "lucide-react";
-import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
+import { Plus, Search, Trash2, Droplets, FlaskConical, Wind, Thermometer, ChevronDown, ChevronRight, Printer, Pencil, ShieldAlert, Link2, ExternalLink } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 
 const SPRAY_PIE_COLOURS = ["#7c3aed","#16a34a","#f59e0b","#ef4444","#3b82f6","#14b8a6","#f97316","#84cc16"];
@@ -255,7 +254,6 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [raiseTaskSpray, setRaiseTaskSpray] = useState<any>(null);
   const emptyForm = { fieldId: "", productId: "", applicationDate: "", applicationRate: "", rateUnit: "L/ha", areaSprayedHa: "", waterVolumeLitres: "", windSpeedKmh: "", windDirection: "", temperatureC: "", operatorName: "", operatorMemberId: "", certificateNumber: "", equipmentUsed: "", equipmentId: "", supplierId: "", reasonForApplication: "", batchNumber: "", lotNumber: "", stockDeliveryId: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const [weatherAutoFilled, setWeatherAutoFilled] = useState(false);
@@ -460,9 +458,6 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
                     </td>
                     <td style={{ padding: "0.5rem" }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
-                        <button onClick={() => setRaiseTaskSpray(r)} style={{ background: "none", border: "1px solid #d1d5db", borderRadius: 4, cursor: "pointer", color: "#6366f1", padding: "2px 6px", display: "flex", alignItems: "center", gap: 2, fontSize: "0.7rem", fontWeight: 500 }} title="Raise spray task">
-                          <ClipboardList size={11} />Task
-                        </button>
                         <button onClick={() => openEdit(r)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Edit"><Pencil size={13} /></button>
                         <button onClick={() => setDeleteId(r.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#d1d5db", padding: 4 }} title="Delete"><Trash2 size={14} /></button>
                       </div>
@@ -764,18 +759,6 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
         </DialogContent>
       </Dialog>
 
-      {raiseTaskSpray && (
-        <RaiseTaskDialog
-          farmId={farmId}
-          open={!!raiseTaskSpray}
-          onClose={() => setRaiseTaskSpray(null)}
-          defaultTitle={`Apply ${raiseTaskSpray.productName || "product"} to ${raiseTaskSpray.fieldName || "field"}`}
-          defaultDescription={raiseTaskSpray.reasonForApplication ? `Reason: ${raiseTaskSpray.reasonForApplication}` : ""}
-          defaultDueDate={raiseTaskSpray.applicationDate ? String(raiseTaskSpray.applicationDate).slice(0, 10) : ""}
-          taskType="spray_assignment"
-          module="Spray Records"
-        />
-      )}
     </>
   );
 }
