@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "u5PV2CPpbAZ3SN6WcbL7r"
+uri = "file://threat_model.md"
+type = "text"
+title = "BDE Farm Trac — Threat Model"
